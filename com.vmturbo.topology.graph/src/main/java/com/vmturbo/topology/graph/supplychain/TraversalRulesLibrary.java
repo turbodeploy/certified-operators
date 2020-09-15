@@ -2,7 +2,6 @@ package com.vmturbo.topology.graph.supplychain;
 
 import java.util.List;
 import java.util.Queue;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -26,29 +25,29 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
     /**
      * Chain of all the rules.
      */
-    private final List<TraversalRule<E>> ruleChain =
+    private List<TraversalRule<E>> ruleChain =
             ImmutableList.of(
                 // special rule for PMs
                     // if not in the seed, do not traverse to storage
                     // if going up, include VDCs, but do not traverse from them
-                    // always include the DC, but do not traverse further from it
+                    // always include the DC, but do not traverse further from it TODO: remove as part of OM-51365
                 new PMRule<>(),
 
                 // special rule for storage
                     // traverse to consuming PMs and the related DC, but do not allow
                     // further traversal from them
-                    // do *not* traverse to providing PMs (this accommodates vSAN topologies,
+                    // do *not* traverse to providing PMs (this accomodates vSAN topologies,
                     // in which PMs can be providers to storage)
                 new StorageRule<>(),
 
                 // special rule for VMs and Container Pods
                     // special treatment for related VDCs
                     // (traverse them, but do not continue traversal from them)
-                new VMPodRule<>(),
+                new VMPodAggregatorRule<>(),
 
-                // when a DC is in the seed add all consuming PMs in the seed
-                    // this makes DC an aggregator of PMs, even if this relation
-                    // is not explicit in the topology graph
+                // patch for DCs, because aggregation
+                    // is not yet introduced on-prem
+                    // TODO: remove as part of OM-51365
                 new DCRule<>(),
 
                 // never traverse from parent to child account
@@ -100,7 +99,7 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
      *
      * <p>When a PM is traversed:
      * <ul>
-     *     <li>Include all neighboring DCs
+     *     <li>Include all neighboring DCs (TODO: will not be needed after OM-51365)
      *     </li>
      *     <li>Do not traverse to storage (unless the PM is in the seed)
      *     </li>
@@ -119,115 +118,128 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
         }
 
         @Override
-        protected Stream<TraversalState.Builder> include(
-                @Nonnull E entity, @Nonnull TraversalMode traversalMode) {
-            // a connected DC is an aggregator
-            final Stream<TraversalState.Builder> dcAsAggregator =
-                    entity.getProviders().stream()
-                        .filter(e -> e.getEntityType() == EntityType.DATACENTER_VALUE)
-                        .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.AGGREGATED_BY));
+        protected Stream<E> getFilteredAggregators(@Nonnull E entity,
+                                                   @Nonnull TraversalMode traversalMode) {
+            final Stream<E> dcsAndTrueAggregators = // TODO, remove as part of OM-51365
+                    Stream.concat(super.getFilteredProviders(entity, traversalMode)
+                                        .filter(e -> e.getEntityType() == EntityType.DATACENTER_VALUE),
+                                  super.getFilteredAggregators(entity, traversalMode));
 
-            // if going "up", we should include VDCs in the traversal,
-            // but we should not continue traversing from them
-            // the same happens with STORAGEs here because in the VSAN case,
-            // we want to show the Storages consuming from a host but not the VMs
-            // consuming from the Storages
+            // if going "up" treat VDCs as aggregators (i.e., include in the traversal
+            // but do not keep traversing from them)
+            // we also add STORAGEs here because in the VSAN case, we want to show the Storages
+            // consuming from a host but not the VMs consuming from the Storages
             if (traversalMode == TraversalMode.PRODUCES || traversalMode == TraversalMode.START) {
-                return Stream.concat(
-                        dcAsAggregator,
-                        entity.getConsumers().stream()
-                            .filter(e -> e.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE
-                                            || e.getEntityType() == EntityType.STORAGE_VALUE)
-                            .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP)));
+                return Stream.concat(super.getFilteredConsumers(entity, traversalMode)
+                                            .filter(e -> e.getEntityType()
+                                                        == EntityType.VIRTUAL_DATACENTER_VALUE
+                                                    || e.getEntityType()
+                                                        == EntityType.STORAGE_VALUE),
+                                     dcsAndTrueAggregators);
             } else {
-                return dcAsAggregator;
+                return dcsAndTrueAggregators;
             }
         }
 
         @Override
-        protected Predicate<E> filter(@Nonnull E entity,
-                                      @Nonnull EdgeTraversalDescription edgeTraversalDescription,
-                                      boolean seed) {
-            switch (edgeTraversalDescription) {
-                case DOWN:
-                    // if PM is not in the seed, then ignore storage
-                    if (seed) {
-                        return e -> true;
-                    } else {
-                        return e -> e.getEntityType() != EntityType.STORAGE_VALUE;
-                    }
-                case UP:
-                    return e -> e.getEntityType() != EntityType.VIRTUAL_DATACENTER_VALUE
-                                    && e.getEntityType() != EntityType.STORAGE_VALUE;
-                default:
-                    return e -> true;
+        protected Stream<E> getFilteredProviders(@Nonnull E entity,
+                                                 @Nonnull TraversalMode traversalMode) {
+            if (traversalMode == TraversalMode.START) {
+                return super.getFilteredProviders(entity, traversalMode);
             }
+
+            // if PM is not in the seed, then ignore storage
+            return super.getFilteredProviders(entity, traversalMode)
+                        .filter(e -> e.getEntityType() != EntityType.STORAGE_VALUE);
+        }
+
+        @Override
+        protected Stream<E> getFilteredConsumers(@Nonnull E entity,
+                                                 @Nonnull TraversalMode traversalMode) {
+            // ignore VDCs, because they are treated as aggregators
+            // ignore Storage consumers because these only occur in VSAN and get treated as
+            // aggregators
+            return super.getFilteredConsumers(entity, traversalMode)
+                        .filter(e -> e.getEntityType() != EntityType.VIRTUAL_DATACENTER_VALUE)
+                        .filter(e -> e.getEntityType() != EntityType.STORAGE_VALUE);
         }
     }
 
     /**
-     * Entities that fall under this rule are VMs, container pods,
-     * and desktop pools. They must treat related VDCs in a special way:
-     * they should allow traversal to related VDCs but disallow any
-     * further traversal from there on.
+     * Entities that fall under this rule are VMs and container pods.
+     * They must treat related VDCs in a special way: they should
+     * allow traversal to related VDCs but disallow any further traversal
+     * from there on.
      * This rule also adds in a condition specific to traversal of VMs
      * which have consumer pods which also consume cloud volumes.
      *
+     * <p>This effect is achieved by using {@link DefaultTraversalRule},
+     *    but treating VDCs as aggregators.</p>
+     *
      * @param <E> The type of {@link TopologyGraphEntity} in the graph.
      */
-    private static class VMPodRule<E extends TopologyGraphEntity<E>>
+    private static class VMPodAggregatorRule<E extends TopologyGraphEntity<E>>
             extends DefaultTraversalRule<E> {
         @Override
         public boolean isApplicable(@Nonnull final E entity, @Nonnull final TraversalMode traversalMode) {
             return entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
-                        || entity.getEntityType() == EntityType.CONTAINER_POD_VALUE
-                        || (entity.getEntityType() == EntityType.DESKTOP_POOL_VALUE
-                                && traversalMode != TraversalMode.START);
+                        || entity.getEntityType() == EntityType.CONTAINER_POD_VALUE;
         }
 
         @Override
-        protected Predicate<E> filter(@Nonnull E entity,
-                                      @Nonnull EdgeTraversalDescription edgeTraversalDescription,
-                                      boolean seed) {
-            // we want to filter only for edges going down the supply chain
-            if (edgeTraversalDescription != EdgeTraversalDescription.DOWN) {
-                return e -> true;
+        protected Stream<E> getFilteredAggregators(@Nonnull E entity,
+                                                   @Nonnull TraversalMode traversalMode) {
+            // VDCs to be treated as aggregators
+            final Stream<E> vdcAggregators;
+            if (traversalMode == TraversalMode.CONSUMES) {
+                // if going down, treat only producing VDCs as aggregators
+                // (adding consumers would bring in unwanted VDCs:
+                // see the topology in test
+                //     SupplyChainCalculatorTest.testVdcInContainerTopology2
+                // as an example)
+                vdcAggregators = super.getFilteredProviders(entity, traversalMode)
+                                    .filter(e -> e.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE);
+            } else {
+                // if at the seed or going up, treat all VDCs as aggregators
+                vdcAggregators = Stream.concat(super.getFilteredProviders(entity, traversalMode),
+                                               super.getFilteredConsumers(entity, traversalMode))
+                                    .filter(e -> e.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE);
             }
 
-            // ignore VDCs, because they will be added by the "include" method
-            // with traversal mode = STOP
-            final Predicate<E> filterOutVDCs = e -> e.getEntityType() != EntityType.VIRTUAL_DATACENTER_VALUE;
-            if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE && !seed) {
+            // combine with true aggregators
+            return Stream.concat(vdcAggregators, super.getFilteredAggregators(entity, traversalMode));
+        }
+
+        @Override
+        protected Stream<E> getFilteredProviders(@Nonnull E entity,
+                                                 @Nonnull TraversalMode traversalMode) {
+            if ((entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                    && (traversalMode == TraversalMode.CONSUMES)) {
+
                 // when traversing down the supply chain of a vm, traverse
                 // only those volumes which do not have pods as consumers (volumes
                 // connected only to the vm).
                 // if this traversal is coming from a pod which has a volume also as
                 // a provider, the pods traversal will pull in those volumes which
                 // are connected to the pod apart from the ones selected here
-                return filterOutVDCs.and(e ->
-                        e.getEntityType() != EntityType.VIRTUAL_VOLUME_VALUE
-                            || e.getConsumers().stream().noneMatch(c ->
-                                                c.getEntityType() == EntityType.CONTAINER_POD_VALUE));
-            } else {
-                // ignore VDCs, because they will be added by the "traverse and then stop" method
-                return filterOutVDCs;
+                return super.getFilteredProviders(entity, traversalMode)
+                        .filter(e -> e.getEntityType() != EntityType.VIRTUAL_DATACENTER_VALUE)
+                        .filter(e -> !((e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                                && (e.getConsumers().stream()
+                                .filter(c -> c.getEntityType()
+                                        == EntityType.CONTAINER_POD_VALUE).count() > 0)));
             }
+            // ignore VDCs, because they are treated as aggregators
+            return super.getFilteredProviders(entity, traversalMode)
+                        .filter(e -> e.getEntityType() != EntityType.VIRTUAL_DATACENTER_VALUE);
         }
 
         @Override
-        protected Stream<TraversalState.Builder> include(
-                @Nonnull E entity, @Nonnull TraversalMode traversalMode) {
-            if (traversalMode == TraversalMode.CONSUMES) {
-                // if going down, traverse only producing VDCs, but stop immediately
-                return entity.getProviders().stream()
-                        .filter(e -> e.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE)
-                        .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP));
-            } else {
-                // if at the seed or going up, traverse all VDCs, but stop immediately
-                return Stream.concat(entity.getProviders().stream(), entity.getConsumers().stream())
-                        .filter(e -> e.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE)
-                        .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP));
-            }
+        protected Stream<E> getFilteredConsumers(@Nonnull E entity,
+                                                 @Nonnull TraversalMode traversalMode) {
+            // ignore VDCs, because they are treated as aggregators
+            return super.getFilteredConsumers(entity, traversalMode)
+                        .filter(e -> e.getEntityType() != EntityType.VIRTUAL_DATACENTER_VALUE);
         }
     }
 
@@ -240,51 +252,56 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
      */
     private static class StorageRule<E extends TopologyGraphEntity<E>>
             extends DefaultTraversalRule<E> {
+
         @Override
         public boolean isApplicable(@Nonnull E entity, @Nonnull TraversalMode traversalMode) {
             return entity.getEntityType() == EntityType.STORAGE_VALUE;
         }
 
         @Override
-        protected Stream<TraversalState.Builder> include(
-                @Nonnull E entity, @Nonnull TraversalMode traversalMode) {
-            // a connected DC is an aggregator
-            final Stream<TraversalState.Builder> dcAsAggregator =
-                entity.getConsumers().stream()
-                    .filter(e -> e.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
-                    .flatMap(e -> e.getProviders().stream()
-                                       .filter(e1 -> e1.getEntityType() == EntityType.DATACENTER_VALUE))
-                    .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.AGGREGATED_BY));
+        protected Stream<E> getFilteredConsumers(@Nonnull E entity,
+                                                 @Nonnull TraversalMode traversalMode) {
+            // ignore PMs as consumers
+            return super.getFilteredConsumers(entity, traversalMode)
+                        .filter(e -> e.getEntityType() != EntityType.PHYSICAL_MACHINE_VALUE);
+        }
 
-            // a consuming PM should be traversed when going up
-            // however no more traversal should happen from that PM
-            if (traversalMode == TraversalMode.START || traversalMode == TraversalMode.PRODUCES) {
-                return Stream.concat(
-                        dcAsAggregator,
-                        entity.getConsumers().stream()
-                                .filter(e -> e.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
-                                .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP)));
+        @Override
+        protected Stream<E> getFilteredProviders(@Nonnull E entity,
+                                                 @Nonnull TraversalMode traversalMode) {
+            final Stream<E> allProviders = super.getFilteredProviders(entity, traversalMode);
+            if (traversalMode == TraversalMode.START) {
+                return allProviders;
             } else {
-                return dcAsAggregator;
+                // ignore providing PMs
+                // PMs that provide to Storage may happen in a vSAN topology
+                return allProviders.filter(e -> e.getEntityType() != EntityType.PHYSICAL_MACHINE_VALUE);
             }
         }
 
         @Override
-        protected Predicate<E> filter(@Nonnull E entity,
-                                      @Nonnull EdgeTraversalDescription edgeTraversalDescription,
-                                      boolean seed) {
-            // filter out all related PMs
-            // except: consuming PMs can appear, when the storage is in the seed
-            if (!seed || edgeTraversalDescription == EdgeTraversalDescription.UP) {
-                return e -> e.getEntityType() != EntityType.PHYSICAL_MACHINE_VALUE;
+        protected Stream<E> getFilteredAggregators(@Nonnull E entity,
+                                                   @Nonnull TraversalMode traversalMode) {
+            // when traversing up, treat PMs as aggregators of storage
+            // this is a hack that allows PMs and the DC to appear in the supply chain
+            // but disallows any further traversals from the DC
+            if (traversalMode == TraversalMode.START || traversalMode == TraversalMode.PRODUCES) {
+                return Stream.concat(super.getFilteredConsumers(entity, traversalMode)
+                                        .filter(e -> e.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE),
+                                     super.getFilteredAggregators(entity, traversalMode));
             } else {
-                return e -> true;
+                return super.getFilteredAggregators(entity, traversalMode);
             }
         }
     }
 
+    // TODO: remove this class as part of OM-51365
     /**
-     * When a DC is in the seed, then add all consuming PMs in the seed.
+     * This rule is a patch for DC traversals.  It will be rendered obsolete
+     * when DCs become aggregators (OM-51365).
+     *
+     *<p>The rule is: when a DC is in the seed, then add all consuming PMs
+     * in the seed.</p>
      *
      * @param <E> The type of {@link TopologyGraphEntity} in the graph.
      */
@@ -319,14 +336,10 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
         }
 
         @Override
-        protected Predicate<E> filter(@Nonnull E entity,
-                                      @Nonnull EdgeTraversalDescription edgeTraversalDescription,
-                                      boolean seed) {
-            if (edgeTraversalDescription == EdgeTraversalDescription.FROM_AGGREGATOR_TO_AGGREGATED) {
-                return e -> e.getEntityType() != EntityType.BUSINESS_ACCOUNT_VALUE;
-            } else {
-                return e -> true;
-            }
+        protected Stream<E> getFilteredAggregatedEntities(@Nonnull E entity,
+                                                          @Nonnull TraversalMode traversalMode) {
+            return super.getFilteredAggregatedEntities(entity, traversalMode)
+                        .filter(e -> e.getEntityType() != EntityType.BUSINESS_ACCOUNT_VALUE);
         }
     }
 
@@ -352,39 +365,44 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
         }
 
         @Override
-        protected Stream<TraversalState.Builder> include(
-                @Nonnull E entity, @Nonnull TraversalMode traversalMode) {
-            switch (traversalMode) {
-                // Ensure that we pull in the nodes (VMs and PMs) associated
-                // with the Workload Controller through its pods when the Workload
-                // Controller is the seed
-                case START:
-                    return entity.getConsumers().stream()
-                        .filter(e -> e.getEntityType() == EntityType.CONTAINER_POD_VALUE)
-                        .flatMap(e -> e.getProviders().stream()
-                                            .filter(podProvider -> {
-                                                final int entityType = podProvider.getEntityType();
-                                                return entityType == EntityType.VIRTUAL_MACHINE_VALUE
-                                                        || entityType == EntityType.PHYSICAL_MACHINE_VALUE;
-                                            }))
-                        .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.CONSUMES));
-                case AGGREGATED_BY:
-                    return entity.getProviders().stream()
-                            .filter(e -> e.getEntityType() == EntityType.NAMESPACE_VALUE)
-                            .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP));
-                default:
-                    return Stream.empty();
+        protected Stream<E> getFilteredAggregators(@Nonnull E entity,
+                                                   @Nonnull TraversalMode traversalMode) {
+            if (traversalMode == TraversalMode.AGGREGATED_BY) {
+                // Treat Namespaces as aggregators (i.e., include in the traversal
+                // but do not keep traversing from them)
+                return Stream.concat(super.getFilteredProviders(entity, traversalMode)
+                        .filter(e -> e.getEntityType() == EntityType.NAMESPACE_VALUE),
+                    super.getFilteredAggregators(entity, traversalMode));
+            } else {
+                return super.getFilteredAggregators(entity, traversalMode);
             }
         }
 
         @Override
-        protected Predicate<E> filter(@Nonnull E entity,
-                                      @Nonnull EdgeTraversalDescription edgeTraversalDescription,
-                                      boolean seed) {
-            if (edgeTraversalDescription == EdgeTraversalDescription.FROM_AGGREGATOR_TO_AGGREGATED) {
-                return e -> false;
+        protected Stream<E> getFilteredAggregatedEntities(@Nonnull E entity,
+                                                          @Nonnull TraversalMode traversalMode) {
+            return (traversalMode == TraversalMode.AGGREGATED_BY)
+                ? super.getFilteredAggregatedEntities(entity, traversalMode)
+                : Stream.empty();
+        }
+
+        @Override
+        protected Stream<E> getFilteredProviders(@Nonnull E entity,
+                                                 @Nonnull TraversalMode traversalMode) {
+            final Stream<E> allProviders = super.getFilteredProviders(entity, traversalMode);
+            if (traversalMode == TraversalMode.START) {
+                // Ensure that we pull in the nodes (VMs and PMs) associated
+                // with the Workload Controller through its pods when the Workload
+                // Controller is the seed
+                return Stream.concat(allProviders,
+                    super.getFilteredConsumers(entity, traversalMode)
+                        .filter(e -> e.getEntityType() == EntityType.CONTAINER_POD_VALUE)
+                        .flatMap(e -> super.getFilteredProviders(e, traversalMode)
+                            .filter(podProvider ->
+                                podProvider.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE ||
+                                    podProvider.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)));
             } else {
-                return e -> true;
+                return allProviders;
             }
         }
     }
@@ -407,15 +425,10 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
         }
 
         @Override
-        protected Predicate<E> filter(@Nonnull E entity,
-                                      @Nonnull EdgeTraversalDescription edgeTraversalDescription,
-                                      boolean seed) {
-            if (edgeTraversalDescription == EdgeTraversalDescription.FROM_AGGREGATED_TO_AGGREGATOR) {
-                return e -> e.getEntityType() != EntityType.REGION_VALUE
-                            && e.getEntityType() != EntityType.AVAILABILITY_ZONE_VALUE;
-            } else {
-                return e -> true;
-            }
+        protected Stream<E> getFilteredAggregators(@Nonnull E entity, @Nonnull TraversalMode traversalMode) {
+            return super.getFilteredAggregators(entity, traversalMode)
+                            .filter(e -> e.getEntityType() != EntityType.REGION_VALUE)
+                            .filter(e -> e.getEntityType() != EntityType.AVAILABILITY_ZONE_VALUE);
         }
     }
 
@@ -432,32 +445,23 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
         @Override
         public boolean isApplicable(@Nonnull E entity, @Nonnull TraversalMode traversalMode) {
             return entity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE;
-        }
+           }
 
         @Override
-        protected Stream<TraversalState.Builder> include(
-                @Nonnull E entity, @Nonnull TraversalMode traversalMode) {
-            if (entity.getConsumers().stream()
-                    .anyMatch(e -> e.getEntityType() == EntityType.CONTAINER_POD_VALUE)) {
-                return entity.getConsumers().stream()
-                                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                                .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP));
-            } else {
-                return Stream.empty();
-            }
-        }
+        protected Stream<E> getFilteredAggregators(@Nonnull E entity,
+                                                   @Nonnull TraversalMode traversalMode) {
+            final Stream<E> consumerPods = super.getFilteredConsumers(entity, traversalMode)
+                    .filter(e -> e.getEntityType()
+                            == EntityType.CONTAINER_POD_VALUE);
 
-        @Override
-        protected Predicate<E> filter(@Nonnull E entity,
-                                      @Nonnull EdgeTraversalDescription edgeTraversalDescription,
-                                      boolean seed) {
-            if (edgeTraversalDescription == EdgeTraversalDescription.UP
-                    && entity.getConsumers().stream()
-                            .anyMatch(e -> e.getEntityType() == EntityType.CONTAINER_POD_VALUE)) {
-                return e -> e.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE;
-            } else {
-                return e -> true;
+            if (consumerPods.count() > 0) {
+                // VMs to be treated as aggregators, to stop traversing further
+                // from them which otherwise will bring in all pod consumers.
+                return Stream.concat(super.getFilteredAggregators(entity, traversalMode),
+                        super.getFilteredConsumers(entity, traversalMode)
+                                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE));
             }
+            return super.getFilteredAggregators(entity, traversalMode);
         }
     }
 }
