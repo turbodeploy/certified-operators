@@ -1,6 +1,7 @@
 package com.vmturbo.platform.analysis.utilities;
 
-import static org.junit.Assert.*;
+import static java.lang.Double.POSITIVE_INFINITY;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -203,6 +204,30 @@ public class CostFunctionFactoryTest {
         Assert.assertEquals(1024.0, commodityContext3.getNewCapacityOnSeller(), DELTA);
     }
 
+    /**
+     * Tests generating a quote for a DB with dependent options. The demand is DTU: 77, Storage
+     * Amount: SL1:730GB.
+     */
+    @Test
+    public void testCalculateComputeAndDatabaseWithInfiniteCostQuote() {
+        BalanceAccount balanceAccount = Mockito.mock(BalanceAccount.class);
+        Context context = Mockito.mock(Context.class);
+        when(context.getRegionId()).thenReturn(DB_REGION_ID);
+        when(context.getBalanceAccount()).thenReturn(balanceAccount);
+        when(balanceAccount.getPriceId()).thenReturn(DB_BUSINESS_ACCOUNT_ID);
+        databaseSL1.getBuyer().getSettings().setContext(context);
+        DatabaseTierCostDTO dbCostDTOForBasicFamily = createDBCostDTOWithBasicFamily();
+        CostTable costTable = Mockito.mock(CostTable.class);
+        when(costTable.hasAccountId(DB_BUSINESS_ACCOUNT_ID)).thenReturn(true);
+        when(costTable.getTuple(DB_REGION_ID, DB_BUSINESS_ACCOUNT_ID,
+                DB_LICENSE_COMMODITY_TYPE)).thenReturn(dbCostDTOForBasicFamily.getCostTupleList(0));
+        // SL demand: DTU: 77 Storage Amount: 730GB: This will not be met by dbCostDTOForBasicFamily.
+        MutableQuote mutableQuote =
+                CostFunctionFactory.calculateComputeAndDatabaseCostQuote(databaseTier, databaseSL1,
+                        costTable, licenseAccessCommBaseType);
+        Assert.assertEquals(POSITIVE_INFINITY, mutableQuote.quoteValues[0], DELTA);
+    }
+
     private DatabaseTierCostDTO createDBCostDTO() {
         DependentCostTuple dependentCostTuple = DependentCostTuple.newBuilder()
                 .setDependentResourceType(DB_STORAGE_AMOUNT_TYPE)
@@ -232,6 +257,22 @@ public class CostFunctionFactoryTest {
                         .setPrice(0.2)
                         .build())
                 .build();
+        return createDatabaseTierCostDTO(dependentCostTuple);
+    }
+
+    private DatabaseTierCostDTO createDBCostDTOWithBasicFamily() {
+        DependentCostTuple dependentCostTuple = DependentCostTuple.newBuilder()
+                .setDependentResourceType(DB_STORAGE_AMOUNT_TYPE)
+                .addDependentResourceOptions(DependentResourceOption.newBuilder()
+                        .setIncrement(2)
+                        .setEndRange(2)
+                        .setPrice(1.0)
+                        .build())
+                .build();
+        return createDatabaseTierCostDTO(dependentCostTuple);
+    }
+
+    private static DatabaseTierCostDTO createDatabaseTierCostDTO(final DependentCostTuple dependentCostTuple) {
         CostTuple costTuple = CostTuple.newBuilder()
                 .setBusinessAccountId(DB_BUSINESS_ACCOUNT_ID)
                 .setRegionId(DB_REGION_ID)
@@ -245,5 +286,4 @@ public class CostFunctionFactoryTest {
                 .setCouponBaseType(couponBaseType)
                 .build();
     }
-
 }

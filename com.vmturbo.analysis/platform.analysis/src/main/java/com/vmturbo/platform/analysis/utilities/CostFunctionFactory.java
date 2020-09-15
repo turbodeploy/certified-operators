@@ -1,7 +1,6 @@
 package com.vmturbo.platform.analysis.utilities;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -13,14 +12,14 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Table;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Table;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -646,37 +645,38 @@ public class CostFunctionFactory {
                         continue;
                     }
                     double dependentResourceQuantity = sl.getQuantities()[dependentResourceIndex];
-                    long prevEndRange = 0;
-                    long endRange = 0;
-                    long increment = 0;
-                    double price = 0;
-                    // Find the right dependent option.
+                    double currentSize = 0d;
                     for (DependentResourceOption dependentResourceOption : dependentResourceOptions) {
-                        prevEndRange = endRange;
-                        endRange = dependentResourceOption.getEndRange();
-                        increment = dependentResourceOption.getIncrement();
-                        price = dependentResourceOption.getPrice();
-                        if (dependentResourceQuantity <= endRange) {
+                        final double increment = dependentResourceOption.getIncrement();
+                        if (increment <= 0) {
+                            logger.debug("Increment range for dependentResourceOption can never"
+                                    + "be less than equal to 0. {}", sl.getDebugInfoNeverUseInCode());
+                            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+                        }
+                        while (currentSize < dependentResourceOption.getEndRange()) {
+                            currentSize += increment;
+                            final double currentCost = increment * dependentResourceOption.getPrice();
+                            totalCost += currentCost;
+                            if (currentSize >= dependentResourceQuantity) {
+                                // We have reached dependentResource requirements.
+                                break;
+                            }
+                        }
+                        if (currentSize >= dependentResourceQuantity) {
+                            // We have reached dependentResource requirements.
                             break;
-                        } else {
-                            totalCost += (endRange - prevEndRange) * price;
                         }
                     }
-                    /*
-                    The bought quantity is less than the maximum endRange because
-                    insufficientCommodityWithinSellerCapacityQuote takes care of checking
-                    for bought quantity less than the sold commodity max.
-                     */
-                    long selectedAmount = prevEndRange;
-                    // Add the increment in the current option to satisfy the demand.
-                    while (selectedAmount < dependentResourceQuantity) {
-                        selectedAmount += increment;
-                        totalCost += increment * price;
+                    if (currentSize < dependentResourceQuantity) {
+                        logger.debug("Dependent resources options was not met by seller {}. Returning infinite"
+                                + " cost for this template.", sl.getDebugInfoNeverUseInCode());
+                        return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+                    } else {
+                        // Update the shopping list and keep the selected value
+                        commodityContexts.add(
+                                new CommodityContext(sl.getBasket().get(dependentResourceIndex),
+                                        currentSize, true));
                     }
-                    // Update the shopping list and keep the selected value
-                    commodityContexts.add(
-                            new CommodityContext(sl.getBasket().get(dependentResourceIndex),
-                                    selectedAmount, true));
                 }
             }
         }
