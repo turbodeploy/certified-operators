@@ -103,7 +103,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT("Remove {0} limit on entity {1}"),
         ACTION_DESCRIPTION_RESIZE("Resize {0} {1} for {2} from {3} to {4}"),
         ACTION_DESCRIPTION_RESIZE_RESERVATION("Resize {0} {1} reservation for {2} from {3} to {4}"),
-        ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES("Reconfigure {0} which requires {1} but is hosted by {2} which does not provide {1}"),
+        ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES("Reconfigure {0} to provide {1}"),
         ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS("Reconfigure {0}"),
         ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE("Reconfigure {0} as it is unplaced"),
         ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE("Start {0} on {1}"),
@@ -310,8 +310,7 @@ public class ActionDescriptionBuilder {
                     beautifyCommodityTypes(explanation.getReconfigure()
                         .getReconfigureCommodityList().stream()
                         .map(ReasonCommodity::getCommodityType)
-                        .collect(Collectors.toList())),
-                    beautifyEntityTypeAndName(currentEntityDTO.get()));
+                        .collect(Collectors.toList())));
             }
         } else {
             return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE.format(
@@ -420,8 +419,7 @@ public class ActionDescriptionBuilder {
             // We show scale if move is within same region. In cloud-to-cloud migration, there
             // is a region change, so we keep the action as MOVE, and don't change it to a SCALE.
             String verb = SCALE;
-            if (recommendation.getInfo().getActionTypeCase() != ActionTypeCase.SCALE
-                    && !TopologyDTOUtil.isMoveWithinSameRegion(recommendation)) {
+            if (TopologyDTOUtil.isMigrationAction(recommendation)) {
                 verb = MOVE;
                 Pair<String, String> regions = getRegions(recommendation, entitiesSnapshot);
                 String sourceRegion = regions.getFirst();

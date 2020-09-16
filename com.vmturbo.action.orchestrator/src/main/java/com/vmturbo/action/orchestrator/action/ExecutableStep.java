@@ -259,4 +259,10 @@ public class ExecutableStep {
             getEnqueueTime().map(enqueueTime ->
                 ChronoUnit.SECONDS.between(completionTime, enqueueTime)));
     }
+
+    @Override
+    public String toString() {
+        return "ExecutableStep{" + executionStepBuilder.getStatus() + ": "
+                + executionStepBuilder.getProgressDescription() + "}";
+    }
 }

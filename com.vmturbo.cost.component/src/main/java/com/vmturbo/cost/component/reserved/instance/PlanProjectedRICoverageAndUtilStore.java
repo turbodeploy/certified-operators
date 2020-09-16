@@ -24,6 +24,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Batch;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record;
@@ -275,6 +276,30 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
         });
         Lists.partition(coverageRcd, chunkSize).forEach(
                 entityChunk -> context.batchInsert(coverageRcd).execute());
+    }
+
+    /**
+     * Updates RI coverage used coupons in plan projected RI coverage table. This is needed for
+     * MPC plan BuyRI case where we need to update used_coupons after plan has completed.
+     *
+     * @param planId Id of the plan for which update needs to be done.
+     * @param usedCouponsPerEntity Map of entityId to used coupon coverage value to update.
+     * @return Count of records updated.
+     */
+    public int updatePlanProjectedRiCoverage(long planId,
+            @Nonnull final Map<Long, Double> usedCouponsPerEntity) {
+        final List<PlanProjectedReservedInstanceCoverageRecord> coverageRecords = new ArrayList<>();
+        usedCouponsPerEntity.forEach((entityId, usedCoupons) -> {
+            final PlanProjectedReservedInstanceCoverageRecord rec =
+                    new PlanProjectedReservedInstanceCoverageRecord();
+            rec.setPlanId(planId);
+            rec.setEntityId(entityId);
+            rec.setUsedCoupons(usedCoupons);
+            coverageRecords.add(rec);
+        });
+        final Batch batch = context.batchUpdate(coverageRecords);
+        batch.execute();
+        return batch.size();
     }
 
     /**

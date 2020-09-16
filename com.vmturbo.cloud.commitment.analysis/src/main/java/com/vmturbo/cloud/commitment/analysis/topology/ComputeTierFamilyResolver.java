@@ -9,10 +9,12 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedSet;
 
@@ -28,6 +30,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * A utility class for determining the family relationship between compute tiers.
  */
 public class ComputeTierFamilyResolver {
+
+    private static final Comparator<ComputeTierData> COMPUTE_TIER_COMPARATOR =
+            Comparator.comparing(ComputeTierData::numCoupons)
+                    .thenComparing(ComputeTierData::computeTierOid);
 
     private final Map<String, SortedSet<ComputeTierData>> computeTiersByFamily;
 
@@ -56,8 +62,7 @@ public class ComputeTierFamilyResolver {
                 .collect(Collectors.groupingBy(
                         ComputeTierData::coverageFamily,
                         Collectors.toCollection(
-                                () -> new TreeSet<>(Comparator.comparing(ComputeTierData::numCoupons)
-                                        .thenComparing(ComputeTierData::computeTierOid)))));
+                                () -> new TreeSet<>(COMPUTE_TIER_COMPARATOR))));
     }
 
     /**
@@ -85,6 +90,44 @@ public class ComputeTierFamilyResolver {
         }
     }
 
+    /**
+     * Compares the relative size of the two tiers, based on the number of coupons associated with
+     * the tiers. If either of the tiers has a coupon value of zero, an {@link IncompatibleTiersException}
+     * will be thrown.
+     * @param tierOidA The first tier OID.
+     * @param tierOidB The second tier OID.
+     * @return A negative value, if tier one is smaller than tier two. Zero, if the tiers are equal. A positive
+     * value if tier one is larger than tier two.
+     * @throws IncompatibleTiersException Thrown if the tiers are not comparable. This may be due to either
+     * tier having a coupon value of zero or the tiers being in different instance families.
+     * @throws ComputeTierNotFoundException Thrown if either of the tiers can not be found in the
+     * underlying cloud topology.
+     */
+    public long compareTiers(long tierOidA, long tierOidB) throws IncompatibleTiersException, ComputeTierNotFoundException {
+
+        if (computeTierDataByOid.containsKey(tierOidA)
+                && computeTierDataByOid.containsKey(tierOidB)) {
+
+            final ComputeTierData computeTierDataA = computeTierDataByOid.get(tierOidA);
+            final ComputeTierData computeTierDataB = computeTierDataByOid.get(tierOidB);
+
+            if (computeTierDataA.hasCoverageFamily() && computeTierDataB.hasCoverageFamily()
+                    && computeTierDataA.coverageFamily().equals(computeTierDataB.coverageFamily())) {
+                return COMPUTE_TIER_COMPARATOR.compare(computeTierDataA, computeTierDataB);
+            } else {
+                throw new IncompatibleTiersException(
+                        String.format("Unable to compare tiers: Tier A=%s, Tier B=%s",
+                                computeTierDataA, computeTierDataB));
+            }
+        } else {
+            final Set<Long> tiersNotFound = Stream.of(tierOidA, tierOidB)
+                    .filter(Predicates.not(computeTierDataByOid::containsKey))
+                    .collect(Collectors.toSet());
+
+            throw new ComputeTierNotFoundException(
+                    String.format("Unable to find compute tiers: %s", tiersNotFound));
+        }
+    }
 
     /**
      * A wrapper class for compute tier data related to family relationships.
@@ -136,4 +179,33 @@ public class ComputeTierFamilyResolver {
             return new ComputeTierFamilyResolver(cloudTopology);
         }
     }
+
+    /**
+     * An exception indicating two tiers are not comparable.
+     */
+    public static final class IncompatibleTiersException extends Exception {
+
+        /**
+         * Constructs a new {@link IncompatibleTiersException} instance.
+         * @param message The exception message.
+         */
+        public IncompatibleTiersException(@Nonnull String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * An exception indicating a tier could not be found.
+     */
+    public static final class ComputeTierNotFoundException extends Exception {
+
+        /**
+         * Constructs a new {@link ComputeTierNotFoundException} instance.
+         * @param message The exception message.
+         */
+        public ComputeTierNotFoundException(@Nonnull String message) {
+            super(message);
+        }
+    }
+
 }

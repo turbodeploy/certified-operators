@@ -2,27 +2,35 @@ package com.vmturbo.plan.orchestrator.project.headroom;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Streams;
+import com.turbonomic.cpucapacity.CPUCapacityEstimator;
 
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.lang3.time.StopWatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -37,6 +45,9 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
@@ -45,6 +56,9 @@ import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
@@ -60,6 +74,7 @@ import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadCalculatedProfil
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
 import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -79,6 +94,8 @@ public class ClusterHeadroomPlanProjectExecutor {
 
     private final Channel repositoryChannel;
 
+    private final RepositoryServiceBlockingStub repositoryService;
+
     private final Channel historyChannel;
 
     private final TemplatesDao templatesDao;
@@ -92,6 +109,8 @@ public class ClusterHeadroomPlanProjectExecutor {
     private final StatsHistoryServiceBlockingStub statsHistoryService;
 
     private final TopologyProcessor topologyProcessor;
+
+    private final CPUCapacityEstimator cpuCapacityEstimator;
 
     // If true, calculate headroom for all clusters in one plan instance.
     // If false, calculate headroom for restricted number of clusters in multiple plan instances.
@@ -112,6 +131,7 @@ public class ClusterHeadroomPlanProjectExecutor {
      * @param historyChannel history channel
      * @param headroomCalculationForAllClusters specifies how to run cluster headroom plan
      * @param topologyProcessor a REST call to get target info
+     * @param cpuCapacityEstimator estimates the scaling factor of a cpu model.
      */
     public ClusterHeadroomPlanProjectExecutor(@Nonnull final PlanDao planDao,
                                               @Nonnull final Channel groupChannel,
@@ -121,11 +141,13 @@ public class ClusterHeadroomPlanProjectExecutor {
                                               @Nonnull final TemplatesDao templatesDao,
                                               @Nonnull final Channel historyChannel,
                                               final boolean headroomCalculationForAllClusters,
-                                              @Nonnull final TopologyProcessor topologyProcessor) {
+                                              @Nonnull final TopologyProcessor topologyProcessor,
+                                              @Nonnull final CPUCapacityEstimator cpuCapacityEstimator) {
         this.groupChannel = Objects.requireNonNull(groupChannel);
         this.planService = Objects.requireNonNull(planRpcService);
         this.projectPlanPostProcessorRegistry = Objects.requireNonNull(processorRegistry);
         this.repositoryChannel = Objects.requireNonNull(repositoryChannel);
+        this.repositoryService = RepositoryServiceGrpc.newBlockingStub(repositoryChannel);
         this.planDao = Objects.requireNonNull(planDao);
         this.templatesDao = Objects.requireNonNull(templatesDao);
         this.historyChannel = Objects.requireNonNull(historyChannel);
@@ -136,6 +158,7 @@ public class ClusterHeadroomPlanProjectExecutor {
         this.statsHistoryService =
             StatsHistoryServiceGrpc.newBlockingStub(Objects.requireNonNull(historyChannel));
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
+        this.cpuCapacityEstimator = Objects.requireNonNull(cpuCapacityEstimator);
     }
 
     /**
@@ -232,7 +255,8 @@ public class ClusterHeadroomPlanProjectExecutor {
             if (planProject.getPlanProjectInfo().getType().equals(PlanProjectType.CLUSTER_HEADROOM)) {
                 planProjectPostProcessor = new ClusterHeadroomPlanPostProcessor(planInstance.getPlanId(),
                     clusters.stream().map(Grouping::getId).collect(Collectors.toSet()),
-                    repositoryChannel, historyChannel, planDao, groupChannel, templatesDao);
+                    repositoryChannel, historyChannel, planDao, groupChannel, templatesDao,
+                    cpuCapacityEstimator);
             }
             if (planProjectPostProcessor != null) {
                 projectPlanPostProcessorRegistry.registerPlanPostProcessor(planProjectPostProcessor);
@@ -427,7 +451,24 @@ public class ClusterHeadroomPlanProjectExecutor {
                     profileCreator.createAllProfiles();
             final SystemLoadCalculatedProfile avgProfile = profiles.get(Operation.AVG);
             // In this case, avgTemplateInfo exists for sure.
-            final TemplateInfo avgTemplateInfo = avgProfile.getHeadroomTemplateInfo().get();
+            TemplateInfo partialAvgTemplateInfo = avgProfile.getHeadroomTemplateInfo().get();
+
+            // For now we use the most frequent cpu model from the cluster. Alternatively,
+            // we could have taken all the VMs, figured out their CPU model, applied the scaling
+            // factor, then do the usage calculation to accurately figure out average and max usage.
+            // However, generally clusters are pretty homogeneous. Given the time constraints, and
+            // the extra work, we use the simplified most frequent cpu model.
+            String cpuModel = getMostFrequentCpuModelFromCluster(cluster);
+            final TemplateInfo avgTemplateInfo;
+            if (cpuModel != null) {
+                avgTemplateInfo = partialAvgTemplateInfo.toBuilder()
+                    .setCpuModel(cpuModel)
+                    .build();
+            } else {
+                logger.warn("No cpu models were found for cluster id {}.", cluster.getId());
+                avgTemplateInfo = partialAvgTemplateInfo;
+            }
+
             // The target that discovered this group.
             final Optional<Long> targetId;
             if (cluster.hasOrigin() && cluster.getOrigin().hasDiscovered()
@@ -501,5 +542,71 @@ public class ClusterHeadroomPlanProjectExecutor {
         // Update cluster with new clusterHeadroomTemplateId.
         newClusterHeadroomTemplateId.ifPresent(headroomTemplateId ->
             templatesDao.setOrUpdateHeadroomTemplateForCluster(cluster.getId(), headroomTemplateId));
+    }
+
+    @Nullable
+    private String getMostFrequentCpuModelFromCluster(final Grouping cluster) {
+        StopWatch stopWatch = StopWatch.createStarted();
+        Set<Long> physicalMachineOids = cluster.getDefinition().getStaticGroupMembers()
+            .getMembersByTypeList()
+            .stream()
+            .map(StaticMembersByType::getMembersList)
+            .flatMap(List::stream)
+            .collect(Collectors.toSet());
+
+        // The frequency table of CPU Model
+        Map<String, Long> cpuModelFrequencies = Streams.stream(
+            // get information from repository service for all CPU models
+            repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+                .addAllEntityOids(physicalMachineOids)
+                .setReturnType(PartialEntity.Type.FULL)
+                .addEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
+                .build()))
+            // since it's a batching iterator, we flatten it
+            .map(PartialEntityBatch::getEntitiesList)
+            .flatMap(List::stream)
+            // extract the cpu model from the TopologyDTO
+            .map(PartialEntity::getFullEntity)
+            .map(fullEntity -> getCpuModel(fullEntity))
+            .filter(Objects::nonNull)
+            // create a frequency table
+            .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+        logger.trace("cluster with id {} has cpu model frequencies: {}",
+            () -> cluster.getId(),
+            () -> cpuModelFrequencies);
+
+        if (cpuModelFrequencies.isEmpty()) {
+            stopWatch.stop();
+            logger.info("took {} to calculate most frequent cpu model in the cluster {}.",
+                stopWatch,
+                cluster.getId());
+            logger.warn("No cpu models were found for cluster id {}.", cluster.getId());
+            return null;
+        }
+
+        // Take the cpu model that has the highest count.
+        String mostFrequentCpuModel = Collections.max(cpuModelFrequencies.entrySet(),
+            // Will not compile without the type hint.
+            Comparator.<Entry<String, Long>>comparingLong(Entry::getValue)
+                // Consistently break ties base on the string comparator just in case two cpu models
+                // have the same count.
+                .thenComparing(Entry::getKey)).getKey();
+
+        stopWatch.stop();
+        logger.info("took {} to calculate most frequent cpu model in the cluster {}.",
+            stopWatch,
+            cluster.getId());
+        return mostFrequentCpuModel;
+    }
+
+    @Nullable
+    private String getCpuModel(@Nonnull TopologyEntityDTO fullEntity) {
+        if (fullEntity.hasTypeSpecificInfo()
+            && fullEntity.getTypeSpecificInfo().hasPhysicalMachine()) {
+            return fullEntity.getTypeSpecificInfo()
+                .getPhysicalMachine()
+                .getCpuModel();
+        }
+        return null;
     }
 }

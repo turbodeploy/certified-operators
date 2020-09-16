@@ -516,13 +516,6 @@ public class SMAReservedInstance {
         if ((netSavingVm2PerCoupon - netSavingVm1PerCoupon) > SMAUtils.EPSILON) {
             return 1;
         }
-
-        if ((couponsVm1 - couponsVm2) > SMAUtils.EPSILON) {
-            return -1;
-        }
-        if ((couponsVm2 - couponsVm1) > SMAUtils.EPSILON) {
-            return 1;
-        }
         return 0;
     }
 

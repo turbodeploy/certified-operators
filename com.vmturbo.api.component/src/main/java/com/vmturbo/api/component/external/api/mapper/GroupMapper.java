@@ -100,6 +100,7 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinProbeInfo;
@@ -366,13 +367,30 @@ public class GroupMapper {
                 .map(ThinTargetInfo::probeInfo)
                 .map(probe -> cloudTypeMapper.fromTargetType(probe.type()))
                 .collect(Collectors.toSet());
-        if (cloudType.isEmpty() || cloudType.equals(Collections.singleton(Optional.empty()))) {
+        if ((cloudType.isEmpty() || cloudType.equals(Collections.singleton(Optional.empty())))
+                && !hasAppOrContainerEnvironmentTarget()) {
             return new EntityEnvironment(EnvironmentType.ONPREM, CloudType.UNKNOWN);
-        } else if (cloudType.size() == 1) {
+        } else if (cloudType.size() == 1
+                        && !cloudType.equals(Collections.singleton(Optional.empty()))) {
             return new EntityEnvironment(EnvironmentType.CLOUD, cloudType.iterator().next().get());
         } else {
             return null;
         }
+    }
+
+    /**
+     * Check whether the environment contains "App" or "Container" target.
+     *
+     * @return return "true" if the environment contains "App" or "Container" target,
+     * otherwise "false"
+     */
+    private boolean hasAppOrContainerEnvironmentTarget() {
+        return thinTargetCache.getAllTargets()
+                .stream()
+                .map(ThinTargetInfo::probeInfo)
+                .collect(Collectors.toSet())
+                .stream().anyMatch(probeInfo -> ProbeCategory.isAppOrContainerCategory(
+                ProbeCategory.create(probeInfo.category())));
     }
 
     /**
@@ -456,7 +474,9 @@ public class GroupMapper {
             environmentType = envType;
         } else {
             // Case for group of non-cloud entities.
-            environmentType = EnvironmentTypeEnum.EnvironmentType.ON_PREM;
+            environmentType = hasAppOrContainerEnvironmentTarget()
+                    ? EnvironmentTypeEnum.EnvironmentType.HYBRID
+                    : EnvironmentTypeEnum.EnvironmentType.ON_PREM;
         }
 
         final CloudType cloudType;
@@ -1134,7 +1154,9 @@ public class GroupMapper {
                 .collect(Collectors.toSet());
         final boolean hasCloudEnvironmentTarget = addedProbeTypes.stream()
                 .anyMatch(probeInfo -> CLOUD_ENVIRONMENT_PROBE_TYPES.contains(probeInfo.type()));
-        return hasCloudEnvironmentTarget ? EnvironmentType.HYBRID : EnvironmentType.ONPREM;
+        return hasCloudEnvironmentTarget || hasAppOrContainerEnvironmentTarget()
+                ? EnvironmentType.HYBRID
+                : EnvironmentType.ONPREM;
     }
 
     /**

@@ -1,4 +1,4 @@
-package com.vmturbo.cloud.commitment.analysis.runtime.stages;
+package com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
@@ -12,37 +12,32 @@ import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import com.google.common.collect.Lists;
-
 import org.junit.Test;
 
+import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityCloudTierMapping;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReader;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.selection.DemandSelectionStage.DemandSelectionFactory;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.selection.EntityCloudTierDemandSet;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.RecommendationSettings;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassification;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassification.ClassifiedDemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.DemandSegment;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
  * Testing the demand selection stage.
  */
-public class DemandSelectionStageTest {
+public class DemandRetrievalStageTest {
 
     private final long id = 123L;
 
@@ -50,32 +45,25 @@ public class DemandSelectionStageTest {
 
     private final CloudCommitmentDemandReader demandReader = mock(CloudCommitmentDemandReader.class);
 
-    private final DemandSelectionFactory demandSelectionFactory = new DemandSelectionFactory(demandReader);
+    private final DemandRetrievalFactory demandRetrievalFactory = new DemandRetrievalFactory(demandReader);
 
     /**
-     * Testing execution with demand trimming.
+     * Testing execution with demand trimming and allocated demand retrieval
      */
     @Test
-    public void testExecutionWithDemandTrimming() {
+    public void testExecutionWithDemandTrimming() throws Exception {
 
         // setup analysis config for stage construction
         final Instant lookbackStartTime = Instant.now().minus(10, ChronoUnit.DAYS);
-        final DemandSegment demandSegmentA = DemandSegment.newBuilder()
-                .setDemandType(HistoricalDemandType.ALLOCATION)
-                .setScope(DemandScope.newBuilder()
-                        .addAccountOid(1L)
-                        .build())
-                .build();
-        final DemandSegment demandSegmentB = DemandSegment.newBuilder()
-                .setDemandType(HistoricalDemandType.ALLOCATION)
-                .setScope(DemandScope.newBuilder()
-                        .addRegionOid(2L)
-                        .build())
+        final AllocatedDemandSelection allocatedSelection = AllocatedDemandSelection.newBuilder()
+                .setIncludeFlexibleDemand(true)
+                .setDemandSelection(DemandSelection.newBuilder()
+                        .setScope(DemandScope.newBuilder()
+                                .addAccountOid(1L)))
                 .build();
         final HistoricalDemandSelection demandSelection = HistoricalDemandSelection.newBuilder()
                 .setCloudTierType(CloudTierType.COMPUTE_TIER)
-                .addDemandSegment(demandSegmentA)
-                .addDemandSegment(demandSegmentB)
+                .setAllocatedSelection(allocatedSelection)
                 .setLogDetailedSummary(true)
                 // make sure demand selection isn't using this value. It should be using the normalized
                 // value from the config
@@ -84,18 +72,21 @@ public class DemandSelectionStageTest {
 
         final CloudCommitmentAnalysisConfig analysisConfig = CloudCommitmentAnalysisConfig.newBuilder()
                 .setDemandSelection(demandSelection)
-                .setDemandClassification(DemandClassification.newBuilder()
-                        .setDemandSelection(ClassifiedDemandSelection.newBuilder()))
+
                 .setCloudCommitmentInventory(CloudCommitmentInventory.newBuilder())
                 .setPurchaseProfile(CommitmentPurchaseProfile.newBuilder()
                         .setRecommendationSettings(RecommendationSettings.newBuilder()))
                 .build();
 
         // setup the lookback time in the context
-        when(analysisContext.getAnalysisStartTime()).thenReturn(Optional.of(lookbackStartTime));
+        when(analysisContext.getAnalysisWindow()).thenReturn(Optional.of(
+                ImmutableTimeInterval.builder()
+                        .startTime(lookbackStartTime)
+                        .endTime(Instant.now())
+                        .build()));
 
         // construct the stage
-        final AnalysisStage<Void, EntityCloudTierDemandSet> demandSelectionStage = demandSelectionFactory.createStage(
+        final AnalysisStage<Void, EntityCloudTierDemandSet> demandRetrievalStage = demandRetrievalFactory.createStage(
                 id, analysisConfig, analysisContext);
 
 
@@ -109,7 +100,7 @@ public class DemandSelectionStageTest {
                 .accountOid(2L)
                 .regionOid(3L)
                 .serviceProviderOid(4L)
-                .cloudTierDemand(ImmutableComputeTierDemand.builder()
+                .cloudTierDemand(ComputeTierDemand.builder()
                         .cloudTierOid(5L)
                         .osType(OSType.LINUX)
                         .tenancy(Tenancy.DEFAULT)
@@ -125,21 +116,21 @@ public class DemandSelectionStageTest {
                 .accountOid(2L)
                 .regionOid(3L)
                 .serviceProviderOid(4L)
-                .cloudTierDemand(ImmutableComputeTierDemand.builder()
+                .cloudTierDemand(ComputeTierDemand.builder()
                         .cloudTierOid(5L)
                         .osType(OSType.LINUX)
                         .tenancy(Tenancy.DEFAULT)
                         .build())
                 .build();
 
-        when(demandReader.getDemand(
+        when(demandReader.getAllocationDemand(
                 eq(CloudTierType.COMPUTE_TIER),
-                eq(Lists.newArrayList(demandSegmentA, demandSegmentB)),
+                eq(allocatedSelection.getDemandSelection().getScope()),
                 eq(lookbackStartTime))).thenReturn(Stream.of(entityCloudTierMappingA, entityCloudTierMappingB));
 
         // invoke the stage
         final AnalysisStage.StageResult<EntityCloudTierDemandSet> stageResult =
-                demandSelectionStage.execute(null);
+                demandRetrievalStage.execute(null);
 
 
         // setup expected output

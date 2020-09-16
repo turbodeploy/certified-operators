@@ -111,7 +111,7 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
     public void getSupplyChain(GetSupplyChainRequest request,
                                StreamObserver<GetSupplyChainResponse> responseObserver) {
         final Optional<Long> contextId = request.hasContextId() ?
-            Optional.of(request.getContextId()) : Optional.empty();
+                Optional.of(request.getContextId()) : Optional.empty();
 
         if (contextId.map(context -> context == realtimeTopologyContextId).orElse(true)) {
             // this is a real time topology request

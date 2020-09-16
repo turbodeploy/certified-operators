@@ -301,7 +301,7 @@ public abstract class TraversalFilter<E extends TopologyGraphSearchableEntity<E>
         @Override
         protected Stream<E> traverse(@Nonnull Stream<E> vertices, @Nonnull final TopologyGraph<E> graph) {
             return vertices
-                .flatMap(vertex -> traverseToProperty(vertex, neighborLookup(graph), 0));
+                .flatMap(vertex -> traverseToProperty(vertex, neighborLookup(graph), 0, graph));
         }
 
         /**
@@ -314,14 +314,16 @@ public abstract class TraversalFilter<E extends TopologyGraphSearchableEntity<E>
          * @param entity The vertex from which to begin/continue the traversal.
          * @param neighborLookup The method to use to lookup neighbors in a given direction.
          * @param traversalNesting The current recursion depth of the traversal.
+         * @param graph The topology graph being searched.
          * @return A stream of all vertices in the graph that match the stoppingFilter reachable
          *         from the source in the given direction (where traversal stops at vertices that match
          *         the stoppingFilter).
          */
         private Stream<E> traverseToProperty(@Nonnull final E entity,
-                                                  @Nonnull final Function<E, Stream<E>> neighborLookup,
-                                                  int traversalNesting) {
-            if (stoppingFilter.test(entity)) {
+                                            @Nonnull final Function<E, Stream<E>> neighborLookup,
+                                            int traversalNesting,
+                                            @Nonnull final TopologyGraph<E> graph) {
+            if (stoppingFilter.test(entity, graph)) {
                 return Stream.of(entity);
             } else {
                 if (traversalNesting >= MAX_RECURSION_DEPTH) {
@@ -329,7 +331,7 @@ public abstract class TraversalFilter<E extends TopologyGraphSearchableEntity<E>
                     return Stream.empty(); // Do not exceed maximum recursion depth
                 } else {
                     return neighborLookup.apply(entity)
-                        .flatMap(neighbor -> traverseToProperty(neighbor, neighborLookup, traversalNesting + 1));
+                        .flatMap(neighbor -> traverseToProperty(neighbor, neighborLookup, traversalNesting + 1, graph));
                 }
             }
         }

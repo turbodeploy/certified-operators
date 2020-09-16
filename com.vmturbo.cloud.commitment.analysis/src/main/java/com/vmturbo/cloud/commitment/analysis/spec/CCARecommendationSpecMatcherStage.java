@@ -15,11 +15,9 @@ import org.stringtemplate.v4.ST;
 
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
-import com.vmturbo.cloud.commitment.analysis.runtime.ImmutableStageResult;
-import com.vmturbo.cloud.commitment.analysis.runtime.ImmutableStageResult.Builder;
-import com.vmturbo.cloud.commitment.analysis.runtime.data.AggregateCloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.data.CloudTierCoverageDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.AbstractStage;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
 
@@ -64,7 +62,7 @@ public class CCARecommendationSpecMatcherStage extends AbstractStage<CloudTierCo
             } else {
                 logger.debug(
                         "No RI Specs found for entities {} from account {} having tier type {} and demand {}",
-                        scopedCloudTierDemand.entityOids(), scopedCloudTierDemand.accountOid(),
+                        scopedCloudTierDemand.demandByEntity().keySet(), scopedCloudTierDemand.accountOid(),
                         scopedCloudTierDemand.cloudTierType(), scopedCloudTierDemand.demandAmount());
             }
         }
@@ -77,7 +75,7 @@ public class CCARecommendationSpecMatcherStage extends AbstractStage<CloudTierCo
         }
 
         CommitmentSpecDemandSet output = commitmentSpecDemandSetBuilder.build();
-        Builder<CommitmentSpecDemandSet> builder = ImmutableStageResult.<CommitmentSpecDemandSet>builder().output(output);
+        StageResult.Builder<CommitmentSpecDemandSet> builder = StageResult.<CommitmentSpecDemandSet>builder().output(output);
         builder.resultSummary(recommendationSpecMatcherStageSummary.toSummaryCollector(
                     cloudTierCoverageDemand, specByDemand));
         return builder.build();

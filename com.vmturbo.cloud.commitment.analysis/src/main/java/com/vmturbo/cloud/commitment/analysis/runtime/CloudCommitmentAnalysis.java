@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.Nonnull;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value.Default;
@@ -21,7 +22,9 @@ import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAn
  */
 public class CloudCommitmentAnalysis {
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final String LOGGING_TAG = "analysisTag";
+
+    private final Logger logger = LogManager.getLogger();
 
     private final CloudCommitmentAnalysisInfo analysisInfo;
 
@@ -32,8 +35,6 @@ public class CloudCommitmentAnalysis {
     private final CloudCommitmentAnalysisConfig analysisConfig;
 
     private final AnalysisPipeline analysisPipeline;
-
-    private final String logMarker;
 
     private final AtomicBoolean isStarted = new AtomicBoolean(false);
 
@@ -49,7 +50,6 @@ public class CloudCommitmentAnalysis {
         this.analysisPipeline = Objects.requireNonNull(analysisPipeline, "Analysis pipeline must be set");
         this.analysisSummary = new CloudCommitmentAnalysisSummary(
                 analysisContext.getAnalysisInfo(), analysisConfig, analysisPipeline);
-        this.logMarker = analysisContext.getLogMarker();
     }
 
     /**
@@ -61,34 +61,44 @@ public class CloudCommitmentAnalysis {
      */
     public void run() throws CloudCommitmentAnalysisException {
 
-        if (!isStarted.getAndSet(true)) {
-            logger.info("{} Staring cloud commitment analysis:\n{}", logMarker, analysisSummary);
+        try (AnalysisExecutionContext aec = this.new AnalysisExecutionContext()) {
+            if (!isStarted.getAndSet(true)) {
+                logger.info("Staring cloud commitment analysis:\n{}", analysisSummary);
 
-            // The first stage is expected to accept null as input
-            Object stageInput = null;
-            for (AnalysisStage stage : analysisPipeline.stages()) {
-                try {
-                    logger.info("{} Executing stage [{}]", logMarker, stage.stageName());
+                // The first stage is expected to accept null as input
+                Object stageInput = null;
+                for (AnalysisStage stage : analysisPipeline.stages()) {
+                    try {
+                        logger.info("Executing stage [{}]", stage.stageName());
 
-                    analysisSummary.onStageStart(stage);
-                    StageResult<?> stageResult = stage.execute(stageInput);
-                    analysisSummary.onStageCompletion(stage, stageResult);
+                        analysisSummary.onStageStart(stage);
 
-                    stageInput = stageResult.output();
+                        final StageResult<?> stageResult;
+                        try (StageExecutionContext sec = this.new StageExecutionContext(stage)) {
+                            stageResult = stage.execute(stageInput);
+                        }
 
-                } catch (Exception e) {
+                        analysisSummary.onStageCompletion(stage, stageResult);
 
-                    final String message = "{} Cloud commitment analysis failure at stage "
-                            + stage.stageName() + " with error: " + e.getMessage();
+                        logger.info("Stage completed [{}]. Stage result:\n{}",
+                                stage.stageName(), stageResult.resultSummary());
 
-                    analysisSummary.onStageFailure(stage, message);
-                    logger.info("{} {}", logMarker, analysisSummary);
-                    throw new CloudCommitmentAnalysisException(message, e);
+                        stageInput = stageResult.output();
+
+                    } catch (Exception e) {
+
+                        final String message = "{} Cloud commitment analysis failure at stage "
+                                + stage.stageName() + " with error: " + e.getMessage();
+
+                        analysisSummary.onStageFailure(stage, message);
+                        logger.info("{}", analysisSummary);
+                        throw new CloudCommitmentAnalysisException(message, e);
+                    }
                 }
-            }
 
-            logger.info("{} {}", logMarker, analysisSummary);
-            logger.info("{} Cloud commitment analysis completed successfully", logMarker);
+                logger.info("{}", analysisSummary);
+                logger.info("Cloud commitment analysis completed successfully");
+            }
         }
     }
 
@@ -99,15 +109,6 @@ public class CloudCommitmentAnalysis {
     @Nonnull
     public CloudCommitmentAnalysisInfo info() {
         return analysisInfo;
-    }
-
-    /**
-     * The log marker for this analysis.
-     * @return The log market for this analysis.
-     */
-    @Nonnull
-    public String logMarker() {
-        return logMarker;
     }
 
     /**
@@ -125,7 +126,7 @@ public class CloudCommitmentAnalysis {
      */
     @Override
     public String toString() {
-        return String.format("%s:\n%s", logMarker, analysisSummary);
+        return String.format("%s", analysisSummary);
     }
 
     /**
@@ -209,6 +210,54 @@ public class CloudCommitmentAnalysis {
                     .state(State.FAILED)
                     .message(message)
                     .build();
+        }
+    }
+
+    /**
+     * A wrapper around the execution of the analysis. Responsible for setting the analysis
+     * tag for logging purposes.
+     */
+    private class AnalysisExecutionContext implements AutoCloseable {
+
+        private final CloseableThreadContext.Instance loggingContext;
+
+        AnalysisExecutionContext() {
+            final String loggingTag = String.format("%s|%s",
+                    analysisInfo.getOid(), analysisInfo.getAnalysisTag());
+            loggingContext = CloseableThreadContext.put(LOGGING_TAG, loggingTag);
+        }
+
+        /**
+         * Closes the analysis execution context.
+         */
+        @Override
+        public void close() {
+            loggingContext.close();
+        }
+    }
+
+    /**
+     * A wrapper around the execution of an analysis stage. Responsible for setting the analysis
+     * tag for logging purposes.
+     */
+    private class StageExecutionContext implements AutoCloseable {
+
+        private final CloseableThreadContext.Instance loggingContext;
+
+        StageExecutionContext(@Nonnull AnalysisStage stage) {
+            final String loggingTag = String.format("%s|%s|%s",
+                    analysisInfo.getOid(),
+                    analysisInfo.getAnalysisTag(),
+                    stage.stageName());
+            loggingContext = CloseableThreadContext.put(LOGGING_TAG, loggingTag);
+        }
+
+        /**
+         * Closes the stage execution context.
+         */
+        @Override
+        public void close() {
+            loggingContext.close();
         }
     }
 

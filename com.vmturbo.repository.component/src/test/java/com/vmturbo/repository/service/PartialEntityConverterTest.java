@@ -5,6 +5,18 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Stream;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -38,14 +50,18 @@ import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.api.SharedByteBuffer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
+import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology;
 import com.vmturbo.topology.graph.TagIndex.DefaultTagIndex;
 
 public class PartialEntityConverterTest {
 
     private static final long TARGET_ID = 123L;
 
-    private PartialEntityConverter converter = new PartialEntityConverter();
+    private LiveTopologyStore liveTopologyStore = mock(LiveTopologyStore.class);
+
+    private PartialEntityConverter converter = new PartialEntityConverter(liveTopologyStore);
 
     private static final CommoditySoldDTO VMEM_SOLD = CommoditySoldDTO.newBuilder()
         .setCommodityType(CommodityType.newBuilder()
@@ -221,7 +237,7 @@ public class PartialEntityConverterTest {
 
     @Test
     public void testGraphEntityToMinimal() {
-        final MinimalEntity minEntity = converter.createPartialEntity(graphEntity, Type.MINIMAL).getMinimal();
+        final MinimalEntity minEntity = converter.createPartialEntities(Stream.of(graphEntity), Type.MINIMAL).findFirst().get().getMinimal();
         assertThat(minEntity.getOid(), is(graphEntity.getOid()));
         assertThat(minEntity.getEnvironmentType(), is(graphEntity.getEnvironmentType()));
         assertThat(minEntity.getDisplayName(), is(graphEntity.getDisplayName()));
@@ -231,7 +247,7 @@ public class PartialEntityConverterTest {
 
     @Test
     public void testGraphEntityToAction() {
-        final ActionPartialEntity actionEntity = converter.createPartialEntity(graphEntity, Type.ACTION).getAction();
+        final ActionPartialEntity actionEntity = converter.createPartialEntities(Stream.of(graphEntity), Type.ACTION).findFirst().get().getAction();
         assertThat(actionEntity.getOid(), is(graphEntity.getOid()));
         assertThat(actionEntity.getDisplayName(), is(graphEntity.getDisplayName()));
         assertThat(actionEntity.getEntityType(), is(graphEntity.getEntityType()));
@@ -241,7 +257,15 @@ public class PartialEntityConverterTest {
 
     @Test
     public void testGraphEntityToApi() {
-        final ApiPartialEntity apiEntity = converter.createPartialEntity(graphEntity, Type.API).getApi();
+        final DefaultTagIndex tagIndex = mock(DefaultTagIndex.class);
+        final Long2ObjectMap<Map<String, Set<String>>> map = new Long2ObjectOpenHashMap<>();
+        map.put(graphEntity.getOid(), Collections.singletonMap("tag", Collections.singleton("val")));
+        when(tagIndex.getTagsByEntity(any())).thenReturn(map);
+        final SourceRealtimeTopology mockTopology = mock(SourceRealtimeTopology.class);
+        when(mockTopology.globalTags()).thenReturn(tagIndex);
+        when(liveTopologyStore.getSourceTopology()).thenReturn(Optional.of(mockTopology));
+
+        final ApiPartialEntity apiEntity = converter.createPartialEntities(Stream.of(graphEntity), Type.API).findFirst().get().getApi();
         assertThat(apiEntity.getOid(), is(ENTITY.getOid()));
         assertThat(apiEntity.getEnvironmentType(), is(ENTITY.getEnvironmentType()));
         assertThat(apiEntity.getDisplayName(), is(ENTITY.getDisplayName()));
@@ -275,7 +299,7 @@ public class PartialEntityConverterTest {
     @Test
     public void testGraphEntityToWithConnections() {
         final EntityWithConnections withConnections =
-            converter.createPartialEntity(graphEntity, Type.WITH_CONNECTIONS).getWithConnections();
+            converter.createPartialEntities(Stream.of(graphEntity), Type.WITH_CONNECTIONS).findFirst().get().getWithConnections();
 
         assertThat(withConnections.getOid(), is(ENTITY.getOid()));
         assertThat(withConnections.getDisplayName(), is(ENTITY.getDisplayName()));
@@ -285,7 +309,7 @@ public class PartialEntityConverterTest {
 
     @Test
     public void testGraphEntityToFull() {
-        final TopologyEntityDTO fullEntity = converter.createPartialEntity(graphEntity, Type.FULL).getFullEntity();
+        final TopologyEntityDTO fullEntity = converter.createPartialEntities(Stream.of(graphEntity), Type.FULL).findFirst().get().getFullEntity();
         assertThat(fullEntity, is(ENTITY));
     }
 
@@ -294,8 +318,8 @@ public class PartialEntityConverterTest {
      */
     @Test
     public void testHostForVSANToAction()   {
-        final ActionPartialEntity actionEntity = converter.createPartialEntity(
-                        hostForVSANEntity, Type.ACTION).getAction();
+        final ActionPartialEntity actionEntity = converter.createPartialEntities(
+                        Stream.of(hostForVSANEntity), Type.ACTION).findFirst().get().getAction();
         assertEquals(hostForVSANEntity.getOid(), actionEntity.getOid());
         assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, actionEntity.getEntityType());
         assertEquals(1, actionEntity.getConnectedEntitiesCount());

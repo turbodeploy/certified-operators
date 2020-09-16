@@ -13,7 +13,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.protobuf.Empty;
 
 import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
@@ -23,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
+import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
 import com.vmturbo.components.api.SetOnce;
@@ -140,7 +140,7 @@ public class DiagEnvironmentSummary {
 
         List<String> domains;
         try {
-            domains = licenseManagerService.getLicenses(Empty.getDefaultInstance())
+            domains = licenseManagerService.getLicenses(GetLicensesRequest.getDefaultInstance())
                 .getLicenseDTOList().stream()
                 .filter(LicenseDTO::hasTurbo)
                 .map(LicenseDTO::getTurbo)

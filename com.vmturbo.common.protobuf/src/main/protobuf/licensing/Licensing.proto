@@ -138,6 +138,30 @@ message GetLicenseRequest {
     optional string uuid = 1;
 }
 
+enum LicenseType {
+    ANY = 0;
+    TURBO = 1;
+    EXTERNAL = 2;
+}
+
+message LicenseFilter {
+    // What types of license to include.
+    // Defaults to "any" - i.e. include all.
+    optional LicenseType type = 1;
+
+    // Whether or not to include expired licenses.
+    optional bool include_expired = 2 [default = true];
+
+    // What types of external licenses to include.
+    // No effect if external licenses are excluded by the general "type" filter above.
+    optional LicenseDTO.ExternalLicense.Type external_license_type = 3;
+}
+
+message GetLicensesRequest {
+    // If no filter provided, retrieve all licenses.
+    optional LicenseFilter filter = 1;
+}
+
 message GetLicenseResponse {
     optional LicenseDTO licenseDTO = 1;
 }
@@ -158,7 +182,7 @@ message GetLicenseSummaryResponse {
 }
 
 service LicenseManagerService {
-    rpc getLicenses(google.protobuf.Empty) returns (GetLicensesResponse);
+    rpc getLicenses(GetLicensesRequest) returns (GetLicensesResponse);
     rpc getLicense(GetLicenseRequest) returns (GetLicenseResponse);
     rpc validateLicenses(ValidateLicensesRequest) returns (ValidateLicensesResponse);
     rpc addLicenses(AddLicensesRequest) returns (AddLicensesResponse);

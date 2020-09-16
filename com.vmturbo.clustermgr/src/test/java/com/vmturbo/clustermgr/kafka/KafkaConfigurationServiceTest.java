@@ -34,6 +34,9 @@ public class KafkaConfigurationServiceTest {
     private PropertiesConfigSource createDefaultConfigurationSource() {
         PropertiesConfigSource configSource = new PropertiesConfigSource();
         configSource.setProperty("kafkaServers", "localhost:9093");
+        // disable the async config load that starts when instantiating the component by setting the
+        // config path to empty. We will be testing the config load logic explicitly in our tests here.
+        configSource.setProperty("kafkaConfigFile", "");
         return configSource;
     }
 

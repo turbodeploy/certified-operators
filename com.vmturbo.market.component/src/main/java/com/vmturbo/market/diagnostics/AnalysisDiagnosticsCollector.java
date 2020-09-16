@@ -42,6 +42,8 @@ public class AnalysisDiagnosticsCollector {
     @VisibleForTesting
     static final String SMAINPUT_FILE_NAME_SUFFIX = "SMAInput.diags";
     @VisibleForTesting
+    static final String ACTIONS_FILE_NAME = "Actions.csv";
+    @VisibleForTesting
     static final String SMA_RESERVED_INSTANCE_PREFIX = "RI";
     @VisibleForTesting
     static final String SMA_VIRTUAL_MACHINE_PREFIX = "VM";
@@ -52,6 +54,7 @@ public class AnalysisDiagnosticsCollector {
 
     static final String SMA_ZIP_LOCATION_PREFIX = "tmp/smaDiags-";
     static final String M2_ZIP_LOCATION_PREFIX = "tmp/analysisDiags-";
+    static final String ACTION_ZIP_LOCATION_PREFIX = "tmp/actionDiags-";
 
     private static final Logger logger = LogManager.getLogger();
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
@@ -69,12 +72,44 @@ public class AnalysisDiagnosticsCollector {
         /**
          * mode for saving SMA diags.
          */
-        SMA;
+        SMA,
+
+        /**
+         * mode for saving actions.
+         */
+        ACTIONS;
     }
 
     private AnalysisDiagnosticsCollector(DiagnosticsWriter diagsWriter) {
         this.diagsWriter = diagsWriter;
     }
+
+    /**
+     * Save SMA and M2 cloud VM compute actions.
+     *
+     * @param actionLogs list of actions.
+     * @param topologyInfo topology info
+     */
+    public void saveActions(List<String> actionLogs,
+                            final TopologyInfo topologyInfo) {
+        try {
+            logger.info("Starting dump of Actions for topology context id {}",
+                    topologyInfo.getTopologyContextId());
+            final Stopwatch stopwatch = Stopwatch.createStarted();
+            diagsWriter.writeZipEntry(ACTIONS_FILE_NAME, actionLogs.iterator());
+            stopwatch.stop();
+
+            logger.info("Completed dump of Actions for topology context id {} in {} seconds",
+                    topologyInfo.getTopologyContextId(), stopwatch.elapsed(TimeUnit.SECONDS));
+        } catch (Exception e) {
+            // Analysis should not stop because there was an error in saving diags.
+            logger.error("Error when attempting to save Actions. But analysis will continue.", e);
+        }
+    }
+
+
+
+
 
     /**
      * Save SMA Input data.
@@ -235,11 +270,20 @@ public class AnalysisDiagnosticsCollector {
             private DiagnosticsWriter createDiagnosticsWriter(TopologyInfo topologyInfo, AnalysisMode analysisMode)
                 throws FileNotFoundException {
 
-                final String zipLocation = (analysisMode == AnalysisMode.SMA
-                        ? SMA_ZIP_LOCATION_PREFIX : M2_ZIP_LOCATION_PREFIX)
+                String zipPrefix = "";
+                if (analysisMode == AnalysisMode.SMA) {
+                    zipPrefix = SMA_ZIP_LOCATION_PREFIX;
+                } else if (analysisMode == AnalysisMode.M2) {
+                    zipPrefix = M2_ZIP_LOCATION_PREFIX;
+                } else if (analysisMode == AnalysisMode.ACTIONS) {
+                    zipPrefix = ACTION_ZIP_LOCATION_PREFIX;
+                }
+
+                final String zipLocation = zipPrefix
                         + topologyInfo.getTopologyContextId()
                         + "-" + topologyInfo.getTopologyId()
                         + ".zip";
+
                 FileOutputStream fos = new FileOutputStream(zipLocation);
                 ZipOutputStream diagnosticZip = new ZipOutputStream(fos);
                 final DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);

@@ -3,6 +3,7 @@ package com.vmturbo.plan.orchestrator.project;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.turbonomic.cpucapacity.CPUCapacityEstimator;
 
 import io.grpc.Channel;
 import io.grpc.stub.StreamObserver;
@@ -45,6 +46,7 @@ public class PlanProjectExecutor {
      * @param projectNotifier Used to send plan project related notification updates.
      * @param headroomCalculationForAllClusters specifies how to run cluster headroom plan
      * @param topologyProcessor a REST call to get target info
+     * @param cpuCapacityEstimator estimates the scaling factor of a cpu model.
      */
     PlanProjectExecutor(@Nonnull final PlanDao planDao,
                         @Nonnull final PlanProjectDao planProjectDao,
@@ -56,11 +58,12 @@ public class PlanProjectExecutor {
                         @Nonnull final Channel historyChannel,
                         @Nonnull final PlanProjectNotificationSender projectNotifier,
                         final boolean headroomCalculationForAllClusters,
-                        @Nonnull final TopologyProcessor topologyProcessor) {
+                        @Nonnull final TopologyProcessor topologyProcessor,
+                        @Nonnull final CPUCapacityEstimator cpuCapacityEstimator) {
 
         headroomExecutor = new ClusterHeadroomPlanProjectExecutor(planDao, groupChannel,
                 planRpcService, projectPlanPostProcessorRegistry, repositoryChannel, templatesDao, historyChannel,
-                headroomCalculationForAllClusters, topologyProcessor);
+                headroomCalculationForAllClusters, topologyProcessor, cpuCapacityEstimator);
 
         cloudMigrationExecutor = new CloudMigrationPlanProjectExecutor(planDao, planProjectDao,
                 planRpcService, projectPlanPostProcessorRegistry, projectNotifier);

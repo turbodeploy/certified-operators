@@ -1,7 +1,5 @@
 package com.vmturbo.cost.component.topology;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -61,7 +59,6 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         GroupClientConfig.class,
         CloudCommitmentAnalysisStoreConfig.class})
 public class TopologyListenerConfig {
-    private static final Logger logger = LogManager.getLogger();
 
     @Autowired
     private TopologyProcessorListenerConfig topologyProcessorListenerConfig;
@@ -122,7 +119,6 @@ public class TopologyListenerConfig {
                         cloudTopologyFactory(), topologyCostCalculatorFactory(),
                         entityCostConfig.entityCostStore(),
                         reservedInstanceConfig.reservedInstanceCoverageUpload(),
-                        reservedInstanceConfig.accountRIMappingStore(),
                         costConfig.businessAccountHelper(),
                         costJournalRecorder(),
                         buyRIAnalysisConfig.reservedInstanceAnalysisInvoker(),

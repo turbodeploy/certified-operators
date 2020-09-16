@@ -187,16 +187,6 @@ public abstract class ActionEvent implements StateMachineEvent {
     }
 
     /**
-     * An event generated when the action begins to be prepared for execution.
-     * This may involve executing a workflow, if a policy defines a PRE workflow for the action
-     */
-    public static class PrepareExecutionEvent extends ActionEvent {
-        public PrepareExecutionEvent() {
-            super();
-        }
-    }
-
-    /**
      * An event generated when the Action Orchestrator receives a progress
      * report about an action currently being executed.
      */
@@ -253,38 +243,6 @@ public abstract class ActionEvent implements StateMachineEvent {
         public String getErrorDescription() {
             return errorDescription;
         }
-    }
-
-    /**
-     * An event generated when the action execution has completed successfully.
-     * This event is intended to follow the SuccessEvent and allow for cleanup.
-     * This may involve executing a workflow, if a policy defines a POST workflow for the action.
-     */
-    public static class AfterSuccessEvent extends SuccessEvent {
-
-        /**
-         * Create an event that signals the action to run a POST workflow, if one is configured
-         */
-        public AfterSuccessEvent() {
-            super();
-        }
-
-    }
-
-    /**
-     * An event generated when the action execution has failed.
-     * This event is intended to follow the FailureEvent and allow for cleanup.
-     * This may involve executing a workflow, if a policy defines a POST workflow for the action.
-     */
-    public static class AfterFailureEvent extends FailureEvent {
-
-        /**
-         * Create an event that signals the action to run a POST workflow, if one is configured
-         */
-        public AfterFailureEvent(String errorDescription) {
-            super(errorDescription);
-        }
-
     }
 
     /**

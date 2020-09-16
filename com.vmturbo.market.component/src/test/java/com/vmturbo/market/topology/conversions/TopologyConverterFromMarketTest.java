@@ -1079,6 +1079,29 @@ public class TopologyConverterFromMarketTest {
             vmBuilder.build().getTypeSpecificInfo().getVirtualMachine().getNumCpus());
     }
 
+    /**
+     * Validate that the creation of BApp and BTx is skipped.
+     */
+    @Test
+    public void testSkipBAppAndBTxEntities() {
+
+        TopologyDTO.TopologyEntityDTO bAppDTO = createEntityDTO(1000,
+                EntityType.BUSINESS_APPLICATION_VALUE, Collections.EMPTY_LIST, 0);
+
+        TopologyDTO.TopologyEntityDTO bTxDTO = createEntityDTO(1001,
+                EntityType.BUSINESS_APPLICATION_VALUE, Collections.EMPTY_LIST, 0);
+
+        CommoditySoldTO x = CommoditySoldTO.getDefaultInstance();
+
+        when(mockCommodityConverter.createCommoditySoldTO(Mockito.anyObject(), Mockito.anyFloat(),
+                Mockito.anyFloat(), Mockito.anyObject())).thenReturn(x);
+
+        Set<TraderTO> traderTOs = converter.convertToMarket(ImmutableMap.of(1000L, bAppDTO,
+                1001L, bTxDTO),
+                Collections.EMPTY_SET);
+        assertTrue(traderTOs.size() == 0);
+    }
+
     @Test
     public void testConvertFromMarketPreservesOriginalOrigin() {
         final TopologyDTO.TopologyEntityDTO originalVm = TopologyDTO.TopologyEntityDTO.newBuilder()

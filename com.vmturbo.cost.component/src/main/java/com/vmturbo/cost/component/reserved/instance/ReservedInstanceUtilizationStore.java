@@ -5,6 +5,7 @@ import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -57,8 +58,6 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
 
     private final ReservedInstanceSpecStore reservedInstanceSpecStore;
 
-    private final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
-
     private final ReservedInstanceUtilizationByHourDiagsHelper reservedInstanceUtilizationByHourDiagsHelper;
 
     private final ReservedInstanceUtilizationByMonthDiagsHelper reservedInstanceUtilizationByMonthDiagsHelper;
@@ -70,12 +69,10 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
     public ReservedInstanceUtilizationStore(
             @Nonnull final DSLContext dsl,
             @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
-            @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore,
-            @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore) {
+            @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore) {
         this.dsl = dsl;
         this.reservedInstanceBoughtStore = reservedInstanceBoughtStore;
         this.reservedInstanceSpecStore = reservedInstanceSpecStore;
-        this.entityReservedInstanceMappingStore = entityReservedInstanceMappingStore;
         this.reservedInstanceUtilizationByHourDiagsHelper = new ReservedInstanceUtilizationByHourDiagsHelper(dsl);
         this.reservedInstanceUtilizationByDayDiagsHelper = new ReservedInstanceUtilizationByDayDiagsHelper(dsl);
         this.reservedInstanceUtilizationByMonthDiagsHelper = new ReservedInstanceUtilizationByMonthDiagsHelper(dsl);
@@ -102,7 +99,8 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
                 .collect(Collectors.toMap(ReservedInstanceSpec::getId,
                         riSpec -> riSpec.getReservedInstanceSpecInfo().getRegionId()));
         final Map<Long, Double> riUsedCouponsMap =
-                entityReservedInstanceMappingStore.getReservedInstanceUsedCouponsMap(context);
+                reservedInstanceBoughtStore.getNumberOfUsedCouponsForReservedInstances(context, Collections
+                        .emptyList());
         final List<ReservedInstanceUtilizationLatestRecord> riUtilizationRecords =
                 allReservedInstancesBought.stream()
                         .map(ri -> createReservedInstanceUtilizationRecord(context, ri, currentTime,
@@ -119,14 +117,6 @@ public class ReservedInstanceUtilizationStore implements MultiStoreDiagnosable {
         context.batch(insertsWithDuplicates).execute();
     }
 
-    public List<ReservedInstanceStatsRecord> getReservedInstanceUtilizationStatsRecordsForExport() {
-        final Result<Record> records =
-                dsl.select(createSelectFieldsForRIUtilizationCoverage(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST))
-                        .from(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST).fetch();
-        return records.stream()
-                .map(ReservedInstanceUtil::convertRIUtilizationCoverageRecordToRIStatsRecord)
-                .collect(Collectors.toList());
-    }
     /**
      * Get the list of {@link ReservedInstanceStatsRecord} which aggregates data from reserved instance
      * utilization table.

@@ -142,6 +142,11 @@ public class PlanTopologyScopeEditorTest {
         put(10001L, basketSoldByDC2);
     }};
 
+    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByApp1Comp1 = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
+        put(30001L, basketSoldByVM1);
+        put(30003L, basketSoldByVM2);
+    }};
+
     private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByApp1 = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
         put(30001L, basketSoldByVM1);
     }};
@@ -187,7 +192,7 @@ public class PlanTopologyScopeEditorTest {
     private final TopologyEntity.Builder vm1InDc1 = createHypervisorTopologyEntity(30001L, "vm1InDc1", EntityType.VIRTUAL_MACHINE, commBoughtByVMinDC1PM1DS1, basketSoldByVM1, virtualVolume.getOid());
     private final TopologyEntity.Builder vm2InDc1 = createHypervisorTopologyEntity(30002L, "vm2InDc1", EntityType.VIRTUAL_MACHINE, commBoughtByVMinDC1PM2DS1, basketSoldByVM1);
     private final TopologyEntity.Builder vmInDc2 = createHypervisorTopologyEntity(30003L, "vmInDc2", EntityType.VIRTUAL_MACHINE, commBoughtByVMinDC2PMDS2, basketSoldByVM2);
-    private final TopologyEntity.Builder appc1 = createHypervisorTopologyEntity(60001L, "appc1", EntityType.APPLICATION_COMPONENT, commBoughtByApp1, new ArrayList<>());
+    private final TopologyEntity.Builder appc1 = createHypervisorTopologyEntity(60001L, "appc1", EntityType.APPLICATION_COMPONENT, commBoughtByApp1Comp1, new ArrayList<>());
     private final TopologyEntity.Builder as1 = createHypervisorTopologyEntity(70001L, "as1", EntityType.APPLICATION_SERVER, commBoughtByApp1, basketSoldByAS1);
     private final TopologyEntity.Builder as2 = createHypervisorTopologyEntity(70002L, "as2", EntityType.APPLICATION_SERVER, commBoughtByApp2, basketSoldByAS2);
     private final TopologyEntity.Builder bapp1 = createHypervisorTopologyEntity(80001L, "bapp1", EntityType.BUSINESS_APPLICATION, commBoughtByBA, new ArrayList<>());
@@ -770,7 +775,7 @@ public class PlanTopologyScopeEditorTest {
 
     /**
      * Scenario: scope on st2 which hosts vm on dc2.
-     * Expected: the entities in scope should be ba, as2, vm3, pm3, st2, dc2, da1
+     * Expected: the entities in scope should be ba, as2, vm3, pm3, st2, dc2, da1, appc1
      *
      * @throws Exception An exception thrown when a stage of the pipeline fails.
      */
@@ -787,7 +792,7 @@ public class PlanTopologyScopeEditorTest {
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
                 .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
         result.entities().forEach(e -> System.out.println(e.getOid() + " "));
-        assertEquals(7, result.size());
+        assertEquals(8, result.size());
     }
 
     /**

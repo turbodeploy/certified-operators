@@ -152,7 +152,7 @@ public class ServiceEntitySubGraphCreatorTest {
                 graphDefinition,
                 batchSize, REPLICA_COUNT);
 
-        creator.create(ses);
+        creator.create(ses, null);
 
         ArgumentCaptor<VertexParameter> vp = ArgumentCaptor.forClass(VertexParameter.class);
         ArgumentCaptor<EdgeParameter> ep = ArgumentCaptor.forClass(EdgeParameter.class);

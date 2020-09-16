@@ -1,11 +1,11 @@
 package com.vmturbo.market.diagnostics;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -65,13 +65,11 @@ public class ActionLogger {
 
     private static final Logger logger = LogManager.getLogger();
 
-    // to easily find the data in the log
-    private static final String prefix = "actionLogger";
 
-    private static final String header = "market," + prefix + ",engine,CSP,billingFamily,businessAccount,region," +
-        "osType,tenancy,vm,vmOid,vmGroup,savingsPerHour," +
-        "sourceTemplate,sourceCoupons,naturalTemplate,naturalCoupons," +
-        "sourceRI,sourceRIKey,sourceRITemplate,sourceRICoupons,"
+    private static final String header = "engine,CSP,billingFamily,businessAccount,region,"
+            + "osType,tenancy,vm,vmOid,vmGroup,savingsPerHour,"
+            + "sourceTemplate,sourceCoupons,naturalTemplate,naturalCoupons,"
+            + "sourceRI,sourceRIKey,sourceRITemplate,sourceRICoupons,"
             + "projectedTemplate,projectedCoupons,projectedRI,ProjectedRIKey,projectedRITemplate,projectedRICoupons,"
             + "templateChange,familyChange";
     /*
@@ -113,17 +111,15 @@ public class ActionLogger {
      * Given a list of actions, log each action in CSV format.
      *
      * @param actions                           list of actions to be logged
-     * @param enabledSMA                        true if SMA is the engine, otherwise M2 is the engine
-     * @param marketMode                        mode that market is running in.
      * @param sourceCloudTopology               source cloud topology
      * @param projectedCloudTopology            cloud dictionary for projected topology
      * @param cloudCostData                     dictionary of cloud costs, determine source templates RI coverage
      * @param projectedReservedInstanceCoverage projected RI coverage
      * @param consistentScalingHelper           used to figure out the consistent scaling information.
+     *
+     * @return list of actions
      */
-    public void logActions(List<Action> actions,
-                           boolean enabledSMA,
-                           MarketMode marketMode,
+    public List<String> logM2Actions(List<Action> actions,
                            @Nonnull final CloudTopology<TopologyEntityDTO> sourceCloudTopology,
                            @Nonnull final CloudTopology<TopologyEntityDTO> projectedCloudTopology,
                            @Nonnull final CloudCostData cloudCostData,
@@ -134,18 +130,10 @@ public class ActionLogger {
         Objects.requireNonNull(cloudCostData, "cloudCostData == null");
         Objects.requireNonNull(projectedReservedInstanceCoverage, "projectedReservedInstanceCoverage == null");
         Objects.requireNonNull(consistentScalingHelper, "consistentScalingHelper == null");
+        List<String> buffer = new ArrayList<>();
+        buffer.add(header);
+        engine = "M2";
 
-        if (!(marketMode == MarketMode.M2withSMAActions || logger.isDebugEnabled())) {
-            return;
-        }
-        final Stopwatch stopWatchRefined = Stopwatch.createStarted();
-        StringBuffer buffer = new StringBuffer();
-        buffer.append(header).append("\n");
-        if (enabledSMA) {
-            engine = "SMA";
-        } else {
-            engine = "M2";
-        }
         for (Action action : actions) {
             initialize();
             ActionInfo info = action.getInfo();
@@ -174,10 +162,9 @@ public class ActionLogger {
             ActionEntity projectedActionEntity = changeProvider.getDestination();
             processTemplate(projectedActionEntity, projectedCloudTopology, false);
             setChange();
-            addRow(buffer);
+            buffer.add(addRow());
         }
-        logger.info(buffer.toString());
-        logger.info("logActions: time to dump actions {}ms", stopWatchRefined.elapsed(TimeUnit.MILLISECONDS));
+        return buffer;
     }
 
     /**
@@ -189,8 +176,10 @@ public class ActionLogger {
      * @param cloudCostData                     dictionary of cloud costs, determine source templates RI coverage
      * @param projectedReservedInstanceCoverage projected RI coverage
      * @param consistentScalingHelper           used to figure out the consistent scaling information.
+     *
+     * @return list of actions
      */
-    public void logSMAOutput(SMAOutput smaOutput,
+    public List<String> logSMAOutput(SMAOutput smaOutput,
                            @Nonnull final CloudTopology<TopologyEntityDTO> sourceCloudTopology,
                            @Nonnull final CloudTopology<TopologyEntityDTO> projectedCloudTopology,
                            @Nonnull final CloudCostData cloudCostData,
@@ -202,8 +191,8 @@ public class ActionLogger {
         Objects.requireNonNull(projectedReservedInstanceCoverage, "projectedReservedInstanceCoverage == null");
         Objects.requireNonNull(consistentScalingHelper, "consistentScalingHelper == null");
         final Stopwatch stopWatchRefined = Stopwatch.createStarted();
-        StringBuffer buffer = new StringBuffer();
-        buffer.append(header).append("\n");
+        List<String> buffer = new ArrayList<>();
+        buffer.add(header);
         engine = "SMA";
 
         for (SMAOutputContext outputContext: smaOutput.getContexts()) {
@@ -223,8 +212,7 @@ public class ActionLogger {
                 processMatch(match, sourceCloudTopology, buffer);
             }
         }
-        logger.info(buffer.toString());
-        logger.info("logSMAOutput: time to dump actions {}ms", stopWatchRefined.elapsed(TimeUnit.MILLISECONDS));
+        return buffer;
     }
 
     /**
@@ -235,7 +223,7 @@ public class ActionLogger {
      */
     private void processMatch(SMAMatch match,
                               CloudTopology<TopologyEntityDTO> sourceCloudTopology,
-                              StringBuffer buffer) {
+                              List<String> buffer) {
         SMAVirtualMachine vm = match.getVirtualMachine();
         virtualMachineOid = vm.getOid();
         OSType osType = vm.getOsType();
@@ -286,7 +274,7 @@ public class ActionLogger {
         savingsPerHour = SMAUtils.format4Digits(sourceCost - projectedCost);
 
         setChange();
-        addRow(buffer);
+        buffer.add(addRow());
 
     }
 
@@ -309,10 +297,13 @@ public class ActionLogger {
         }
     }
 
-    private void addRow(StringBuffer buffer) {
-        buffer.append(",")
-            .append(prefix). append(",")
-            .append(engine).append(",")
+    /**
+     * create a action string.
+     * @return the action as a string.
+     */
+    private String addRow() {
+        StringBuffer buffer = new StringBuffer();
+        buffer.append(engine).append(",")
             .append(csp.name()).append(",")
             .append(billingFamilyName).append(",")
             .append(businessAccountName).append(",")
@@ -338,8 +329,8 @@ public class ActionLogger {
             .append(projectedReservedInstanceTemplateName).append(",")
             .append(projectedReservedInstanceCouponsApplied == FLOAT_UNKNOWN ? "-" : projectedReservedInstanceCouponsApplied).append(",")
             .append(templateChange).append(",")
-            .append(familyChange)
-            .append("\n");
+            .append(familyChange);
+        return buffer.toString();
     }
 
     /**

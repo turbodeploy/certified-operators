@@ -223,7 +223,9 @@ public final class MarketAnalysisUtils {
                                     CommodityDTO.CommodityType.HOST_LUN_ACCESS_VALUE);
 
     public static final Set<Integer> SKIPPED_ENTITY_TYPES =
-                    ImmutableSet.of(EntityType.ACTION_MANAGER_VALUE);
+                    ImmutableSet.of(EntityType.ACTION_MANAGER_VALUE,
+                                    EntityType.BUSINESS_APPLICATION_VALUE,
+                                    EntityType.BUSINESS_TRANSACTION_VALUE);
 
     public static final Set<Integer> PROVISIONED_COMMODITIES =
                     ImmutableSet.of(CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE,

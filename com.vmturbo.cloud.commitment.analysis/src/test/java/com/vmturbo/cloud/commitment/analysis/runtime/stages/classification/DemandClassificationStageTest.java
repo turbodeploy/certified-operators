@@ -14,11 +14,8 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import org.junit.Before;
@@ -26,9 +23,9 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
+import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries;
@@ -39,17 +36,14 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.Alloc
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate.DemandTimeSeries;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.CloudTierFamilyMatcher.CloudTierFamilyMatcherFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.selection.EntityCloudTierDemandSet;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.selection.ImmutableEntityCloudTierDemandSet;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.EntityCloudTierDemandSet;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.ImmutableEntityCloudTierDemandSet;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher;
 import com.vmturbo.cloud.commitment.analysis.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.ClassifiedDemandScope;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassification;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassification.AllocatedClassificationSettings;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassification.ClassifiedDemandSelection;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassificationSettings;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassificationSettings.AllocatedClassificationSettings;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
@@ -72,12 +66,18 @@ public class DemandClassificationStageTest {
 
     private final AllocatedDemandClassifier allocatedDemandClassifier = mock(AllocatedDemandClassifier.class);
 
+    private final MinimalCloudTopology cloudTopology = mock(MinimalCloudTopology.class);
+
     @Before
     public void setup() {
         when(allocatedDemandClassifierFactory.newClassifier(any(), anyLong())).thenReturn(allocatedDemandClassifier);
         when(cloudTierFamilyMatcherFactory.newFamilyMatcher(any())).thenReturn(cloudTierFamilyMatcher);
 
         when(analysisContext.getCloudCommitmentSpecMatcher()).thenReturn(cloudCommitmentSpecMatcher);
+
+        when(cloudTopology.getEntity(anyLong())).thenReturn(Optional.empty());
+        when(cloudTopology.isEntityPoweredOn(anyLong())).thenReturn(Optional.empty());
+        when(analysisContext.getSourceCloudTopology()).thenReturn(cloudTopology);
     }
 
 
@@ -88,13 +88,9 @@ public class DemandClassificationStageTest {
         final long minEntityUptime = 100L;
         final CloudCommitmentAnalysisConfig analysisConfig = TestUtils.createBaseConfig()
                 .toBuilder()
-                .setDemandClassification(DemandClassification.newBuilder()
-                        .setDemandSelection(ClassifiedDemandSelection.newBuilder()
-                                .addScope(ClassifiedDemandScope.newBuilder()
-                                        .setScope(DemandScope.newBuilder())
-                                        .addAllocatedDemandClassification(AllocatedDemandClassification.ALLOCATED)))
+                .setDemandClassificationSettings(DemandClassificationSettings.newBuilder()
                         .setAllocatedClassificationSettings(AllocatedClassificationSettings.newBuilder()
-                                .setMinEntityUptime(minEntityUptime)))
+                                .setMinStabilityMillis(minEntityUptime)))
                 .build();
 
 
@@ -123,7 +119,7 @@ public class DemandClassificationStageTest {
     }
 
     @Test
-    public void testClassification() {
+    public void testClassification() throws Exception {
 
         // Create 4 entity allocation records (2 each for 2 entities)
         final EntityComputeTierAllocation entityAllocationA1 = ImmutableEntityComputeTierAllocation.builder()
@@ -135,7 +131,7 @@ public class DemandClassificationStageTest {
                         .startTime(Instant.now().minusSeconds(1000))
                         .endTime(Instant.now().minusSeconds(900))
                         .build())
-                .cloudTierDemand(ImmutableComputeTierDemand.builder()
+                .cloudTierDemand(ComputeTierDemand.builder()
                         .cloudTierOid(5L)
                         .osType(OSType.RHEL)
                         .tenancy(Tenancy.DEFAULT)
@@ -158,38 +154,41 @@ public class DemandClassificationStageTest {
                                 .endTime(Instant.now())
                                 .build());
 
-
-        // setup the cloud topology
-        final MinimalCloudTopology cloudTopology = mock(MinimalCloudTopology.class);
-        when(cloudTopology.getEntity(anyLong())).thenReturn(Optional.empty());
-        when(analysisContext.getSourceCloudTopology()).thenReturn(cloudTopology);
-
         // setup allocated demand classifier
-        final Map<AllocatedDemandClassification, Set<DemandTimeSeries>> classifiedEntityA =
-                ImmutableMap.of(
-                        AllocatedDemandClassification.EPHEMERAL, Collections.singleton(
-                                ImmutableDemandTimeSeries.builder()
-                                        .cloudTierDemand(entityAllocationA1.cloudTierDemand())
-                                        .demandIntervals(TimeSeries.newTimeline(
-                                                Collections.singleton(entityAllocationA1.timeInterval())))
-                                        .build()),
-                        AllocatedDemandClassification.ALLOCATED, Collections.singleton(
-                                ImmutableDemandTimeSeries.builder()
-                                        .cloudTierDemand(entityAllocationA2.cloudTierDemand())
-                                        .demandIntervals(TimeSeries.newTimeline(
-                                                Collections.singleton(entityAllocationA2.timeInterval())))
-                                        .build()));
+        final DemandTimeSeries allocatedDemandA = DemandTimeSeries.builder()
+                .cloudTierDemand(entityAllocationA2.cloudTierDemand())
+                .demandIntervals(TimeSeries.newTimeline(
+                        Collections.singleton(entityAllocationA2.timeInterval())))
+                .build();
 
-        final Map<AllocatedDemandClassification, Set<DemandTimeSeries>> classifiedEntityB =
-                ImmutableMap.of(
-                        AllocatedDemandClassification.ALLOCATED, Collections.singleton(
-                                ImmutableDemandTimeSeries.builder()
-                                        .cloudTierDemand(entityAllocationB1.cloudTierDemand())
-                                        .demandIntervals(TimeSeries.newTimeline(
-                                                Lists.newArrayList(
-                                                        entityAllocationB1.timeInterval(),
-                                                        entityAllocationB2.timeInterval())))
-                                        .build()));
+        final DemandTimeSeries allocatedTimeSeries = DemandTimeSeries.builder()
+                .cloudTierDemand(entityAllocationA1.cloudTierDemand())
+                .demandIntervals(TimeSeries.newTimeline(
+                        Collections.singleton(entityAllocationA1.timeInterval())))
+                .build();
+        final ClassifiedCloudTierDemand classifiedEntityA = ClassifiedCloudTierDemand.builder()
+                .putClassifiedDemand(
+                        DemandClassification.of(AllocatedDemandClassification.EPHEMERAL),
+                        Collections.singleton(allocatedTimeSeries))
+                .putClassifiedDemand(
+                        DemandClassification.of(AllocatedDemandClassification.ALLOCATED),
+                        Collections.singleton(allocatedDemandA))
+                .allocatedDemand(allocatedTimeSeries)
+                .build();
+
+        final DemandTimeSeries allocatedDemandB = DemandTimeSeries.builder()
+                .cloudTierDemand(entityAllocationB1.cloudTierDemand())
+                .demandIntervals(TimeSeries.newTimeline(
+                        Lists.newArrayList(
+                                entityAllocationB1.timeInterval(),
+                                entityAllocationB2.timeInterval())))
+                .build();
+        final ClassifiedCloudTierDemand classifiedEntityB = ClassifiedCloudTierDemand.builder()
+                .putClassifiedDemand(
+                        DemandClassification.of(AllocatedDemandClassification.ALLOCATED),
+                        Collections.singleton(allocatedDemandB))
+                .allocatedDemand(allocatedDemandB)
+                .build();
 
         when(allocatedDemandClassifier.classifyEntityDemand(any()))
                 .thenAnswer((invocation) -> {
@@ -227,20 +226,26 @@ public class DemandClassificationStageTest {
                 TimeSeries.newTimeSeries(Lists.newArrayList(entityAllocationB1, entityAllocationB2))));
 
         // verify the result
-        final ClassifiedEntityDemandAggregate entityAggregateA = ImmutableClassifiedEntityDemandAggregate.builder()
-                .entityOid(entityAllocationA1.entityOid())
-                .accountOid(entityAllocationA1.accountOid())
-                .regionOid(entityAllocationA1.regionOid())
-                .serviceProviderOid(entityAllocationA1.serviceProviderOid())
-                .putAllClassifiedCloudTierDemand(classifiedEntityA)
-                .build();
-        final ClassifiedEntityDemandAggregate entityAggregateB = ImmutableClassifiedEntityDemandAggregate.builder()
-                .entityOid(entityAllocationB1.entityOid())
-                .accountOid(entityAllocationB1.accountOid())
-                .regionOid(entityAllocationB1.regionOid())
-                .serviceProviderOid(entityAllocationB1.serviceProviderOid())
-                .putAllClassifiedCloudTierDemand(classifiedEntityB)
-                .build();
+        final ClassifiedEntityDemandAggregate entityAggregateA =
+                ClassifiedEntityDemandAggregate.builder()
+                        .entityOid(entityAllocationA1.entityOid())
+                        .accountOid(entityAllocationA1.accountOid())
+                        .regionOid(entityAllocationA1.regionOid())
+                        .serviceProviderOid(entityAllocationA1.serviceProviderOid())
+                        .putAllClassifiedCloudTierDemand(classifiedEntityA.classifiedDemand())
+                        .allocatedCloudTierDemand(classifiedEntityA.allocatedDemand())
+                        .isTerminated(true)
+                        .build();
+        final ClassifiedEntityDemandAggregate entityAggregateB =
+                ClassifiedEntityDemandAggregate.builder()
+                        .entityOid(entityAllocationB1.entityOid())
+                        .accountOid(entityAllocationB1.accountOid())
+                        .regionOid(entityAllocationB1.regionOid())
+                        .serviceProviderOid(entityAllocationB1.serviceProviderOid())
+                        .putAllClassifiedCloudTierDemand(classifiedEntityB.classifiedDemand())
+                        .allocatedCloudTierDemand(classifiedEntityB.allocatedDemand())
+                        .isTerminated(true)
+                        .build();
         final ClassifiedEntityDemandSet expectedDemandSet = ImmutableClassifiedEntityDemandSet.builder()
                 .addClassifiedAllocatedDemand(entityAggregateA, entityAggregateB)
                 .build();

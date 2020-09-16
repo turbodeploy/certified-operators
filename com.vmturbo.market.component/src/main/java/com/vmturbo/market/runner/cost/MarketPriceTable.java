@@ -390,13 +390,10 @@ public class MarketPriceTable {
                 storagePrice.getPricesList().stream()
                     .collect(Collectors.groupingBy(Price::getUnit));
             pricesByUnit.forEach((unit, priceList) -> {
-                // Each price in the price list is considered "accumulative" if the price list
-                // contains different costs for different ranges. It's called "accumulative"
-                // because to get the total price we need to "accumulate" the prices for the
-                // individual ranges.
-                final boolean isAccumulativePrice = priceList.stream()
-                        .anyMatch(price -> price.getEndRangeInUnits() > 0 &&
-                                price.getEndRangeInUnits() < Long.MAX_VALUE);
+                // We currently don't support any storage tiers with the accumulative price structure.
+                // When we need to support accumulative price, the indicator has to be passed in
+                // from the probe. We cannot say the price list is accumulative if it has ranges.
+                final boolean isAccumulativePrice = false;
 
                 // A price is considered a "unit" price if the amount of units consumed
                 // affects the price.

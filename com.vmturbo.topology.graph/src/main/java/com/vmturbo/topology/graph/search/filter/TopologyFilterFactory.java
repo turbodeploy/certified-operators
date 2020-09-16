@@ -360,16 +360,9 @@ public class TopologyFilterFactory<E extends TopologyGraphSearchableEntity<E>> {
     private PropertyFilter<E> mapFilter(
             @Nonnull final String propertyName,
             @Nonnull final Search.PropertyFilter.MapFilter mapCriteria) {
-        final Predicate<Entry<String, List<String>>> entryFilter;
-
-
         // currently only entity tags is a property of type map
         if (propertyName.equals(SearchableProperties.TAGS_TYPE_PROPERTY_NAME)) {
-            return new PropertyFilter<>(te ->
-                // Check tags for the match, and negate the result if we're not actually looking
-                // for a positive match.
-                mapCriteria.getPositiveMatch() == te.getSearchableProps(SearchableProps.class)
-                        .getTagIndex().isMatchingEntity(te.getOid(), mapCriteria));
+            return new TagPropertyFilter<>(mapCriteria);
         } else {
             throw new IllegalArgumentException("Unknown map property named: " + propertyName);
         }

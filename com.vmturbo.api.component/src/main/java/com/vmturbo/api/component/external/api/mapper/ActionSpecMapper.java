@@ -999,9 +999,9 @@ public class ActionSpecMapper {
                 final Optional<String> commNames =
                         nonSegmentationCommoditiesToString(actionSpec.getRecommendation());
                 final Optional<ServiceEntityApiDTO> serviceEntity = context.getEntity(entity.getId());
-                return String.format("%s doesn't comply to %s%s",
+                return String.format("\"%s\" doesn't comply with \"%s\"%s",
                         serviceEntity.isPresent() ? serviceEntity.get().getDisplayName() :
-                                String.format("%s(%d)", EntityType.forNumber(entity.getType()),
+                                String.format("\"%s(%d)\"", EntityType.forNumber(entity.getType()),
                                         entity.getId()),
                         policy.get().getPolicyInfo().getName(),
                         commNames.isPresent() ? ", " + commNames.get() : "");
@@ -1509,6 +1509,8 @@ public class ActionSpecMapper {
                     newEntity.setUuid(consumer.getUuid());
                     newEntity.setClassName(StringConstants.STORAGE);
                     newEntity.setDisplayName(consumer.getDisplayName());
+                    newEntity.setEnvironmentType(EnvironmentTypeMapper.fromXLToApi(
+                                    EnvironmentTypeEnum.EnvironmentType.ON_PREM));
                     actionApiDTO.setNewEntity(newEntity);
                     actionApiDTO.setNewValue(newEntity.getUuid());
                     return;
@@ -1619,6 +1621,13 @@ public class ActionSpecMapper {
                     AspectName.CLOUD, cloudAspect));
             actionApiDTO.getTarget().setAspectsByName(aspects);
         }
+
+        // Set reason commodity
+        // map the recommendation info
+        LogEntryApiDTO risk = new LogEntryApiDTO();
+        risk.setImportance((float)0.0);
+        risk.setReasonCommodity(UICommodityType.fromType(resizeInfo.getCommodityType()).apiStr());
+        actionApiDTO.setRisk(risk);
 
         // Set action details
         actionApiDTO.setDetails(resizeDetails(actionApiDTO, resizeInfo,  context));
@@ -2204,7 +2213,7 @@ public class ActionSpecMapper {
             case MOVE:
                 // If we are moving across regions, as in cloud migration for example, then
                 // we need to show details, so return true in that case.
-                return !TopologyDTOUtil.isMoveWithinSameRegion(action);
+                return TopologyDTOUtil.isMigrationAction(action);
             default:
                 return false;
         }

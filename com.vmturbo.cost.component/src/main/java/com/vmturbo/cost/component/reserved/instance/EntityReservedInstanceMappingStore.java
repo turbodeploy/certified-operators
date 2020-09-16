@@ -2,7 +2,6 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import static com.vmturbo.cost.component.db.Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING;
 import static com.vmturbo.cost.component.db.Tables.HIST_ENTITY_RESERVED_INSTANCE_MAPPING;
-
 import static org.jooq.impl.DSL.sum;
 
 import java.time.Instant;
@@ -60,8 +59,6 @@ import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanc
 public class EntityReservedInstanceMappingStore implements DiagsRestorable<Void> {
     private static final Logger logger = LogManager.getLogger();
     private static final String entityReservedInstanceMappingFile = "entityToReserved_dump";
-
-    private static final String RI_SUM_COUPONS = "RI_SUM_COUPONS";
 
     private static final EntityReservedInstanceMappingFilter entityReservedInstanceMappingFilter = EntityReservedInstanceMappingFilter
             .newBuilder().build();
@@ -220,38 +217,6 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable<Void>
             recCount += rcUpdated[i];
         }
         return recCount;
-    }
-
-    /**
-     * Delete historical Entity RI coverage records for a list of Entities.
-     *
-     * @param entityIds list of Entities whose RI coverage should be deleted.
-     *
-     * @return count of deleted rows.
-     */
-    public int deleteHistEntityRICoverageMappings(List<Long> entityIds) {
-        logger.info("Deleting data from HistEntityRICoverage table for entities count: " + entityIds.size());
-        final int rowsDeleted = dsl.deleteFrom(HIST_ENTITY_RESERVED_INSTANCE_MAPPING)
-                    .where(HIST_ENTITY_RESERVED_INSTANCE_MAPPING.ENTITY_ID
-                                .in(entityIds)).execute();
-        return rowsDeleted;
-    }
-
-    /**
-     * Get the sum count of used coupons for each reserved instance.
-     *
-     * @param context {@link DSLContext} transactional context.
-     * @return a map which key is reserved instance id, value is the sum of used coupons.
-     */
-    public Map<Long, Double> getReservedInstanceUsedCouponsMap(@Nonnull final DSLContext context) {
-        final Map<Long, Double> retMap = new HashMap<>();
-        context.select(ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
-                (sum(ENTITY_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS)).as(RI_SUM_COUPONS))
-            .from(ENTITY_TO_RESERVED_INSTANCE_MAPPING)
-            .groupBy(ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID)
-            .fetch()
-            .forEach(record -> retMap.put(record.value1(), record.value2().doubleValue()));
-        return retMap;
     }
 
     /**

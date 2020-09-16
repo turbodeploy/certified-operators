@@ -77,7 +77,7 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
                 }
             }
             if (TopologyType.PLAN.equals(originalTopologyInfo.getTopologyType())) {
-                planProjectedEntityCostStore.updatePlanProjectedEntityCostsTableForPlan(
+                planProjectedEntityCostStore.insertPlanProjectedEntityCostsTableForPlan(
                         originalTopologyInfo, costList);
             } else {
                 projectedEntityCostStore.updateProjectedEntityCosts(costList);

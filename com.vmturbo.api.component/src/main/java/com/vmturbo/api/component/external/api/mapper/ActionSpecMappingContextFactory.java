@@ -330,7 +330,7 @@ public class ActionSpecMappingContextFactory {
      */
     private boolean hasMigrationActions(@Nonnull List<Action> actions) {
         for (Action action : actions) {
-            if (!TopologyDTOUtil.isMoveWithinSameRegion(action)) {
+            if (TopologyDTOUtil.isMigrationAction(action)) {
                 // Found one action that is across regions.
                 return true;
             }

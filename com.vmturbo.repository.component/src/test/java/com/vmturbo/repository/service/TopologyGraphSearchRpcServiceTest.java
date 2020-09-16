@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -60,7 +61,6 @@ import com.vmturbo.topology.graph.SearchableProps;
 import com.vmturbo.topology.graph.TagIndex;
 import com.vmturbo.topology.graph.TagIndex.DefaultTagIndex;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.graph.search.SearchResolver;
 
 /**
  * Unit tests for the search RPC service.
@@ -70,14 +70,15 @@ public class TopologyGraphSearchRpcServiceTest {
     private static final SearchParameters SEARCH_PARAMS = SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_MACHINE)).build();
 
     private LiveTopologyStore liveTopologyStore = mock(LiveTopologyStore.class);
-    private SearchResolver<RepoGraphEntity> mockSearchResolver = mock(SearchResolver.class);
     private LiveTopologyPaginator liveTopologyPaginator = mock(LiveTopologyPaginator.class);
 
-    private PartialEntityConverter partialEntityConverter = new PartialEntityConverter();
+    private PartialEntityConverter partialEntityConverter = new PartialEntityConverter(
+            liveTopologyStore);
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
     private TopologyGraphSearchRpcService topologyGraphSearchRpcService1 = new TopologyGraphSearchRpcService(liveTopologyStore,
-            mockSearchResolver, liveTopologyPaginator, partialEntityConverter, userSessionContext, 1);
+            liveTopologyPaginator, partialEntityConverter, userSessionContext,
+            1, 1, 1, TimeUnit.MINUTES);
 
     /**
      * gRPC test server.
@@ -120,7 +121,7 @@ public class TopologyGraphSearchRpcServiceTest {
     public void testSearchWithScopedUser() {
         RepoGraphEntity e1 = createEntity(1);
         RepoGraphEntity e2 = createEntity(2);
-        when(mockSearchResolver.search(any(SearchQuery.class), any())).thenAnswer(invocation -> Stream.of(e1, e2));
+        when(liveTopologyStore.queryRealtimeTopology(any(SearchQuery.class))).thenAnswer(invocation -> Stream.of(e1, e2));
         SearchEntitiesRequest req = SearchEntitiesRequest.newBuilder()
             .setSearch(SearchQuery.newBuilder()
                 .addSearchParameters(SEARCH_PARAMS))
@@ -171,7 +172,7 @@ public class TopologyGraphSearchRpcServiceTest {
         List<Long> entityOids = Arrays.asList(1L, 2L);
 
         RepoGraphEntity e1 = createEntity(1);
-        when(mockSearchResolver.search(any(SearchQuery.class), any())).thenReturn(Stream.of(e1));
+        when(liveTopologyStore.queryRealtimeTopology(any(SearchQuery.class))).thenReturn(Stream.of(e1));
 
         List<MinimalEntity> entities = RepositoryDTOUtil.topologyEntityStream(serviceClient.searchEntitiesStream(SearchEntitiesRequest.newBuilder()
                 .addAllEntityOid(entityOids)
@@ -184,7 +185,7 @@ public class TopologyGraphSearchRpcServiceTest {
 
         assertThat(entities.size(), is(1));
 
-        verify(mockSearchResolver).search(paramsCaptor.capture(), any());
+        verify(liveTopologyStore).queryRealtimeTopology(paramsCaptor.capture());
         SearchQuery params = paramsCaptor.getValue();
         assertThat(params.getSearchParametersList(), containsInAnyOrder(
             SearchProtoUtil.makeSearchParameters(SEARCH_PARAMS.getStartingFilter())

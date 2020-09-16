@@ -105,8 +105,8 @@ public class TopologyFilterFactoryTest {
 
         final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE).build();
         final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE).build();
-        assertTrue(propertyFilter.test(entity1));
-        assertFalse(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertFalse(propertyFilter.test(entity2, graph));
     }
 
     @Test
@@ -126,9 +126,9 @@ public class TopologyFilterFactoryTest {
         final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE).build();
         final TestGraphEntity entity2 = TestGraphEntity.newBuilder(4321L, ApiEntityType.VIRTUAL_MACHINE).build();
         final TestGraphEntity entity3 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE).build();
-        assertTrue(propertyFilter.test(entity1));
-        assertTrue(propertyFilter.test(entity2));
-        assertFalse(propertyFilter.test(entity3));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertTrue(propertyFilter.test(entity2, graph));
+        assertFalse(propertyFilter.test(entity3, graph));
     }
 
     @Test
@@ -146,8 +146,8 @@ public class TopologyFilterFactoryTest {
 
         final TestGraphEntity entity1 = TestGraphEntity.newBuilder(1234L, ApiEntityType.VIRTUAL_MACHINE).build();
         final TestGraphEntity entity2 = TestGraphEntity.newBuilder(2345L, ApiEntityType.VIRTUAL_MACHINE).build();
-        assertTrue(propertyFilter.test(entity1));
-        assertFalse(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertFalse(propertyFilter.test(entity2, graph));
     }
 
     @Test
@@ -168,8 +168,8 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        assertTrue(propertyFilter.test(entity1));
-        assertFalse(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertFalse(propertyFilter.test(entity2, graph));
     }
 
     @Test
@@ -193,8 +193,8 @@ public class TopologyFilterFactoryTest {
             .setName("bar")
             .build();
 
-        assertTrue(propertyFilter.test(entity1));
-        assertFalse(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertFalse(propertyFilter.test(entity2, graph));
     }
 
     @Test
@@ -220,8 +220,8 @@ public class TopologyFilterFactoryTest {
             .build();
 
 
-        assertTrue(propertyFilter.test(entity1));
-        assertFalse(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertFalse(propertyFilter.test(entity2, graph));
     }
 
     @Test
@@ -246,8 +246,8 @@ public class TopologyFilterFactoryTest {
             .setName("myentity")
             .build();
 
-        assertTrue(propertyFilter.test(entity1));
-        assertTrue(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertTrue(propertyFilter.test(entity2, graph));
     }
 
     @Test
@@ -272,8 +272,8 @@ public class TopologyFilterFactoryTest {
             .build();
 
 
-        assertTrue(propertyFilter.test(entity1));
-        assertFalse(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertFalse(propertyFilter.test(entity2, graph));
     }
 
     @Test
@@ -299,8 +299,8 @@ public class TopologyFilterFactoryTest {
             .build();
 
 
-        assertFalse(propertyFilter.test(entity1));
-        assertTrue(propertyFilter.test(entity2));
+        assertFalse(propertyFilter.test(entity1, graph));
+        assertTrue(propertyFilter.test(entity2, graph));
     }
 
     @Test
@@ -328,9 +328,9 @@ public class TopologyFilterFactoryTest {
             .setState(EntityState.FAILOVER)
             .build();
 
-        assertTrue(propertyFilter.test(entity1));
-        assertTrue(propertyFilter.test(entity2));
-        assertFalse(propertyFilter.test(entity3));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertTrue(propertyFilter.test(entity2, graph));
+        assertFalse(propertyFilter.test(entity3, graph));
     }
 
     @Test
@@ -355,8 +355,8 @@ public class TopologyFilterFactoryTest {
             .setState(EntityState.POWERED_OFF)
             .build();
 
-        assertTrue(propertyFilter.test(entity1));
-        assertFalse(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertFalse(propertyFilter.test(entity2, graph));
     }
 
     @Test
@@ -385,9 +385,9 @@ public class TopologyFilterFactoryTest {
             .setState(EntityState.FAILOVER)
             .build();
 
-        assertFalse(propertyFilter.test(entity1));
-        assertTrue(propertyFilter.test(entity2));
-        assertTrue(propertyFilter.test(entity3));
+        assertFalse(propertyFilter.test(entity1, graph));
+        assertTrue(propertyFilter.test(entity2, graph));
+        assertTrue(propertyFilter.test(entity3, graph));
     }
 
     @Test
@@ -413,8 +413,8 @@ public class TopologyFilterFactoryTest {
                 .setState(EntityState.POWERED_OFF)
                 .build();
 
-        assertTrue(propertyFilter.test(entity1));
-        assertFalse(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertFalse(propertyFilter.test(entity2, graph));
     }
 
     /**
@@ -456,10 +456,10 @@ public class TopologyFilterFactoryTest {
                 .setEnvironmentType(EnvironmentType.UNKNOWN_ENV)
                 .build();
 
-        assertEquals(cloudShouldMatch, propertyFilter.test(entity1));
-        assertEquals(onpremShouldMatch, propertyFilter.test(entity2));
-        assertEquals(hybridShouldMatch, propertyFilter.test(entity3));
-        assertEquals(unknownShouldMatch, propertyFilter.test(entity4));
+        assertEquals(cloudShouldMatch, propertyFilter.test(entity1, graph));
+        assertEquals(onpremShouldMatch, propertyFilter.test(entity2, graph));
+        assertEquals(hybridShouldMatch, propertyFilter.test(entity3, graph));
+        assertEquals(unknownShouldMatch, propertyFilter.test(entity4, graph));
     }
 
     @Test
@@ -480,8 +480,8 @@ public class TopologyFilterFactoryTest {
         final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, ApiEntityType.PHYSICAL_MACHINE)
             .build();
 
-        assertTrue(propertyFilter.test(entity1));
-        assertFalse(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertFalse(propertyFilter.test(entity2, graph));
     }
 
     @Test
@@ -503,8 +503,8 @@ public class TopologyFilterFactoryTest {
         final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, ApiEntityType.PHYSICAL_MACHINE)
             .build();
 
-        assertFalse(propertyFilter.test(entity1));
-        assertTrue(propertyFilter.test(entity2));
+        assertFalse(propertyFilter.test(entity1, graph));
+        assertTrue(propertyFilter.test(entity2, graph));
     }
 
     @Test
@@ -525,8 +525,8 @@ public class TopologyFilterFactoryTest {
         final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, ApiEntityType.PHYSICAL_MACHINE)
             .build();
 
-        assertTrue(propertyFilter.test(entity1));
-        assertFalse(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertFalse(propertyFilter.test(entity2, graph));
     }
 
     @Test
@@ -548,8 +548,8 @@ public class TopologyFilterFactoryTest {
         final TestGraphEntity entity2 = TestGraphEntity.newBuilder(1234L, ApiEntityType.PHYSICAL_MACHINE)
             .build();
 
-        assertFalse(propertyFilter.test(entity1));
-        assertTrue(propertyFilter.test(entity2));
+        assertFalse(propertyFilter.test(entity1, graph));
+        assertTrue(propertyFilter.test(entity2, graph));
     }
 
     @Test
@@ -573,9 +573,9 @@ public class TopologyFilterFactoryTest {
         final TestGraphEntity entity3 = TestGraphEntity.newBuilder(1234L, ApiEntityType.STORAGE)
             .build();
 
-        assertTrue(propertyFilter.test(entity1));
-        assertTrue(propertyFilter.test(entity2));
-        assertFalse(propertyFilter.test(entity3));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertTrue(propertyFilter.test(entity2, graph));
+        assertFalse(propertyFilter.test(entity3, graph));
     }
 
     @Test
@@ -684,9 +684,9 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         final PropertyFilter<TestGraphEntity> propertyFilter =
                 (PropertyFilter<TestGraphEntity>)filter;
-        assertEquals(hotSupport != positiveMatch, propertyFilter.test(vm3));
-        assertEquals(hotSupport == positiveMatch, propertyFilter.test(vm1));
-        assertEquals(hotSupport != positiveMatch, propertyFilter.test(vm2));
+        assertEquals(hotSupport != positiveMatch, propertyFilter.test(vm3, graph));
+        assertEquals(hotSupport == positiveMatch, propertyFilter.test(vm1, graph));
+        assertEquals(hotSupport != positiveMatch, propertyFilter.test(vm2, graph));
     }
 
     private TestGraphEntity createVm(int commodityTypeNumber, Builder vmHotResizeInfo, long oid) {
@@ -922,9 +922,9 @@ public class TopologyFilterFactoryTest {
         final PropertyFilter<TestGraphEntity> propertyFilter =
                 (PropertyFilter<TestGraphEntity>)filter;
 
-        assertTrue(propertyFilter.test(DISCOVERED_SERVICE));
-        assertFalse(propertyFilter.test(USER_DEFINED_TOPOLOGY_SERVICE));
-        assertTrue(propertyFilter.test(DISCOVERED_SERVICE_BY_TWO_TARGETS));
+        assertTrue(propertyFilter.test(DISCOVERED_SERVICE, graph));
+        assertFalse(propertyFilter.test(USER_DEFINED_TOPOLOGY_SERVICE, graph));
+        assertTrue(propertyFilter.test(DISCOVERED_SERVICE_BY_TWO_TARGETS, graph));
     }
 
     @Test
@@ -943,9 +943,9 @@ public class TopologyFilterFactoryTest {
         final PropertyFilter<TestGraphEntity> propertyFilter =
                 (PropertyFilter<TestGraphEntity>)filter;
 
-        assertTrue(propertyFilter.test(USER_DEFINED_TOPOLOGY_SERVICE));
-        assertFalse(propertyFilter.test(DISCOVERED_SERVICE));
-        assertFalse(propertyFilter.test(DISCOVERED_SERVICE_BY_TWO_TARGETS));
+        assertTrue(propertyFilter.test(USER_DEFINED_TOPOLOGY_SERVICE, graph));
+        assertFalse(propertyFilter.test(DISCOVERED_SERVICE, graph));
+        assertFalse(propertyFilter.test(DISCOVERED_SERVICE_BY_TWO_TARGETS, graph));
     }
 
     /**
@@ -986,34 +986,34 @@ public class TopologyFilterFactoryTest {
         // entity has no tags
         final TestGraphEntity noTagsEntity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
             .build();
-        assertFalse(positiveFilter.test(noTagsEntity));
-        assertTrue(negativeFilter.test(noTagsEntity));
-        assertFalse(filterWithRegex.test(noTagsEntity));
+        assertFalse(positiveFilter.test(noTagsEntity, graph));
+        assertTrue(negativeFilter.test(noTagsEntity, graph));
+        assertFalse(filterWithRegex.test(noTagsEntity, graph));
 
         // entity does not have the key
         final TestGraphEntity noKeyEntity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
             .addTag("OTHERKEY", Collections.singletonList("VALUE1"))
             .build();
-        assertFalse(positiveFilter.test(noKeyEntity));
-        assertTrue(negativeFilter.test(noKeyEntity));
-        assertTrue(filterWithRegex.test(noKeyEntity));
+        assertFalse(positiveFilter.test(noKeyEntity, graph));
+        assertTrue(negativeFilter.test(noKeyEntity, graph));
+        assertTrue(filterWithRegex.test(noKeyEntity, graph));
 
         // entity has the key, but not one of the values
         final TestGraphEntity wrongValueEntity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
             .addTag("OTHERKEY", Arrays.asList("VALUE1"))
             .addTag("KEY", Arrays.asList("VALUE3", "VALUE4"))
             .build();
-        assertFalse(positiveFilter.test(wrongValueEntity));
-        assertTrue(negativeFilter.test(wrongValueEntity));
-        assertTrue(filterWithRegex.test(wrongValueEntity));
+        assertFalse(positiveFilter.test(wrongValueEntity, graph));
+        assertTrue(negativeFilter.test(wrongValueEntity, graph));
+        assertTrue(filterWithRegex.test(wrongValueEntity, graph));
 
         // entity has the key, and one of the values
         final TestGraphEntity rightValueEntity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
             .addTag("KEY", Arrays.asList("VALUE2", "VALUE4"))
             .build();
-        assertTrue(positiveFilter.test(rightValueEntity));
-        assertFalse(negativeFilter.test(rightValueEntity));
-        assertFalse(filterWithRegex.test(rightValueEntity));
+        assertTrue(positiveFilter.test(rightValueEntity, graph));
+        assertFalse(negativeFilter.test(rightValueEntity, graph));
+        assertFalse(filterWithRegex.test(rightValueEntity, graph));
     }
 
     @Test
@@ -1055,8 +1055,8 @@ public class TopologyFilterFactoryTest {
                 .build())
             .build();
 
-        assertTrue(propertyFilter.test(entity1));
-        assertFalse(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertFalse(propertyFilter.test(entity2, graph));
     }
 
     @Test
@@ -1098,8 +1098,8 @@ public class TopologyFilterFactoryTest {
                 .build())
             .build();
 
-        assertTrue(propertyFilter.test(entity1));
-        assertFalse(propertyFilter.test(entity2));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertFalse(propertyFilter.test(entity2, graph));
     }
 
     @Test
@@ -1155,16 +1155,16 @@ public class TopologyFilterFactoryTest {
                                             .setComparisonOperator(ComparisonOperator.EQ)
                                             .build());
 
-        assertTrue(filter1.test(entity));
-        assertFalse(filter2.test(entity));
-        assertTrue(filter3.test(entity));
-        assertFalse(filter4.test(entity));
-        assertTrue(filter5.test(entity));
-        assertFalse(filter6.test(entity));
-        assertFalse(filter7.test(entity));
-        assertTrue(filter8.test(entity));
-        assertFalse(filter9.test(entity));
-        assertTrue(filter10.test(entity));
+        assertTrue(filter1.test(entity, graph));
+        assertFalse(filter2.test(entity, graph));
+        assertTrue(filter3.test(entity, graph));
+        assertFalse(filter4.test(entity, graph));
+        assertTrue(filter5.test(entity, graph));
+        assertFalse(filter6.test(entity, graph));
+        assertFalse(filter7.test(entity, graph));
+        assertTrue(filter8.test(entity, graph));
+        assertFalse(filter9.test(entity, graph));
+        assertTrue(filter10.test(entity, graph));
     }
 
     @Test
@@ -1200,10 +1200,10 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        assertFalse(propertyFilter.test(vmEntity));
-        assertFalse(propertyFilter.test(pmEntity));
-        assertTrue(propertyFilter.test(storageEntityMatching));
-        assertFalse(propertyFilter.test(storageEntityNotMatching));
+        assertFalse(propertyFilter.test(vmEntity, graph));
+        assertFalse(propertyFilter.test(pmEntity, graph));
+        assertTrue(propertyFilter.test(storageEntityMatching, graph));
+        assertFalse(propertyFilter.test(storageEntityNotMatching, graph));
     }
 
     /**
@@ -1251,11 +1251,11 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        assertFalse(propertyFilter.test(vmEntity));
-        assertFalse(propertyFilter.test(pmEntity));
-        assertTrue(propertyFilter.test(businessEntityMatching));
-        assertFalse(propertyFilter.test(businessEntityNotMatching));
-        assertFalse(propertyFilter.test(businessEntityNoAccountId));
+        assertFalse(propertyFilter.test(vmEntity, graph));
+        assertFalse(propertyFilter.test(pmEntity, graph));
+        assertTrue(propertyFilter.test(businessEntityMatching, graph));
+        assertFalse(propertyFilter.test(businessEntityNotMatching, graph));
+        assertFalse(propertyFilter.test(businessEntityNoAccountId, graph));
     }
 
     /**
@@ -1284,10 +1284,10 @@ public class TopologyFilterFactoryTest {
         final TestGraphEntity vm3 = makeVmWithConnectedNetworks(3, nonMatchingString);
         final TestGraphEntity vm4 = makeVmWithConnectedNetworks(4, nonMatchingString, matchingString);
 
-        assertFalse(filter.test(vm1));
-        assertTrue(filter.test(vm2));
-        assertFalse(filter.test(vm3));
-        assertTrue(filter.test(vm4));
+        assertFalse(filter.test(vm1, graph));
+        assertTrue(filter.test(vm2, graph));
+        assertFalse(filter.test(vm3, graph));
+        assertTrue(filter.test(vm4, graph));
     }
 
     /**
@@ -1329,10 +1329,10 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        assertFalse(propertyFilter.test(vmEntity));
-        assertFalse(propertyFilter.test(pmEntity));
-        assertTrue(propertyFilter.test(volumeEntityMatching));
-        assertFalse(propertyFilter.test(volumeEntityNotMatching));
+        assertFalse(propertyFilter.test(vmEntity, graph));
+        assertFalse(propertyFilter.test(pmEntity, graph));
+        assertTrue(propertyFilter.test(volumeEntityMatching, graph));
+        assertFalse(propertyFilter.test(volumeEntityNotMatching, graph));
     }
 
     /**
@@ -1358,9 +1358,9 @@ public class TopologyFilterFactoryTest {
                 .setDeletable(false)
                 .build();
 
-        assertTrue(propertyFilter.test(entity1));
-        assertTrue(propertyFilter.test(entity2));
-        assertFalse(propertyFilter.test(entity3));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertTrue(propertyFilter.test(entity2, graph));
+        assertFalse(propertyFilter.test(entity3, graph));
     }
 
     /**
@@ -1386,9 +1386,9 @@ public class TopologyFilterFactoryTest {
                 .setDeletable(false)
                 .build();
 
-        assertFalse(propertyFilter.test(entity1));
-        assertFalse(propertyFilter.test(entity2));
-        assertTrue(propertyFilter.test(entity3));
+        assertFalse(propertyFilter.test(entity1, graph));
+        assertFalse(propertyFilter.test(entity2, graph));
+        assertTrue(propertyFilter.test(entity3, graph));
     }
 
     /**
@@ -1414,9 +1414,9 @@ public class TopologyFilterFactoryTest {
                 .setDeletable(false)
                 .build();
 
-        assertTrue(propertyFilter.test(entity1));
-        assertTrue(propertyFilter.test(entity2));
-        assertTrue(propertyFilter.test(entity3));
+        assertTrue(propertyFilter.test(entity1, graph));
+        assertTrue(propertyFilter.test(entity2, graph));
+        assertTrue(propertyFilter.test(entity3, graph));
     }
 
     /**
@@ -1451,10 +1451,10 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        assertTrue(propertyFilter.test(entityWithMatchingId));
-        assertTrue(propertyFilter.test(entityWithOneMatchingOneUnmatching));
-        assertFalse(propertyFilter.test(entityNotMatching));
-        assertFalse(propertyFilter.test(entityNoVendorId));
+        assertTrue(propertyFilter.test(entityWithMatchingId, graph));
+        assertTrue(propertyFilter.test(entityWithOneMatchingOneUnmatching, graph));
+        assertFalse(propertyFilter.test(entityNotMatching, graph));
+        assertFalse(propertyFilter.test(entityNoVendorId, graph));
     }
 
     /**
@@ -1565,10 +1565,10 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        assertFalse(propertyFilter.test(vmEntity));
-        assertFalse(propertyFilter.test(pmEntity));
-        assertTrue(propertyFilter.test(wcEntityMatching));
-        assertFalse(propertyFilter.test(wcEntityNotMatching));
+        assertFalse(propertyFilter.test(vmEntity, graph));
+        assertFalse(propertyFilter.test(pmEntity, graph));
+        assertTrue(propertyFilter.test(wcEntityMatching, graph));
+        assertFalse(propertyFilter.test(wcEntityNotMatching, graph));
     }
 
     /**
@@ -1611,10 +1611,10 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        assertFalse(propertyFilter.test(vmEntity));
-        assertFalse(propertyFilter.test(pmEntity));
-        assertTrue(propertyFilter.test(wcEntityMatching));
-        assertFalse(propertyFilter.test(wcEntityNotMatching));
+        assertFalse(propertyFilter.test(vmEntity, graph));
+        assertFalse(propertyFilter.test(pmEntity, graph));
+        assertTrue(propertyFilter.test(wcEntityMatching, graph));
+        assertFalse(propertyFilter.test(wcEntityNotMatching, graph));
     }
 
     /**
@@ -1657,10 +1657,10 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
 
-        assertFalse(propertyFilter.test(vmEntity));
-        assertFalse(propertyFilter.test(pmEntity));
-        assertTrue(propertyFilter.test(wcEntityMatching));
-        assertFalse(propertyFilter.test(wcEntityNotMatching));
+        assertFalse(propertyFilter.test(vmEntity, graph));
+        assertFalse(propertyFilter.test(pmEntity, graph));
+        assertTrue(propertyFilter.test(wcEntityMatching, graph));
+        assertFalse(propertyFilter.test(wcEntityNotMatching, graph));
     }
 
     private TestGraphEntity makeVmWithConnectedNetworks(long id, String... connectedNetworks) {

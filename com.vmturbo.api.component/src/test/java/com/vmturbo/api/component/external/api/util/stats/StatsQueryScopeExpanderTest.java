@@ -310,14 +310,16 @@ public class StatsQueryScopeExpanderTest {
 
         doReturn(Collections.singleton(1L)).when(supplyChainFetcherFactory).expandScope(
             Collections.singleton(7L),
-            Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.apiStr()));
+            Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.apiStr()),
+            0L);
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.singletonList(inputStat));
 
         expandedScope.getExpandedOids();
 
         verify(supplyChainFetcherFactory).expandScope(Collections.singleton(7L),
-            Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.apiStr()));
+            Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.apiStr()),
+                0L);
 
         assertThat(expandedScope.getGlobalScope(), is(Optional.empty()));
         assertThat(expandedScope.getExpandedOids(), is(Collections.singleton(1L)));

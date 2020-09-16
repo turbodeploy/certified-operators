@@ -103,6 +103,20 @@ public class ClassicMigrationServiceTest {
         Assert.assertEquals("Sysdreamworks123", classicMigrationService.decryptClassicCiphertext(ciphertext, key));
     }
 
+    /**
+     * Decrypt a cipher text that was encrypted in a classic instance, and migrated using a
+     * base64 encoded encryption key.
+     *
+     * @throws Exception if failing to decrypt.
+     */
+    @Test
+    public void testDecryptClassicTargetWithBase64Key() throws Exception {
+        String encodedKey =
+            "AkgUc/iCFibOxFs4V6yhrGZcXPWhH73EcACHPzX9wWhh5yqwrzLMK/Ms6u7UD0Kly5xceq6+1vFDjBEN5EyaSYzf2a+CUTbukGukv5wL6DF350Ut5LENdWQniWP9b1PkQurp98h4Da3/T/JHtIRSxoS1+1RNh7mgmiK8QmXnYkFX2jpP";
+        String ciphertext = "AAAAAQAAACBxMckZuXyTT52pPjmgaf4okZytQnC1qCxX6O6M5NGFDwAAABC0HYOXzAOCky3fWDRbEW4QAAAAEJxzBkHalVeeY8eA9z54jKY=";
+        Assert.assertEquals("wrong password", classicMigrationService.decryptClassicCiphertext(ciphertext, encodedKey));
+    }
+
     private InputFieldApiDTO secretInputField(String key, String value) {
         final InputFieldApiDTO result = new InputFieldApiDTO();
         result.setName(key);

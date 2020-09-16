@@ -16,13 +16,9 @@ else
   export LOGGER_COMMAND="eval tee >(logger --tag ${instance_id} -u /tmp/log.sock)"
 fi
 
-
 start_grafana() {
-    echo "Starting grafana" 2>&1 | ${LOGGER_COMMAND}
-    exec /grafana/bin/grafana-server \
-      --homepath=$GF_PATHS_HOME \
-      --config=$GF_PATHS_CONFIG \
-      --packaging=docker > >($LOGGER_COMMAND) 2>&1
+    echo "Starting grafana manager" 2>&1 | ${LOGGER_COMMAND}
+    python3 /grafana_mgr.py > >($LOGGER_COMMAND) 2>&1
 }
 
 start_grafana

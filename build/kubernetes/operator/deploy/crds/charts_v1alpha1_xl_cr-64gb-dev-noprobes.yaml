@@ -35,6 +35,8 @@ spec:
     enabled: false
   platform:
     enabled: true
+  ui:
+    enabled: true
   metron:
     enabled: false
   prometheus:

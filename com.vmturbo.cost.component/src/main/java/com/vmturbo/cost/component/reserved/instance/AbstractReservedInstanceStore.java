@@ -130,6 +130,12 @@ public abstract class AbstractReservedInstanceStore {
 
     protected List<ReservedInstanceBought> adjustAvailableCouponsForPartialCloudEnv(
             final List<ReservedInstanceBought> reservedInstances) {
+        if (reservedInstances.isEmpty()) {
+            return reservedInstances;
+        }
+
+        logger.info("Adjusting available coupons for partial cloud environment for {} reserved instances.",
+                reservedInstances.size());
 
         Set<Long> discoveredBaOids = businessAccountHelper.getDiscoveredBusinessAccounts();
         List<ReservedInstanceBought> riFromUndiscoveredAccounts = reservedInstances.stream()
@@ -175,6 +181,9 @@ public abstract class AbstractReservedInstanceStore {
                                     .setNumberOfCoupons(capacity - coupons);
                         }
                     }
+                    logger.trace(
+                            "ReservedInstanceBought after adjusting number of used coupons: {}",
+                            riBuilder);
                 })
                 .map(ReservedInstanceBought.Builder::build)
                 .collect(Collectors.toList());

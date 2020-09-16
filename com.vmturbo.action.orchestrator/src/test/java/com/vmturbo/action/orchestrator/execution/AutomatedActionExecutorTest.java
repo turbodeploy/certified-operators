@@ -52,6 +52,7 @@ import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionE
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -164,7 +165,7 @@ public class AutomatedActionExecutorTest {
     }
 
     @Test
-    public void testAutomatedExecuteOneUnsupported() {
+    public void testAutomatedExecuteOneUnsupported() throws Exception {
         final Action unsupportedAction = Mockito.mock(Action.class);
 
 
@@ -266,9 +267,11 @@ public class AutomatedActionExecutorTest {
     /**
      * Tests that if action from action queue has non active execution schedule then we miss
      * executing of this action.
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
-    public void testExecutingActionsFromActionQueue() {
+    public void testExecutingActionsFromActionQueue() throws Exception {
         final Action scheduleAction1 = Mockito.mock(Action.class);
 
         final ActionSchedule actionSchedule1 = mock(ActionSchedule.class);
@@ -683,7 +686,7 @@ public class AutomatedActionExecutorTest {
     }
 
     private void setUpMocksForAutomaticAction(@Nonnull Action action, long id,
-            @Nonnull ActionDTO.Action recommendation) {
+            @Nonnull ActionDTO.Action recommendation) throws WorkflowStoreException {
         setUpMocks(action, id, recommendation);
         when(action.getMode()).thenReturn(ActionMode.AUTOMATIC);
         when(action.getSchedule()).thenReturn(Optional.empty());
@@ -691,7 +694,7 @@ public class AutomatedActionExecutorTest {
 
     private void setUpMocksForManuallyAcceptedAction(@Nonnull Action action, long id,
             @Nonnull ActionDTO.Action recommendation, @Nonnull ActionSchedule actionSchedule,
-            boolean isActiveExecutionSchedule) {
+            boolean isActiveExecutionSchedule) throws WorkflowStoreException {
         setUpMocks(action, id, recommendation);
         when(action.getMode()).thenReturn(ActionMode.MANUAL);
 
@@ -701,7 +704,8 @@ public class AutomatedActionExecutorTest {
         when(action.getSchedule()).thenReturn(Optional.of(actionSchedule));
     }
 
-    private void setUpMocks(Action action, long id, ActionDTO.Action rec) {
+    private void setUpMocks(Action action, long id, ActionDTO.Action rec)
+            throws WorkflowStoreException {
         actionMap.put(id, action);
         when(action.getId()).thenReturn(id);
         when(action.getRecommendation()).thenReturn(rec);

@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -277,19 +276,27 @@ public final class TopologyDTOUtil {
     }
 
     /**
+     * Checks if the Action is MOVE and is going to a different location.
+     *
+     * @param action Action to check.
+     * @return True if it's a MOVE Action going to a different location.
+     */
+    public static boolean isMigrationAction(@Nonnull final ActionDTO.Action action) {
+        return action.getInfo().getActionTypeCase() == ActionDTO.ActionInfo.ActionTypeCase.MOVE
+                && !TopologyDTOUtil.isMoveWithinSameRegion(action);
+    }
+
+    /**
      * Checks if the change provider refers to a move action within the same region. In that case,
      * the market generated move action is translated to a scale action.
      * If the move involves different regions (as in the case of cloud-to-cloud migration), then
      * we show move action as-is, and don't translate it to a scale.
+     * N.B. The action needs to be MOVE.
      *
      * @param action Move action whose change providers to check.
      * @return True if change providers refers to a move action within same region.
      */
     public static boolean isMoveWithinSameRegion(@Nonnull final ActionDTO.Action action) {
-        if (action.getInfo().getActionTypeCase() != ActionTypeCase.MOVE) {
-            // Not a move action
-            return false;
-        }
         final Optional<ChangeProvider> primaryChangeProviderOptional = ActionDTOUtil.getPrimaryChangeProvider(action);
         if (!primaryChangeProviderOptional.isPresent()) {
             return false;

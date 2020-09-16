@@ -26,8 +26,10 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.AccountRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage.RICoverageSource;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
@@ -63,20 +65,17 @@ public class ReservedInstanceUtilizationStoreTest {
 
     private static final double DELTA = 0.000001;
 
-    private DSLContext dsl = dbConfig.getDslContext();
+    private final DSLContext dsl = dbConfig.getDslContext();
 
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore;
-
-    private ReservedInstanceSpecStore reservedInstanceSpecStore;
 
     private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
 
     private ReservedInstanceUtilizationStore reservedInstanceUtilizationStore;
 
-    private ReservedInstanceCostCalculator reservedInstanceCostCalculator;
+    private final PriceTableStore priceTableStore = Mockito.mock(PriceTableStore.class);
 
-    private PriceTableStore priceTableStore = Mockito.mock(PriceTableStore.class);
-    private AccountRIMappingStore accountRIMappingStore = Mockito.mock(AccountRIMappingStore.class);
+    private AccountRIMappingStore accountRIMappingStore;
 
     final EntityRICoverageUpload coverageOne = EntityRICoverageUpload.newBuilder()
             .setEntityId(123L)
@@ -153,21 +152,24 @@ public class ReservedInstanceUtilizationStoreTest {
             .build();
 
     @Before
-    public void setup() throws Exception {
+    public void setup() {
         Map<Long, PricingDTO.ReservedInstancePrice> map = new HashMap<>();
         ReservedInstancePriceTable riPriceTable = ReservedInstancePriceTable.newBuilder()
                 .putAllRiPricesBySpecId(map).build();
         Mockito.when(priceTableStore.getMergedRiPriceTable()).thenReturn(riPriceTable);
-        reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
-        reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
+        ReservedInstanceSpecStore reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl,
+                new IdentityProvider(0), 10);
+        ReservedInstanceCostCalculator reservedInstanceCostCalculator =
+                new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
 
         entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl);
+        accountRIMappingStore = new AccountRIMappingStore(dsl);
         reservedInstanceBoughtStore = new SQLReservedInstanceBoughtStore(dsl,
                 new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore,
                 entityReservedInstanceMappingStore, accountRIMappingStore, new BusinessAccountHelper());
 
-        reservedInstanceUtilizationStore = new ReservedInstanceUtilizationStore(dsl, reservedInstanceBoughtStore,
-                reservedInstanceSpecStore, entityReservedInstanceMappingStore);
+        reservedInstanceUtilizationStore = new ReservedInstanceUtilizationStore(dsl,
+                reservedInstanceBoughtStore, reservedInstanceSpecStore);
         insertDefaultReservedInstanceSpec();
     }
 
@@ -180,13 +182,41 @@ public class ReservedInstanceUtilizationStoreTest {
         reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstancesBoughtInfo);
         entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl,
                 stichRIOidToCoverageUploads(entityCoverageLists));
+        final List<ReservedInstanceBoughtRecord> riBought = dsl.selectFrom(
+                Tables.RESERVED_INSTANCE_BOUGHT).fetch();
+        final Map<String, Long> riProbeIdMap = riBought.stream().collect(
+                Collectors.toMap(ReservedInstanceBoughtRecord::getProbeReservedInstanceId,
+                        ReservedInstanceBoughtRecord::getId));
+        accountRIMappingStore.updateAccountRICoverageMappings(
+                Arrays.asList(AccountRICoverageUpload.newBuilder()
+                        .setAccountId(9000)
+                        .addCoverage(Coverage.newBuilder()
+                                .setCoveredCoupons(50)
+                                .setReservedInstanceId(riProbeIdMap.get("testOne"))
+                                .setProbeReservedInstanceId("testOne")
+                                .setRiCoverageSource(RICoverageSource.BILLING)
+                                .setUsageStartTimestamp(System.currentTimeMillis())
+                                .setUsageEndTimestamp(System.currentTimeMillis()))
+                        .build(), AccountRICoverageUpload.newBuilder()
+                        .setAccountId(9001)
+                        .addCoverage(Coverage.newBuilder()
+                                .setCoveredCoupons(25)
+                                .setReservedInstanceId(riProbeIdMap.get("testOne"))
+                                .setProbeReservedInstanceId("testOne")
+                                .setRiCoverageSource(RICoverageSource.BILLING)
+                                .setUsageStartTimestamp(System.currentTimeMillis())
+                                .setUsageEndTimestamp(System.currentTimeMillis()))
+                        .addCoverage(Coverage.newBuilder()
+                                .setCoveredCoupons(30)
+                                .setReservedInstanceId(riProbeIdMap.get("testThree"))
+                                .setProbeReservedInstanceId("testThree")
+                                .setRiCoverageSource(RICoverageSource.BILLING)
+                                .setUsageStartTimestamp(System.currentTimeMillis())
+                                .setUsageEndTimestamp(System.currentTimeMillis()))
+                        .build()));
         reservedInstanceUtilizationStore.updateReservedInstanceUtilization(dsl);
         List<ReservedInstanceUtilizationLatestRecord> records =
                 dsl.selectFrom(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST).fetch();
-        List<ReservedInstanceBoughtRecord> riBought = dsl.selectFrom(Tables.RESERVED_INSTANCE_BOUGHT).fetch();
-        Map<String, Long> riProbeIdMap = riBought.stream()
-                .collect(Collectors.toMap(ReservedInstanceBoughtRecord::getProbeReservedInstanceId,
-                        ReservedInstanceBoughtRecord::getId));
         assertEquals(3L, records.size());
         final Optional<ReservedInstanceUtilizationLatestRecord> firstRI =
                 records.stream()
@@ -204,11 +234,11 @@ public class ReservedInstanceUtilizationStoreTest {
         assertTrue(secondRI.isPresent());
         assertTrue(thirdRI.isPresent());
         assertEquals(100.0, firstRI.get().getTotalCoupons(), DELTA);
-        assertEquals(40.0, firstRI.get().getUsedCoupons(), DELTA);
+        assertEquals(115.0, firstRI.get().getUsedCoupons(), DELTA);
         assertEquals(100.0, secondRI.get().getTotalCoupons(), DELTA);
         assertEquals(20.0, secondRI.get().getUsedCoupons(), DELTA);
         assertEquals(100.0, thirdRI.get().getTotalCoupons(), DELTA);
-        assertEquals(50.0, thirdRI.get().getUsedCoupons(), DELTA);
+        assertEquals(80.0, thirdRI.get().getUsedCoupons(), DELTA);
     }
 
     @Test

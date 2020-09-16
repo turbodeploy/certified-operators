@@ -647,7 +647,7 @@ services:
   grafana:
     extends:
       file: common-services.yml
-      service: common-service
+      service: dev-component
     image: turbonomic/grafana:${XL_VERSION}
     ports:
       - 3000:3000
@@ -662,8 +662,15 @@ services:
       GF_USERS_DEFAULT_THEME: "light"
       GF_USERS_AUTO_ASSIGN_ORG_ROLE: "Editor"
       GF_AUTH_PROXY_ENABLED: "true"
-      GF_SERVER_ROOT_URL: "https://%(domain)s/reports"
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:%(http_port)s/reports"
       GF_SERVE_FROM_SUB_PATH: "true"
+
+  renderer:
+    image: grafana/grafana-image-renderer:latest
+    ports:
+      - 8081:8081
+    environment:
+      ENABLE_METRICS: 'true'
 
   integration-intersight:
     extends:

@@ -65,6 +65,9 @@ public class CloudStorageMigrationHelper {
 
     private static final int STANDARD_IOPS_AMOUNT_MAX_CAPACITY = 200;
 
+    // Min storage capacity for AWS GP2 in GB
+    private static final int GP2_STORAGE_AMOUNT_MIN_CAPACITY = 1;
+
     // Max storage capacity for AWS GP2 in GB
     private static final int GP2_STORAGE_AMOUNT_MAX_CAPACITY = 16384;
 
@@ -73,6 +76,11 @@ public class CloudStorageMigrationHelper {
 
     // Maximum amount of IOPS that any Managed Premium storage size supports.
     static final int MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY = 20000;
+
+    // Set minimum storage amount for Azure to 4GB. That is the minimum amount for ultra. For other
+    // tiers, we use the dependency list to return the highest storage amount of the lowest range,
+    // which is also at least 4GB.
+    private static final int AZURE_STORAGE_AMOUNT_MIN_CAPACITY = 4;
 
     /** The smallest number of IOPS that can be provisioned on an Azure Ultra SSD disk. */
     private static final int MANAGED_ULTRA_SSD_IOPS_AMOUNT_MIN_CAPACITY = 100;
@@ -201,10 +209,18 @@ public class CloudStorageMigrationHelper {
             boolean isDestinationAws) {
         float diskSizeInMB = getStorageProvisionedAmount(commBoughtGroupingForSL);
 
-        // Cap storage amount to the maximum supported storage amount value to guarantee a placement
-        if (isDestinationAws && diskSizeInMB > GP2_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI) {
-            diskSizeInMB = (float)(GP2_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI);
-        } else if (!isDestinationAws && diskSizeInMB > MANAGED_PREMIUM_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI) {
+        // Cap storage amount to the maximum supported storage amount value to guarantee a placement.
+        // For AWS, also make sure storage amount is not less than the minimum amount for GP2.
+        // For Azure, there is no need to adjust the minimum amount because we recommend the upper
+        // bound of a range in the dependency list which is always larger than the original value
+        // and non-zero.
+        if (isDestinationAws) {
+            if (diskSizeInMB > GP2_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI) {
+                diskSizeInMB = (float)(GP2_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI);
+            } else if (diskSizeInMB < GP2_STORAGE_AMOUNT_MIN_CAPACITY * Units.KIBI) {
+                diskSizeInMB = (float)(GP2_STORAGE_AMOUNT_MIN_CAPACITY * Units.KIBI);
+            }
+        } else if (diskSizeInMB > MANAGED_PREMIUM_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI) {
             diskSizeInMB = (float)(MANAGED_PREMIUM_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI);
         }
         if (diskSizeInMB > 0) {
@@ -227,6 +243,7 @@ public class CloudStorageMigrationHelper {
      * @param iopsToStorageRatios iopsToStorageRatios
      * @param entityOid OID of the entity that owns the commodity list
      * @param historicalMaxIops historical max IOPS used in the last 30 days
+     * @param isDestinationAws boolean that indicates if destination is AWS
      * @return updated CommodityBoughtDTO
      */
     static CommodityBoughtDTO adjustStorageAmountForCloudMigration(
@@ -234,12 +251,24 @@ public class CloudStorageMigrationHelper {
             @Nonnull final CommoditiesBoughtFromProvider commBoughtGroupingForSL,
             @Nonnull final IopsToStorageRatios iopsToStorageRatios,
             @Nonnull final Long entityOid,
-            @Nonnull final Double historicalMaxIops) {
+            @Nonnull final Double historicalMaxIops,
+            boolean isDestinationAws) {
 
         // Optimization plan (a.k.a. Consumption plan): Adjust storage amount commodity
         // value based on IOPs
         // Use storage provisioned "used" value for storage amount.
         float diskSizeInGB = (float)(getStorageProvisionedAmount(commBoughtGroupingForSL) / Units.KIBI);
+
+        // Since this adjustment is done for Optimize plan only, we don't need to cap the disk size
+        // to a maximum value. We just let it become unplaced if none of the tiers can support the
+        // size. However, we want to make sure the disk size is at least the minimum size.
+        // Storage provision amount can be zero for some on-prem VMs which can result no volume cost
+        // after migration.
+        if (isDestinationAws && diskSizeInGB < GP2_STORAGE_AMOUNT_MIN_CAPACITY) {
+            diskSizeInGB = GP2_STORAGE_AMOUNT_MIN_CAPACITY;
+        } else if (!isDestinationAws && diskSizeInGB < AZURE_STORAGE_AMOUNT_MIN_CAPACITY) {
+            diskSizeInGB = AZURE_STORAGE_AMOUNT_MIN_CAPACITY;
+        }
 
         if (diskSizeInGB > 0
                 && storageAmountCommodity.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT_VALUE) {

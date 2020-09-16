@@ -24,6 +24,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
+import com.turbonomic.cpucapacity.CPUCapacityEstimator;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -85,6 +86,8 @@ public class ClusterHeadroomPostProcessorTest {
     private static final int MORE_THAN_A_YEAR = 3650;
     // Milliseconds in a day
     private static final long DAY_MILLI_SECS = TimeUnit.DAYS.toMillis(1);
+    private static final String FAST_CPU_MODEL = "Intel Xeon Gold 5115";
+    private static final String SLOW_CPU_MODEL = "Intel Pentium 4";
 
     private static final Grouping CLUSTER = Grouping.newBuilder()
         .setDefinition(GroupDefinition.newBuilder()
@@ -107,6 +110,8 @@ public class ClusterHeadroomPostProcessorTest {
 
     private TemplatesDao templatesDao = mock(TemplatesDao.class);
 
+    private final CPUCapacityEstimator cpuCapacityEstimator = mock(CPUCapacityEstimator.class);
+
     /**
      * The mock grpc service.
      */
@@ -125,9 +130,12 @@ public class ClusterHeadroomPostProcessorTest {
         when(groupRpcServiceMole.getGroups(any()))
             .thenReturn(Collections.singletonList(Grouping.newBuilder().setId(CLUSTER_ID).build()));
 
+        when(cpuCapacityEstimator.estimateMHzCoreMultiplier(any()))
+            .thenReturn(1.0);
+
         processor = spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
             grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-            planDao, grpcTestServer.getChannel(), templatesDao));
+            planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator));
     }
 
     /**
@@ -143,37 +151,16 @@ public class ClusterHeadroomPostProcessorTest {
         processor.handleProjectedTopology(100, TopologyInfo.getDefaultInstance(), topologyIt);
 
         // VmGrowth = 0 (because we don't have data in the past)
-        verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
-            .setClusterId(CLUSTER_ID)
+        verify(historyServiceMole).saveClusterHeadroom(getExpectedSaveClusterHeadroomRequest()
             // Template Value CPU_SPEED = 10, consumedFactor = 0.5, effectiveUsed = 5
-                // PM CPU value : used = 50 * 2 (scalingFactor), capacity = 100 * 2 (scalingFactor)
+            // PM CPU value : used = 50 * 2 (scalingFactor), capacity = 100 * 2 (scalingFactor)
             // CPU headroom calculation :
-                // headroomCapacity = capacity / effectiveUsed = 40, headroomAvailable = (capacity - used) / effectiveUsed = 20
+            // headroomCapacity = capacity / effectiveUsed = 40, headroomAvailable = (capacity - used) / effectiveUsed = 20
             // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
             .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
-                    .setHeadroom(20)
-                    .setCapacity(40)
+                .setHeadroom(20)
+                .setCapacity(40)
                 .setDaysToExhaustion(MORE_THAN_A_YEAR))
-            // Template Value MEMORY_SIZE = 100, consumedFactor = 0.4, effectiveUsed = 40
-            // PM MEM value : used = 40, capacity = 200
-            // MEM headroom calculation :
-            // headroomCapacity = capacity / effectiveUsed = 5, headroomAvailable = (capacity - used) / effectiveUsed = 4
-            // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
-            .setMemHeadroomInfo(CommodityHeadroom.newBuilder()
-                .setCapacity(5)
-                .setHeadroom(4)
-                .setDaysToExhaustion(MORE_THAN_A_YEAR))
-            // Template Value DISK_SIZE = 200, consumedFactor = 1, effectiveUsed = 200
-            // Storage value : used = 100, capacity = 600
-            // Storage headroom calculation :
-            // headroomCapacity = capacity / effectiveUsed = 3, headroomAvailable = (capacity - used) / effectiveUsed = 2
-            // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
-            .setStorageHeadroomInfo(CommodityHeadroom.newBuilder()
-                .setCapacity(3)
-                .setHeadroom(2)
-                .setDaysToExhaustion(MORE_THAN_A_YEAR))
-            .setMonthlyVMGrowth(0) // (vmGrowth * daysInMonth) / PeakLookBack days = (0 * 30)/7 = 0
-            .setHeadroom(2) // minimum of mem, cpu and storage headroom values : min(10, 4, 2)
             .build());
     }
 
@@ -203,6 +190,138 @@ public class ClusterHeadroomPostProcessorTest {
             .setStorageHeadroomInfo(CommodityHeadroom.getDefaultInstance())
             .setMonthlyVMGrowth(0) // (vmGrowth * daysInMonth) / PeakLookback days = (0 * 30)/7 = 0
             .setHeadroom(0) // minimum of mem, cpu and storage headroom values : min(10, 4, 0)
+            .build());
+    }
+
+    private SaveClusterHeadroomRequest.Builder getExpectedSaveClusterHeadroomRequest() {
+        return SaveClusterHeadroomRequest.newBuilder()
+            .setClusterId(CLUSTER_ID)
+            // Template Value MEMORY_SIZE = 100, consumedFactor = 0.4, effectiveUsed = 40
+            // PM MEM value : used = 40, capacity = 200
+            // MEM headroom calculation :
+            // headroomCapacity = capacity / effectiveUsed = 5, headroomAvailable = (capacity - used) / effectiveUsed = 4
+            // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
+            .setMemHeadroomInfo(CommodityHeadroom.newBuilder()
+                .setCapacity(5)
+                .setHeadroom(4)
+                .setDaysToExhaustion(MORE_THAN_A_YEAR))
+            // Template Value DISK_SIZE = 200, consumedFactor = 1, effectiveUsed = 200
+            // Storage value : used = 100, capacity = 600
+            // Storage headroom calculation :
+            // headroomCapacity = capacity / effectiveUsed = 3, headroomAvailable = (capacity - used) / effectiveUsed = 2
+            // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
+            .setStorageHeadroomInfo(CommodityHeadroom.newBuilder()
+                .setCapacity(3)
+                .setHeadroom(2)
+                .setDaysToExhaustion(MORE_THAN_A_YEAR))
+            .setMonthlyVMGrowth(0) // (vmGrowth * daysInMonth) / PeakLookBack days = (0 * 30)/7 = 0
+            .setHeadroom(2); // minimum of mem, cpu and storage headroom values : min(10, 4, 2)
+    }
+
+    /**
+     * Headroom results should not be scaled when the cpu model is not set nor empty.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testHeadroomWithCpuUnsetOrEmptyModel() throws Exception {
+        prepareForHeadroomCalculation(true);
+        RemoteIterator<ProjectedTopologyEntity> topologyIt = getProjectedTopology(true);
+
+        // no cpu model
+        processor.handleProjectedTopology(100, TopologyInfo.getDefaultInstance(), topologyIt);
+        // VmGrowth = 0 (because we don't have data in the past)
+        verify(historyServiceMole).saveClusterHeadroom(getExpectedSaveClusterHeadroomRequest()
+            // Template Value CPU_SPEED = 10, consumedFactor = 0.5, effectiveUsed = 5
+            // PM CPU value : used = 50 * 2 (scalingFactor), capacity = 100 * 2 (scalingFactor)
+            // CPU headroom calculation :
+            // headroomCapacity = capacity / effectiveUsed = 40, headroomAvailable = (capacity - used) / effectiveUsed = 20
+            // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
+            .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
+                .setHeadroom(20)
+                .setCapacity(40)
+                .setDaysToExhaustion(MORE_THAN_A_YEAR))
+            .build());
+
+        // empty cpu model
+        when(templatesDao.getClusterHeadroomTemplateForGroup(CLUSTER_ID))
+            .thenReturn(Optional.of(getTemplateForHeadroom(true, "")));
+        processor.handleProjectedTopology(100, TopologyInfo.getDefaultInstance(), topologyIt);
+        // VmGrowth = 0 (because we don't have data in the past)
+        verify(historyServiceMole).saveClusterHeadroom(getExpectedSaveClusterHeadroomRequest()
+            // Template Value CPU_SPEED = 10, consumedFactor = 0.5, effectiveUsed = 5
+            // PM CPU value : used = 50 * 2 (scalingFactor), capacity = 100 * 2 (scalingFactor)
+            // CPU headroom calculation :
+            // headroomCapacity = capacity / effectiveUsed = 40, headroomAvailable = (capacity - used) / effectiveUsed = 20
+            // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
+            .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
+                .setHeadroom(20)
+                .setCapacity(40)
+                .setDaysToExhaustion(MORE_THAN_A_YEAR))
+            .build());
+    }
+
+    /**
+     * Headroom should be lower when using a VM template consuming from a faster PM. Should be
+     * half the result of testProjectedTopologyWithHeadroomValues.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testHeadroomWithFasterCpuModel() throws Exception {
+        prepareForHeadroomCalculation(true);
+        RemoteIterator<ProjectedTopologyEntity> topologyIt = getProjectedTopology(true);
+
+        when(templatesDao.getClusterHeadroomTemplateForGroup(CLUSTER_ID))
+            .thenReturn(Optional.of(getTemplateForHeadroom(true, FAST_CPU_MODEL)));
+        when(cpuCapacityEstimator.estimateMHzCoreMultiplier(FAST_CPU_MODEL)).thenReturn(2.0);
+
+        processor.handleProjectedTopology(100, TopologyInfo.getDefaultInstance(), topologyIt);
+        // VmGrowth = 0 (because we don't have data in the past)
+        verify(historyServiceMole).saveClusterHeadroom(getExpectedSaveClusterHeadroomRequest()
+            // Template Value CPU_SPEED = 10, consumedFactor = 0.5, scalingFactor = 0.5
+            // effectiveUsed = CPU_SPEED * consumedFactor * scalingFactor = 10
+            // PM CPU value : used = 50 * 2 (scalingFactor), capacity = 100 * 2 (scalingFactor)
+            // CPU headroom calculation :
+            // headroomCapacity = capacity / effectiveUsed = 20
+            // headroomAvailable = (capacity - used) / effectiveUsed = 10
+            // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
+            .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
+                .setHeadroom(10)
+                .setCapacity(20)
+                .setDaysToExhaustion(MORE_THAN_A_YEAR))
+            .build());
+    }
+
+    /**
+     * Headroom should be higher when using a VM template consuming from a slower PM. Should be
+     * 2 times the result of testProjectedTopologyWithHeadroomValues.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testHeadroomWithSlowerCpuModel() throws Exception {
+        prepareForHeadroomCalculation(true);
+        RemoteIterator<ProjectedTopologyEntity> topologyIt = getProjectedTopology(true);
+
+        when(templatesDao.getClusterHeadroomTemplateForGroup(CLUSTER_ID))
+            .thenReturn(Optional.of(getTemplateForHeadroom(true, SLOW_CPU_MODEL)));
+        when(cpuCapacityEstimator.estimateMHzCoreMultiplier(SLOW_CPU_MODEL)).thenReturn(0.5);
+
+        processor.handleProjectedTopology(100, TopologyInfo.getDefaultInstance(), topologyIt);
+        // VmGrowth = 0 (because we don't have data in the past)
+        verify(historyServiceMole).saveClusterHeadroom(getExpectedSaveClusterHeadroomRequest()
+            // Template Value CPU_SPEED = 10, consumedFactor = 0.5, scalingFactor = 0.5
+            // effectiveUsed = CPU_SPEED * consumedFactor * scalingFactor = 2.5
+            // PM CPU value : used = 50 * 2 (scalingFactor), capacity = 100 * 2 (scalingFactor)
+            // CPU headroom calculation :
+            // headroomCapacity = capacity / effectiveUsed = 80
+            // headroomAvailable = (capacity - used) / effectiveUsed = 40
+            // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
+            .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
+                .setHeadroom(40)
+                .setCapacity(80)
+                .setDaysToExhaustion(MORE_THAN_A_YEAR))
             .build());
     }
 
@@ -354,7 +473,7 @@ public class ClusterHeadroomPostProcessorTest {
         final ClusterHeadroomPlanPostProcessor processor =
             spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
                 grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-                planDao, grpcTestServer.getChannel(), templatesDao));
+                planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator));
         Consumer<ProjectPlanPostProcessor> onCompleteHandler = mock(Consumer.class);
         processor.registerOnCompleteHandler(onCompleteHandler);
 
@@ -378,7 +497,7 @@ public class ClusterHeadroomPostProcessorTest {
         final ClusterHeadroomPlanPostProcessor processor =
             spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),
                 grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-                planDao, grpcTestServer.getChannel(), templatesDao));
+                planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator));
         Consumer<ProjectPlanPostProcessor> onCompleteHandler = mock(Consumer.class);
         processor.registerOnCompleteHandler(onCompleteHandler);
 
@@ -401,7 +520,7 @@ public class ClusterHeadroomPostProcessorTest {
 
         final ClusterHeadroomPlanPostProcessor processor = spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, ImmutableSet.of(1L),
             grpcTestServer.getChannel(), grpcTestServer.getChannel(),
-            planDao, grpcTestServer.getChannel(), templatesDao));
+            planDao, grpcTestServer.getChannel(), templatesDao, cpuCapacityEstimator));
 
         long mostRecentHistoricalDate = System.currentTimeMillis();
         Map<Long, Long> vmsByDate = getVMsByDate(getVMCountData(10, 5), mostRecentHistoricalDate);
@@ -483,25 +602,34 @@ public class ClusterHeadroomPostProcessorTest {
         return statsList;
     }
 
+
     private Template getTemplateForHeadroom(boolean setValidValues) {
-        return Template.newBuilder().setTemplateInfo(
-            TemplateInfo.newBuilder()
-                .setName("AVG:Cluster")
-                .setTemplateSpecId(100)
-                .addAllResources(ImmutableList.of(
-                    TemplateResource.newBuilder()
-                        .setCategory(ResourcesCategory.newBuilder().setName(ResourcesCategoryName.Compute))
-                        .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED).setValue("10"))
-                        .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR).setValue("0.5"))
-                        .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU).setValue("1"))
-                        .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE).setValue("100"))
-                        .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR).setValue("0.4"))
-                        .build(),
-                    TemplateResource.newBuilder()
-                        .setCategory(ResourcesCategory.newBuilder().setName(ResourcesCategoryName.Storage))
-                        .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_STORAGE_DISK_SIZE).setValue(setValidValues ? "200" : "0"))
-                        .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR).setValue("1"))
-                        .build())))
+        return getTemplateForHeadroom(setValidValues, null);
+    }
+
+    private Template getTemplateForHeadroom(boolean setValidValues, String cpuModel) {
+        TemplateInfo.Builder templateInfoBuilder = TemplateInfo.newBuilder()
+            .setName("AVG:Cluster")
+            .setTemplateSpecId(100)
+            .addAllResources(ImmutableList.of(
+                TemplateResource.newBuilder()
+                    .setCategory(ResourcesCategory.newBuilder().setName(ResourcesCategoryName.Compute))
+                    .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED).setValue("10"))
+                    .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR).setValue("0.5"))
+                    .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU).setValue("1"))
+                    .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE).setValue("100"))
+                    .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR).setValue("0.4"))
+                    .build(),
+                TemplateResource.newBuilder()
+                    .setCategory(ResourcesCategory.newBuilder().setName(ResourcesCategoryName.Storage))
+                    .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_STORAGE_DISK_SIZE).setValue(setValidValues ? "200" : "0"))
+                    .addFields(TemplateField.newBuilder().setName(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR).setValue("1"))
+                    .build()));
+        if (cpuModel != null) {
+            templateInfoBuilder.setCpuModel(cpuModel);
+        }
+
+        return Template.newBuilder().setTemplateInfo(templateInfoBuilder)
             .setId(1234)
             .build();
     }

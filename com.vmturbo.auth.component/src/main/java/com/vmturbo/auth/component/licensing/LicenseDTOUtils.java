@@ -227,7 +227,8 @@ public class LicenseDTOUtils {
         summaryBuilder.setIsValid(areAllNonExpiredLicensesValid);
 
         externalLicensesByType.forEach((type, externalLicenses) -> {
-            final ExternalLicenseSummary.Builder externalTypeSummaryBldr = ExternalLicenseSummary.newBuilder();
+            final ExternalLicenseSummary.Builder externalTypeSummaryBldr = ExternalLicenseSummary.newBuilder()
+                    .setType(type);
             getLatestExpirationDate(externalLicenses.stream()
                 .map(ExternalLicense::getExpirationDate))
                 .ifPresent(latestExpiration -> {

@@ -1,5 +1,6 @@
 package com.vmturbo.cloud.commitment.analysis.runtime.stages.classification;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -10,15 +11,16 @@ import static org.mockito.Mockito.when;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.collect.Lists;
 
 import org.junit.Test;
 
+import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries;
@@ -48,7 +50,7 @@ public class AllocatedDemandClassifierTest {
                         .startTime(Instant.now().minusSeconds(60))
                         .endTime(Instant.now())
                         .build())
-                .cloudTierDemand(ImmutableComputeTierDemand.builder()
+                .cloudTierDemand(ComputeTierDemand.builder()
                         .cloudTierOid(5L)
                         .osType(OSType.RHEL)
                         .tenancy(Tenancy.DEFAULT)
@@ -78,24 +80,28 @@ public class AllocatedDemandClassifierTest {
                         .startTime(priorAllocation.timeInterval().startTime().minusSeconds(300))
                         .endTime(priorAllocation.timeInterval().startTime().minusSeconds(100))
                         .build())
-                .withCloudTierDemand(ImmutableComputeTierDemand.copyOf(allocatedMapping.cloudTierDemand())
-                        .withCloudTierOid(allocatedMapping.cloudTierDemand().cloudTierOid() + 1));
+                .withCloudTierDemand(ComputeTierDemand.builder().from(allocatedMapping.cloudTierDemand())
+                        .cloudTierOid(allocatedMapping.cloudTierDemand().cloudTierOid() + 1)
+                        .build());
 
         final EntityComputeTierAllocation flexiblyAllocatedB = ImmutableEntityComputeTierAllocation.copyOf((allocatedMapping))
                 .withTimeInterval(ImmutableTimeInterval.builder()
                         .startTime(flexiblyAllocatedA.timeInterval().startTime().minusSeconds(300))
                         .endTime(flexiblyAllocatedA.timeInterval().startTime().minusSeconds(100))
                         .build())
-                .withCloudTierDemand(ImmutableComputeTierDemand.copyOf(flexiblyAllocatedA.cloudTierDemand())
-                        .withCloudTierOid(flexiblyAllocatedA.cloudTierDemand().cloudTierOid() + 1));
+                .withCloudTierDemand(ComputeTierDemand.builder().from(flexiblyAllocatedA.cloudTierDemand())
+                        .cloudTierOid(flexiblyAllocatedA.cloudTierDemand().cloudTierOid() + 1)
+                        .build());
 
         final EntityComputeTierAllocation staleAllocated = ImmutableEntityComputeTierAllocation.copyOf((allocatedMapping))
                 .withTimeInterval(ImmutableTimeInterval.builder()
                         .startTime(flexiblyAllocatedB.timeInterval().startTime().minusSeconds(300))
                         .endTime(flexiblyAllocatedB.timeInterval().startTime().minusSeconds(100))
                         .build())
-                .withCloudTierDemand(ImmutableComputeTierDemand.copyOf(allocatedMapping.cloudTierDemand())
-                        .withCloudTierOid(flexiblyAllocatedB.cloudTierDemand().cloudTierOid() + 1));
+                .withCloudTierDemand(ComputeTierDemand.builder()
+                        .from(allocatedMapping.cloudTierDemand())
+                        .cloudTierOid(flexiblyAllocatedB.cloudTierDemand().cloudTierOid() + 1)
+                        .build());
 
         // This demand matches allocated, but it comes prior to a stale classification and should be
         // classified as stale.
@@ -119,12 +125,12 @@ public class AllocatedDemandClassifierTest {
         // invoke the demand classifier
         final AllocatedDemandClassifier allocatedDemandClassifier = allocatedDemandClassifierFactory.newClassifier(
                 cloudTierFamilyMatcher, Duration.ofSeconds(20).toMillis());
-        final Map<AllocatedDemandClassification, Set<DemandTimeSeries>> actualClassifications =
+        final ClassifiedCloudTierDemand actualClassifications =
                 allocatedDemandClassifier.classifyEntityDemand(entityDemandSeries);
 
         // setup the expected output
         // Allocated
-        final DemandTimeSeries allocatedDemandTimeSeries = ImmutableDemandTimeSeries
+        final DemandTimeSeries allocatedDemandTimeSeries = DemandTimeSeries
                 .builder()
                 .cloudTierDemand(allocatedMapping.cloudTierDemand())
                 .demandIntervals(TimeSeries.newTimeline(
@@ -134,8 +140,7 @@ public class AllocatedDemandClassifierTest {
                 .build();
 
         // Ephemeral
-        final DemandTimeSeries ephemeralDemandTimeSeries = ImmutableDemandTimeSeries
-                .builder()
+        final DemandTimeSeries ephemeralDemandTimeSeries = DemandTimeSeries.builder()
                 .cloudTierDemand(ephemeralMapping.cloudTierDemand())
                 .demandIntervals(TimeSeries.newTimeline(
                         Lists.newArrayList(
@@ -143,15 +148,13 @@ public class AllocatedDemandClassifierTest {
                 .build();
 
         // Flexibly allocated
-        final DemandTimeSeries flexibleDemandTimeSeriesA = ImmutableDemandTimeSeries
-                .builder()
+        final DemandTimeSeries flexibleDemandTimeSeriesA = DemandTimeSeries.builder()
                 .cloudTierDemand(flexiblyAllocatedA.cloudTierDemand())
                 .demandIntervals(TimeSeries.newTimeline(
                         Lists.newArrayList(
                                 flexiblyAllocatedA.timeInterval())))
                 .build();
-        final DemandTimeSeries flexibleDemandTimeSeriesB = ImmutableDemandTimeSeries
-                .builder()
+        final DemandTimeSeries flexibleDemandTimeSeriesB = DemandTimeSeries.builder()
                 .cloudTierDemand(flexiblyAllocatedB.cloudTierDemand())
                 .demandIntervals(TimeSeries.newTimeline(
                         Lists.newArrayList(
@@ -159,16 +162,14 @@ public class AllocatedDemandClassifierTest {
                 .build();
 
         // Stale
-        final DemandTimeSeries staleDemandTimeSeries = ImmutableDemandTimeSeries
-                .builder()
+        final DemandTimeSeries staleDemandTimeSeries = DemandTimeSeries.builder()
                 .cloudTierDemand(staleAllocated.cloudTierDemand())
                 .demandIntervals(TimeSeries.newTimeline(
                         Lists.newArrayList(
                                 staleAllocated.timeInterval())))
                 .build();
 
-        final DemandTimeSeries oldDemandTimeSeries = ImmutableDemandTimeSeries
-                .builder()
+        final DemandTimeSeries oldDemandTimeSeries = DemandTimeSeries.builder()
                 .cloudTierDemand(oldAllocation.cloudTierDemand())
                 .demandIntervals(TimeSeries.newTimeline(
                         Lists.newArrayList(
@@ -176,17 +177,36 @@ public class AllocatedDemandClassifierTest {
                 .build();
 
         // Asertions
-        assertTrue(actualClassifications.containsKey(AllocatedDemandClassification.ALLOCATED));
-        assertThat(actualClassifications.get(AllocatedDemandClassification.ALLOCATED),
-                containsInAnyOrder(allocatedDemandTimeSeries));
-        assertTrue(actualClassifications.containsKey(AllocatedDemandClassification.EPHEMERAL));
-        assertThat(actualClassifications.get(AllocatedDemandClassification.EPHEMERAL),
-                containsInAnyOrder(ephemeralDemandTimeSeries));
-        assertTrue(actualClassifications.containsKey(AllocatedDemandClassification.FLEXIBLY_ALLOCATED));
-        assertThat(actualClassifications.get(AllocatedDemandClassification.FLEXIBLY_ALLOCATED),
+        final Map<DemandClassification, Set<DemandTimeSeries>> classifiedDemand =
+                actualClassifications.classifiedDemand();
+
+        assertThat(actualClassifications.allocatedDemand(), equalTo(Optional.of(
+                DemandTimeSeries
+                        .builder()
+                        .cloudTierDemand(allocatedMapping.cloudTierDemand())
+                        .demandIntervals(TimeSeries.singletonTimeline(allocatedMapping.timeInterval()))
+                        .build())));
+
+        final DemandClassification allocatedClassification =
+                DemandClassification.of(AllocatedDemandClassification.ALLOCATED);
+        assertTrue(classifiedDemand.containsKey(allocatedClassification));
+        assertThat(classifiedDemand.get(allocatedClassification), containsInAnyOrder(allocatedDemandTimeSeries));
+
+        final DemandClassification ephemeralClassification =
+                DemandClassification.of(AllocatedDemandClassification.EPHEMERAL);
+        assertTrue(classifiedDemand.containsKey(ephemeralClassification));
+        assertThat(classifiedDemand.get(ephemeralClassification), containsInAnyOrder(ephemeralDemandTimeSeries));
+
+        final DemandClassification flexibleClassification =
+                DemandClassification.of(AllocatedDemandClassification.FLEXIBLY_ALLOCATED);
+        assertTrue(classifiedDemand.containsKey(flexibleClassification));
+        assertThat(classifiedDemand.get(flexibleClassification),
                 containsInAnyOrder(flexibleDemandTimeSeriesA, flexibleDemandTimeSeriesB));
-        assertTrue(actualClassifications.containsKey(AllocatedDemandClassification.STALE_ALLOCATED));
-        assertThat(actualClassifications.get(AllocatedDemandClassification.STALE_ALLOCATED),
+
+        final DemandClassification staleClassification =
+                DemandClassification.of(AllocatedDemandClassification.STALE_ALLOCATED);
+        assertTrue(classifiedDemand.containsKey(staleClassification));
+        assertThat(classifiedDemand.get(staleClassification),
                 containsInAnyOrder(staleDemandTimeSeries, oldDemandTimeSeries));
     }
 }

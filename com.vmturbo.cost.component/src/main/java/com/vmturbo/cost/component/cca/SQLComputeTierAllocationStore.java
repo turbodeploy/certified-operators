@@ -41,7 +41,6 @@ import org.jooq.impl.DSL;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
@@ -533,7 +532,7 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
                 .regionOid(entityCloudScopeRecord.getRegionOid())
                 .availabilityZoneOid(Optional.ofNullable(entityCloudScopeRecord.getAvailabilityZoneOid()))
                 .serviceProviderOid(entityCloudScopeRecord.getServiceProviderOid())
-                .cloudTierDemand(ImmutableComputeTierDemand.builder()
+                .cloudTierDemand(ComputeTierDemand.builder()
                         .cloudTierOid(allocationRecord.getAllocatedComputeTierOid())
                         .osType(OSType.forNumber(allocationRecord.getOsType()))
                         .tenancy(Tenancy.forNumber(allocationRecord.getTenancy()))

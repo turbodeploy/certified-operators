@@ -839,6 +839,18 @@ message GetReservedInstanceSpecByIdsResponse {
     repeated ReservedInstanceSpec reserved_instance_spec = 1;
 }
 
+// Request for updating MPC plan BuyRI costs.
+message UpdatePlanBuyReservedInstanceCostsRequest {
+    required int64 planId = 1;
+}
+
+// Response from updating MPC plan BuyRI costs.
+message UpdatePlanBuyReservedInstanceCostsResponse {
+    required int64 planId = 1;
+    required int32 update_count = 2;
+}
+
+
 // A request to get reserved instance utilization stats
 message GetReservedInstanceUtilizationStatsRequest {
     // The start date of the request
@@ -1345,6 +1357,10 @@ service PlanReservedInstanceService {
     // Get plan reserved instance cost stats
     rpc GetPlanReservedInstanceCostStats(GetPlanReservedInstanceCostStatsRequest) returns
     (GetPlanReservedInstanceCostStatsResponse);
+
+    // Update MPC plan BuyRI costs, after the plan has completed successfully.
+    rpc UpdatePlanBuyReservedInstanceCosts(UpdatePlanBuyReservedInstanceCostsRequest)
+    returns (UpdatePlanBuyReservedInstanceCostsResponse);
 }
 
 // A service responsible for getting information about cost information in Cloud.

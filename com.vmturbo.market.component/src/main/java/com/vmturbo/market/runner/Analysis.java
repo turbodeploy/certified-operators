@@ -761,9 +761,10 @@ public class Analysis {
         ProjectedTopologyEntity projectedContainer = projectedEntities.get(containerOID);
         projectedContainer.getEntity().getConnectedEntityListList().stream()
             .map(ConnectedEntity::getConnectedEntityId)
-            // Filter out the ContainerSpecs if given commodity type has been updated.
-            .filter(containerSpecOID -> !isContainerSpecCommodityUpdated(commodityType,
-                containerSpecOID, containerSpecCommodityTypeMap))
+            // Include the ContainerSpecs if containerSpecOID is in projectedEntities map and given
+            // commodity type hasn't been updated.
+            .filter(projectedEntities::containsKey)
+            .filter(containerSpecOID -> !isContainerSpecCommodityUpdated(commodityType, containerSpecOID, containerSpecCommodityTypeMap))
             .forEach(containerSpecOID -> {
                 // Find the commoditySoldDTO of current action commodity type from projected
                 // Container entity.
@@ -858,19 +859,27 @@ public class Analysis {
                                    CloudTopology<TopologyEntityDTO> originalCloudTopology,
                                    CloudTopology<TopologyEntityDTO> projectedCloudTopology,
                                    TopologyConverter converter, CloudCostData cloudCostData) {
-        // Write actions to log file in CSV format
-        ActionLogger externalize = new ActionLogger();
-        externalize.logActions(actions, config.isSMAOnly(), config.getMarketMode(),
-            originalCloudTopology, projectedCloudTopology, cloudCostData,
-            converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage(),
-            converter.getConsistentScalingHelper());
-        if (config.isM2withSMAActions()) {
-            externalize.logSMAOutput(smaConverter.getSmaOutput(),
-                originalCloudTopology, projectedCloudTopology,
-                cloudCostData,
-                converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage(),
-                converter.getConsistentScalingHelper());
-        }
+
+        AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
+        factory.newDiagsCollector(topologyInfo, AnalysisMode.ACTIONS).ifPresent(diagsCollector -> {
+            // Write actions to log file in CSV format
+            ActionLogger externalize = new ActionLogger();
+            List<String> actionLogs = new ArrayList<>();
+            if (!config.isSMAOnly()) {
+                actionLogs.addAll(externalize.logM2Actions(actions,
+                        originalCloudTopology, projectedCloudTopology, cloudCostData,
+                        converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage(),
+                        converter.getConsistentScalingHelper()));
+            }
+            if (config.isEnableSMA()) {
+                actionLogs.addAll(externalize.logSMAOutput(smaConverter.getSmaOutput(),
+                        originalCloudTopology, projectedCloudTopology,
+                        cloudCostData,
+                        converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage(),
+                        converter.getConsistentScalingHelper()));
+            }
+            diagsCollector.saveActions(actionLogs, topologyInfo);
+        });
     }
 
     /**

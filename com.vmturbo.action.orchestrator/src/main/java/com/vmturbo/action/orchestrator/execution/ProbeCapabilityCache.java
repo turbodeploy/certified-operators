@@ -379,7 +379,7 @@ public class ProbeCapabilityCache implements ProbeListener {
                                                    @Nonnull ActionCapabilityElement actionCapabilityElement) {
             // Action is not yet translated at this point. Therefore Cloud Move action has MOVE
             // type and we need to change it to SCALE.
-            final ActionType actionType = CloudMoveBatchTranslator.translateCloudMoveAction(action)
+            final ActionType actionType = CloudMoveBatchTranslator.isTranslateCloudMoveToScaleAction(action)
                     ? ActionType.SCALE
                     : ActionDTOUtil.getActionInfoActionType(action);
             boolean match = actionType == actionCapabilityElement.getActionType();

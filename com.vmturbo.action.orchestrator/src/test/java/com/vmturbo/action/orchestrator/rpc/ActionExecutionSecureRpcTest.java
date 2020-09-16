@@ -279,7 +279,7 @@ public class ActionExecutionSecureRpcTest {
                 actionsStatistician, actionTranslator, atomicActionFactory, clock,
                 userSessionContext, licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
                 actionIdentityService, involvedEntitiesExpander,
-                Mockito.mock(ActionAuditSender.class), true));
+                Mockito.mock(ActionAuditSender.class), true, 60));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");

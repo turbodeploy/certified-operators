@@ -7,6 +7,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 
 public class PlanInstanceCompletionListener implements PlanStatusListener {
 
@@ -14,9 +15,18 @@ public class PlanInstanceCompletionListener implements PlanStatusListener {
 
     private final PlanInstanceQueue planInstanceQueue;
 
+    private final PlanRpcService planRpcService;
 
-    public PlanInstanceCompletionListener(PlanInstanceQueue planInstanceQueue) {
+    /**
+     * Creates a new listener.
+     *
+     * @param planInstanceQueue Queue of plans to run.
+     * @param planRpcService Service related to plan.
+     */
+    public PlanInstanceCompletionListener(PlanInstanceQueue planInstanceQueue,
+            @Nonnull final PlanRpcService planRpcService) {
         this.planInstanceQueue = planInstanceQueue;
+        this.planRpcService = planRpcService;
     }
 
     @Override
@@ -29,6 +39,9 @@ public class PlanInstanceCompletionListener implements PlanStatusListener {
                     plan.getScenario().getScenarioInfo().getType(),
                     plan.getEndTime() - plan.getStartTime(),
                     plan.getStatus());
+                if (plan.getStatus() == PlanStatus.SUCCEEDED) {
+                    planRpcService.onPlanCompletionSuccess(plan);
+                }
             } catch (Exception e) {
                 logger.error("Encountered exception while trying to log plan " +
                     plan.getPlanId() + " completion: ", e);

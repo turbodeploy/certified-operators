@@ -317,13 +317,13 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
         selectableFields.add(max(costGroupBy.getAmountFieldInTable()));
         selectableFields.add(min(costGroupBy.getAmountFieldInTable()));
         selectableFields.add(avg(costGroupBy.getAmountFieldInTable()));
-        final Result<Record> res = dsl
+        final org.jooq.Select<Record> select = dsl
                 .select(selectableFields)
                 .from(table)
                 .where(Arrays.asList(entityCostFilter.getConditions()))
                 .and(getConditionForEntityCost(dsl, entityCostFilter, createdTimeField, table))
-                .groupBy(groupByFields)
-                .fetch();
+                .groupBy(groupByFields);
+        final Result<Record> res = select.fetch();
         return createGroupByStatRecords(res, selectableFields);
     }
 

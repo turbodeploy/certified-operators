@@ -194,7 +194,7 @@ public class MarketTopologyListenerExceptionTest {
         verify(topologyCreator, never()).complete();
         verify(topologyCreator).rollback();
         // 1 invocation before the exception is thrown
-        verify(topologyCreator).addEntities(any());
+        verify(topologyCreator).addEntities(any(), any());
         verify(apiBackend, never()).onProjectedTopologyAvailable(any(long.class), any(long.class));
     }
 }

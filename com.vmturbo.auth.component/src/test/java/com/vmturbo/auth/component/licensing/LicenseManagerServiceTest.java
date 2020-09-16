@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesResponse;
+import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
@@ -98,7 +99,7 @@ public class LicenseManagerServiceTest {
                 addResponse.getLicenseDTO(0).getTurbo().getErrorReasonCount());
 
         // can we get it back?
-        GetLicensesResponse workloadLicenses = clientStub.getLicenses(Empty.getDefaultInstance());
+        GetLicensesResponse workloadLicenses = clientStub.getLicenses(GetLicensesRequest.getDefaultInstance());
         assertEquals("1 license in response", 1, workloadLicenses.getLicenseDTOCount());
         // a hash match would be a good check
         assertEquals(workloadLicense.getTurbo().getLicenseKey(), workloadLicenses.getLicenseDTO(0).getTurbo().getLicenseKey());
@@ -168,7 +169,7 @@ public class LicenseManagerServiceTest {
                 addResponse.getLicenseDTO(0).getTurbo().getErrorReasonCount());
 
         // can we get it back?
-        GetLicensesResponse workloadLicenses = clientStub.getLicenses(Empty.getDefaultInstance());
+        GetLicensesResponse workloadLicenses = clientStub.getLicenses(GetLicensesRequest.getDefaultInstance());
         assertEquals("1 license in response", 1, workloadLicenses.getLicenseDTOCount());
         // a hash match would be a good check
         assertEquals(workloadLicense.getTurbo().getLicenseKey(),

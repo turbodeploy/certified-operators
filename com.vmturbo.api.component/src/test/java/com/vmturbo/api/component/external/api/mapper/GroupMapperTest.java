@@ -2208,6 +2208,58 @@ public class GroupMapperTest {
     }
 
     /**
+     * Test {@link GroupMapper#toGroupApiDto(List, boolean, SearchPaginationRequest,
+     * EnvironmentType)} when group has ARM members discovered from ARM target (Hybrid target).
+     * In this case, the group's environment type should be set to Hybrid.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testGetEnvironmentTypeForArmEntities() throws Exception {
+        final String displayName = "arm-group";
+        final int groupType = EntityType.BUSINESS_APPLICATION.getNumber();
+        final long oid = 123L;
+        final long uuid1 = 1L;
+
+        final Grouping group = Grouping.newBuilder()
+                .setId(oid)
+                .addExpectedTypes(MemberType.newBuilder().setEntity(groupType))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName(displayName)
+                        .setOptimizationMetadata(OptimizationMetadata.newBuilder()
+                                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.HYBRID)
+                                .build())
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .addAllMembers(Arrays.asList(uuid1))
+                                        .build())
+                                .build()))
+                .build();
+
+        targets.add(APPD_TARGET);
+
+        final MultiEntityRequest minEntityReq =
+            ApiTestUtils.mockMultiMinEntityReq(Collections.singletonList(MinimalEntity.newBuilder()
+                .setOid(uuid1)
+                .setDisplayName("foo2")
+                .addDiscoveringTargetIds(APPD_TARGET.oid())
+                .setEntityType(ApiEntityType.BUSINESS_APPLICATION.typeNumber())
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.HYBRID)
+                .build()));
+        createGroupWithMembers(group, Arrays.asList(uuid1));
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(minEntityReq);
+
+        final GroupApiDTO groupApiDTO =
+                groupMapper.toGroupApiDto(Collections.singletonList(group), true,
+                        null, null)
+                        .getObjects()
+                        .iterator()
+                        .next();
+        assertEquals(EnvironmentType.HYBRID, groupApiDTO.getEnvironmentType());
+    }
+
+    /**
      * Test getEnvironmentTypeForGroup returns proper type for a group of resource groups. When
      * all entities from both group have the same {@link EnvironmentType} then group also has that
      * {@link EnvironmentType}.

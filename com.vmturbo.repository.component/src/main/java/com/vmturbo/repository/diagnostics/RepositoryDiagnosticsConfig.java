@@ -21,7 +21,6 @@ import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDi
 import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
 import com.vmturbo.repository.RepositoryComponentConfig;
 import com.vmturbo.repository.RepositoryProperties;
-import com.vmturbo.repository.topology.TopologyID.TopologyType;
 
 /**
  * Spring configuration of beans related to diagnostics operations.
@@ -69,30 +68,6 @@ public class RepositoryDiagnosticsConfig {
                 .baseDir(repositoryProperties.getArangodb().getArangoRestoreBaseDir())
                 .inputDir(repositoryProperties.getArangodb().getArangoRestoreInputDir())
                 .build();
-    }
-
-    /**
-     * Bean to operate with source topology from Arango DB.
-     *
-     * @return source topology diagnostics
-     */
-    @Bean
-    public TopologyDiagnostics srcTopologyDiagnostics() {
-        return new TopologyDiagnostics(arangoDump(), arangoRestore(),
-                repositoryComponentConfig.topologyManager(), restTemplate(), TopologyType.SOURCE,
-                "source_topology_dump", repositoryComponentConfig.getArangoDatabaseName());
-    }
-
-    /**
-     * Bean to operate with projected topology from Arango DB.
-     *
-     * @return projected topology diagnostics
-     */
-    @Bean
-    public TopologyDiagnostics projectedTopologyDiagnostics() {
-        return new TopologyDiagnostics(arangoDump(), arangoRestore(),
-                repositoryComponentConfig.topologyManager(), restTemplate(), TopologyType.PROJECTED,
-                "projected_topology_dump", repositoryComponentConfig.getArangoDatabaseName());
     }
 
     /**
@@ -145,8 +120,7 @@ public class RepositoryDiagnosticsConfig {
     @Bean
     public DiagnosticsHandlerImportable repositoryDiagnosticsHandler() {
         return new DiagnosticsHandlerImportable(recursiveZipReaderFactory(),
-                Arrays.asList(repositoryComponentConfig.topologyManager(), srcTopologyDiagnostics(),
-                        projectedTopologyDiagnostics(), supplyChainDiagnostics(),
+                Arrays.asList(repositoryComponentConfig.topologyManager(), supplyChainDiagnostics(),
                         topologyStoreSourceDiagnostics(), topologyStoreProjectedDiagnostics(),
                         prometheusDiagnisticsProvider()));
     }

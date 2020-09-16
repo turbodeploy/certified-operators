@@ -114,7 +114,7 @@ public class LiveActionStore implements ActionStore {
 
     private final Clock clock;
 
-    private static final int queryTimeWindowForLastExecutedActionsMins = 60;
+    private final int queryTimeWindowForLastExecutedActionsMins;
 
     private final EntitiesWithNewStateCache entitiesWithNewStateCache;
     private final ActionAuditSender actionAuditSender;
@@ -155,6 +155,8 @@ public class LiveActionStore implements ActionStore {
      * @param rejectedActionsStore dao layer working with rejected actions
      * @param actionAuditSender action audit sender to receive new generated actions
      * @param riskPropagationEnabled flag to enable calculation of severity breakdown
+     * @param queryTimeWindowForLastExecutedActionsMins time window within which actions will not
+     *          be populated if they are already executed (SUCEEDED)
      */
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,
@@ -174,7 +176,8 @@ public class LiveActionStore implements ActionStore {
                            @Nonnull final IdentityService<ActionInfo> actionIdentityService,
                            @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander,
                            @Nonnull final ActionAuditSender actionAuditSender,
-                           final boolean riskPropagationEnabled
+                           final boolean riskPropagationEnabled,
+                           final int queryTimeWindowForLastExecutedActionsMins
     ) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
@@ -196,6 +199,10 @@ public class LiveActionStore implements ActionStore {
         this.actionIdentityService = Objects.requireNonNull(actionIdentityService);
         this.entitiesWithNewStateCache = new EntitiesWithNewStateCache(actions);
         this.actionAuditSender = Objects.requireNonNull(actionAuditSender);
+        if (queryTimeWindowForLastExecutedActionsMins < 0) {
+            throw new IllegalArgumentException("query time window for last execution actions should be non-negative");
+        }
+        this.queryTimeWindowForLastExecutedActionsMins = queryTimeWindowForLastExecutedActionsMins;
     }
 
     /**
@@ -833,7 +840,6 @@ public class LiveActionStore implements ActionStore {
                 .filter(action -> (action.getState() == ActionState.READY
                         || action.getState() == ActionState.QUEUED))
                 .forEach(action -> {
-                    logger.info("{} remaining action {}", action.getId(), action.getRecommendationOid());
                     action.receive(new NotRecommendedEvent(planId));
 
                 });

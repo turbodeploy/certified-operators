@@ -93,6 +93,8 @@ istioingress:
   mtls: true
 platform:
   enabled: true
+ui:
+  enabled: true
 control:
   enabled: true
 reporting:

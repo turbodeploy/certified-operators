@@ -158,6 +158,14 @@ public class PaginatedStatsExecutor {
         this.statsQueryExecutor = Objects.requireNonNull(statsQueryExecutor);
     }
 
+    /**
+     * Get live entity stats.
+     *
+     * @param inputDto the {@link StatScopesApiInputDTO} representing the entities and stats to fetch
+     * @param paginationRequest describes how to paginate/order the response
+     * @return a paginated collection of entity stats
+     * @throws OperationFailedException when the operation fails
+     */
     public EntityStatsPaginationResponse getLiveEntityStats(@Nonnull final StatScopesApiInputDTO inputDto,
             @Nonnull final EntityStatsPaginationRequest paginationRequest)
             throws OperationFailedException {
@@ -261,7 +269,10 @@ public class PaginatedStatsExecutor {
         }
 
         /**
-         * Kicks off reading and processing historical, projected or entities without historical stats request.
+         * Kicks off reading and processing historical, projected or entities without historical
+         * stats request.
+         *
+         * @throws OperationFailedException when the operation fails
          */
         void processRequest() throws OperationFailedException {
             sanitizeStartDateOrEndDate();
@@ -1086,7 +1097,7 @@ public class PaginatedStatsExecutor {
          * call to the history component to fullfil any remaining stats requested</p>
          *
          * @throws OperationFailedException Unsupported operation when response from cost or history
-         *                                  component contains stats for multiple timestamps
+         * component contains stats for multiple timestamps
          */
         void runRequestThroughCostComponent() throws OperationFailedException {
             final Set<Long> expandedScope = getExpandedScope(this.inputDto);

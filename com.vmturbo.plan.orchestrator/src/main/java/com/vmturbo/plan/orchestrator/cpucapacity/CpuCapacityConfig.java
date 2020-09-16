@@ -49,7 +49,7 @@ public class CpuCapacityConfig {
      * @return the cpu capacity estimation that can provide scaling factors for cpu models.
      */
     @Bean
-    CPUCapacityEstimator cpuCapacityEstimator() {
+    public CPUCapacityEstimator cpuCapacityEstimator() {
         try {
             return new CPUCatalogFactory().makeEstimator();
         } catch (CPUCapacityEstimatorException e) {

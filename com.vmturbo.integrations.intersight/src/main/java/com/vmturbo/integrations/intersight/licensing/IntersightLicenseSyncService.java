@@ -11,7 +11,6 @@ import javax.annotation.Nonnull;
 
 import com.cisco.intersight.client.ApiException;
 import com.cisco.intersight.client.model.LicenseLicenseInfo;
-import com.google.protobuf.Empty;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -23,6 +22,7 @@ import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesResponse;
+import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
 import com.vmturbo.common.protobuf.licensing.Licensing.RemoveLicenseRequest;
@@ -366,7 +366,7 @@ public class IntersightLicenseSyncService {
      */
     protected List<LicenseDTO> getLocalLicenses(LicenseManagerServiceBlockingStub licenseManagerClient) {
 
-        GetLicensesResponse licensesResponse = licenseManagerClient.getLicenses(Empty.getDefaultInstance());
+        GetLicensesResponse licensesResponse = licenseManagerClient.getLicenses(GetLicensesRequest.getDefaultInstance());
         return licensesResponse.getLicenseDTOList();
     }
 

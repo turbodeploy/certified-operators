@@ -207,7 +207,7 @@ public class StateMachine<STATE, EVENT extends StateMachineEvent> {
             STATE preState = currentState.getState();
             if (shouldTransition) {
                 transition.before(event);
-                currentState = transition.getDestination();
+                currentState = transition.getDestination().get();
                 transition.after(event);
             }
 
@@ -220,6 +220,10 @@ public class StateMachine<STATE, EVENT extends StateMachineEvent> {
             // All callbacks are complete. Mark the transition as complete.
             endTransition();
         }
+    }
+
+    public boolean isInFinalState() {
+        return currentState.transitions.isEmpty();
     }
 
     /**
@@ -243,6 +247,12 @@ public class StateMachine<STATE, EVENT extends StateMachineEvent> {
     private void endTransition() {
         inProgressEvent = Optional.empty();
      }
+
+    @Override
+    public String toString() {
+        return "StateMachine{" + "currentState=" + currentState + ", inProgressEvent="
+                + inProgressEvent.map(Object::toString).orElse("<none>") + '}';
+    }
 
     /**
      * A node in the graph of states and transitions in the state machine.
@@ -268,7 +278,7 @@ public class StateMachine<STATE, EVENT extends StateMachineEvent> {
         }
 
         @Nonnull
-        STATE getState() {
+        public STATE getState() {
             return state;
         }
 
@@ -290,6 +300,11 @@ public class StateMachine<STATE, EVENT extends StateMachineEvent> {
         void addTransition(Class<? extends EVENT> eventClass,
                                   @Nonnull final Transition<STATE, EVENT> transition) {
             transitions.put(eventClass, transition);
+        }
+
+        @Override
+        public String toString() {
+            return state + "(" + transitions.size() + " transitions)";
         }
     }
 
@@ -348,8 +363,6 @@ public class StateMachine<STATE, EVENT extends StateMachineEvent> {
 
             Transition<STATE, EVENT> transition = transitionBuilder.build(nodes);
             nodes.put(transition.getSource().getState(), transition.getSource());
-            nodes.put(transition.getDestination().getState(), transition.getDestination());
-
             return this;
         }
 
