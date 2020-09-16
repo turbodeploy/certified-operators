@@ -651,6 +651,11 @@ class LiveActions implements QueryableActionViews {
      */
     @Nonnull
     public Optional<ActionView> get(final long actionId) {
+        return internalGet(actionId, true);
+    }
+
+    private Optional<ActionView> internalGet(final long actionId,
+                                             final boolean throwAccessException) {
         actionsLock.readLock().lock();
         try {
             Action result = marketActions.get(actionId);
@@ -660,8 +665,12 @@ class LiveActions implements QueryableActionViews {
             if (result == null) {
                 result = riActions.get(actionId);
             }
-            checkActionAccess(result);
-            return Optional.ofNullable(result);
+
+            if (result != null && checkActionAccess(result, throwAccessException)) {
+                return Optional.of(result);
+            } else {
+                return Optional.empty();
+            }
         } finally {
             actionsLock.readLock().unlock();
         }
@@ -777,11 +786,10 @@ class LiveActions implements QueryableActionViews {
                 // De-dupe the target action ids.
                 .distinct()
                 .map(actionId -> {
-                    try { // filter out inaccessible actions
-                        return get(actionId);
-                    } catch (UserAccessScopeException uase) {
-                        return Optional.<ActionView>empty();
-                    }
+                    // filter out inaccessible actions
+                    // TODO (roman, Sept 16 2020): We should do a bulk lookup so that we can check
+                    // access once.
+                    return internalGet(actionId, false);
                 })
                 .filter(Optional::isPresent)
                 .map(Optional::get)
@@ -835,7 +843,7 @@ class LiveActions implements QueryableActionViews {
             if (result == null) {
                 result = riActions.get(actionId);
             }
-            checkActionAccess(result);
+            checkActionAccess(result, true);
             return Optional.ofNullable(result);
         } finally {
             actionsLock.readLock().unlock();
@@ -860,7 +868,7 @@ class LiveActions implements QueryableActionViews {
             if (result == null) {
                 result = recommendationIdToRiActionMap.get(recommendationId);
             }
-            checkActionAccess(result);
+            checkActionAccess(result, true);
             return Optional.ofNullable(result);
         } finally {
             actionsLock.readLock().unlock();
@@ -910,10 +918,12 @@ class LiveActions implements QueryableActionViews {
      * the user's accessible entity set.
      *
      * @param action The action to check access on.
+     * @param throwException If true, throw an exception if the current user does not have access to the action.
+     * @return Whether or not the current user has access to the action. Only relevant if throwException is false.
      */
-    private void checkActionAccess(ActionView action) {
+    private boolean checkActionAccess(ActionView action, boolean throwException) {
         if (action == null) {
-            return;
+            return true;
         }
 
         if (userSessionContext.isUserScoped()) {
@@ -931,12 +941,18 @@ class LiveActions implements QueryableActionViews {
                                 (entityAccessScope.contains(entityId) &&
                                         !cloudStaticEntities.contains(entityId)));
                 if (!hasAccess) {
-                    throw new UserAccessScopeException("User does not have access to entity involved in action");
+                    if (throwException) {
+                        throw new UserAccessScopeException("User does not have access to entity involved in action");
+                    } else {
+                        return false;
+                    }
                 }
             } catch (UnsupportedActionException uae) {
                 logger.error("Unsupported action", uae);
             }
         }
+
+        return true;
     }
 
     /**
