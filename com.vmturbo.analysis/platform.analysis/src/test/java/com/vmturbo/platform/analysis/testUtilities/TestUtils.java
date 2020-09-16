@@ -558,9 +558,9 @@ public class TestUtils {
     public static CostFunction setUpPremiumManagedCostFunction() {
         // create cost function DTO for azure premium managed storage
         StorageTierPriceData stAmt32GBPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(32).setIsUnitPrice(false)
-                        .setIsAccumulativeCost(true).addCostTupleList(setUpCostTuple(1, -1, 10L, 5.28)).build();
+                        .setIsAccumulativeCost(false).addCostTupleList(setUpCostTuple(1, -1, 10L, 5.28)).build();
         StorageTierPriceData stAmt64GBPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(64).setIsUnitPrice(false)
-                        .setIsAccumulativeCost(true).addCostTupleList(setUpCostTuple(1, -1, 10L, 10.21)).build();
+                        .setIsAccumulativeCost(false).addCostTupleList(setUpCostTuple(1, -1, 10L, 10.21)).build();
         StorageResourceCost stAmtDTO = StorageResourceCost.newBuilder().setResourceType(stAmtTO)
                         .addStorageTierPriceData(stAmt32GBPriceDTO).addStorageTierPriceData(stAmt64GBPriceDTO).build();
         CostDTO costDTO = CostDTO.newBuilder()

@@ -164,8 +164,8 @@ public class CostFunctionFactoryTest {
         // Price ranges for region1 in account1:
         // Price for 500 GB storage (SL requested amount) in region1 in account1 should fall at priceUpTo600Gb,
         // which is $20
-        PriceData priceUpTo200Gb = new PriceData(200d, 10d, false, true, regionId11);
-        PriceData priceUpTo600Gb = new PriceData(600d, 20d, false, true, regionId11);
+        PriceData priceUpTo200Gb = new PriceData(200d, 10d, false, false, regionId11);
+        PriceData priceUpTo600Gb = new PriceData(600d, 20d, false, false, regionId11);
 
         // Price for 500 GB storage (SL requested amount) in region2 in account2 should be:
         // 500 x $10 (unit price) = $5000
@@ -253,7 +253,7 @@ public class CostFunctionFactoryTest {
                                 .addStorageTierPriceData(StorageTierPriceData.newBuilder()
                                         .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(accountId1)
                                                 .setRegionId(regionId11).setPrice(30.0).build())
-                                        .setIsAccumulativeCost(true).setIsUnitPrice(false)
+                                        .setIsAccumulativeCost(false).setIsUnitPrice(false)
                                         .setUpperBound(100))
                                 .addStorageTierPriceData(StorageTierPriceData.newBuilder()
                                         .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(accountId1)

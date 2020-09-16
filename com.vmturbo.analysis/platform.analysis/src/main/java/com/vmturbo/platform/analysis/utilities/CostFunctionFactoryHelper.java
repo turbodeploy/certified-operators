@@ -774,17 +774,37 @@ public class CostFunctionFactoryHelper {
      */
     private static double getCostFromPriceDataList(final double requestedAmount,
                                                    @NonNull final List<PriceData> priceDataList) {
+        double cost = Double.MAX_VALUE;
+        double previousUpperBound = 0;
+        double eachCost;
         for (PriceData priceData : priceDataList) {
             // the list of priceData is sorted based on upper bound
-            if (requestedAmount > priceData.getUpperBound()) {
-                continue;
-            }
+            double currentUpperBound = priceData.getUpperBound();
             if (priceData.isAccumulative()) {
-                return priceData.getPrice();
-            } else if (priceData.isUnitPrice()) {
-                return priceData.getPrice() * requestedAmount;
+                // if the price is accumulative, we need to sum up all the cost where
+                // requested amount is more than upper bound till we find the exact range
+                eachCost = (priceData.isUnitPrice()
+                        ? priceData.getPrice() * Math.min(
+                        currentUpperBound - previousUpperBound,
+                        requestedAmount - previousUpperBound)
+                        : priceData.getPrice());
+                if (cost == Double.MAX_VALUE) {
+                    cost = 0;
+                }
+                cost += eachCost;
+                // we find the exact range the requested amount falls
+                if (requestedAmount <= currentUpperBound) {
+                    break;
+                }
+            } else if (!priceData.isAccumulative() && requestedAmount <= currentUpperBound) {
+                // non accumulative cost only depends on the exact range where the requested
+                // amount falls
+                return priceData.isUnitPrice() ? priceData.getPrice()
+                        * requestedAmount : priceData.getPrice();
             }
+            previousUpperBound = currentUpperBound;
         }
-        return Double.MAX_VALUE;
+        return cost;
+
     }
 }
