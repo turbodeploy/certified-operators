@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
@@ -18,6 +19,7 @@ import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.Resize;
+import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -262,6 +264,14 @@ public class ActionClassifier {
                 return;
             }
             ShoppingList targetCopy = findTargetInEconomyCopy(move.getTarget());
+            // context may not be cloned in simulationClone method as it was cloning the context
+            // before the placement run. But in migration plans, only when start running placement,
+            // context will be attached to buying traders, so targetCopy in migration plan has to
+            // get its context here from move action.
+            Optional<Context> context = move.getTarget().getBuyer().getSettings().getContext();
+            if (context.isPresent()) {
+                targetCopy.getBuyer().getSettings().setContext(context.get());
+            }
             if (targetCopy == null) {
                 move.setExecutable(false);
                 return;

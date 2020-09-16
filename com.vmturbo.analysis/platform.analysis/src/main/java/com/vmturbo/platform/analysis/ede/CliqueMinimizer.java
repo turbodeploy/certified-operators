@@ -4,8 +4,10 @@ import static com.vmturbo.platform.analysis.utilities.QuoteCacheUtils.invalidate
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Map.Entry;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -26,6 +28,7 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
@@ -92,6 +95,9 @@ final class CliqueMinimizer {
 
     // Accumulator Fields
     private @MonotonicNonNull List<@NonNull Trader> bestSellers_ = null; // will hold the best-so-far
+    // a map which contains shopping lists and the each shopping list's best quote
+    // associated context. It is used to help generating actions.
+    private Map<ShoppingList, Optional<Context>> shoppingListContextMap = new HashMap<>();
     // valid placement. i.e. the one with minimum total quote
     private double bestTotalQuote_ = Double.POSITIVE_INFINITY; // will host the best-so-far total
     // quote. i.e. the minimum one.
@@ -148,6 +154,18 @@ final class CliqueMinimizer {
     @Pure
     public double getBestTotalQuote(@ReadOnly CliqueMinimizer this) {
         return bestTotalQuote_;
+    }
+
+    /**
+     * Returns a map which contains shopping lists and the each shopping list's best quote
+     * associated context.
+     * Note: the map is necessary for keep track of context data which will be needed when generating
+     * actions. It is populated and passed by QuoteSummer.
+     *
+     * @return the shopping list to context mapping.
+     */
+    public Map<ShoppingList, Optional<Context>> getShoppingListContextMap() {
+        return shoppingListContextMap;
     }
 
     /**
@@ -215,13 +233,17 @@ final class CliqueMinimizer {
      */
     public void accept(long clique) {
         final @NonNull QuoteSummer quoteSummer = entries_.stream()
-            .collect(()->new QuoteSummer(economy_, clique, cache_), QuoteSummer::accept, QuoteSummer::combine);
+            .collect(() -> new QuoteSummer(economy_, clique, cache_, entries_.size()), QuoteSummer::accept, QuoteSummer::combine);
 
         // keep the minimum between total quotes
         if (quoteSummer.getTotalQuote() < bestTotalQuote_) {
             logMessagesForAccept(clique, quoteSummer);
             bestTotalQuote_ = quoteSummer.getTotalQuote();
             bestSellers_ = quoteSummer.getBestSellers();
+            Map<ShoppingList, Optional<Context>> map = quoteSummer.getShoppingListContextMap();
+            if (!map.isEmpty()) {
+                shoppingListContextMap = map;
+            }
             infiniteQuoteTrackers = Collections.emptyMap();
         }
 
@@ -250,6 +272,7 @@ final class CliqueMinimizer {
         if (other.bestTotalQuote_ < bestTotalQuote_) {
             bestTotalQuote_ = other.bestTotalQuote_;
             bestSellers_ = other.bestSellers_;
+            shoppingListContextMap = other.getShoppingListContextMap();
             infiniteQuoteTrackers = Collections.emptyMap();
         } else if (Double.isInfinite(other.bestTotalQuote_) && Double.isInfinite(bestTotalQuote_)) {
             combineQuoteTrackers(other.getInfiniteQuoteTrackers());

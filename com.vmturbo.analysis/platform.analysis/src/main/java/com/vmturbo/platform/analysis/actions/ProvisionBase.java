@@ -5,6 +5,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 
@@ -60,6 +61,34 @@ public abstract class ProvisionBase extends ActionImpl {
     @Pure
     public @NonNull Trader getModelSeller(@ReadOnly ProvisionBase this) {
         return modelSeller_;
+    }
+
+    /**
+     * Copy over the commodity settings from the model seller to the newly provisioned clone.
+     *
+     * @param provCommSold provisioned commodity sold.
+     * @param modelCommSold mode seller commodity sold.
+     */
+    protected void copyCommoditySoldSettingsForClone(CommoditySold provCommSold, CommoditySold modelCommSold) {
+        provCommSold.setThin(modelCommSold.isThin());
+
+        // Copy commodity sold settings
+        provCommSold.getSettings().setCapacityIncrement(
+            modelCommSold.getSettings().getCapacityIncrement());
+        provCommSold.getSettings().setCapacityLowerBound(
+            modelCommSold.getSettings().getCapacityLowerBound());
+        provCommSold.getSettings().setCapacityUpperBound(
+            modelCommSold.getSettings().getCapacityUpperBound());
+        provCommSold.getSettings().setUtilizationUpperBound(
+            modelCommSold.getSettings().getUtilizationUpperBound());
+        provCommSold.getSettings().setOrigUtilizationUpperBound(
+            modelCommSold.getSettings().getOrigUtilizationUpperBound());
+        provCommSold.getSettings().setResizable(
+            modelCommSold.getSettings().isResizable());
+        provCommSold.getSettings().setPriceFunction(
+            modelCommSold.getSettings().getPriceFunction());
+        provCommSold.getSettings().setUpdatingFunction(
+           modelCommSold.getSettings().getUpdatingFunction());
     }
 
 }

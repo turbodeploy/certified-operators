@@ -665,14 +665,14 @@ public abstract class Quote {
 
         @Override
         public int getRank() {
-            // (1 - diff / quantity) * MAX_RANK, where diff is the distance of commodityQuantity from capacityLimitation.
-            // Rank is related to how far commodityQuantity is from limitation. With larger diff, rank is lower.
+            // (diff / quantity) * MAX_RANK, where diff is the distance of commodityQuantity from capacityLimitation.
+            // Rank is related to how far commodityQuantity is from limitation. With larger diff, rank is higher.
             // above max
             if (commodityQuantity > capacityLimitation.getMaxCapacity()) {
-                return (int)(1 - Math.abs(commodityQuantity - capacityLimitation.getMaxCapacity()) / commodityQuantity) * MAX_RANK;
+                return (int)(Math.abs(commodityQuantity - capacityLimitation.getMaxCapacity()) / commodityQuantity) * MAX_RANK;
             }
             // below min
-            return (int)(1 - Math.abs(commodityQuantity - capacityLimitation.getMinCapacity()) / commodityQuantity) * MAX_RANK;
+            return (int)(Math.abs(commodityQuantity - capacityLimitation.getMinCapacity()) / commodityQuantity) * MAX_RANK;
         }
 
         @Override
@@ -711,10 +711,10 @@ public abstract class Quote {
 
         @Override
         public int getRank() {
-            // (1 - diff / quantity) * MAX_RANK, where diff is the distance of dependentCommodityQuantity
-            // from the restricted value by constraint. With larger diff, rank is lower.
+            // (diff / quantity) * MAX_RANK, where diff is the distance of dependentCommodityQuantity
+            // from the restricted value by constraint. With larger diff, rank is higher.
             final double restrictedDependentQuantity = dependentResourcePair.getMaxRatio() * baseCommodityQuantity;
-            return (int)(1 - Math.abs(dependentCommodityQuantity
+            return (int)(Math.abs(dependentCommodityQuantity
                     - restrictedDependentQuantity) / dependentCommodityQuantity) * MAX_RANK;
         }
 
@@ -764,9 +764,9 @@ public abstract class Quote {
 
         @Override
         public int getRank() {
-            // (1 - diff / quantity) * MAX_RANK, where diff is the distance of dependentCommodityQuantity
-            // from the restricted value by constraint. With larger diff, rank is lower.
-            return (int)(1 - Math.abs(dependentCommodityQuantity
+            // (diff / quantity) * MAX_RANK, where diff is the distance of dependentCommodityQuantity
+            // from the restricted value by constraint. With larger diff, rank is higher.
+            return (int)(Math.abs(dependentCommodityQuantity
                     - dependentCommodityCapacity) / dependentCommodityQuantity) * MAX_RANK;
         }
 
@@ -895,7 +895,7 @@ public abstract class Quote {
          * is decisive because when user creates a GP2 volume, they need to configure the volume size(i.e.
          * storageAmount capacity for the volume).
          *
-         * The field is used to check whether there is commodity resize when QuoteMinimizer thinks the best
+         * <p>The field is used to check whether there is commodity resize when QuoteMinimizer thinks the best
          * seller for the buyer is its current supplier. After analysis, when best seller is current supplier,
          * decisive commodities' new capacities are compared with buyer's old capacities to decide whether
          * the decisive commodities should be resized.

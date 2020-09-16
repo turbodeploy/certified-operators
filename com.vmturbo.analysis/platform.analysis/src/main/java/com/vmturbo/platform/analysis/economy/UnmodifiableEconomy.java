@@ -5,8 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
-
 import javax.annotation.Nullable;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
@@ -194,6 +192,14 @@ public interface UnmodifiableEconomy {
     @NonNull RawMaterials getAllRawMaterials(int processedCommodityType);
 
     /**
+     * Returns a trader and its context list map.
+     *
+     * @return a map if context list by trader
+     */
+    @NonNull Map<Trader, List<Context>> getTraderWithContextMap();
+
+    /**
+     * Returns the commodity dependency for generating resize actions.
      *
      * @param processedCommodityType The commodity base type.
      * @return An unmodifiable List of Commodity Resize Specification for the provided type.

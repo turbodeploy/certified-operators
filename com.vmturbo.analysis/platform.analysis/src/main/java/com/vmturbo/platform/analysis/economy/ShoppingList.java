@@ -453,7 +453,12 @@ public class ShoppingList implements Serializable {
      * @return the total allocated coupons for the seller's family, or zero if not available
      */
     public double getTotalAllocatedCoupons(UnmodifiableEconomy economy, Trader seller) {
-            return this.getBuyer().getSettings().getContext()
+        Optional<com.vmturbo.platform.analysis.economy.Context> optionalContext = this.getBuyer()
+                .getSettings().getContext();
+        if (!optionalContext.isPresent()) {
+            return 0.0;
+        }
+        return optionalContext.get()
                 .getTotalAllocatedCoupons(seller.getOid())
                 .orElse(0.0);
     }
@@ -465,9 +470,53 @@ public class ShoppingList implements Serializable {
      * @return the total allocated coupons for the seller's family, or zero if not available
      */
     public double getTotalRequestedCoupons(UnmodifiableEconomy economy, Trader seller) {
-        return this.getBuyer().getSettings().getContext()
-            .getTotalRequestedCoupons(seller.getOid())
-            .orElse(0.0);
+        Optional<com.vmturbo.platform.analysis.economy.Context> optionalContext = this.getBuyer()
+                .getSettings().getContext();
+        if (!optionalContext.isPresent()) {
+            return 0.0;
+        }
+        return optionalContext.get()
+                .getTotalRequestedCoupons(seller.getOid())
+                .orElse(0.0);
+    }
+
+    /**
+     * Add entry for commodity type with assigned capacity sold by buyer.
+     *
+     * @param commodityType commodityType.
+     * @param assignedCapacity assignedCapacity for the commodityType sold by buyer.
+     */
+    public void addAssignedCapacity(Integer commodityType, double assignedCapacity) {
+        assignedCapacities.put(commodityType, assignedCapacity);
+    }
+
+    /**
+     * Get assigned capacity for certain commodity type sold by buyer.
+     *
+     * @param commodityType commodityType.
+     * @return assigned capacity for given commodityType.
+     */
+    @Nullable
+    public Double getAssignedCapacity(Integer commodityType) {
+        return assignedCapacities.get(commodityType);
+    }
+
+    /**
+     * Set demandScalable flag on the shopping list.
+     *
+     * @param demandScalable given demandScalable value.
+     */
+    public void setDemandScalable(boolean demandScalable) {
+        this.demandScalable = demandScalable;
+    }
+
+    /**
+     * Get demandScalable flag for the shopping list.
+     *
+     * @return demandScalable value.
+     */
+    public boolean getDemandScalable() {
+        return demandScalable;
     }
 
     /**

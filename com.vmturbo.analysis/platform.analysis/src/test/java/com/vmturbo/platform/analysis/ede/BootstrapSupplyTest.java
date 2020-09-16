@@ -27,13 +27,18 @@ import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
+import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
 
 /**
  * @author thiru_arun
@@ -1416,4 +1421,32 @@ public class BootstrapSupplyTest {
         assertEquals(0, bootStrapActionList.size());
     }
 
+    /**
+     * Test trader buying in market whose seller has a cost function versus no cost function.
+     */
+    @Test
+    public void testShouldConsiderForBootstrap() {
+        Economy economy = new Economy();
+        CommoditySpecification cpu = new CommoditySpecification(40);
+        Trader onpremSeller = TestUtils.createTrader(economy, 14, Arrays.asList(0L), Arrays.asList(cpu),
+                new double[]{100}, false, false);
+        onpremSeller.getSettings().setQuoteFunction(QuoteFunctionFactory.sumOfCommodityQuoteFunction());
+        onpremSeller.setDebugInfoNeverUseInCode("OnPremPM");
+        CommoditySpecification segmentation = new CommoditySpecification(34);
+        Trader cloudSeller = TestUtils.createTrader(economy, 14, Arrays.asList(0L), Arrays.asList(segmentation),
+                new double[]{100}, false, false);
+        cloudSeller.getSettings().setCostFunction(CostFunctionFactory
+                .createCostFunction(CostDTO.newBuilder().setComputeTierCost(ComputeTierCostDTO
+                        .newBuilder().setCouponBaseType(82)).build()));
+        cloudSeller.setDebugInfoNeverUseInCode("CloudPM");
+        Trader vmBuyingOnPrem = TestUtils.createVM(economy, "OnPremBuyer");
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(cpu), vmBuyingOnPrem,
+                new double[]{90, 0}, onpremSeller);
+        Trader vmBuyingCloud = TestUtils.createVM(economy, "CloudBuyer");
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(segmentation), vmBuyingCloud,
+                new double[]{1, 0}, cloudSeller);
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+        assertTrue(BootstrapSupply.shouldConsiderForBootstrap(economy, vmBuyingOnPrem));
+        assertFalse(BootstrapSupply.shouldConsiderForBootstrap(economy, vmBuyingCloud));
+    }
 }

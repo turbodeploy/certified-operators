@@ -1,11 +1,14 @@
 package com.vmturbo.platform.analysis.translators;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -22,6 +25,8 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Context;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -31,6 +36,9 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -75,6 +83,42 @@ public class ProtobufToAnalysisTest {
         PriceFunction function = ProtobufToAnalysis.priceFunction(funcTO);
         assertEquals(expect, function);
 
+    }
+
+    /**
+     * Test populate trader context map in economy for a given trader costDTO.
+     */
+    @Test
+    public void testPopulateTraderSettingsWithCostDTO() {
+        Topology topology = new Topology();
+        long baId = 10L;
+        long usEast1a = 101L;
+        long usEast1b = 102L;
+        long usWest = 110L;
+        Trader trader = TestUtils.createTrader(topology.getEconomyForTesting(), 10, Arrays.asList(0L),
+                Arrays.asList(), new double[]{}, false, false);
+        TraderTO traderTO = TraderTO.newBuilder().setOid(1000L).setSettings(TraderSettingsTO
+                .newBuilder().setQuoteFunction(QuoteFunctionDTO.newBuilder().setRiskBased(RiskBased
+                        .newBuilder().setCloudCost(CostDTO.newBuilder()
+                                .setComputeTierCost(ComputeTierCostDTO.newBuilder()
+                                        .setCouponBaseType(84)
+                                        .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                                                .setRegionId(usEast1a))
+                                        .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                                                .setRegionId(usEast1b))
+                                        .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
+                                                .setRegionId(usWest))))))).build();
+
+        ProtobufToAnalysis.populateTraderSettings(topology, traderTO, trader);
+        Map<Trader, List<Context>> contextMap = topology.getEconomy().getTraderWithContextMap();
+        assertFalse(contextMap.isEmpty());
+        assertEquals(3, contextMap.get(trader).size());
+        assertTrue(contextMap.get(trader).contains(new Context(usEast1a, usEast1a,
+                new BalanceAccount(baId))));
+        assertTrue(contextMap.get(trader).contains(new Context(usEast1b, usEast1b,
+                new BalanceAccount(baId))));
+        assertTrue(contextMap.get(trader).contains(new Context(usWest, usWest,
+                new BalanceAccount(baId))));
     }
 
     // Methods for converting UpdatingFunctionDTOs.
@@ -204,6 +248,11 @@ public class ProtobufToAnalysisTest {
 
             @Override
             public double getEffectiveCapacity() {
+                return 0;
+            }
+
+            @Override
+            public double getEffectiveStartCapacity() {
                 return 0;
             }
         };

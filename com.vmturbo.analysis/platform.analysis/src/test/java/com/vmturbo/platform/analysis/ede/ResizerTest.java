@@ -975,6 +975,8 @@ public class ResizerTest {
                 .map(Resize.class::cast)
                 .mapToDouble(r -> r.getOldCapacity() - r.getNewCapacity())
                 .sum();
+
+        assertTrue(actions.stream().filter(Resize.class::isInstance).allMatch(a -> ((Resize) a).getNewCapacity()%10 == 0));
         assertEquals(totalDecrease, namespaceUsage - namespace.getCommoditiesSold().get(0).getQuantity(), 0);
 
     }
@@ -1138,6 +1140,7 @@ public class ResizerTest {
                 Arrays.asList(0L), Arrays.asList(TestUtils.VMEM),
                 new double[]{contVmemCapacity}, false, false);
         cont.setDebugInfoNeverUseInCode("CONTAINER1");
+        cont.getCommoditiesSold().get(0).getSettings().setCapacityIncrement(10);
         TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.VMEMLIMITQUOTA), cont,
                 new double[]{vmemUsedByCont}, pod).setMovable(false);

@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 
 import org.apache.logging.log4j.LogManager;
@@ -897,21 +898,24 @@ public final class AnalysisToProtobuf {
      * @param sl The shopping list
      * @return quote for the given {@link CommoditySold}
      */
-    private static double calculateQuote(CommoditySold commSold, double quantityBought,
+    @VisibleForTesting
+    static double calculateQuote(CommoditySold commSold, double quantityBought,
                     double peakQuantityBought, Trader seller, UnmodifiableEconomy economy, ShoppingList sl) {
         PriceFunction pf = commSold.getSettings().getPriceFunction();
         double startQuantity = commSold.getStartQuantity();
         double startPeakQuantity = commSold.getStartPeakQuantity();
-        double effectiveCapacity = commSold.getEffectiveCapacity();
+        // We use effectiveStartCapacity to calculate quote because the capacity may have been resized by this point.
+        // We should use the start capacity. See OM-60680.
+        double effectiveStartCapacity = commSold.getEffectiveStartCapacity();
         double excessQuantity = peakQuantityBought - quantityBought;
 
-        double usedPrice = pf.unitPrice(startQuantity / effectiveCapacity, sl, seller, commSold, economy);
+        double usedPrice = pf.unitPrice(startQuantity / effectiveStartCapacity, sl, seller, commSold, economy);
         double peakPrice = pf.unitPrice(Math.max(0, startPeakQuantity - startQuantity)/
-                                        (effectiveCapacity - commSold.getSettings()
+                                        (effectiveStartCapacity - commSold.getSettings()
                                                         .getUtilizationUpperBound()*startQuantity)
                                                         , sl, seller, commSold, economy);
-        double quoteUsed = quantityBought != 0 ? (quantityBought / effectiveCapacity) * usedPrice : 0;
-        double quotePeak = excessQuantity > 0 ? (excessQuantity / effectiveCapacity) * peakPrice : 0;
+        double quoteUsed = quantityBought != 0 ? (quantityBought / effectiveStartCapacity) * usedPrice : 0;
+        double quotePeak = excessQuantity > 0 ? (excessQuantity / effectiveStartCapacity) * peakPrice : 0;
         return quoteUsed + quotePeak;
     }
 } // end AnalysisToProtobuf class

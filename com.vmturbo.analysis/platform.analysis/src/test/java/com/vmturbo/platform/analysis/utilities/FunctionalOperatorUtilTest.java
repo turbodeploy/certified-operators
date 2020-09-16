@@ -65,40 +65,6 @@ public class FunctionalOperatorUtilTest {
     }
 
     /**
-     * Unit test for UPDATE_EXPENSES().
-     * Set 200 as the spent amount for the economy.
-     * res1[0] = 200 - 30 + 40 = 210.
-     * res1[1] 0.
-     *
-     * res2[0] = 40.
-     * res2[1] = 60.
-     */
-    @Test
-    public void testUpdateExpenses() {
-        Trader vm1 = TestUtils.createVM(economy);
-        vm1.getSettings().setContext(new Context(10L, zoneId, new BalanceAccount(200, 0, 0, 0)));
-        Trader pm1 = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0L),
-                        Arrays.asList(TestUtils.COST_COMMODITY), new double[] {100}, true, false);
-        BalanceAccount ba = new BalanceAccount(200, 300, 1, 0);
-        pm1.getSettings().setContext(new Context(10L, zoneId, ba));
-        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COST_COMMODITY), vm1,
-                        new double[] {40}, new double[] {60}, pm1);
-        ShoppingList sl3 = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COST_COMMODITY), vm1,
-                        new double[] {30}, new double[] {50}, null);
-
-        double[] res1 = FunctionalOperatorUtil.UPDATE_EXPENSES.operate(sl3, 0,
-                        pm1.getCommoditySold(TestUtils.COST_COMMODITY), pm1, economy, false, 0);
-        Assert.assertEquals(210, res1[0], TestUtils.FLOATING_POINT_DELTA);
-        Assert.assertEquals(0, res1[1], TestUtils.FLOATING_POINT_DELTA);
-
-        double[] res2 = FunctionalOperatorUtil.UPDATE_EXPENSES.operate(sl3, 0,
-                        pm1.getCommoditySold(TestUtils.COST_COMMODITY), pm1, economy, true, 0);
-
-        Assert.assertEquals(40, res2[0], TestUtils.FLOATING_POINT_DELTA);
-        Assert.assertEquals(60, res2[1], TestUtils.FLOATING_POINT_DELTA);
-    }
-
-    /**
      * Unit test for IGNORE_CONSUMPTION().
      * res1[0] = 50.
      * res1[1] = 90.

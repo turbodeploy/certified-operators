@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -23,6 +24,7 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import com.vmturbo.platform.analysis.utilities.QuoteCacheUtils;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
@@ -60,9 +62,15 @@ final class QuoteSummer {
     static final Logger logger = LogManager.getLogger(QuoteSummer.class);
 
     private final Map<ShoppingList, QuoteTracker> unplacedShoppingListQuoteTrackers = new HashMap<>();
-
+    // a map which contains shopping lists and the each shopping list's best quote
+    // associated context. It is used to help generating actions.
+    // Note: The QuoteMinimizer contains CommodityCloudQuote object which stores the context,
+    // we could populate a map for Quote by shopping list, but only "context" is needed
+    // outside of CliqueMinimizer, hence we can directly store the context for efficiency.
+    private final Map<ShoppingList, Optional<Context>> shoppingListContextMap = new HashMap<>();
     private final QuoteCache cache_;
     private int shoppingListIndex_ = 0;
+    private int numOfSLs_ = 0;
 
     // Constructors
 
@@ -71,11 +79,14 @@ final class QuoteSummer {
      *
      * @param economy See {@link #getEconomy()}.
      * @param quality See {@link #getClique()}.
+     * @param cache See {@link QuoteCache}
+     * @param numOfSLs number of shopping lists for this trader
      */
-    public QuoteSummer(@NonNull Economy economy, long quality, QuoteCache cache) {
+    QuoteSummer(@NonNull Economy economy, long quality, QuoteCache cache, int numOfSLs) {
         economy_ = economy;
         clique_ = quality;
         cache_ = cache;
+        numOfSLs_ = numOfSLs;
     }
 
     // Getters
@@ -126,6 +137,19 @@ final class QuoteSummer {
     }
 
     /**
+     * Returns a map which contains shopping lists and the each shopping list's best quote
+     * associated context.
+     * Note: the map is necessary for keep track of context data which will be needed when generating
+     * actions. The QuoteMinimizer has a reference to Quote which stores the context, but in this
+     * QuoteSummer class, Quote object doesnt exist.
+     *
+     * @return the shopping list to context mapping.
+     */
+    public @NonNull Map<ShoppingList, Optional<Context>> getShoppingListContextMap() {
+        return shoppingListContextMap;
+    }
+
+    /**
      * Returns an list of the Move actions to the sellers that offered the minimum quote per
      * (shopping list, market) pair seen by {@code this} summer.
      *
@@ -159,12 +183,26 @@ final class QuoteSummer {
                     && seller.getSettings().canAcceptNewCustomers()).collect(Collectors.toList());
         QuoteMinimizer minimizer = Placement.initiateQuoteMinimizer(economy_, sellers,
                                                     entry.getKey(), cache_, shoppingListIndex_++);
-
+        Optional<Context> context = minimizer.getBestQuote().getContext();
+        if (context.isPresent()) {
+            shoppingListContextMap.put(entry.getKey(), minimizer.getBestQuote().getContext());
+        }
         totalQuote_ += minimizer.getTotalBestQuote();
         bestSellers_.add(minimizer.getBestSeller());
         economy_.getPlacementStats().incrementQuoteSummerCount();
         Trader bestSeller = minimizer.getBestSeller();
-        simulate(minimizer, entry, bestSeller);
+        if (!isBestSellerPresentAndDifferentFromCurrentSupplier(bestSeller, entry)) {
+            unplacedShoppingListQuoteTrackers.put(entry.getKey(), minimizer.getQuoteTracker());
+        }
+        // We simulate the effect of placing the shopping list on the bestSeller, so that the
+        // next shopping lists of this trader get quotes which reflect the fact that this SL was
+        // placed on bestSeller. But we don't need to do this for the last 2 shopping lists
+        // because for a VM, the last two shopping lists will correspond to the last storage shopping
+        // list and the PM shopping list, and there are no further PM/Storage shopping lists which
+        // will ask for quote.
+        if (shoppingListIndex_ <= numOfSLs_ - 2) {
+            simulate(minimizer, entry, bestSeller);
+        }
     }
 
     /**
@@ -179,6 +217,9 @@ final class QuoteSummer {
     public void combine(@NonNull @ReadOnly QuoteSummer other) {
         totalQuote_ += other.getTotalQuote();
         bestSellers_.addAll(other.getBestSellers());
+        other.getShoppingListContextMap().entrySet().forEach(e -> {
+            shoppingListContextMap.put(e.getKey(), e.getValue());
+        });
 
         other.getUnplacedShoppingListQuoteTrackers().forEach((sl, otherQuoteTracker) -> {
             final QuoteTracker thisQuoteTracker = unplacedShoppingListQuoteTrackers.get(sl);
@@ -198,7 +239,7 @@ final class QuoteSummer {
      * @param bestSeller The best provider
      */
     public void simulate(QuoteMinimizer minimizer, @NonNull @ReadOnly Entry<@NonNull ShoppingList, @NonNull Market> entry, Trader bestSeller) {
-        if (bestSeller != null && (entry.getKey().getSupplier() != bestSeller)) {
+        if (isBestSellerPresentAndDifferentFromCurrentSupplier(bestSeller, entry)) {
             if (bestSeller.getSettings().isCanSimulateAction()) {
                 // when we have a best seller for a shoppingList, we simulate the move to this seller
                 // not doing so can lead to ping-pongs as observed in OM-34056
@@ -206,9 +247,18 @@ final class QuoteSummer {
                 QuoteCacheUtils.invalidate(cache_, move);
                 simulatedMoveActions_.add(move);
             }
-        } else {
-            unplacedShoppingListQuoteTrackers.put(entry.getKey(), minimizer.getQuoteTracker());
         }
+    }
+
+    /**
+     * Is bestSeller present and different from current supplier?
+     * @param bestSeller the bestSeller for the SL in entry
+     * @param entry the entry of SL and its market
+     * @return true if bestSeller is present and different from current supplier.
+     */
+    private boolean isBestSellerPresentAndDifferentFromCurrentSupplier(Trader bestSeller,
+                                                                      @NonNull Entry<@NonNull ShoppingList, @NonNull Market> entry) {
+        return bestSeller != null && (entry.getKey().getSupplier() != bestSeller);
     }
 
 } // end QuoteSummer class

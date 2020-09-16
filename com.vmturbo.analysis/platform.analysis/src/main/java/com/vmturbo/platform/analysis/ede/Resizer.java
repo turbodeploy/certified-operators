@@ -718,7 +718,7 @@ public class Resizer {
                                                         typeOfCommBought, newCapacity, changeInCapacity, reverse, false);
 
                 if (commSoldBySupplier.getSettings().isResold()) {
-                    resizeDependentCommoditiesOnReseller(commoditySold, economy, supplier, specOfSold,
+                    resizeDependentCommoditiesOnReseller(commoditySold, economy, seller, supplier, specOfSold,
                             typeOfCommBought, newCapacity, changeInCapacity, reverse);
                 }
             }
@@ -726,36 +726,42 @@ public class Resizer {
     }
 
     /**
-     * recursively identify the dependent commodities on the resellers and update usage on buyer and seller.
+     * Recursively identify the dependent commodities on the resellers and update usage on buyer and seller.
      *
      * @param resizingCommodity is the commodity that is scaling.
-     * @param economy The {@link Economy}.
-     * @param supplier The {@link Trader} selling the dependent commodity.
-     * @param commSpec The specification of the dependent commodity being scaled.
-     * @param typeOfCommBought is the dependant CommoditySpecification.
-     * @param newCapacity is the new desired capacity.
-     * @param changeInCapacity The change in capacity.
+     * @param economy           The {@link Economy}.
+     * @param consumer          The {@link Trader} buying the dependent commodity and being resized.
+     * @param supplier          The {@link Trader} selling the dependent commodity.
+     * @param commSpec          The specification of the dependent commodity being scaled.
+     * @param typeOfCommBought  is the dependant CommoditySpecification.
+     * @param newCapacity       is the new desired capacity.
+     * @param changeInCapacity  The change in capacity.
+     * @param reverse           true if reverse updating
      */
     private static void resizeDependentCommoditiesOnReseller(CommoditySold resizingCommodity,
-                                                             Economy economy, Trader supplier,
-                                                             CommoditySpecification commSpec,
+                                                             Economy economy, Trader consumer,
+                                                             Trader supplier, CommoditySpecification commSpec,
                                                              CommodityResizeSpecification typeOfCommBought,
                                                              double newCapacity, double changeInCapacity, boolean reverse) {
         Optional<ShoppingList> slOfSupplier = economy.getMarketsAsBuyer(supplier).keySet().stream()
                 .filter(sl -> sl.getBasket().indexOfBaseType(commSpec.getBaseType()) != -1)
                 .findFirst();
-        if (slOfSupplier.isPresent()) {
-            ShoppingList sl = slOfSupplier.get();
+        slOfSupplier.ifPresent(sl -> {
+            if (sl.getSupplier() == null) {
+                logger.warn("The supplier of reseller {} is null when resizing {}.", supplier.getDebugInfoNeverUseInCode(),
+                    consumer.getDebugInfoNeverUseInCode());
+                return;
+            }
             int soldIndex = sl.getSupplier().getBasketSold().indexOfBaseType(commSpec.getBaseType());
             CommoditySold commSoldBySupplier = sl.getSupplier().getCommoditiesSold().get(soldIndex);
             updateUsageOnBoughtAndSoldCommodities(resizingCommodity, commSoldBySupplier, sl,
                     sl.getBasket().indexOfBaseType(commSpec.getBaseType()),
                     typeOfCommBought, newCapacity, changeInCapacity, reverse, true);
             if (commSoldBySupplier.getSettings().isResold()) {
-                resizeDependentCommoditiesOnReseller(resizingCommodity, economy, sl.getSupplier(), commSpec,
-                        typeOfCommBought, newCapacity, changeInCapacity, reverse);
+                resizeDependentCommoditiesOnReseller(resizingCommodity, economy, consumer, sl.getSupplier(),
+                    commSpec, typeOfCommBought, newCapacity, changeInCapacity, reverse);
             }
-        }
+        });
     }
 
     /**

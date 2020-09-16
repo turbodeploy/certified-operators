@@ -3,14 +3,14 @@ package com.vmturbo.platform.analysis.utility;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -35,60 +35,28 @@ import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
  * Test for StorageTierCostFunction.
  */
 public class StorageTierCostFunctionTest {
-    private static CommoditySpecification stAmt;
-    private static CommoditySpecification iops;
-    private static Economy economy;
-    private static Trader storageTier;
-    private static ShoppingList stSL;
-    private static Trader vm;
+    private CommoditySpecification stAmt;
+    private CommoditySpecification iops;
+    private Economy economy;
+    private Trader storageTier;
+    private ShoppingList stSL;
+    private Trader vm;
+    private BalanceAccount account;
+    private static final long REGION_ID = 1L;
+    private static final long BUSINESS_ACCOUNT_ID = 2L;
 
     /**
      * Set up test variables.
      */
-    @BeforeClass
-    public static void setup() {
+    @Before
+    public void setup() {
         stAmt = TestUtils.ST_AMT;
         iops = TestUtils.IOPS;
         economy = new Economy();
         vm = TestUtils.createVM(economy);
-    }
-
-    /**
-     * Test calculateCost for storage tier when the VM with no region no business account(on prem VM).
-     * Expected: VM will get cheapest cost across all regions all business accounts.
-     */
-    @Test
-    public void testOnPremMCPStorageCost() {
-        List<CommoditySpecification> stCommList = Arrays.asList(stAmt);
-        storageTier = TestUtils.createTrader(economy, TestUtils.ST_TYPE, Arrays.asList(0L),
-                stCommList, new double[] {10000}, true, false);
-        stSL = TestUtils.createAndPlaceShoppingList(economy, stCommList, vm,
-                new double[] {500}, new double[] {500}, storageTier);
-        CostFunction storageCostFunction = CostFunctionFactory.createCostFunction(
-                CostDTO.newBuilder().setStorageTierCost(createStorageCost()).build());
-        MutableQuote quote = storageCostFunction.calculateCost(stSL, storageTier, true, economy);
-        assertEquals(600, quote.getQuoteValue(), 0.000);
-    }
-
-    /**
-     * Helper method to create storageTier costDTO.
-     * @return StorageTierCostDTO
-     */
-    private StorageTierCostDTO createStorageCost() {
-        List<CostTuple> storageTuples = new ArrayList<>();
-        storageTuples.add(CostTuple.newBuilder().setBusinessAccountId(1).setRegionId(1L)
-                .setPrice(3.27).build());
-        storageTuples.add(CostTuple.newBuilder().setBusinessAccountId(1).setRegionId(2L)
-                .setPrice(4.15).build());
-        storageTuples.add(CostTuple.newBuilder().setBusinessAccountId(2).setRegionId(2L)
-                .setPrice(1.20).build());
-        return StorageTierCostDTO.newBuilder().addStorageResourceCost(StorageResourceCost
-                .newBuilder().setResourceType(TestUtils.stAmtTO)
-                .addStorageTierPriceData(StorageTierPriceData.newBuilder()
-                        .addAllCostTupleList(storageTuples).setIsAccumulativeCost(false)
-                        .setIsUnitPrice(true).setUpperBound(Double.MAX_VALUE)))
-                .addStorageResourceLimitation(StorageResourceLimitation.newBuilder()
-                        .setResourceType(TestUtils.stAmtTO).setMaxCapacity(10000)).build();
+        account = new BalanceAccount(100, 10000, BUSINESS_ACCOUNT_ID, 0);
+        vm.getSettings().setContext(new com.vmturbo.platform.analysis.economy.Context(
+                REGION_ID, 0, account));
     }
 
     /**
@@ -118,8 +86,9 @@ public class StorageTierCostFunctionTest {
                         .addStorageResourceCost(StorageResourceCost.newBuilder()
                                 .setResourceType(TestUtils.stAmtTO)
                                 .addStorageTierPriceData(StorageTierPriceData.newBuilder()
-                                        .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(2)
-                                                .setRegionId(2L).setPrice(1.0).build())
+                                        .addCostTupleList(CostTuple.newBuilder()
+                                                .setBusinessAccountId(BUSINESS_ACCOUNT_ID)
+                                                .setRegionId(REGION_ID).setPrice(1.0).build())
                                         .setIsAccumulativeCost(false).setIsUnitPrice(true)
                                         .setUpperBound(Double.MAX_VALUE))).build()).build());
         MutableQuote quote2 = storageCostFunction2.calculateCost(stSL, storageTier, true, economy);
@@ -156,8 +125,9 @@ public class StorageTierCostFunctionTest {
                         .addStorageResourceCost(StorageResourceCost.newBuilder()
                                 .setResourceType(TestUtils.stAmtTO)
                                 .addStorageTierPriceData(StorageTierPriceData.newBuilder()
-                                        .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(2)
-                                                .setRegionId(2L).setPrice(1.0).build())
+                                        .addCostTupleList(CostTuple.newBuilder()
+                                                .setBusinessAccountId(BUSINESS_ACCOUNT_ID)
+                                                .setRegionId(REGION_ID).setPrice(1.0).build())
                                         .setIsAccumulativeCost(false).setIsUnitPrice(true)
                                         .setUpperBound(Double.MAX_VALUE))).build()).build();
         CostFunction storageCostFunction = CostFunctionFactory.createCostFunction(storageCostDTO);
@@ -197,15 +167,17 @@ public class StorageTierCostFunctionTest {
                         .addStorageResourceCost(StorageResourceCost.newBuilder()
                                 .setResourceType(TestUtils.stAmtTO)
                                 .addStorageTierPriceData(StorageTierPriceData.newBuilder()
-                                        .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(2)
-                                                .setRegionId(2L).setPrice(1.0).build())
+                                        .addCostTupleList(CostTuple.newBuilder()
+                                                .setBusinessAccountId(BUSINESS_ACCOUNT_ID)
+                                                .setRegionId(REGION_ID).setPrice(1.0).build())
                                         .setIsAccumulativeCost(false).setIsUnitPrice(true)
                                         .setUpperBound(Double.MAX_VALUE)))
                         .addStorageResourceCost(StorageResourceCost.newBuilder()
                                 .setResourceType(TestUtils.iopsTO)
                                 .addStorageTierPriceData(StorageTierPriceData.newBuilder()
-                                        .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(2)
-                                                .setRegionId(2L).setPrice(1.0).build())
+                                        .addCostTupleList(CostTuple.newBuilder()
+                                                .setBusinessAccountId(BUSINESS_ACCOUNT_ID)
+                                                .setRegionId(REGION_ID).setPrice(1.0).build())
                                         .setIsAccumulativeCost(false).setIsUnitPrice(true)
                                         .setUpperBound(Double.MAX_VALUE))).build()).build());
         MutableQuote quote = storageCostFunction.calculateCost(stSL, storageTier, true, economy);
@@ -242,8 +214,9 @@ public class StorageTierCostFunctionTest {
                         .addStorageResourceCost(StorageResourceCost.newBuilder()
                                 .setResourceType(TestUtils.stAmtTO)
                                 .addStorageTierPriceData(StorageTierPriceData.newBuilder()
-                                        .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(2)
-                                                .setRegionId(2L).setPrice(1.0).build())
+                                        .addCostTupleList(CostTuple.newBuilder()
+                                                .setBusinessAccountId(BUSINESS_ACCOUNT_ID)
+                                                .setRegionId(REGION_ID).setPrice(1.0).build())
                                         .setIsAccumulativeCost(false).setIsUnitPrice(true)
                                         .setUpperBound(Double.MAX_VALUE))).build()).build());
         MutableQuote quote1 = storageCostFunction.calculateCost(stSL, storageTier, true, economy);

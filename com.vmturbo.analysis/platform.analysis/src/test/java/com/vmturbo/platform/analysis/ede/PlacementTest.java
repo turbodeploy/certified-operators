@@ -1,11 +1,15 @@
 package com.vmturbo.platform.analysis.ede;
 
+import static com.vmturbo.platform.analysis.ede.Placement.mergeContextSets;
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -13,6 +17,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -30,6 +35,8 @@ import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Context;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -430,16 +437,21 @@ public class PlacementTest {
                   {PM_S,{ 4.0, 4.0},{},{0L}},{ST_S,{ 3.0, 3.0},{},{0L,1L}},
                   {PM_S,{ 1.0, 1.0},{},{1L}},{ST_S,{ 6.0, 6.0},{},{1L}}},
                  {{{0,0},{3}}}},
-                {{{{PM_SMALL,true ,1,1.0,1.0},{ST_SMALL,true,2,1.0,1.0},{ST_SMALL,true,3,1.0,1.0}}}, // 1 compoundMove
-                 {{PM_S,{10.0,10.0},{},{0L}},{ST_S,{10.0,10.0},{},{0L}},
-                  {ST_S,{10.0,10.0},{},{0L,1L}},{PM_S,{ 0.0, 0.0},{},{1L}},
-                  {ST_S,{ 0.0, 0.0},{},{0L,1L}},{ST_S,{ 0.0, 0.0},{},{1L}}},
-                 {{{0,0,1,2},{4,5,6}}}},
-                {{{{PM_SMALL,true ,1,1.0,1.0},{ST_SMALL,true,2,1.0,1.0},{ST_SMALL,true,3,1.0,1.0}}}, // 1 move, 1 compoundMove
-                 {{PM_S,{10.0,10.0},{},{0L}},{ST_S,{10.0,10.0},{},{0L}},
-                  {ST_S,{10.0,10.0},{},{0L,1L}},{PM_S,{ 0.0, 0.0},{},{1L}},
-                  {ST_S,{ 0.0, 0.0},{},{1L}},{ST_S,{ 0.0, 0.0},{},{0L,1L}}},
-                 {{{0,2},{6}},{{0,0,1},{4,5}}}},
+                // We should keep all the storage shopping lists first, and then the PM shopping
+                // list (conforms with how XL sorts the shopping lists). And this especially matters when
+                // there are more than 2 shopping lists, which is the case in the below 2 test cases.
+                // This is because, we ignore simulation (QuoteSummer#simulate) for the last 2 SLs
+                // of a trader - the last storage SL and the PM SL.
+                {{{{ST_SMALL, true, 2, 1.0, 1.0}, {ST_SMALL, true, 3, 1.0, 1.0}, {PM_SMALL, true, 1, 1.0, 1.0}}}, // 1 compoundMove
+                 {{PM_S, {10.0, 10.0}, {}, {0L}}, {ST_S, {10.0, 10.0}, {}, {0L}},
+                  {ST_S, {10.0, 10.0}, {}, {0L, 1L}}, {PM_S, {0.0, 0.0}, {}, {1L}},
+                  {ST_S, {0.0, 0.0}, {}, {0L, 1L}}, {ST_S, {0.0, 0.0}, {}, {1L}}},
+                 {{{0, 2, 0, 1}, {4, 5, 6}}}},
+                {{{{ST_SMALL, true, 2, 1.0, 1.0}, {ST_SMALL, true, 3, 1.0, 1.0}, {PM_SMALL, true, 1, 1.0, 1.0}}},  // 1 move,  1 compoundMove
+                    {{PM_S, {10.0, 10.0}, {}, {0L}}, {ST_S, {10.0, 10.0}, {}, {0L}},
+                        {ST_S, {10.0, 10.0}, {}, {0L, 1L}}, {PM_S, { 0.0,  0.0}, {}, {1L}},
+                        {ST_S, { 0.0,  0.0}, {}, {1L}}, {ST_S, { 0.0,  0.0}, {}, {0L, 1L}}},
+                    {{{0, 1}, {6}}, {{0, 0, 2}, {5, 4}}}},
 
                 // 1 VM, 1 PM, 2 STs
                 {

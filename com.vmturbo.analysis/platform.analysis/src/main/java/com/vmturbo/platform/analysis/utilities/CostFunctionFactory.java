@@ -21,6 +21,10 @@ import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Table;
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -33,6 +37,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
@@ -52,6 +57,7 @@ import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InfiniteDependentComputeCommodityQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.InfiniteDependentResourcePairQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.LicenseUnavailableQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
@@ -61,6 +67,8 @@ import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 public class CostFunctionFactory {
 
     private static final Logger logger = LogManager.getLogger();
+
+    private static final double riCostDeprecationFactor = 0.00001;
 
     /**
      * A class represents the price information of a commodity
@@ -288,7 +296,8 @@ public class CostFunctionFactory {
                                                               CostTable costTable,
                                                               final int licenseBaseType) {
         long groupFactor = buyer.getGroupFactor();
-        final Context buyerContext = buyer.getBuyer().getSettings().getContext();
+        @Nullable final Context buyerContext = buyer.getBuyer().getSettings()
+                .getContext().orElse(null);
         final int licenseCommBoughtIndex = buyer.getBasket().indexOfBaseType(licenseBaseType);
         if (costTable.getAccountIds().isEmpty()) {
             // empty cost table, return infinity to not place entity on this seller
@@ -407,7 +416,7 @@ public class CostFunctionFactory {
 
 
                 final double numCouponsCovered = requestedCoupons - numCouponsToPayFor;
-                final double cbtpResellerRate = calculateCbtpResellerPrice(costTuple, destTP);
+                final double cbtpResellerRate = calculateCbtpResellerPrice(costTuple, destTP, singleVmTemplateCost);
                 final double cbtpResellerCost = cbtpResellerRate * (numCouponsCovered / matchingTpCouponCapacity);
 
                 discountedCost = numCouponsToPayFor * templateCostPerCoupon + cbtpResellerCost;
@@ -442,11 +451,13 @@ public class CostFunctionFactory {
      *
      * @param costTuple The {@link CostTuple} of the CBTP
      * @param matchingTp The destination template provider the CBTP will resell
+     * @param matchingTpPrice the on demand cost of the matching TP
      * @return The price/rate of the CBTP. This price does not take into account the coupons bought
      * on the CBTP and is therefore representative of the rate, not cost.
      */
     private static double calculateCbtpResellerPrice(@NonNull CostTuple costTuple,
-                                                     @NonNull Trader matchingTp) {
+                                                     @NonNull Trader matchingTp,
+                                                     double matchingTpPrice) {
 
         double corePrice = 0.0;
 
@@ -463,7 +474,18 @@ public class CostFunctionFactory {
             }
         }
 
-        return costTuple.getPrice() + corePrice;
+        // If there is no core price, then return a very small fraction of the on-demand price of
+        // the matching TP.
+        // The CBTP cost tuple itself will have a cost which corresponds with the cost of the
+        // largest tier in that RI's family. But it does not make sense to look at that price since
+        // this Shopping list could be going to some other tier in that family. So we should be
+        // looking at the on demand price of that matching tier.
+        // So we return a price which will be a fraction of the price of matching TP.
+        if (corePrice == 0.0) {
+            return matchingTpPrice * riCostDeprecationFactor;
+        } else {
+            return corePrice;
+        }
     }
 
     /**
@@ -582,15 +604,15 @@ public class CostFunctionFactory {
      * @return A quote for the cost given by {@link CostFunction}
      */
     @VisibleForTesting
-    static MutableQuote calculateComputeAndDatabaseCostQuote(Trader seller, ShoppingList sl,
-                                                                     CostTable costTable, final int licenseBaseType) {
+    protected static MutableQuote calculateComputeAndDatabaseCostQuote(Trader seller, ShoppingList sl,
+                                                                       CostTable costTable, final int licenseBaseType) {
         final int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(licenseBaseType);
         final long groupFactor = sl.getGroupFactor();
-        final com.vmturbo.platform.analysis.economy.Context context = sl.getBuyer().getSettings().getContext();
-        if (context == null) {
-            // on prem entities do not have context can reach here in migration plan
-            return getCheapestComputeCostWithoutContext(seller, sl, costTable, licenseCommBoughtIndex);
+        final Optional<Context> optionalContext = sl.getBuyer().getSettings().getContext();
+        if (!optionalContext.isPresent()) {
+            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
         }
+        final Context context = optionalContext.get();
         final long regionIdBought = context.getRegionId();
         final BalanceAccount balanceAccount = context.getBalanceAccount();
         if (balanceAccount == null) {
@@ -864,7 +886,7 @@ public class CostFunctionFactory {
                         // Constraint check is irrelevant for such commodities, and we skip it.
                         return;
                     }
-                    commQuantityMap.put(commType, sl.getQuantities()[index]);
+                    commQuantityMap.put(commType, Math.ceil(sl.getQuantities()[index]));
                 });
                 // If volume is in Reversibility mode, try to get a quote in Reversibility mode.
                 if (!sl.getDemandScalable()) {
