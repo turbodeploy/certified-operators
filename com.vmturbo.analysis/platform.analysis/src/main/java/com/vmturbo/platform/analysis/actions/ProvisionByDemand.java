@@ -211,23 +211,17 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
             CommoditySold provCommSold = getProvisionedSeller().getCommoditiesSold().get(indexOfCommSold);
             provCommSold.setCapacity(newCapacity);
             provCommSold.setQuantity(modelCommSold.getQuantity());
-            provCommSold.getSettings().setUtilizationUpperBound(modelCommSold.getSettings()
-                                                                .getUtilizationUpperBound());
-            provCommSold.getSettings().setOrigUtilizationUpperBound(modelCommSold.getSettings()
-                                                                    .getUtilizationUpperBound());
-            provCommSold.getSettings().setPriceFunction(modelCommSold.getSettings()
-                                                                    .getPriceFunction());
-            provCommSold.getSettings().setUpdatingFunction(modelCommSold.getSettings()
-                                                                    .getUpdatingFunction());
         }
         // Set the capacities of all commodities sold by the provisioned seller
         // ,which are not in the model buyer's basket, to be the same as those of model seller
-        // because these don't need a resize
+        // because these don't need a resize.
+        // Copy over commodity settings.
         for (CommoditySpecification commSpec : getModelSeller().getBasketSold()) {
-            if (!getModelBuyer().getBasket().contains(commSpec)) {
                 int indexOfCommSold = basketSold.indexOf(commSpec.getType());
                 CommoditySold modelCommSold = getModelSeller().getCommoditiesSold().get(indexOfCommSold);
                 CommoditySold provCommSold = getProvisionedSeller().getCommoditiesSold().get(indexOfCommSold);
+                copyCommoditySoldSettingsForClone(provCommSold, modelCommSold);
+            if (!getModelBuyer().getBasket().contains(commSpec)) {
                 provCommSold.setCapacity(modelCommSold.getCapacity());
             }
         }

@@ -89,6 +89,11 @@ public class ProvisionByDemandTest {
         TraderSettings modelSellerSettings = modelSeller.getSettings();
         modelSellerSettings.setMinDesiredUtil(0.65);
         modelSellerSettings.setMinDesiredUtil(0.75);
+
+        // Check resizable setting is copied over correctly for commodities.
+        modelSeller.getCommoditiesSold().get(0).getSettings().setResizable(false);
+
+
         @NonNull
         ProvisionByDemand provision = (ProvisionByDemand)(new ProvisionByDemand(economy, modelBuyer, modelSeller)).take();
         TraderSettings provisionedTraderSettings = provision.getActionTarget().getSettings();
@@ -100,6 +105,7 @@ public class ProvisionByDemandTest {
         assertTrue(provisionedTraderSettings.isSuspendable());
         assertEquals(modelSellerSettings.isGuaranteedBuyer(), provisionedTraderSettings.isGuaranteedBuyer());
         assertFalse(provisionedTraderSettings.isCloneable());
+        assertFalse(provision.getActionTarget().getCommoditySold(modelSeller.getBasketSold().get(0)).getSettings().isResizable());
 
         // verify if all the modified commodities are added to commodityNewCapacityMap_
         assertEquals(provision.getCommodityNewCapacityMap().isEmpty(), !isProvisionUseful);

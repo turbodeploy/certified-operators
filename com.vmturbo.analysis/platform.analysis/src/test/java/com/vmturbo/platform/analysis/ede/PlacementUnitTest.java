@@ -28,6 +28,11 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
+import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
+import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -47,11 +52,6 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.RiskBased;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.SumOfCommodity;
-import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
-import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
@@ -349,16 +349,21 @@ public class PlacementUnitTest {
         final long accountId = 100L;
         // Id of parent (BillingFamily).
         final long parentId = 200L;
+        final long parentId2 = 201L;
         final long regionId = 300L;
+        final long regionId2 = 301L;
         final long zoneId = 400L;
+        final long zoneId2 = 401L;
 
         // Context1 has parent ID in balanceAccount, but context2 does not.
         final Context context1 = new Context(regionId, zoneId,
                 new BalanceAccount(accountId, parentId));
-        final Context context2 = new Context(regionId, zoneId,
-                new BalanceAccount(accountId));
+        final Context context2 = new Context(regionId, zoneId, new BalanceAccount(accountId));
+        // Context3 is different, but it has the same hash as context1
+        final Context context3 = new Context(regionId2, zoneId2,
+                new BalanceAccount(accountId, parentId2));
 
-        final Set<Context> contextSet1 = ImmutableSet.of(context1);
+        final Set<Context> contextSet1 = ImmutableSet.of(context1, context3);
         final Set<Context> contextSet2 = ImmutableSet.of(context2);
         final Set<Context> resultSet = Stream.of(contextSet1, contextSet2)
                 .reduce(mergeContextSets)

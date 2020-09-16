@@ -437,16 +437,21 @@ public class PlacementTest {
                   {PM_S,{ 4.0, 4.0},{},{0L}},{ST_S,{ 3.0, 3.0},{},{0L,1L}},
                   {PM_S,{ 1.0, 1.0},{},{1L}},{ST_S,{ 6.0, 6.0},{},{1L}}},
                  {{{0,0},{3}}}},
-                {{{{PM_SMALL,true ,1,1.0,1.0},{ST_SMALL,true,2,1.0,1.0},{ST_SMALL,true,3,1.0,1.0}}}, // 1 compoundMove
-                 {{PM_S,{10.0,10.0},{},{0L}},{ST_S,{10.0,10.0},{},{0L}},
-                  {ST_S,{10.0,10.0},{},{0L,1L}},{PM_S,{ 0.0, 0.0},{},{1L}},
-                  {ST_S,{ 0.0, 0.0},{},{0L,1L}},{ST_S,{ 0.0, 0.0},{},{1L}}},
-                 {{{0,0,1,2},{4,5,6}}}},
-                {{{{PM_SMALL,true ,1,1.0,1.0},{ST_SMALL,true,2,1.0,1.0},{ST_SMALL,true,3,1.0,1.0}}}, // 1 move, 1 compoundMove
-                 {{PM_S,{10.0,10.0},{},{0L}},{ST_S,{10.0,10.0},{},{0L}},
-                  {ST_S,{10.0,10.0},{},{0L,1L}},{PM_S,{ 0.0, 0.0},{},{1L}},
-                  {ST_S,{ 0.0, 0.0},{},{1L}},{ST_S,{ 0.0, 0.0},{},{0L,1L}}},
-                 {{{0,2},{6}},{{0,0,1},{4,5}}}},
+                // We should keep all the storage shopping lists first, and then the PM shopping
+                // list (conforms with how XL sorts the shopping lists). And this especially matters when
+                // there are more than 2 shopping lists, which is the case in the below 2 test cases.
+                // This is because, we ignore simulation (QuoteSummer#simulate) for the last 2 SLs
+                // of a trader - the last storage SL and the PM SL.
+                {{{{ST_SMALL, true, 2, 1.0, 1.0}, {ST_SMALL, true, 3, 1.0, 1.0}, {PM_SMALL, true, 1, 1.0, 1.0}}}, // 1 compoundMove
+                 {{PM_S, {10.0, 10.0}, {}, {0L}}, {ST_S, {10.0, 10.0}, {}, {0L}},
+                  {ST_S, {10.0, 10.0}, {}, {0L, 1L}}, {PM_S, {0.0, 0.0}, {}, {1L}},
+                  {ST_S, {0.0, 0.0}, {}, {0L, 1L}}, {ST_S, {0.0, 0.0}, {}, {1L}}},
+                 {{{0, 2, 0, 1}, {4, 5, 6}}}},
+                {{{{ST_SMALL, true, 2, 1.0, 1.0}, {ST_SMALL, true, 3, 1.0, 1.0}, {PM_SMALL, true, 1, 1.0, 1.0}}},  // 1 move,  1 compoundMove
+                    {{PM_S, {10.0, 10.0}, {}, {0L}}, {ST_S, {10.0, 10.0}, {}, {0L}},
+                        {ST_S, {10.0, 10.0}, {}, {0L, 1L}}, {PM_S, { 0.0,  0.0}, {}, {1L}},
+                        {ST_S, { 0.0,  0.0}, {}, {1L}}, {ST_S, { 0.0,  0.0}, {}, {0L, 1L}}},
+                    {{{0, 1}, {6}}, {{0, 0, 2}, {5, 4}}}},
 
                 // 1 VM, 1 PM, 2 STs
                 {

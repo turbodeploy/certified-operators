@@ -115,10 +115,6 @@ public class Provision {
                 }
                 List<@NonNull Action> actions = new ArrayList<>();
 
-                // run placement on the current buyers
-                allActions.addAll(Placement.prefPlacementDecisions(economy,
-                        new ArrayList<>(market.getBuyers())).getActions());
-
                 ledger.calculateExpAndRevForSellersInMarket(economy, market);
                 // break if there is no seller that is eligible for cloning in the market
                 MostProfitableBundle pb = findBestTraderToEngage(market, ledger, economy);
