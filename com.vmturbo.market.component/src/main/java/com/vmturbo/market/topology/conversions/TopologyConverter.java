@@ -1071,10 +1071,6 @@ public class TopologyConverter {
                     .ifPresent(commoditiesBoughtFromProviderBuilder::setProviderEntityType);
         }
         slInfo.getResourceId().ifPresent(commoditiesBoughtFromProviderBuilder::setVolumeId);
-        if (!commoditiesBoughtFromProviderBuilder.hasVolumeId()
-                && slInfo.getCollapsedBuyerId().isPresent()) {
-            commoditiesBoughtFromProviderBuilder.setVolumeId(slInfo.getCollapsedBuyerId().get());
-        }
         return commoditiesBoughtFromProviderBuilder.build();
     }
 
@@ -1319,6 +1315,10 @@ public class TopologyConverter {
                         shoppingListTO.getCommoditiesBoughtList());
                 projectedEntity.addAllCommoditySoldList(soldDTOS);
                 copyStaticAttributes(collapsedEntityDTO, projectedEntity);
+                // copy the origin from the original entity.
+                if (collapsedEntityDTO.hasOrigin()) {
+                    projectedEntity.setOrigin(collapsedEntityDTO.getOrigin());
+                }
                 createConnectedAzOrRegion(collapsedEntityDTO)
                     .ifPresent(projectedEntity::addConnectedEntityList);
                 result.add(projectedEntity.build());

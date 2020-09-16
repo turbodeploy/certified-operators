@@ -1977,6 +1977,7 @@ public class TopologyConverterFromMarketTest {
         final long volume2Oid = 3L;
         final long storageTierOid = 4L;
         final long storageAmountCapacity = 2000;
+        final Origin volumeOrigin = Origin.newBuilder().build();
         final TopologyDTO.TopologyEntityDTO originalVm = TopologyEntityDTO.newBuilder()
                 .setOid(vmOid)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -2015,6 +2016,7 @@ public class TopologyConverterFromMarketTest {
                 .build())
                 .setOid(volume1Oid)
                 .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setOrigin(volumeOrigin)
                 .build();
         final TopologyDTO.TopologyEntityDTO originalVolume2 = TopologyEntityDTO.newBuilder()
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
@@ -2075,6 +2077,7 @@ public class TopologyConverterFromMarketTest {
         final List<CommoditySoldDTO> commoditySoldDTOS = projectedVolume1.getEntity()
             .getCommoditySoldListList();
         Assert.assertFalse(commoditySoldDTOS.isEmpty());
+        Assert.assertEquals(volumeOrigin, projectedVolume1.getEntity().getOrigin());
 
         final CommoditySoldDTO commoditySoldDTO = commoditySoldDTOS.iterator().next();
         Assert.assertEquals(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
