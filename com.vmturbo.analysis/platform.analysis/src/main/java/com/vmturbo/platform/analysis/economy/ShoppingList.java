@@ -518,43 +518,4 @@ public class ShoppingList implements Serializable {
     public boolean getDemandScalable() {
         return demandScalable;
     }
-
-    /**
-     * Add entry for commodity type with assigned capacity sold by buyer.
-     *
-     * @param commodityType commodityType.
-     * @param assignedCapacity assignedCapacity for the commodityType sold by buyer.
-     */
-    public void addAssignedCapacity(Integer commodityType, double assignedCapacity) {
-        assignedCapacities.put(commodityType, assignedCapacity);
-    }
-
-    /**
-     * Get assigned capacity for certain commodity type sold by buyer.
-     *
-     * @param commodityType commodityType.
-     * @return assigned capacity for given commodityType.
-     */
-    @Nullable
-    public Double getAssignedCapacity(Integer commodityType) {
-        return assignedCapacities.get(commodityType);
-    }
-
-    /**
-     * Set demandScalable flag on the shopping list.
-     *
-     * @param demandScalable given demandScalable value.
-     */
-    public void setDemandScalable(boolean demandScalable) {
-        this.demandScalable = demandScalable;
-    }
-
-    /**
-     * Get demandScalable flag for the shopping list.
-     *
-     * @return demandScalable value.
-     */
-    public boolean getDemandScalable() {
-        return demandScalable;
-    }
 } // end ShoppingList class

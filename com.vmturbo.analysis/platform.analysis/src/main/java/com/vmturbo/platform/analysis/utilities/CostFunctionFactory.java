@@ -21,10 +21,6 @@ import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Table;
-import com.google.common.collect.ImmutableSet;
-
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -37,7 +33,6 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
@@ -57,7 +52,6 @@ import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InfiniteDependentComputeCommodityQuote;
-import com.vmturbo.platform.analysis.utilities.Quote.InfiniteDependentResourcePairQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.LicenseUnavailableQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
@@ -69,72 +63,6 @@ public class CostFunctionFactory {
     private static final Logger logger = LogManager.getLogger();
 
     private static final double riCostDeprecationFactor = 0.00001;
-
-    /**
-     * A class represents the price information of a commodity
-     * NOTE: the PriceData comparator is overridden to make sure upperBound decides the order
-     * @author weiduan
-     *
-     */
-    @SuppressWarnings("rawtypes")
-    public static class PriceData implements Comparable {
-        private double upperBound_;
-        private double price_;
-        private boolean isUnitPrice_;
-        private boolean isAccumulative_;
-        private long regionId_;
-
-        public PriceData(double upperBound, double price, boolean isUnitPrice,
-                         boolean isAccumulative, long regionId) {
-            upperBound_ = upperBound;
-            price_ = price;
-            isUnitPrice_ = isUnitPrice;
-            isAccumulative_ = isAccumulative;
-            regionId_ = regionId;
-        }
-
-        /**
-         * Returns the upper bound limit of commodity
-         */
-        public double getUpperBound() {
-            return upperBound_;
-        }
-
-        /**
-         * Returns the price of commodity
-         */
-        public double getPrice() {
-            return price_;
-        }
-
-        /**
-         * Returns true if the price is a unit price
-         */
-        public boolean isUnitPrice() {
-            return isUnitPrice_;
-        }
-
-        /**
-         * Returns true if the cost should be accumulated
-         */
-        public boolean isAccumulative() {
-            return isAccumulative_;
-        }
-
-        /**
-         * Getter for the region id.
-         *
-         * @return the region id
-         */
-        public long getRegionId() {
-            return  regionId_;
-        }
-
-        @Override
-        public int compareTo(Object other) {
-            return Double.compare(upperBound_, ((PriceData)other).getUpperBound());
-        }
-    }
 
     /**
      * A utility method to extract base and dependent commodities.
@@ -710,47 +638,6 @@ public class CostFunctionFactory {
     }
 
     /**
-     * Iterate the CostTable to get the cheapest cost. It is applied when buyer does not have
-     * a context specifying the region or business account information.
-     *
-     * @param seller the seller
-     * @param sl the buyer
-     * @param costTable pricing information table
-     * @param licenseCommBoughtIndex the index of the license access commodity in the basket
-     * @return
-     */
-    private static MutableQuote getCheapestComputeCostWithoutContext(@Nonnull final Trader seller,
-                                                                     @Nonnull final ShoppingList sl,
-                                                                     @Nonnull final CostTable costTable,
-                                                                     final int licenseCommBoughtIndex) {
-        Set<Long> accountIds = costTable.getAccountIds();
-        if (accountIds.isEmpty()) {
-            // empty cost table, return infinity to not place entity on this seller
-            logger.warn("No cost information found for seller {}, return infinity quote",
-                    seller.getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
-        }
-        if (licenseCommBoughtIndex == -1) {
-            // when there is no license for the shopping list, return infinity quote
-            // NOTE: we assume that on prem entities have to contain LicenseAccessCommodity
-            logger.warn("No license commodity found for buyer {}, return infinity quote",
-                    sl.getBuyer().getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
-        }
-        int licenseTypeKey = sl.getBasket().get(licenseCommBoughtIndex).getType();
-        CostTuple cheapestTuple = getCheapestTuple(costTable, licenseTypeKey);
-        if (cheapestTuple == null) {
-            logger.warn("Seller {} does not support license {}, return infinity quote",
-                    seller.getDebugInfoNeverUseInCode(),
-                    sl.getBasket().get(licenseCommBoughtIndex).getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
-        }
-        return new CommodityCloudQuote(seller, cheapestTuple.getPrice() * (sl.getGroupFactor() > 0
-                ? sl.getGroupFactor() : 1), cheapestTuple.hasZoneId() ? cheapestTuple.getZoneId()
-                : cheapestTuple.getRegionId(), cheapestTuple.getBusinessAccountId(), null);
-    }
-
-    /**
      * Creates {@link CostFunction} for a given seller.
      *
      * @param costDTO the DTO carries the cost information
@@ -858,15 +745,15 @@ public class CostFunctionFactory {
         // the map to keep commodity to its min max capacity limitation
         final Map<CommoditySpecification, CapacityLimitation> commCapacityLimitation
                 = CostFunctionFactoryHelper.translateResourceCapacityLimitation(
-                        costDTO.getStorageResourceLimitationList(), commTypesWithConstraints);
+                costDTO.getStorageResourceLimitationList(), commTypesWithConstraints);
         // ratio capacity constraint between commodities
         final List<RatioBasedResourceDependency> ratioDependencyList
                 = CostFunctionFactoryHelper.translateStorageResourceRatioDependency(
-                        costDTO.getStorageResourceRatioDependencyList(), commTypesWithConstraints);
+                costDTO.getStorageResourceRatioDependencyList(), commTypesWithConstraints);
         // range capacity constraint between commodities
         final List<RangeBasedResourceDependency> rangeDependencyList
                 = CostFunctionFactoryHelper.translateStorageResourceRangeDependency(
-                        costDTO.getStorageResourceRangeDependencyList(), commTypesWithConstraints);
+                costDTO.getStorageResourceRangeDependencyList(), commTypesWithConstraints);
 
         CostFunction costFunction = new CostFunction() {
             @Override

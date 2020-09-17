@@ -14,7 +14,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
-import com.vmturbo.platform.analysis.topology.Topology;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Move;
@@ -44,6 +43,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceLimitation;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRatioDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
+import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
@@ -560,18 +560,18 @@ public class TestUtils {
     public static CostFunction setUpPremiumManagedCostFunction() {
         // create cost function DTO for azure premium managed storage
         StorageTierPriceData stAmt32GBPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(32).setIsUnitPrice(false)
-                        .setIsAccumulativeCost(true).addCostTupleList(setUpCostTuple(1, -1, 10L, 5.28)).build();
+                .setIsAccumulativeCost(false).addCostTupleList(setUpCostTuple(1, -1, 10L, 5.28)).build();
         StorageTierPriceData stAmt64GBPriceDTO = StorageTierPriceData.newBuilder().setUpperBound(64).setIsUnitPrice(false)
-                        .setIsAccumulativeCost(true).addCostTupleList(setUpCostTuple(1, -1, 10L, 10.21)).build();
+                .setIsAccumulativeCost(false).addCostTupleList(setUpCostTuple(1, -1, 10L, 10.21)).build();
         StorageResourceCost stAmtDTO = StorageResourceCost.newBuilder().setResourceType(stAmtTO)
-                        .addStorageTierPriceData(stAmt32GBPriceDTO).addStorageTierPriceData(stAmt64GBPriceDTO).build();
+                .addStorageTierPriceData(stAmt32GBPriceDTO).addStorageTierPriceData(stAmt64GBPriceDTO).build();
         CostDTO costDTO = CostDTO.newBuilder()
-                        .setStorageTierCost(StorageTierCostDTO.newBuilder()
-                                               .addStorageResourceCost(stAmtDTO)
-                                               .addStorageResourceLimitation(StorageResourceLimitation.newBuilder()
-                                               .setResourceType(stAmtTO).setMaxCapacity(4 * 1024)
-                                               .setMinCapacity(1).build()).build())
-                        .build();
+                .setStorageTierCost(StorageTierCostDTO.newBuilder()
+                        .addStorageResourceCost(stAmtDTO)
+                        .addStorageResourceLimitation(StorageResourceLimitation.newBuilder()
+                                .setResourceType(stAmtTO).setMaxCapacity(4 * 1024)
+                                .setMinCapacity(1).build()).build())
+                .build();
         return CostFunctionFactory.createCostFunction(costDTO);
     }
 

@@ -2,6 +2,9 @@ package com.vmturbo.platform.analysis.utilities;
 
 import static java.lang.Double.POSITIVE_INFINITY;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -11,18 +14,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Table;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Table;
-
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Context;
-import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -39,12 +41,11 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRangeDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
-import com.vmturbo.platform.analysis.utilities.CostFunctionFactory.PriceData;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.CapacityLimitation;
-import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
+import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
 /**
@@ -149,7 +150,7 @@ public class CostFunctionFactoryTest {
         MutableQuote quote2 = CostFunctionFactory.calculateComputeAndDatabaseCostQuote(computeTier,
                 shoppingList, costTable, licenseAccessCommBaseType);
         assertNotNull(quote2);
-        Context context = quote2.getContext().get();
+        EconomyDTOs.Context context = quote2.getContext().get();
         assertEquals(regionId11, context.getRegionId());
         assertEquals(accountId1, context.getBalanceAccount().getId());
         assertEquals(5, quote2.getQuoteValue(), 0d);
@@ -243,7 +244,7 @@ public class CostFunctionFactoryTest {
                 commQuantityMap, priceDataMap, commCapacity, new ArrayList<>(), new ArrayList<>(), true, false);
         assertNotNull(quote1);
         assertTrue(quote1.getContext().isPresent());
-        Context context1 = quote1.getContext().get();
+        EconomyDTOs.Context context1 = quote1.getContext().get();
         assertEquals(regionId11, context1.getRegionId());
         assertEquals(accountId1, context1.getBalanceAccount().getId());
         assertEquals(20d, quote1.getQuoteValue(), 0d);
