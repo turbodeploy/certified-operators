@@ -31,7 +31,7 @@ public class EntityCostConfig {
     @Autowired
     private CostNotificationConfig costNotificationConfig;
 
-    @Value("${persistEntityCostChunkSize}")
+    @Value("${persistEntityCostChunkSize:1000}")
     private int persistEntityCostChunkSize;
 
     @Autowired

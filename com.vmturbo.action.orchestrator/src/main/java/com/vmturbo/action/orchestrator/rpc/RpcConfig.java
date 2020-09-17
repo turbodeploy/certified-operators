@@ -73,10 +73,10 @@ public class RpcConfig {
     @Autowired
     private TopologyProcessorConfig topologyProcessorConfig;
 
-    @Value("${actionPaginationDefaultLimit}")
+    @Value("${actionPaginationDefaultLimit:100}")
     private int actionPaginationDefaultLimit;
 
-    @Value("${actionPaginationMaxLimit}")
+    @Value("${actionPaginationMaxLimit:500}")
     private int actionPaginationMaxLimit;
 
     @Value("${maxAmountOfEntitiesPerGrpcMessage:5000}")

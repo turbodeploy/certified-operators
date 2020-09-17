@@ -97,13 +97,13 @@ public class RepositoryComponentConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
-    @Value("${repositoryRealtimeTopologyDropDelaySecs}")
+    @Value("${repositoryRealtimeTopologyDropDelaySecs:30}")
     private int repositoryRealtimeTopologyDropDelaySecs;
 
-    @Value("${numberOfExpectedRealtimeSourceDB}")
+    @Value("${numberOfExpectedRealtimeSourceDB:2}")
     private int numberOfExpectedRealtimeSourceDB;
 
-    @Value("${numberOfExpectedRealtimeProjectedDB}")
+    @Value("${numberOfExpectedRealtimeProjectedDB:2}")
     private int numberOfExpectedRealtimeProjectedDB;
 
     @Value("${collectionReplicaCount:1}")

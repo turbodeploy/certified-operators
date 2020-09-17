@@ -32,7 +32,7 @@ import com.vmturbo.topology.processor.probes.ProbeConfig;
         RepositoryClientConfig.class, SecureKeyValueStoreConfig.class})
 public class TargetConfig {
 
-    @Value("${identityGeneratorPrefix}")
+    @Value("${identityGeneratorPrefix:1}")
     private long identityGeneratorPrefix;
 
     @Value("${enableSecureStore:false}")

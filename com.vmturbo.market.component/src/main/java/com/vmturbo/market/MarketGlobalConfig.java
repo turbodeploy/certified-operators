@@ -17,7 +17,7 @@ import com.vmturbo.trax.rpc.TraxConfigurationRpcService;
 @Configuration
 public class MarketGlobalConfig {
 
-    @Value("${identityGeneratorPrefix}")
+    @Value("${identityGeneratorPrefix:2}")
     private long identityGeneratorPrefix;
 
     @Bean

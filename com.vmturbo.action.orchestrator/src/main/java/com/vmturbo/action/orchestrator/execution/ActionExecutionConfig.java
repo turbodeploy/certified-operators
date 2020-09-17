@@ -45,7 +45,7 @@ public class ActionExecutionConfig {
     @Value("${failedGroupUpdateDelaySeconds:10}")
     private int groupUpdateDelaySeconds;
 
-    @Value("${actionExecution.timeoutMins}")
+    @Value("${actionExecution.timeoutMins:360}")
     private int actionExecutionTimeoutMins;
 
     @Bean

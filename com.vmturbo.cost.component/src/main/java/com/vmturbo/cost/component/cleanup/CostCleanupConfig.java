@@ -56,10 +56,10 @@ import com.vmturbo.group.api.GroupClientConfig;
         CloudCommitmentAnalysisStoreConfig.class})
 public class CostCleanupConfig {
 
-    @Value("${retention.updateRetentionIntervalSeconds}")
+    @Value("${retention.updateRetentionIntervalSeconds:10}")
     private int updateRetentionIntervalSeconds;
 
-    @Value("${retention.numRetainedMinutes}")
+    @Value("${retention.numRetainedMinutes:130}")
     private int numRetainedMinutes;
 
     @Value("${histEntityRiCoverageRecordsRollingWindowDays:60}")

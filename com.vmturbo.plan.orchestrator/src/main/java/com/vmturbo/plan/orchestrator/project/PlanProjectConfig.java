@@ -67,7 +67,7 @@ public class PlanProjectConfig {
     @Value("${defaultHeadroomPlanProjectJsonFile:systemPlanProjects.json}")
     private String defaultHeadroomPlanProjectJsonFile;
 
-    @Value("${headroomCalculationForAllClusters}")
+    @Value("${headroomCalculationForAllClusters:true}")
     private boolean headroomCalculationForAllClusters;
 
     @Autowired

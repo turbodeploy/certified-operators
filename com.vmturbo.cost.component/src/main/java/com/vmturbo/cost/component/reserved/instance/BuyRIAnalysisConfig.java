@@ -40,7 +40,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         CostDBConfig.class})
 public class BuyRIAnalysisConfig {
 
-    @Value("${normalBuyRIAnalysisIntervalHours}")
+    @Value("${normalBuyRIAnalysisIntervalHours:336}")
     private long normalBuyRIAnalysisIntervalHours;
 
     @Value("${realtimeTopologyContextId}")

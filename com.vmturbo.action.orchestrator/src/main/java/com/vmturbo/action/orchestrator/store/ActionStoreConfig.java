@@ -112,16 +112,16 @@ public class ActionStoreConfig {
     @Autowired
     private AuditCommunicationConfig auditCommunicationConfig;
 
-    @Value("${entityTypeRetryIntervalMillis}")
+    @Value("${entityTypeRetryIntervalMillis:1000}")
     private long entityTypeRetryIntervalMillis;
 
-    @Value("${entityTypeMaxRetries}")
+    @Value("${entityTypeMaxRetries:6}")
     private long entityTypeMaxRetries;
 
     @Value("${minsToWaitForTopology:60}")
     private long minsToWaitForTopology;
 
-    @Value("${actionExecution.concurrentAutomatedActions:5}")
+    @Value("${actionExecution.concurrentAutomatedActions:1000}")
     private int concurrentAutomatedActions;
 
     @Value("${minsActionAcceptanceTTL:1440}")

@@ -145,13 +145,13 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${repositorySearchPaginationDefaultLimit:100}")
     private int repositorySearchPaginationDefaultLimit;
 
-    @Value("${repositorySearchPaginationMaxLimit:10000}")
+    @Value("${repositorySearchPaginationMaxLimit:500}")
     private int repositorySearchPaginationMaxLimit;
 
     @Value("${repositoryEntityPaginationDefaultLimit:100}")
     private int repositoryEntityPaginationDefaultLimit;
 
-    @Value("${repositoryEntityPaginationMaxLimit:10000}")
+    @Value("${repositoryEntityPaginationMaxLimit:300}")
     private int repositoryEntityPaginationMaxLimit;
 
     @Value("${repositoryMaxEntitiesPerChunk:5}")

@@ -46,13 +46,13 @@ public class InfluxConfig {
     @Value("${influxDatabaseName}")
     private String influxDatabaseName;
 
-    @Value("${influxShardDuration}")
+    @Value("${influxShardDuration:1w}")
     private String influxShardDuration;
 
-    @Value("${influxRetentionPeriod}")
+    @Value("${influxRetentionPeriod:52w}")
     private String influxRetentionPeriod;
 
-    @Value("${influxRetentionPolicyName}")
+    @Value("${influxRetentionPolicyName:one-year-retention}")
     private String influxRetentionPolicyName;
 
     @Value("${authHost}")
@@ -67,7 +67,7 @@ public class InfluxConfig {
     @Value("${authRetryDelaySecs}")
     private int authRetryDelaySecs;
 
-    @Value("${influxBatchSize}")
+    @Value("${influxBatchSize:2000}")
     private int influxBatchSize;
 
     @Value("${gzipToInflux}")

@@ -41,37 +41,37 @@ public class ActionStatsRollupConfig {
     @Autowired
     private GroupClientConfig groupClientConfig;
 
-    @Value("${actionStatRollup.corePoolSize}")
+    @Value("${actionStatRollup.corePoolSize:1}")
     private int rollupCorePoolSize;
 
-    @Value("${actionStatRollup.maxPoolSize}")
+    @Value("${actionStatRollup.maxPoolSize:4}")
     private int rollupMaxPoolSize;
 
-    @Value("${actionStatRollup.threadKeepAliveMins}")
+    @Value("${actionStatRollup.threadKeepAliveMins:1}")
     private int rollupThreadKeepAliveMins;
 
-    @Value("${actionStatRollup.executorQueueSize}")
+    @Value("${actionStatRollup.executorQueueSize:10}")
     private int rollupExecutorQueueSize;
 
-    @Value("${retention.numRetainedMinutes}")
+    @Value("${retention.numRetainedMinutes:130}")
     private int numRetainedMinutes;
 
-    @Value("${retention.updateRetentionIntervalSeconds}")
+    @Value("${retention.updateRetentionIntervalSeconds:10}")
     private int updateRetentionIntervalSeconds;
 
-    @Value("${actionStatCleanup.minTimeBetweenCleanupsMinutes}")
+    @Value("${actionStatCleanup.minTimeBetweenCleanupsMinutes:60}")
     private int minTimeBetweenCleanupsMinutes;
 
-    @Value("${actionStatRollup.corePoolSize}")
+    @Value("${actionStatRollup.corePoolSize:1}")
     private int cleanupCorePoolSize;
 
-    @Value("${actionStatRollup.maxPoolSize}")
+    @Value("${actionStatRollup.maxPoolSize:10}")
     private int cleanupMaxPoolSize;
 
-    @Value("${actionStatRollup.threadKeepAliveMins}")
+    @Value("${actionStatRollup.threadKeepAliveMins:1}")
     private int cleanupThreadKeepAliveMins;
 
-    @Value("${actionStatRollup.executorQueueSize}")
+    @Value("${actionStatRollup.executorQueueSize:100}")
     private int cleanupExecutorQueueSize;
 
     @Bean

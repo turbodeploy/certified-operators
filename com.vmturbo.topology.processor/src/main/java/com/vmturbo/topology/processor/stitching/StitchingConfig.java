@@ -36,49 +36,49 @@ public class StitchingConfig {
     @Value("${serverGrpcPort}")
     private int grpcPort;
 
-    @Value("${maxValuesBackgroundLoadFrequencyMinutes}") // default to 3 hours
+    @Value("${maxValuesBackgroundLoadFrequencyMinutes:720}") // default to 3 hours
     private long maxValuesBackgroundLoadFrequencyMinutes;
 
-    @Value("${maxValuesBackgroundLoadDelayOnInitFailureMinutes}")
+    @Value("${maxValuesBackgroundLoadDelayOnInitFailureMinutes:30}")
     private long maxValuesBackgroundLoadDelayOnInitFailureMinutes;
 
-    @Value("${diskIopsCapacitySsd}")
+    @Value("${diskIopsCapacitySsd:5000}")
     private double diskIopsCapacitySsd;
 
-    @Value("${diskIopsCapacity7200Rpm}")
+    @Value("${diskIopsCapacity7200Rpm:800}")
     private double diskIopsCapacity7200Rpm;
 
-    @Value("${diskIopsCapacity10kRpm}")
+    @Value("${diskIopsCapacity10kRpm:1200}")
     private double diskIopsCapacity10kRpm;
 
-    @Value("${diskIopsCapacity15kRpm}")
+    @Value("${diskIopsCapacity15kRpm:1500}")
     private double diskIopsCapacity15kRpm;
 
-    @Value("${diskIopsCapacityVseriesLun}")
+    @Value("${diskIopsCapacityVseriesLun:5000}")
     private double diskIopsCapacityVseriesLun;
 
-    @Value("${arrayIopsCapacityFactor}")
+    @Value("${arrayIopsCapacityFactor:1.0}")
     private double arrayIopsCapacityFactor;
 
-    @Value("${hybridDiskIopsFactor}")
+    @Value("${hybridDiskIopsFactor:1.5}")
     private double hybridDiskIopsFactor;
 
-    @Value("${flashAvailableDiskIopsFactor}")
+    @Value("${flashAvailableDiskIopsFactor:1.3}")
     private double flashAvailableDiskIopsFactor;
 
-    @Value("${resizeDownWarmUpIntervalHours}")
+    @Value("${resizeDownWarmUpIntervalHours:4}")
     private double resizeDownWarmUpIntervalHours;
 
     @Value("${stitchingJournalEnabled:false}")
     private boolean stitchingJournalEnabled;
 
-    @Value("${journalMaxChangesetsPerOperation}")
+    @Value("${journalMaxChangesetsPerOperation:100}")
     private int journalMaxChangesetsPerOperation;
 
-    @Value("${journalNumEntitiesToRecord}")
+    @Value("${journalNumEntitiesToRecord:8}")
     private int journalNumEntitiesToRecord;
 
-    @Value("${journalsPerRecording}")
+    @Value("${journalsPerRecording:6}")
     private int journalsPerRecording;
 
     @Autowired
