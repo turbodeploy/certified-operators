@@ -604,19 +604,20 @@ server:
         - name: datacloud-service-account # must match the name of the secret volume below.
           mountPath: "/var/run/secrets/datacloud/serviceaccount"
           readOnly: true
-      # Prometheus configuration manager sidecar to read configuration from configMap, update it
-      # with information from XL and write it where server will read it. Replaces configmap-reload.
-    - name: configuration-manager
-      image: turbonomic/prometheus-config-manager # need to set the version using a template
-      imagePullPolicy: IfNotPresent
-      args:
-        - "60" # seconds between attempts to update he configuration
-      volumeMounts:
-        - name: config-volume # Needs to match the name in Prometheus server deployment template.
-          mountPath: /etc/config
-          readOnly: true
-        - name: prometheus-merged-config
-          mountPath: /etc/merged-config
+
+  # Prometheus configuration manager sidecar to read configuration from configMap, update it with
+  # information from XL and write it where server will read it. Replaces configmap-reload.
+  configManager:
+    # Name for the sidecar. Must be a string so that templates can be used inside.
+    name: "configuration-manager"
+    # Prometheus configuration manager container image. Use of templates is enabled for `repository`
+    # and `tag`.
+    image:
+      repository: "{{ .Values.global.repository }}"
+      tag: "{{ .Values.global.tag }}"
+      pullPolicy: IfNotPresent
+    args:
+      - "60" # seconds between attempts to update he configuration
 
   ## Prometheus server container image
   ##

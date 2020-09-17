@@ -146,6 +146,19 @@ spec:
           {{- if .Values.server.extraVolumeMounts }}
             {{ toYaml .Values.server.extraVolumeMounts | nindent 12 }}
           {{- end }}
+
+        - name: {{ tpl .Values.server.configManager.name . }}
+          image: {{ tpl .Values.server.configManager.image.repository . }}/prometheus-config-manager:{{ tpl .Values.server.configManager.image.tag . }}
+          imagePullPolicy: {{ .Values.server.configManager.image.pullPolicy }}
+          args:
+{{ toYaml .Values.server.configManager.args | indent 12 }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config
+              readOnly: true
+            - name: prometheus-merged-config
+              mountPath: /etc/merged-config
+
       {{- if .Values.server.sidecarContainers }}
       {{- toYaml .Values.server.sidecarContainers | nindent 8 }}
       {{- end }}
