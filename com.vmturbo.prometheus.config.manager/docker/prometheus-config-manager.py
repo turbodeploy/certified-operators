@@ -83,17 +83,17 @@ while True:
             # Modify configuration to include the proper customer domain and ID.
             # The code to get customer domain tries to mimic code to do the same thing in
             # com.vmturbo.clustermgr.DiagEnvironmentSummary.computeLicenseDomain
-            customer_domain = '_'.join(sorted(
-                {
-                    # Remove '@' and anything before it if it exists from e-mail address to get
-                    # domain.
-                    re.sub(r'^[^@]*@', '', license_dto['email'].strip())  # also trim whitespace.
-                    for license_dto in response.json()['response']['licenseDTO']
-                    # If the licence hasn't expired and has an e-mail
-                    if datetime.today() <= datetime.strptime(license_dto['expirationDate'],
-                                                             '%Y-%m-%d')
-                    and 'email' in license_dto
-                }))
+            customer_domain = '_'.join(sorted({
+                # Remove '@' and anything before it if it exists from e-mail address to get
+                # domain. Also trim whitespace.
+                re.sub(r'^[^@]*@', '', license_dto['turbo']['email'].strip())
+                for license_dto in response.json()['response']['licenseDTO']
+                if 'turbo' in license_dto  # it's the new DTO format
+                   and license_dto['turbo'] is not None  # it's a Turbonomic license
+                   and 'email' in license_dto['turbo']  # it has an e-mail
+                   and datetime.today() <= datetime.strptime(license_dto['turbo']['expirationDate'],
+                                                             '%Y-%m-%d')  # it has not expired
+            }))
         except (requests.RequestException, OSError, ValueError) as error:
             print(datetime.now(),
                   "WARNING: Can't get licence information from auth. Using old values. Cause:",
