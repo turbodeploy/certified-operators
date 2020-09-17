@@ -63,14 +63,19 @@ public final class MarketAnalysisUtils {
                     CommodityDTO.CommodityType.DATASTORE_VALUE,
                     CommodityDTO.CommodityType.DSPM_ACCESS_VALUE,
                     CommodityDTO.CommodityType.NETWORK_VALUE,
-                    CommodityDTO.CommodityType.SEGMENTATION_VALUE,
-                    CommodityDTO.CommodityType.DRS_SEGMENTATION_VALUE,
                     CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE,
                     CommodityDTO.CommodityType.VAPP_ACCESS_VALUE,
                     CommodityDTO.CommodityType.VDC_VALUE,
                     CommodityDTO.CommodityType.VMPM_ACCESS_VALUE,
                     CommodityDTO.CommodityType.EXTENT_VALUE,
                     CommodityDTO.CommodityType.ACTIVE_SESSIONS_VALUE);
+
+    /**
+     * Constant price function used for segmentation commodities.
+     */
+    private static final Set<Integer> SEGMENTATION_CONSTANT_PRICE_TYPES =
+                    ImmutableSet.of(CommodityDTO.CommodityType.SEGMENTATION_VALUE,
+                                    CommodityDTO.CommodityType.DRS_SEGMENTATION_VALUE);
 
     /**
      * Step price function used for these commodities.
@@ -300,6 +305,10 @@ public final class MarketAnalysisUtils {
                     .setConstant(PriceFunctionTO.Constant.newBuilder().setValue(1.0f).build())
                     .build();
 
+    private static final PriceFunctionTO SEGMENTATION_CONSTANT = PriceFunctionTO.newBuilder()
+                    .setConstant(PriceFunctionTO.Constant.newBuilder().setValue(0.00001f).build())
+                    .build();
+
     private static final PriceFunctionTO STEP = PriceFunctionTO.newBuilder()
                     .setStep(PriceFunctionTO.Step.newBuilder().setStepAt(1)
                                     .setPriceAbove(Float.POSITIVE_INFINITY).setPriceBelow(0.0001f)
@@ -369,6 +378,8 @@ public final class MarketAnalysisUtils {
         String commodityKey = commType.getKey();
         if (CONSTANT_PRICE_TYPES.contains(commodityType)) {
             return CONSTANT;
+        } else if (SEGMENTATION_CONSTANT_PRICE_TYPES.contains(commodityType)) {
+            return SEGMENTATION_CONSTANT;
         } else if (STEP_PRICE_TYPES.contains(commodityType)) {
             if (dto != null && dto.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE
                 && (commodityType == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE

@@ -3831,13 +3831,13 @@ public class TopologyConverter {
      * @return providerUsedSubtractionMap
      */
     @VisibleForTesting
-    Map<Long, Map<TopologyDTO.CommodityType, Double>> createProviderUsedSubtractionMap(
+    Map<Long, Map<TopologyDTO.CommodityType, Pair<Double, Double>>> createProviderUsedSubtractionMap(
             final Map<Long, TopologyEntityDTO> entityOidToDto, final Set<Long> oidsToRemove) {
         if (oidsToRemove.isEmpty()) {
             return Collections.emptyMap();
         }
 
-        final Map<Long, Map<TopologyDTO.CommodityType, Double>> providerUsedSubtractionMap = new HashMap<>();
+        final Map<Long, Map<TopologyDTO.CommodityType, Pair<Double, Double>>> providerUsedSubtractionMap = new HashMap<>();
         for (long oid : oidsToRemove) {
             final TopologyEntityDTO entity = entityOidToDto.get(oid);
             for (CommoditiesBoughtFromProvider commBoughtProvider : entity.getCommoditiesBoughtFromProvidersList()) {
@@ -3852,16 +3852,17 @@ public class TopologyConverter {
                     if (commBought.getCommodityType().hasKey()) {
                         continue;
                     }
-                    final Map<TopologyDTO.CommodityType, Double> commodityUsed =
+                    final Map<TopologyDTO.CommodityType, Pair<Double, Double>> commodityUsed =
                         providerUsedSubtractionMap.computeIfAbsent(commBoughtProvider.getProviderId(),
                             key -> new HashMap<>());
                     final List<Pair<Float, Float>> quantityList =
                         getCommBoughtQuantities(entity, commBought, provider.getOid());
                     // The size of quantityList is greater than 1 only when the commBought is a time slot commodity.
                     if (quantityList.size() >= 1) {
-                        commodityUsed.put(commBought.getCommodityType(),
-                            commodityUsed.getOrDefault(commBought.getCommodityType(), 0.0d)
-                                + quantityList.get(0).first);
+                        Pair<Double, Double> currentVal = commodityUsed.containsKey(commBought.getCommodityType())
+                            ? commodityUsed.get(commBought.getCommodityType()) : new Pair<>(0.0d, 0.0d);
+                        commodityUsed.put(commBought.getCommodityType(), new Pair<>(currentVal.first + quantityList.get(0).first,
+                                currentVal.second + quantityList.get(0).second));
                     }
                 }
             }
