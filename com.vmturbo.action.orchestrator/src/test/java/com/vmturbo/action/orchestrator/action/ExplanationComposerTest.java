@@ -1,12 +1,14 @@
 package com.vmturbo.action.orchestrator.action;
 
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.COMMODITY_KEY_SEPARATOR;
+import static org.hamcrest.CoreMatchers.hasItem;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
-import java.util.Collections;
-
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -16,15 +18,18 @@ import com.google.common.collect.ImmutableSet;
 
 import org.junit.Test;
 
+import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
+import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AllocateExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AtomicResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
@@ -47,11 +52,15 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.graph.TopologyGraphCreator;
 
 /**
  * Tests for Action Explanation generation in the {@link ExplanationComposer} class.
@@ -61,6 +70,8 @@ public class ExplanationComposerTest {
                     createReasonCommodity(CommodityDTO.CommodityType.MEM_VALUE, null);
     private static final ReasonCommodity CPU =
                     createReasonCommodity(CommodityDTO.CommodityType.CPU_VALUE, null);
+    private static final ReasonCommodity IOPS =
+                    createReasonCommodity(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, null);
     private static final ReasonCommodity SEGMENTATION =
                     createReasonCommodity(CommodityDTO.CommodityType.SEGMENTATION_VALUE, null);
     private static final ReasonCommodity NETWORK =
@@ -75,6 +86,9 @@ public class ExplanationComposerTest {
     private static final ReasonCommodity NETWORK_WITH_PREFIX_IN_KEY =
                     createReasonCommodity(CommodityDTO.CommodityType.NETWORK_VALUE,
                                           NETWORK_KEY_PREFIX + "testNetwork2");
+
+    private final TopologyGraphCreator<ActionGraphEntity.Builder, ActionGraphEntity> graphCreator =
+        new TopologyGraphCreator<>();
 
     @Test
     public void testMoveComplianceReasonCommodityExplanation() {
@@ -104,6 +118,36 @@ public class ExplanationComposerTest {
     }
 
     /**
+     * Test move for compliance where the involved entities are in the ActionRealtimeTopology.
+     */
+    @Test
+    public void testMoveComplianceReasonCommodityExplanationInTopology() {
+        ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(0).setInfo(ActionInfo.newBuilder()
+                        .setMove(Move.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(2).setType(EntityType.PHYSICAL_MACHINE_VALUE))
+                                .addChanges(ChangeProvider.newBuilder()
+                                    .setSource(ActionEntity.newBuilder()
+                                            .setId(1).setType(EntityType.PHYSICAL_MACHINE_VALUE)
+                                    )))).setDeprecatedImportance(0)
+                .setExplanation(Explanation.newBuilder()
+                    .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                            .setCompliance(Compliance.newBuilder()
+                                .addMissingCommodities(MEM)
+                                .addMissingCommodities(CPU)
+                                .addMissingCommodities(SEGMENTATION)))))
+                .build();
+        setupTopologyGraph(host(1, "Alice"));
+
+        assertEquals("(^_^)~Alice can not satisfy the "
+                + "request for resource(s) Mem, CPU, Segmentation Commodity",
+            ExplanationComposer.composeExplanation(action, Collections.emptyMap(),
+                Optional.of(graphCreator.build()), null));
+    }
+
+    /**
      * Test congestion explanation.
      */
     @Test
@@ -119,11 +163,11 @@ public class ExplanationComposerTest {
             .build();
 
         // commodity with no time slots
-        Explanation explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, CPU));
+        Explanation explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, CPU, IOPS));
         ActionDTO.Action action = createAction(actionInfo, explanation);
-        assertEquals("(^_^)~Mem, CPU Congestion",
+        assertEquals("(^_^)~Mem, CPU, IOPs Congestion",
             ExplanationComposer.composeExplanation(action));
-        assertEquals(ImmutableSet.of("Mem Congestion", "CPU Congestion"),
+        assertEquals(ImmutableSet.of("Mem Congestion", "CPU Congestion", "IOPs Congestion"),
             ExplanationComposer.composeRelatedRisks(action));
 
         final ReasonCommodity tsCommoditySlot0Total6 = createReasonCommodity(CommodityDTO.CommodityType.POOL_CPU_VALUE,
@@ -183,12 +227,18 @@ public class ExplanationComposerTest {
                             .addReasonSettings(reasonSetting1)
                             .addReasonSettings(reasonSetting2)))))
             .build();
+        setupTopologyGraph(entity(1, "Emily", EntityType.VIRTUAL_MACHINE_VALUE));
 
         assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} doesn't comply with setting1, setting2",
             ExplanationComposer.composeExplanation(moveAction,
-                ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2")));
+                ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2"),
+                Optional.empty(), null));
         assertEquals(Collections.singleton("Setting policy compliance"),
             ExplanationComposer.composeRelatedRisks(moveAction));
+        assertEquals("(^_^)~Emily doesn't comply with setting1, setting2",
+            ExplanationComposer.composeExplanation(moveAction,
+                ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2"),
+                Optional.of(graphCreator.build()), null));
     }
 
     /**
@@ -207,11 +257,15 @@ public class ExplanationComposerTest {
                         .setEvacuation(Evacuation.newBuilder()
                             .setSuspendedEntity(2)))))
             .build();
+        setupTopologyGraph(entity(2, "Fred", EntityType.PHYSICAL_MACHINE_VALUE));
 
         assertEquals("(^_^)~{entity:2:displayName:Current supplier} can be suspended to improve efficiency",
             ExplanationComposer.composeExplanation(action));
         assertEquals(Collections.singleton("Underutilized resources"),
             ExplanationComposer.composeRelatedRisks(action));
+        assertEquals("(^_^)~Fred can be suspended to improve efficiency",
+            ExplanationComposer.composeExplanation(action, Collections.emptyMap(),
+                Optional.of(graphCreator.build()), null));
     }
 
     @Test
@@ -228,11 +282,15 @@ public class ExplanationComposerTest {
                             .setSuspendedEntity(2)
                             .setIsAvailable(false)))))
             .build();
+        setupTopologyGraph(host(2, "Gwen"));
 
         assertEquals("(^_^)~{entity:2:displayName:Current supplier} is not available",
             ExplanationComposer.composeExplanation(action));
         assertEquals(Collections.singleton("Underutilized resources"),
             ExplanationComposer.composeRelatedRisks(action));
+        assertEquals("(^_^)~Gwen is not available",
+            ExplanationComposer.composeExplanation(action, Collections.emptyMap(),
+                Optional.of(graphCreator.build()), null));
     }
 
     @Test
@@ -388,7 +446,36 @@ public class ExplanationComposerTest {
 
         assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} doesn't comply with setting1, setting2",
             ExplanationComposer.composeExplanation(reconfigureAction,
-                ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2")));
+                ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2"),
+                Optional.empty(), null));
+        assertEquals(Collections.singleton("Misconfiguration"),
+            ExplanationComposer.composeRelatedRisks(reconfigureAction));
+    }
+
+    /**
+     * Test the explanation of reconfigure action with reason settings.
+     */
+    @Test
+    public void testReconfigureReasonSettingsExplanationInTopology() {
+        long reasonSetting1 = 1L;
+        long reasonSetting2 = 2L;
+
+        ActionDTO.Action reconfigureAction = ActionDTO.Action.newBuilder()
+            .setId(0).setInfo(ActionInfo.newBuilder().setReconfigure(
+                Reconfigure.newBuilder().setTarget(ActionEntity.newBuilder()
+                    .setId(1).setType(EntityType.VIRTUAL_MACHINE_VALUE))))
+            .setDeprecatedImportance(0)
+            .setExplanation(Explanation.newBuilder()
+                .setReconfigure(ReconfigureExplanation.newBuilder()
+                    .addReasonSettings(reasonSetting1)
+                    .addReasonSettings(reasonSetting2)))
+            .build();
+        setupTopologyGraph(entity(1, "Bob", EntityType.VIRTUAL_MACHINE_VALUE));
+
+        assertEquals("(^_^)~Bob doesn't comply with setting1, setting2",
+            ExplanationComposer.composeExplanation(reconfigureAction,
+                ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2"),
+                Optional.of(graphCreator.build()), null));
         assertEquals(Collections.singleton("Misconfiguration"),
             ExplanationComposer.composeRelatedRisks(reconfigureAction));
     }
@@ -439,21 +526,48 @@ public class ExplanationComposerTest {
             ExplanationComposer.composeRelatedRisks(provision));
     }
 
+    /**
+     * Test the explanation of provision by demand action.
+     */
+    @Test
+    public void testProvisionByDemandExplanationInTopology() {
+        ActionDTO.Action provision = ActionDTO.Action.newBuilder()
+            .setId(0).setDeprecatedImportance(0).setInfo(ActionInfo.newBuilder().setProvision(
+                Provision.newBuilder().setEntityToClone(
+                    ActionEntity.newBuilder().setId(1).setType(EntityType.PHYSICAL_MACHINE_VALUE))))
+            .setDeprecatedImportance(0)
+            .setExplanation(Explanation.newBuilder()
+                .setProvision(ProvisionExplanation.newBuilder()
+                    .setProvisionByDemandExplanation(ProvisionByDemandExplanation.newBuilder().setBuyerId(2)
+                        .addCommodityMaxAmountAvailable(CommodityMaxAmountAvailableEntry.newBuilder()
+                            .setCommodityBaseType(40).setMaxAmountAvailable(0).setRequestedAmount(0))
+                        .addCommodityMaxAmountAvailable(CommodityMaxAmountAvailableEntry.newBuilder()
+                            .setCommodityBaseType(21).setMaxAmountAvailable(0).setRequestedAmount(0)))))
+            .build();
+        setupTopologyGraph(entity(1, "Christie", EntityType.PHYSICAL_MACHINE_VALUE));
+
+        assertThat(ImmutableSet.of("(^_^)~CPU, Mem Congestion in 'Christie'",
+            "(^_^)~Mem, CPU Congestion in 'Christie'"), hasItem(
+            ExplanationComposer.composeExplanation(provision, Collections.emptyMap(),
+                Optional.of(graphCreator.build()), null)));
+    }
+
     @Test
     public void testResizeUpExplanation() {
         ActionDTO.Action.Builder action = ActionDTO.Action.newBuilder()
-                .setId(0).setDeprecatedImportance(0)
-                .setInfo(ActionInfo.newBuilder()
-                    .setResize(Resize.newBuilder()
-                        .setTarget(ActionEntity.newBuilder()
-                                .setId(0)
-                                .setType(EntityType.VIRTUAL_MACHINE.getNumber()))
-                        .setCommodityType(CommodityType.newBuilder()
-                                .setType(CommodityDTO.CommodityType.VMEM_VALUE))))
-                .setExplanation(Explanation.newBuilder()
-                    .setResize(ResizeExplanation.newBuilder()
-                        .setDeprecatedStartUtilization(0.2f)
-                        .setDeprecatedEndUtilization(0.4f)));
+            .setId(0).setDeprecatedImportance(0)
+            .setInfo(ActionInfo.newBuilder()
+                .setResize(Resize.newBuilder()
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(0)
+                        .setType(EntityType.VIRTUAL_MACHINE.getNumber()))
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.VMEM_VALUE))))
+            .setExplanation(Explanation.newBuilder()
+                .setResize(ResizeExplanation.newBuilder()
+                    .setDeprecatedStartUtilization(0.2f)
+                    .setDeprecatedEndUtilization(0.4f)));
+        setupTopologyGraph(entity(0, "Danny", EntityType.VIRTUAL_MACHINE_VALUE));
 
         // test resize down by capacity
         action.getInfoBuilder().getResizeBuilder().setOldCapacity(4).setNewCapacity(2).build();
@@ -461,13 +575,19 @@ public class ExplanationComposerTest {
             ExplanationComposer.composeExplanation(action.build()));
         assertEquals(Collections.singleton("Underutilized VMem"),
             ExplanationComposer.composeRelatedRisks(action.build()));
+        assertEquals("(^_^)~Underutilized VMem in Virtual Machine Danny",
+            ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
+                Optional.of(graphCreator.build()), null));
 
         // test resize up by capacity
         action.getInfoBuilder().getResizeBuilder().setOldCapacity(2).setNewCapacity(4).build();
         assertEquals("(^_^)~VMem Congestion in Virtual Machine {entity:0:displayName:}",
-                ExplanationComposer.composeExplanation(action.build()));
+            ExplanationComposer.composeExplanation(action.build()));
         assertEquals(Collections.singleton("VMem Congestion"),
             ExplanationComposer.composeRelatedRisks(action.build()));
+        assertEquals("(^_^)~VMem Congestion in Virtual Machine Danny",
+            ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
+                Optional.of(graphCreator.build()), null));
 
         // Test the resize down again with scaling group information
         action.getExplanationBuilder().getResizeBuilder()
@@ -477,10 +597,136 @@ public class ExplanationComposerTest {
             ExplanationComposer.composeExplanation(action.build()));
         assertEquals(Collections.singleton("VMem Congestion"),
             ExplanationComposer.composeRelatedRisks(action.build()));
+        assertEquals("(^_^)~VMem Congestion in Virtual Machine Danny"
+                + " (Scaling Groups: example scaling group)",
+            ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
+                Optional.of(graphCreator.build()), null));
 
         // Test action without Resize action
         action.getInfoBuilder().clearResize();
         assertEquals("", ExplanationComposer.composeExplanation(action.build()));
+    }
+
+    /**
+     * Tests for explanation generation for atomic resize.
+     */
+    @Test
+    public void testAtomicResizeExplanationForContainerSpecs() {
+        final ActionDTO.Action.Builder action = ActionDTO.Action.newBuilder()
+            .setId(0).setDeprecatedImportance(0)
+            .setInfo(ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                    .setExecutionTarget(ActionEntity.newBuilder()
+                        .setId(1)
+                        .setType(EntityType.CONTAINER_SPEC_VALUE))
+                    .addResizes(ResizeInfo.newBuilder()
+                        .setTarget(ActionEntity.newBuilder()
+                            .setId(1)
+                            .setType(EntityType.CONTAINER_SPEC_VALUE))
+                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                        .setOldCapacity(123)
+                        .setNewCapacity(456))
+                    .addResizes(ResizeInfo.newBuilder()
+                         .setTarget(ActionEntity.newBuilder()
+                               .setId(1)
+                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                         .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_REQUEST_VALUE))
+                         .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                         .setOldCapacity(890)
+                          .setNewCapacity(567))))
+            .setExplanation(Explanation.newBuilder()
+                .setAtomicResize(AtomicResizeExplanation.newBuilder()
+                    .setMergeGroupId("bar")));
+
+        setupTopologyGraph(entity(1, "Irene", EntityType.CONTAINER_SPEC_VALUE));
+
+
+        assertEquals("Container Resize - "
+                + "Resize UP VCPU Limit from 123 MHz to 456 MHz, "
+                + "Resize DOWN VMem Request from 890.0 KB to 567.0 KB"
+                + " in Container Spec {entity:1:displayName:}",
+            ExplanationComposer.composeExplanation(action.build()));
+
+        assertEquals("Container Resize - "
+                        + "Resize UP VCPU Limit from 123 MHz to 456 MHz, "
+                        + "Resize DOWN VMem Request from 890.0 KB to 567.0 KB"
+                        + " in Container Spec Irene",
+            ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
+                Optional.of(graphCreator.build()), null));
+    }
+
+    /**
+     * Tests for explanation generation for atomic resize.
+     */
+    @Test
+    public void testAtomicResizeExplanation() {
+        final ActionDTO.Action.Builder action = ActionDTO.Action.newBuilder()
+                .setId(0).setDeprecatedImportance(0)
+                .setInfo(ActionInfo.newBuilder()
+                        .setAtomicResize(AtomicResize.newBuilder()
+                                .setExecutionTarget(ActionEntity.newBuilder()
+                                        .setId(0)
+                                        .setType(EntityType.WORKLOAD_CONTROLLER_VALUE))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(1)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(123)
+                                        .setNewCapacity(456))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(1)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(890)
+                                        .setNewCapacity(567))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(2)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(890)
+                                        .setNewCapacity(567))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(2)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(123)
+                                        .setNewCapacity(456))))
+                .setExplanation(Explanation.newBuilder()
+                        .setAtomicResize(AtomicResizeExplanation.newBuilder()
+                                .setMergeGroupId("bar")));
+        setupTopologyGraph(entity(0, "Harry", EntityType.WORKLOAD_CONTROLLER_VALUE));
+        setupTopologyGraph(entity(1, "Irene", EntityType.CONTAINER_SPEC_VALUE));
+        setupTopologyGraph(entity(2, "John", EntityType.CONTAINER_SPEC_VALUE));
+
+        String explanation = ExplanationComposer.composeExplanation(action.build());
+        String coreExplanation =  ExplanationComposer.buildAtomicResizeCoreExplanation(action.build());
+        assertEquals("Controller Resize", coreExplanation);
+        assertTrue(explanation.startsWith(coreExplanation));
+        assertTrue(explanation.contains("Resize DOWN VMem Limit from 890.0 KB to 567.0 KB, "
+                                         + "Resize UP VCPU Limit from 123 MHz to 456 MHz"
+                                         + " in Container Spec {entity:2:displayName:}"));
+        assertTrue(explanation.contains("Resize UP VCPU Limit from 123 MHz to 456 MHz, "
+                + "Resize DOWN VMem Limit from 890.0 KB to 567.0 KB"
+                + " in Container Spec {entity:1:displayName:}"));
+
+        String translatedExplanation = ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
+                Optional.of(graphCreator.build()), null);
+        assertTrue(translatedExplanation.startsWith(coreExplanation));
+        assertTrue(translatedExplanation.contains("Resize DOWN VMem Limit from 890.0 KB to 567.0 KB, "
+                + "Resize UP VCPU Limit from 123 MHz to 456 MHz"
+                + " in Container Spec John"));
+        assertTrue(translatedExplanation.contains("Resize UP VCPU Limit from 123 MHz to 456 MHz, "
+                + "Resize DOWN VMem Limit from 890.0 KB to 567.0 KB"
+                + " in Container Spec Irene"));
     }
 
     @Test
@@ -642,5 +888,27 @@ public class ExplanationComposerTest {
             reasonCommodity.setTimeSlot(timeSlot.build());
         }
         return reasonCommodity.build();
+    }
+
+    private TopologyEntityDTO host(final long oid, final String displayName) {
+        return TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .setDisplayName(displayName)
+            .setOid(oid)
+            .build();
+    }
+
+    private TopologyEntityDTO entity(final long oid, final String displayName, int entityType) {
+        return TopologyEntityDTO.newBuilder()
+            .setEntityType(entityType)
+            .setDisplayName(displayName)
+            .setOid(oid)
+            .build();
+    }
+
+    private void setupTopologyGraph(@Nonnull final TopologyEntityDTO... entities) {
+        for (TopologyEntityDTO entity : entities) {
+            graphCreator.addEntity(new ActionGraphEntity.Builder(entity));
+        }
     }
 }

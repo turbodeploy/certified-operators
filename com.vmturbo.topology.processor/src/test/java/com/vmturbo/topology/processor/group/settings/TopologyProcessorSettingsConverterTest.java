@@ -17,7 +17,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingVal
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 
 /**
  * Test class for {@link TopologyProcessorSettingsConverter}.
@@ -53,7 +53,7 @@ public class TopologyProcessorSettingsConverterTest {
 
     private static final Setting ACTION_MODE_SETTING = Setting.newBuilder()
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("AUTOMATIC").build())
-            .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+            .setSettingSpecName(ConfigurableActionSettings.Move.getSettingName())
             .build();
 
     private static final Setting EXECUTION_SCHEDULE_SETTING = Setting.newBuilder()
@@ -62,7 +62,7 @@ public class TopologyProcessorSettingsConverterTest {
                     .build())
             .setSettingSpecName(
                 ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                    EntitySettingSpecs.Move, ActionSettingType.SCHEDULE))
+                    ConfigurableActionSettings.Move, ActionSettingType.SCHEDULE))
             .build();
 
     /**

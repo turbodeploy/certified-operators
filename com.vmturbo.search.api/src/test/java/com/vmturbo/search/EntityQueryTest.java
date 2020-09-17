@@ -1,5 +1,6 @@
 package com.vmturbo.search;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -453,6 +454,51 @@ public class EntityQueryTest {
     }
 
     /**
+     * Expect {@link InclusionConditionApiDTO} for multitext to use like conditional.
+     */
+    @Test
+    public void buildWhereClauseInclusionConditionForMultiTextFields() {
+        //GIVEN
+        String[] hostNames = {"hostname1, hostName2.?,"};
+        InclusionConditionApiDTO enumCondition = RelatedEntityFieldApiDTO.entityNames(EntityType.PhysicalMachine).in(hostNames);
+
+        final EntityType type = EntityType.VirtualMachine;
+        final WhereApiDTO where = WhereApiDTO.where().and(enumCondition).build();
+        final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(type)
+                .fields(PrimitiveFieldApiDTO.entityState())
+                .build();
+
+        EntityQueryApiDTO request = EntityQueryApiDTO.queryEntity(selectEntity, where);
+        EntityQuery query = entityQuery(request);
+
+        //WHEN
+        List<Condition> conditions = query.buildWhereClauses();
+
+        //THEN
+        assertTrue(conditions.size() == 2);
+
+        String expectedCondition = "(cast(attrs->>'related_host' as longnvarchar) like_regex '\"hostname1, hostName2\\.\\?,\"')";
+        assertTrue(containsCondition(conditions, expectedCondition));
+    }
+
+    /**
+     * Tests mapping string with postgres regex chars to string literal and surrounding with quotes.
+     */
+    @Test
+    public void testMapToStringLiteral() {
+        //GIVEN
+        //   Postgres regex chars needed escape -  . + * ? [ ^ ] $ ( ) { } = ! < > | : - \
+        String value ="g.g+g*g?g[g^g]g$g(g)g{g}g=g!g<g>g|g:g-g\\";
+
+        //WHEN
+        String queryString = AbstractSearchQuery.mapToStringLiteral(value);
+
+        //THEN
+        String expectedCondition = "\"g\\.g\\+g\\*g\\?g\\[g\\^g\\]g\\$g\\(g\\)g\\{g\\}g\\=g\\!g\\<g\\>g\\|g\\:g\\-g\\\\\"";
+        assertEquals(expectedCondition, queryString);
+    }
+
+    /**
      * Expect correct translation of {@link WhereApiDTO} clause for {@link NumberConditionApiDTO}.
      */
     @Test
@@ -618,12 +664,12 @@ public class EntityQueryTest {
 
         //THEN
         assertTrue(sortFields.size() == 2);
-        final String nameSort = "\"extractor\".\"search_entity\".\"name\" asc nulls first";
-        final String oidSort = "\"extractor\".\"search_entity\".\"oid\" asc nulls first";
+        final String nameSort = "coalesce(\n" + "  \"extractor\".\"search_entity\".\"name\", \n"
+                + "  ''\n" + ") asc nulls first";
+        final String oidSort = "coalesce(\n" + "  \"extractor\".\"search_entity\".\"oid\", \n"
+                + "  -2147483648\n" + ") asc nulls first";
         assertTrue(containsSort(sortFields, nameSort));
         assertTrue(containsSort(sortFields, oidSort));
-
-
     }
 
     /**
@@ -650,9 +696,14 @@ public class EntityQueryTest {
 
         //THEN
         assertTrue(sortFields.size() == 3);
-        final String integerSort = "cast(attrs->>'num_vms' as bigint) asc nulls first";
-        final String doubleSort = "cast(attrs->>'mem_hist_utilization' as double) desc nulls last";
-        final String defaultOidField = "\"extractor\".\"search_entity\".\"oid\" asc nulls first";
+        final String integerSort = "coalesce(\n" + "  cast(attrs->>'num_vms' as bigint), \n"
+                + "  -2147483648\n" + ") asc nulls first";
+        final String doubleSort = "coalesce(\n"
+                + "  cast(attrs->>'mem_hist_utilization' as double), \n"
+                + "  -1.7976931348623157E308\n" + ") desc nulls last";
+        final String defaultOidField = "coalesce(\n"
+                + "  \"extractor\".\"search_entity\".\"oid\", \n" + "  -2147483648\n"
+                + ") asc nulls first";
         assertTrue(containsSort(sortFields, integerSort));
         assertTrue(containsSort(sortFields, doubleSort));
         assertTrue(containsSort(sortFields, defaultOidField));
@@ -682,14 +733,22 @@ public class EntityQueryTest {
 
         //THEN
         assertNotNull(fields);
-        assertTrue(fields.contains("cast(attrs->>'num_vms' as bigint) asc nulls first"));
-        assertTrue(fields.contains("cast(attrs->>'mem_hist_utilization' as double) desc nulls last"));
-        assertTrue(fields.contains("\"extractor\".\"search_entity\".\"oid\" asc nulls first"));
+        assertTrue(fields.contains("coalesce(\n" + "  cast(attrs->>'num_vms' as bigint), \n"
+                + "  -2147483648\n" + ") asc nulls first"));
+        assertTrue(fields.contains("coalesce(\n"
+                + "  cast(attrs->>'mem_hist_utilization' as double), \n"
+                + "  -1.7976931348623157E308\n" + ") desc nulls last"));
+        assertTrue(fields.contains("coalesce(\n" + "  \"extractor\".\"search_entity\".\"oid\", \n"
+                + "  -2147483648\n" + ") asc nulls first"));
 
         Set<String> sortTrackers = query.sortedOnColumns.stream().map(SortedOnColumn::getField).map(Field::toString).collect(Collectors.toSet());
-        assertTrue(sortTrackers.contains("cast(attrs->>'num_vms' as bigint)"));
-        assertTrue(sortTrackers.contains("cast(attrs->>'mem_hist_utilization' as double)"));
-        assertTrue(sortTrackers.contains("\"extractor\".\"search_entity\".\"oid\""));
+        assertTrue(sortTrackers.contains("coalesce(\n" + "  cast(attrs->>'num_vms' as bigint), \n"
+                + "  -2147483648\n" + ")"));
+        assertTrue(sortTrackers.contains("coalesce(\n"
+                + "  cast(attrs->>'mem_hist_utilization' as double), \n"
+                + "  -1.7976931348623157E308\n" + ")"));
+        assertTrue(sortTrackers.contains("coalesce(\n"
+                + "  \"extractor\".\"search_entity\".\"oid\", \n" + "  -2147483648\n" + ")"));
     }
 
     /**
@@ -707,13 +766,17 @@ public class EntityQueryTest {
         //THEN
         assertNotNull(fields);
         //Added by default
-        assertTrue(fields.contains("\"extractor\".\"search_entity\".\"name\" asc nulls first"));
+        assertTrue(fields.contains("coalesce(\n" + "  \"extractor\".\"search_entity\".\"name\", \n"
+                + "  ''\n" + ") asc nulls first"));
         //Added by default
-        assertTrue(fields.contains("\"extractor\".\"search_entity\".\"oid\" asc nulls first"));
+        assertTrue(fields.contains("coalesce(\n" + "  \"extractor\".\"search_entity\".\"oid\", \n"
+                + "  -2147483648\n" + ") asc nulls first"));
 
         Set<String> sortTrackers = query.sortedOnColumns.stream().map(SortedOnColumn::getField).map(Field::toString).collect(Collectors.toSet());
-        assertTrue("Default sortBy oid should have been added", sortTrackers.contains("\"extractor\".\"search_entity\".\"name\""));
-        assertTrue("Default sortBy name should have been added", sortTrackers.contains("\"extractor\".\"search_entity\".\"oid\""));
+        assertTrue("Default sortBy oid should have been added", sortTrackers.contains("coalesce(\n"
+                + "  \"extractor\".\"search_entity\".\"oid\", \n" + "  -2147483648\n" + ")"));
+        assertTrue("Default sortBy name should have been added", sortTrackers.contains("coalesce(\n"
+                + "  \"extractor\".\"search_entity\".\"name\", \n" + "  ''\n" + ")"));
     }
 
 
@@ -986,23 +1049,35 @@ public class EntityQueryTest {
                 + "  \"extractor\".\"search_entity\".\"type\" as \"type\"\n"
                 + "from \"extractor\".\"search_entity\"\n" + "where (\n"
                 + "  \"extractor\".\"search_entity\".\"type\" = 'VIRTUAL_MACHINE'\n" + "  and (\n"
-                + "    cast(attrs->>'related_diskarray' as varchar) > '[\"vsphere-dc20-DC01\"]'\n"
-                + "    or (\n"
-                + "      cast(attrs->>'related_diskarray' as varchar) = '[\"vsphere-dc20-DC01\"]'\n"
-                + "      and cast(attrs->>'vmem_capacity' as double precision) < 34.555\n"
-                + "    )\n" + "    or (\n"
-                + "      cast(attrs->>'related_diskarray' as varchar) = '[\"vsphere-dc20-DC01\"]'\n"
-                + "      and cast(attrs->>'vmem_capacity' as double precision) = 34.555\n"
-                + "      and \"extractor\".\"search_entity\".\"name\" < 'walter'\n" + "    )\n"
-                + "    or (\n"
-                + "      cast(attrs->>'related_diskarray' as varchar) = '[\"vsphere-dc20-DC01\"]'\n"
-                + "      and cast(attrs->>'vmem_capacity' as double precision) = 34.555\n"
-                + "      and \"extractor\".\"search_entity\".\"name\" = 'walter'\n"
-                + "      and \"extractor\".\"search_entity\".\"oid\" > 123\n" + "    )\n" + "  )\n"
-                + ")\n" + "order by \n" + "  cast(attrs->>'related_diskarray' as varchar) asc nulls first, \n"
-                + "  cast(attrs->>'vmem_capacity' as double precision) desc nulls last, \n"
-                + "  \"extractor\".\"search_entity\".\"name\" desc nulls last, \n"
-                + "  \"extractor\".\"search_entity\".\"oid\" asc nulls first\n" + "limit 2";
+                + "    coalesce(\n" + "      cast(attrs->>'related_diskarray' as varchar), \n"
+                + "      ''\n" + "    ) > '[\"vsphere-dc20-DC01\"]'\n" + "    or (\n"
+                + "      coalesce(\n" + "        cast(attrs->>'related_diskarray' as varchar), \n"
+                + "        ''\n" + "      ) = '[\"vsphere-dc20-DC01\"]'\n" + "      and coalesce(\n"
+                + "        cast(attrs->>'vmem_capacity' as double precision), \n"
+                + "        -1.7976931348623157E308\n" + "      ) < 34.555\n" + "    )\n"
+                + "    or (\n" + "      coalesce(\n"
+                + "        cast(attrs->>'related_diskarray' as varchar), \n" + "        ''\n"
+                + "      ) = '[\"vsphere-dc20-DC01\"]'\n" + "      and coalesce(\n"
+                + "        cast(attrs->>'vmem_capacity' as double precision), \n"
+                + "        -1.7976931348623157E308\n" + "      ) = 34.555\n"
+                + "      and coalesce(\n" + "        \"extractor\".\"search_entity\".\"name\", \n"
+                + "        ''\n" + "      ) < 'walter'\n" + "    )\n" + "    or (\n"
+                + "      coalesce(\n" + "        cast(attrs->>'related_diskarray' as varchar), \n"
+                + "        ''\n" + "      ) = '[\"vsphere-dc20-DC01\"]'\n" + "      and coalesce(\n"
+                + "        cast(attrs->>'vmem_capacity' as double precision), \n"
+                + "        -1.7976931348623157E308\n" + "      ) = 34.555\n"
+                + "      and coalesce(\n" + "        \"extractor\".\"search_entity\".\"name\", \n"
+                + "        ''\n" + "      ) = 'walter'\n" + "      and coalesce(\n"
+                + "        \"extractor\".\"search_entity\".\"oid\", \n" + "        -2147483648\n"
+                + "      ) > 123\n" + "    )\n" + "  )\n" + ")\n" + "order by \n" + "  coalesce(\n"
+                + "    cast(attrs->>'related_diskarray' as varchar), \n" + "    ''\n"
+                + "  ) asc nulls first, \n" + "  coalesce(\n"
+                + "    cast(attrs->>'vmem_capacity' as double precision), \n"
+                + "    -1.7976931348623157E308\n" + "  ) desc nulls last, \n" + "  coalesce(\n"
+                + "    \"extractor\".\"search_entity\".\"name\", \n" + "    ''\n"
+                + "  ) desc nulls last, \n" + "  coalesce(\n"
+                + "    \"extractor\".\"search_entity\".\"oid\", \n" + "    -2147483648\n"
+                + "  ) asc nulls first\n" + "limit 2";
         assertTrue(paginatedQuery.toString().equals(expectedQuery));
     }
 
@@ -1049,10 +1124,14 @@ public class EntityQueryTest {
                 + "  \"extractor\".\"search_entity\".\"type\" as \"type\"\n"
                 + "from \"extractor\".\"search_entity\"\n" + "where (\n"
                 + "  \"extractor\".\"search_entity\".\"type\" = 'VIRTUAL_MACHINE'\n"
-                + "  and (cast(attrs->>'vmem_capacity' as double precision), \"extractor\".\"search_entity\".\"oid\") < (34.555, 123)\n"
-                + ")\n" + "order by \n"
-                + "  cast(attrs->>'vmem_capacity' as double precision) desc nulls last, \n"
-                + "  \"extractor\".\"search_entity\".\"oid\" desc nulls last\n" + "limit 2";
+                + "  and (coalesce(\n" + "    cast(attrs->>'vmem_capacity' as double precision), \n"
+                + "    -1.7976931348623157E308\n" + "  ), coalesce(\n"
+                + "    \"extractor\".\"search_entity\".\"oid\", \n" + "    -2147483648\n"
+                + "  )) < (34.555, 123)\n" + ")\n" + "order by \n" + "  coalesce(\n"
+                + "    cast(attrs->>'vmem_capacity' as double precision), \n"
+                + "    -1.7976931348623157E308\n" + "  ) desc nulls last, \n" + "  coalesce(\n"
+                + "    \"extractor\".\"search_entity\".\"oid\", \n" + "    -2147483648\n"
+                + "  ) desc nulls last\n" + "limit 2";
         assertTrue(paginatedQuery.toString().equals(expectedQuery));
     }
 
@@ -1239,4 +1318,7 @@ public class EntityQueryTest {
 
         assertTrue(responseEntity.getHeaders().get("X-Total-Record-Count").get(0).equals(String.valueOf(totalRecordCount)));
     }
+
+
+
 }

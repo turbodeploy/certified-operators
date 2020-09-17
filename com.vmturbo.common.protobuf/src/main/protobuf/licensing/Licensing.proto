@@ -9,30 +9,72 @@ option java_package = "com.vmturbo.common.protobuf.licensing";
 // object used in the common licensing lib
 message LicenseDTO {
     optional string uuid = 1;
-    optional string license_owner = 10;
-    optional string email = 12;
+    optional string filename = 2;
 
-    optional string edition = 15;
-    // the filename the license originally came from
-    optional string filename = 16;
+    oneof type {
+        TurboLicense turbo = 10;
+        ExternalLicense external = 11;
+    }
 
-    optional string license_key = 20;
-    // optional external license key information -- e.g. for CWoM licenses
-    optional string external_license_key = 21;
+    // A Turbo license affects the functioning of our system - which features are available,
+    // how many entities are supported, and so on.
+    message TurboLicense {
 
-    // expiration date is optional -- no expiration date would be a perpetual license
-    optional string expiration_date = 25;
+        optional string license_owner = 10;
+        optional string email = 12;
 
-    // entity count rules
-    optional string counted_entity = 30;
-    optional int32 num_licensed_entities = 31;
+        optional string edition = 15;
 
-    // set of features allowed by this license
-    repeated string features = 40;
+        optional string license_key = 20;
+        // optional external license key information -- e.g. for CWoM licenses
+        optional string external_license_key = 21;
 
-    // validation results
-    optional bool is_valid = 50 [default = false];
-    repeated string error_reason = 51;
+        // expiration date is optional -- no expiration date would be a perpetual license
+        optional string expiration_date = 25;
+
+        // entity count rules
+        optional string counted_entity = 30;
+        optional int32 num_licensed_entities = 31;
+
+        // set of features allowed by this license
+        repeated string features = 40;
+
+        // validation results
+        optional bool is_valid = 50 [default = false];
+        repeated string error_reason = 51;
+
+
+        // These two fields remain to allow interpreting the old LicenseDTO format as a
+        // TurboLicense.
+        optional string __deprecated_uuid = 1 [deprecated = true];
+        optional string __deprecated_filename = 16 [deprecated = true];
+    }
+
+    // An external license doesn't affect the functioning of Turbonomic Platform components, but can
+    // still be managed by the license service and injected into third-party software.
+    //
+    // The first example of this is Grafana. We want Turbo users to be able to upload an enterprise
+    // Grafana license via our UI. We want to store, manage, and show license together with the
+    // rest of the licenses. But none of our components use it. The Grafana pod is responsible for
+    // fetching this license from the service and injecting it via whatever magic is necessary.
+    message ExternalLicense {
+        // We enumerate the supported external license types, because we don't want to get
+        // too trigger-happy with uploading arbirtary files to our system. Each new license type
+        // will require non-trivial changes to support it.
+        enum Type {
+            UNKNOWN = 0;
+            GRAFANA = 1;
+        }
+
+        optional Type type = 1;
+
+        // expiration date is optional -- no expiration date would be a perpetual license
+        optional string expiration_date = 2;
+
+        // The payload, encoded as a string. The contents of the license are opaque, since different
+        // third-party software can have completely different license formats.
+        optional string payload = 30;
+    }
 }
 
 // A license summary is an aggregated view of the sum effects of the individual licenses and
@@ -57,6 +99,23 @@ message LicenseSummary {
     // validation results
     optional bool is_valid = 40 [default = false];
     repeated string error_reason = 41;
+
+    // One summary for each external license type.
+    repeated ExternalLicenseSummary external_licenses_by_type = 50;
+
+    message ExternalLicenseSummary {
+        // The type of external license for this summary.
+        optional LicenseDTO.ExternalLicense.Type type = 1;
+
+        // The latest expiration date of licenses of this type.
+        optional string expiration_date = 10;
+        optional bool is_expired = 11 [default = false];
+
+        // Checksum of all the external license payloads of this type.
+        // Since we don't have any semantic insight into external licenses this is the only
+        // way to tell that an external license changed.
+        optional int64 checksum = 20;
+    }
 }
 
 message AddLicensesRequest {
@@ -79,6 +138,30 @@ message GetLicenseRequest {
     optional string uuid = 1;
 }
 
+enum LicenseType {
+    ANY = 0;
+    TURBO = 1;
+    EXTERNAL = 2;
+}
+
+message LicenseFilter {
+    // What types of license to include.
+    // Defaults to "any" - i.e. include all.
+    optional LicenseType type = 1;
+
+    // Whether or not to include expired licenses.
+    optional bool include_expired = 2 [default = true];
+
+    // What types of external licenses to include.
+    // No effect if external licenses are excluded by the general "type" filter above.
+    optional LicenseDTO.ExternalLicense.Type external_license_type = 3;
+}
+
+message GetLicensesRequest {
+    // If no filter provided, retrieve all licenses.
+    optional LicenseFilter filter = 1;
+}
+
 message GetLicenseResponse {
     optional LicenseDTO licenseDTO = 1;
 }
@@ -99,7 +182,7 @@ message GetLicenseSummaryResponse {
 }
 
 service LicenseManagerService {
-    rpc getLicenses(google.protobuf.Empty) returns (GetLicensesResponse);
+    rpc getLicenses(GetLicensesRequest) returns (GetLicensesResponse);
     rpc getLicense(GetLicenseRequest) returns (GetLicenseResponse);
     rpc validateLicenses(ValidateLicensesRequest) returns (ValidateLicensesResponse);
     rpc addLicenses(AddLicensesRequest) returns (AddLicensesResponse);

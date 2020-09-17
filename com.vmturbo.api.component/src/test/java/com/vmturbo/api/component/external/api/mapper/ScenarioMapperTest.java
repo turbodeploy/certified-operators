@@ -16,6 +16,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyCollection;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -30,12 +31,14 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -48,12 +51,14 @@ import org.mockito.Mockito;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper.ScenarioChangeMappingContext;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingValueEntityTypeKey;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
+import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -62,6 +67,7 @@ import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
 import com.vmturbo.api.dto.scenario.LoadChangesApiDTO;
 import com.vmturbo.api.dto.scenario.MaxUtilizationApiDTO;
+import com.vmturbo.api.dto.scenario.MigrateObjectApiDTO;
 import com.vmturbo.api.dto.scenario.RelievePressureObjectApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveConstraintApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
@@ -74,8 +80,11 @@ import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
+import com.vmturbo.api.enums.DestinationEntityType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -101,22 +110,31 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProv
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.OSMigration;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.search.CloudType;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.stats.StatsMoles;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
+import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OsMigrationProfileOption;
 import com.vmturbo.components.common.setting.RISettingsEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
@@ -127,6 +145,7 @@ public class ScenarioMapperTest {
     private static final String DECOMMISSION_HOST_SCENARIO_TYPE = "DECOMMISSION_HOST";
     private static final String DISABLED = "DISABLED";
     private static final String AUTOMATIC = "AUTOMATIC";
+    private static final String MISSING = "MISSING";
     private RepositoryApi repositoryApi;
 
     private TemplatesUtils templatesUtils;
@@ -137,12 +156,16 @@ public class ScenarioMapperTest {
 
     private GroupServiceMole groupServiceMole = spy(new GroupServiceMole());
 
+    private SettingServiceMole settingServiceMole = spy(new SettingServiceMole());
+
+    private SettingsService settingsService;
+
     private SettingsManagerMapping settingsManagerMapping = mock(SettingsManagerMapping.class);
 
     private SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
     @Rule
-    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(groupServiceMole);
+    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(settingServiceMole, spy(new StatsMoles.StatsHistoryServiceMole()), groupServiceMole);
 
     private GroupMapper groupMapper = mock(GroupMapper.class);
 
@@ -152,11 +175,15 @@ public class ScenarioMapperTest {
 
     private UuidMapper uuidMapper;
 
+    private final SettingApiDTO<String> settingApiDto = new SettingApiDTO<>();
+
     @Before
     public void setup() throws Exception {
         repositoryApi = Mockito.mock(RepositoryApi.class);
         templatesUtils = Mockito.mock(TemplatesUtils.class);
+        templatesUtils = Mockito.mock(TemplatesUtils.class);
         policiesService = Mockito.mock(PoliciesService.class);
+        settingsService = Mockito.mock(SettingsService.class);
         groupRpcService = GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         contextMock = mock(ScenarioChangeMappingContext.class);
         uuidMapper = mock(UuidMapper.class);
@@ -165,9 +192,28 @@ public class ScenarioMapperTest {
         MultiEntityRequest req = ApiTestUtils.mockMultiEntityReqEmpty();
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
+        // Return a VM ServiceEntityApiDTO that returns an AWS target (getDisoveredBy) when the repositoryApi's getRegion is called
+        final TargetApiDTO target = new TargetApiDTO();
+        target.setType("AWS");
+        final ServiceEntityApiDTO vm = new ServiceEntityApiDTO();
+        vm.setDiscoveredBy(target);
+        SearchRequest searchRequest = Mockito.mock(SearchRequest.class);
+        when(searchRequest.getSEList()).thenReturn(Arrays.asList(vm));
+        when(repositoryApi.getRegion(anyCollection())).thenReturn(searchRequest);
+
         scenarioMapper = new ScenarioMapper(repositoryApi,
-                templatesUtils, settingsManagerMapping, settingsMapper,
+                templatesUtils, settingsService, settingsManagerMapping, settingsMapper,
                 policiesService, groupRpcService, groupMapper, uuidMapper);
+        when(settingsService.getSettingsByUuid(any())).thenReturn(Lists.newArrayList());
+
+        // Used by testSettingOverrideToApiDto and testMigrationSuppressesAutomationChanges
+
+        final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
+        when(possibilities.getAll()).thenReturn(Collections.singletonList(settingApiDto));
+        when(possibilities.getSettingForEntityType(any())).thenReturn(Optional.of(settingApiDto));
+        when(settingsMapper.toSettingApiDto(any())).thenReturn(possibilities);
+        when(settingsManagerMapping.convertToPlanSetting(Collections.singletonList(settingApiDto)))
+            .thenReturn(Collections.singletonList(settingApiDto));
     }
 
     /**
@@ -223,12 +269,12 @@ public class ScenarioMapperTest {
     }
 
     @Test
-    public void testAdditionChange() throws OperationFailedException {
-        TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
+    public void testAdditionChange() throws OperationFailedException, UnknownObjectException {
         AddObjectApiDTO dto = new AddObjectApiDTO();
         dto.setProjectionDays(Collections.singletonList(2));
         dto.setTarget(entity(1));
         dto.setCount(6);
+        TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
         topoChanges.setAddList(Collections.singletonList(dto));
 
         ScenarioInfo info = getScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
@@ -241,6 +287,52 @@ public class ScenarioMapperTest {
         assertEquals(6, addition.getAdditionCount());
         assertEquals(1, addition.getEntityId());
         assertEquals(Collections.singletonList(2), addition.getChangeApplicationDaysList());
+    }
+
+    /**
+     * Tests mapping {@link TopologyChangesApiDTO} into {@link ScenarioApiDTO}.
+     *
+     * @throws OperationFailedException when an operation fails
+     */
+    @Test
+    public void testMigrationChange() throws OperationFailedException, UnknownObjectException {
+        long sourceVmOid = 1;
+        BaseApiDTO source = new BaseApiDTO();
+        source.setUuid(String.valueOf(sourceVmOid));
+        source.setDisplayName("theVMs");
+        source.setClassName("VirtualMachine");
+
+        long destinationOid = 2;
+        BaseApiDTO destination = new BaseApiDTO();
+        destination.setUuid(String.valueOf(destinationOid));
+        destination.setDisplayName("theRegion");
+        destination.setClassName("Region");
+
+        MigrateObjectApiDTO dto = new MigrateObjectApiDTO();
+        dto.setSource(source);
+        dto.setDestination(destination);
+        dto.setDestinationEntityType(DestinationEntityType.VirtualMachine);
+        dto.setRemoveNonMigratingWorkloads(true);
+        dto.setProjectionDay(0);
+
+        TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
+        topoChanges.setMigrateList(Collections.singletonList(dto));
+
+        final String name = "aScenario";
+        ScenarioApiDTO scenarioApiDTO = scenarioApiDTO(topoChanges);
+        scenarioApiDTO.setType("CloudMigration");
+        ScenarioInfo info = getScenarioInfo(name, scenarioApiDTO);
+        assertEquals(name, info.getName());
+
+        // ShopTogether change is no longer there, so expect 2 instead of 3.
+        assertEquals(2, info.getChangesCount());
+        List<ScenarioChange> changes = info.getChangesList();
+
+        assertEquals(DetailsCase.TOPOLOGY_MIGRATION, changes.get(0).getDetailsCase());
+        ScenarioChange.TopologyMigration migration = changes.get(0).getTopologyMigration();
+        assertEquals(sourceVmOid, migration.getSourceList().get(0).getOid());
+        assertEquals(destinationOid, migration.getDestinationList().get(0).getOid());
+        assertEquals(ScenarioChange.TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE, migration.getDestinationEntityType());
     }
 
     /**
@@ -384,10 +476,11 @@ public class ScenarioMapperTest {
      *
      * @throws InvalidOperationException from toScenarioInfo, not expected
      * @throws OperationFailedException from toScenarioInfo, not expected
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
     public void getScopeFromScopeDtoWithoutClassNameAndDisplayName()
-            throws InvalidOperationException, OperationFailedException {
+            throws InvalidOperationException, OperationFailedException, UnknownObjectException {
         String scopeUuid = "1";
         BaseApiDTO inputScopeDto = new BaseApiDTO();
         inputScopeDto.setUuid(scopeUuid);
@@ -413,10 +506,11 @@ public class ScenarioMapperTest {
      *
      * @throws InvalidOperationException from toScenarioInfo, not expected
      * @throws OperationFailedException from toScenarioInfo, not expected
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test(expected = IllegalArgumentException.class)
     public void getScopeFromScopeDtoWithWrongClassName()
-            throws InvalidOperationException, OperationFailedException {
+            throws InvalidOperationException, OperationFailedException, UnknownObjectException {
         String scopeUuid = "1";
         BaseApiDTO inputScopeDto = new BaseApiDTO();
         inputScopeDto.setUuid(scopeUuid);
@@ -437,10 +531,11 @@ public class ScenarioMapperTest {
      *
      * @throws InvalidOperationException from toScenarioInfo, not expected
      * @throws OperationFailedException from toScenarioInfo, not expected
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test(expected = IllegalArgumentException.class)
     public void getScopeFromScopeDtoWithoutUuid()
-            throws InvalidOperationException, OperationFailedException {
+            throws InvalidOperationException, OperationFailedException, UnknownObjectException {
         String scopeUuid = "1";
         BaseApiDTO inputScopeDto = new BaseApiDTO();
         inputScopeDto.setClassName("Entity");
@@ -456,6 +551,12 @@ public class ScenarioMapperTest {
     }
 
     /**
+     * Tests the templateAddtionChange.
+     *
+     * @throws OperationFailedException from toScenarioInfo, not expected
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
+     */
+    /**
      * Tests that if the input dto to toScenarioInfo() contains no scope, an exception is being
      * thrown.
      * @throws OperationFailedException from toScenarioInfo, not expected
@@ -463,7 +564,7 @@ public class ScenarioMapperTest {
      */
     @Test(expected = IllegalArgumentException.class)
     public void testGetScopeWithoutScope()
-            throws OperationFailedException, InvalidOperationException {
+            throws OperationFailedException, InvalidOperationException, UnknownObjectException {
         ScenarioApiDTO scenarioApiDTO = new ScenarioApiDTO();
         scenarioMapper.toScenarioInfo(null, scenarioApiDTO);
     }
@@ -476,7 +577,7 @@ public class ScenarioMapperTest {
      */
     @Test(expected = IllegalArgumentException.class)
     public void testGetScopeWithMarketScope()
-            throws OperationFailedException, InvalidOperationException {
+            throws OperationFailedException, InvalidOperationException, UnknownObjectException {
         String uuid = "Market";
         String className = "Market";
         String displayName = "Market";
@@ -490,7 +591,7 @@ public class ScenarioMapperTest {
     }
 
     @Test
-    public void testTemplateAdditionChange() throws OperationFailedException {
+    public void testTemplateAdditionChange() throws OperationFailedException, UnknownObjectException {
         TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
         AddObjectApiDTO dto = new AddObjectApiDTO();
         dto.setProjectionDays(Collections.singletonList(2));
@@ -520,8 +621,14 @@ public class ScenarioMapperTest {
 
     }
 
+    /**
+     * Test the removal change.
+     *
+     * @throws OperationFailedException from toScenarioInfo, not expected
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
+     */
     @Test
-    public void testRemovalChange() throws OperationFailedException {
+    public void testRemovalChange() throws OperationFailedException, UnknownObjectException {
         TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
         RemoveObjectApiDTO dto = new RemoveObjectApiDTO();
         dto.setProjectionDay(2);
@@ -542,9 +649,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testInvalidChange() throws OperationFailedException {
+    public void testInvalidChange() throws OperationFailedException, UnknownObjectException {
         ScenarioApiDTO scenarioDto = new ScenarioApiDTO();
         scenarioDto.setScope(Collections.singletonList(entity(1)));
         String scopeUuid = "1";
@@ -558,9 +666,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testReplaceChange() throws OperationFailedException {
+    public void testReplaceChange() throws OperationFailedException, UnknownObjectException {
         TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
         ReplaceObjectApiDTO dto = new ReplaceObjectApiDTO();
         dto.setProjectionDay(5);
@@ -583,9 +692,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testMultiplesChanges() throws OperationFailedException {
+    public void testMultiplesChanges() throws OperationFailedException, UnknownObjectException {
         AddObjectApiDTO addDto = new AddObjectApiDTO();
         addDto.setProjectionDays(Collections.singletonList(5));
         addDto.setTarget(entity(1));
@@ -615,9 +725,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testSettingOverride() throws OperationFailedException {
+    public void testSettingOverride() throws OperationFailedException, UnknownObjectException {
         final SettingApiDTO<String> setting = createStringSetting("foo", "value");
 
         SettingValueEntityTypeKey key = SettingsMapper.getSettingValueEntityTypeKey(setting);
@@ -643,9 +754,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testSettingOverridePlanSettingMapping() throws OperationFailedException {
+    public void testSettingOverridePlanSettingMapping() throws OperationFailedException, UnknownObjectException {
         final SettingApiDTO<String> setting = createStringSetting("foo", "value");
 
         SettingValueEntityTypeKey key = SettingsMapper.getSettingValueEntityTypeKey(setting);
@@ -671,9 +783,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testSettingOverrideUnknownSetting() throws OperationFailedException {
+    public void testSettingOverrideUnknownSetting() throws OperationFailedException, UnknownObjectException {
         final SettingApiDTO<String> setting = createStringSetting("unknown", "value");
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting), null);
         assertThat(scenarioInfo.getChangesCount(), is(0));
@@ -688,16 +801,9 @@ public class ScenarioMapperTest {
     public void testSettingOverrideToApiDto() throws Exception {
         final Scenario scenario = buildScenario(buildNumericSettingOverride("foo", 1.2f));
 
-        final SettingApiDTO<String> apiDto = new SettingApiDTO<>();
-        final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
-        when(possibilities.getAll()).thenReturn(Collections.singletonList(apiDto));
-        when(settingsMapper.toSettingApiDto(any())).thenReturn(possibilities);
-        when(settingsManagerMapping.convertToPlanSetting(Collections.singletonList(apiDto))).thenReturn(Collections.singletonList(apiDto));
-        // Pass-through plan settings conversion
-
         final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
         final SettingApiDTO<String> apiFoo = scenarioApiDTO.getConfigChanges().getAutomationSettingList().get(0);
-        assertEquals(apiFoo, apiDto);
+        assertEquals(apiFoo, settingApiDto);
     }
 
     /**
@@ -705,9 +811,10 @@ public class ScenarioMapperTest {
      *
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testToScenarioInfoWithoutConfigChanges() throws OperationFailedException {
+    public void testToScenarioInfoWithoutConfigChanges() throws OperationFailedException, UnknownObjectException {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         dto.setConfigChanges(null);
         String scopeUuid = "12345";
@@ -722,9 +829,10 @@ public class ScenarioMapperTest {
      *
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testToScenarioInfoWithEmptyConfigChanges() throws OperationFailedException {
+    public void testToScenarioInfoWithEmptyConfigChanges() throws OperationFailedException, UnknownObjectException {
         final ScenarioInfo scenarioInfo = getScenarioInfo((List<SettingApiDTO<String>>)null, null);
         Assert.assertTrue(scenarioInfo.getChangesList().isEmpty());
     }
@@ -734,9 +842,10 @@ public class ScenarioMapperTest {
      *
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testToScenarioInfoWithEmptyAutomationSettingsList() throws OperationFailedException {
+    public void testToScenarioInfoWithEmptyAutomationSettingsList() throws OperationFailedException, UnknownObjectException {
         final ScenarioApiDTO decommissionHostPlanDto = new ScenarioApiDTO();
         decommissionHostPlanDto.setConfigChanges(null);
         decommissionHostPlanDto.setType(DECOMMISSION_HOST_SCENARIO_TYPE);
@@ -750,16 +859,17 @@ public class ScenarioMapperTest {
             .filter(s -> s.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
             .collect(Collectors.toList());
         Assert.assertTrue(pmp.get(0).getSetting().getSettingSpecName()
-            .equalsIgnoreCase(EntitySettingSpecs.Provision.getSettingName()));
+            .equalsIgnoreCase(ConfigurableActionSettings.Provision.getSettingName()));
         Assert.assertTrue(pmp.get(0).getSetting().getEnumSettingValue().getValue().equals(DISABLED));
     }
 
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testToScenarioInfoUtilizationLevel() throws OperationFailedException {
+    public void testToScenarioInfoUtilizationLevel() throws OperationFailedException, UnknownObjectException {
         final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
         loadChanges.setUtilizationList(ImmutableList.of(createUtilizationApiDto(20)));
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList(), loadChanges);
@@ -907,9 +1017,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testToScenarioInfoBaselineChanges() throws OperationFailedException {
+    public void testToScenarioInfoBaselineChanges() throws OperationFailedException, UnknownObjectException {
         final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
         long testbaselineDate = 123456789;
         loadChanges.setBaselineDate(String.valueOf(testbaselineDate));
@@ -922,9 +1033,11 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testToScenarioInfoUtilizationLevelEmptyLoadChanges() throws OperationFailedException {
+    public void testToScenarioInfoUtilizationLevelEmptyLoadChanges()
+            throws OperationFailedException, UnknownObjectException {
         final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList(), loadChanges);
         Assert.assertEquals(0, scenarioInfo.getChangesList().size());
@@ -977,8 +1090,17 @@ public class ScenarioMapperTest {
     }
 
 
+    /**
+     * Gets a {@link ScenarioInfo} object given settings.
+     *
+     * @param automationSettings settings to apply
+     * @param loadChangesApiDTO load changes to apply
+     * @return a new {@link ScenarioInfo} object
+     * @throws OperationFailedException not expected
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
+     */
     private ScenarioInfo getScenarioInfo(@Nonnull List<SettingApiDTO<String>> automationSettings,
-            @Nonnull LoadChangesApiDTO loadChangesApiDTO) throws OperationFailedException {
+            @Nonnull LoadChangesApiDTO loadChangesApiDTO) throws OperationFailedException, UnknownObjectException {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
         configChanges.setAutomationSettingList(automationSettings);
@@ -990,7 +1112,8 @@ public class ScenarioMapperTest {
         return getScenarioInfo("name", dto);
     }
 
-    private ScenarioInfo getScenarioInfo(String scenarioName, ScenarioApiDTO dto) throws OperationFailedException {
+    private ScenarioInfo getScenarioInfo(String scenarioName, ScenarioApiDTO dto)
+            throws OperationFailedException, UnknownObjectException {
         ScenarioInfo scenarioInfo = null;
         try {
             scenarioInfo = scenarioMapper.toScenarioInfo(scenarioName, dto);
@@ -1271,9 +1394,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testAdditionFromGroup() throws OperationFailedException {
+    public void testAdditionFromGroup() throws OperationFailedException, UnknownObjectException {
         final Grouping group = Grouping.newBuilder().setId(1)
                 .setDefinition(GroupDefinition.getDefaultInstance())
                 .build();
@@ -1359,9 +1483,10 @@ public class ScenarioMapperTest {
      *
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testToScenarioInfoForAlleviatePressurePlan() throws OperationFailedException {
+    public void testToScenarioInfoForAlleviatePressurePlan() throws OperationFailedException, UnknownObjectException {
         final ScenarioApiDTO dto = scenarioApiForAlleviatePressurePlan(1000, 2000);
 
         final ScenarioInfo scenarioInfo = getScenarioInfo("name", dto);
@@ -1403,14 +1528,14 @@ public class ScenarioMapperTest {
         ScenarioChange provisionDisabledChange = scenarioChanges.stream()
                         .filter(change -> change.hasSettingOverride() && change.getSettingOverride()
                                         .getSetting().getSettingSpecName()
-                                        .equals(EntitySettingSpecs.Provision.getSettingName()))
+                                        .equals(ConfigurableActionSettings.Provision.getSettingName()))
                         .findFirst().orElse(null);
         assertNotNull(provisionDisabledChange);
 
-        Arrays.asList(EntitySettingSpecs.Suspend.getSettingName(),
-                        EntitySettingSpecs.Resize.getSettingName(),
-                        EntitySettingSpecs.Provision.getSettingName(),
-                        EntitySettingSpecs.Reconfigure.getSettingName())
+        Arrays.asList(ConfigurableActionSettings.Suspend.getSettingName(),
+            ConfigurableActionSettings.Resize.getSettingName(),
+            ConfigurableActionSettings.Provision.getSettingName(),
+            ConfigurableActionSettings.Reconfigure.getSettingName())
                             .equals(scenarioChanges.stream()
                                 .filter(change -> change.hasSettingOverride())
                                 .map(change -> change.getSettingOverride().getSetting())
@@ -2108,5 +2233,364 @@ public class ScenarioMapperTest {
                     break;
             }
         });
+    }
+
+    /**
+     * Test conversion of os migration settings from protobuf to API DTO.
+     *
+     * @throws InterruptedException should not happen.
+     * @throws ConversionException should not happen.
+     */
+    @Test
+    public void testCreateOsMigrationSettingApiDTOs()
+        throws InterruptedException, ConversionException {
+
+        // Empty mapping means match source to target
+        List<SettingApiDTO<String>> settings = convertMigrations(Collections.emptyList());
+        assertEquals(OsMigrationProfileOption.MATCH_SOURCE_TO_TARGET_OS.name(),
+            getSettingValue(settings,
+                GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName()).orElse(MISSING));
+
+        assertEquals("true", getSettingValue(settings,
+            GlobalSettingSpecs.MatchToSource.getSettingName()).orElse(MISSING));
+
+        assertAllSameOs(settings);
+        assertAllByol(settings, false);
+
+        // If everything is explicitly mapped the same without BYOL, it's also match source to target
+
+        final List<OSType> allOS = Arrays.asList(OSType.LINUX, OSType.RHEL, OSType.SUSE, OSType.WINDOWS);
+
+        List<OSMigration> matchAll = allOS.stream().map(os -> createOsMigration(os, os, false))
+            .collect(Collectors.toList());
+
+        settings = convertMigrations(matchAll);
+        assertEquals(OsMigrationProfileOption.MATCH_SOURCE_TO_TARGET_OS.name(),
+            getSettingValue(settings,
+                GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName()).orElse(MISSING));
+
+        assertEquals("true", getSettingValue(settings,
+            GlobalSettingSpecs.MatchToSource.getSettingName()).orElse(MISSING));
+
+        assertAllSameOs(settings);
+        assertAllByol(settings, false);
+
+        // Or if only some are present but mapped the same without BYOL
+
+        settings = convertMigrations(Arrays.asList(matchAll.get(1), matchAll.get(2)));
+        assertEquals(OsMigrationProfileOption.MATCH_SOURCE_TO_TARGET_OS.name(),
+            getSettingValue(settings,
+                GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName()).orElse(MISSING));
+
+        assertEquals("true", getSettingValue(settings,
+            GlobalSettingSpecs.MatchToSource.getSettingName()).orElse(MISSING));
+
+        assertAllSameOs(settings);
+        assertAllByol(settings, false);
+
+        // If all are mapped to the same OS but with BYOL, it's the BYOL option
+
+        List<OSMigration> byolAll = allOS.stream().map(os -> createOsMigration(os, os, true))
+            .collect(Collectors.toList());
+
+        settings = convertMigrations(byolAll);
+        assertEquals(OsMigrationProfileOption.BYOL.name(),
+            getSettingValue(settings,
+                GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName()).orElse(MISSING));
+
+        assertEquals("false", getSettingValue(settings,
+            GlobalSettingSpecs.MatchToSource.getSettingName()).orElse(MISSING));
+
+        assertAllSameOs(settings);
+        assertAllByol(settings, true);
+
+        // If OSes differ, it's custom
+
+        settings = convertMigrations(Arrays.asList(
+            createOsMigration(OSType.RHEL, OSType.SUSE, false)
+        ));
+
+        assertEquals(OsMigrationProfileOption.CUSTOM_OS.name(),
+        getSettingValue(settings,
+            GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName()).orElse(MISSING));
+
+        assertEquals("false", getSettingValue(settings,
+            GlobalSettingSpecs.MatchToSource.getSettingName()).orElse(MISSING));
+
+        assertEquals("LINUX", getSettingValue(settings, "linuxTargetOs").orElse(MISSING));
+        assertEquals("SLES", getSettingValue(settings, "rhelTargetOs").orElse(MISSING));
+        assertEquals("SLES", getSettingValue(settings, "slesTargetOs").orElse(MISSING));
+        assertEquals("WINDOWS", getSettingValue(settings, "windowsTargetOs").orElse(MISSING));
+
+        assertAllByol(settings, false);
+
+        // Or if a mix of Byol and not, it's custom
+
+        settings = convertMigrations(
+            Arrays.asList(createOsMigration(OSType.RHEL, OSType.RHEL, true)));
+
+        assertEquals(OsMigrationProfileOption.CUSTOM_OS.name(),
+            getSettingValue(settings,
+                GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName()).orElse(MISSING));
+
+        assertEquals("false", getSettingValue(settings,
+            GlobalSettingSpecs.MatchToSource.getSettingName()).orElse(MISSING));
+
+        assertEquals("false", getSettingValue(settings, "linuxByol").orElse(MISSING));
+        assertEquals("true", getSettingValue(settings, "rhelByol").orElse(MISSING));
+        assertEquals("false", getSettingValue(settings, "slesByol").orElse(MISSING));
+        assertEquals("false", getSettingValue(settings, "windowsByol").orElse(MISSING));
+
+        assertAllSameOs(settings);
+    }
+
+    /**
+     * Verify that if the scenario does not contain a migration, no OS migration
+     * settings are included in the API DTO.
+     *
+     * @throws InterruptedException should not happen.
+     * @throws ConversionException should not happen.
+     */
+    @Test
+    public void testNoOsMigrationSettingsForNonMigration()
+        throws InterruptedException, ConversionException {
+
+        int osMigrationSettingsCount = scenarioMapper
+            .toScenarioApiDTO(buildScenario())
+            .getConfigChanges().getOsMigrationSettingList().size();
+
+        assertEquals(0, osMigrationSettingsCount);
+    }
+
+    /**
+     * Automation settings are configured automatically and internally to Migrate to Cloud
+     * Plan and as they are not user-configurable these settings should not be included when
+     * converting to a Scenario API DTO.
+     *
+     * @throws InterruptedException should not happen.
+     * @throws ConversionException should not happen.
+     */
+    @Test
+    public void testMigrationSuppressesAutomationChanges()
+        throws InterruptedException, ConversionException {
+        Scenario scenario = buildScenario(
+            // This should not be included in the result...
+            ScenarioChange.newBuilder()
+                .setSettingOverride(
+                    SettingOverride.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setSetting(Setting.newBuilder()
+                            .setSettingSpecName("resize")
+                            .setEnumSettingValue(EnumSettingValue.newBuilder()
+                                .setValue("AUTOMATIC")
+                                .build()
+                            ).build()
+                        ).build()
+                ).build(),
+            // ... because this change indicates that this is a migration plan
+            ScenarioChange.newBuilder()
+                .setTopologyMigration(TopologyMigration.newBuilder()
+                    .setDestinationEntityType(TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)
+                    .build()
+                ).build()
+        );
+
+        ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
+        assertEquals(0, scenarioApiDTO.getConfigChanges().getAutomationSettingList().size());
+    }
+
+    @Nonnull
+    private List<SettingApiDTO<String>> convertMigrations(List<OSMigration> osMigrations)
+        throws InterruptedException, ConversionException {
+
+        Scenario scenario = buildScenario(ScenarioChange.newBuilder()
+            .setTopologyMigration(TopologyMigration.newBuilder()
+                .setDestinationEntityType(TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)
+                .addAllOsMigrations(osMigrations))
+            .build());
+
+        return scenarioMapper.toScenarioApiDTO(scenario)
+            .getConfigChanges().getOsMigrationSettingList();
+    }
+
+    private Optional<String> getSettingValue(@Nonnull List<SettingApiDTO<String>> settings,
+                                             @Nonnull String name) {
+        return settings.stream()
+            .filter(setting -> name.equals(setting.getUuid())
+            && name.equals(setting.getDisplayName()))
+            .map(SettingApiDTO::getValue)
+            .findAny();
+    }
+
+    private void assertAllSameOs(List<SettingApiDTO<String>> settings) {
+        for (OperatingSystem os : OperatingSystem.values()) {
+            assertEquals(os.name(),
+                getSettingValue(settings, os.name().toLowerCase() + "TargetOs").orElse(MISSING));
+        }
+    }
+
+    private void assertAllByol(List<SettingApiDTO<String>> settings, boolean byol) {
+        for (OperatingSystem os : OperatingSystem.values()) {
+            assertEquals(Boolean.toString(byol),
+                getSettingValue(settings, os.name().toLowerCase() + "Byol").orElse(MISSING));
+        }
+    }
+
+    @Nonnull
+    private OSMigration createOsMigration(OSType fromOs, OSType toOs, boolean byol) {
+        return OSMigration.newBuilder().setFromOs(fromOs).setToOs(toOs).setByol(byol).build();
+    }
+
+    /**
+     * Tests mapping {@link TopologyChangesApiDTO} into {@link ScenarioApiDTO}.
+     *
+     * @throws OperationFailedException should not happen in this test
+     * @throws UnknownObjectException should not happen in this test
+     */
+    @Test
+    public void testOsMigrationChange() throws OperationFailedException, UnknownObjectException {
+        final Set<OSType> migratableOses = ImmutableSet.<OSType>of(
+            OSType.LINUX, OSType.RHEL, OSType.SUSE, OSType.WINDOWS);
+
+        // No settings gives default mapping with no changes
+        List<OSMigration> result = createMigrationWithOsSettings(Collections.emptyList());
+        assertEquals(0, result.size());
+
+        // Test selectedMigrationProfileOption=MATCH_SOURCE_TO_TARGET_OS with some contradictory
+        // settings that will be overridden and ignored, including matchToSource=false.
+        // When matching source to target, no OSMigrations are needed to change the defaults.
+        List<SettingApiDTO<String>> settings = Arrays.asList(
+            createStringSetting(GlobalSettingSpecs.MatchToSource.getSettingName(), "false"),
+            createStringSetting("slesTargetOs", "SLES"),
+            createStringSetting(GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName(),
+                OsMigrationProfileOption.MATCH_SOURCE_TO_TARGET_OS.name())
+        );
+        result = createMigrationWithOsSettings(Collections.emptyList());
+        assertEquals(0, result.size());
+
+        // Without the presence of selectedMigrationProfileOption, matchToSource is the next
+        // priority. Test with some contradictory per-os settings that will be
+        // overridden and ignored.
+        settings = Arrays.asList(
+            createStringSetting("slesTargetOs", "RHEL"),
+            createStringSetting("slesByol", "true"),
+            createStringSetting(GlobalSettingSpecs.MatchToSource.getSettingName(),
+                "true")
+        );
+        result = createMigrationWithOsSettings(Collections.emptyList());
+        assertEquals(0, result.size());
+
+        // Test selectedMigrationProfileOption=BYOL with some contradictory
+        // settings that will be overridden and ignored, including matchToSource=true.
+        // Every OS should be present, mapped to itsef, with BYOL set true.
+        settings = Arrays.asList(
+            createStringSetting(GlobalSettingSpecs.MatchToSource.getSettingName(), "true"),
+            createStringSetting("slesByol", "false"),
+            createStringSetting(GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName(),
+                OsMigrationProfileOption.BYOL.name())
+        );
+        result = createMigrationWithOsSettings(settings);
+
+        // Do a size check up front to make sure there are no extras not found by the below.
+        assertEquals(migratableOses.size(), result.size());
+
+        Set<OSType> byolOses = result.stream()
+            .filter(OSMigration::getByol)
+            .filter(m -> m.getFromOs() == m.getToOs())
+            .map(OSMigration::getFromOs)
+            .collect(Collectors.toSet());
+
+        assertEquals(migratableOses, byolOses);
+
+        // Test custom migrations, including that both SLES and SUSE are accepted for SUSE.
+        // Leave out Linux BYOL and windows targetOS to verify they default properly.
+        settings = Arrays.asList(
+            createStringSetting(GlobalSettingSpecs.MatchToSource.getSettingName(), "false"),
+            createStringSetting(GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName(),
+                OsMigrationProfileOption.CUSTOM_OS.name()),
+            createStringSetting("linuxTargetOs", "LINUX"),
+            createStringSetting("rhelTargetOs", "SUSE"),
+            createStringSetting("rhelByol", "true"),
+            createStringSetting("slesTargetOs", "SLES"),
+            createStringSetting("slesByol", "false"),
+            createStringSetting("windowsByol", "true")
+        );
+
+        result = createMigrationWithOsSettings(settings);
+
+        assertOsMigration(result, OSType.LINUX, OSType.LINUX, false);
+        assertOsMigration(result, OSType.RHEL, OSType.SUSE, true);
+        assertOsMigration(result, OSType.SUSE, OSType.SUSE, false);
+        assertOsMigration(result, OSType.WINDOWS, OSType.WINDOWS, true);
+    }
+
+    /**
+     * Assert that exactly one OSMigtation is present with the given fromOs,
+     * which has the expected toOs and BYOL settings.
+     *
+     * @param osMigrations the list of migrations to check
+     * @param fromOs the migrating-from OS to look for.
+     * @param toOs the migrating-to OS that it's expected to have.
+     * @param byol the BYOL setting it's expected to have.
+     */
+    private void
+    assertOsMigration(@Nonnull List<OSMigration> osMigrations,
+                      OSType fromOs, OSType toOs, boolean byol) {
+
+        List<OSMigration> matchesFromOs = osMigrations.stream()
+            .filter(osm -> osm.getFromOs() == fromOs)
+            .collect(Collectors.toList());
+
+        assertEquals(1, matchesFromOs.size());
+        OSMigration theMatch = matchesFromOs.get(0);
+
+        assertEquals(toOs, theMatch.getToOs());
+        assertEquals(byol, theMatch.getByol());
+    }
+
+    @Nonnull
+    private List<OSMigration> createMigrationWithOsSettings(
+        @Nonnull final List<SettingApiDTO<String>> osMigrations)
+        throws UnknownObjectException, OperationFailedException {
+
+        long sourceVmOid = 1;
+        BaseApiDTO source = new BaseApiDTO();
+        source.setUuid(String.valueOf(sourceVmOid));
+        source.setDisplayName("theVMs");
+        source.setClassName("VirtualMachine");
+
+        long destinationOid = 2;
+        BaseApiDTO destination = new BaseApiDTO();
+        destination.setUuid(String.valueOf(destinationOid));
+        destination.setDisplayName("theRegion");
+        destination.setClassName("Region");
+
+        MigrateObjectApiDTO dto = new MigrateObjectApiDTO();
+        dto.setSource(source);
+        dto.setDestination(destination);
+        dto.setDestinationEntityType(DestinationEntityType.VirtualMachine);
+        dto.setRemoveNonMigratingWorkloads(true);
+        dto.setProjectionDay(0);
+
+        TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
+        topoChanges.setMigrateList(Collections.singletonList(dto));
+
+        final String name = "aScenario";
+        ScenarioApiDTO scenarioApiDTO = scenarioApiDTO(topoChanges);
+        scenarioApiDTO.setType("CloudMigration");
+
+        ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
+        scenarioApiDTO.setConfigChanges(configChanges);
+
+        configChanges.setOsMigrationSettingList(osMigrations);
+
+        ScenarioInfo info = getScenarioInfo(name, scenarioApiDTO);
+
+        return info.getChangesList().stream()
+            .filter(ScenarioChange::hasTopologyMigration)
+            .map(ScenarioChange::getTopologyMigration)
+            .findFirst()
+            .map(TopologyMigration::getOsMigrationsList)
+            .orElse(Collections.emptyList());
     }
 }

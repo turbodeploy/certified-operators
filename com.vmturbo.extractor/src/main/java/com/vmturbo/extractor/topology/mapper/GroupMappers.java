@@ -57,7 +57,7 @@ public class GroupMappers {
      * <p>Unmapped type names are resolved using protobuf classes.</p>
      *
      * @param entityType a DB entity type that represents a group type
-     * @return corresponding Protobuf broup type
+     * @return corresponding Protobuf group type
      * @throws IllegalArgumentException if conversion fails
      */
     public static GroupDTO.GroupType mapEntityTypeToGroupType(final EntityType entityType)

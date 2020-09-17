@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.translation.batch.translator;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -10,6 +11,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -18,6 +20,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
+import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
@@ -26,10 +30,14 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionPhysicalMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.TypeCase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
+import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * This class translates vCPU resize actions from MHz to number of vCPUs.
@@ -44,12 +52,23 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
     private final RepositoryServiceBlockingStub repoService;
 
     /**
+     * Store of minimal topology information. Used to lookup entity information during translation when
+     * available. Currently only realtime topology information is available.
+     */
+    private final ActionTopologyStore actionTopologyStore;
+
+    /**
      * Constructs new instance.
      *
      * @param repoService Repository service.
+     * @param actionTopologyStore Store of minimal topology information. We will lookup entities for translation
+     *                            here when possible, and when not, fall back to looking up the information from
+     *                            the repository.
      */
-    public VCpuResizeBatchTranslator(final RepositoryServiceBlockingStub repoService) {
+    public VCpuResizeBatchTranslator(final RepositoryServiceBlockingStub repoService,
+                                     @Nonnull final ActionTopologyStore actionTopologyStore) {
         this.repoService = repoService;
+        this.actionTopologyStore = Objects.requireNonNull(actionTopologyStore);
     }
 
     /**
@@ -92,28 +111,62 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
                 entitiesToRetrieve.add(entity.getPrimaryProviderId());
             });
         }
-        // Note: It is important to force evaluation of the gRPC stream here in order
-        // to trigger any potential exceptions in this method where they can be handled
-        // properly. Generating a lazy stream of gRPC results that is not evaluated until
-        // after the method return causes any potential gRPC exception not to be thrown
-        // until it is too late to be handled.
-        final Map<Long, ActionPartialEntity> hostInfoMap = RepositoryDTOUtil.topologyEntityStream(
-            repoService.retrieveTopologyEntities(
-                RetrieveTopologyEntitiesRequest.newBuilder()
-                    .setTopologyContextId(snapshot.getToologyContextId())
-                    .addAllEntityOids(entitiesToRetrieve)
-                    .setReturnType(Type.ACTION)
-                    // Look in the same topology type (source vs projected) as the one we looked
-                    // in to get the rest of the entity information.
-                    .setTopologyType(snapshot.getTopologyType())
-                    .build()))
-            .map(PartialEntity::getAction)
-            .collect(Collectors.toMap(ActionPartialEntity::getOid, Function.identity()));
+
+        final Map<Long, ActionPartialEntity> hostInfoMap = actionTopologyStore.getSourceTopology()
+            .filter(topo -> topo.topologyInfo().getTopologyContextId() == snapshot.getToologyContextId())
+            .map(topo -> getHostInfoMapFromTopology(topo.entityGraph(), entitiesToRetrieve))
+            .orElseGet(() -> getHostInfoMapFromRepo(snapshot, entitiesToRetrieve));
 
         return resizeActionsByVmTargetId.entrySet().stream().flatMap(
             entry -> translateVcpuResizes(
                 entry.getKey(), targetIdToPrimaryProviderId.get(entry.getKey()),
                 hostInfoMap, entry.getValue()));
+    }
+
+    /**
+     * Lookup host (Physical Machine) entity information from repository.
+     *
+     * @param entityGraph The topology to use to lookup the host map.
+     * @param entitiesToRetrieve The host entities to retrieve.
+     * @return A map of host entities by their OID.
+     */
+    private Map<Long, ActionPartialEntity>
+    getHostInfoMapFromTopology(@Nonnull final TopologyGraph<ActionGraphEntity> entityGraph,
+                               @Nonnull final Set<Long> entitiesToRetrieve) {
+        return entitiesToRetrieve.stream()
+            .map(entityGraph::getEntity)
+            .filter(Optional::isPresent)
+            .map(e -> toHostPartialEntity(e.get()))
+            .collect(Collectors.toMap(ActionPartialEntity::getOid, Function.identity()));
+    }
+
+    /**
+     * Lookup host (Physical Machine) entity information from repository.
+     *
+     * @param snapshot The snapshot containing the entity information.
+     * @param entitiesToRetrieve The set of entity OIDs to retrieve.
+     * @return A map of host entities by their OID.
+     */
+    private Map<Long, ActionPartialEntity>
+    getHostInfoMapFromRepo(@Nonnull final EntitiesAndSettingsSnapshot snapshot,
+                           @Nonnull final Set<Long> entitiesToRetrieve) {
+        // Note: It is important to force evaluation of the gRPC stream here in order
+        // to trigger any potential exceptions in this method where they can be handled
+        // properly. Generating a lazy stream of gRPC results that is not evaluated until
+        // after the method return causes any potential gRPC exception not to be thrown
+        // until it is too late to be handled.
+        return RepositoryDTOUtil.topologyEntityStream(
+            repoService.retrieveTopologyEntities(
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                    .setTopologyContextId(snapshot.getToologyContextId())
+                    .addAllEntityOids(entitiesToRetrieve)
+                    .setReturnType(Type.ACTION)
+                        // Look in the same topology type (source vs projected) as the one we looked
+                        // in to get the rest of the entity information.
+                    .setTopologyType(snapshot.getTopologyType())
+                    .build()))
+            .map(PartialEntity::getAction)
+            .collect(Collectors.toMap(ActionPartialEntity::getOid, Function.identity()));
     }
 
     /**
@@ -208,5 +261,32 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
             .build()
             .register();
 
+    }
+
+    /**
+     * Convert ActionGraphEntity for a host entity into an equivalent ActionPartialEntity.
+     *
+     * @param graphEntity The {@link ActionGraphEntity} to convert.
+     * @return an equivalent ActionPartialEntity.
+     */
+    @VisibleForTesting
+    ActionPartialEntity toHostPartialEntity(@Nonnull final ActionGraphEntity graphEntity) {
+        final ActionPartialEntity.Builder builder = ActionPartialEntity.newBuilder()
+            .setOid(graphEntity.getOid())
+            .setEntityType(graphEntity.getEntityType())
+            .setDisplayName(graphEntity.getDisplayName())
+            .addAllDiscoveringTargetIds(graphEntity.getDiscoveringTargetIds().collect(Collectors.toList()));
+
+        final ActionEntityTypeSpecificInfo entityInfo = graphEntity.getActionEntityInfo();
+        if (entityInfo != null && entityInfo.getTypeCase() == TypeCase.PHYSICAL_MACHINE) {
+            final ActionPhysicalMachineInfo hostInfo = entityInfo.getPhysicalMachine();
+            if (hostInfo.hasCpuCoreMhz()) {
+                builder.setTypeSpecificInfo(ActionEntityTypeSpecificInfo.newBuilder()
+                    .setPhysicalMachine(ActionPhysicalMachineInfo.newBuilder()
+                        .setCpuCoreMhz(hostInfo.getCpuCoreMhz())));
+            }
+        }
+
+        return builder.build();
     }
 }

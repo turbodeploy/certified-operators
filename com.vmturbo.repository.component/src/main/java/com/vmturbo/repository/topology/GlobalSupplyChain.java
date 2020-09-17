@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.arangodb.ArangoDBException;
 import com.arangodb.entity.BaseDocument;
@@ -54,7 +55,7 @@ import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyEntities
  * in Arangodb so that, on startup of repository, we can rebuild the in-memory
  * representation.
  */
-public class GlobalSupplyChain implements DiagsRestorable {
+public class GlobalSupplyChain implements DiagsRestorable<Void> {
     /**
      * The file name for the state of the {@link GlobalSupplyChainManager}. It's a string file,
      * so the "diags" extension is required for compatibility with {@link DiagsZipReader}.
@@ -414,7 +415,7 @@ public class GlobalSupplyChain implements DiagsRestorable {
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags)
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context)
             throws DiagnosticsException {
 
         Map<String, Collection<String>> map =

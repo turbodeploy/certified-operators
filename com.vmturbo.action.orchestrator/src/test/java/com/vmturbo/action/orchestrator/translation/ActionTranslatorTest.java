@@ -40,6 +40,9 @@ import com.vmturbo.action.orchestrator.action.ActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
+import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
+import com.vmturbo.action.orchestrator.topology.ActionRealtimeTopology;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
@@ -60,14 +63,21 @@ import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesReque
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionPhysicalMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.graph.TopologyGraphCreator;
 
 public class ActionTranslatorTest {
 
@@ -86,6 +96,7 @@ public class ActionTranslatorTest {
     private final RepositoryServiceMole repositoryServiceSpy = spy(new RepositoryServiceMole());
     private final SettingPolicyServiceMole settingPolicyServiceSpy = spy(new SettingPolicyServiceMole());
     private EntitiesAndSettingsSnapshot mockSnapshot = mock(EntitiesAndSettingsSnapshot.class);
+    private final ActionTopologyStore actionTopologyStore = mock(ActionTopologyStore.class);
 
     @Rule
     public GrpcTestServer server = GrpcTestServer.newServer(repositoryServiceSpy, settingPolicyServiceSpy);
@@ -93,7 +104,8 @@ public class ActionTranslatorTest {
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
-        translator = new ActionTranslator(server.getChannel(), server.getChannel());
+        when(actionTopologyStore.getSourceTopology()).thenReturn(Optional.empty());
+        translator = new ActionTranslator(server.getChannel(), server.getChannel(), actionTopologyStore);
         actionModeCalculator = new ActionModeCalculator();
 
         when(mockSnapshot.getTopologyType()).thenReturn(TopologyType.SOURCE);
@@ -190,6 +202,22 @@ public class ActionTranslatorTest {
         final Action resize = setupDefaultResizeAction();
         final Action move = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(4), actionPlanId, actionModeCalculator, 2244L);
         resize.getActionTranslation().setPassthroughTranslationSuccess();
+
+        assertEquals(2, translator.translate(Stream.of(resize, move), mockSnapshot).count());
+        verify(repositoryServiceSpy, never()).retrieveTopologyEntities(any());
+    }
+
+    /**
+     * When the actionTopologyStore already has the information to translate an action,
+     * we should not perform extra RPC calls to the repository to fetch the information
+     * we already have.
+     */
+    @Test
+    public void testInTopologyDoesNotCallService() {
+        final Action resize = setupDefaultResizeAction();
+        final Action move = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(4), actionPlanId, actionModeCalculator, 2244L);
+        final ActionRealtimeTopology actionRealtimeTopology = actionRealtimeTopologyForDefaultResize();
+        when(actionTopologyStore.getSourceTopology()).thenReturn(Optional.of(actionRealtimeTopology));
 
         assertEquals(2, translator.translate(Stream.of(resize, move), mockSnapshot).count());
         verify(repositoryServiceSpy, never()).retrieveTopologyEntities(any());
@@ -380,6 +408,29 @@ public class ActionTranslatorTest {
         return new Action(ActionOrchestratorTestUtils
             .createResizeRecommendation(1, VM_TARGET_ID, CommodityType.VCPU, OLD_VCPU_MHZ, NEW_VCPU_MHZ),
             actionPlanId, actionModeCalculator, 2244L);
+    }
+
+    private ActionRealtimeTopology actionRealtimeTopologyForDefaultResize() {
+        final TopologyGraphCreator<ActionGraphEntity.Builder, ActionGraphEntity> graphCreator =
+            new TopologyGraphCreator<>();
+        TopologyEntityDTO.Builder host = TopologyEntityDTO.newBuilder()
+            .setOid(HOST_ID)
+            .setDisplayName("host")
+            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setPhysicalMachine(
+                PhysicalMachineInfo.newBuilder().setCpuCoreMhz(CPU_SPEED_MHZ)));
+        graphCreator.addEntity( new ActionGraphEntity.Builder(host.build()));
+
+        ActionRealtimeTopology actionRealtimeTopology = mock(ActionRealtimeTopology.class);
+        when(actionRealtimeTopology.entityGraph())
+            .thenReturn(graphCreator.build());
+        when(actionRealtimeTopology.topologyInfo())
+            .thenReturn(TopologyInfo.newBuilder()
+                .setTopologyType(TopologyDTO.TopologyType.REALTIME)
+                .setTopologyContextId(actionPlanId)
+                .build());
+
+        return actionRealtimeTopology;
     }
 
     /* Host CPU 2k (MHZ)

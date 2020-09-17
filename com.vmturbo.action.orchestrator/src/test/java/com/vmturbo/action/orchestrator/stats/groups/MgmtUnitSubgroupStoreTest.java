@@ -141,7 +141,7 @@ public class MgmtUnitSubgroupStoreTest {
                 .setMgmtUnitId(mu1Id)
                 .build(), GroupBy.ACTION_CATEGORY);
         assertTrue(result.isPresent());
-        assertThat(result.get().mgmtUnit().get(), is(123L));
+        assertThat(result.get().mgmtUnit(), is(Collections.singletonList(123L)));
         assertThat(result.get().mgmtUnitSubgroups(),
             is(Collections.singletonMap(subgroups.get(mu1Key1).id(), subgroups.get(mu1Key1))));
     }
@@ -171,7 +171,7 @@ public class MgmtUnitSubgroupStoreTest {
                 .addEntityType(1)
                 .build(), GroupBy.ACTION_CATEGORY);
         assertTrue(result.isPresent());
-        assertThat(result.get().mgmtUnit().get(), is(mu1Id));
+        assertThat(result.get().mgmtUnit(), is(Collections.singletonList(mu1Id)));
         assertThat(result.get().mgmtUnitSubgroups(),
             is(Collections.singletonMap(subgroups.get(mu1Key1).id(), subgroups.get(mu1Key1))));
     }
@@ -200,7 +200,7 @@ public class MgmtUnitSubgroupStoreTest {
                 // Unset entity type in the request.
                 .build(), GroupBy.ACTION_CATEGORY);
         assertTrue(result.isPresent());
-        assertThat(result.get().mgmtUnit().get(), is(mu1Id));
+        assertThat(result.get().mgmtUnit(), is(Collections.singletonList(mu1Id)));
         // Should only return the ID of the mgmt unit subgroup with no entity type set.
         assertThat(result.get().mgmtUnitSubgroups(),
             is(Collections.singletonMap(subgroups.get(mu1Key1).id(), subgroups.get(mu1Key1))));
@@ -232,7 +232,7 @@ public class MgmtUnitSubgroupStoreTest {
                 .addEntityType(1)
                 .build(), GroupBy.ACTION_CATEGORY);
         assertTrue(result.isPresent());
-        assertThat(result.get().mgmtUnit().get(), is(mu1Id));
+        assertThat(result.get().mgmtUnit(), is(Collections.singletonList(mu1Id)));
         assertThat(result.get().mgmtUnitSubgroups(),
             is(Collections.singletonMap(subgroups.get(mu1Key1).id(), subgroups.get(mu1Key1))));
     }
@@ -257,7 +257,7 @@ public class MgmtUnitSubgroupStoreTest {
                 .addEntityType(1)
                 .build(), GroupBy.ACTION_CATEGORY);
         assertTrue(result.isPresent());
-        assertThat(result.get().mgmtUnit().get(), is(mu1Id));
+        assertThat(result.get().mgmtUnit(), is(Collections.singletonList(mu1Id)));
         assertThat(result.get().mgmtUnitSubgroups(),
             is(Collections.singletonMap(subgroups.get(mu1Key1).id(), subgroups.get(mu1Key1))));
 
@@ -299,8 +299,8 @@ public class MgmtUnitSubgroupStoreTest {
                 .build(), GroupBy.ACTION_CATEGORY);
         assertTrue(result.isPresent());
 
-        // Mgmt unit should be unset.
-        assertFalse(result.get().mgmtUnit().isPresent());
+        // Mgmt unit should be empty.
+        assertTrue(result.get().mgmtUnit().isEmpty());
 
         assertThat(result.get().mgmtUnitSubgroups(),
             is(ImmutableMap.of(subgroups.get(mu1Key1).id(), subgroups.get(mu1Key1),

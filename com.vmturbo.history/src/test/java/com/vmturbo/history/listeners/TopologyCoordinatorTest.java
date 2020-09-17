@@ -1,9 +1,11 @@
 package com.vmturbo.history.listeners;
 
+import static org.hamcrest.Matchers.contains;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 
 import java.sql.Timestamp;
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -15,12 +17,13 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.ingesters.live.LiveTopologyIngester;
-import com.vmturbo.history.ingesters.live.ProjectedLiveTopologyIngester;
-import com.vmturbo.history.ingesters.plan.PlanTopologyIngester;
+import com.vmturbo.history.ingesters.live.ProjectedRealtimeTopologyIngester;
+import com.vmturbo.history.ingesters.live.SourceRealtimeTopologyIngester;
 import com.vmturbo.history.ingesters.plan.ProjectedPlanTopologyIngester;
+import com.vmturbo.history.ingesters.plan.SourcePlanTopologyIngester;
 import com.vmturbo.history.listeners.IngestionStatus.IngestionState;
 import com.vmturbo.history.listeners.TopologyCoordinator.TopologyFlavor;
 
@@ -58,15 +61,14 @@ public class TopologyCoordinatorTest extends Assert {
                         .hourlyRollupTimeoutSecs(Integer.MAX_VALUE)
                         .repartitioningTimeoutSecs(Integer.MAX_VALUE)
                         .processingLoopMaxSleepSecs(60)
-                        .realtimeTopologyContextId(REALTIME_TOPOLOGY_CONTEXT_ID)
                         .build();
         // we need a real processing status object, but we need to prevent stub out its load method
         processingStatus = Mockito.spy(new ProcessingStatus(config, historydbIo));
         doNothing().when(processingStatus).load();
         topologyCoordinator = new TopologyCoordinator(
-                mock(LiveTopologyIngester.class),
-                mock(ProjectedLiveTopologyIngester.class),
-                mock(PlanTopologyIngester.class),
+                mock(SourceRealtimeTopologyIngester.class),
+                mock(ProjectedRealtimeTopologyIngester.class),
+                mock(SourcePlanTopologyIngester.class),
                 mock(ProjectedPlanTopologyIngester.class),
                 mock(RollupProcessor.class),
                 processingStatus,
@@ -132,5 +134,27 @@ public class TopologyCoordinatorTest extends Assert {
                         .build()
         );
         assertEquals(IngestionState.Received, processingStatus.getIngestion(TopologyFlavor.Projected, TOPOLOGY_INFOS[0]).getState());
+    }
+
+    /**
+     * Test that the tag values produced for the SKIP_TOPOLOGY safety valve metric correctly
+     * identify the topology being skipped.
+     */
+    @Test
+    public void testMetricTags() {
+        final TopologyInfo realtimeInfo = TopologyInfo.newBuilder()
+                .setTopologyType(TopologyType.REALTIME)
+                .build();
+        final TopologyInfo planInfo = TopologyInfo.newBuilder()
+                .setTopologyType(TopologyType.PLAN)
+                .build();
+        assertThat(Arrays.asList(TopologyCoordinator.getLabelsForSkipSafetyValve(realtimeInfo, TopologyFlavor.Live)),
+                contains("skip-topology", "live", "source"));
+        assertThat(Arrays.asList(TopologyCoordinator.getLabelsForSkipSafetyValve(realtimeInfo, TopologyFlavor.Projected)),
+                contains("skip-topology", "live", "projected"));
+        assertThat(Arrays.asList(TopologyCoordinator.getLabelsForSkipSafetyValve(planInfo, TopologyFlavor.Live)),
+                contains("skip-topology", "plan", "source"));
+        assertThat(Arrays.asList(TopologyCoordinator.getLabelsForSkipSafetyValve(planInfo, TopologyFlavor.Projected)),
+                contains("skip-topology", "plan", "projected"));
     }
 }

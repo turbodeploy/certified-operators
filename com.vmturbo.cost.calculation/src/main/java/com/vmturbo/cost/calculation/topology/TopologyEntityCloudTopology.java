@@ -344,7 +344,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
         return getEntity(entityId)
             .map(entity -> entity.getCommoditiesBoughtFromProvidersList().stream()
                 .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
-                .filter(commBought -> types.contains(commBought.getProviderEntityType()))
+                .filter(commBought -> hasProviderOfType(commBought, types))
                 .map(CommoditiesBoughtFromProvider::getProviderId)
                 .distinct()
                 .map(providerId -> {
@@ -361,6 +361,29 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                 .map(Optional::get)
                 .collect(Collectors.toList()))
             .orElse(Collections.emptyList());
+    }
+
+    /**
+     * This is needed to accommodate the changed provider type corresponding to the provider of a
+     * {@link CommoditiesBoughtFromProvider} object in the context of a cloud migration plan- a compute tier provider
+     * has the physical machine {@link EntityType}.
+     *
+     * @param commBought a {@link CommoditiesBoughtFromProvider} from which the provider type should be derived
+     * @param types a group of {@link EntityType} we are attempting to match on
+     * @return true if the {@link CommoditiesBoughtFromProvider} is provided by an entity corresponding to one of {@param types}
+     */
+    @Nonnull
+    private boolean hasProviderOfType(
+            @Nonnull final CommoditiesBoughtFromProvider commBought,
+            @Nonnull final Set<Integer> types) {
+        if (types.contains(commBought.getProviderEntityType())) {
+            return true;
+        }
+        Optional<TopologyEntityDTO> topologyEntityDTOOptional = getEntity(commBought.getProviderId());
+        if (topologyEntityDTOOptional.isPresent()) {
+            return types.contains(topologyEntityDTOOptional.get().getEntityType());
+        }
+        return false;
     }
 
     @Nonnull

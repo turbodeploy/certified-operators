@@ -1,8 +1,8 @@
 package com.vmturbo.topology.processor.actions;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -55,7 +55,8 @@ public class ActionApprovalService extends AbstractActionApprovalService {
      * Set of actions that we requested approval for. This set is a volatile unmodifiable set.
      * In this regard, it becomes thread-safe.
      */
-    private volatile Set<Long> currentApprovals = Collections.emptySet();
+    private volatile Set<Long> approvalsToCreate = Collections.emptySet();
+    private volatile Set<Long> trackedApprovals = new HashSet<>();
     private volatile GetActionState getActionStateOperation = null;
     private volatile ActionApproval actionApprovalOperation = null;
 
@@ -110,16 +111,18 @@ public class ActionApprovalService extends AbstractActionApprovalService {
             commitCommand.run();
             return;
         }
-        currentApprovals = Collections.unmodifiableSet(requests.getActionsList()
+        // We will send over to the external approval target all actions that require such approval.
+        approvalsToCreate = Collections.unmodifiableSet(requests.getActionsList()
                 .stream()
                 .map(ExecuteActionRequest::getActionId)
                 .collect(Collectors.toSet()));
-        if (currentApprovals.isEmpty()) {
+        if (approvalsToCreate.isEmpty()) {
             // Remote action approval backend is not expecting the complete pack of actions
             // It's the backend's responsibility to timeout the actions
             getLogger().debug("No actions reported. Skipping approving actions");
             return;
         }
+        trackedApprovals.retainAll(approvalsToCreate);
         try {
             if (actionApprovalOperation == null) {
                 final List<ActionExecutionDTO> actionExecutionList = new ArrayList<>(
@@ -154,8 +157,7 @@ public class ActionApprovalService extends AbstractActionApprovalService {
 
     private void requestExternalStateUpdates() {
         try {
-            final Collection<Long> actionsToQuery = currentApprovals;
-            if (actionsToQuery.isEmpty()) {
+            if (trackedApprovals.isEmpty()) {
                 getLogger().trace(
                     "There is no current action approvals. Will not request their states");
                 return;
@@ -164,16 +166,16 @@ public class ActionApprovalService extends AbstractActionApprovalService {
             if (!targetId.isPresent()) {
                 getLogger().warn(
                     "There is not external action approval target. Skipping external state updates for actions [{}]",
-                    actionsToQuery);
+                    trackedApprovals);
                 return;
             }
             getLogger().debug("Requesting action states for the following actions from target {}: {}",
-                targetId::get, actionsToQuery::toString);
+                targetId::get, trackedApprovals::toString);
             if (getActionStateOperation == null) {
                 try {
                     // There is only one thread able to set this variable
                     getActionStateOperation = operationManager.getExternalActionState(targetId.get(),
-                        actionsToQuery, new GetActionStatesCallback(targetId.get()));
+                            trackedApprovals, new GetActionStatesCallback(targetId.get()));
                 } catch (InterruptedException | TargetNotFoundException | ProbeException | CommunicationException e) {
                     getLogger().warn("Error getting external action state", e);
                 }
@@ -217,6 +219,7 @@ public class ActionApprovalService extends AbstractActionApprovalService {
             }
             try {
                 approvalSender.sendMessage(response);
+                trackedApprovals.addAll(response.getActionStateMap().keySet());
             } catch (CommunicationException e) {
                 getLogger().warn("Failed sending approval results", e);
             } catch (InterruptedException e) {
@@ -258,6 +261,12 @@ public class ActionApprovalService extends AbstractActionApprovalService {
             }
             try {
                 actionStateSender.sendMessage(response);
+                for (Entry<Long, ActionResponseState> entry : response.getActionStateMap()
+                        .entrySet()) {
+                    if (entry.getValue() == ActionResponseState.REJECTED) {
+                        trackedApprovals.remove(entry.getKey());
+                    }
+                }
                 getLogger().info("Successfully sent external states for actions {}",
                         response.getActionStateMap().keySet());
             } catch (CommunicationException e) {

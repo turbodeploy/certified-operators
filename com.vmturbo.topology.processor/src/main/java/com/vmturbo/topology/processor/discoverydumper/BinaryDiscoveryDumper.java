@@ -6,11 +6,14 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 
@@ -23,6 +26,8 @@ import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.components.common.diagnostics.CustomDiagHandler;
+import com.vmturbo.components.common.diagnostics.RecursiveZipIterator.WrappedZipEntry;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
@@ -38,7 +43,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * after a restart, to load back information about previous discovery responses.
  * </p>
  */
-public class BinaryDiscoveryDumper implements DiscoveryDumper {
+public class BinaryDiscoveryDumper implements DiscoveryDumper, CustomDiagHandler {
     /**
      * Directory where to store discovery dumps.
      */
@@ -47,6 +52,10 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper {
      * Logger to use.
      */
     private final Logger logger = LogManager.getLogger(getClass());
+
+    private static final int WRITE_CHUNK_SIZE = 64 * 1024;
+
+    private final String diagsDirectoryPath = "/BinaryDiscoveries/";
 
 
     /**
@@ -85,6 +94,55 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper {
             tgtId,
             discovery,
             discoveryType);
+
+    }
+
+    @Override
+    public boolean shouldHandleRestore(final WrappedZipEntry zipEntry) {
+        return zipEntry.getName().contains(diagsDirectoryPath) && !zipEntry.isDirectory();
+    }
+
+    @Override
+    public void restore(final WrappedZipEntry zipEntry) {
+        File fileInDiags = new File(zipEntry.getName());
+        try {
+            FileUtils.writeByteArrayToFile(new File(dumpDirectory.getAbsolutePath() + '/' + fileInDiags.getName()),
+                zipEntry.getContent());
+        } catch (IOException e) {
+            logger.error("Error in copying file {} from the zip stream",
+                zipEntry.getName());
+        }
+    }
+
+    /**
+     * Write zip entries in the passed {@link ZipOutputStream}.
+     *
+     * @param zipStream stream to append zip entries to
+     */
+    @Override
+    public void dumpToStream(@Nonnull ZipOutputStream zipStream) {
+        try {
+            logger.info("Creating zip folder {}", diagsDirectoryPath);
+            ZipEntry directoryEntry = new ZipEntry(diagsDirectoryPath);
+            zipStream.putNextEntry(directoryEntry);
+            directoryEntry.setTime(System.currentTimeMillis());
+            List<File> files = getBinaryFiles();
+            for (File file : files) {
+                ZipEntry ze = new ZipEntry(diagsDirectoryPath + file.getName());
+                zipStream.putNextEntry(ze);
+                FileInputStream fis = new FileInputStream(file);
+                int length;
+                byte[] buffer = new byte[WRITE_CHUNK_SIZE];
+                while ((length = fis.read(buffer)) > 0) {
+                    zipStream.write(buffer, 0, length);
+                }
+                zipStream.closeEntry();
+                fis.close();
+            }
+            zipStream.closeEntry();
+        } catch (IOException e) {
+            logger.error("Exception trying to create directory " + diagsDirectoryPath, e);
+        }
 
     }
 
@@ -168,6 +226,31 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper {
 
     }
 
+    /**
+     * Get the discovery dumps from the filesystem as a list of files.
+     * @return List of the binary files
+     */
+    List<File> getBinaryFiles() {
+        final String[] allDiscoveryDumpFiles = dumpDirectory.list();
+        List<File> fileList = new ArrayList<>();
+        if (allDiscoveryDumpFiles == null) {
+            logger.error("Cannot get the list of discovery dump files");
+            return fileList;
+        }
+        for (String filename : allDiscoveryDumpFiles) {
+            // parse filename
+            final DiscoveryDumpFilename ddf = DiscoveryDumpFilename.parse(filename);
+            if (ddf == null) {
+                // not a valid dump file name
+                continue;
+            }
+
+            final File binaryFile = ddf.getFile(dumpDirectory, false, true);
+            fileList.add(binaryFile);
+        }
+        return fileList;
+    }
+
     private byte[] readCompressedFile(File file) throws IOException {
         LZ4FrameInputStream gis = new LZ4FrameInputStream(new FileInputStream(file));
         ByteArrayOutputStream fos = new ByteArrayOutputStream();
@@ -192,4 +275,5 @@ public class BinaryDiscoveryDumper implements DiscoveryDumper {
         }
 
     }
+
 }

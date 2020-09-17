@@ -21,6 +21,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
@@ -489,7 +490,7 @@ public class ReservationDaoImpl implements ReservationDao {
      *                              reservation.
      */
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
 
         final List<String> errors = new ArrayList<>();
 

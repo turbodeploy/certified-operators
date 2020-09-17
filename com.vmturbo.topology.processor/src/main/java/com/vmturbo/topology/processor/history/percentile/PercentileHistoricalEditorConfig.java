@@ -11,8 +11,6 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -30,7 +28,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      */
     public static final int DEFAULT_MAINTENANCE_WINDOW_HOURS = 24;
 
-    private static final Logger logger = LogManager.getLogger();
     private static final Map<EntityType, EntitySettingSpecs> TYPE_AGGRESSIVENESS = ImmutableMap
                     .of(EntityType.BUSINESS_USER,
                         EntitySettingSpecs.PercentileAggressivenessBusinessUser,
@@ -183,9 +180,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
             return context.getSettingValue(oid, spec, Number.class, Function.identity(),
                 ss -> ss.getNumericSettingValueType().getDefault());
         }
-        logger.trace("{} Returning default value {} for spec with description {} for entity "
-                + "with oid {}",
-            getClass().getSimpleName(), defaultValue, description, oid);
         return defaultValue;
     }
 }

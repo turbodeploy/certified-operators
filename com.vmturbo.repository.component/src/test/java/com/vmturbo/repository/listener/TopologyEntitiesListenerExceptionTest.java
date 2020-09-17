@@ -109,7 +109,7 @@ public class TopologyEntitiesListenerExceptionTest {
         verify(topologyCreator).initialize();
         verify(topologyCreator, never()).complete();
         verify(topologyCreator, times(1)).rollback();
-        verify(topologyCreator, times(1)).addEntities(any());
+        verify(topologyCreator, times(1)).addEntities(any(), any());
         verify(notificationSender, never()).onSourceTopologyAvailable(anyLong(), anyLong());
         verify(notificationSender).onSourceTopologyFailure(anyLong(), anyLong(), anyString());
     }

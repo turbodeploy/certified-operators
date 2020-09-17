@@ -146,7 +146,7 @@ public class ArrayOidSet implements OidSet {
         // The first approach is simpler to write, so going with that approach for now. We can
         // optimize later, if necessary.
         if (other == null) {
-            return EMPTY_OID_SET;
+            return this;
         }
 
         // this would overflow if the combined array would be greater than maxint. This means we'd

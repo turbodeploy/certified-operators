@@ -3,6 +3,7 @@ package com.vmturbo.market.runner.cost;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
@@ -10,17 +11,17 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterResponse;
-import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
-import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForAnalysisRequest;
@@ -30,13 +31,13 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRespons
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
@@ -148,22 +149,8 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
                     GetEntityReservedInstanceCoverageRequest.getDefaultInstance());
 
             Map<Long, EntityReservedInstanceCoverage> coverageListMap = coverageResponse.getCoverageByEntityIdMap();
-            final Set<Long> riBoughtIds = riBoughtById.keySet();
-            // We filter the RI coverage to be fed into the market based on the scope of the RI's
-            // included in a plan. This is particularly pertinent in the case of an OCP plan running
-            // with different RI inclusion settings.
-            final Map<Long, EntityReservedInstanceCoverage> filteredCoverageMap = coverageListMap.values()
-                    .stream()
-                    .map(EntityReservedInstanceCoverage::toBuilder)
-                    .peek(coverageBuilder ->
-                            coverageBuilder.putAllCouponsCoveredByRi(
-                                    Maps.filterKeys(
-                                            coverageBuilder.getCouponsCoveredByRiMap(),
-                                            riBoughtIds::contains)))
-                    .map(EntityReservedInstanceCoverage.Builder::build)
-                    .collect(ImmutableMap.toImmutableMap(
-                            EntityReservedInstanceCoverage::getEntityId,
-                            Function.identity()));
+            final Map<Long, EntityReservedInstanceCoverage> filteredCoverageMap =
+                filterCouponsCoveredByRi(coverageListMap, riBoughtById.keySet());
 
             return new CloudCostData<>(coverageListMap,
                     filteredCoverageMap,
@@ -173,5 +160,32 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
         } catch (StatusRuntimeException e) {
             throw new CloudCostDataRetrievalException(e);
         }
+    }
+
+    /**
+     * We filter the RI coverage (coupons covered by RI map) to be fed into the market based on the scope of the RI's
+     * included in a plan. This is particularly pertinent in the case of an OCP/MCP plan running
+     * with different RI inclusion settings.
+     *
+     * @param originalCoverageMap the unfiltered RI coverage
+     * @param inScopeRis in scope RIs
+     * @return the filtered RI coverage
+     */
+    @VisibleForTesting
+    static Map<Long, EntityReservedInstanceCoverage> filterCouponsCoveredByRi(
+        @Nonnull Map<Long, EntityReservedInstanceCoverage> originalCoverageMap,
+        @Nonnull Set<Long> inScopeRis) {
+        Map<Long, EntityReservedInstanceCoverage> filteredCoverageMap = Maps.newHashMap();
+        for (EntityReservedInstanceCoverage originalCoverage : originalCoverageMap.values()) {
+            Map<Long, Double> filteredCouponsCoveredByRi =
+                originalCoverage.getCouponsCoveredByRiMap().entrySet().stream()
+                    .filter(entry -> inScopeRis.contains(entry.getKey()))
+                    .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+            EntityReservedInstanceCoverage.Builder coverageCopy = originalCoverage.toBuilder();
+            coverageCopy.clearCouponsCoveredByRi();
+            coverageCopy.putAllCouponsCoveredByRi(filteredCouponsCoveredByRi);
+            filteredCoverageMap.put(coverageCopy.getEntityId(), coverageCopy.build());
+        }
+        return filteredCoverageMap;
     }
 }

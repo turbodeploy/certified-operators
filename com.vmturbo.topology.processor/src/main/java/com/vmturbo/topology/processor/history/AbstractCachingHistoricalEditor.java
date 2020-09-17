@@ -55,7 +55,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
             DbValue,
             Stub extends AbstractStub<Stub>,
             CheckpointResult>
-        extends AbstractHistoricalEditor<Config, Stub> implements BinaryDiagsRestorable {
+        extends AbstractHistoricalEditor<Config, Stub> implements BinaryDiagsRestorable<Void> {
     private static final Logger logger = LogManager.getLogger();
     private static final String EXPORTING_FILE_NAME_SUFFIX = "state";
     private static final Pattern CAMEL_CASE_WORDS_SPLITTER = Pattern.compile("(?=\\p{Lu})");
@@ -169,7 +169,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
     }
 
     @Override
-    public void restoreDiags(@Nonnull byte[] bytes) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull byte[] bytes, Void context) throws DiagnosticsException {
         if (bytes.length <= 0) {
             logger.debug("Cannot import cache for '{}' from empty file.",
                             getClass().getSimpleName());

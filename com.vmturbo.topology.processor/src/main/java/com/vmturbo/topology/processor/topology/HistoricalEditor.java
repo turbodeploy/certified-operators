@@ -467,6 +467,9 @@ public class HistoricalEditor {
 
     /**
      * Calculates smoothed historical values for commodity sold.
+     * If the historical used and historical peak values are already set, don't override them.
+     * It can happen for migrate to cloud plan where the historical used and peak values are the
+     * historical max of the previous 30 days.
      *
      * @param topoEntity the topology entity
      * @param topoCommSold the given commodity sold
@@ -481,26 +484,30 @@ public class HistoricalEditor {
         if (!useHistoricalValues(commodityType.getType())) {
             return;
         }
+        if (topoCommSold.hasHistoricalUsed() && topoCommSold.getHistoricalUsed().hasHistUtilization()
+                && topoCommSold.hasHistoricalPeak() && topoCommSold.getHistoricalPeak().hasHistUtilization()) {
+            // Historical values are already set.
+            return;
+        }
         float used = (float) topoCommSold.getUsed();
         float peak = (float) topoCommSold.getPeak();
         logger.trace("Entity={}, Sold commodity={}, Used from mediation={}, Peak from mediation={}", topoEntity.getOid(),
             topoCommSold.getCommodityType().getType(), used, peak);
 
-
-            HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(topoEntity.getOid());
-            if (histSeInfo == null) {
-                if (isPlan) {
-                    return;
-                }
-                logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity {}", topoEntity.getOid());
-            } else {
-                boolean commSoldFound = false;
-                List<HistoricalCommodityInfo> histSoldInfoList = histSeInfo.getHistoricalCommoditySold();
-                for (int i = 0; i < histSoldInfoList.size(); i++) {
-                    HistoricalCommodityInfo histSoldInfo = histSoldInfoList.get(i);
-                    if (histSoldInfo.getCommodityTypeAndKey().equals(commodityType)) {
-                        commSoldFound = true;
-                        if (histSoldInfo.getMatched()) {
+        HistoricalServiceEntityInfo histSeInfo = historicalInfo.get(topoEntity.getOid());
+        if (histSeInfo == null) {
+            if (isPlan) {
+                return;
+            }
+            logger.error("A HistoricalServiceEntityInfo data structure is missing for the service entity {}", topoEntity.getOid());
+        } else {
+            boolean commSoldFound = false;
+            List<HistoricalCommodityInfo> histSoldInfoList = histSeInfo.getHistoricalCommoditySold();
+            for (int i = 0; i < histSoldInfoList.size(); i++) {
+                HistoricalCommodityInfo histSoldInfo = histSoldInfoList.get(i);
+                if (histSoldInfo.getCommodityTypeAndKey().equals(commodityType)) {
+                    commSoldFound = true;
+                    if (histSoldInfo.getMatched()) {
                         float[] newValues = calculateAndSetNewHistoricalValues(histSoldInfo, histSoldInfo, histSeInfo,
                                 used, peak, topoEntity.getOid());
                         used = newValues[0];
@@ -627,19 +634,28 @@ public class HistoricalEditor {
 
     /**
      * Update historical values for commodity that exist in the previous cycle.
+     * If the historical used and historical peak values are already set, don't override them.
+     * It can happen for migrate to cloud plan where the historical used and peak values are the
+     * historical max of the previous 30 days.
      *
      * @param histBoughtInfoList the list of HistoricalCommodityInfo
      * @param histSeInfo HistoricalServiceEntityInfo
      * @param topoEntity the topology entity
      * @param topoCommBought the commodity bought DTO
      * @param sourceId provider or volume id
-     * @return true if topoCommBought matches to existing commodity and is being updated.
+     * @return true if topoCommBought matches to existing commodity and is being updated or the
+     *         historical used and peak values are already set.
      */
     private boolean updateAlreadyExistingCommodity(@Nonnull final List<HistoricalCommodityInfo> histBoughtInfoList,
             @Nonnull final HistoricalServiceEntityInfo histSeInfo,
             @Nonnull final TopologyEntityDTO.Builder topoEntity,
             @Nonnull final CommodityBoughtDTO.Builder topoCommBought,
             final long sourceId) {
+        if (topoCommBought.hasHistoricalUsed() && topoCommBought.getHistoricalUsed().hasHistUtilization()
+                && topoCommBought.hasHistoricalPeak() && topoCommBought.getHistoricalPeak().hasHistUtilization()) {
+            // Value are already set.
+            return true;
+        }
         for (HistoricalCommodityInfo histBoughtInfo : histBoughtInfoList) {
             if (histBoughtInfo.getCommodityTypeAndKey().equals(topoCommBought.getCommodityType()) &&
                     (histBoughtInfo.getSourceId() == sourceId) && histBoughtInfo.getMatched() &&

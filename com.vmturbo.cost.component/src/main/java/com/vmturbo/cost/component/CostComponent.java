@@ -29,14 +29,15 @@ import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration;
 import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration.Verbosity;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
+import com.vmturbo.cost.component.cleanup.CostCleanupConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.flyway.CostFlywayCallback;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
+import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.MigratedWorkloadCloudCommitmentConfig;
 import com.vmturbo.cost.component.rpc.CostDebugConfig;
-import com.vmturbo.cost.component.stats.CostStatsConfig;
 import com.vmturbo.cost.component.topology.TopologyListenerConfig;
 import com.vmturbo.trax.TraxConfiguration;
 import com.vmturbo.trax.TraxConfiguration.TopicSettings;
@@ -57,10 +58,11 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     SpringSecurityConfig.class,
     TopologyListenerConfig.class,
     CostDebugConfig.class,
-    CostStatsConfig.class,
+    CostCleanupConfig.class,
     CostPlanListenerConfig.class,
     ReservedInstanceSpecConfig.class,
-    CostDiagnosticsConfig.class})
+    CostDiagnosticsConfig.class,
+    MigratedWorkloadCloudCommitmentConfig.class})
 public class CostComponent extends BaseVmtComponent {
     /**
      * The logger.
@@ -101,13 +103,16 @@ public class CostComponent extends BaseVmtComponent {
     private SpringSecurityConfig securityConfig;
 
     @Autowired
-    private CostStatsConfig costStatsConfig;
+    private CostCleanupConfig costCleanupConfig;
 
     @Autowired
     private CostDebugConfig costDebugConfig;
 
     @Autowired
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
+
+    @Autowired
+    private MigratedWorkloadCloudCommitmentConfig migratedWorkloadCloudCommitmentConfig;
 
     /**
      * Starts the component.
@@ -165,7 +170,8 @@ public class CostComponent extends BaseVmtComponent {
             costDebugConfig.costDebugRpcService(),
             buyRIAnalysisConfig.buyReservedInstanceRpcService(),
             buyRIAnalysisConfig.riBuyContextFetchRpcService(),
-            costDebugConfig.traxConfigurationRpcService());
+            costDebugConfig.traxConfigurationRpcService(),
+            migratedWorkloadCloudCommitmentConfig.migratedWorkloadCloudCommitmentAnalysisService());
     }
 
     @Nonnull

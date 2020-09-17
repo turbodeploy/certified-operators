@@ -9,7 +9,7 @@ import java.sql.Statement;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -35,7 +35,7 @@ public class V1_34__FixAppComponentActionAutomation extends BaseJdbcMigration {
                         + "AND policy_id NOT IN ( SELECT * FROM ( "
                         + "    SELECT policy_id FROM setting_policy_setting where setting_name IN ('resizeDownHeap', 'resizeUpHeap') "
                         + ") temp_table2 )  ",
-                EntitySettingSpecs.Resize.getSettingName(),
+                ConfigurableActionSettings.Resize.getSettingName(),
                 EntityType.APPLICATION_COMPONENT.getNumber(),
                 SettingPolicyPolicyType.user.getLiteral());
         try (ResultSet resultSet = connection.createStatement().executeQuery(selectQuery)) {
@@ -44,11 +44,11 @@ public class V1_34__FixAppComponentActionAutomation extends BaseJdbcMigration {
                 final String value = resultSet.getString("setting_value");
                 try (Statement insertBatch = connection.createStatement()) {
                     insertBatch.addBatch(
-                            getSettingPolicyInsertQuery(id, EntitySettingSpecs.ResizeDownHeap.getSettingName(), value));
+                            getSettingPolicyInsertQuery(id, ConfigurableActionSettings.ResizeDownHeap.getSettingName(), value));
                     insertBatch.addBatch(
-                            getSettingPolicyInsertQuery(id, EntitySettingSpecs.ResizeUpHeap.getSettingName(), value));
+                            getSettingPolicyInsertQuery(id, ConfigurableActionSettings.ResizeUpHeap.getSettingName(), value));
                     insertBatch.addBatch(
-                            getSettingPolicyDeleteQuery(id, EntitySettingSpecs.Resize.getSettingName()));
+                            getSettingPolicyDeleteQuery(id, ConfigurableActionSettings.Resize.getSettingName()));
                     insertBatch.executeBatch();
                 }
             }

@@ -38,6 +38,7 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
@@ -612,6 +613,9 @@ public class StatsServiceTest {
                      response.getRestResponse().getHeaders().get("X-Next-Cursor"));
     }
 
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
+
     /**
      * Tests {@link StatsService} for cluster stats queries.
      *
@@ -622,12 +626,12 @@ public class StatsServiceTest {
      *        <li>the group component returns only one cluster</li>
      *    </ul>
      *    We test correctness of all the internal calls to the group component.
-     *    The test should throw an exception because not all ids are accounted for.
+     *    The API response should only have the present cluster.
      * </p>
      *
      * @throws Exception should happen because not all ids are accounted for
      */
-    @Test(expected = UnknownObjectException.class)
+    @Test
     public void testGetClusterStatsWithMissingClusters() throws Exception {
         // constants
         final String statRequested = "foo";
@@ -664,9 +668,46 @@ public class StatsServiceTest {
         when(statsMapper.newPeriodStatsFilter(periodApiInputDTO, true))
                 .thenReturn(StatsFilter.getDefaultInstance());
 
+        final List<ClusterStatsResponse> clusterStatsResponse = new ArrayList<>();
+        clusterStatsResponse.add(ClusterStatsResponse.newBuilder().setSnapshotsChunk(EntityStatsChunk.newBuilder()
+                .addSnapshots(EntityStats.newBuilder()
+                        .setOid(scopeId1)
+                        .addStatSnapshots(STAT_SNAPSHOT).build()).build()).build());
+        when(statsHistoryServiceSpy.getClusterStats(any())).thenReturn(clusterStatsResponse);
+
         // call service
-        statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
+        EntityStatsPaginationResponse response = statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
+        assertThat(response.getRawResults().size(), is(1));
     }
+
+    /**
+     * If ALL clusters explicitly specified in the cluster stats request are not found, ensure
+     * we throw an exception.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test(expected = UnknownObjectException.class)
+    public void testGetClusterStatsWithAllMissingClusters() throws Exception {
+        final String statRequested = "foo";
+        final long scopeId1 = 1L;
+        final EntityStatsPaginationRequest paginationRequest =
+                new EntityStatsPaginationRequest(null, 4, true, statRequested);
+
+        final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
+        final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName(StringConstants.CPU_HEADROOM);
+        periodApiInputDTO.setStatistics(Collections.singletonList(statApiInputDTO));
+
+        final StatScopesApiInputDTO missingClusterOnly = new StatScopesApiInputDTO();
+        missingClusterOnly.setPeriod(periodApiInputDTO);
+        missingClusterOnly.setScopes(ImmutableList.of(Long.toString(scopeId1)));
+
+        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO, true))
+                .thenReturn(StatsFilter.getDefaultInstance());
+
+        statsService.getStatsByUuidsQuery(missingClusterOnly, paginationRequest);
+    }
+
 
     /**
      * Tests {@link StatsService} for cluster stats queries.

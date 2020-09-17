@@ -1,23 +1,32 @@
 package com.vmturbo.topology.processor.communication;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import org.junit.Assert;
+import java.util.Optional;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.communication.ITransport.EventHandler;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.UpdateType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
@@ -67,17 +76,31 @@ public class RemoteMediationServerTest {
     private final ITransport<MediationServerMessage, MediationClientMessage> transport =
         (ITransport<MediationServerMessage, MediationClientMessage>)mock(ITransport.class);
 
+    @SuppressWarnings("unchecked")
+    private final ITransport<MediationServerMessage, MediationClientMessage> transportToClose =
+            (ITransport<MediationServerMessage, MediationClientMessage>)mock(ITransport.class);
+
     private long probeId;
     private String targetIdentifyingValues1 = "1";
     private String targetIdentifyingValues2 = "2";
     private Target target1;
     private Target target2;
+    private final String probeType = "fooProbe";
+    private final String probeCategory = "fooCategory";
+    private final ContainerInfo containerInfo = buildContainerInfo(probeType, probeCategory);
+
+    /**
+     * Argument captor for simulating a transport getting closed.
+     */
+    @Captor
+    private ArgumentCaptor<EventHandler<MediationClientMessage>> eventHandlerArgumentCaptor;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
     @Before
     public void setup() throws Exception {
+        MockitoAnnotations.initMocks(this);
         final ProbeInfo probeInfo = Probes.defaultProbe;
         probeStore.registerNewProbe(probeInfo, transport);
         probeId = identityProvider.getProbeId(probeInfo);
@@ -90,6 +113,50 @@ public class RemoteMediationServerTest {
         Mockito.when(target2.getSerializedIdentifyingFields()).thenReturn(targetIdentifyingValues2);
 
 
+    }
+
+    /**
+     * Test that a transport gets successfully registered with the probe when registerTransport is
+     * called and that it gets removed when the transport is closed.
+     *
+     * @throws ProbeException when ProbeStore throws it.
+     */
+    @Test
+    public void testTransportClosed() throws ProbeException {
+        // capture the eventhandler for the transport
+        remoteMediationServer.registerTransport(containerInfo, transportToClose);
+        verify(transportToClose).addEventHandler(eventHandlerArgumentCaptor.capture());
+        // verify that the transport is registered for the probeType "fooProbe"
+        final Optional<Long> newProbeId = probeStore.getProbeIdForType(probeType);
+        assertTrue(newProbeId.isPresent());
+        final Long probeIdVal = newProbeId.get();
+        // confirm that transport was registered with probe
+        assertEquals(transportToClose, probeStore.getTransport(probeIdVal).iterator().next());
+        // now simulate transport closed
+        eventHandlerArgumentCaptor.getValue().onClose();
+        // make sure transport was removed
+        expectedException.expect(ProbeException.class);
+        probeStore.getTransport(probeIdVal);
+    }
+
+    /**
+     * Check that when a transport closes before the probe is registered, we don't register the
+     * endpoint.
+     *
+     * @throws ProbeException when ProbeStore throws it.
+     */
+    @Test
+    public void testTransportClosedBeforeRegistered() throws ProbeException {
+        // simulate transport already being closed by the time it is registered
+        doThrow(new IllegalStateException("transport closed"))
+                .when(transportToClose).addEventHandler(any());
+        remoteMediationServer.registerTransport(containerInfo, transportToClose);
+        // verify that there are no transports registered for the probeType "fooProbe" even though
+        // the probeType was registered (i.e. the probe has an ID)
+        final Optional<Long> newProbeId = probeStore.getProbeIdForType(probeType);
+        assertTrue(newProbeId.isPresent());
+        expectedException.expect(ProbeException.class);
+        probeStore.getTransport(newProbeId.get());
     }
 
     @Test
@@ -159,7 +226,7 @@ public class RemoteMediationServerTest {
 
         long incrementalProbeId = identityProvider.getProbeId(incrementalProbeInfo1);
 
-        Assert.assertEquals(2, probeStore.getTransport(incrementalProbeId).size());
+        assertEquals(2, probeStore.getTransport(incrementalProbeId).size());
 
         final DiscoveryRequest discoveryRequest = buildIncrementalDiscoveryRequest();
         Mockito.when(target1.getProbeId()).thenReturn(incrementalProbeId);
@@ -197,5 +264,15 @@ public class RemoteMediationServerTest {
                             .setId("vm-1")
                     )
             ).build();
+    }
+
+    private ContainerInfo buildContainerInfo(String probeType, String probeCategory) {
+        final ProbeInfo probeInfo = ProbeInfo.newBuilder()
+                .setProbeType(probeType)
+                .setProbeCategory(probeCategory)
+                .build();
+        return ContainerInfo.newBuilder()
+                .addProbes(probeInfo)
+                .build();
     }
 }

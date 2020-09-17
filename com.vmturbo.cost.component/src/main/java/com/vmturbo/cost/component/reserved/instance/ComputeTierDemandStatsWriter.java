@@ -21,6 +21,8 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
@@ -325,7 +327,10 @@ public class ComputeTierDemandStatsWriter {
             int topologyForDay) {
         final Set<ComputeTierTypeHourlyByWeekRecord> statsRecordsToUpload = new HashSet<>();
 
-        for (ComputeTierDemandStatsRecord statsRecord : statsRecordToCountMapping.keySet()) {
+
+        final Set<ComputeTierDemandStatsRecord>  mergedKeySet =
+                Sets.union(statsRecordToCountMapping.keySet(), computeTierDemandStatsMap.keySet());
+        for (ComputeTierDemandStatsRecord statsRecord : mergedKeySet) {
             WeightedCounts prevWeightedValue = computeTierDemandStatsMap.getOrDefault(statsRecord,
                     new WeightedCounts(new BigDecimal(0.0),
                             new BigDecimal(0.0)));
@@ -335,14 +340,14 @@ public class ComputeTierDemandStatsWriter {
             if (isProjectedTopology) {
                 newCountFromProjectedTopology =
                         getNewWeightedValue(prevWeightedValue.getCountFromProjectedTopology(),
-                                statsRecordToCountMapping.get(statsRecord));
+                                statsRecordToCountMapping.getOrDefault(statsRecord, 0));
                 newCountFromSourceTopology =
                         prevWeightedValue.getCountFromSourceTopology();
 
             } else {
                 newCountFromSourceTopology =
                         getNewWeightedValue(prevWeightedValue.getCountFromSourceTopology(),
-                                statsRecordToCountMapping.get(statsRecord));
+                                statsRecordToCountMapping.getOrDefault(statsRecord, 0));
                 newCountFromProjectedTopology =
                         prevWeightedValue.getCountFromProjectedTopology();
             }
@@ -525,7 +530,7 @@ public class ComputeTierDemandStatsWriter {
      *  values retrieved from the DB.
      *
      */
-    private class WeightedCounts {
+    protected class WeightedCounts {
 
         private final BigDecimal countFromSourceTopology;
         private final BigDecimal countFromProjectedTopology;

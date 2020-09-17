@@ -65,6 +65,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequ
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest.Context;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.group.identity.IdentityProvider;
@@ -100,12 +101,13 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
     private final GrpcTransactionUtil grpcTransactionUtil;
 
     private static final Set<String> IMMUTABLE_ACTION_SETTINGS = ImmutableSet.<String>builder()
-            .add(EntitySettingSpecs.Move.getSettingName()).add(EntitySettingSpecs.StorageMove.getSettingName())
-            .add(EntitySettingSpecs.Provision.getSettingName()).add(EntitySettingSpecs.Suspend.getSettingName())
-            .add(EntitySettingSpecs.DisabledSuspend.getSettingName())
-            .add(EntitySettingSpecs.DisabledProvision.getSettingName())
-            .add(EntitySettingSpecs.Activate.getSettingName()).add(EntitySettingSpecs.Resize.getSettingName())
-            .add(EntitySettingSpecs.Reconfigure.getSettingName()).build();
+            .add(ConfigurableActionSettings.Move.getSettingName())
+            .add(ConfigurableActionSettings.StorageMove.getSettingName())
+            .add(ConfigurableActionSettings.Provision.getSettingName())
+            .add(ConfigurableActionSettings.Suspend.getSettingName())
+            .add(ConfigurableActionSettings.Activate.getSettingName())
+            .add(ConfigurableActionSettings.Resize.getSettingName())
+            .add(ConfigurableActionSettings.Reconfigure.getSettingName()).build();
 
     /**
      * Constructs setting policy gRPC service.

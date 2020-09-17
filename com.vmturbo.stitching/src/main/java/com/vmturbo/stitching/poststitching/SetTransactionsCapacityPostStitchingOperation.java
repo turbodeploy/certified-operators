@@ -17,11 +17,12 @@ public class SetTransactionsCapacityPostStitchingOperation extends SetAutoSetCom
             @Nonnull final EntityType entityType,
             @Nonnull final ProbeCategory probeCategory,
             @Nonnull final String capacitySettingName,
+            @Nonnull final float defaultValue,
             @Nonnull final String autoSetSettingName,
             com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig
                 commodityPostStitchingOperationConfig) {
-        super(entityType, probeCategory, CommodityType.TRANSACTION, capacitySettingName, autoSetSettingName,
-            commodityPostStitchingOperationConfig);
+        super(entityType, probeCategory, CommodityType.TRANSACTION, capacitySettingName, defaultValue,
+            autoSetSettingName, commodityPostStitchingOperationConfig);
         operationName = String.join("_", getClass().getSimpleName(),
                 probeCategory.getCategory(), entityType.toString());
     }

@@ -21,6 +21,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -28,17 +29,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
+import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
+import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
-import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
+import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
+import com.vmturbo.api.enums.AccountFilterType;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.auth.api.Pair;
@@ -68,8 +72,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -101,6 +104,8 @@ public class ActionSpecMappingContextFactory {
 
     private final PoliciesService policiesService;
 
+    private final ReservedInstancesService reservedInstancesService;
+
     private Collection<PolicyApiDTO> policyApiDto;
 
     public ActionSpecMappingContextFactory(@Nonnull PolicyServiceBlockingStub policyService,
@@ -113,7 +118,8 @@ public class ActionSpecMappingContextFactory {
                                            @Nonnull ReservedInstanceSpecServiceBlockingStub riSpecServiceClient,
                                            @Nonnull ServiceEntityMapper serviceEntityMapper,
                                            @Nonnull SupplyChainServiceBlockingStub supplyChainServiceClient,
-                                           @Nonnull PoliciesService policiesService) {
+                                           @Nonnull PoliciesService policiesService,
+                                           @Nonnull ReservedInstancesService reservedInstancesService) {
         this.policyService = Objects.requireNonNull(policyService);
         this.executorService = Objects.requireNonNull(executorService);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -125,6 +131,7 @@ public class ActionSpecMappingContextFactory {
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.supplyChainServiceClient = Objects.requireNonNull(supplyChainServiceClient);
         this.policiesService = Objects.requireNonNull(policiesService);
+        this.reservedInstancesService = Objects.requireNonNull(reservedInstancesService);
     }
 
     /**
@@ -182,13 +189,14 @@ public class ActionSpecMappingContextFactory {
      *
      * @param actions list of actions
      * @param topologyContextId the context id of the topology
+     * @param uuidMapper Mapper to look up plan type.
      * @return ActionSpecMappingContext
      * @throws ExecutionException on failure getting entities
      * @throws InterruptedException if thread has been interrupted
      * @throws ConversionException if errors faced during converting data to API DTOs
      */
     public ActionSpecMappingContext createActionSpecMappingContext(@Nonnull List<Action> actions,
-            long topologyContextId)
+            long topologyContextId, @Nonnull final UuidMapper uuidMapper)
             throws ExecutionException, InterruptedException, ConversionException {
 
         // NOTE: calls made on the current thread will be made "as the user" in upstream components
@@ -275,14 +283,58 @@ public class ActionSpecMappingContextFactory {
             Sets.newHashSet(ApiEntityType.VIRTUAL_MACHINE), Sets.newHashSet(EnvironmentType.CLOUD),
             AspectName.VIRTUAL_MACHINE);
 
+        final Set<Long> entityIds = getEntityIds(entitiesById.values(),
+                ImmutableSet.of(ApiEntityType.VIRTUAL_MACHINE),
+                ImmutableSet.of(EnvironmentType.CLOUD));
+
         // fetch all db aspects
         final Map<Long, EntityAspect> dbAspects = getEntityToAspectMapping(entitiesById.values(),
             Sets.newHashSet(ApiEntityType.DATABASE, ApiEntityType.DATABASE_SERVER),
             Sets.newHashSet(EnvironmentType.CLOUD), AspectName.DATABASE);
 
-        return new ActionSpecMappingContext(entitiesById, policies.get(), entityIdToRegion,
+        final ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesById,
+                policies.get(), entityIdToRegion,
             volumesAspectsByEntity, cloudAspects, vmAspects, dbAspects,
             buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, true, policiesApiDto.get());
+
+        if (hasMigrationActions(actions)) {
+            final Map<Long, EntityAspect> vmProjectedAspects =
+                    getProjectedEntityToAspectMapping(entityIds,
+                            AspectName.VIRTUAL_MACHINE, topologyContextId);
+
+            // Getting projected entity aspects and RIs for plan only for cases where there is
+            // is an inter-region migration, as in cloud migration for example,
+            // check added above to not affect (possible performance issues) other plans or real-time.
+            context.setHasMigrationActions(true);
+            context.setVMProjectedAspects(vmProjectedAspects);
+            try {
+                ApiId scope = uuidMapper.fromUuid(String.valueOf(topologyContextId));
+                if (scope != null && StatsUtils.isValidScopeForRIBoughtQuery(scope)) {
+                    context.setReservedInstances(reservedInstancesService
+                            .getReservedInstances(String.valueOf(topologyContextId), true,
+                                    AccountFilterType.USED_AND_PURCHASED_BY));
+                }
+            } catch (Exception e) {
+                throw new ExecutionException("Unable to get RIs for plan " + topologyContextId, e);
+            }
+        }
+        return context;
+    }
+
+    /**
+     * Returns true if at least one action is a region migration type action, e.g cloud-to-cloud.
+     *
+     * @param actions List of all actions.
+     * @return Whether any action has a region change.
+     */
+    private boolean hasMigrationActions(@Nonnull List<Action> actions) {
+        for (Action action : actions) {
+            if (TopologyDTOUtil.isMigrationAction(action)) {
+                // Found one action that is across regions.
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -294,6 +346,26 @@ public class ActionSpecMappingContextFactory {
      */
     private boolean isProjected(long entityId) {
         return entityId < 0;
+    }
+
+    /**
+     * Convenience method to get entity ids out of partial entities.
+     *
+     * @param entities Partial entities.
+     * @param entityTypes Types, e.g VM.
+     * @param envTypes Env types, e.g CLOUD.
+     * @return Set of entity ids, could be empty.
+     */
+    @Nonnull
+    private static Set<Long> getEntityIds(@Nonnull Collection<ApiPartialEntity> entities,
+            @Nonnull Set<ApiEntityType> entityTypes,
+            @Nonnull Set<EnvironmentType> envTypes) {
+        return entities.stream()
+                .filter(e -> entityTypes.isEmpty()
+                        || entityTypes.contains(ApiEntityType.fromType(e.getEntityType())))
+                .filter(e -> envTypes.contains(e.getEnvironmentType()))
+                .map(ApiPartialEntity::getOid)
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -340,11 +412,7 @@ public class ActionSpecMappingContextFactory {
 
         // For other Aspect types, we need to get the full API DTO so that it can be extracted.
         // Get the OIDs of the partial entities we need full entities of
-        final Set<Long> entityIds = entities.stream()
-            .filter(e -> allEntityTypes || entityTypes.contains(ApiEntityType.fromType(e.getEntityType())))
-            .filter(e -> envTypes.contains(e.getEnvironmentType()))
-            .map(ApiPartialEntity::getOid)
-            .collect(Collectors.toSet());
+        final Set<Long> entityIds = getEntityIds(entities, entityTypes, envTypes);
 
         // Iterate over full entities, extract aspects, and build a mapping
         final Iterator<TopologyEntityDTO> iterator =
@@ -358,6 +426,36 @@ public class ActionSpecMappingContextFactory {
             oidToAspectMap.put(fullEntity.getOid(), aspect);
         }
 
+        return oidToAspectMap;
+    }
+
+    /**
+     * Gets aspect mapping from projected entities specified by input entity ids. For cloud
+     * migration plan, we need to get new OS type from projected entity's VM type info.
+     *
+     * @param entityIds Ids for which projected entities need to be fetched.
+     * @param name Type of aspect.
+     * @param planId Plan context id.
+     * @return Map of VM aspect keyed off of the target entity (VM) id.
+     * @throws InterruptedException Thrown on entity fetch error.
+     * @throws ConversionException Thrown on entity conversion error.
+     */
+    @Nonnull
+    private Map<Long, EntityAspect> getProjectedEntityToAspectMapping(
+            @Nonnull Set<Long> entityIds,
+            @Nonnull AspectName name,
+            long planId) throws InterruptedException, ConversionException {
+        final Map<Long, EntityAspect> oidToAspectMap = new HashMap<>();
+        final Set<TopologyEntityDTO> entitySet = repositoryApi.entitiesRequest(entityIds)
+                .contextId(planId)
+                .projectedTopology()
+                .getFullEntities().collect(Collectors.toSet());
+        for (final TopologyEntityDTO entity : entitySet) {
+            final EntityAspect aspect = entityAspectMapper.getAspectByEntity(entity, name);
+            if (aspect != null) {
+                oidToAspectMap.put(entity.getOid(), aspect);
+            }
+        }
         return oidToAspectMap;
     }
 
@@ -518,35 +616,6 @@ public class ActionSpecMappingContextFactory {
             volumesAspectsByEntity = volumeAspectMapper.mapVirtualMachines(virtualMachinesOIDs, topologyContextId);
         }
 
-        // only process volumes aspects if we have them
-        if (!volumesAspectsByEntity.isEmpty()) {
-            // add "beforePlan" filter to existing StorageAmount and add a new StorageAmount for after plan
-            volumesAspectsByEntity.values().forEach(virtualDisks ->
-                    virtualDisks.forEach(virtualDisk -> {
-                        StatApiDTO newStorageAmount = new StatApiDTO();
-                        for (StatApiDTO stat : virtualDisk.getStats()) {
-                            if (CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase().equals(stat.getName())) {
-                                // beforePlan filter so ui will show this number in the correct column
-                                StatFilterApiDTO beforePlanFilter = new StatFilterApiDTO();
-                                beforePlanFilter.setValue(StringConstants.BEFORE_PLAN);
-                                beforePlanFilter.setType(StringConstants.RESULTS_TYPE);
-                                stat.getFilters().add(beforePlanFilter);
-                                // todo: calculate new capacity for volume on new tier dynamically
-                                // based on old volume capacity and new tier constraints, or this
-                                // should be calculated from market side and returned in action?
-                                newStorageAmount.setName(stat.getName());
-                                newStorageAmount.setCapacity(stat.getCapacity());
-                                newStorageAmount.setValue(stat.getValue());
-                                newStorageAmount.setValues(stat.getValues());
-                                newStorageAmount.setUnits(stat.getUnits());
-                                break;
-                            }
-                        }
-                        virtualDisk.getStats().add(newStorageAmount);
-                    })
-            );
-        }
-
         // retrieve volume aspects for delete volume actions
         final Map<Long, List<VirtualDiskApiDTO>> aspectsByEntity = new HashMap<>(volumesAspectsByEntity);
         final Set<Long> virtualVolumeOIDs = involvedWorkloadIdsMap.get(ApiEntityType.VIRTUAL_VOLUME);
@@ -629,6 +698,19 @@ public class ActionSpecMappingContextFactory {
 
         private final Map<String, PolicyApiDTO> policiesApiDto;
 
+        private Set<ReservedInstanceApiDTO> reservedInstanceApiDTOs;
+
+        /**
+         * VM aspects from projected entities. Applicable for only some plans like cloud migration.
+         */
+        private Map<Long, EntityAspect> vmProjectedAspects;
+
+        /**
+         * True if this context refers to actions related to (cloud) migration.
+         */
+        private boolean hasMigrationActions = false;
+
+
         ActionSpecMappingContext(@Nonnull Map<Long, ApiPartialEntity> topologyEntityDTOs,
                                  @Nonnull Map<Long, PolicyDTO.Policy> policies,
                                  @Nonnull Map<Long, ApiPartialEntity> entityIdToRegion,
@@ -697,6 +779,63 @@ public class ActionSpecMappingContextFactory {
 
         Optional<EntityAspect> getVMAspect(@Nonnull Long entityId) {
             return Optional.ofNullable(vmAspects.get(entityId));
+        }
+
+        /**
+         * Sets if this context refers to a cloud migration plan.
+         *
+         * @param hasMigrationActions Whether a context refers to a (cloud) migration plan.
+         */
+        void setHasMigrationActions(boolean hasMigrationActions) {
+            this.hasMigrationActions = hasMigrationActions;
+        }
+
+        /**
+         * Whether context refers to a (cloud) migration plan.
+         *
+         * @return True if a (cloud) migration plan context.
+         */
+        boolean hasMigrationActions() {
+            return hasMigrationActions;
+        }
+
+        /**
+         * Sets VM aspects from projected entity.
+         *
+         * @param projectedAspects Set of projected VM aspects.
+         */
+        void setVMProjectedAspects(@Nonnull Map<Long, EntityAspect> projectedAspects) {
+            if (vmProjectedAspects == null) {
+                vmProjectedAspects = new HashMap<>();
+            }
+            vmProjectedAspects.clear();
+            vmProjectedAspects.putAll(projectedAspects);
+        }
+
+        void setReservedInstances(@Nonnull final List<ReservedInstanceApiDTO> reservedInstances) {
+            if (reservedInstanceApiDTOs == null) {
+                reservedInstanceApiDTOs = new HashSet<>();
+            }
+            reservedInstanceApiDTOs.clear();
+            reservedInstanceApiDTOs.addAll(reservedInstances);
+        }
+
+        @Nonnull
+        Set<ReservedInstanceApiDTO> getReservedInstances() {
+            if (reservedInstanceApiDTOs == null) {
+                return Collections.emptySet();
+            }
+            return reservedInstanceApiDTOs;
+        }
+
+        /**
+         * Gets VM aspects from projected entity with the given id.
+         *
+         * @param entityId Projected entity id.
+         * @return Aspect if present, or else empty.
+         */
+        Optional<EntityAspect> getVMProjectedAspect(@Nonnull Long entityId) {
+            return Optional.ofNullable(vmProjectedAspects.get(entityId));
         }
 
         Optional<EntityAspect> getDBAspect(@Nonnull Long entityId) {

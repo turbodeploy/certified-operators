@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator.store.identity;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashSet;
@@ -8,11 +7,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.gson.Gson;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -27,7 +31,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -39,6 +42,7 @@ import com.vmturbo.components.api.ComponentGsonFactory;
  */
 public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoModel> {
 
+    private static Logger logger = LogManager.getLogger();
     private static final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
     private static final Map<ActionTypeCase, Function<ActionInfo, ActionInfoModel>>
             fieldsCalculators;
@@ -119,23 +123,42 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
     @Nonnull
     private static ActionInfoModel getAtomicResize(@Nonnull ActionInfo action) {
         final AtomicResize atomicResize = action.getAtomicResize();
-        final List<ResizeChange> changes = new ArrayList<>(atomicResize.getResizesCount());
-        for (ResizeInfo resizeInfo : atomicResize.getResizesList()) {
-            final ResizeChange change = new ResizeChange(resizeInfo.getTarget().getId());
-            changes.add(change);
-        }
+
+        // When creating the changeString, it is important that we sort the resize changes
+        // because the order of the actions being merged doesn't matter, just their contents.
+        // Sorting will ensure that the same ActionInfoModel is generated even when order
+        // of the resize actions is different during different market recommendation plans
+        final List<ResizeChange> changes
+                = atomicResize.getResizesList().stream()
+                                .map(resizeInfo -> new ResizeChange(resizeInfo.getTarget().getId(),
+                                                                    resizeInfo.getCommodityType()))
+                                .sorted()
+                                .collect(Collectors.toList());
+
         final String changesString = gson.toJson(changes);
-        return new ActionInfoModel(ActionTypeCase.ATOMICRESIZE, atomicResize.getExecutionTarget().getId(), changesString, null);
+        return new ActionInfoModel(ActionTypeCase.ATOMICRESIZE,
+                                    atomicResize.getExecutionTarget().getId(),
+                                    changesString, null);
     }
 
     /**
      * Model for atomic resize action details.
      */
-    private static class ResizeChange {
+    private static class ResizeChange implements Comparable<ResizeChange> {
         private final long sourceId;
+        private final CommodityType commType;
 
-        ResizeChange(long sourceId) {
+        ResizeChange(long sourceId, CommodityType commType) {
             this.sourceId = sourceId;
+            this.commType = commType;
+        }
+
+        @Override
+        public int compareTo(@NotNull final ResizeChange o) {
+            if (sourceId == o.sourceId) {
+                return  Integer.compare(commType.getType(), o.commType.getType());
+            }
+            return Long.compare(sourceId, o.sourceId);
         }
     }
 

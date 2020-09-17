@@ -1,5 +1,18 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.AUTOMATIC;
+import static com.vmturbo.common.protobuf.utils.StringConstants.DISABLED;
+import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__ALLOCATION;
+import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__CONSUMPTION;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.mockito.Mockito.when;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.annotation.Nonnull;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -13,8 +26,17 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanStatusNotification.StatusUpdate;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject.PlanProjectStatus;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Tests for the interpretation of {@link PlanInstance} as
@@ -79,49 +101,49 @@ public class MarketMapperTest {
         scenarioApiDTO.setDisplayName(SCENARIO_NAME);
         scenarioApiDTO.setType(SCENARIO_TYPE);
 
-        Mockito.when(scenarioMapper.toScenarioApiDTO(Mockito.eq(BASE.getScenario())))
+        when(scenarioMapper.toScenarioApiDTO(Mockito.eq(BASE.getScenario())))
                 .thenReturn(scenarioApiDTO);
     }
 
     @Test
     public void testDtoFromPlanInstanceInProgress() throws Exception {
         MarketApiDTO inProgressDto = marketMapper.dtoFromPlanInstance(IN_PROGRESS_INSTANCE);
-        Assert.assertEquals(true, inProgressDto.getSaved());
-        Assert.assertEquals(DateTimeUtil.toString(START_TIME), inProgressDto.getRunDate());
-        Assert.assertEquals("RUNNING", inProgressDto.getState());
+        assertEquals(true, inProgressDto.getSaved());
+        assertEquals(DateTimeUtil.toString(START_TIME), inProgressDto.getRunDate());
+        assertEquals("RUNNING", inProgressDto.getState());
         Assert.assertTrue(inProgressDto.getStateProgress() < 100 && inProgressDto.getStateProgress() >= 0);
         Assert.assertNull(inProgressDto.getRunCompleteDate());
-        Assert.assertEquals(Long.toString(SCENARIO_ID), inProgressDto.getScenario().getUuid());
-        Assert.assertEquals(SCENARIO_NAME, inProgressDto.getScenario().getDisplayName());
-        Assert.assertEquals(CREATED_BY_USER, inProgressDto.getScenario().getOwners().get(0).getUuid());
-        Assert.assertEquals(SCENARIO_NAME, inProgressDto.getDisplayName());
+        assertEquals(Long.toString(SCENARIO_ID), inProgressDto.getScenario().getUuid());
+        assertEquals(SCENARIO_NAME, inProgressDto.getScenario().getDisplayName());
+        assertEquals(CREATED_BY_USER, inProgressDto.getScenario().getOwners().get(0).getUuid());
+        assertEquals(SCENARIO_NAME, inProgressDto.getDisplayName());
     }
 
     @Test
     public void testDtoFromPlanInstanceSucceeded() throws Exception {
         MarketApiDTO succeededDto = marketMapper.dtoFromPlanInstance(SUCCEEDED_INSTANCE);
-        Assert.assertEquals("Market", succeededDto.getClassName());
-        Assert.assertEquals(true, succeededDto.getSaved());
-        Assert.assertEquals(DateTimeUtil.toString(START_TIME), succeededDto.getRunDate());
-        Assert.assertEquals("SUCCEEDED", succeededDto.getState());
-        Assert.assertEquals(Integer.valueOf(100), succeededDto.getStateProgress());
-        Assert.assertEquals(DateTimeUtil.toString(END_TIME), succeededDto.getRunCompleteDate());
-        Assert.assertEquals(Long.toString(SCENARIO_ID), succeededDto.getScenario().getUuid());
-        Assert.assertEquals(SCENARIO_NAME, succeededDto.getScenario().getDisplayName());
-        Assert.assertEquals(SCENARIO_NAME, succeededDto.getDisplayName());
+        assertEquals("Market", succeededDto.getClassName());
+        assertEquals(true, succeededDto.getSaved());
+        assertEquals(DateTimeUtil.toString(START_TIME), succeededDto.getRunDate());
+        assertEquals("SUCCEEDED", succeededDto.getState());
+        assertEquals(Integer.valueOf(100), succeededDto.getStateProgress());
+        assertEquals(DateTimeUtil.toString(END_TIME), succeededDto.getRunCompleteDate());
+        assertEquals(Long.toString(SCENARIO_ID), succeededDto.getScenario().getUuid());
+        assertEquals(SCENARIO_NAME, succeededDto.getScenario().getDisplayName());
+        assertEquals(SCENARIO_NAME, succeededDto.getDisplayName());
     }
 
     @Test
     public void testDtoFromPlanInstanceFailed() throws Exception {
         MarketApiDTO failedDto = marketMapper.dtoFromPlanInstance(FAILED_INSTANCE);
-        Assert.assertEquals(true, failedDto.getSaved());
-        Assert.assertEquals(DateTimeUtil.toString(START_TIME), failedDto.getRunDate());
-        Assert.assertEquals("STOPPED", failedDto.getState());
-        Assert.assertEquals(Integer.valueOf(100), failedDto.getStateProgress());
-        Assert.assertEquals(DateTimeUtil.toString(END_TIME), failedDto.getRunCompleteDate());
-        Assert.assertEquals(Long.toString(SCENARIO_ID), failedDto.getScenario().getUuid());
-        Assert.assertEquals(SCENARIO_NAME, failedDto.getScenario().getDisplayName());
-        Assert.assertEquals(SCENARIO_NAME, failedDto.getDisplayName());
+        assertEquals(true, failedDto.getSaved());
+        assertEquals(DateTimeUtil.toString(START_TIME), failedDto.getRunDate());
+        assertEquals("STOPPED", failedDto.getState());
+        assertEquals(Integer.valueOf(100), failedDto.getStateProgress());
+        assertEquals(DateTimeUtil.toString(END_TIME), failedDto.getRunCompleteDate());
+        assertEquals(Long.toString(SCENARIO_ID), failedDto.getScenario().getUuid());
+        assertEquals(SCENARIO_NAME, failedDto.getScenario().getDisplayName());
+        assertEquals(SCENARIO_NAME, failedDto.getDisplayName());
     }
 
     /**
@@ -139,7 +161,7 @@ public class MarketMapperTest {
         MarketApiDTO dto = marketMapper.dtoFromPlanInstance(planInstance);
 
         //THEN
-        Assert.assertEquals(dto.getDisplayName(), planName);
+        assertEquals(dto.getDisplayName(), planName);
     }
 
     @Test
@@ -148,9 +170,9 @@ public class MarketMapperTest {
             .setPlanId(PLAN_ID)
             .setNewPlanStatus(PlanStatus.WAITING_FOR_RESULT)
             .build());
-        Assert.assertEquals(Long.toString(PLAN_ID), inProgress.getMarketId());
+        assertEquals(Long.toString(PLAN_ID), inProgress.getMarketId());
         Assert.assertTrue(inProgress.hasStatusProgressNotification());
-        Assert.assertEquals(Status.RUNNING, inProgress.getStatusProgressNotification().getStatus());
+        assertEquals(Status.RUNNING, inProgress.getStatusProgressNotification().getStatus());
     }
 
     @Test
@@ -159,9 +181,9 @@ public class MarketMapperTest {
             .setPlanId(PLAN_ID)
             .setNewPlanStatus(PlanStatus.SUCCEEDED)
             .build());
-        Assert.assertEquals(Long.toString(PLAN_ID), success.getMarketId());
+        assertEquals(Long.toString(PLAN_ID), success.getMarketId());
         Assert.assertTrue(success.hasStatusNotification());
-        Assert.assertEquals(Status.SUCCEEDED, success.getStatusNotification().getStatus());
+        assertEquals(Status.SUCCEEDED, success.getStatusNotification().getStatus());
     }
 
     @Test
@@ -170,9 +192,9 @@ public class MarketMapperTest {
             .setPlanId(PLAN_ID)
             .setNewPlanStatus(PlanStatus.FAILED)
             .build());
-        Assert.assertEquals(Long.toString(PLAN_ID), failure.getMarketId());
+        assertEquals(Long.toString(PLAN_ID), failure.getMarketId());
         Assert.assertTrue(failure.hasStatusNotification());
-        Assert.assertEquals(Status.STOPPED, failure.getStatusNotification().getStatus());
+        assertEquals(Status.STOPPED, failure.getStatusNotification().getStatus());
     }
 
     /**
@@ -184,7 +206,7 @@ public class MarketMapperTest {
             .setPlanId(PLAN_ID)
             .setNewPlanStatus(PlanStatus.STARTING_BUY_RI)
             .build());
-        Assert.assertEquals(Status.RUNNING, startBuyRi.getStatusProgressNotification().getStatus());
+        assertEquals(Status.RUNNING, startBuyRi.getStatusProgressNotification().getStatus());
     }
 
     /**
@@ -196,7 +218,118 @@ public class MarketMapperTest {
             .setPlanId(PLAN_ID)
             .setNewPlanStatus(PlanStatus.BUY_RI_COMPLETED)
             .build());
-        Assert.assertEquals(Status.RUNNING, buyRICompleted.getStatusProgressNotification().getStatus());
+        assertEquals(Status.RUNNING, buyRICompleted.getStatusProgressNotification().getStatus());
     }
 
+    /**
+     * Make up a plan project with a main and related plan, along with a base scenario, and then
+     * verify that the converted MarketApiDTO is correct.
+     *
+     * @throws Exception Thrown on translation error.
+     */
+    @Test
+    public void dtoFromPlanProject() throws Exception {
+        long projectId = 214056801136208L;
+        // Consumption plan.
+        long optimizedPlanId = 214191875872224L;
+        // Allocation plan.
+        long liftAndShiftPlanId = 214191875877168L;
+        long optimizedScenarioId = 214191875861568L;
+        long liftAndShiftScenarioId = 214191875876096L;
+        String planName = "Test migration 1";
+
+        // Create the project.
+        final PlanProject.Builder projectBuilder = PlanProject.newBuilder()
+                .setPlanProjectId(projectId)
+                .setStatus(PlanProjectStatus.SUCCEEDED)
+                .setPlanProjectInfo(PlanProjectInfo.newBuilder()
+                        .setMainPlanId(optimizedPlanId)
+                        .addRelatedPlanIds(liftAndShiftPlanId)
+                        .build());
+        final PlanProject planProject = projectBuilder.build();
+
+        // Create both main plan (optimized) and related (Lift & Shift) plans.
+        final PlanInstance optimizedPlan = getPlanInstance(optimizedPlanId,
+                optimizedScenarioId, projectId, planName, CLOUD_MIGRATION_PLAN__CONSUMPTION);
+
+        final Scenario optimizedScenario = optimizedPlan.getScenario();
+
+        final PlanInstance liftAndShiftPlan = getPlanInstance(liftAndShiftPlanId,
+                liftAndShiftScenarioId, projectId, planName, CLOUD_MIGRATION_PLAN__ALLOCATION);
+
+        List<PlanInstance> relatedPlans = new ArrayList<>();
+        relatedPlans.add(liftAndShiftPlan);
+
+        // Get the market DTO for the project.
+        final MarketApiDTO marketDTO = marketMapper.dtoFromPlanProject(planProject,
+                optimizedPlan, relatedPlans, optimizedScenario);
+
+        // Verify DTO settings. Main (optimized) plan settings are in the scenario. The
+        // lift & shift plan is in the related markets list.
+        assertEquals(planName, marketDTO.getDisplayName());
+        ScenarioApiDTO scenarioDTO = marketDTO.getScenario();
+        assertNotNull(scenarioDTO);
+        assertEquals(String.format("%s_%s", planName, CLOUD_MIGRATION_PLAN__CONSUMPTION),
+                scenarioDTO.getDisplayName());
+        assertEquals(String.valueOf(optimizedScenarioId), scenarioDTO.getUuid());
+        assertEquals(planName, marketDTO.getDisplayName());
+        assertEquals(String.valueOf(optimizedPlanId), marketDTO.getUuid());
+        assertEquals("SUCCEEDED", marketDTO.getState());
+        assertEquals(Integer.valueOf(100), marketDTO.getStateProgress());
+        assertEquals(1, marketDTO.getRelatedPlanMarkets().size());
+
+        MarketApiDTO relatedMarketDTO = marketDTO.getRelatedPlanMarkets().get(0);
+        assertEquals(String.valueOf(liftAndShiftPlanId), relatedMarketDTO.getUuid());
+        ScenarioApiDTO relatedScenarioDTO = relatedMarketDTO.getScenario();
+        assertNotNull(relatedScenarioDTO);
+        assertEquals(String.format("%s_%s", planName, CLOUD_MIGRATION_PLAN__ALLOCATION),
+                relatedScenarioDTO.getDisplayName());
+        assertEquals(String.valueOf(liftAndShiftScenarioId), relatedScenarioDTO.getUuid());
+
+        // Do an additional check for one more status.
+        final PlanProject runProject = projectBuilder.setStatus(PlanProjectStatus.RUNNING)
+                .build();
+        final MarketApiDTO runMarketDTO = marketMapper.dtoFromPlanProject(runProject,
+                optimizedPlan, relatedPlans, optimizedScenario);
+        assertEquals("RUNNING", runMarketDTO.getState());
+        assertEquals(Integer.valueOf(40), runMarketDTO.getStateProgress());
+    }
+
+    private PlanInstance getPlanInstance(long planId, long scenarioId, long projectId,
+                                         @Nonnull final String planName,
+                                         @Nonnull final String changeType) throws Exception {
+        ScenarioChange scenarioChange = ScenarioChange.newBuilder()
+                .setSettingOverride(SettingOverride.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setSetting(Setting.newBuilder()
+                                .setSettingSpecName(ConfigurableActionSettings
+                                        .ResizeVcpuUpInBetweenThresholds.getSettingName())
+                                .setEnumSettingValue(EnumSettingValue
+                                        .newBuilder()
+                                        .setValue(CLOUD_MIGRATION_PLAN__CONSUMPTION.equals(changeType)
+                                                ? AUTOMATIC : DISABLED)
+                                        .build()).build()).build())
+                .build();
+        final String scenarioName = String.format("%s_%s", planName, changeType);
+        final Scenario scenario = Scenario.newBuilder()
+                .setId(scenarioId)
+                .setScenarioInfo(ScenarioInfo.newBuilder()
+                        .addChanges(scenarioChange)
+                        .setName(scenarioName).build())
+                .build();
+
+        final ScenarioApiDTO scenarioApiDTO = new ScenarioApiDTO();
+        scenarioApiDTO.setUuid(Long.toString(scenarioId));
+        scenarioApiDTO.setDisplayName(scenarioName);
+        when(scenarioMapper.toScenarioApiDTO(Mockito.eq(scenario)))
+                .thenReturn(scenarioApiDTO);
+
+        return PlanInstance.newBuilder()
+                .setName(planName)
+                .setPlanId(planId)
+                .setStatus(PlanStatus.READY)
+                .setPlanProjectId(projectId)
+                .setScenario(scenario)
+                .build();
+    }
 }

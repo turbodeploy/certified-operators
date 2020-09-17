@@ -198,9 +198,7 @@ public class CloudCommitmentAnalysisSummary {
                 "<stageName> -------------- <state>\n"
                         + "    Start Time: <startTime>\n"
                         + "    End Time: <endTime>\n"
-                        + "    Duration: <duration>\n"
-                        + "    Results Summary:\n"
-                        + "        <resultsSummary>\n";
+                        + "    Duration: <duration>\n";
 
         @Nonnull
         private final AnalysisStage stage;
@@ -281,12 +279,6 @@ public class CloudCommitmentAnalysisSummary {
             template.add("endTime", hasFinished ? endTime : "Not Available");
             template.add("duration", hasStarted
                     ? Duration.between(startTime, hasFinished ? endTime : Instant.now()) : "Not Available");
-
-            // Format the results with the correct indent
-            final String results = (hasFinished && stageResult != null)
-                    ? stageResult.resultSummary().replaceAll("\n", "        \n")
-                    : "Not Available";
-            template.add("resultsSummary", results);
 
             return template.render();
         }

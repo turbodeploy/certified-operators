@@ -81,7 +81,7 @@ public class Table {
      * @return TableWriter with the attached sink
      */
     public TableWriter open(Consumer<Record> sink) {
-        return new TableWriter(sink);
+        return new TableWriter(this, sink);
     }
 
     /**
@@ -150,8 +150,9 @@ public class Table {
     /**
      * Class to manage a record sink attached to a table.
      */
-    public class TableWriter implements AutoCloseable {
+    public static class TableWriter implements AutoCloseable {
 
+        private final Table table;
         private final Consumer<Record> sink;
         private boolean closed = false;
         private long recordsWritten = 0;
@@ -159,9 +160,11 @@ public class Table {
         /**
          * Create a new instance.
          *
+         * @param table table we're writin to
          * @param sink sink to receive records for the table
          */
-        public TableWriter(Consumer<Record> sink) {
+        public TableWriter(Table table, Consumer<Record> sink) {
+            this.table = table;
             this.sink = sink;
         }
 
@@ -194,10 +197,10 @@ public class Table {
          */
         public Record open(Record partial) {
             if (!closed) {
-                return new Record(this, this::accept, partial);
+                return new Record(table, sink, partial);
             } else {
                 throw new IllegalStateException(
-                        String.format("TableWriter for table %s is closed", name));
+                        String.format("TableWriter for table %s is closed", table.getName()));
             }
         }
 
@@ -212,7 +215,7 @@ public class Table {
                 recordsWritten++;
             } else {
                 throw new IllegalStateException(
-                        String.format("TableWriter for table %s is closed", name));
+                        String.format("TableWriter for table %s is closed", table.getName()));
             }
         }
 
@@ -225,35 +228,7 @@ public class Table {
         public void close() {
             sink.accept(null);
             this.closed = true;
-            RECORDS_WRITTEN_GAUGE.labels(getName()).setData((double)recordsWritten);
-        }
-
-        /**
-         * Get a column from the underlying table.
-         *
-         * @param columnName column name
-         * @return column
-         */
-        public Column<?> getColumn(final String columnName) {
-            return Table.this.getColumn(columnName);
-        }
-
-        /**
-         * Get the name of the underlying table.
-         *
-         * @return the table name
-         */
-        public String getName() {
-            return Table.this.getName();
-        }
-
-        /**
-         * Get the list of columns in the underlying table.
-         *
-         * @return the table columns
-         */
-        public Collection<Column<?>> getColumns() {
-            return Table.this.getColumns();
+            RECORDS_WRITTEN_GAUGE.labels(table.getName()).setData((double)recordsWritten);
         }
 
         public boolean isClosed() {
@@ -273,12 +248,12 @@ public class Table {
      */
     public static class Record implements AutoCloseable {
 
+        private final Table table;
         private final Consumer<Record> sink;
-        private final TableWriter tableWriter;
         private final Map<Column<?>, Object> values;
 
-        private Record(TableWriter tableWriter, Consumer<Record> sink, Record partial) {
-            this.tableWriter = tableWriter;
+        private Record(Table table, Consumer<Record> sink, Record partial) {
+            this.table = table;
             this.sink = sink;
             this.values = partial != null ? partial.values : new HashMap<>();
         }
@@ -293,7 +268,7 @@ public class Table {
          * @param table the table
          */
         public Record(Table table) {
-            this(table.open(null), null, null);
+            this(table, null, null);
         }
 
         /**
@@ -314,10 +289,10 @@ public class Table {
          * @param value      value to set
          */
         public void set(String columnName, Object value) {
-            Column<?> column = tableWriter.getColumn(columnName);
+            Column<?> column = table.getColumn(columnName);
             if (column == null) {
                 throw new IllegalArgumentException(String.format("Column '%s' not found in table '%s'",
-                        columnName, tableWriter.getName()));
+                        columnName, table.getName()));
             } else {
                 values.put(column, value);
             }
@@ -390,7 +365,7 @@ public class Table {
          */
         public long getXxHash(Set<Column<?>> includedColumns) {
             final StreamingXXHash64 hash64 = HashUtil.XX_HASH_FACTORY.newStreamingHash64(HashUtil.XX_HASH_SEED);
-            tableWriter.getColumns().stream()
+            table.getColumns().stream()
                     .filter(includedColumns::contains)
                     .map(c -> c.toHashValue(values.get(c)))
                     // empty byte arrays cause problems in at least the unsafe java xxhash impl
@@ -420,7 +395,7 @@ public class Table {
         }
 
         /**
-         * Return this record as a map, ommitting null keys and values, if any.
+         * Return this record as a map, omitting null keys and values, if any.
          *
          * <p>This is currently used for testing.</p>
          *

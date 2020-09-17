@@ -5,6 +5,8 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.when;
 
+import java.util.Optional;
+
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
@@ -25,6 +27,9 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class StatsActionViewFactoryTest {
+
+    public static final long BUSINESS_ACCOUNT_ID = 123L;
+    public static final long RESOURCE_GROUP_ID = 234L;
 
     @Test
     public void testFactoryFromActionView() throws UnsupportedActionException {
@@ -48,6 +53,8 @@ public class StatsActionViewFactoryTest {
         final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(recommendation);
         when(actionView.getState()).thenReturn(ActionState.QUEUED);
         when(actionView.getMode()).thenReturn(ActionMode.AUTOMATIC);
+        when(actionView.getAssociatedAccount()).thenReturn(Optional.of(BUSINESS_ACCOUNT_ID));
+        when(actionView.getAssociatedResourceGroupId()).thenReturn(Optional.of(RESOURCE_GROUP_ID));
         when(actionView.getActionCategory()).thenReturn(ActionCategory.PERFORMANCE_ASSURANCE);
 
         // Act
@@ -56,6 +63,8 @@ public class StatsActionViewFactoryTest {
         // Assert
         assertThat(snapshot.involvedEntities(), contains(targetEntity));
         assertThat(snapshot.recommendation(), is(recommendation));
+        assertThat(snapshot.businessAccountId(), is(Optional.of(BUSINESS_ACCOUNT_ID)));
+        assertThat(snapshot.resourceGroupId(), is(Optional.of(RESOURCE_GROUP_ID)));
 
         final ActionGroupKey actionGroupKey = snapshot.actionGroupKey();
         assertThat(actionGroupKey.getActionMode(), is(ActionMode.AUTOMATIC));

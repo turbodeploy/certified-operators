@@ -104,6 +104,7 @@ import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.ProtobufSummarizers;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
@@ -221,7 +222,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         final ProjectedStatsResponse.Builder builder = ProjectedStatsResponse.newBuilder();
         projectedStatsStore.getStatSnapshotForEntities(
                 new HashSet<>(request.getEntitiesList()),
-                new HashSet<>(request.getCommodityNameList()))
+                new HashSet<>(request.getCommodityNameList()),
+                new HashSet<>(request.getProvidersList()))
             .ifPresent(builder::setSnapshot);
         responseObserver.onNext(builder.build());
         responseObserver.onCompleted();
@@ -265,6 +267,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         responseObserver.onNext(projectedStatsStore.getEntityStats(
             seedEntityToDerivedEntities,
             new HashSet<>(request.getCommodityNameList()),
+            new HashSet<>(request.getProvidersList()),
             paginationParamsFactory.newPaginationParams(request.getPaginationParams())));
         responseObserver.onCompleted();
     }
@@ -295,7 +298,6 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         try {
             final List<Long> entitiesList = request.getEntitiesList();
             final StatsFilter filter = request.getFilter();
-
             // determine if this request is for stats for a plan topology; for efficiency, check
             // first for the special case ID of the entire live topology, "Market" (i.e. not a plan)
             boolean isPlan = entitiesList.size() == 1
@@ -321,11 +323,11 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
             timer.observeDuration();
         } catch (Exception e) {
-            logger.error("Error getting stats snapshots for {}", request);
-            logger.error("    ", e);
+            final String requestSummary = ProtobufSummarizers.summarize(request);
+            logger.error("Error getting stats snapshots for {}", requestSummary, e);
             responseObserver.onError(Status.INTERNAL
-                    .withDescription("Internal Error fetching stats for: " + request + ", cause: "
-                            + e.getMessage())
+                    .withDescription(String.format("Internal Error fetching stats for: %s, cause: %s",
+                            requestSummary, e.getMessage()))
                     .asException());
         }
     }
@@ -467,18 +469,19 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
     /**
      * Fetch and return a sequence of StatSnapshots for each of the provided entity group in the
-     * request. For each seed entity (like: DC), it aggregates stats on its derived entities
-     * (like: PMs) and use it as the stats for the seed entity.
+     * request. For each seed entity (like: DC), it aggregates stats on its derived entities (like:
+     * PMs) and use it as the stats for the seed entity.
      *
-     * <p>Currently, we only support getting stats from live topology history, since there is no use
+     * <p>Currently, we only support getting stats from live topology history, since there is no
+     * use
      * case for plan topology. We can extend it to support plan topology history if necessary.
      *
      * <p>Note: This call is expected to be slower since we can't do pagination in DB level.
      *
-     * @param entityGroupList EntityGroupList containing list of EnityGroups
-     * @param statsFilter the requested stats names and filters
+     * @param entityGroupList      EntityGroupList containing list of EntityGroups
+     * @param statsFilter          the requested stats names and filters
      * @param paginationParameters pagination parameters
-     * @param responseObserver the chunking channel on which the response should be returned
+     * @param responseObserver     the chunking channel on which the response should be returned
      * @throws VmtDbException if there is an error interacting with the database
      */
     @VisibleForTesting
@@ -579,7 +582,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @param filter    stats filter
      * @param timeFrame timeframe to use for query
      * @return retrieved records
-     * @throws StatusException for specifically crafted errors to be sent to reuestor
+     * @throws StatusException for specifically crafted errors to be sent to requester
      * @throws VmtDbException if a DB error occurs
      */
     private List<ClusterStatsRecordReader> getClusterStats(long clusterId, StatsFilter filter, TimeFrame timeFrame)
@@ -629,7 +632,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
     /**
      * Postprocess cluster stats query results and package them into {@link StatSnapshot} instances,
-     * and transmit them back to the requestor.
+     * and transmit them back to the requester.
      *
      * @param request          a cluster stats request
      * @param results          cluster stats records
@@ -672,7 +675,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     propertySubtype = record.getPropertySubtype();
                     value = record.getValue();
                 } else {
-                    // stats with multiiple records are expected to be usage-related, with one
+                    // stats with multiple records are expected to be usage-related, with one
                     // record containing the "used" value and another containing "capacity". We will
                     // know which record is which based on the property sub-type.
                     for (ClusterStatsRecordReader record : records) {
@@ -1065,7 +1068,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     /**
      * Delete stats associated with a plan.
      *
-     * @param request PlanId/TopologyContextId which indentifies the plan
+     * @param request PlanId/TopologyContextId which identifies the plan
      * @param responseObserver channel for sending the response {@link DeletePlanStatsResponse}
      *
      */
@@ -1233,8 +1236,14 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 responseObserver.onCompleted();
                 return;
             }
-            historydbIO.getEntityCommoditiesMaxValues(request.getEntityType(),
-                request.getCommodityTypesList()).forEach(responseObserver::onNext);
+            historydbIO.getEntityCommoditiesMaxValues(
+                    request.getEntityType(),
+                    request.getCommodityTypesList(),
+                    request.hasIsBought() && request.getIsBought(),
+                    request.getUuidsList(),
+                    request.hasUseHistoricalCommBoughtLookbackDays()
+                            && request.getUseHistoricalCommBoughtLookbackDays()
+            ).forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         } catch (VmtDbException | SQLException e) {
             responseObserver.onError(

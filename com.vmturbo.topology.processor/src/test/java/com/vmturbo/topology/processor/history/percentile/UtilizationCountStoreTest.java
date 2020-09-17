@@ -21,6 +21,7 @@ import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
+import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord.CapacityChange;
 
 /**
  * Unit tests for UtilizationCountStore.
@@ -60,6 +61,8 @@ public class UtilizationCountStoreTest {
      */
     @Test
     public void testAddPoints() throws HistoryCalculationException {
+        store.addPoints(ImmutableList.of(Double.NaN, Double.NaN), 1000d, 100);
+        Assert.assertTrue(store.isEmpty());
         store.addPoints(ImmutableList.of(10d, 10d, 10d, 10d, 10d), 100d, 100);
         Assert.assertEquals(10, store.getPercentile(90));
         // adding for the same time should have no effect
@@ -80,7 +83,8 @@ public class UtilizationCountStoreTest {
                         .setEntityOid(ref.getEntityOid())
                         .setCommodityType(ref.getCommodityType().getType())
                         .setKey(ref.getCommodityType().getKey())
-                        .setProviderOid(ref.getProviderOid()).setCapacity(0f).setPeriod(30);
+                        .addCapacityChanges(CapacityChange.newBuilder().setTimestamp(0L).setNewCapacity(100F))
+                        .setProviderOid(ref.getProviderOid()).setCapacity(100f).setPeriod(30);
         for (int i = 0; i <= 100; ++i) {
             builder.addUtilization(20);
         }

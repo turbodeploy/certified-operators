@@ -291,14 +291,21 @@ public class EntityValidator {
     private List<String> validateCommodityBought(@Nonnull final CommodityBoughtDTO commodityBought) {
         final List<String> errors = new ArrayList<>();
 
-        if (commodityBought.hasUsed() && commodityBought.getUsed() < 0) {
-            errors.add("Used " + commodityBought.getCommodityType() + " has a negative value: " +
-                commodityBought.getUsed());
+        if (commodityBought.hasUsed()) {
+            if (commodityBought.getUsed() < 0) {
+                errors.add("Used " + commodityBought.getCommodityType() + " has a negative value: "
+                    + commodityBought.getUsed());
+            } else if (Double.isNaN(commodityBought.getUsed())) {
+                errors.add("Used " + commodityBought.getCommodityType() + " has a NaN value.");
+            }
         }
-
-        if (commodityBought.hasPeak() && commodityBought.getPeak() < 0) {
-            errors.add("Peak " + commodityBought.getCommodityType() + " has a negative value: " +
-                commodityBought.getPeak());
+        if (commodityBought.hasPeak()) {
+            if (commodityBought.getPeak() < 0) {
+                errors.add("Peak " + commodityBought.getCommodityType() + " has a negative value: "
+                    + commodityBought.getPeak());
+            } else if (Double.isNaN(commodityBought.getPeak())) {
+                errors.add("Peak " + commodityBought.getCommodityType() + " has a NaN value.");
+            }
         }
         return errors;
     }

@@ -97,7 +97,8 @@ public class CloudCommitmentAnalysisManager {
             try {
                 analysis.run();
             } catch (Exception e) {
-                logger.error("{} Exception caught during analysis", analysis.logMarker(), e);
+                logger.error("Exception caught during analysis (Analysis OID={})",
+                        analysisInfo.getOid(), e);
             } finally {
                 markAnalysisComplete(analysisInfo.getOid());
             }

@@ -199,21 +199,43 @@ public class SupplyChainFetcherFactory {
     }
 
     /**
-     * Utility method to expand a seed into the set of all ids in its supply scope.
+     * Utility method to expand a seed into the set of all ids in its supply chain scope for either real-
+     * time or plan topologies.
+     *
+     * @param entityUuids ids of entities in the seed.
+     * @param relatedEntityTypes entity types of entities to fetch (if empty, fetch all entities).
+     * @param topologyContextId the optional topologyContextId corresponding to a plan topology
+     * @return the ids of the supply chain requested.
+     * @throws OperationFailedException operation failed.
+     */
+    public Set<Long> expandScope(
+            @Nonnull Set<Long> entityUuids,
+            @Nonnull List<String> relatedEntityTypes,
+            Long topologyContextId)
+            throws OperationFailedException {
+        final SupplyChainNodeFetcherBuilder builder =
+            newNodeFetcher()
+                .addSeedUuids(
+                    entityUuids.stream().map(Object::toString).collect(Collectors.toList()))
+                .entityTypes(relatedEntityTypes);
+        if (Objects.nonNull(topologyContextId) && topologyContextId != realtimeTopologyContextId) {
+            builder.topologyContextId(topologyContextId);
+        }
+        return builder.fetchEntityIds();
+    }
+
+    /**
+     * Utility method to expand a seed into the set of all ids in its real-time supply chain scope.
      *
      * @param entityUuids ids of entities in the seed.
      * @param relatedEntityTypes entity types of entities to fetch (if empty, fetch all entities).
      * @return the ids of the supply chain requested.
      * @throws OperationFailedException operation failed.
      */
-    public Set<Long> expandScope(@Nonnull Set<Long> entityUuids, @Nonnull List<String> relatedEntityTypes)
+    public Set<Long> expandScope(@Nonnull Set<Long> entityUuids,
+            @Nonnull List<String> relatedEntityTypes)
             throws OperationFailedException {
-        return
-            newNodeFetcher()
-                .addSeedUuids(
-                    entityUuids.stream().map(Object::toString).collect(Collectors.toList()))
-                .entityTypes(relatedEntityTypes)
-                .fetchEntityIds();
+        return expandScope(entityUuids, relatedEntityTypes, null);
     }
 
     /**
@@ -332,6 +354,7 @@ public class SupplyChainFetcherFactory {
         public Map<String, SupplyChainNode> fetch() throws OperationFailedException {
             try {
                 return new SupplychainNodeFetcher(
+                        realtimeTopologyContextId,
                         topologyContextId,
                         seedUuids,
                         entityTypes,
@@ -352,8 +375,9 @@ public class SupplyChainFetcherFactory {
             try {
                 return
                     new SupplychainNodeFetcher(
-                            topologyContextId, seedUuids, entityTypes, entityStates, environmentType,
-                            supplyChainRpcService, groupExpander, enforceUserScope, repositoryApi)
+                            realtimeTopologyContextId, topologyContextId, seedUuids, entityTypes,
+                            entityStates, environmentType, supplyChainRpcService, groupExpander,
+                            enforceUserScope, repositoryApi)
                         .fetchEntityIds();
             } catch (InterruptedException|ExecutionException|TimeoutException e) {
                 throw new OperationFailedException("Failed to fetch supply chain! Error: "
@@ -366,9 +390,9 @@ public class SupplyChainFetcherFactory {
         public List<SupplyChainStat> fetchStats(@Nonnull final List<SupplyChainGroupBy> groupBy)
             throws OperationFailedException {
             try {
-                return new SupplychainNodeFetcher(
-                    topologyContextId, seedUuids, entityTypes, entityStates, environmentType,
-                    supplyChainRpcService, groupExpander, enforceUserScope, repositoryApi)
+                return new SupplychainNodeFetcher(realtimeTopologyContextId, topologyContextId,
+                        seedUuids, entityTypes, entityStates, environmentType, supplyChainRpcService,
+                        groupExpander, enforceUserScope, repositoryApi)
                     .fetchStats(groupBy);
             } catch (StatusRuntimeException e) {
                 throw new OperationFailedException("Failed to fetch supply chain stats! Error: " +
@@ -452,10 +476,11 @@ public class SupplyChainFetcherFactory {
         @Nonnull
         public SupplychainApiDTO fetch() throws OperationFailedException, InterruptedException {
             try {
-                final SupplychainApiDTO dto = new SupplychainApiDTOFetcher(topologyContextId,
-                    seedUuids, entityTypes, entityStates, environmentType, entityDetailType, aspectsToInclude,
-                    includeHealthSummary, supplyChainRpcService, severityRpcService, repositoryApi,
-                    groupExpander, entityAspectMapper, enforceUserScope, costServiceBlockingStub)
+                final SupplychainApiDTO dto = new SupplychainApiDTOFetcher(
+                        realtimeTopologyContextId, topologyContextId, seedUuids, entityTypes,
+                        entityStates, environmentType, entityDetailType, aspectsToInclude,
+                        includeHealthSummary, supplyChainRpcService, severityRpcService, repositoryApi,
+                        groupExpander, entityAspectMapper, enforceUserScope, costServiceBlockingStub)
                     .fetch();
                 return dto;
             } catch (ExecutionException | TimeoutException | ConversionException e) {
@@ -470,10 +495,11 @@ public class SupplyChainFetcherFactory {
             try {
                 return
                     new SupplychainApiDTOFetcher(
-                        topologyContextId, seedUuids, entityTypes, entityStates, environmentType,
-                        entityDetailType, aspectsToInclude, includeHealthSummary,
-                        supplyChainRpcService, severityRpcService, repositoryApi, groupExpander,
-                        entityAspectMapper, enforceUserScope, costServiceBlockingStub)
+                        realtimeTopologyContextId, topologyContextId, seedUuids, entityTypes,
+                        entityStates, environmentType, entityDetailType, aspectsToInclude,
+                        includeHealthSummary, supplyChainRpcService, severityRpcService,
+                        repositoryApi, groupExpander, entityAspectMapper, enforceUserScope,
+                        costServiceBlockingStub)
                         .fetchEntityIds();
             } catch (ExecutionException | TimeoutException e) {
                 throw new OperationFailedException("Failed to fetch supply chain! Error: "
@@ -487,10 +513,11 @@ public class SupplyChainFetcherFactory {
             throws OperationFailedException {
             try {
                 return new SupplychainApiDTOFetcher(
-                    topologyContextId, seedUuids, entityTypes, entityStates, environmentType,
-                    entityDetailType, aspectsToInclude, includeHealthSummary, supplyChainRpcService,
-                    severityRpcService, repositoryApi, groupExpander, entityAspectMapper,
-                        enforceUserScope, costServiceBlockingStub)
+                        realtimeTopologyContextId, topologyContextId, seedUuids, entityTypes,
+                        entityStates, environmentType, entityDetailType, aspectsToInclude,
+                        includeHealthSummary, supplyChainRpcService, severityRpcService,
+                        repositoryApi, groupExpander, entityAspectMapper, enforceUserScope,
+                        costServiceBlockingStub)
                         .fetchStats(groupBy);
             } catch (StatusRuntimeException e) {
                 throw new OperationFailedException("Failed to fetch supply chain stats! Error: " +
@@ -691,6 +718,8 @@ public class SupplyChainFetcherFactory {
 
         protected final Logger logger = LogManager.getLogger(getClass());
 
+        private final long realtimeTopologyContextId;
+
         private final long topologyContextId;
 
         protected final Set<String> seedUuids;
@@ -709,7 +738,8 @@ public class SupplyChainFetcherFactory {
 
         private final RepositoryApi repositoryApi;
 
-        private SupplychainFetcher(final long topologyContextId,
+        private SupplychainFetcher(final long realtimeTopologyContextId,
+                                   final long topologyContextId,
                                    @Nullable final Set<String> seedUuids,
                                    @Nullable final Set<String> entityTypes,
                                    @Nullable final Set<EntityState> entityStates,
@@ -718,6 +748,7 @@ public class SupplyChainFetcherFactory {
                                    @Nonnull GroupExpander groupExpander,
                                    final boolean enforceUserScope,
                                    @Nonnull final RepositoryApi repositoryApi) {
+            this.realtimeTopologyContextId = realtimeTopologyContextId;
             this.topologyContextId = topologyContextId;
             this.seedUuids = seedUuids;
             this.entityTypes = entityTypes;
@@ -871,9 +902,13 @@ public class SupplyChainFetcherFactory {
                 return Collections.emptyList();
             }
 
-            final GetSupplyChainRequest request = GetSupplyChainRequest.newBuilder()
-                .setScope(scope.get())
-                .build();
+            final GetSupplyChainRequest.Builder builder = GetSupplyChainRequest.newBuilder()
+                .setScope(scope.get());
+            final long topologyContextId = getTopologyContextId();
+            if (topologyContextId != realtimeTopologyContextId) {
+                builder.setContextId(getTopologyContextId());
+            }
+            final GetSupplyChainRequest request = builder.build();
 
             final GetSupplyChainResponse response = supplyChainRpcService.getSupplyChain(request);
             if (!response.getSupplyChain().getMissingStartingEntitiesList().isEmpty()) {
@@ -1079,7 +1114,8 @@ public class SupplyChainFetcherFactory {
      */
     private static class SupplychainNodeFetcher extends SupplychainFetcher<Map<String, SupplyChainNode>> {
 
-        private SupplychainNodeFetcher(final long topologyContextId,
+        private SupplychainNodeFetcher(final long realtimeTopologyContextId,
+                                       final long topologyContextId,
                                        @Nullable final Set<String> seedUuids,
                                        @Nullable final Set<String> entityTypes,
                                        @Nullable final Set<EntityState> entityStates,
@@ -1088,8 +1124,8 @@ public class SupplyChainFetcherFactory {
                                        @Nonnull final GroupExpander groupExpander,
                                        final boolean enforceUserScope,
                                        @Nonnull final RepositoryApi repositoryApi) {
-            super(topologyContextId, seedUuids, entityTypes, entityStates, environmentType,
-                    supplyChainRpcService, groupExpander, enforceUserScope, repositoryApi);
+            super(realtimeTopologyContextId, topologyContextId, seedUuids, entityTypes, entityStates,
+                    environmentType, supplyChainRpcService, groupExpander, enforceUserScope, repositoryApi);
         }
 
         @Override
@@ -1131,7 +1167,8 @@ public class SupplyChainFetcherFactory {
 
         private boolean actionOrchestratorAvailable;
 
-        private SupplychainApiDTOFetcher(final long topologyContextId,
+        private SupplychainApiDTOFetcher(final long realtimeTopologyContextId,
+                                        final long topologyContextId,
                                          @Nullable final Set<String> seedUuids,
                                          @Nullable final Set<String> entityTypes,
                                          @Nullable final Set<EntityState> entityStates,
@@ -1146,7 +1183,7 @@ public class SupplyChainFetcherFactory {
                                          @Nullable final EntityAspectMapper entityAspectMapper,
                                          final boolean enforceUserScope,
                                          @Nonnull final CostServiceBlockingStub costServiceBlockingStub) {
-            super(topologyContextId, seedUuids, entityTypes, entityStates, environmentType, supplyChainRpcService,
+            super(realtimeTopologyContextId, topologyContextId, seedUuids, entityTypes, entityStates, environmentType, supplyChainRpcService,
                     groupExpander, enforceUserScope, repositoryApi);
             this.entityDetailType = entityDetailType;
             this.aspectsToInclude = aspectsToInclude;

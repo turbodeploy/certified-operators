@@ -2,9 +2,12 @@ package com.vmturbo.repository.service;
 
 import static org.junit.Assert.assertEquals;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.runners.MockitoJUnitRunner;
@@ -13,6 +16,7 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtilizationValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -25,6 +29,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.repository.service.AbridgedSoldCommoditiesForProvider.AbridgedSoldCommodity;
 import com.vmturbo.repository.service.PlanEntityStatsExtractor.DefaultPlanEntityStatsExtractor;
 
 /**
@@ -49,9 +54,12 @@ public class PlanEntityStatsExtractorTest {
         final double cpuPeakValue = 30;
         final double vcpuPercentileValue = 50;
         final double vcpuCapacity = 100;
+        final double iopsPercentile = 0.5;
+        final double iopsCapacity = 4000;
+        final long computeTierId = 888;
 
         CommoditiesBoughtFromProvider commoditiesBought = CommoditiesBoughtFromProvider.newBuilder()
-            .setProviderId(888)
+            .setProviderId(computeTierId)
             .addCommodityBought(CommodityBoughtDTO.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
                     .setType(CommodityDTO.CommodityType.CPU_VALUE))
@@ -61,6 +69,15 @@ public class PlanEntityStatsExtractorTest {
                 .setCommodityType(CommodityType.newBuilder()
                     .setType(CommodityDTO.CommodityType.MEM_VALUE))
                 .setUsed(1024))
+            .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE)
+                    .build())
+                .setHistoricalUsed(HistoricalValues.newBuilder()
+                    .setPercentile(iopsPercentile)
+                    .build())
+                .setUsed(1300)
+                .build())
             .build();
 
         CommoditySoldDTO cpuCommoditySold =
@@ -106,9 +123,17 @@ public class PlanEntityStatsExtractorTest {
 
         long snapshotDate = 100100100;
 
+        final Map<Long, AbridgedSoldCommoditiesForProvider> providerToSoldCommoditiesMap =
+            Collections.singletonMap(computeTierId,
+                new AbridgedSoldCommoditiesForProvider(EntityType.COMPUTE_TIER_VALUE,
+                    Collections.singletonList(
+                        new AbridgedSoldCommodity(
+                            CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, iopsCapacity))));
         // Apply
         final EntityStats stats =
-            statsExtractor.extractStats(entity, statsFilter, statEpoch, snapshotDate)
+            statsExtractor.extractStats(entity, statEpoch,
+                providerToSoldCommoditiesMap, Collections.emptyMap(), Collections.emptyMap(),
+                snapshotDate)
                 .build();
 
         // Verify
@@ -128,6 +153,22 @@ public class PlanEntityStatsExtractorTest {
         assertEquals(cpuPeakValue, cpuStat.getUsed().getMax(), 0);
         assertEquals(cpuPeakValue, cpuStat.getUsed().getTotalMax(), 0);
         assertEquals(StringConstants.RELATION_BOUGHT, cpuStat.getRelation());
+
+        final List<StatRecord> iopsStats = statSnapshot.getStatRecordsList().stream()
+            .filter(StatRecord::hasName)
+            .filter(statRecord -> statRecord.getName()
+                .equalsIgnoreCase("StorageAccess"))
+            .collect(Collectors.toList());
+        Assert.assertFalse(iopsStats.isEmpty());
+        final StatRecord iopsStatRecord = iopsStats.iterator().next();
+        Assert.assertEquals(iopsCapacity, iopsStatRecord.getCapacity().getAvg(), 0);
+        Assert.assertFalse(iopsStatRecord.getHistUtilizationValueList().isEmpty());
+        final HistUtilizationValue histUtilizationValue =
+            iopsStatRecord.getHistUtilizationValueList().iterator().next();
+        Assert.assertEquals("percentile", histUtilizationValue.getType());
+        Assert.assertEquals(iopsPercentile * iopsCapacity,
+            histUtilizationValue.getUsage().getAvg(), 0);
+
         // Check VMem stat
         final List<StatRecord> vMemStats = statSnapshot.getStatRecordsList().stream()
             .filter(StatRecord::hasName)

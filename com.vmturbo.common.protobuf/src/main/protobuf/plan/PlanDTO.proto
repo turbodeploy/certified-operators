@@ -69,6 +69,9 @@ message PlanInstance {
     // Plan name, on creation derived from Scenario.ScenarioInfo.Name
     optional string name = 21;
 
+    // The ID of the plan project that this plan belongs to
+    optional int64 plan_project_id = 22;
+
     enum PlanStatus {
         // Plan is ready to be executed, but has not been
         // triggered.
@@ -165,6 +168,15 @@ message CreatePlanRequest {
 
     // The id of scenario to be applied over existing topology before running a plan
     optional int64 scenario_id = 3;
+
+    // Type of project that this plan is part of, e.g, cloud_migration.
+    optional PlanProjectType project_type = 4;
+
+    // Id of project that this plan is part of
+    optional int64 plan_project_id = 5;
+
+    // Name of the plan.
+    optional string name = 6;
 }
 
 message PlanId {

@@ -23,6 +23,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
+import com.vmturbo.topology.graph.search.SearchResolver;
+import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 
 /**
@@ -74,8 +76,11 @@ public class LiveTopologyStoreTest {
                     .setType(UICommodityType.STORAGE_AMOUNT.typeNumber()))))
         .build();
 
+    private final SearchResolver<RepoGraphEntity>
+            searchResolver = new SearchResolver<>(new TopologyFilterFactory<RepoGraphEntity>());
+
     private final LiveTopologyStore liveTopologyStore =
-            new LiveTopologyStore(new GlobalSupplyChainCalculator());
+            new LiveTopologyStore(new GlobalSupplyChainCalculator(), searchResolver);
 
     @Test
     public void testSourceTopology() {

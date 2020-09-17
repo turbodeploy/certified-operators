@@ -167,10 +167,28 @@ http {
         rewrite ^/swagger(/external)?(.+)$ /swagger/external$2;
 
         # proxying API paths
-        location ~ ^(/$|/api|/vmturbo/rest|/vmturbo/saml2|/vmturbo/oauth2) {
+        location ~ ^/(api|vmturbo/rest|vmturbo/saml2|vmturbo/oauth2) {
             # $api_servers must be declared before api-proxy.conf
             set $api_servers $API;
             include /etc/nginx/includes/api-proxy.conf;
+        }
+
+        # proxying UI paths
+        location ~ ^(/$|/app|/assets|/doc) {
+            # $ui_servers must be declared before ui-proxy.conf
+            set $ui_servers $UI;
+            include /etc/nginx/includes/ui-proxy.conf;
+        }
+
+        # UI Proxy Failover in case the UI Pod has not been deployed b/c of old tc8-operator
+        # This is temporary until the latest version of tc8-operator has been fully adopted in the wild
+        # Note: This failover LACKS proper cache response headers for UI assets.  To resolving browser
+        # caching issues, we need to deploy the ui component.
+        location @ui_upstream_failover {
+            # $api_servers must be declared before api-proxy.conf
+            set $api_servers $API;
+            include /etc/nginx/includes/api-proxy.conf;
+            include /etc/nginx/includes/content-security-policy.conf;
         }
 
         # Internal route to check that the current session is authenticated.
@@ -240,85 +258,6 @@ http {
             ## Include all add_header directives for the swagger location block since we need to override the defaults
             ## IMPORTANT: any "add_headers" for this location block must be placed inside this inclusion file directly
             include /etc/nginx/includes/external-swagger-headers.conf;
-        }
-
-        # Proxying UI APP paths: Browser caching DISABLED for /app, /app/, and /app/index.html
-        location /app {
-            # $api_servers must be declared before api-proxy.conf
-            set $api_servers $API;
-            include /etc/nginx/includes/api-proxy.conf;
-
-            # CSP Headers
-            # We do not need to return CSP headers in /api responses because:
-            # - CSP headers are used by browsers when loading *HTML* pages (index.html)
-            # - Browsers ignore CSP headers returned in AJAX requests
-            include /etc/nginx/includes/content-security-policy.conf;
-
-            # DISABLE browser caching
-            include /etc/nginx/includes/browser-cache-disabled.conf;
-        }
-
-        # Proxying UI Asset paths: Browser caching DISABLED for XML, JSON, and PROTO files
-        location ~* ^(/assets/).*\.(xml|json|proto)$ {
-            # $api_servers must be declared before api-proxy.conf
-            set $api_servers $API;
-            include /etc/nginx/includes/api-proxy.conf;
-
-            # DISABLE browser caching
-            include /etc/nginx/includes/browser-cache-disabled.conf;
-        }
-
-        # Proxying UI Asset paths: Browser caching ENABLED for CSS, JS, Images, and Fonts
-        # The files are cache-busted with content-hashes appended to filenames.
-        location ~* ^(/assets/).*\.(css|js|jpg|jpeg|gif|png|ico|svg|tff|woff|woff2|eot)$ {
-            # $api_servers must be declared before api-proxy.conf
-            set $api_servers $API;
-            include /etc/nginx/includes/api-proxy.conf;
-
-            # ENABLE browser caching
-            include /etc/nginx/includes/browser-cache-enabled.conf;
-        }
-
-        location /assets {
-            # $api_servers must be declared before api-proxy.conf
-            set $api_servers $API;
-            include /etc/nginx/includes/api-proxy.conf;
-
-            # enable compression
-            gzip on;
-
-            access_log off;
-        }
-
-        # Proxying Doc bundles: Browser caching ENABLED for CSS, JS, Images, and Fonts
-        # The files are cache-busted with content-hashes appended to filenames.
-        location /doc/bundles {
-            # $api_servers must be declared before api-proxy.conf
-            set $api_servers $API;
-            include /etc/nginx/includes/api-proxy.conf;
-            
-            # ENABLE browser caching
-            include /etc/nginx/includes/browser-cache-enabled.conf;                
-        }
-
-        # In a production environment the assets and docs are in a resource bundle, and there
-        # are no requests to this path. But in a local development environment with an
-        # un-compressed UI we need to support this route or else the UI won't work.
-        location /doc {
-            # $api_servers must be declared before api-proxy.conf
-            set $api_servers $API;
-            include /etc/nginx/includes/api-proxy.conf;
-
-            # CSP Headers
-            # We do not need to return CSP headers in /api responses because:
-            # - CSP headers are used by browsers when loading *HTML* pages (index.html)
-            # - Browsers ignore CSP headers returned in AJAX requests
-            include /etc/nginx/includes/content-security-policy.conf;
-
-            # DISABLE browser caching
-            include /etc/nginx/includes/browser-cache-disabled.conf;
-
-            access_log off;
         }
 
         # For proxying websockets

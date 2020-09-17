@@ -76,6 +76,7 @@ import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
@@ -96,19 +97,22 @@ public class ArangoRepositoryRpcServiceTest {
     private static final Long realtimeTopologyContextId = 777777L;
     private RepositoryServiceBlockingStub repositoryService;
 
-    private TopologyProtobufsManager topologyProtobufsManager = mock(TopologyProtobufsManager.class);
+    private final TopologyProtobufsManager topologyProtobufsManager = mock(TopologyProtobufsManager.class);
 
-    private TopologyProtobufReader topologyProtobufReader = mock(TopologyProtobufReader.class);
+    private final TopologyProtobufReader topologyProtobufReader = mock(TopologyProtobufReader.class);
 
-    private TopologyLifecycleManager topologyLifecycleManager = mock(TopologyLifecycleManager.class);
+    private final TopologyLifecycleManager topologyLifecycleManager = mock(TopologyLifecycleManager.class);
 
-    private GraphDBService graphDBService = mock(GraphDBService.class);
+    private final GraphDBService graphDBService = mock(GraphDBService.class);
 
-    private PlanStatsService planStatsService = mock(PlanStatsService.class);
+    private final PlanStatsService planStatsService = mock(PlanStatsService.class);
 
-    private PartialEntityConverter partialEntityConverter = new PartialEntityConverter();
+    private final LiveTopologyStore liveTopologyStore = mock(LiveTopologyStore.class);
 
-    private ArangoRepositoryRpcService repoRpcService = new ArangoRepositoryRpcService(
+    private final PartialEntityConverter partialEntityConverter = new PartialEntityConverter(
+            liveTopologyStore);
+
+    private final ArangoRepositoryRpcService repoRpcService = new ArangoRepositoryRpcService(
         topologyLifecycleManager, topologyProtobufsManager, graphDBService,
         planStatsService, partialEntityConverter, 10);
 

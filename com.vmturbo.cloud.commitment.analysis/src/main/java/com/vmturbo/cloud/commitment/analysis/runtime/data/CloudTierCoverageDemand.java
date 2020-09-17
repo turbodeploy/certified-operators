@@ -6,6 +6,8 @@ import com.google.common.collect.Table;
 
 import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeSeriesData;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateDemandSegment;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory.CloudCommitment;
 
 /**

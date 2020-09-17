@@ -82,6 +82,9 @@ public class RpcConfig {
     @Value("${maxAmountOfEntitiesPerGrpcMessage:5000}")
     private int maxAmountOfEntitiesPerGrpcMessage;
 
+    @Value("${grpc.debug.services.enabled:false}")
+    private boolean grpcDebugServicesEnabled;
+
     /**
      * Returns the the object that implements protobuf ActionsService.
      *
@@ -152,7 +155,7 @@ public class RpcConfig {
     public Optional<ActionsDebugRpcService> actionsDebugRpcService() {
         // The ActionsDebugRpcService should only be instantiated if the system property
         // for the debug service has been set to true at startup time.
-        return grpcDebugServicesEnabled()
+        return grpcDebugServicesEnabled
             ? Optional.of(new ActionsDebugRpcService(actionStoreConfig.actionStorehouse()))
             : Optional.empty();
     }
@@ -243,10 +246,5 @@ public class RpcConfig {
         return actionsDebugRpcService()
             .map(ActionsDebugServiceController::new)
             .orElse(null);
-    }
-
-    private boolean grpcDebugServicesEnabled() {
-        // the default is 'false' if this environment variable is not defined
-        return Boolean.getBoolean("grpc.debug.services.enabled");
     }
 }

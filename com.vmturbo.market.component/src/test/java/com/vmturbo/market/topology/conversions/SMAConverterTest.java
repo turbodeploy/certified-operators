@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +22,10 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutput;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
 import com.vmturbo.market.cloudscaling.sma.jsonprocessing.JsonToSMAInputTranslator;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
@@ -58,11 +62,13 @@ public class SMAConverterTest {
         constructSMAConverter();
         JsonToSMAInputTranslator jsonToSMAInputTranslator =
                 new JsonToSMAInputTranslator();
-        Pair<SMAInput, SMAOutput> inputOutputPair =
-                jsonToSMAInputTranslator.parseInputWithExpectedOutput(
-                        "src/test/java/com/vmturbo/market/topology/conversions/2vm1ri.json");
-        StableMarriageAlgorithm.postProcessing(inputOutputPair.second.getContexts().get(0));
-        smaConverter.setSmaOutput(inputOutputPair.second);
+        String filename = "src/test/java/com/vmturbo/market/topology/conversions/2vm1ri.json";
+        SMAInputContext smaInputContext = jsonToSMAInputTranslator.readsmaInput(filename + ".i");
+        List<SMAMatch> expectedouput = jsonToSMAInputTranslator.readsmaOutput(filename + ".o.txt", smaInputContext);
+        SMAOutput smaOutput = new SMAOutput(Collections.singletonList(new SMAOutputContext(
+                smaInputContext.getContext(), expectedouput)));
+        StableMarriageAlgorithm.postProcessing(smaOutput.getContexts().get(0));
+        smaConverter.setSmaOutput(smaOutput);
         computeTier1 = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.COMPUTE_TIER_VALUE)
                 .setOid(100001L).build();

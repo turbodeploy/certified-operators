@@ -2,9 +2,8 @@ package com.vmturbo.testbases.flyway;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
-import static org.powermock.api.mockito.PowerMockito.mock;
-import static org.powermock.api.mockito.PowerMockito.mockStatic;
-import static org.powermock.api.mockito.PowerMockito.when;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -13,6 +12,7 @@ import java.net.URL;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -38,21 +38,18 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.contrib.java.lang.system.EnvironmentVariables;
-import org.junit.runner.RunWith;
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
 
 /**
  * Tests of the {@link GitlabApi} class.
  */
-@RunWith(PowerMockRunner.class)
-@PrepareForTest(HttpClients.class)
 public class GitlabApiTest {
 
     private JsonNode tagsResponse;
     private CloseableHttpClient httpClient;
     private HttpUriRequest httpRequest;
+    private Supplier<CloseableHttpClient> httpClientSupplier;
 
     /**
      * Create a new instance, and load the sample JSON response for use by the mocked
@@ -71,19 +68,18 @@ public class GitlabApiTest {
      */
     @Before
     public void before() throws IOException {
-        mockStatic(HttpClients.class);
-        this.httpClient = mock(CloseableHttpClient.class);
-        when(HttpClients.createDefault()).thenReturn(httpClient);
+        this.httpClient = Mockito.mock(CloseableHttpClient.class);
         when(httpClient
                 .execute(any(HttpUriRequest.class), any(ResponseHandler.class), any(HttpCoreContext.class)))
                 .thenAnswer((Answer<JsonNode>)invocation -> {
                     this.httpRequest = invocation.getArgumentAt(0, HttpUriRequest.class);
                     return tagsResponse;
                 });
+        this.httpClientSupplier = () -> httpClient;
     }
 
     @Rule
-    EnvironmentVariables environmentVariables = new EnvironmentVariables();
+    public EnvironmentVariables environmentVariables = new EnvironmentVariables();
 
     /**
      * Test that tags API response is parsed properly and returns the expected results.
@@ -93,7 +89,7 @@ public class GitlabApiTest {
      */
     @Test
     public void testGetTags() throws IOException, URISyntaxException {
-        final GitlabApi gitlabApi = new GitlabApi("dummy", "turbonommic/xl");
+        final GitlabApi gitlabApi = new GitlabApi("dummy", "turbonommic/xl", httpClientSupplier);
         final Map<String, String> tags = gitlabApi.getTags("xl-develop-ci-");
         assertEquals(6, tags.size());
         assertEquals(
@@ -126,7 +122,7 @@ public class GitlabApiTest {
         addToTagsResponse(null, "xxx");
         addToTagsResponse("xxx", null);
         addToTagsResponse(null, null);
-        final GitlabApi gitlabApi = new GitlabApi("dummy", "turbonommic/xl");
+        final GitlabApi gitlabApi = new GitlabApi("dummy", "turbonommic/xl", httpClientSupplier);
         final Map<String, String> tags = gitlabApi.getTags("xl-develop-ci-");
         assertEquals(6, tags.size());
         assertEquals(expectedNames, tags.keySet());
@@ -155,7 +151,7 @@ public class GitlabApiTest {
      */
     @Test
     public void testGetTagsNotAnArray() throws IOException, URISyntaxException {
-        final GitlabApi gitlabApi = new GitlabApi("dummy", "turbonommic/xl");
+        final GitlabApi gitlabApi = new GitlabApi("dummy", "turbonommic/xl", httpClientSupplier);
         this.tagsResponse = JsonNodeFactory.instance.objectNode();
         final Map<String, String> tags = gitlabApi.getTags("xl-develop-ci-");
         assertEquals(0, tags.size());
@@ -235,7 +231,9 @@ public class GitlabApiTest {
      */
     @Test
     public void testRequestUriIsCorrect() throws IOException, URISyntaxException {
-        final GitlabApi gitlabApi = new GitlabApi(GitlabApi.TURBO_GITLAB_HOST, GitlabApi.XL_PROJECT_PATH);
+        final GitlabApi gitlabApi =
+                new GitlabApi(GitlabApi.TURBO_GITLAB_HOST, GitlabApi.XL_PROJECT_PATH,
+                        httpClientSupplier);
         gitlabApi.getTags("xl-develop-ci-");
         assertEquals("https://git.turbonomic.com/api/v4/projects/turbonomic%2Fxl/repository/tags" +
                 "?order-by=name" +
@@ -252,7 +250,8 @@ public class GitlabApiTest {
     @Test
     public void testRequestHeadersAreCorrect() throws IOException, URISyntaxException {
         environmentVariables.set(GitlabApi.API_TOKEN_ENV_NAME, "shhh!");
-        final GitlabApi gitlabApi = new GitlabApi(GitlabApi.TURBO_GITLAB_HOST, GitlabApi.XL_PROJECT_PATH);
+        final GitlabApi gitlabApi = new GitlabApi(GitlabApi.TURBO_GITLAB_HOST, GitlabApi.XL_PROJECT_PATH,
+                httpClientSupplier);
         gitlabApi.getTags("xl-develop-ci-");
         assertEquals(1, httpRequest.getHeaders(GitlabApi.API_TOKEN_HEADER_NAME).length);
         assertEquals("shhh!", httpRequest.getFirstHeader(GitlabApi.API_TOKEN_HEADER_NAME).getValue());

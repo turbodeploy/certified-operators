@@ -7,6 +7,8 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.vmturbo.topology.graph.SearchableProps;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphSearchableEntity;
@@ -73,18 +75,11 @@ public class PropertyFilter<E extends TopologyGraphSearchableEntity<E>> implemen
      * Test if a particular {@link TopologyGraphSearchableEntity} passes the filter.
      *
      * @param entity The {@link TopologyGraphSearchableEntity} to test against the filter.
+     * @param graph The {@link TopologyGraph}.
      * @return True if the {@link TopologyGraphSearchableEntity} passes the filter, false otherwise.
      */
-    boolean test(@Nonnull E entity) {
-        return test.test(entity);
-    }
-
-    /**
-     * Get the predicate that will be used by this filter.
-     *
-     * @return The predicate that will be used by this filter.
-     */
-    public Predicate<E> getTest() {
-        return test;
+    @VisibleForTesting
+    boolean test(@Nonnull E entity, @Nonnull final TopologyGraph<E> graph) {
+        return apply(Stream.of(entity), graph).findFirst().isPresent();
     }
 }

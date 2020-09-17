@@ -9,6 +9,8 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.topology.processor.api.TopologyProcessor;
+
 /**
  * Test class for {@link Connection}.
  */
@@ -22,7 +24,8 @@ public class ConnectionTest {
         ManagedChannel groupChannel = Mockito.mock(ManagedChannel.class);
         ManagedChannel repositoryChannel = Mockito.mock(ManagedChannel.class);
         ManagedChannel tpChannel = Mockito.mock(ManagedChannel.class);
-        Connection connection = new Connection(groupChannel, repositoryChannel, tpChannel);
+        TopologyProcessor tpApi = Mockito.mock(TopologyProcessor.class);
+        Connection connection = new Connection(groupChannel, repositoryChannel, tpChannel, tpApi);
         Assert.assertEquals(groupChannel, connection.getGroupChannel());
         Assert.assertEquals(repositoryChannel, connection.getRepositoryChannel());
     }
@@ -35,7 +38,8 @@ public class ConnectionTest {
         ManagedChannel groupChannel = Mockito.mock(ManagedChannel.class);
         ManagedChannel repositoryChannel = Mockito.mock(ManagedChannel.class);
         ManagedChannel tpChannel = Mockito.mock(ManagedChannel.class);
-        Connection connection = new Connection(groupChannel, repositoryChannel, tpChannel);
+        TopologyProcessor tpApi = Mockito.mock(TopologyProcessor.class);
+        Connection connection = new Connection(groupChannel, repositoryChannel, tpChannel, tpApi);
         connection.release();
         verify(groupChannel, times(1)).shutdownNow();
         verify(repositoryChannel, times(1)).shutdownNow();

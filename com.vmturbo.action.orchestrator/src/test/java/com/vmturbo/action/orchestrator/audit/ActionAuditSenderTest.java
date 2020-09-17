@@ -18,6 +18,7 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -106,7 +107,8 @@ public class ActionAuditSenderTest {
         Assert.assertEquals(ActionResponseState.SUCCEEDED, event2.getNewState());
     }
 
-    private Action createAction(long oid, @Nullable Workflow workflow) {
+    private Action createAction(long oid, @Nullable Workflow workflow) throws
+            WorkflowStoreException {
         final ActionDTO.Action actionDTO = ActionDTO.Action.newBuilder().setId(oid).setInfo(
                 ActionInfo.newBuilder()
                         .setDelete(Delete.newBuilder().setTarget(ActionEntity.newBuilder()

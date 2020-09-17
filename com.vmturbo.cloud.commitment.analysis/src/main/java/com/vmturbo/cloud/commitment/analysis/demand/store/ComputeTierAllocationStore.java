@@ -16,7 +16,7 @@ import com.vmturbo.components.common.diagnostics.DiagsRestorable;
  * does not contain the allocated demand for a compute tier while the associated entity is powered off.
  *
  */
-public interface ComputeTierAllocationStore extends DiagsRestorable {
+public interface ComputeTierAllocationStore extends DiagsRestorable<Void> {
 
 
     /**

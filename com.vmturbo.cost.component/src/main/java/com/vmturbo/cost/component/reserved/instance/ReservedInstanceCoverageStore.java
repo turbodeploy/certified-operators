@@ -15,6 +15,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,8 +26,6 @@ import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.Table;
 import org.jooq.impl.DSL;
-
-import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
@@ -51,9 +52,6 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
 
     //TODO: set this chunk config through consul.
     private final static int chunkSize = 1000;
-
-    private final static ReservedInstanceCoverageFilter reservedInstanceCoverageFilter = ReservedInstanceCoverageFilter
-            .newBuilder().build();
 
     private final DSLContext dsl;
 
@@ -160,7 +158,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping monthly RI coverage db records to exported topology.
      */
-    private static final class ReservedInstancesCoverageByMonthDiagsHelper implements DiagsRestorable {
+    private static final class ReservedInstancesCoverageByMonthDiagsHelper implements DiagsRestorable<Void> {
         private static final String reservedInstanceCoverageByMonthDumpFile = "reservedInstanceCoverageByMonth_dump";
 
         private final DSLContext dsl;
@@ -170,7 +168,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
 
         }
 
@@ -200,7 +198,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping daily RI coverage db records to exported topology.
      */
-    private static final class ReservedInstancesCoverageByDayDiagsHelper implements DiagsRestorable {
+    private static final class ReservedInstancesCoverageByDayDiagsHelper implements DiagsRestorable<Void> {
         private static final String reservedInstanceCoverageByDayDumpFile = "reservedInstanceCoverageByDay_dump";
 
         private final DSLContext dsl;
@@ -210,7 +208,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
             // TODO to be implemented as part of OM-58627
         }
 
@@ -240,7 +238,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping hourly RI coverage db records to exported topology.
      */
-    private static final class ReservedInstancesCoverageByHourDiagsHelper implements DiagsRestorable {
+    private static final class ReservedInstancesCoverageByHourDiagsHelper implements DiagsRestorable<Void> {
         private static final String reservedInstanceCoverageByHourDumpFile = "reservedInstanceCoverageByHour_dump";
 
         private final DSLContext dsl;
@@ -250,7 +248,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
             // TODO to be implemented as part of OM-58627
         }
 
@@ -280,7 +278,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping latest RI coverage db records to exported topology.
      */
-    private static final class LatestReservedInstanceCoverageDiagsHelper implements DiagsRestorable {
+    private static final class LatestReservedInstanceCoverageDiagsHelper implements DiagsRestorable<Void> {
         private static final String latestReservedInstanceCoverageDumpFile = "latestReservedInstanceCoverage_dump";
 
         private final DSLContext dsl;
@@ -290,7 +288,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
             // TODO to be implemented as part of OM-58627
         }
 

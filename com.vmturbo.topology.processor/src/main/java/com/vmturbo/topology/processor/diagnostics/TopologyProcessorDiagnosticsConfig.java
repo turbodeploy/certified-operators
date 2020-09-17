@@ -23,6 +23,7 @@ import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.history.HistoryAggregationConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.ldcf.DataMetricTopology;
+import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
@@ -102,6 +103,9 @@ public class TopologyProcessorDiagnosticsConfig {
     @Autowired
     private HistoryAggregationConfig historyAggregationConfig;
 
+    @Autowired
+    private OperationConfig operationConfig;
+
     /**
      * The hardLock key.
      */
@@ -129,7 +133,9 @@ public class TopologyProcessorDiagnosticsConfig {
             identityProviderConfig.identityProvider(),
             cloudCostConfig.discoveredCloudCostUploader(),
             cloudCostConfig.priceTableUploader(),
-            topologyConfig.pipelineExecutorService(), fixedFilenameBinaryDiagnosticParts);
+            topologyConfig.pipelineExecutorService(),
+            fixedFilenameBinaryDiagnosticParts,
+            operationConfig.binaryDiscoveryDumper());
     }
 
     @Bean

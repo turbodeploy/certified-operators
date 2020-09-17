@@ -17,6 +17,9 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import com.vmturbo.cloud.commitment.analysis.config.CloudCommitmentSpecMatcherConfig;
 import com.vmturbo.cloud.commitment.analysis.config.DemandClassificationConfig;
+import com.vmturbo.cloud.commitment.analysis.config.DemandTransformationConfig;
+import com.vmturbo.cloud.commitment.analysis.config.SharedFactoriesConfig;
+import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReader;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReaderImpl;
@@ -29,10 +32,12 @@ import com.vmturbo.cloud.commitment.analysis.runtime.ImmutableStaticAnalysisConf
 import com.vmturbo.cloud.commitment.analysis.runtime.StaticAnalysisConfig;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.InitializationStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.selection.DemandSelectionStage.DemandSelectionFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationStage.DemandTransformationFactory;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher.CloudCommitmentSpecMatcherFactory;
 import com.vmturbo.cloud.commitment.analysis.topology.BillingFamilyRetrieverFactory;
 import com.vmturbo.cloud.commitment.analysis.topology.BillingFamilyRetrieverFactory.DefaultBillingFamilyRetrieverFactory;
+import com.vmturbo.cloud.commitment.analysis.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.cloud.commitment.analysis.topology.MinimalCloudTopology.MinimalCloudTopologyFactory;
 import com.vmturbo.cloud.commitment.analysis.topology.MinimalEntityCloudTopology.DefaultMinimalEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
@@ -48,7 +53,9 @@ import com.vmturbo.group.api.GroupMemberRetriever;
 @Lazy
 @Import({
         CloudCommitmentSpecMatcherConfig.class,
-        DemandClassificationConfig.class
+        DemandClassificationConfig.class,
+        DemandTransformationConfig.class,
+        SharedFactoriesConfig.class
 })
 @Configuration
 public class CloudCommitmentAnalysisConfig {
@@ -74,17 +81,23 @@ public class CloudCommitmentAnalysisConfig {
     @Autowired
     private DemandClassificationFactory demandClassificationFactory;
 
+    @Autowired
+    private ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory;
+
+    @Autowired
+    private DemandTransformationFactory demandTransformationFactory;
+
     @Value("${ccaAnalysisStatusLogInterval:PT1M}")
     private String analysisStatusLogInterval;
 
     @Value("${maxConcurrentCloudCommitmentAnalyses:3}")
     private int maxConcurrentAnalyses;
 
-    @Value("${analysisSegmentInterval:1}")
-    private long analysisSegmentInterval;
+    @Value("${analysisBucketAmount:1}")
+    private long analysisBucketAmount;
 
-    @Value("${analysisSegmentUnit:HOURS}")
-    private String analysisSegmentUnit;
+    @Value("${analysisBucketUnit:HOURS}")
+    private String analysisBucketUnit;
 
     /**
      * Bean for the cloud commitment demand reader.
@@ -107,13 +120,13 @@ public class CloudCommitmentAnalysisConfig {
     }
 
     /**
-     * Bean for the demand selection factory.
+     * Bean for the demand retrieval factory.
      *
-     * @return The demand selection factory.
+     * @return The demand retrieval factory.
      */
     @Bean
-    public DemandSelectionFactory demandSelectionFactory() {
-        return new DemandSelectionFactory(cloudCommitmentDemandReader());
+    public DemandRetrievalFactory demandRetrievalFactory() {
+        return new DemandRetrievalFactory(cloudCommitmentDemandReader());
     }
 
     /**
@@ -125,8 +138,9 @@ public class CloudCommitmentAnalysisConfig {
     public AnalysisPipelineFactory analysisPipelineFactory() {
         return new AnalysisPipelineFactory(identityProvider,
                 initializationStageFactory(),
-                demandSelectionFactory(),
-                demandClassificationFactory);
+                demandRetrievalFactory(),
+                demandClassificationFactory,
+                demandTransformationFactory);
     }
 
     /**
@@ -164,6 +178,7 @@ public class CloudCommitmentAnalysisConfig {
                 minimalCloudTopologyFactory(),
                 topologyEntityCloudTopologyFactory,
                 cloudCommitmentSpecMatcherFactory,
+                computeTierFamilyResolverFactory,
                 staticAnalysisConfig());
     }
 
@@ -218,8 +233,10 @@ public class CloudCommitmentAnalysisConfig {
     @Bean
     public StaticAnalysisConfig staticAnalysisConfig() {
         return ImmutableStaticAnalysisConfig.builder()
-                .analysisSegmentInterval(analysisSegmentInterval)
-                .analysisSegmentUnit(ChronoUnit.valueOf(analysisSegmentUnit))
+                .analysisBucket(BoundedDuration.builder()
+                        .amount(analysisBucketAmount)
+                        .unit(ChronoUnit.valueOf(analysisBucketUnit))
+                        .build())
                 .build();
     }
 }

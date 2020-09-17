@@ -136,6 +136,11 @@ public class UtilizationCountArray {
             return;
         }
 
+        if (Double.isNaN(usage)) {
+            logger.warn("Skipping NaN percentile usage point {} for {}", usage, key);
+            return;
+        }
+
         if (usage > newCapacity) {
             logger.warn("Percentile usage point {} exceeds capacity {} for {}", usage, newCapacity, key);
             usage = newCapacity;
@@ -173,7 +178,7 @@ public class UtilizationCountArray {
      */
     public void removePoint(int dailyRecordIndex, int numberToDecrement, float dailyRecordCapacity,
                             long timestamp, String key) {
-        if (capacityList.isEmpty()) {
+        if (isEmpty()) {
             logger.trace("No percentile counts defined to subtract yet for {}", key);
             return;
         }
@@ -227,7 +232,7 @@ public class UtilizationCountArray {
      */
     private int getBucketToDecrement(int dailyRecordIndex, float dailyRecordCapacity) {
         final int bucketToDecrement;
-        if (!capacityList.isEmpty()) {
+        if (!isEmpty()) {
             // replay the changes to come up with final index
             int currentBucketIndex = dailyRecordIndex;
             float currentCapacity = dailyRecordCapacity;
@@ -299,18 +304,16 @@ public class UtilizationCountArray {
         }
 
         if (record.getCapacityChangesCount() > 0) {
-
             // replaying the capacity changes
-            float currentCapacity = capacityList.getCapacity();
-
             for (PercentileRecord.CapacityChange capacityChange : record.getCapacityChangesList()) {
-                if (Math.abs(currentCapacity - capacityChange.getNewCapacity()) > EPSILON) {
-                    rescaleCounts(counts.length, currentCapacity, capacityChange.getNewCapacity(), key);
-                    currentCapacity = capacityChange.getNewCapacity();
+                float newCapacity = capacityChange.getNewCapacity();
+                if (newCapacity > 0F) {
+                    rescaleCountsIfNecessary(newCapacity, key);
+                    capacityList.add(capacityChange.getTimestamp(), newCapacity);
                 }
             }
-            capacityList.add(record.getCapacityChangesList());
         } else if (record.getCapacity() > 0F) {
+            // for backward compatibility with older serialized entries
             rescaleCountsIfNecessary(record.getCapacity(), key);
             capacityList.add(record.getEndTimestamp(), record.getCapacity());
         } else {
@@ -335,9 +338,12 @@ public class UtilizationCountArray {
      * Serialize into the record.
      *
      * @param fieldRef commodity field that this record should be linked to
-     * @return percentile record
+     * @return percentile record, null if the entry contains no data
      */
     public PercentileRecord.Builder serialize(EntityCommodityFieldReference fieldRef) {
+        if (isEmpty()) {
+            return null;
+        }
         PercentileRecord.Builder builder = PercentileRecord.newBuilder()
                         .setEntityOid(fieldRef.getEntityOid())
                         .setCommodityType(fieldRef.getCommodityType().getType())
@@ -362,12 +368,6 @@ public class UtilizationCountArray {
      * Clean up the data.
      */
     public void clear() {
-        if (logger.isTraceEnabled()) {
-            logger.trace("Cleared array with capacity {}, startTimestamp {} and endTimestamp {}",
-                            capacityList.getCapacity(),
-                            startTimestamp,
-                            endTimestamp);
-        }
         Arrays.fill(counts, 0);
         capacityList.clear();
         startTimestamp = 0;
@@ -387,14 +387,22 @@ public class UtilizationCountArray {
         return createToString(false);
     }
 
+    /**
+     * Whether the array is empty.
+     *
+     * @return true if no points have ever been added
+     */
+    public boolean isEmpty() {
+        return capacityList.isEmpty();
+    }
+
     private String createToString(boolean withoutCounts) {
         return String.format("%s#%s", UtilizationCountArray.class.getSimpleName(),
                         getFieldDescriptions(withoutCounts));
     }
 
     private String getFieldDescriptions(boolean withoutCounts) {
-        final boolean notInitialized = capacityList.isEmpty();
-        if (notInitialized) {
+        if (isEmpty()) {
             return EMPTY;
         }
         if (withoutCounts) {
@@ -433,7 +441,7 @@ public class UtilizationCountArray {
     }
 
     private boolean shouldRescale(float newCapacity) {
-        return !capacityList.isEmpty() && newCapacity != 0D
+        return !isEmpty() && newCapacity != 0F
             && Math.abs(capacityList.getCapacity() - newCapacity) > EPSILON;
     }
 
@@ -471,10 +479,6 @@ public class UtilizationCountArray {
             } else {
                 return false;
             }
-        }
-
-        public void add(List<PercentileRecord.CapacityChange> capacityChangesList) {
-            capacityChangesList.forEach(cc -> add(cc.getTimestamp(), cc.getNewCapacity()));
         }
 
         public boolean isEmpty() {

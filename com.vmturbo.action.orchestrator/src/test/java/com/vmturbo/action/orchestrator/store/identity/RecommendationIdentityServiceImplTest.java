@@ -22,12 +22,14 @@ import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
+import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -59,6 +61,20 @@ public class RecommendationIdentityServiceImplTest {
             .setId(1003L)
             .setType(EntityType.PHYSICAL_MACHINE_VALUE)
             .build();
+
+    private static final ActionEntity wc1 = ActionEntity.newBuilder()
+            .setId(2000L)
+            .setType(EntityType.WORKLOAD_CONTROLLER_VALUE)
+            .build();
+    private static final ActionEntity cs1 = ActionEntity.newBuilder()
+            .setId(2001L)
+            .setType(EntityType.CONTAINER_SPEC_VALUE)
+            .build();
+    private static final ActionEntity cs2 = ActionEntity.newBuilder()
+            .setId(2002L)
+            .setType(EntityType.CONTAINER_SPEC_VALUE)
+            .build();
+
     private static final ActionEntity volume1 =
             ActionEntity.newBuilder().setId(1004L).setType(EntityType.VIRTUAL_VOLUME_VALUE).build();
     private static final ActionEntity volume2 =
@@ -88,6 +104,107 @@ public class RecommendationIdentityServiceImplTest {
             ActionInfo.newBuilder().setActivate(Activate.newBuilder().setTarget(vm1)).build();
     private final ActionInfo deactivate =
             ActionInfo.newBuilder().setDeactivate(Deactivate.newBuilder().setTarget(vm2)).build();
+
+    private static final ActionInfo atomicResize1 = ActionInfo.newBuilder()
+            .setAtomicResize(AtomicResize.newBuilder()
+                    .setExecutionTarget(wc1)
+                    .addResizes(ResizeInfo.newBuilder()
+                            .setTarget(cs1)
+                            .setCommodityType(CommodityType.newBuilder().setType(1))
+                            .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                            .setOldCapacity(124).setNewCapacity(456)
+                    )
+                    .addResizes(ResizeInfo.newBuilder()
+                            .setTarget(cs2)
+                            .setCommodityType(CommodityType.newBuilder().setType(1))
+                            .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                            .setOldCapacity(124).setNewCapacity(456)
+                    )
+                    .build())
+            .build();
+
+    private static final ActionInfo atomicResize2 = ActionInfo.newBuilder()
+            .setAtomicResize(AtomicResize.newBuilder()
+                    .setExecutionTarget(wc1)
+                    .addResizes(ResizeInfo.newBuilder()
+                            .setTarget(cs2)
+                            .setCommodityType(CommodityType.newBuilder().setType(1))
+                            .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                            .setOldCapacity(124).setNewCapacity(456)
+                    )
+                    .addResizes(ResizeInfo.newBuilder()
+                            .setTarget(cs1)
+                            .setCommodityType(CommodityType.newBuilder().setType(1))
+                            .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                            .setOldCapacity(124)
+                            .setNewCapacity(456)
+                    )
+                    .build())
+            .build();
+
+    private static final ActionInfo atomicResize3 = ActionInfo.newBuilder()
+            .setAtomicResize(AtomicResize.newBuilder()
+                    .setExecutionTarget(wc1)
+                    .addResizes(ResizeInfo.newBuilder()
+                            .setTarget(cs1)
+                            .setCommodityType(CommodityType.newBuilder().setType(1))
+                            .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                            .setOldCapacity(124).setNewCapacity(456)
+                    )
+                    .addResizes(ResizeInfo.newBuilder()
+                            .setTarget(cs1)
+                            .setCommodityType(CommodityType.newBuilder().setType(2))
+                            .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                            .setOldCapacity(124)
+                            .setNewCapacity(456)
+                    )
+                    .build())
+            .build();
+
+    private static final ActionInfo atomicResize4 = ActionInfo.newBuilder()
+            .setAtomicResize(AtomicResize.newBuilder()
+                    .setExecutionTarget(wc1)
+                    .addResizes(ResizeInfo.newBuilder()
+                            .setTarget(cs1)
+                            .setCommodityType(CommodityType.newBuilder().setType(2))
+                            .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                            .setOldCapacity(124)
+                            .setNewCapacity(456)
+                    )
+                    .addResizes(ResizeInfo.newBuilder()
+                            .setTarget(cs1)
+                            .setCommodityType(CommodityType.newBuilder().setType(1))
+                            .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                            .setOldCapacity(124).setNewCapacity(456)
+                    )
+                    .build())
+            .build();
+
+    private static final ActionInfo atomicResize5 = ActionInfo.newBuilder()
+            .setAtomicResize(AtomicResize.newBuilder()
+                    .setExecutionTarget(wc1)
+                    .addResizes(ResizeInfo.newBuilder()
+                            .setTarget(cs1)
+                            .setCommodityType(CommodityType.newBuilder().setType(1))
+                            .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                            .setOldCapacity(124)
+                            .setNewCapacity(456)
+                    )
+                    .build())
+            .build();
+
+    private static final ActionInfo atomicResize6 = ActionInfo.newBuilder()
+            .setAtomicResize(AtomicResize.newBuilder()
+                    .setExecutionTarget(wc1)
+                    .addResizes(ResizeInfo.newBuilder()
+                            .setTarget(cs2)
+                            .setCommodityType(CommodityType.newBuilder().setType(1))
+                            .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                            .setOldCapacity(124)
+                            .setNewCapacity(456)
+                    )
+                    .build())
+            .build();
 
     /**
      * DB configuration rule - to migrate DB for tests.
@@ -143,6 +260,44 @@ public class RecommendationIdentityServiceImplTest {
                 Arrays.asList(move, resize, reconfigure, provision, activate, deactivate));
         Assert.assertThat(update2, Matchers.hasItem(update1.iterator().next()));
         Assert.assertThat(update2, Matchers.hasSize(6));
+    }
+
+    /**
+     * Test OID assignment for Atomic Resize actions.
+     */
+    @Test
+    public void testOidAssignmentForAtomicResize() {
+        final List<Long> update1 =
+                identityService.getOidsForObjects(Collections.singletonList(atomicResize1));
+
+        final List<Long> update2
+                = identityService.getOidsForObjects(Collections.singletonList(atomicResize2));
+
+        Assert.assertThat(update2, Matchers.hasSize(1));
+        Assert.assertEquals(update2.get(0), update1.get(0));
+
+        final List<Long> update3 =
+                identityService.getOidsForObjects(Collections.singletonList(atomicResize3));
+
+        final List<Long> update4
+                = identityService.getOidsForObjects(Collections.singletonList(atomicResize4));
+
+        Assert.assertThat(update4, Matchers.hasSize(1));
+        Assert.assertEquals(update4.get(0), update3.get(0));
+
+        final List<Long> update5 =
+                identityService.getOidsForObjects(Collections.singletonList(atomicResize5));
+
+        Assert.assertThat(update5, Matchers.hasSize(1));
+        Assert.assertNotEquals(update5.get(0), update1.get(0));
+        Assert.assertNotEquals(update5.get(0), update3.get(0));
+
+        final List<Long> update6
+                = identityService.getOidsForObjects(Collections.singletonList(atomicResize6));
+
+        Assert.assertThat(update6, Matchers.hasSize(1));
+        Assert.assertNotEquals(update6.get(0), update1.get(0));
+        Assert.assertNotEquals(update6.get(0), update3.get(0));
     }
 
     /**

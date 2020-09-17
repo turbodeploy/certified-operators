@@ -92,7 +92,13 @@ public class ProbeContainerChooserImpl implements ProbeContainerChooser {
     @Override
     public void assignTargetToTransport(@Nonnull ITransport<MediationServerMessage,
         MediationClientMessage> transport, @Nonnull String targetIdentifyingValues) {
-        targetIdToTransport.putIfAbsent(targetIdentifyingValues,
+        if (targetIdToTransport.containsKey(targetIdentifyingValues) && !transport.equals(
+                targetIdToTransport.get(targetIdentifyingValues))) {
+            logger.warn("Transport {} for target {} being replaced with transport {}",
+                    targetIdToTransport.get(targetIdentifyingValues), targetIdentifyingValues,
+                    transport);
+        }
+        targetIdToTransport.put(targetIdentifyingValues,
             transport);
     }
 

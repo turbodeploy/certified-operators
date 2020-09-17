@@ -9,6 +9,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
@@ -290,8 +291,10 @@ public interface ActionView {
      * @param workflowStore the store of all known Workflow objects
      * @return an Optional of the corresponding Workflow based on an Orchestration Setting for the
      * corresponding Action type.
+     * @throws WorkflowStoreException if failure occurred retrieving workflow.
      */
-    Optional<WorkflowDTO.Workflow> getWorkflow(WorkflowStore workflowStore);
+    Optional<WorkflowDTO.Workflow> getWorkflow(WorkflowStore workflowStore) throws
+            WorkflowStoreException;
 
     /**
      * Gets the action description.

@@ -23,10 +23,12 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+import com.turbonomic.cpucapacity.CPUCapacityEstimator;
 
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
@@ -137,6 +139,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
 
     private final TemplatesDao templatesDao;
 
+    private final CPUCapacityEstimator cpuCapacityEstimator;
+
     private Consumer<ProjectPlanPostProcessor> onCompleteHandler;
 
     /**
@@ -178,6 +182,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @param planDao Access to plan instances.
      * @param groupChannel Access to group's gRPC services.
      * @param templatesDao Access to templates.
+     * @param cpuCapacityEstimator estimates the scaling factor of a cpu model.
      */
     public ClusterHeadroomPlanPostProcessor(final long planId,
                                             @Nonnull final Set<Long> clusterIds,
@@ -185,7 +190,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                                             @Nonnull final Channel historyChannel,
                                             @Nonnull final PlanDao planDao,
                                             @Nonnull final Channel groupChannel,
-                                            @Nonnull TemplatesDao templatesDao) {
+                                            @Nonnull final TemplatesDao templatesDao,
+                                            @Nonnull final CPUCapacityEstimator cpuCapacityEstimator) {
         this.planId = planId;
         this.statsHistoryService =
             StatsHistoryServiceGrpc.newBlockingStub(Objects.requireNonNull(historyChannel));
@@ -196,6 +202,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
         this.planDao = Objects.requireNonNull(planDao);
         this.templatesDao = Objects.requireNonNull(templatesDao);
+        this.cpuCapacityEstimator = Objects.requireNonNull(cpuCapacityEstimator);
         this.clusters = new ArrayList<>(clusterIds.size());
         groupRpcService.getGroups(GetGroupsRequest.newBuilder()
             .setGroupFilter(GroupFilter.newBuilder()
@@ -526,15 +533,38 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         }
 
         // Set CPU_HEADROOM_COMMODITIES
+        final double cpuScalingFactor;
+        if (headroomTemplate.hasTemplateInfo()
+                && headroomTemplate.getTemplateInfo().hasCpuModel()
+                && StringUtils.isNotBlank(headroomTemplate.getTemplateInfo().getCpuModel())) {
+            String cpuModel = headroomTemplate.getTemplateInfo().getCpuModel();
+            cpuScalingFactor = cpuCapacityEstimator.estimateMHzCoreMultiplier(cpuModel);
+            logger.debug("headroom template with oid {} has cpu model {} with scaling factor {}",
+                headroomTemplate.getId(), cpuModel, cpuScalingFactor);
+        } else {
+            cpuScalingFactor = 1.0;
+            logger.warn("headroom template with oid {} did not have a cpu model. "
+                + "falling back to 1.0 scaling factor."
+                + " hasTemplateInfo={}, hasCpuModel={}, isNotBlank={}",
+                headroomTemplate.getId(),
+                headroomTemplate.hasTemplateInfo(),
+                headroomTemplate.hasTemplateInfo()
+                    && headroomTemplate.getTemplateInfo().hasCpuModel(),
+                headroomTemplate.hasTemplateInfo()
+                    && headroomTemplate.getTemplateInfo().hasCpuModel()
+                    && StringUtils.isNotBlank(headroomTemplate.getTemplateInfo().getCpuModel()));
+        }
         commBoughtMap.get(CPU_HEADROOM_COMMODITIES)
             .put(CommodityType.CPU_VALUE,
                 Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED))
                     * Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU))
-                    * Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR)));
+                    * Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR))
+                    * cpuScalingFactor);
         commBoughtMap.get(CPU_HEADROOM_COMMODITIES)
             .put(CommodityType.CPU_PROVISIONED_VALUE,
                 Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU))
-                    * Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED)));
+                    * Double.valueOf(templateFields.get(TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED))
+                    * cpuScalingFactor);
 
         // Set MEM_HEADROOM_COMMODITIES
         commBoughtMap.get(MEM_HEADROOM_COMMODITIES)

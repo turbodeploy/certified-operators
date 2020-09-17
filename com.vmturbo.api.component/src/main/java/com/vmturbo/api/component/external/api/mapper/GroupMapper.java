@@ -100,6 +100,7 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinProbeInfo;
@@ -240,8 +241,9 @@ public class GroupMapper {
      * @param groupDto input API representation of a group object.
      * @return input object converted to a {@link GroupDefinition} object.
      * @throws ConversionException if the conversion fails.
+     * @throws IllegalArgumentException if invalid group type.
      */
-    public GroupDefinition toGroupDefinition(@Nonnull final GroupApiDTO groupDto) throws ConversionException {
+    public GroupDefinition toGroupDefinition(@Nonnull final GroupApiDTO groupDto) throws ConversionException, IllegalArgumentException {
         GroupDefinition.Builder groupBuilder = GroupDefinition.newBuilder()
                         .setDisplayName(groupDto.getDisplayName())
                         .setType(GroupType.REGULAR)
@@ -251,6 +253,8 @@ public class GroupMapper {
 
         if (groupDto.getIsStatic()) {
             // for the case static group and static group of groups
+            errorIfInvalidGroupType(nestedMemberGroupType, groupDto);
+
 
             final Set<Long> memberUuids = getGroupMembersAsLong(groupDto);
 
@@ -276,6 +280,8 @@ public class GroupMapper {
 
         } else if (nestedMemberGroupType == null) {
             // this means this is dynamic group of entities
+            errorIfInvalidGroupType(groupDto);
+
             final List<SearchParameters> searchParameters = entityFilterMapper
                             .convertToSearchParameters(groupDto.getCriteriaList(),
                                             groupDto.getGroupType(), null);
@@ -288,6 +294,7 @@ public class GroupMapper {
                     .setLogicalOperator(mapLogicalOperator(groupDto.getLogicalOperator())))
             );
         } else {
+
             // this means this a dynamic group of groups
             final GroupFilter groupFilter;
             try {
@@ -302,6 +309,31 @@ public class GroupMapper {
         }
 
         return groupBuilder.build();
+    }
+
+    /**
+     * Check for group types and entity types.
+     *
+     * @param groupDto input API representation of a group object.
+     * @param nestedMemberGroupType takes values from API_GROUP_TYPE_TO_GROUP_TYPE map or null
+     * @throws IllegalArgumentException if invalid group type
+     */
+    private void errorIfInvalidGroupType(@Nullable GroupType nestedMemberGroupType, @Nonnull final GroupApiDTO groupDto) throws IllegalArgumentException {
+        if (nestedMemberGroupType == null) {
+            errorIfInvalidGroupType(groupDto);
+        }
+    }
+
+    /**
+     * Check only for known entity types.
+     *
+     * @param groupDto input API representation of a group object.
+     * @throws IllegalArgumentException if invalid group type
+     */
+    private void errorIfInvalidGroupType(@Nonnull final GroupApiDTO groupDto) throws IllegalArgumentException {
+        if (ApiEntityType.fromString(groupDto.getGroupType()) == ApiEntityType.UNKNOWN) {
+            throw new IllegalArgumentException("Invalid Group Type");
+        }
     }
 
     private LogicalOperator mapLogicalOperator(@Nullable final String logicalOperatorStr) {
@@ -335,13 +367,30 @@ public class GroupMapper {
                 .map(ThinTargetInfo::probeInfo)
                 .map(probe -> cloudTypeMapper.fromTargetType(probe.type()))
                 .collect(Collectors.toSet());
-        if (cloudType.isEmpty() || cloudType.equals(Collections.singleton(Optional.empty()))) {
+        if ((cloudType.isEmpty() || cloudType.equals(Collections.singleton(Optional.empty())))
+                && !hasAppOrContainerEnvironmentTarget()) {
             return new EntityEnvironment(EnvironmentType.ONPREM, CloudType.UNKNOWN);
-        } else if (cloudType.size() == 1) {
+        } else if (cloudType.size() == 1
+                        && !cloudType.equals(Collections.singleton(Optional.empty()))) {
             return new EntityEnvironment(EnvironmentType.CLOUD, cloudType.iterator().next().get());
         } else {
             return null;
         }
+    }
+
+    /**
+     * Check whether the environment contains "App" or "Container" target.
+     *
+     * @return return "true" if the environment contains "App" or "Container" target,
+     * otherwise "false"
+     */
+    private boolean hasAppOrContainerEnvironmentTarget() {
+        return thinTargetCache.getAllTargets()
+                .stream()
+                .map(ThinTargetInfo::probeInfo)
+                .collect(Collectors.toSet())
+                .stream().anyMatch(probeInfo -> ProbeCategory.isAppOrContainerCategory(
+                ProbeCategory.create(probeInfo.category())));
     }
 
     /**
@@ -425,7 +474,9 @@ public class GroupMapper {
             environmentType = envType;
         } else {
             // Case for group of non-cloud entities.
-            environmentType = EnvironmentTypeEnum.EnvironmentType.ON_PREM;
+            environmentType = hasAppOrContainerEnvironmentTarget()
+                    ? EnvironmentTypeEnum.EnvironmentType.HYBRID
+                    : EnvironmentTypeEnum.EnvironmentType.ON_PREM;
         }
 
         final CloudType cloudType;
@@ -1103,7 +1154,9 @@ public class GroupMapper {
                 .collect(Collectors.toSet());
         final boolean hasCloudEnvironmentTarget = addedProbeTypes.stream()
                 .anyMatch(probeInfo -> CLOUD_ENVIRONMENT_PROBE_TYPES.contains(probeInfo.type()));
-        return hasCloudEnvironmentTarget ? EnvironmentType.HYBRID : EnvironmentType.ONPREM;
+        return hasCloudEnvironmentTarget || hasAppOrContainerEnvironmentTarget()
+                ? EnvironmentType.HYBRID
+                : EnvironmentType.ONPREM;
     }
 
     /**

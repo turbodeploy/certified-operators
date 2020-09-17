@@ -111,7 +111,7 @@ public class DiagnosticsControllerTest {
      */
     @Test
     public void testRestoreSuccess() throws Exception {
-        when(handlerMock.restore(any())).thenReturn("success");
+        when(handlerMock.restore(any(), any())).thenReturn("success");
         final byte[] content = new byte[]{1};
 
         final MvcResult postResult = mockMvc.perform(
@@ -122,7 +122,7 @@ public class DiagnosticsControllerTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON_UTF8))
                 .andReturn();
         assertEquals("success", postResult.getResponse().getContentAsString());
-        verify(handlerMock).restore(any());
+        verify(handlerMock).restore(any(), any());
     }
 
     /**
@@ -133,7 +133,7 @@ public class DiagnosticsControllerTest {
     @Test
     public void testRestoreError() throws Exception {
         final String errorMsg = "TERRIBLE ERROR";
-        Mockito.when(handlerMock.restore(any())).thenThrow(
+        Mockito.when(handlerMock.restore(any(), any())).thenThrow(
                 new DiagnosticsException(Collections.singletonList(errorMsg)));
         final byte[] content = new byte[]{1};
 
@@ -145,6 +145,6 @@ public class DiagnosticsControllerTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON_UTF8))
                 .andReturn();
         assertTrue(postResult.getResponse().getContentAsString().contains(errorMsg));
-        verify(handlerMock).restore(any());
+        verify(handlerMock).restore(any(), any());
     }
 }

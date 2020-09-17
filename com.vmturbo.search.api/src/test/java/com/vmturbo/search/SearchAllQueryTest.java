@@ -211,8 +211,10 @@ public class SearchAllQueryTest {
 
         //THEN
         assertEquals(2, fields.size());
-        final String nameSort = "\"extractor\".\"search_entity\".\"name\" desc nulls last";
-        final String oidSort = "\"extractor\".\"search_entity\".\"oid\" asc nulls first";
+        final String nameSort = "coalesce(\n" + "  \"extractor\".\"search_entity\".\"name\", \n"
+                + "  ''\n" + ") desc nulls last";
+        final String oidSort = "coalesce(\n" + "  \"extractor\".\"search_entity\".\"oid\", \n"
+                + "  -2147483648\n" + ") asc nulls first";
         assertTrue(containsSort(fields, nameSort));
         assertTrue(containsSort(fields, oidSort));
     }

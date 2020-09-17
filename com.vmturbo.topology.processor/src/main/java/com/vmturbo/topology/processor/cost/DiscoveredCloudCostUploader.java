@@ -41,7 +41,7 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
  * This class is responsible for extracting the cloud cost data and
  * sending it to the Cost Component.
  */
-public class DiscoveredCloudCostUploader implements DiagsRestorable {
+public class DiscoveredCloudCostUploader implements DiagsRestorable<Void> {
     /**
      * File name inside diagnostics to store discovered cloud costs.
      */
@@ -300,7 +300,7 @@ public class DiscoveredCloudCostUploader implements DiagsRestorable {
      * {@inheritDoc}
      */
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) {
         if (collectedDiags.isEmpty()) {
             logger.info("Empty diags - not restoring anything.");
             return;

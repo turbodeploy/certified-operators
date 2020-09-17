@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -90,11 +93,15 @@ import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessExcep
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
+import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -125,6 +132,15 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.UpdatePlanRequest;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.DeletePlanProjectRequest;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetAllPlanProjectsRequest;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetPlanProjectRequest;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetPlanProjectResponse;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.RunPlanProjectRequest;
+import com.vmturbo.common.protobuf.plan.PlanProjectServiceGrpc.PlanProjectServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -165,6 +181,8 @@ public class MarketsService implements IMarketsService {
     private final Logger logger = LogManager.getLogger();
 
     private final PlanServiceBlockingStub planRpcService;
+
+    private final PlanProjectServiceBlockingStub planProjectRpcService;
 
     private final ActionSpecMapper actionSpecMapper;
 
@@ -212,6 +230,8 @@ public class MarketsService implements IMarketsService {
 
     private final ActionSearchUtil actionSearchUtil;
 
+    private final PlanProjectBuilder planProjectBuilder;
+
     /**
      * For fetching plan entities and their related stats.
      */
@@ -226,6 +246,7 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final PoliciesService policiesService,
                           @Nonnull final PolicyServiceBlockingStub policyRpcService,
                           @Nonnull final PlanServiceBlockingStub planRpcService,
+                          @Nonnull final PlanProjectServiceBlockingStub planProjectRpcService,
                           @Nonnull final ScenarioServiceBlockingStub scenariosService,
                           @Nonnull final PolicyMapper policyMapper,
                           @Nonnull final MarketMapper marketMapper,
@@ -252,6 +273,7 @@ public class MarketsService implements IMarketsService {
         this.policiesService = Objects.requireNonNull(policiesService);
         this.policyRpcService = Objects.requireNonNull(policyRpcService);
         this.planRpcService = Objects.requireNonNull(planRpcService);
+        this.planProjectRpcService = Objects.requireNonNull(planProjectRpcService);
         this.scenarioServiceClient = Objects.requireNonNull(scenariosService);
         this.policyMapper = Objects.requireNonNull(policyMapper);
         this.marketMapper = Objects.requireNonNull(marketMapper);
@@ -273,22 +295,46 @@ public class MarketsService implements IMarketsService {
         this.mergePolicyHandler =
                 new MergePolicyHandler(groupRpcService, policyRpcService, repositoryApi);
         this.actionSearchUtil = actionSearchUtil;
+        this.planProjectBuilder = new PlanProjectBuilder(this.planProjectRpcService,
+                this.scenarioServiceClient,
+                this.planRpcService);
         this.entitySettingQueryExecutor = Objects.requireNonNull(entitySettingQueryExecutor);
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
     }
 
     /**
-     * Get all markets/plans from the plan orchestrator.
+     * Retrieves the main {@link PlanInstance} from a given {@link PlanProject}.
+     *
+     * @param planProject from which to extract the main plan instance
+     * @return the main {@link PlanInstance} from the {@link PlanProject} specified
+     * @throws UnknownObjectException when the corresponding {@link PlanProjectInfo}
+     * has no main plan ID
+     */
+    private PlanInstance getMainPlanInstance(PlanProject planProject)
+            throws UnknownObjectException {
+        final PlanProjectInfo projectInfo = planProject.getPlanProjectInfo();
+        // All projects being returned via API have a main plan.
+        if (!projectInfo.hasMainPlanId()) {
+            throw new UnknownObjectException("Missing main plan id for plan project "
+                    + planProject.getPlanProjectId());
+        }
+        return getPlanInstance(projectInfo.getMainPlanId());
+    }
+
+    /**
+     * Get all markets/plans from the plan orchestrator. Any cloud migration plans created
+     * by user are also returned.
      *
      * @param scopeUuids this argument is currently ignored.
      * @return list of all markets
      * @throws ConversionException if error faced converting objects to API DTOs
      * @throws InterruptedException if current thread has been interrupted
+     * @throws UnknownObjectException if a {@link PlanProject} has an unknown main plan id
      */
     @Override
     @Nonnull
     public List<MarketApiDTO> getMarkets(@Nullable List<String> scopeUuids)
-            throws ConversionException, InterruptedException {
+            throws ConversionException, InterruptedException, UnknownObjectException {
         licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
         logger.debug("Get all markets in scopes: {}", scopeUuids);
         final Iterator<PlanInstance> plans =
@@ -299,73 +345,75 @@ public class MarketsService implements IMarketsService {
         // Get the plan markets and create api dtos for these
         while (plans.hasNext()) {
             final PlanInstance plan = plans.next();
+            if (plan.hasPlanProjectId()) {
+                // Skip any plans that are part of projects (like migration), they are shown
+                // separately below.
+                continue;
+            }
             final MarketApiDTO dto = marketMapper.dtoFromPlanInstance(plan);
             result.add(dto);
+        }
+        // Get all user visible plan projects as well.
+        final List<PlanProject> planProjects = planProjectRpcService
+                .getAllPlanProjects(GetAllPlanProjectsRequest.getDefaultInstance())
+                .getProjectsList()
+                .stream()
+                .filter(planProject -> PlanDTOUtil.isDisplayablePlan(planProject
+                        .getPlanProjectInfo().getType()))
+                .collect(Collectors.toList());
+        for (PlanProject planProject : planProjects) {
+            try {
+                final PlanInstance mainPlanInstance = getMainPlanInstance(planProject);
+                // If user cannot access the plan instance, skip it instead of failing completely
+                if (!PlanUtils.canCurrentUserAccessPlan(mainPlanInstance)) {
+                    continue;
+                }
+                result.add(getMarketApiDto(planProject, mainPlanInstance, null));
+            } catch (ConversionException ce) {
+                // When listing all projects, if there is a conversion issue for a few projects
+                // (e.g because of missing plans), then try and return rest of the good projects,
+                // otherwise user doesn't see any plans in the UI.
+                logger.warn("Unable to convert plan project {}. Message: {}",
+                        planProject.getPlanProjectId(), ce.getMessage());
+            }
         }
         return result;
     }
 
     @Override
     public MarketApiDTO getMarketByUuid(String uuid) throws Exception {
-        // TODO: The implementation for the environment type might be possibly altered for the case
-        // of a scoped plan (should we consoder only the scoped tergets?)
-        EnvironmentType envType = null;
-        boolean isOnPrem = false;
-        boolean isCloud = false;
-        boolean isHybrid = false;
-        for (ThinTargetInfo thinTargetInfo : thinTargetCache.getAllTargets()) {
-            switch (ProbeCategory.create(thinTargetInfo.probeInfo().category())) {
-                case CLOUD_MANAGEMENT:
-                case CLOUD_NATIVE:
-                case PAAS:
-                case FAAS:
-                    isCloud = true;
-                    break;
-                default:
-                    isOnPrem = true;
-                    break;
-            }
-            if (isOnPrem && isCloud) {
-                isHybrid = true;
-                break;
-            }
-        }
-        if (isHybrid) {
-            envType = EnvironmentType.HYBRID;
-        } else if (isCloud) {
-            envType = EnvironmentType.CLOUD;
-        } else {
-            envType = EnvironmentType.ONPREM;
-        }
-
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         if (apiId.isRealtimeMarket()) {
            return createRealtimeMarketApiDTO();
-        } else if (apiId.isPlan()) {
-            licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
-            OptionalPlanInstance response = planRpcService.getPlan(PlanId.newBuilder()
-                    .setPlanId(Long.valueOf(uuid))
-                    .build());
-            if (!response.hasPlanInstance()) {
-                throw new UnknownObjectException(uuid);
-            }
-            MarketApiDTO planDto = marketMapper.dtoFromPlanInstance(response.getPlanInstance());
-            planDto.setEnvironmentType(envType);
-
-            // set unplaced entities
-            try {
-                planDto.setUnplacedEntities(!getUnplacedEntitiesByMarketUuid(uuid).isEmpty());
-            } catch (Exception e) {
-                logger.error("getMarketByUuid(): Error while checking if there are unplaced entities: {}",
-                        e.getMessage());
-            }
-
-            return planDto;
         }
+        if (!apiId.isPlan()) {
+            throw new UnknownObjectException("The ID " + uuid
+                    + " doesn't belong to a plan or a real-time market.");
+        }
+        licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);        // Look up the plan instance.
+        long planId = apiId.oid();
+        final PlanInstance planInstance = getPlanInstance(planId);
 
-        // The UUID doesn't belong to a plan or real-time market.
-        throw new UnknownObjectException("The ID " + uuid
-                + " doesn't belong to a plan or a real-time market.");
+        MarketApiDTO marketApiDTO;
+        if (planInstance.hasPlanProjectId()) {
+            // This could be the main plan (like Consumption plan), that is part of a MCP project.
+            final PlanProject planProject = getPlanProject(planInstance.getPlanProjectId());
+            marketApiDTO = getMarketApiDto(planProject, getMainPlanInstance(planProject), null);
+        } else {
+            // A regular plan (like OCP) without an associated project.
+            marketApiDTO = marketMapper.dtoFromPlanInstance(planInstance);
+        }
+        marketApiDTO.setEnvironmentType(getEnvironmentType());
+
+        // set unplaced entities
+        try {
+            marketApiDTO.setUnplacedEntities(!getUnplacedEntitiesByMarketUuid(String.valueOf(planId))
+                    .isEmpty());
+        } catch (Exception e) {
+            logger.error("getMarketByUuid(): Error while checking if there are unplaced entities: {}",
+                    e.getMessage());
+        }
+        return marketApiDTO;
     }
 
     @Override
@@ -500,13 +548,11 @@ public class MarketsService implements IMarketsService {
             //
             // TODO (roman, Jan 22 2019) OM-54686: Add pagination parameters to the
             // retrieveTopologyEntities method, and convert this logic to use the repository's pagination.
-            final OptionalPlanInstance optInstance = planRpcService.getPlan(PlanId.newBuilder()
-                .setPlanId(apiId.oid())
-                .build());
+            final PlanInstance planInstance = getPlanInstance(apiId.oid());
             final Optional<Long> projectedTopologyId =
-                optInstance.getPlanInstance().hasProjectedTopologyId() ?
-                    Optional.of(optInstance.getPlanInstance().getProjectedTopologyId()) :
-                    Optional.empty();
+                planInstance.hasProjectedTopologyId()
+                        ? Optional.of(planInstance.getProjectedTopologyId())
+                        : Optional.empty();
 
             final List<TopologyEntityDTO> allResults = RepositoryDTOUtil.topologyEntityStream(
                 repositoryRpcService.retrieveTopologyEntities(
@@ -519,7 +565,7 @@ public class MarketsService implements IMarketsService {
                 .collect(Collectors.toList());
 
             final List<ServiceEntityApiDTO> allConvertedResults = populatePlacedOnUnplacedOnForEntitiesForPlan(
-                optInstance.getPlanInstance(), allResults);
+                planInstance, allResults);
 
             // We do pagination before fetching price index and severity.
             final int skipCount;
@@ -528,8 +574,9 @@ public class MarketsService implements IMarketsService {
                     // Avoid negative skips.
                     skipCount = Math.max(0, Integer.parseInt(paginationRequest.getCursor().get()));
                 } catch (NumberFormatException e) {
-                    throw new InvalidOperationException("Cursor " +
-                        paginationRequest.getCursor().get() + " is invalid. Must be positive integer.");
+                    throw new InvalidOperationException("Cursor "
+                            + paginationRequest.getCursor().get()
+                            + " is invalid. Must be positive integer.");
                 }
             } else {
                 skipCount = 0;
@@ -740,9 +787,29 @@ public class MarketsService implements IMarketsService {
             // error handling from the RPC call. If the deletePlan method returned an exception,
             // what's the state of the plan? It may be deleting (i.e. partially deleted) or
             // fully intact.
-            final PlanInstance oldPlanInstance = planRpcService.deletePlan(PlanId.newBuilder()
-                    .setPlanId(Long.parseLong(uuid))
-                    .build());
+            final long marketId = Long.parseLong(uuid);
+            final PlanInstance oldPlanInstance = getPlanInstance(marketId);
+            if (oldPlanInstance.hasPlanProjectId()) {
+                // If plan is part of a project, get the project first, we need to delete all
+                // the plans under the project, and then the project.
+                final long projectId = oldPlanInstance.getPlanProjectId();
+                final PlanProject planProject = getPlanProject(projectId);
+                final PlanProjectInfo projectInfo = planProject.getPlanProjectInfo();
+                if (projectInfo.hasMainPlanId()) {
+                    // Main plan scenario is deleted from UI.
+                    deletePlanInstance(projectInfo.getMainPlanId(), projectId);
+                    for (Long relatedPlanId : projectInfo.getRelatedPlanIdsList()) {
+                        final PlanInstance relatedPlan = getPlanInstance(relatedPlanId);
+                        // Any related plan scenarios need to be deleted here.
+                        deletePlanInstance(relatedPlanId, projectId);
+                        deleteScenario(relatedPlan.getScenario().getId(), relatedPlanId);
+                    }
+                }
+                deletePlanProject(projectId);
+            } else {
+                // Delete just the plan, not in a project, like OCP.
+                deletePlanInstance(oldPlanInstance.getPlanId(), null);
+            }
             uiNotificationChannel.broadcastMarketNotification(MarketNotification.newBuilder()
                     .setMarketId(uuid)
                     .setStatusNotification(StatusNotification.newBuilder()
@@ -774,61 +841,39 @@ public class MarketsService implements IMarketsService {
     public MarketApiDTO applyAndRunScenario(@Nonnull String marketUuid,
                                             @Nonnull Long scenarioId,
                                             @Nullable Boolean ignoreConstraints,
-                                            // TODO (roman, June 6 2017): The plan market name
-                                            // should be the display name of the plan. However,
-                                            // the UI doesn't currently use it, so postponing
-                                            // this for later.
                                             @Nullable String planMarketName) throws Exception {
-        logger.info("Running scenario. Market UUID: {}, Scenario ID: {}, " +
-                        "Ignore Constraints: {}, Plan Market Name: {}",
+        logger.info("Running scenario. Market UUID: {}, Scenario ID: {}, "
+                        + "Ignore Constraints: {}, Plan Market Name: {}",
                 marketUuid, scenarioId, ignoreConstraints, planMarketName);
         // this feature requires access to the "planner" feature in the license.
         licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
 
-        // todo: The 'ignoreConstraints' parameter will move into the Scenario in OM-18012
-        // Until OM-18012 is fixed, we will have to do a get and set of scenario to add the
-        // ignoreConstraint changes to the existing scenario.
-        if (ignoreConstraints) {
-            Scenario existingScenario = scenarioServiceClient.getScenario(
-                    ScenarioId.newBuilder()
-                            .setScenarioId(scenarioId)
-                            .build());
-            ScenarioInfo.Builder updatedScenarioInfo = existingScenario.getScenarioInfo().toBuilder();
-            final List<IgnoreConstraint> ignoredConstraints =
-                    updatedScenarioInfo.getChangesList().stream()
-                            .flatMap(change -> change.getPlanChanges().getIgnoreConstraintsList().stream())
-                            .collect(Collectors.toList());
-            if (ignoredConstraints.isEmpty()) {
-                // NOTE: Currently we only remove constraints for VM entities.
-                updatedScenarioInfo.addChanges(ScenarioChange.newBuilder()
-                        .setPlanChanges(PlanChanges.newBuilder()
-                                .addIgnoreConstraints(IgnoreConstraint.newBuilder()
-                                        .setGlobalIgnoreEntityType(
-                                                GlobalIgnoreEntityType.newBuilder()
-                                                .setEntityType(EntityType.VIRTUAL_MACHINE))
-                                        .build())));
-            } else {
-                logger.warn("Ignoring \"ignore constraints\" option because the scenario already has ignored "
-                        + "constraints: {}", ignoredConstraints);
-            }
-
-            UpdateScenarioResponse updateScenarioResponse =
-                    scenarioServiceClient.updateScenario(UpdateScenarioRequest.newBuilder()
-                            .setScenarioId(scenarioId)
-                            .setNewInfo(updatedScenarioInfo.build())
-                            .build());
-            logger.debug("Updated scenario: {}", updateScenarioResponse.getScenario());
-        }
-
         // note that, for XL, the "marketUuid" in the request is interpreted as the Plan Instance ID
-        final ApiId planInstanceId;
+        final ApiId sourceMarketId;
         try {
-            planInstanceId = uuidMapper.fromUuid(marketUuid);
+            sourceMarketId = uuidMapper.fromUuid(marketUuid);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid market id: " + marketUuid);
         }
+
+        Scenario existingScenario = getScenario(scenarioId);
+        if (Boolean.TRUE.equals(ignoreConstraints)) {
+            existingScenario = updateIgnoreConstraints(existingScenario);
+        }
+
+        if (planProjectBuilder.isPlanProjectRequired(sourceMarketId, existingScenario)) {
+            final PlanProject planProject = planProjectBuilder.createPlanProject(existingScenario);
+
+            logger.info("Running a newly created {} plan project {}.",
+                    existingScenario.getScenarioInfo().getType(), planProject.getPlanProjectId());
+            planProjectRpcService.runPlanProject(RunPlanProjectRequest.newBuilder()
+                    .setId(planProject.getPlanProjectId()).build());
+
+            return getMarketApiDto(planProject, getMainPlanInstance(planProject), existingScenario);
+        }
+        // For regular plans (like OCP) that are not part of a project.
         final PlanInstance planInstance;
-        if (planInstanceId.isRealtimeMarket()) {
+        if (sourceMarketId.isRealtimeMarket()) {
             // for realtime market create a new plan; topologyId is not set, defaulting to "0"
             planInstance = planRpcService.createPlan(CreatePlanRequest.newBuilder()
                     .setScenarioId(scenarioId)
@@ -836,7 +881,7 @@ public class MarketsService implements IMarketsService {
         } else {
             // plan market: create new plan where source topology is the prev projected topology
             PlanDTO.PlanScenario planScenario = PlanDTO.PlanScenario.newBuilder()
-                    .setPlanId(planInstanceId.oid())
+                    .setPlanId(sourceMarketId.oid())
                     .setScenarioId(scenarioId)
                     .build();
             planInstance = planRpcService.createPlanOverPlan(planScenario);
@@ -845,6 +890,46 @@ public class MarketsService implements IMarketsService {
                 .setPlanId(planInstance.getPlanId())
                 .build());
         return marketMapper.dtoFromPlanInstance(updatedInstance);
+    }
+
+    /**
+     * Checks if the ignoreConstrains change is already there in the scenario. If not, adds it
+     * and updates the Scenario in DB.
+     *
+     * @param scenario User scenario to check for ignoreConstraints.
+     * @return Updated scenario if ignoreConstraints was added, same as input otherwise.
+     */
+    @Nonnull
+    private Scenario updateIgnoreConstraints(@Nonnull final Scenario scenario) {
+        ScenarioInfo.Builder scenarioInfo = scenario.getScenarioInfo().toBuilder();
+        final List<IgnoreConstraint> ignoredConstraints =
+                scenarioInfo.getChangesList().stream()
+                        .flatMap(change -> change.getPlanChanges()
+                                .getIgnoreConstraintsList().stream())
+                        .collect(Collectors.toList());
+        if (!ignoredConstraints.isEmpty()) {
+            // IgnoreConstrains has already been set as a ScenarioChange in the Scenario, so
+            // no need to update. Not sure if this should be a warning.
+            logger.warn("Ignoring \"ignore constraints\" option because the scenario {} already"
+                    + " has ignored constraints: {}", scenario.getId(), ignoredConstraints);
+            return scenario;
+        }
+        // NOTE: Currently we only remove constraints for VM entities.
+        scenarioInfo.addChanges(ScenarioChange.newBuilder()
+                .setPlanChanges(PlanChanges.newBuilder()
+                        .addIgnoreConstraints(IgnoreConstraint.newBuilder()
+                                .setGlobalIgnoreEntityType(
+                                        GlobalIgnoreEntityType.newBuilder()
+                                                .setEntityType(EntityType.VIRTUAL_MACHINE))
+                                .build())));
+        UpdateScenarioResponse updateScenarioResponse =
+                scenarioServiceClient.updateScenario(UpdateScenarioRequest.newBuilder()
+                        .setScenarioId(scenario.getId())
+                        .setNewInfo(scenarioInfo.build())
+                        .build());
+        Scenario updateScenario = updateScenarioResponse.getScenario();
+        logger.debug("Updated scenario: {}", updateScenario);
+        return updateScenario;
     }
 
     /**
@@ -941,17 +1026,7 @@ public class MarketsService implements IMarketsService {
         licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);
 
         final long planId = Long.parseLong(marketUuid);
-
-        // fetch plan from plan orchestrator
-        final PlanDTO.OptionalPlanInstance planInstanceOptional =
-                planRpcService.getPlan(PlanDTO.PlanId.newBuilder()
-                        .setPlanId(planId)
-                        .build());
-        if (!planInstanceOptional.hasPlanInstance()) {
-            throw new InvalidOperationException("Invalid market id: " + marketUuid);
-        }
-
-        final PlanInstance planInstance = planInstanceOptional.getPlanInstance();
+        final PlanInstance planInstance = getPlanInstance(planId);
         // verify the user can access the plan
         if (!PlanUtils.canCurrentUserAccessPlan(planInstance)) {
             throw new UserAccessException("User does not have access to plan.");
@@ -961,13 +1036,13 @@ public class MarketsService implements IMarketsService {
             .getPlanEntityStats(planInstance, statScopesApiInputDTO, paginationRequest);
     }
 
-    @Override
     /**
      * {@inheritDoc}
      * This api has both a group id as input and also a StatScopesApiInputDTO.  The StatScopesApiInputDTO may
      * include a scope.  If the scope is specified, the logic will use the intersection of the group members and scope ids.
      * It is typically expected that the users specify only a group id.
      */
+    @Override
     public EntityStatsPaginationResponse getStatsByEntitiesInGroupInMarketQuery(final String marketUuid,
                                                                                 final String groupUuid,
                                                                                 final StatScopesApiInputDTO statScopesApiInputDTO,
@@ -1027,27 +1102,71 @@ public class MarketsService implements IMarketsService {
         }
 
         // Get the list of unplaced entities from the repository for this plan
-        PlanInstance plan = planResponse.getPlanInstance();
+        final PlanInstance plan = getPlanInstance(Long.parseLong(uuid));
+        long projectedTopologyId = plan.getProjectedTopologyId();
+        if (projectedTopologyId == 0) {
+            return Collections.emptyList();
+        }
+        // If this is a migration plan, get the list of unplaced entities from the action
+        // list instead.
+        Set<Long> placedOids = new HashSet<>();
+        boolean isMigrationPlan = plan.getProjectType() == PlanProjectType.CLOUD_MIGRATION;
+        if (isMigrationPlan) {
+            AtomicReference<String> cursor = new AtomicReference<>("0");
+            do {
+                FilteredActionRequest filteredActionRequest =
+                        FilteredActionRequest.newBuilder()
+                                .setTopologyContextId(plan.getPlanId())
+                                .setPaginationParams(PaginationParameters.newBuilder()
+                                        .setCursor(cursor.getAndSet("")))
+                                .setFilter(ActionQueryFilter.newBuilder()
+                                        .setVisible(true)
+                                        .addTypes(ActionType.MOVE))
+                                .build();
+                actionOrchestratorRpcService.getAllActions(filteredActionRequest)
+                        .forEachRemaining(rsp -> {
+                            // These are the actions related to the queried entities.  Only include entities
+                            // with an associated action.
+                            if (rsp.hasActionChunk()) {
+                                for (ActionOrchestratorAction action : rsp.getActionChunk().getActionsList()) {
+                                    placedOids.add(action.getActionSpec()
+                                            .getRecommendation()
+                                            .getInfo()
+                                            .getMove()
+                                            .getTarget()
+                                            .getId());
+                                }
+                            } else if (rsp.hasPaginationResponse()) {
+                                cursor.set(rsp.getPaginationResponse().getNextCursor());
+                            }
+                        });
+            } while (!StringUtils.isEmpty(cursor.get()));
+        }
+
         final Iterable<RetrieveTopologyResponse> response = () ->
                 repositoryRpcService.retrieveTopology(RetrieveTopologyRequest.newBuilder()
-                        .setTopologyId(plan.getProjectedTopologyId())
+                        .setTopologyId(projectedTopologyId)
                         .setEntityFilter(TopologyEntityFilter.newBuilder()
-                                .setUnplacedOnly(true))
+                                // For migration plans, we want all entities, else just the unplaced.
+                                // We filter out the placed entities below.
+                                .setUnplacedOnly(!isMigrationPlan))
                         .build());
-        List<TopologyEntityDTO> unplacedDTOs = StreamSupport.stream(response.spliterator(), false)
+        Map<Long, TopologyEntityDTO> entities = StreamSupport.stream(response.spliterator(), false)
                 .flatMap(rtResponse -> rtResponse.getEntitiesList().stream())
                 .map(PartialEntity::getFullEntity)
                 // right now, legacy and UI only expect unplaced virtual machine.
                 .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                .collect(Collectors.toList());
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
-        // if no unplaced entities, return an empty collection
-        if (unplacedDTOs.size() == 0) {
-            return Collections.emptyList();
+        // We have a map of all requested entities in the plan. If this is a migration plan,
+        // remove the entities that we've seen in its action list.  The remaining entities are
+        // unplaced.
+        for (Long oid : placedOids) {
+            entities.remove(oid);
         }
-
         // convert to ServiceEntityApiDTOs, filling in the blanks of the placed on / not placed on fields
-        List<ServiceEntityApiDTO> unplacedApiDTOs = populatePlacedOnUnplacedOnForEntitiesForPlan(plan, unplacedDTOs);
+        List<ServiceEntityApiDTO> unplacedApiDTOs =
+                populatePlacedOnUnplacedOnForEntitiesForPlan(plan, entities.values());
 
         logger.debug("Found {} unplaced entities in plan {} results.", unplacedApiDTOs.size(), uuid);
         return unplacedApiDTOs;
@@ -1090,7 +1209,8 @@ public class MarketsService implements IMarketsService {
      * @param entityDTOs The collection of TopologyEntityDTOs to be converted into ServiceEntityApiDTO
      * @return A list of ServiceEntityApiDTO objects representing with information on where it is placed/unplaced.
      */
-    List<ServiceEntityApiDTO> populatePlacedOnUnplacedOnForEntitiesForPlan(PlanInstance plan, List<TopologyEntityDTO> entityDTOs) {
+    List<ServiceEntityApiDTO> populatePlacedOnUnplacedOnForEntitiesForPlan(PlanInstance plan,
+            Collection<TopologyEntityDTO> entityDTOs) {
         // if no unplaced entities, return an empty collection
         if (entityDTOs.size() == 0) {
             return Collections.emptyList();
@@ -1197,7 +1317,7 @@ public class MarketsService implements IMarketsService {
     }
 
     /**
-     * Create a dto for the realtime market
+     * Create a dto for the realtime market.
      * @return a dto with data including the oid and name of the realtime market
      */
     private MarketApiDTO createRealtimeMarketApiDTO() {
@@ -1258,9 +1378,9 @@ public class MarketsService implements IMarketsService {
          * @return {@code true} if the policy needs a hidden group
          */
         public boolean isPolicyNeedsHiddenGroup(final PolicyApiInputDTO policyApiInputDTO) {
-            return policyApiInputDTO.getType() == PolicyType.MERGE &&
-                    MERGE_TYPE_NEEDS_HIDDEN_GROUP.contains(PolicyMapper.MERGE_TYPE_API_TO_PROTO.get(
-                            policyApiInputDTO.getMergeType()));
+            return policyApiInputDTO.getType() == PolicyType.MERGE
+                    && MERGE_TYPE_NEEDS_HIDDEN_GROUP.contains(PolicyMapper.MERGE_TYPE_API_TO_PROTO
+                            .get(policyApiInputDTO.getMergeType()));
         }
 
         /**
@@ -1272,8 +1392,8 @@ public class MarketsService implements IMarketsService {
          * @return {@code true} if the policy needs a hidden group
          */
         public boolean isPolicyNeedsHiddenGroup(final PolicyInfo policyInfo) {
-            return policyInfo.hasMerge() && policyInfo.getMerge().hasMergeType() &&
-                    MERGE_TYPE_NEEDS_HIDDEN_GROUP.contains(policyInfo.getMerge().getMergeType());
+            return policyInfo.hasMerge() && policyInfo.getMerge().hasMergeType()
+                    && MERGE_TYPE_NEEDS_HIDDEN_GROUP.contains(policyInfo.getMerge().getMergeType());
         }
 
         /**
@@ -1387,6 +1507,192 @@ public class MarketsService implements IMarketsService {
                     .setIsHidden(true)
                     .setStaticGroupMembers(staticGroupMembers);
         }
+    }
+
+    /**
+     * Gets a plan project with the given id.
+     *
+     * @param planProjectId Id of the plan project.
+     * @return PlanProject from DB matching the input id.
+     * @throws UnknownObjectException Thrown if no project found with the given id.
+     */
+    private PlanProject getPlanProject(long planProjectId) throws UnknownObjectException {
+        GetPlanProjectResponse response = planProjectRpcService.getPlanProject(
+                GetPlanProjectRequest.newBuilder().setProjectId(planProjectId).build());
+        if (!response.hasProject()) {
+            throw new UnknownObjectException("Could not look up a plan project "
+                    + planProjectId);
+        }
+        return response.getProject();
+    }
+
+    /**
+     * Convenience method to get a plan instance given a plan id, from the plan rpc service.
+     *
+     * @param planId Id of plan to fetch.
+     * @return PlanInstance object.
+     * @throws UnknownObjectException Thrown if no plan could be found with the id.
+     * @throws StatusRuntimeException Thrown on problem getting  plan.
+     */
+    @Nonnull
+    private PlanInstance getPlanInstance(long planId)
+            throws UnknownObjectException, StatusRuntimeException {
+        OptionalPlanInstance planResponse = planRpcService.getPlan(PlanId.newBuilder()
+                .setPlanId(planId)
+                .build());
+
+        if (!planResponse.hasPlanInstance()) {
+            throw new UnknownObjectException("Could not locate a plan instance with id: "
+                    + planId);
+        }
+        return planResponse.getPlanInstance();
+    }
+
+    /**
+     * Deletes an existing plan instance from DB.
+     *
+     * @param planId Id of the plan to be deleted.
+     * @param planProjectId Optional, plan project id if applicable, for logging only.
+     * @throws UnknownObjectException Thrown on unexpected delete api response.
+     * @throws StatusRuntimeException Thrown on problem deleting plan.
+     */
+    private void deletePlanInstance(long planId, @Nullable final Long planProjectId)
+            throws UnknownObjectException, StatusRuntimeException {
+        if (planProjectId == null) {
+            logger.debug("Deleting standalone plan {}.", planId);
+        } else {
+            logger.debug("Delete plan {} under project {}.", planId, planProjectId);
+        }
+        if (planRpcService.deletePlan(PlanId.newBuilder()
+                .setPlanId(planId)
+                .build()) == null) {
+            throw new UnknownObjectException("Could not delete plan instance "
+                    + planId + (planProjectId == null ? "" : ". Project: " + planProjectId));
+        }
+    }
+
+    /**
+     * Deletes the plan scenario from DB.
+     *
+     * @param scenarioId Id of scenario to delete.
+     * @param planId Id of plan that scenario belongs to.
+     * @throws UnknownObjectException Thrown on unexpected delete api response.
+     * @throws StatusRuntimeException Thrown on problem deleting scenario.
+     */
+    private void deleteScenario(final long scenarioId, long planId)
+            throws UnknownObjectException, StatusRuntimeException {
+        logger.debug("Deleting scenario {} for plan {}.", scenarioId, planId);
+        if (scenarioServiceClient.deleteScenario(ScenarioId.newBuilder()
+                .setScenarioId(scenarioId).build()) == null) {
+            throw new UnknownObjectException("Could not delete scenario " + scenarioId
+                    + " under plan " + planId);
+        }
+    }
+
+    /**
+     * Deletes the plan project from DB.
+     *
+     * @param planProjectId Id of plan project.
+     * @throws UnknownObjectException Thrown on unexpected delete api response.
+     * @throws StatusRuntimeException Thrown on problem deleting plan project.
+     */
+    private void deletePlanProject(long planProjectId)
+            throws UnknownObjectException, StatusRuntimeException {
+        logger.debug("Deleting plan project {}.", planProjectId);
+        if (!planProjectRpcService.deletePlanProject(DeletePlanProjectRequest.newBuilder()
+                .setProjectId(planProjectId)
+                .build()).hasProjectId()) {
+            throw new UnknownObjectException("Could not delete plan project " + planProjectId);
+        }
+    }
+
+    /**
+     * Gets the Scenario instance given a scenario id, from the scenario rpc service.
+     *
+     * @param scenarioId Id of Scenario to fetch.
+     * @return Scenario object.
+     * @throws UnknownObjectException Thrown if no scenario could be found with the id.
+     */
+    @Nonnull
+    private Scenario getScenario(long scenarioId) throws UnknownObjectException {
+        final Scenario scenario = scenarioServiceClient.getScenario(ScenarioId.newBuilder()
+                        .setScenarioId(scenarioId)
+                        .build());
+        if (scenario == null) {
+            throw new UnknownObjectException("Could not locate a Scenario with id: " + scenarioId);
+        }
+        return scenario;
+    }
+
+    /**
+     * Returns the MarketApiDTO for the plan project and the given project scenario.
+     *
+     * @param planProject Plan project like migration plan project.
+     * @param mainPlanInstance The main {@link PlanInstance} corresponding to the {@link PlanProject}
+     * @param projectScenario Project scenario. If null, then the plan's scenario is used.
+     * @return MarketApiDTO with values filled.
+     * @throws ConversionException Thrown when issue converting.
+     * @throws InterruptedException Thrown on interruption.
+     */
+    @Nonnull
+    private MarketApiDTO getMarketApiDto(@Nonnull final PlanProject planProject,
+                                         @Nonnull final PlanInstance mainPlanInstance,
+                                         @Nullable final Scenario projectScenario)
+            throws ConversionException, InterruptedException {
+        long projectId = planProject.getPlanProjectId();
+        try {
+            // Get scenario for this project's main plan, if not already specified in input.
+            final Scenario existingScenario = projectScenario != null ? projectScenario
+                    : mainPlanInstance.getScenario();
+            List<PlanInstance> relatedPlans = new ArrayList<>();
+            for (Long planId : planProject.getPlanProjectInfo().getRelatedPlanIdsList()) {
+                relatedPlans.add(getPlanInstance(planId));
+            }
+            return marketMapper.dtoFromPlanProject(planProject, mainPlanInstance, relatedPlans,
+                    existingScenario);
+        } catch (UnknownObjectException uoe) {
+            throw new ConversionException("Could not convert plan project " + projectId, uoe);
+        }
+    }
+
+    /**
+     * Convenience method to get env type based on what targets are available. Code refactored
+     * here for clarify from previous method, without any changes.
+     *
+     * @return Type of environment.
+     */
+    @Nonnull
+    private EnvironmentType getEnvironmentType() {
+        // TODO: The implementation for the environment type might be possibly altered for the case
+        // of a scoped plan (should we consider only the scoped targets?)
+        EnvironmentType envType = null;
+        boolean isOnPrem = false;
+        boolean isCloud = false;
+        boolean isHybrid = false;
+        for (ThinTargetInfo thinTargetInfo : thinTargetCache.getAllTargets()) {
+            switch (ProbeCategory.create(thinTargetInfo.probeInfo().category())) {
+                case CLOUD_MANAGEMENT:
+                case CLOUD_NATIVE:
+                case PAAS:
+                case FAAS:
+                    isCloud = true;
+                    break;
+                default:
+                    isOnPrem = true;
+                    break;
+            }
+            if (isOnPrem && isCloud) {
+                isHybrid = true;
+                break;
+            }
+        }
+        if (isHybrid) {
+            return EnvironmentType.HYBRID;
+        }
+        if (isCloud) {
+            return EnvironmentType.CLOUD;
+        }
+        return EnvironmentType.ONPREM;
     }
 
     @Override

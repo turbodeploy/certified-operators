@@ -12,10 +12,11 @@
       }
     ]
   },
+  "description": "This dashboard displays information on data stores organized by wasted storage amounts. Wasted amounts are those that are allocated on a data store, and occupy space, but are not associated with a virtual machine.",
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1596052745582,
+  "iteration": 1597067622966,
   "links": [],
   "panels": [
     {

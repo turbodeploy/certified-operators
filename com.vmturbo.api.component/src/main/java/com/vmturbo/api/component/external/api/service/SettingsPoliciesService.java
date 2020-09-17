@@ -19,6 +19,7 @@ import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
+import com.vmturbo.api.component.external.api.util.setting.LegacySettingsConverter;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -163,7 +164,7 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
 
     @Override
     public SettingsPolicyApiDTO createSettingsPolicy(SettingsPolicyApiDTO settingPolicy) throws Exception {
-
+        LegacySettingsConverter.convertSettings(settingPolicy);
         final SettingPolicyInfo policyInfo = settingsMapper.convertNewInputPolicy(settingPolicy);
 
         final CreateSettingPolicyResponse response;
@@ -210,6 +211,7 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
                                                    boolean setDefault,
                                                    SettingsPolicyApiDTO settingPolicy)
             throws Exception {
+        LegacySettingsConverter.convertSettings(settingPolicy);
         if (uuid.equals(String.valueOf(SettingsMapper.GLOBAL_SETTING_POLICY_ID))) {
             return editGlobalSettingPolicy(setDefault, settingPolicy);
         }

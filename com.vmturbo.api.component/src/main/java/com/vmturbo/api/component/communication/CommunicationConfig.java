@@ -64,6 +64,8 @@ import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceBlockingStub;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanProjectServiceGrpc;
+import com.vmturbo.common.protobuf.plan.PlanProjectServiceGrpc.PlanProjectServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceFutureStub;
@@ -250,6 +252,16 @@ public class CommunicationConfig {
     public PlanServiceBlockingStub planRpcService() {
         return PlanServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel())
                 .withInterceptors(jwtClientInterceptor());
+    }
+
+    /**
+     * Gets plan project rpc service stub.
+     *
+     * @return rpc stub.
+     */
+    @Bean
+    public PlanProjectServiceBlockingStub planProjectRpcService() {
+        return PlanProjectServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
     }
 
     @Bean

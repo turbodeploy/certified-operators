@@ -12,11 +12,11 @@
       }
     ]
   },
-  "description": "Host Utilization by day comparing week over week in a two week span",
+  "description": "This dashboard compares average daily utilization measurements for physical machines (aka hosts) week-over-week for two consecutive weeks. All physical machines in the selected group are included in the averages.",
   "editable": false,
   "gnetId": null,
   "graphTooltip": 1,
-  "iteration": 1596572161985,
+  "iteration": 1597070486563,
   "links": [],
   "panels": [
     {
@@ -892,6 +892,6 @@
     ]
   },
   "timezone": "",
-  "title": "Physical Machine Utilization Week Over Week by Day",
+  "title": "Physical Machine Utilization Week over Week by Day",
   "uid": "utilization_week_over_day"
 }

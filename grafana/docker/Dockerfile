@@ -29,18 +29,37 @@ ENV GF_PATHS_CONFIG="/etc/grafana/grafana.ini" \
   GF_PATHS_DATA="/var/lib/grafana" \
   GF_PATHS_HOME="/grafana" \
   GF_PATHS_LOGS="/var/log/grafana" \
-  GF_PATHS_PLUGINS="/var/lib/grafana/plugins" \
-  GF_PATHS_PROVISIONING="/etc/grafana/provisioning"
+  GF_PATHS_PLUGINS="/grafana/plugins" \
+  GF_PATHS_PROVISIONING="/etc/grafana/provisioning" \
+  GRAFANA_PATH="/grafana/bin/grafana-server" \
+  # Make sure that python can find the grpc bindings
+  PYTHONPATH="/grpc" \
+  GF_RENDERER_PLUGIN_CHROME_BIN="/usr/bin/chromium-browser"
 
 # Add user and group beforehand, so that rpm won't create its own with differen uid/gid.
 RUN groupadd -g 1000 grafana && useradd -r -g 1000 -s /bin/bash -u 102 grafana && \
 passwd -l root
 
 COPY --from=builder /grafana-fetch/grafana-$grafana_version $GF_PATHS_HOME
-RUN dnf install -y rsyslog && \
+
+COPY CentOS-AppStream.repo /etc/yum.repos.d/
+COPY CentOS-Base.repo /etc/yum.repos.d/
+
+RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
+    # The name and file path of the key needs to match the ones configured in the CentOS .repo files.
+    curl http://mirror.centos.org/centos/RPM-GPG-KEY-CentOS-Official > /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-Official
+RUN dnf search chrom && \
+    dnf install -y --nobest rsyslog procps python3-devel gcc udev chromium && \
     dnf clean all
+RUN python3 -m pip install --upgrade pip
+RUN $GF_PATHS_HOME/bin/grafana-cli \
+    --pluginsDir "$GF_PATHS_PLUGINS" \
+    --pluginUrl https://github.com/grafana/grafana-image-renderer/releases/latest/download/plugin-linux-x64-glibc-no-chromium.zip \
+    plugins install grafana-image-renderer
 
 COPY rsyslog.conf /etc
+# The grpc folder is populated by Maven with unzipped python bindings for XL gRPC services.
+COPY grpc /grpc
 COPY entrypoint.sh /
 
 RUN chown -R grafana:grafana $GF_PATHS_HOME && \
@@ -57,6 +76,11 @@ RUN chown -R grafana:grafana $GF_PATHS_HOME && \
     # Forward the Grafana data log to stdout.
     ln -sf /dev/stdout $GF_PATHS_LOGS/grafana.log && \
     chmod 755 /entrypoint.sh
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY grafana_mgr.py /
 
 EXPOSE 3000
 

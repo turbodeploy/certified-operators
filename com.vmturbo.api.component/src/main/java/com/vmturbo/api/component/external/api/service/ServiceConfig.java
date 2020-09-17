@@ -398,6 +398,7 @@ public class ServiceConfig {
                 policiesService(),
                 communicationConfig.policyRpcService(),
                 communicationConfig.planRpcService(),
+                communicationConfig.planProjectRpcService(),
                 communicationConfig.scenarioRpcService(),
                 mapperConfig.policyMapper(),
                 mapperConfig.marketMapper(),
@@ -716,6 +717,7 @@ public class ServiceConfig {
     public UsersService usersService() {
         return new UsersService(authConfig.getAuthHost(),
             authConfig.getAuthPort(),
+            authConfig.getAuthRoute(),
             communicationConfig.serviceRestTemplate(),
             samlRegistrationId,
             samlEnabled,
@@ -793,7 +795,8 @@ public class ServiceConfig {
     public CloudPlanNumEntitiesByTierSubQuery cloudPlanNumEntitiesByTierSubQuery() {
         final CloudPlanNumEntitiesByTierSubQuery cloudPlanNumEntitiesByTierQuery =
             new CloudPlanNumEntitiesByTierSubQuery(communicationConfig.repositoryApi(),
-                communicationConfig.supplyChainFetcher());
+                communicationConfig.supplyChainFetcher(),
+                    communicationConfig.actionsRpcService());
         statsQueryExecutor().addSubquery(cloudPlanNumEntitiesByTierQuery);
         return cloudPlanNumEntitiesByTierQuery;
     }
@@ -810,7 +813,8 @@ public class ServiceConfig {
     public HistoricalCommodityStatsSubQuery historicalCommodityStatsSubQuery() {
         final HistoricalCommodityStatsSubQuery historicalStatsQuery =
             new HistoricalCommodityStatsSubQuery(mapperConfig.statsMapper(),
-                communicationConfig.historyRpcService(), userSessionContext());
+                communicationConfig.historyRpcService(), userSessionContext(),
+                communicationConfig.repositoryApi());
         statsQueryExecutor().addSubquery(historicalStatsQuery);
         return historicalStatsQuery;
     }

@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.stitching.prestitching;
 
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.loadEntityDTO;
+
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Collections;
@@ -26,7 +28,6 @@ import com.vmturbo.stitching.PreStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.prestitching.SharedEntityDefaultPreStitchingOperation;
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
-import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverterTest;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.stitching.ResoldCommodityCache;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
@@ -79,11 +80,11 @@ public class SharedEntityDefaultPreStitchingOperationTest {
                                 .nextElement()
                                 .openStream()), expectedMergedBusinessUserDTO);
 
-        sharedBusinessUserDTO1 = SdkToTopologyEntityConverterTest.messageFromJsonFile(
-                "protobuf/messages/shared_entity_default_pre_stitching_operation/shared_business_user_1_from_target_1.json")
+        sharedBusinessUserDTO1 = loadEntityDTO(
+                "shared_entity_default_pre_stitching_operation/shared_business_user_1_from_target_1.json")
                 .toBuilder();
-        sharedBusinessUserDTO2 = SdkToTopologyEntityConverterTest.messageFromJsonFile(
-                "protobuf/messages/shared_entity_default_pre_stitching_operation/shared_business_user_1_from_target_2.json")
+        sharedBusinessUserDTO2 = loadEntityDTO(
+                "shared_entity_default_pre_stitching_operation/shared_business_user_1_from_target_2.json")
                 .toBuilder();
         virtualMachineDTO1 = EntityDTO.newBuilder()
                 .setId("7b2ed5998e3c5b93c87b20a77f4406c710f7aad3")

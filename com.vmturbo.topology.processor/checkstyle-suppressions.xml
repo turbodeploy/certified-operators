@@ -259,11 +259,8 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]template[/\\]HCIPhysicalMachineEntityConstructor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]template[/\\]PhysicalMachineEntityConstructor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]template[/\\]StorageEntityConstructor.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]template[/\\]TemplateConfig.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]template[/\\]TemplateConverterFactory.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]template[/\\]TemplatesNotFoundException.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]template[/\\]TopologyEntityConstructor.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]template[/\\]VirtualMachineEntityConstructor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]topology[/\\]ApplicationCommodityKeyChanger.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]topology[/\\]CommoditiesEditor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]topology[/\\]ConstraintsEditor.java" />
@@ -440,10 +437,7 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]template[/\\]HCIPhysicalMachineEntityConstructorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]template[/\\]PhysicalMachineEntityConstructorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]template[/\\]StorageEntityConstructorTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]template[/\\]TemplateConverterFactoryTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]template[/\\]TemplateConverterTestUtil.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]template[/\\]TemplatesConverterUtilsTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]template[/\\]VirtualMachineEntityConstructorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]topology[/\\]ApplicationCommodityKeyChangerTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]topology[/\\]CommoditiesEditorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]topology[/\\]ConstraintsEditorTest.java" />

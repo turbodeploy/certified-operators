@@ -17,7 +17,7 @@ import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperati
 /**
  * Data access object, responsible for creating, updating, searching, deleting templates.
  */
-public interface TemplatesDao extends DiagsRestorable {
+public interface TemplatesDao extends DiagsRestorable<Void> {
     /**
      * Get all templates that match a filter.
      *

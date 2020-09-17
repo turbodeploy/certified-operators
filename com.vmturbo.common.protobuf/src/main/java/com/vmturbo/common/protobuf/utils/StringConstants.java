@@ -166,6 +166,10 @@ public class StringConstants {
     public static final String USED_CAPACITY = "used_capacity";
     public static final String UTILIZATION = "utilization";
     public static final String UUID = "uuid";
+    /**
+     * UUID column name in HistorydbIO-created temp tables.
+     */
+    public static final String TARGET_OBJECT_UUID = "target_object_uuid";
     public static final String PEAK = "peak";
 
     public static final String VAL = "val";
@@ -352,36 +356,57 @@ public class StringConstants {
 
     public static final String DOLLARS_PER_HOUR = "$/h";
     public static final String PROPERTY = "property";
+
     /**
      * Optimize cloud plan type.
      */
     public static final String OPTIMIZE_CLOUD_PLAN = "OPTIMIZE_CLOUD";
+
     /**
      * Optimize services only.
      */
     public static final String OPTIMIZE_CLOUD_PLAN__OPTIMIZE_SERVICES = "OPTIMIZE_CLOUD__OPTIMIZE_SERVICES_ONLY";
+
     /**
      * Optimize services and make RI purchases.
      */
     public static final String OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES =
             "OPTIMIZE_CLOUD__RIBUY_AND_OPTIMIZE_SERVICES";
+
     /**
      * Purchase RI only.
      */
     public static final String OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY = "OPTIMIZE_CLOUD__RIBUY_ONLY";
-    /**
-     * Cloud migration plan type.
-     */
-    public static final String CLOUD_MIGRATION_PLAN = "CLOUD_MIGRATION";
+
     /**
      * DISABLED action mode. This is used to check if VM scale actions are disabled in OCP.
      */
     public static final String DISABLED = "DISABLED";
+
     /**
      * AUTOMATIC action mode.  This is used to check if VM scale actions are enabled in OCP.
      */
     public static final String AUTOMATIC = "AUTOMATIC";
+
+    /**
+     * Cloud resize is disabled.
+     */
     public static final String RESIZE = "resize";
+
+    /**
+     * Cloud migration plan type.
+     */
+    public static final String CLOUD_MIGRATION_PLAN = "CLOUD_MIGRATION";
+
+    /**
+     * Allocation (new name: Lift & Shift) plan type of cloud migration plan project. Resize = false.
+     */
+    public static final String CLOUD_MIGRATION_PLAN__ALLOCATION = "CLOUD_MIGRATION__ALLOCATION";
+
+    /**
+     * Consumption (new name: Optimized) plan type of cloud migration plan project. Resize = true.
+     */
+    public static final String CLOUD_MIGRATION_PLAN__CONSUMPTION = "CLOUD_MIGRATION__CONSUMPTION";
 
     /**
      * String indicating the Business Account entity type in the UI.
@@ -452,4 +477,14 @@ public class StringConstants {
      * Accepting/rejecting user type for actions accepted/rejected from external orchestrator.
      */
     public static final String EXTERNAL_ORCHESTRATOR_USER_TYPE = "EXTERNAL_ORCHESTRATOR_USER";
+
+    /**
+     * VM Entity property for license OS override in cloud migration plans.
+     */
+    public static final String PLAN_NEW_OS_TYPE_PROPERTY = "plan.newOsLicenseType";
+
+    /**
+     * OS name property for display purposes.
+     */
+    public static final String PLAN_NEW_OS_NAME_PROPERTY = "plan.newOsLicenseName";
 }

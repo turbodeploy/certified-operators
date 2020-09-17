@@ -80,6 +80,18 @@ public class SupplyChainCalculatorTest {
     private SupplyChainNode account;
     private SupplyChainNode app;
     private SupplyChainNode vmspec;
+
+    /**
+     * Constants for VDI topology creation.
+     */
+    private static final long VDI_TOPO_PM1ID = 1L;
+    private static final long VDI_TOPO_PM2ID = 2L;
+    private static final long VDI_TOPO_VDC1ID = 11L;
+    private static final long VDI_TOPO_DP1ID = 12L;
+    private static final long VDI_TOPO_VM1ID = 21L;
+    private static final long VDI_TOPO_BU1ID = 22L;
+    private static final long VDI_TOPO_VPODID = 333L;
+
     /**
      * Constants and variables for checks related to topologies with VDCs.
      */
@@ -99,13 +111,7 @@ public class SupplyChainCalculatorTest {
     private SupplyChainNode vdcTopoVdc;
     private SupplyChainNode vdcTopoVm;
 
-    /**
-     * Constants and variables for checks related to container topologies with VDCs.
-     */
-    private static final long POD_1_ID = 1;
     private static final long POD_2_ID = 2;
-    private static final long VDC_ID = 11;
-    private static final long VDC_CONTAINERS_TOPO_VM_1_ID = 21;
     private static final long VDC_CONTAINERS_TOPO_VM_2_ID = 22;
 
     /**
@@ -476,6 +482,7 @@ public class SupplyChainCalculatorTest {
         populateCloudEntityFields(supplyChain);
         assertFullCloudSupplyChain(supplyChain, false, true);
     }
+
     @Test
     public void testControlledEntitySeed() {
         createCloudTopologyWithScalingGroup();
@@ -1137,7 +1144,6 @@ public class SupplyChainCalculatorTest {
                    containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr()));
     }
 
-
     /**
      * Tests that scoping on a PM includes the related DC
      * but not other PMs in the result.
@@ -1716,99 +1722,6 @@ public class SupplyChainCalculatorTest {
     }
 
     /**
-     * Tests container topology with VDC. Case 1: Indirection.
-     */
-    @Test
-    public void testVdcInContainerTopology1() {
-        /*
-         *  Topology:
-         *  POD1     POD2
-         *   |\     /|
-         *   | \   / |
-         *   |  \ /  |
-         *   |  VDC  |
-         *   |  / \  |
-         *   | /   \ |
-         *   VM1   VM2
-         *
-         *   Scoping on VM1 will not bring in POD2
-         *   scoping on POD1 will bring VM2
-         */
-        final TopologyGraph<TestGraphEntity> graph =
-                TestGraphEntity.newGraph(
-                        TestGraphEntity.newBuilder(VDC_CONTAINERS_TOPO_VM_1_ID, ApiEntityType.VIRTUAL_MACHINE),
-                        TestGraphEntity.newBuilder(VDC_CONTAINERS_TOPO_VM_2_ID, ApiEntityType.VIRTUAL_MACHINE),
-                        TestGraphEntity.newBuilder(VDC_ID, ApiEntityType.VIRTUAL_DATACENTER)
-                                .addProviderId(VDC_CONTAINERS_TOPO_VM_1_ID)
-                                .addProviderId(VDC_CONTAINERS_TOPO_VM_2_ID),
-                        TestGraphEntity.newBuilder(POD_1_ID, ApiEntityType.CONTAINER_POD)
-                                .addProviderId(VDC_ID)
-                                .addProviderId(VDC_CONTAINERS_TOPO_VM_1_ID),
-                        TestGraphEntity.newBuilder(POD_2_ID, ApiEntityType.CONTAINER_POD)
-                                .addProviderId(VDC_ID)
-                                .addProviderId(VDC_CONTAINERS_TOPO_VM_2_ID));
-
-        checkContainerVdcTopoSupplyChainNodes(getSupplyChain(graph, VDC_CONTAINERS_TOPO_VM_1_ID));
-        checkContainerVdcTopoSupplyChainNodes(getSupplyChain(graph, POD_1_ID));
-    }
-
-    /**
-     * Tests container topology with VDC. Case 2: No unrelated VDCs are brought in by VMs.
-     */
-    @Test
-    public void testVdcInContainerTopology2() {
-        /*
-         *  Topology:
-         *  POD
-         *   | \
-         *   |  VDC1  VDC2
-         *   |  /      /
-         *   | /      /
-         *   VM-------
-         *
-         *   scoping on POD1 will not bring VDC2
-         */
-        final long vcd2Id = 500L;
-        final TopologyGraph<TestGraphEntity> graph =
-                TestGraphEntity.newGraph(
-                        TestGraphEntity.newBuilder(VDC_CONTAINERS_TOPO_VM_1_ID, ApiEntityType.VIRTUAL_MACHINE),
-                        TestGraphEntity.newBuilder(VDC_ID, ApiEntityType.VIRTUAL_DATACENTER)
-                                .addProviderId(VDC_CONTAINERS_TOPO_VM_1_ID),
-                        TestGraphEntity.newBuilder(vcd2Id, ApiEntityType.VIRTUAL_DATACENTER)
-                                .addProviderId(VDC_CONTAINERS_TOPO_VM_1_ID),
-                        TestGraphEntity.newBuilder(POD_1_ID, ApiEntityType.CONTAINER_POD)
-                                .addProviderId(VDC_ID)
-                                .addProviderId(VDC_CONTAINERS_TOPO_VM_1_ID));
-
-        checkContainerVdcTopoSupplyChainNodes(getSupplyChain(graph, POD_1_ID));
-    }
-
-    private void checkContainerVdcTopoSupplyChainNodes(Map<Integer, SupplyChainNode> supplychain) {
-        final SupplyChainNode vmNode = supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
-        final SupplyChainNode vdcNode = supplychain.get(ApiEntityType.VIRTUAL_DATACENTER.typeNumber());
-        final SupplyChainNode podNode = supplychain.get(ApiEntityType.CONTAINER_POD.typeNumber());
-
-        assertTrue(vmNode.getConnectedProviderTypesList().isEmpty());
-        assertThat(vmNode.getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.CONTAINER_POD.apiStr(),
-                                      ApiEntityType.VIRTUAL_DATACENTER.apiStr()));
-
-        assertThat(podNode.getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-                                      ApiEntityType.VIRTUAL_DATACENTER.apiStr()));
-        assertTrue(podNode.getConnectedConsumerTypesList().isEmpty());
-
-        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
-                     vdcNode.getConnectedProviderTypesList());
-        assertEquals(Collections.singletonList(ApiEntityType.CONTAINER_POD.apiStr()),
-                     vdcNode.getConnectedConsumerTypesList());
-
-        assertEquals(Collections.singleton(VDC_CONTAINERS_TOPO_VM_1_ID), getAllNodeIds(vmNode));
-        assertEquals(Collections.singleton(VDC_ID), getAllNodeIds(vdcNode));
-        assertEquals(Collections.singleton(POD_1_ID), getAllNodeIds(podNode));
-    }
-
-    /**
      * We should not traverse tier -> region relations.
      */
     @Test
@@ -1841,6 +1754,162 @@ public class SupplyChainCalculatorTest {
         final SupplyChainNode regionNode = getSupplyChain(graph, vmId)
                                                 .get(ApiEntityType.REGION.typeNumber());
         assertThat(getAllNodeIds(regionNode), containsInAnyOrder(region1Id));
+    }
+
+    /**
+     * In the topology created by {@link #createVdiTopology()}, scope on VM1.
+     * Expect: PM1, BU1, VM1, DP1, VP, VDC1.
+     */
+    @Test
+    public void testVdiTopologyScopeOnVm1() {
+        final TopologyGraph<TestGraphEntity> topology = createVdiTopology();
+        final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(topology, VDI_TOPO_VM1ID);
+        assertEquals(6, supplyChain.keySet().size());
+        assertEquals(Collections.singleton(VDI_TOPO_PM1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_DP1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.DESKTOP_POOL.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VM1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_BU1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.BUSINESS_USER.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VPODID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIEW_POD.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VDC1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIRTUAL_DATACENTER.typeNumber())));
+    }
+
+    /**
+     * In the topology created by {@link #createVdiTopology()}, scope on BU1.
+     * Expect: PM1, BU1, VM1, VP, DP1, VDC1.
+     */
+    @Test
+    public void testVdiTopologyScopeOnBu1() {
+        final TopologyGraph<TestGraphEntity> topology = createVdiTopology();
+        final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(topology, VDI_TOPO_BU1ID);
+        assertEquals(6, supplyChain.keySet().size());
+        assertEquals(Collections.singleton(VDI_TOPO_PM1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_DP1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.DESKTOP_POOL.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VM1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_BU1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.BUSINESS_USER.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VPODID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIEW_POD.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VDC1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIRTUAL_DATACENTER.typeNumber())));
+    }
+
+    /**
+     * In the topology created by {@link #createVdiTopology()}, scope on Dp1.
+     * Expect: PM1, PM2, BU1, VM1, DP1, VP, and VDC1.
+     */
+    @Test
+    public void testVdiTopologyScopeOnDp1() {
+        final TopologyGraph<TestGraphEntity> topology = createVdiTopology();
+        final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(topology, VDI_TOPO_DP1ID);
+        assertEquals(6, supplyChain.keySet().size());
+        assertThat(getAllNodeIds(supplyChain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber())),
+                containsInAnyOrder(VDI_TOPO_PM1ID, VDI_TOPO_PM2ID));
+        assertEquals(Collections.singleton(VDI_TOPO_DP1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.DESKTOP_POOL.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VM1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_BU1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.BUSINESS_USER.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VDC1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIRTUAL_DATACENTER.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VPODID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIEW_POD.typeNumber())));
+    }
+
+    /*
+     * Topology:
+     *    BU1-------
+     *      \      /
+     *     VM1----DP1
+     *      \     /  \
+     *       \ VDC1  VPOD
+     *       \  / \
+     *        PM1 PM2
+     **/
+    private TopologyGraph<TestGraphEntity> createVdiTopology() {
+        // entities
+        final TestGraphEntity.Builder pm1Builder =
+                TestGraphEntity.newBuilder(VDI_TOPO_PM1ID, ApiEntityType.PHYSICAL_MACHINE);
+        final TestGraphEntity.Builder pm2Builder =
+                TestGraphEntity.newBuilder(VDI_TOPO_PM2ID, ApiEntityType.PHYSICAL_MACHINE);
+
+        final TestGraphEntity.Builder vdc1Builder =
+                TestGraphEntity.newBuilder(VDI_TOPO_VDC1ID, ApiEntityType.VIRTUAL_DATACENTER);
+
+        final TestGraphEntity.Builder dp1Builder =
+                TestGraphEntity.newBuilder(VDI_TOPO_DP1ID, ApiEntityType.DESKTOP_POOL);
+
+        final TestGraphEntity.Builder vpBuilder =
+                TestGraphEntity.newBuilder(VDI_TOPO_VPODID, ApiEntityType.VIEW_POD);
+
+        final TestGraphEntity.Builder vm1Builder =
+                TestGraphEntity.newBuilder(VDI_TOPO_VM1ID, ApiEntityType.VIRTUAL_MACHINE);
+
+        final TestGraphEntity.Builder bu1Builder =
+                TestGraphEntity.newBuilder(VDI_TOPO_BU1ID, ApiEntityType.BUSINESS_USER);
+
+        // VM consumes from PM
+        vm1Builder.addProviderId(VDI_TOPO_PM1ID);
+
+        // VM consumes from DP
+        vm1Builder.addProviderId(VDI_TOPO_DP1ID);
+
+        // BU consumes from VM
+        bu1Builder.addProviderId(VDI_TOPO_VM1ID);
+
+        // BU consumes from DP
+        bu1Builder.addProviderId(VDI_TOPO_DP1ID);
+
+        // VDC consumes from PMs
+        vdc1Builder.addProviderId(VDI_TOPO_PM1ID);
+        vdc1Builder.addProviderId(VDI_TOPO_PM2ID);
+
+        // DP consumes from VDC
+        dp1Builder.addProviderId(VDI_TOPO_VDC1ID);
+        dp1Builder.addProviderId(VDI_TOPO_VPODID);
+
+        return TestGraphEntity.newGraph(pm1Builder, pm2Builder, vdc1Builder, vm1Builder,
+                bu1Builder, dp1Builder, vpBuilder);
+    }
+
+    /**
+     * When scoping on a single desktop pool,
+     * others should not be brought in the supply chain.
+     */
+    @Test
+    public void testScopeOnSingleDP() {
+        // Topology
+        //   BU1
+        //   / \
+        // DP1  DP2
+        // scoping on DP1 should not bring DP2 to the result
+        final long buId = 1L;
+        final long dp1Id = 2L;
+        final long dp2Id = 3L;
+        final TestGraphEntity.Builder buBuilder =
+                TestGraphEntity.newBuilder(buId, ApiEntityType.BUSINESS_USER)
+                    .addProviderId(dp1Id)
+                    .addProviderId(dp2Id);
+        final TestGraphEntity.Builder dp1Builder =
+                TestGraphEntity.newBuilder(dp1Id, ApiEntityType.DESKTOP_POOL);
+        final TestGraphEntity.Builder dp2Builder =
+                TestGraphEntity.newBuilder(dp2Id, ApiEntityType.DESKTOP_POOL);
+
+        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
+                                                            buBuilder, dp1Builder, dp2Builder);
+        final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(graph, dp1Id);
+
+        assertEquals(Collections.singleton(dp1Id),
+                     getAllNodeIds(supplyChain.get(ApiEntityType.DESKTOP_POOL.typeNumber())));
     }
 
     private Map<Integer, SupplyChainNode> getSupplyChain(

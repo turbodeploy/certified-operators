@@ -6,6 +6,7 @@ import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.Res
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -16,7 +17,14 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.gson.Gson;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.TemplateProtoUtil;
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacity.CpuModelScaleFactorResponse;
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacity.CpuScaleFactorRequest;
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc.CpuCapacityServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
@@ -44,9 +52,21 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
         implements ITopologyEntityConstructor {
 
+    private static final Logger logger = LogManager.getLogger();
+
     private static final String ZERO = "0";
     private static final String RDM = "RDM";
 
+    private final CpuCapacityServiceBlockingStub cpuCapacityService;
+
+    /**
+     * Creates an object uses for converting templates into TopologyEntityDTO.Builder.
+     *
+     * @param cpuCapacityService the service used to estimate the scaling factor of a cpu model.
+     */
+    public VirtualMachineEntityConstructor(@Nonnull CpuCapacityServiceBlockingStub cpuCapacityService) {
+        this.cpuCapacityService = Objects.requireNonNull(cpuCapacityService);
+    }
 
     @Override
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
@@ -64,7 +84,7 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
             originalTopologyEntity);
         final List<TemplateResource> computeTemplateResources = getTemplateResources(template,
                 Compute);
-        addComputeCommodities(topologyEntityBuilder, computeTemplateResources);
+        addComputeCommodities(topologyEntityBuilder, computeTemplateResources, template);
 
         final List<TemplateResource> storageTemplateResources = getTemplateResources(template,
                 Storage);
@@ -85,8 +105,8 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
         final Map<Long, Long> oldProvidersMap = Maps.newHashMap();
         long fakeProvider = 0;
         final List<CommoditiesBoughtFromProvider> cloneCommodityBoughtGroups = new ArrayList<>();
-        for (CommoditiesBoughtFromProvider bought :
-            topologyEntityBuilder.getCommoditiesBoughtFromProvidersList()) {
+        for (CommoditiesBoughtFromProvider bought
+                : topologyEntityBuilder.getCommoditiesBoughtFromProvidersList()) {
             if (bought.hasProviderId()) {
                 final long oldProvider = bought.getProviderId();
                 CommoditiesBoughtFromProvider cloneCommodityBought = bought.toBuilder()
@@ -113,14 +133,45 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
      *
      * @param topologyEntityBuilder builder of TopologyEntityDTO.
      * @param computeTemplateResources a list of compute resources.
+     * @param template the template that could have a cpu model used for estimating the scaling
+     *                 factor.
      */
     private void addComputeCommodities(
             @Nonnull TopologyEntityDTO.Builder topologyEntityBuilder,
-            @Nonnull List<TemplateResource> computeTemplateResources) {
+            @Nonnull List<TemplateResource> computeTemplateResources,
+            @Nonnull final Template template) {
         final Map<String, String> fieldNameValueMap = createFieldNameValueMap(
                 computeTemplateResources);
-        addComputeCommoditiesBought(topologyEntityBuilder, fieldNameValueMap);
-        addComputeCommoditiesSold(topologyEntityBuilder, fieldNameValueMap);
+
+        double scalingFactor = 1.0;
+        if (template.hasTemplateInfo()
+                && template.getTemplateInfo().hasCpuModel()
+                && StringUtils.isNotBlank(template.getTemplateInfo().getCpuModel())) {
+            String cpuModel = template.getTemplateInfo().getCpuModel();
+            CpuModelScaleFactorResponse response = cpuCapacityService.getCpuScaleFactors(CpuScaleFactorRequest.newBuilder()
+                .addCpuModelNames(cpuModel)
+                .build());
+            Double nullableScalingFactor = response.getScaleFactorByCpuModelMap().get(cpuModel);
+            if (nullableScalingFactor != null) {
+                scalingFactor = nullableScalingFactor;
+            }
+            logger.debug("plan vm template with oid {} has cpu model {} with scaling factor {}",
+                template.getId(), cpuModel, scalingFactor);
+        } else {
+            logger.warn("plan vm template with oid {} did not have a cpu model. "
+                    + "falling back to 1.0 scaling factor."
+                    + " hasTemplateInfo={}, hasCpuModel={}, isNotBlank={}",
+                template.getId(),
+                template.hasTemplateInfo(),
+                template.hasTemplateInfo()
+                    && template.getTemplateInfo().hasCpuModel(),
+                template.hasTemplateInfo()
+                    && template.getTemplateInfo().hasCpuModel()
+                    && StringUtils.isNotBlank(template.getTemplateInfo().getCpuModel()));
+        }
+
+        addComputeCommoditiesBought(topologyEntityBuilder, fieldNameValueMap, scalingFactor);
+        addComputeCommoditiesSold(topologyEntityBuilder, fieldNameValueMap, scalingFactor);
     }
 
     /**
@@ -128,12 +179,15 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
      *
      * @param topologyEntityBuilder builder of TopologyEntityDTO.
      * @param fieldNameValueMap a Map which key is template field name and value is field value.
+     * @param scalingFactor multiplier of how much better or worse this VM's cpu usage or capacity
+     *                      needs to be scaled because of the CPU model it expects.
      */
     private void addComputeCommoditiesBought(
             @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
-            @Nonnull Map<String, String> fieldNameValueMap) {
+            @Nonnull Map<String, String> fieldNameValueMap,
+            @Nonnull final double scalingFactor) {
         final List<CommodityBoughtDTO> cpuCommodity =
-            addComputeCommoditiesBoughtCPU(fieldNameValueMap);
+            addComputeCommoditiesBoughtCPU(fieldNameValueMap, scalingFactor);
         final List<CommodityBoughtDTO> memCommodity =
             addComputeCommoditiesBoughtMem(fieldNameValueMap);
         final List<CommodityBoughtDTO> ioNetCommodity =
@@ -153,10 +207,13 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
      * Generate a list of CPU related commodity bought.
      *
      * @param fieldNameValueMap a Map which key is template field name and value is field value.
+     * @param scalingFactor multiplier of how much better or worse this VM's cpu usage or capacity
+     *                      needs to be scaled because of the CPU model it expects.
      * @return a list of {@link CommodityBoughtDTO}.
      */
     private List<CommodityBoughtDTO> addComputeCommoditiesBoughtCPU(
-            @Nonnull Map<String, String> fieldNameValueMap) {
+            @Nonnull Map<String, String> fieldNameValueMap,
+            double scalingFactor) {
         final double numOfCpu = Double.valueOf(
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU, ZERO));
         final double cpuSpeed = Double.valueOf(
@@ -166,10 +223,17 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
 
         // if created entity is reservation entity, cpu used value should be 0.
         final double used = numOfCpu * cpuSpeed * cpuConsumedFactor;
-        CommodityBoughtDTO cpuCommodity =
+        final CommodityBoughtDTO partialCpuCommodity =
                 createCommodityBoughtDTO(CommodityDTO.CommodityType.CPU_VALUE, used);
-        CommodityBoughtDTO cpuProvisionCommodity =
+        final CommodityBoughtDTO cpuCommodity = partialCpuCommodity.toBuilder()
+            .setScalingFactor(scalingFactor)
+            .build();
+        final CommodityBoughtDTO partialCpuProvisionCommodity =
                 createCommodityBoughtDTO(CommodityType.CPU_PROVISIONED_VALUE, numOfCpu * cpuSpeed);
+        final CommodityBoughtDTO cpuProvisionCommodity = partialCpuProvisionCommodity.toBuilder()
+            .setScalingFactor(scalingFactor)
+            .build();
+
         return Lists.newArrayList(cpuCommodity, cpuProvisionCommodity);
     }
 
@@ -221,9 +285,13 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
      *
      * @param topologyEntityBuilder builder of TopologyEntityDTO.
      * @param fieldNameValueMap a Map which key is template field name and value is field value.
+     * @param scalingFactor multiplier of how much better or worse this VM's cpu usage or capacity
+     *                      needs to be scaled because of the CPU model it expects.
      */
-    private void addComputeCommoditiesSold(@Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
-                                                  @Nonnull Map<String, String> fieldNameValueMap) {
+    private void addComputeCommoditiesSold(
+            @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
+            @Nonnull final Map<String, String> fieldNameValueMap,
+            @Nonnull final double scalingFactor) {
         final double numOfCpu = Double.valueOf(
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU, ZERO));
         final double cpuSpeed = Double.valueOf(
@@ -232,9 +300,12 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_COMPUTE_MEM_SIZE, ZERO));
 
         final double totalCpuSold = numOfCpu * cpuSpeed;
-        CommoditySoldDTO cpuSoldCommodity =
+        final CommoditySoldDTO partialCpuSoldCommodity =
                 createCommoditySoldDTO(CommodityDTO.CommodityType.VCPU_VALUE, totalCpuSold);
-        CommoditySoldDTO memorySizeCommodity =
+        final CommoditySoldDTO cpuSoldCommodity = partialCpuSoldCommodity.toBuilder()
+            .setScalingFactor(scalingFactor)
+            .build();
+        final CommoditySoldDTO memorySizeCommodity =
                 createCommoditySoldDTO(CommodityDTO.CommodityType.VMEM_VALUE, memorySize);
         topologyEntityBuilder.addCommoditySoldList(cpuSoldCommodity);
         topologyEntityBuilder.addCommoditySoldList(memorySizeCommodity);
@@ -328,8 +399,9 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
                         accessCommoditiesSecond.getCommodityBoughtList().stream()
                                 .anyMatch(accessCommodity -> accessCommodity
                                         .getCommodityType().getType() == CommodityDTO.CommodityType.EXTENT_VALUE);
-                return (firstAccessCommoditiesContainsRDM ^ secondAccessCommoditiesContainsRDM) ?
-                        (firstAccessCommoditiesContainsRDM ? -1 : 1) : 0;
+                return (firstAccessCommoditiesContainsRDM ^ secondAccessCommoditiesContainsRDM)
+                        ? (firstAccessCommoditiesContainsRDM ? -1 : 1)
+                        : 0;
             }).collect(Collectors.toList());
     }
 
@@ -361,13 +433,15 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
     private List<CommodityBoughtDTO> addStorageCommoditiesBoughtST(
             @Nonnull Map<String, String> fieldNameValueMap,
             @Nonnull String type) {
-        final double disSize = type.toUpperCase().equals(RDM) ? Double.MIN_VALUE :
-            Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_STORAGE_DISK_SIZE, ZERO));
+        final double disSize = type.toUpperCase().equals(RDM)
+            ? Double.MIN_VALUE
+            : Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_STORAGE_DISK_SIZE, ZERO));
         // if created entity is reservation entity, storage amount used value should be 0.
         final double disConsumedFactor = Double.valueOf(
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_STORAGE_DISK_CONSUMED_FACTOR, ZERO));
-        final double disIops = type.toUpperCase().equals(RDM) ? Double.MIN_VALUE :
-            Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_STORAGE_DISK_IOPS, ZERO));
+        final double disIops = type.toUpperCase().equals(RDM)
+            ? Double.MIN_VALUE
+            : Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.VM_STORAGE_DISK_IOPS, ZERO));
         CommodityBoughtDTO stAmountCommodity =
             createCommodityBoughtDTO(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
                 disSize * disConsumedFactor);

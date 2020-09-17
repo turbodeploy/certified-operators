@@ -41,7 +41,7 @@ public abstract class TopologyWriterBase implements ITopologyWriter {
     @Override
     public Consumer<TopologyEntityDTO> startTopology(
             final TopologyInfo topologyInfo, WriterConfig config, MultiStageTimer timer)
-            throws IOException, UnsupportedDialectException, SQLException {
+            throws IOException, UnsupportedDialectException, SQLException, InterruptedException {
         this.topologyInfo = topologyInfo;
         this.config = config;
         this.timer = timer;

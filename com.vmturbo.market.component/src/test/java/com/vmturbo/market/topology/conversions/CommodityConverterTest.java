@@ -10,11 +10,13 @@ import static org.mockito.Mockito.mock;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Table;
 
 import junitparams.JUnitParamsRunner;
@@ -388,6 +390,30 @@ public class CommodityConverterTest {
         assertTrue(histPeak.isPresent());
         assertEquals(1, histPeak.get().length);
         assertEquals(RAW_USED, histPeak.get()[0], DELTA);
+    }
+
+    /**
+     * Test remove consumer update provider utilization.
+     */
+    @Test
+    public void testRemoveConsumerUpdateProviderUtilization() {
+        final CommodityType commodityType = CommodityType.newBuilder().setType(10).build();
+        final TopologyEntityDTO pm = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .setEntityState(EntityState.POWERED_ON)
+            .setOid(3L)
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(commodityType).setUsed(100).setScalingFactor(2))
+            .build();
+
+        final Map<Long, Map<CommodityType, Double>> input =
+            ImmutableMap.of(pm.getOid(), ImmutableMap.of(commodityType, 30d));
+        converterToTest.setProviderUsedSubtractionMap(input);
+
+        final List<CommoditySoldTO> commoditySoldTOs =
+            converterToTest.createCommonCommoditySoldTOList(pm.getCommoditySoldList(0), pm);
+
+        assertThat(commoditySoldTOs.get(0).getQuantity(), is(170f));
     }
 
     private CommoditySoldTO commSoldOfType(@Nonnull final Collection<CommoditySoldTO> commoditiesSold,

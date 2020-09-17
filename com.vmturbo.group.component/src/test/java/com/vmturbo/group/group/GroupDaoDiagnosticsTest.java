@@ -67,7 +67,7 @@ public class GroupDaoDiagnosticsTest {
 
         Mockito.verify(groupStore, Mockito.never()).deleteAllGroups();
 
-        diagnostics.restoreDiags(diags.getAllValues());
+        diagnostics.restoreDiags(diags.getAllValues(), groupStore);
         ArgumentCaptor<Long> oidCaptor = ArgumentCaptor.forClass(Long.class);
         ArgumentCaptor<GroupDefinition> defCaptor = ArgumentCaptor.forClass(GroupDefinition.class);
         Mockito.verify(groupStore)

@@ -13,11 +13,15 @@ import com.vmturbo.common.protobuf.plan.DiscoveredTemplateDeploymentProfileServi
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
+import com.vmturbo.topology.processor.cpucapacity.CpuCapacityConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 
+/**
+ * All the configuration related to the conversion of templates to TopologyEntityDTO.
+ */
 @Configuration
 @Import({
     IdentityProviderConfig.class,
@@ -42,15 +46,23 @@ public class TemplateConfig {
     @Autowired
     private GroupConfig groupConfig;
 
+    @Autowired
+    private CpuCapacityConfig cpuCapacityConfig;
+
     @Value("${discoveredTemplateUploadTimeoutMin:10}")
     private long discoveredTemplateUploadTimeoutMin;
 
-
+    /**
+     * Bean responsible for converting templates to TopologyEntityDTO.
+     *
+     * @return the bean responsible for converting templates to TopologyEntityDTO.
+     */
     @Bean
     public TemplateConverterFactory templateConverterFactory() {
         return new TemplateConverterFactory(templateServiceBlockingStub(),
                 identityProviderConfig.identityProvider(),
-                groupConfig.settingPolicyServiceClient());
+                groupConfig.settingPolicyServiceClient(),
+                cpuCapacityConfig.cpuCapacityServiceBlockingStub());
     }
 
     /**

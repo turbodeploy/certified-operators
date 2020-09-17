@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,6 +33,7 @@ import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.Field;
 import org.jooq.Record2;
 import org.jooq.Record3;
 import org.jooq.Record4;
@@ -48,11 +50,13 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostFilter;
+import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
@@ -75,12 +79,19 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
 
     private static final String RI_FIXED_COST = "ri_fixed_cost";
 
+    private static final Field<Object> RESERVED_INSTANCE_ID_FIELD = DSL.field(
+            "reserved_instance_id");
+
+    private static final Field<Double> USED_COUPONS_FIELD = DSL.field("used_coupons", Double.class);
+
     private final PriceTableStore priceTableStore;
 
     private final Set<Runnable> updateCallbacks = new HashSet<>();
 
+
+
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
         // TODO to be implemented as part of OM-58627
     }
 
@@ -100,9 +111,6 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
         });
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Nonnull
     @Override
     public String getFileName() {
@@ -115,28 +123,30 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
      * @param identityProvider The identity provider
      * @param reservedInstanceCostCalculator The calculator for RI related costs.
      * @param priceTableStore The {@link PriceTableStore}, used to calculate RI costs when discovery
-     *                        is unable to discover them.
+     * @param entityReservedInstanceMappingStore The {@Link EntityReservedInstanceMappingStore},
+     *                                          used to look up discovered accounts usage for an RI.
+     * @param accountRIMappingStore The {@Link AccountRIMappingStore}, used to look up
+     *                             undiscovered accounts usage for an RI.
+     * @param businessAccountHelper Business Account helper to look up discovered accounts.
      */
     public SQLReservedInstanceBoughtStore(@Nonnull final DSLContext dsl,
                                           @Nonnull final IdentityProvider identityProvider,
                                           @Nonnull final ReservedInstanceCostCalculator reservedInstanceCostCalculator,
-                                          @Nonnull final PriceTableStore priceTableStore) {
-        super(dsl, identityProvider, reservedInstanceCostCalculator);
+                                          @Nonnull final PriceTableStore priceTableStore,
+                                          @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
+                                          @Nonnull final AccountRIMappingStore accountRIMappingStore,
+                                          @Nonnull final BusinessAccountHelper businessAccountHelper) {
+        super(dsl, identityProvider, reservedInstanceCostCalculator,
+                accountRIMappingStore, entityReservedInstanceMappingStore, businessAccountHelper);
         this.priceTableStore = priceTableStore;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public List<ReservedInstanceBought> getReservedInstanceBoughtByFilter(
             @Nonnull final ReservedInstanceBoughtFilter filter) {
         return getReservedInstanceBoughtByFilterWithContext(getDsl(), filter);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public List<ReservedInstanceBought> getReservedInstanceBoughtByFilterWithContext(
             @Nonnull final DSLContext context,
@@ -146,9 +156,6 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
                 .collect(toList());
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public Map<Long, Long> getReservedInstanceCountMap(@Nonnull final ReservedInstanceBoughtFilter filter) {
         final Map<Long, Long> retMap = new HashMap<>();
@@ -164,9 +171,6 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
         return retMap;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public Cost.ReservedInstanceCostStat getReservedInstanceAggregatedCosts(@Nonnull ReservedInstanceCostFilter filter) {
         final Result<Record3<BigDecimal, BigDecimal, BigDecimal>> riAggregatedCostResult =
@@ -227,9 +231,6 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
         return Clock.systemUTC().instant().toEpochMilli();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Nonnull
     @Override
     public List<Cost.ReservedInstanceCostStat> queryReservedInstanceBoughtCostStats(@Nonnull ReservedInstanceCostFilter reservedInstanceCostFilter) {
@@ -244,9 +245,6 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
         return Collections.EMPTY_LIST;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public Map<Long, Long> getReservedInstanceCountByRISpecIdMap(ReservedInstanceBoughtFilter filter) {
         final SelectJoinStep<Record2<ReservedInstanceBoughtInfo, BigDecimal>> from =
@@ -278,9 +276,6 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
         return countsByTemplate;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void updateReservedInstanceBought(
             @Nonnull final DSLContext context,
@@ -340,9 +335,6 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
         getLogger().info("Finished updating reserved instance bought.");
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void updateRIBoughtFromRIPriceList(
             @Nonnull Map<Long, PricingDTO.ReservedInstancePrice> reservedInstanceSpecPrices) {
@@ -359,12 +351,15 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void onInventoryChange(@Nonnull final Runnable callback) {
         updateCallbacks.add(callback);
+    }
+
+    @Override
+    public List<ReservedInstanceBought> getReservedInstanceBoughtForAnalysis(
+            @Nonnull final ReservedInstanceBoughtFilter filter) {
+        return adjustAvailableCouponsForPartialCloudEnv(getReservedInstanceBoughtByFilter(filter));
     }
 
     private List<ReservedInstanceBoughtInfo> internalCheckRIBoughtAndUpdatePrices(
@@ -612,5 +607,31 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
                 .setId(reservedInstanceRecord.getId())
                 .setReservedInstanceBoughtInfo(reservedInstanceRecord.getReservedInstanceBoughtInfo())
                 .build();
+    }
+
+    @Nonnull
+    @Override
+    public Map<Long, Double> getNumberOfUsedCouponsForReservedInstances(
+            @Nonnull final Collection<Long> filterByReservedInstanceIds) {
+        return getNumberOfUsedCouponsForReservedInstances(getDsl(), filterByReservedInstanceIds);
+    }
+
+    @Nonnull
+    @Override
+    public Map<Long, Double> getNumberOfUsedCouponsForReservedInstances(
+            @Nonnull final DSLContext context,
+            @Nonnull final Collection<Long> filterByReservedInstanceIds) {
+        return context.select(RESERVED_INSTANCE_ID_FIELD, sum(USED_COUPONS_FIELD)).from(DSL.select(
+                Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
+                Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS)
+                .from(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
+                .unionAll(
+                        DSL.select(Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
+                                Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS)
+                                .from(Tables.ACCOUNT_TO_RESERVED_INSTANCE_MAPPING))).where(
+                filterByReservedInstanceIds.isEmpty() ? DSL.trueCondition()
+                        : RESERVED_INSTANCE_ID_FIELD.in(filterByReservedInstanceIds)).groupBy(
+                RESERVED_INSTANCE_ID_FIELD).fetchStream().collect(
+                Collectors.toMap(r -> r.getValue(0, Long.class), r -> r.getValue(1, Double.class)));
     }
 }

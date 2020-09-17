@@ -15,6 +15,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Collections;
+import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -28,22 +29,21 @@ import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.CountedEntity;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.component.licensing.LicenseManagerService.LicenseManagementEvent;
+import com.vmturbo.auth.component.licensing.LicensedEntitiesCountCalculator.LicensedEntitiesCount;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceUtilizationCoverageServiceMole;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.mail.MailManager;
-import com.vmturbo.licensing.License;
 import com.vmturbo.notification.api.NotificationSender;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.State;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
@@ -87,16 +87,11 @@ public class LicenseCheckServiceTest {
 
     private MutableFixedClock clock = new MutableFixedClock(Clock.systemUTC().instant(), ZoneId.systemDefault());
 
-    private License aggregateLicense;
+    private LicensedEntitiesCountCalculator licensedEntitiesCountCalculator = mock(LicensedEntitiesCountCalculator.class);
 
     @Before
     public void setup() {
-        aggregateLicense = new License();
-        aggregateLicense.setNumInUseEntities(70);
-        aggregateLicense.setNumLicensedEntities(1000);
         licenseManagerService = mock(LicenseManagerService.class);
-        final SearchServiceBlockingStub searchServiceClient =
-                SearchServiceGrpc.newBlockingStub(testServer.getChannel());
         final RepositoryNotificationReceiver repository = mock(RepositoryNotificationReceiver.class);
         final IMessageSender<LicenseSummary> licenseSummaryIMessageSender = mock(IMessageSender.class);
         systemNotificationIMessageSender = mock(IMessageSender.class);
@@ -105,7 +100,7 @@ public class LicenseCheckServiceTest {
         final Flux<LicenseManagementEvent> flux = Flux.fromIterable(Collections.emptyList());
         when(licenseManagerService.getEventStream()).thenReturn(flux);
         licenseCheckService = new LicenseCheckService(licenseManagerService,
-                searchServiceClient,
+                licensedEntitiesCountCalculator,
                 repository,
                 licenseSummaryIMessageSender,
                 new NotificationSender(systemNotificationIMessageSender, clock),
@@ -167,10 +162,11 @@ public class LicenseCheckServiceTest {
     @Test
     public void testPublishNotificationLicenseExpired() throws Exception {
         final LicenseDTO license = LicenseDTO.newBuilder()
-                .setExpirationDate(LocalDate.now().toString())
-                .setEmail(EMAIL)
+                .setTurbo(TurboLicense.newBuilder()
+                    .setExpirationDate(LocalDate.now().toString())
+                    .setEmail(EMAIL))
                 .build();
-        licenseCheckService.publishNotification(false, Collections.singleton(license), aggregateLicense);
+        licenseCheckService.publishNotification(Collections.singleton(license), Optional.empty());
         final SystemNotification notification =
                 notification(LicenseCheckService.TURBONOMIC_LICENSE_HAS_EXPIRED_PLEASE_UPDATE_IT,
                     LicenseCheckService.LICENSE_HAS_EXPIRED);
@@ -188,12 +184,14 @@ public class LicenseCheckServiceTest {
     @Test
     public void testPublishNotificationLicenseOverLimit() throws Exception {
         final String description = String.format(LicenseCheckService.LICENSE_WORKLOAD_COUNT_HAS_OVER_LIMIT,
-            AuditLogUtils.getLocalIpAddress(), 70, 1000);
+            AuditLogUtils.getLocalIpAddress(), 1000, 70);
         final LicenseDTO license = LicenseDTO.newBuilder()
-                .setExpirationDate(LocalDate.now().plusDays(10L).toString())
-                .setEmail(EMAIL)
+                .setTurbo(TurboLicense.newBuilder()
+                    .setExpirationDate(LocalDate.now().plusDays(10L).toString())
+                    .setEmail(EMAIL))
                 .build();
-        licenseCheckService.publishNotification(true, Collections.singleton(license), aggregateLicense);
+        LicensedEntitiesCount count = new LicensedEntitiesCount(CountedEntity.VM, 70, Optional.of(1000));
+        licenseCheckService.publishNotification(Collections.singleton(license), Optional.of(count));
         SystemNotification notification =
                     notification(description, LicenseCheckService.WORKLOAD_COUNT_IS_OVER_LIMIT);
         verify(systemNotificationIMessageSender).sendMessage(notification);
@@ -210,10 +208,12 @@ public class LicenseCheckServiceTest {
     @Test
     public void testPublishNotificationLicenseExpiredAndOverLimit() throws Exception {
         final LicenseDTO license = LicenseDTO.newBuilder()
-                .setExpirationDate(LocalDate.now().toString())
-                .setEmail(EMAIL)
+                .setTurbo(TurboLicense.newBuilder()
+                    .setExpirationDate(LocalDate.now().toString())
+                    .setEmail(EMAIL))
                 .build();
-        licenseCheckService.publishNotification(true, Collections.singleton(license), aggregateLicense);
+        LicensedEntitiesCount count = new LicensedEntitiesCount(CountedEntity.VM, 100, Optional.of(200));
+        licenseCheckService.publishNotification(Collections.singleton(license), Optional.of(count));
         final SystemNotification notification =
                 notification(LicenseCheckService.TURBONOMIC_LICENSE_HAS_EXPIRED_PLEASE_UPDATE_IT,
                     LicenseCheckService.LICENSE_HAS_EXPIRED);
@@ -232,10 +232,12 @@ public class LicenseCheckServiceTest {
     @Test
     public void testPublishNotificationLicenseGoingToExpirAndOverLimit() throws Exception {
         final LicenseDTO license = LicenseDTO.newBuilder()
-                .setExpirationDate(LocalDate.now().plusDays(NUM_BEFORE_LICENSE_EXPIRATION_DAYS - 1).toString())
-                .setEmail(EMAIL)
+                .setTurbo(TurboLicense.newBuilder()
+                    .setExpirationDate(LocalDate.now().plusDays(NUM_BEFORE_LICENSE_EXPIRATION_DAYS - 1).toString())
+                    .setEmail(EMAIL))
                 .build();
-        licenseCheckService.publishNotification(true, Collections.singleton(license), aggregateLicense);
+        LicensedEntitiesCount count = new LicensedEntitiesCount(CountedEntity.VM, 100, Optional.of(200));
+        licenseCheckService.publishNotification(Collections.singleton(license), Optional.of(count));
         verify(systemNotificationIMessageSender, times(2)).sendMessage(any());
         verify(mailManager, times(2)).sendMail(anyList(), any(), any());
     }
@@ -249,10 +251,11 @@ public class LicenseCheckServiceTest {
     public void testPublishNotificationLicenseGoingToExpire() throws Exception {
         final String expirationDate = LocalDate.now().plusDays(1L).toString();
         final LicenseDTO license = LicenseDTO.newBuilder()
-                .setExpirationDate(expirationDate)
-                .setEmail(EMAIL)
+                .setTurbo(TurboLicense.newBuilder()
+                    .setExpirationDate(expirationDate)
+                    .setEmail(EMAIL))
                 .build();
-        licenseCheckService.publishNotification(false, Collections.singleton(license), aggregateLicense);
+        licenseCheckService.publishNotification(Collections.singleton(license), Optional.empty());
         final String description = String.format(LicenseCheckService.TURBONOMIC_LICENSE_WILL_EXPIRE,
             AuditLogUtils.getLocalIpAddress(), expirationDate);
         final SystemNotification notification = notification(description, LicenseCheckService.LICENSE_IS_ABOUT_TO_EXPIRE);
@@ -300,10 +303,12 @@ public class LicenseCheckServiceTest {
     @Test
     public void testValidLicense() throws Exception {
         final LicenseDTO licenseDTO = LicenseDTO.newBuilder()
-                .setExpirationDate(LocalDate.now().plusYears(1L).toString())
-                .setCountedEntity(CountedEntity.SOCKET.name())
+                .setTurbo(TurboLicense.newBuilder()
+                    .setExpirationDate(LocalDate.now().plusYears(1L).toString())
+                    .setCountedEntity(CountedEntity.SOCKET.name()))
                 .build();
         when(licenseManagerService.getLicenses()).thenReturn(Collections.singleton(licenseDTO));
+        when(licensedEntitiesCountCalculator.getLicensedEntitiesCount(any())).thenReturn(Optional.empty());
         licenseCheckService.onSourceTopologyAvailable(1L, 777777L);
         verify(systemNotificationIMessageSender, never()).sendMessage(any());
         verify(mailManager, never()).sendMail(anyList(), any(), any());

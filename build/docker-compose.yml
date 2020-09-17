@@ -136,6 +136,19 @@ services:
       - rsyslog
       - zoo1
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.18
+    networks:
+      default:
+        aliases:
+          - jaeger-collector
+    ports:
+      - 16686:16686
+      - 14268:14268
+    environment:
+      SPAN_STORAGE_TYPE: memory
+    command: --log-level=debug --memory.max-traces=10000
+
   auth:
     extends:
       file: common-services.yml
@@ -634,7 +647,7 @@ services:
   grafana:
     extends:
       file: common-services.yml
-      service: common-service
+      service: dev-component
     image: turbonomic/grafana:${XL_VERSION}
     ports:
       - 3000:3000
@@ -649,8 +662,15 @@ services:
       GF_USERS_DEFAULT_THEME: "light"
       GF_USERS_AUTO_ASSIGN_ORG_ROLE: "Editor"
       GF_AUTH_PROXY_ENABLED: "true"
-      GF_SERVER_ROOT_URL: "https://%(domain)s/reports"
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:%(http_port)s/reports"
       GF_SERVE_FROM_SUB_PATH: "true"
+
+  renderer:
+    image: grafana/grafana-image-renderer:latest
+    ports:
+      - 8081:8081
+    environment:
+      ENABLE_METRICS: 'true'
 
   integration-intersight:
     extends:
@@ -1452,6 +1472,28 @@ services:
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
     mem_limit: ${MEDIATION_AZURE_VOLUMES_MEM_LIMIT_MB}M
+
+  mediation-baremetal:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.baremetal.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_BAREMETAL_PORT}"
+      - "${MEDIATION_BAREMETAL_DEBUG_PORT}"
+    environment:
+      component_type: mediation-baremetal
+      instance_id: mediation-baremetal-1
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_ONEVIEW_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_ONEVIEW_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${ALL_JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+    mem_limit: ${MEDIATION_BAREMETAL_MEM_LIMIT_MB}M
 
   mediation-oneview:
     extends:

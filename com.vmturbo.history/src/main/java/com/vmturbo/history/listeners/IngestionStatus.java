@@ -91,37 +91,44 @@ class IngestionStatus {
      * Wait to be signaled by {@link ProcessingLoop} thread, or hit a time limit.
      *
      * <p>Normally we should be signaled when the processing loop has decide it's time this
-     * topology to be either processed or skip. As a safety valve, we time out and skip
-     * the topology if no decision is signaled.</p>
+     * topology to be either processed or skipped. As a safety valve, we time out and skip the
+     * topology if no decision is signaled.</p>
      *
-     * @param time max amount of time to wait
-     * @param unit temporal time unit for wait time
+     * @param time      max amount of time to wait
+     * @param unit      temporal time unit for wait time
+     * @param waitState ingestion state we're waiting to move from; any state other than this will
+     *                  cause true return
      * @return true if our state changed, else we timed out
      * @throws InterruptedException if interrupted
      */
-    boolean await(long time, ChronoUnit unit) throws InterruptedException {
+    boolean await(long time, ChronoUnit unit, final IngestionState waitState)
+            throws InterruptedException {
         activationLock.lock();
         try {
             Instant now = Instant.now();
             Instant wakeupTime = now.plus(time, unit);
-            IngestionState initialState = state;
             // keep trying until timeout is expired or our state changes
-            while (now.isBefore(wakeupTime) && state == initialState) {
+            while (now.isBefore(wakeupTime) && state == waitState) {
+                logger.debug("Waiting for ingestion {} state to change from {}", this, waitState);
                 final long millis = Duration.between(now, wakeupTime).toMillis();
                 activationCondition.await(millis, TimeUnit.MILLISECONDS);
                 now = Instant.now();
             }
-            return state != initialState;
+            final boolean stateChanged = state != waitState;
+            logger.debug("Ingestion {} {}", () -> this,
+                    () -> stateChanged ? "ready to go" : "timed out waiting for state change");
+            return stateChanged;
         } finally {
             activationLock.unlock();
         }
     }
 
     /**
-     * Wake up the listener thread so that it can process its topology or skip it, depending
-     * on the ingestion state - which must be updated prior to signaling.
+     * Wake up the listener thread so that it can process its topology or skip it, depending on the
+     * ingestion state - which generally should be updated prior to signaling.
      */
     void signal() {
+        logger.debug("Waking up waiting ingestion {}, current state {}", this, this.state);
         activationLock.lock();
         try {
             activationCondition.signalAll();

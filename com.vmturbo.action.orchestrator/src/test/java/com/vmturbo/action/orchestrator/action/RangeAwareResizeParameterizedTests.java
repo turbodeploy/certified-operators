@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -85,15 +86,15 @@ public class RangeAwareResizeParameterizedTests {
                 // In MB
                 .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(512).build()).build();
         Setting vMemUpInBetweenThresholds = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName())
+                .setSettingSpecName(ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds.getSettingName())
                 .setEnumSettingValue(MANUAL).build();
         Setting vMemDownInBetweenThresholds = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.getSettingName())
+                .setSettingSpecName(ConfigurableActionSettings.ResizeVmemDownInBetweenThresholds.getSettingName())
                 .setEnumSettingValue(AUTOMATIC).build();
         rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVmemMaxThreshold.getSettingName(), vMemMaxThreshold);
         rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVmemMinThreshold.getSettingName(), vMemMinThreshold);
-        rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName(), vMemUpInBetweenThresholds);
-        rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.getSettingName(), vMemDownInBetweenThresholds);
+        rangeAwareSettingsForEntity.put(ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds.getSettingName(), vMemUpInBetweenThresholds);
+        rangeAwareSettingsForEntity.put(ConfigurableActionSettings.ResizeVmemDownInBetweenThresholds.getSettingName(), vMemDownInBetweenThresholds);
 
         // range aware vCpu settings
         Setting vCpuMaxThreshold = Setting.newBuilder()
@@ -105,21 +106,21 @@ public class RangeAwareResizeParameterizedTests {
                 // In cores
                 .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(3).build()).build();
         Setting vCpuUpInBetweenThresholds = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingName())
+                .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuUpInBetweenThresholds.getSettingName())
                 .setEnumSettingValue(MANUAL).build();
         Setting vCpuDownInBetweenThresholds = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+                .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuDownInBetweenThresholds.getSettingName())
                 .setEnumSettingValue(RECOMMEND).build();
         rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVcpuMaxThreshold.getSettingName(), vCpuMaxThreshold);
         rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVcpuMinThreshold.getSettingName(), vCpuMinThreshold);
-        rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingName(), vCpuUpInBetweenThresholds);
-        rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName(), vCpuDownInBetweenThresholds);
+        rangeAwareSettingsForEntity.put(ConfigurableActionSettings.ResizeVcpuUpInBetweenThresholds.getSettingName(), vCpuUpInBetweenThresholds);
+        rangeAwareSettingsForEntity.put(ConfigurableActionSettings.ResizeVcpuDownInBetweenThresholds.getSettingName(), vCpuDownInBetweenThresholds);
 
         // Regular resize setting
         Setting regularResizeSetting = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName())
+                .setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName())
                 .setEnumSettingValue(DISABLED).build();
-        rangeAwareSettingsForEntity.put(EntitySettingSpecs.Resize.getSettingName(), regularResizeSetting);
+        rangeAwareSettingsForEntity.put(ConfigurableActionSettings.Resize.getSettingName(), regularResizeSetting);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -258,21 +259,21 @@ public class RangeAwareResizeParameterizedTests {
     @Test
     public void testRangeAwareResize() {
         Setting vCpuAboveMaxThreshold = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.getSettingName())
+                .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuAboveMaxThreshold.getSettingName())
                 .setEnumSettingValue(modeAboveMax).build();
         Setting vMemBelowMinThreshold = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.ResizeVmemBelowMinThreshold.getSettingName())
+                .setSettingSpecName(ConfigurableActionSettings.ResizeVmemBelowMinThreshold.getSettingName())
                 .setEnumSettingValue(modeBelowMin).build();
         Setting vMemAboveMaxThreshold = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.ResizeVmemAboveMaxThreshold.getSettingName())
+                .setSettingSpecName(ConfigurableActionSettings.ResizeVmemAboveMaxThreshold.getSettingName())
                 .setEnumSettingValue(modeAboveMax).build();
         Setting vCpuBelowMinThreshold = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.ResizeVcpuBelowMinThreshold.getSettingName())
+                .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuBelowMinThreshold.getSettingName())
                 .setEnumSettingValue(modeBelowMin).build();
-        rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.getSettingName(), vCpuAboveMaxThreshold);
-        rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVcpuBelowMinThreshold.getSettingName(), vCpuBelowMinThreshold);
-        rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVmemAboveMaxThreshold.getSettingName(), vMemAboveMaxThreshold);
-        rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVmemBelowMinThreshold.getSettingName(), vMemBelowMinThreshold);
+        rangeAwareSettingsForEntity.put(ConfigurableActionSettings.ResizeVcpuAboveMaxThreshold.getSettingName(), vCpuAboveMaxThreshold);
+        rangeAwareSettingsForEntity.put(ConfigurableActionSettings.ResizeVcpuBelowMinThreshold.getSettingName(), vCpuBelowMinThreshold);
+        rangeAwareSettingsForEntity.put(ConfigurableActionSettings.ResizeVmemAboveMaxThreshold.getSettingName(), vMemAboveMaxThreshold);
+        rangeAwareSettingsForEntity.put(ConfigurableActionSettings.ResizeVmemBelowMinThreshold.getSettingName(), vMemBelowMinThreshold);
 
         ActionDTO.Action.Builder actionBuilder = ActionDTO.Action.newBuilder()
                 .setId(10289)

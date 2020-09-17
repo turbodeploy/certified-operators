@@ -3,6 +3,7 @@ package com.vmturbo.cloud.commitment.analysis.config;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher.CloudCommitmentSpecMatcherFactory;
@@ -17,11 +18,17 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
  * A configuration for all beans leading to a {@link CloudCommitmentSpecMatcherFactory}.
  */
 @Lazy
+@Import({
+        SharedFactoriesConfig.class
+})
 @Configuration
 public class CloudCommitmentSpecMatcherConfig {
 
     @Autowired
     private CloudCommitmentSpecResolver<ReservedInstanceSpec> riSpecResolver;
+
+    @Autowired
+    private ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory;
 
     /**
      * The {@link ReservedInstanceSpecMatcherFactory}.
@@ -33,21 +40,12 @@ public class CloudCommitmentSpecMatcherConfig {
     }
 
     /**
-     * The {@link ComputeTierFamilyResolverFactory}.
-     * @return The {@link ComputeTierFamilyResolverFactory}.
-     */
-    @Bean
-    public ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory() {
-        return new ComputeTierFamilyResolverFactory();
-    }
-
-    /**
      * The {@link RISpecPurchaseFilterFactory}.
      * @return The {@link RISpecPurchaseFilterFactory}.
      */
     @Bean
     public RISpecPurchaseFilterFactory riSpecPurchaseFilterFactory() {
-        return new RISpecPurchaseFilterFactory(riSpecResolver, computeTierFamilyResolverFactory());
+        return new RISpecPurchaseFilterFactory(riSpecResolver, computeTierFamilyResolverFactory);
     }
 
     /**

@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -73,8 +74,9 @@ public class CommoditiesEditor {
      * @param scope to get information about plan scope.
      */
     public void applyCommodityEdits(@Nonnull final TopologyGraph<TopologyEntity> graph,
-                    @Nonnull final List<ScenarioChange> changes,
-                    TopologyDTO.TopologyInfo topologyInfo, @Nonnull final PlanScope scope) {
+                                    @Nonnull final List<ScenarioChange> changes,
+                                    @Nonnull TopologyInfo topologyInfo,
+                                    @Nonnull final PlanScope scope) {
         editCommoditiesForBaselineChanges(graph, changes, topologyInfo);
         editCommoditiesForClusterHeadroom(graph, scope, topologyInfo);
     }
@@ -93,10 +95,7 @@ public class CommoditiesEditor {
             .filter(change -> change.getPlanChanges().hasHistoricalBaseline())
             .findFirst()
             .ifPresent(change -> {
-                final Set<TopologyEntity> vmSet = topologyInfo.getScopeSeedOidsList().stream()
-                    .distinct()
-                    .flatMap(oid -> findVMsInScope(graph, oid))
-                    .collect(Collectors.toSet());
+                final Set<TopologyEntity> vmSet = getPlanVms(graph, topologyInfo);
                 long baselineDate = change.getPlanChanges()
                     .getHistoricalBaseline().getBaselineDate();
                 fetchAndApplyHistoricalData(vmSet, graph, baselineDate);
@@ -271,6 +270,15 @@ public class CommoditiesEditor {
         }
     }
 
+    @Nonnull
+    private Set<TopologyEntity> getPlanVms(@Nonnull final TopologyGraph<TopologyEntity> graph,
+                                           @Nonnull TopologyDTO.TopologyInfo topologyInfo) {
+        return topologyInfo.getScopeSeedOidsList().stream()
+            .distinct()
+            .flatMap(oid -> findVMsInScope(graph, oid))
+            .collect(Collectors.toSet());
+    }
+
     /**
      * Use given scope oid to traverse up or down the supply chain and find related VMs.
      * @param graph to traverse on for providers/consumers.
@@ -375,5 +383,4 @@ public class CommoditiesEditor {
                 });
         });
     }
-
 }

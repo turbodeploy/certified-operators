@@ -100,11 +100,11 @@ public class ProjectedStatsStoreTest {
                 .build();
 
         final TopologyCommoditiesSnapshot snapshot = mock(TopologyCommoditiesSnapshot.class);
-        when(snapshot.getRecords(commodities, entities)).thenReturn(Stream.of(statRecord));
+        when(snapshot.getRecords(commodities, entities, Collections.emptySet())).thenReturn(Stream.of(statRecord));
 
-        final StatSnapshot statSnapshot = statSnapshotCalculator.buildSnapshot(snapshot, entities, commodities);
+        final StatSnapshot statSnapshot = statSnapshotCalculator.buildSnapshot(snapshot, entities, commodities, Collections.emptySet());
 
-        verify(snapshot).getRecords(commodities, entities);
+        verify(snapshot).getRecords(commodities, entities, Collections.emptySet());
 
         assertThat(statSnapshot.getStatRecordsList(), containsInAnyOrder(statRecord));
     }
@@ -122,16 +122,16 @@ public class ProjectedStatsStoreTest {
         final StatSnapshot snapshot = StatSnapshot.newBuilder()
                 .setSnapshotDate(1L)
                 .build();
-        when(statSnapshotCalculator.buildSnapshot(topoSnapshot, entities, commodities))
+        when(statSnapshotCalculator.buildSnapshot(topoSnapshot, entities, commodities, Collections.emptySet()))
             .thenReturn(snapshot);
-        final Optional<StatSnapshot> retSnapshot = store.getStatSnapshotForEntities(entities, commodities);
+        final Optional<StatSnapshot> retSnapshot = store.getStatSnapshotForEntities(entities, commodities, Collections.emptySet());
         assertThat(retSnapshot.get(), is(snapshot));
     }
 
     @Test
     public void testGetSnapshotNoData() {
         // Initially the store has no data.
-        assertFalse(store.getStatSnapshotForEntities(Collections.emptySet(), Collections.emptySet()).isPresent());
+        assertFalse(store.getStatSnapshotForEntities(Collections.emptySet(), Collections.emptySet(), Collections.emptySet()).isPresent());
     }
 
     @Test
@@ -179,14 +179,14 @@ public class ProjectedStatsStoreTest {
                 .setPaginationResponse(PaginationResponse.getDefaultInstance())
                 .build();
         when(entityStatsCalculator.calculateNextPage(snapshot, statSnapshotCalculator,
-                targetEntities, targetCommodities, paginationParams))
+                targetEntities, targetCommodities, Collections.emptySet(), paginationParams))
             .thenReturn(responseProto);
 
         final ProjectedEntityStatsResponse response =
-                store.getEntityStats(targetEntities, targetCommodities, paginationParams);
+                store.getEntityStats(targetEntities, targetCommodities, Collections.emptySet(), paginationParams);
 
         verify(entityStatsCalculator).calculateNextPage(snapshot, statSnapshotCalculator,
-                targetEntities, targetCommodities, paginationParams);
+                targetEntities, targetCommodities, Collections.emptySet(), paginationParams);
 
         assertThat(response, is(responseProto));
     }
@@ -199,7 +199,7 @@ public class ProjectedStatsStoreTest {
             Collections.singleton(1L));
         final Set<String> targetCommodities = Collections.singleton("foo");
 
-        store.getEntityStats(targetEntities, targetCommodities, paginationParams);
+        store.getEntityStats(targetEntities, targetCommodities, Collections.emptySet(), paginationParams);
 
         verifyZeroInteractions(entityStatsCalculator);
     }
@@ -207,7 +207,7 @@ public class ProjectedStatsStoreTest {
     @Test
     public void testGetEntityStatsEmpty() {
         final ProjectedEntityStatsResponse response = store.getEntityStats(Collections.emptyMap(),
-                Collections.emptySet(), mock(EntityStatsPaginationParams.class));
+                Collections.emptySet(), Collections.emptySet(), mock(EntityStatsPaginationParams.class));
         assertThat(response, is(ProjectedEntityStatsResponse.newBuilder()
                 .setPaginationResponse(PaginationResponse.getDefaultInstance())
                 .build()));
@@ -234,15 +234,15 @@ public class ProjectedStatsStoreTest {
                 .build();
         when(snapshot.getEntityComparator(paginationParams,
             StatsTestUtils.createEntityGroupsMap(entities))).thenReturn(Long::compare);
-        when(snapshotCalculator.buildSnapshot(snapshot, Collections.singleton(1L), commodities))
+        when(snapshotCalculator.buildSnapshot(snapshot, Collections.singleton(1L), commodities, Collections.emptySet()))
                 .thenReturn(snapshot1);
-        when(snapshotCalculator.buildSnapshot(snapshot, Collections.singleton(2L), commodities))
+        when(snapshotCalculator.buildSnapshot(snapshot, Collections.singleton(2L), commodities, Collections.emptySet()))
                 .thenReturn(snapshot2);
 
         final EntityStatsCalculator entityStatsCalculator = new EntityStatsCalculator() {};
         final ProjectedEntityStatsResponse response = entityStatsCalculator.calculateNextPage(
             snapshot, snapshotCalculator, StatsTestUtils.createEntityGroupsMap(entities),
-            commodities, paginationParams);
+            commodities, Collections.emptySet(), paginationParams);
         assertThat(response.getEntityStatsList(), contains(
                 EntityStats.newBuilder().setOid(1L).addStatSnapshots(snapshot1).build(),
                 EntityStats.newBuilder().setOid(2L).addStatSnapshots(snapshot2).build()));
@@ -270,13 +270,13 @@ public class ProjectedStatsStoreTest {
                 .build();
         when(snapshot.getEntityComparator(paginationParams,
             StatsTestUtils.createEntityGroupsMap(entities))).thenReturn(Long::compare);
-        when(snapshotCalculator.buildSnapshot(snapshot, Collections.singleton(1L), commodities))
+        when(snapshotCalculator.buildSnapshot(snapshot, Collections.singleton(1L), commodities, Collections.emptySet()))
                 .thenReturn(snapshot1);
 
         final EntityStatsCalculator entityStatsCalculator = new EntityStatsCalculator() {};
         final ProjectedEntityStatsResponse response = entityStatsCalculator.calculateNextPage(
             snapshot, snapshotCalculator, StatsTestUtils.createEntityGroupsMap(entities),
-            commodities, paginationParams);
+            commodities, Collections.emptySet(), paginationParams);
         assertThat(response.getEntityStatsList(), contains(
                 EntityStats.newBuilder().setOid(1L).addStatSnapshots(snapshot1).build()));
         assertTrue(response.getPaginationResponse().hasTotalRecordCount());

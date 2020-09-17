@@ -59,6 +59,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.setting.SettingAndPolicies;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -97,11 +98,14 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
     private final long realtimeTopologyContextId;
 
+    private final boolean settingsStrictTopologyIdMatch;
+
     EntitiesAndSettingsSnapshotFactory(@Nonnull final Channel groupChannel,
             @Nonnull final Channel repoChannel, final long realtimeTopologyContextId,
             @Nonnull final TopologyAvailabilityTracker topologyAvailabilityTracker,
             final long timeToWaitForTopology, @Nonnull final TimeUnit timeToWaitUnit,
-            @Nonnull final AcceptedActionsDAO acceptedActionsStore) {
+            @Nonnull final AcceptedActionsDAO acceptedActionsStore,
+            final boolean settingsStrictTopologyIdMatch) {
         this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
         this.repositoryService = RepositoryServiceGrpc.newBlockingStub(repoChannel);
         this.groupService = GroupServiceGrpc.newBlockingStub(groupChannel);
@@ -112,6 +116,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.topologyAvailabilityTracker = topologyAvailabilityTracker;
         this.acceptedActionsStore = Objects.requireNonNull(acceptedActionsStore);
+        this.settingsStrictTopologyIdMatch = settingsStrictTopologyIdMatch;
     }
 
     /**
@@ -130,6 +135,8 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         private final long topologyContextId;
         private final TopologyType topologyType;
         private final long populationTimestamp;
+        @Nullable
+        private TopologyInfo topologyInfo;
 
         /**
          * Constructor of {@link EntitiesAndSettingsSnapshot}.
@@ -229,6 +236,34 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         @Nonnull
         public TopologyType getTopologyType() {
             return topologyType;
+        }
+
+        /**
+         * Sets optional topology info, for plans.
+         *
+         * @param topologyInfo Topology info for plans.
+         */
+        public void setTopologyInfo(@Nullable final TopologyInfo topologyInfo) {
+            this.topologyInfo = topologyInfo;
+        }
+
+        /**
+         * Gets topology info.
+         *
+         * @return Topology info, can be null.
+         */
+        @Nullable
+        public TopologyInfo getTopologyInfo() {
+            return topologyInfo;
+        }
+
+        /**
+         * Checks if TopologyInfo is null.
+         *
+         * @return Whether TopologyInfo is set.
+         */
+        public boolean hasTopologyInfo() {
+            return topologyInfo != null;
         }
 
         /**
@@ -567,7 +602,8 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
     private Map<Long, Map<String, SettingAndPolicies>> retrieveEntityToSettingAndPoliciesListMap(final Set<Long> entities,
                                                                     final long topologyContextId,
                                                                     @Nullable final Long topologyId) {
-        // We don't currently upload settings in plans, so no point trying to get them.
+        // We don't currently upload action-relevant settings in plans,
+        // so no point trying to get them.
         if (topologyContextId != realtimeTopologyContextId) {
             return Collections.emptyMap();
         }
@@ -575,7 +611,11 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         try {
             final Builder builder = TopologySelection.newBuilder()
                 .setTopologyContextId(topologyContextId);
-            if (topologyId != null) {
+            // Only set the topology ID in the request if we want strict matching.
+            if (topologyId != null && settingsStrictTopologyIdMatch) {
+                // This should be used with caution - for the realtime case we may get an exception
+                // if settings for this topology ID have been overwritten by a newer upload
+                // from the topology processor.
                 builder.setTopologyId(topologyId);
             }
             final GetEntitySettingsRequest request = GetEntitySettingsRequest.newBuilder()

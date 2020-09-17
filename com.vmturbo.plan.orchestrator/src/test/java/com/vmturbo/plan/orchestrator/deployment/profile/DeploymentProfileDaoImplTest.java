@@ -235,7 +235,7 @@ public class DeploymentProfileDaoImplTest {
         );
 
         try {
-            deploymentProfileDao.restoreDiags(diags);
+            deploymentProfileDao.restoreDiags(diags, null);
             fail();
         } catch (DiagnosticsException e) {
             assertTrue(e.hasErrors());

@@ -6,6 +6,8 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.zip.ZipInputStream;
 
+import javax.annotation.Nullable;
+
 import com.vmturbo.components.api.SharedByteBuffer;
 import com.vmturbo.components.common.diagnostics.Diags.CompressedDiags;
 import com.vmturbo.components.common.diagnostics.Diags.UncompressedDiags;
@@ -52,20 +54,24 @@ public class DiagsZipReader implements Iterable<Diags> {
      * @param inputStream input stream to be scanned
      */
     public DiagsZipReader(InputStream inputStream) {
-        this(inputStream, false);
+        this(inputStream, null, false);
     }
 
     /**
      * Create a new instance to scan the given input stream.
      *
      * @param inputStream Input stream to be scanned.
+     * @param customDiagHandler interface that can copy files from the diags into the volumes of
+     *                          the components
      * @param compress Whether or not to compress the input stream entry data. This should be "true"
      *                 if you are expecting lots of data, AND you intend to collect the diags
      *                 in memory (e.g. to sort them and process them in a particular way).
      */
-    public DiagsZipReader(InputStream inputStream, final boolean compress) {
+    public DiagsZipReader(InputStream inputStream,
+                          CustomDiagHandler customDiagHandler,
+                          final boolean compress) {
         final RecursiveZipIterator zipIterator = new RecursiveZipIterator(new ZipInputStream(inputStream));
-        this.diagsIterator = new DiagsIterator(zipIterator, compress);
+        this.diagsIterator = new DiagsIterator(zipIterator, customDiagHandler, compress);
     }
 
     @Override
@@ -92,16 +98,21 @@ public class DiagsZipReader implements Iterable<Diags> {
         private Throwable exception = null;
         private final boolean compress;
         private final SharedByteBuffer sharedByteBuffer = new SharedByteBuffer(0);
+        private final CustomDiagHandler customDiagHandler;
 
         /**
          * Create a new instance, given a zip file iterator.
          *
          * @param zipIterator iterator to deliver zip file entries
-         * @param compress See {@link DiagsZipReader#DiagsZipReader(InputStream, boolean)}.
+         * @param compress See {@link DiagsZipReader#DiagsZipReader(InputStream)}
+         * @param customDiagHandler See {@link DiagsZipReader#DiagsZipReader(InputStream)}
          */
-        DiagsIterator(RecursiveZipIterator zipIterator, final boolean compress) {
+        DiagsIterator(RecursiveZipIterator zipIterator,
+                      @Nullable CustomDiagHandler customDiagHandler,
+                      final boolean compress) {
             this.zipIterator = zipIterator;
             this.compress = compress;
+            this.customDiagHandler = customDiagHandler;
             // tee up first value for delivery
             produceNextValue();
         }
@@ -135,6 +146,11 @@ public class DiagsZipReader implements Iterable<Diags> {
                     handleException(nextEntry.getException());
                     return;
                 }
+                if (customDiagHandler != null && customDiagHandler.shouldHandleRestore(nextEntry)) {
+                    customDiagHandler.restore(nextEntry);
+                    continue;
+                }
+
                 if (isDiagsEntry(nextEntry)) {
                     try {
                         // parse the diags entry and stage it for delivery

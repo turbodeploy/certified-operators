@@ -1,0 +1,185 @@
+{
+  "entityType": 60,
+  "oid": "73320835644316",
+  "displayName": "vol-0d9ff5ebbe8d5f315",
+  "commoditySoldList": [{
+    "commodityType": {
+      "type": 64
+    },
+    "used": 0.39666666666666667,
+    "peak": 0.09333333333333334,
+    "capacity": 200.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": "",
+    "utilizationData": {
+      "point": [0.20499999999999996, 0.19166666666666668],
+      "lastPointTimestampMs": "1593157200000",
+      "intervalMs": 300000
+    }
+  }, {
+    "commodityType": {
+      "type": 8
+    },
+    "used": 153600.0,
+    "capacity": 153600.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 22
+    },
+    "used": 1.485563025210084,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 6
+    },
+    "used": 153600.0,
+    "capacity": 153600.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 39
+    },
+    "used": 2.175,
+    "peak": 0.0,
+    "capacity": 90000.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": "",
+    "utilizationData": {
+      "point": [0.002474074074074074, 0.0023592592592592593],
+      "lastPointTimestampMs": "1593157200000",
+      "intervalMs": 300000
+    }
+  }, {
+    "commodityType": {
+      "type": 59,
+      "key": "Group::elasticStorageCluster"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 59,
+      "key": "Group::elasticStorageClusterBootDisk"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }],
+  "commoditiesBoughtFromProviders": [{
+    "providerId": "73320835644133",
+    "providerEntityType": 57,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.39666666666666667,
+      "peak": 0.09333333333333334,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 153600.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 22
+      },
+      "used": 1.485563025210084,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 6
+      },
+      "used": 153600.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 39
+      },
+      "used": 2.175,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 59,
+        "key": "Group::elasticStorageCluster"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 59,
+        "key": "Group::elasticStorageClusterBootDisk"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }]
+  }],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap": {
+    "encrypted": "false",
+    "state": "in-use"
+  },
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "suspendable": false,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1593158612166",
+      "discoveredTargetData": {
+        "73320153769232": {
+          "vendorId": "vol-0d9ff5ebbe8d5f315"
+        }
+      }
+    }
+  },
+  "connectedEntityList": [{
+    "connectedEntityId": "73320835643859",
+    "connectedEntityType": 55,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }],
+  "tags": {
+  },
+  "typeSpecificInfo": {
+    "virtualVolume": {
+      "snapshotId": "snap-05b1c77e200cd2559",
+      "attachmentState": "ATTACHED",
+      "encryption": false
+    }
+  }
+}

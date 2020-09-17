@@ -4,23 +4,25 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.ClassifiedDemandScope;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.ReservedInstancePurchaseProfile;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassification;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassification.ClassifiedDemandSelection;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassificationSettings;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.DemandSegment;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandType;
 
 /**
  * Utility class for cca tests.
  */
 public class TestUtils {
+
+    /**
+     * The error limit allowed in comparing doubles.
+     */
+    public static final double ERROR_LIMIT = .000001;
 
     private TestUtils() {}
 
@@ -33,23 +35,18 @@ public class TestUtils {
         return CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig.newBuilder()
                 .setDemandSelection(HistoricalDemandSelection.newBuilder()
                         .setCloudTierType(CloudTierType.COMPUTE_TIER)
-                        .addDemandSegment(DemandSegment.newBuilder()
-                                .setScope(DemandScope.newBuilder())
-                                .setDemandType(HistoricalDemandType.ALLOCATION)
-                                .build())
+                        .setAllocatedSelection(AllocatedDemandSelection.newBuilder()
+                                .setDemandSelection(DemandSelection.newBuilder()
+                                        .setScope(DemandScope.newBuilder())))
                         .setLookBackStartTime(Instant.now().minus(30, ChronoUnit.DAYS).toEpochMilli())
                         .setLogDetailedSummary(true))
-                .setDemandClassification(DemandClassification.newBuilder()
-                        .setDemandSelection(ClassifiedDemandSelection.newBuilder()
-                                .addScope(ClassifiedDemandScope.newBuilder()
-                                        .setScope(DemandScope.newBuilder())
-                                        .addAllocatedDemandClassification(AllocatedDemandClassification.ALLOCATED)))
+                .setDemandClassificationSettings(DemandClassificationSettings.newBuilder().build().newBuilder()
                         .setLogDetailedSummary(true))
                 .setCloudCommitmentInventory(CloudCommitmentInventory.newBuilder())
                 .setPurchaseProfile(CommitmentPurchaseProfile.newBuilder()
-                        .addScope(ClassifiedDemandScope.newBuilder()
-                                .setScope(DemandScope.newBuilder())
-                                .addAllocatedDemandClassification(AllocatedDemandClassification.ALLOCATED))
+                        .setAllocatedSelection(AllocatedDemandSelection.newBuilder()
+                                .setDemandSelection(DemandSelection.newBuilder()
+                                        .setScope(DemandScope.newBuilder())))
                         .setRiPurchaseProfile(ReservedInstancePurchaseProfile.newBuilder()))
                 .build();
     }

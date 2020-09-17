@@ -19,7 +19,6 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.EnumHashBiMap;
 import com.google.common.collect.ImmutableBiMap;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.utils.ProbeFeature;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -48,7 +47,9 @@ public class ActionSettingSpecs {
      * 4 * size ofACTION_SETTING_SPECS.
      */
     @Nonnull
-    private static final Map<ActionSettingType, BiMap<EntitySettingSpecs, Pair<SettingSpec, ProbeFeature>>> SETTING_SPECS;
+    private static final Map<ActionSettingType, BiMap<ConfigurableActionSettings, Pair<SettingSpec, ProbeFeature>>> SETTING_SPECS;
+
+    private static final Set<String> SUB_SETTING_SPECS;
 
     /**
      * A map of each setting name to pair of it's SettingSpec and associated probe feature.
@@ -57,34 +58,47 @@ public class ActionSettingSpecs {
     @Nonnull
     private static final Map<String, Pair<SettingSpec, ProbeFeature>> SETTING_NAME_TO_SETTING_SPEC;
 
+    @Nonnull
+    private static final Set<String> ACTION_MODE_SETTING_NAMES =
+        Arrays.stream(ConfigurableActionSettings.values())
+            .map(ConfigurableActionSettings::getSettingName)
+            .collect(Collectors.toSet());
+
     static {
-        ACTION_SETTING_SPECS = Arrays.stream(EntitySettingSpecs.values())
-            .filter(entitySettingSpecs ->
-                entitySettingSpecs.getDataStructure() instanceof EnumSettingDataType)
-            .filter(entitySettingSpecs ->
-                ActionMode.class.equals(
-                    ((EnumSettingDataType)entitySettingSpecs.getDataStructure()).getEnumClass()))
-            .map(entitySettingSpecs -> new ActionSettingSpecs(entitySettingSpecs))
+        ACTION_SETTING_SPECS = Arrays.stream(ConfigurableActionSettings.values())
+            .map(actionModeSettingSpecs -> new ActionSettingSpecs(actionModeSettingSpecs))
             .collect(Collectors.toMap(
                     actionSpec -> actionSpec.actionModeSettingSpec.getSettingName(),
                     Function.identity()));
 
-        final Map<ActionSettingType, BiMap<EntitySettingSpecs, Pair<SettingSpec, ProbeFeature>>> settingSpecs =
+        final Map<ActionSettingType, BiMap<ConfigurableActionSettings, Pair<SettingSpec, ProbeFeature>>> settingSpecs =
                 new EnumMap<>(ActionSettingType.class);
-        for (ActionSettingSpecs actionSettings: ACTION_SETTING_SPECS.values()) {
-            final EntitySettingSpecs baseSettingName = actionSettings.actionModeSettingSpec;
+        for (ActionSettingSpecs actionSettings : ACTION_SETTING_SPECS.values()) {
+            final ConfigurableActionSettings baseSettingName = actionSettings.actionModeSettingSpec;
             for (Entry<ActionSettingType, Pair<SettingSpec, ProbeFeature>> entry : actionSettings.createSettingSpecs()
                     .entrySet()) {
                 settingSpecs.computeIfAbsent(entry.getKey(),
-                        keu -> EnumHashBiMap.create(EntitySettingSpecs.class))
+                        keu -> EnumHashBiMap.create(ConfigurableActionSettings.class))
                         .put(baseSettingName, entry.getValue());
             }
         }
         SETTING_SPECS = Collections.unmodifiableMap(settingSpecs);
 
+        SUB_SETTING_SPECS = SETTING_SPECS
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getKey() != ActionSettingType.ACTION_MODE)
+            .map(Entry::getValue)
+            .map(BiMap::values)
+            .flatMap(Collection::stream)
+            .map(Pair::getFirst)
+            .map(SettingSpec::getName)
+            .collect(Collectors.toSet());
+
         SETTING_NAME_TO_SETTING_SPEC = SETTING_SPECS
-                .values()
+                .entrySet()
                 .stream()
+                .map(Entry::getValue)
                 .map(BiMap::values)
                 .flatMap(Collection::stream)
                 .collect(Collectors.toMap(k -> k.getFirst().getName(),
@@ -92,7 +106,18 @@ public class ActionSettingSpecs {
     }
 
     @Nonnull
-    private final EntitySettingSpecs actionModeSettingSpec;
+    private final ConfigurableActionSettings actionModeSettingSpec;
+
+    /**
+     * Determines if the provided setting name is for a setting that sets the action mode.
+     *
+     * @param settingName the setting name to search using.
+     * @return true if the provided setting name is for the setting that sets the action mode.
+     */
+    public static boolean isActionModeSetting(@Nonnull String settingName) {
+        Objects.requireNonNull(settingName);
+        return ACTION_MODE_SETTING_NAMES.contains(settingName);
+    }
 
     /**
      * Get all the action related settings as {@link SettingSpec} objects.
@@ -137,32 +162,14 @@ public class ActionSettingSpecs {
                 .stream()
                 .filter(entry -> (entry.getKey() == ActionSettingType.EXTERNAL_APPROVAL
                         || entry.getKey() == ActionSettingType.ON_GEN
+                        || entry.getKey() == ActionSettingType.PRE
+                        || entry.getKey() == ActionSettingType.REPLACE
+                        || entry.getKey() == ActionSettingType.POST
                         || entry.getKey() == ActionSettingType.AFTER_EXEC))
                 .map(entry -> entry.getValue().values())
                 .flatMap(Collection::stream)
                 .map(Pair::getFirst)
                 .collect(Collectors.toSet());
-        // hardcoded other action workflow settings from EntitySettingSpecs
-        actionWorkflowSettings.addAll(
-                Arrays.asList(EntitySettingSpecs.ActivateActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.PreActivateActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.PostActivateActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.MoveActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.MoveActionWorkflowWithNativeAsDefault.getSettingSpec(),
-                        EntitySettingSpecs.PreMoveActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.PostMoveActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.ProvisionActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.PreProvisionActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.PostProvisionActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.ResizeActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.PreResizeActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.PostResizeActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.SuspendActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.PreSuspendActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.PostSuspendActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.DeleteActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.PreDeleteActionWorkflow.getSettingSpec(),
-                        EntitySettingSpecs.PostDeleteActionWorkflow.getSettingSpec()));
         return actionWorkflowSettings;
     }
 
@@ -186,7 +193,7 @@ public class ActionSettingSpecs {
      */
     public static boolean isActionModeSubSetting(@Nonnull String settingName) {
         Objects.requireNonNull(settingName);
-        return SETTING_NAME_TO_SETTING_SPEC.containsKey(settingName);
+        return SUB_SETTING_SPECS.contains(settingName);
     }
 
     /**
@@ -197,8 +204,20 @@ public class ActionSettingSpecs {
      */
     public static boolean isExternalApprovalOrAuditSetting(@Nonnull String settingName) {
         Objects.requireNonNull(settingName);
-        return SETTING_NAME_TO_SETTING_SPEC.containsKey(settingName)
-            && !isExecutionScheduleSetting(settingName);
+        return isActionSettingType(ActionSettingType.ON_GEN, settingName)
+            || isActionSettingType(ActionSettingType.AFTER_EXEC, settingName)
+            || isActionSettingType(ActionSettingType.EXTERNAL_APPROVAL, settingName);
+    }
+
+    private static boolean isActionSettingType(@Nonnull ActionSettingType type,
+                                               @Nonnull String settingName) {
+        Objects.requireNonNull(type);
+        Objects.requireNonNull(settingName);
+        final BiMap<ConfigurableActionSettings, Pair<SettingSpec, ProbeFeature>> executionSettings = SETTING_SPECS.get(
+            type);
+        return executionSettings.values()
+            .stream()
+            .anyMatch(spec -> spec.getFirst().getName().equals(settingName));
     }
 
     /**
@@ -209,11 +228,23 @@ public class ActionSettingSpecs {
      */
     public static boolean isExecutionScheduleSetting(@Nonnull String settingName) {
         Objects.requireNonNull(settingName);
-        final BiMap<EntitySettingSpecs, Pair<SettingSpec, ProbeFeature>> executionSettings = SETTING_SPECS.get(
-                ActionSettingType.SCHEDULE);
-        return executionSettings.values()
-                .stream()
-                .anyMatch(spec -> spec.getFirst().getName().equals(settingName));
+        return isActionSettingType(ActionSettingType.SCHEDULE, settingName);
+    }
+
+    /**
+     * Determines if the provided settingName is related to action workflows.
+     *
+     * @param settingName the settingName to check.
+     * @return true if the provided settingName is related to action workflows.
+     */
+    public static boolean isActionWorkflowSetting(@Nonnull String settingName) {
+        Objects.requireNonNull(settingName);
+        return isActionSettingType(ActionSettingType.PRE, settingName)
+            || isActionSettingType(ActionSettingType.POST, settingName)
+            || isActionSettingType(ActionSettingType.REPLACE, settingName)
+            || isActionSettingType(ActionSettingType.AFTER_EXEC, settingName)
+            || isActionSettingType(ActionSettingType.ON_GEN, settingName)
+            || isActionSettingType(ActionSettingType.EXTERNAL_APPROVAL, settingName);
     }
 
     /**
@@ -232,7 +263,7 @@ public class ActionSettingSpecs {
         if (scheduleSettingSpec == null) {
             return null;
         }
-        final BiMap<EntitySettingSpecs, Pair<SettingSpec, ProbeFeature>> executionSettings = SETTING_SPECS.get(
+        final BiMap<ConfigurableActionSettings, Pair<SettingSpec, ProbeFeature>> executionSettings = SETTING_SPECS.get(
                 ActionSettingType.SCHEDULE);
         return executionSettings.inverse().get(scheduleSettingSpec).getSettingName();
     }
@@ -254,7 +285,7 @@ public class ActionSettingSpecs {
         if (actionModeSettingA == null) {
             return null;
         }
-        final EntitySettingSpecs actionModeSetting = actionModeSettingA.actionModeSettingSpec;
+        final ConfigurableActionSettings actionModeSetting = actionModeSettingA.actionModeSettingSpec;
         return getSubSettingFromActionModeSetting(actionModeSetting, subsettingType);
     }
 
@@ -268,11 +299,11 @@ public class ActionSettingSpecs {
      */
     @Nullable
     public static String getSubSettingFromActionModeSetting(
-            @Nonnull EntitySettingSpecs entitySettingSpecs,
+            @Nonnull ConfigurableActionSettings entitySettingSpecs,
             @Nonnull ActionSettingType subSettingType) {
         Objects.requireNonNull(entitySettingSpecs);
         Objects.requireNonNull(subSettingType);
-        final BiMap<EntitySettingSpecs, Pair<SettingSpec, ProbeFeature>> bimap = SETTING_SPECS.get(subSettingType);
+        final BiMap<ConfigurableActionSettings, Pair<SettingSpec, ProbeFeature>> bimap = SETTING_SPECS.get(subSettingType);
         Objects.requireNonNull(bimap);
         final Pair<SettingSpec, ProbeFeature> schedSpec = bimap.get(entitySettingSpecs);
         if (schedSpec == null) {
@@ -282,34 +313,11 @@ public class ActionSettingSpecs {
     }
 
     /**
-     * Determines if the provided setting name is for a setting that sets the action mode.
-     *
-     * @param settingName the setting name to search using.
-     * @return true if the provided setting name is for the setting that sets the action mode.
-     */
-    public static boolean isActionModeSetting(@Nonnull String settingName) {
-        Objects.requireNonNull(settingName);
-        return ACTION_SETTING_SPECS.containsKey(settingName);
-    }
-
-    /**
-     * Determines if the provided entitySettingSpecs is for a setting that sets the action mode.
-     *
-     * @param entitySettingSpecs the entitySettingSpecs to search using.
-     * @return true if the provided entitySettingSpecs is for the setting that sets the action mode.
-     */
-    public static boolean isActionModeSetting(@Nonnull EntitySettingSpecs entitySettingSpecs) {
-        Objects.requireNonNull(entitySettingSpecs);
-        return ACTION_SETTING_SPECS.containsKey(
-            entitySettingSpecs.getSettingName());
-    }
-
-    /**
      * Constructs an ActionSettingSpecs based on the action mode setting.
      *
      * @param actionModeSettingSpec the action mode setting to generate more settings for.
      */
-    public ActionSettingSpecs(final @Nonnull EntitySettingSpecs actionModeSettingSpec) {
+    public ActionSettingSpecs(final @Nonnull ConfigurableActionSettings actionModeSettingSpec) {
         Objects.requireNonNull(actionModeSettingSpec);
         this.actionModeSettingSpec = Objects.requireNonNull(actionModeSettingSpec);
     }

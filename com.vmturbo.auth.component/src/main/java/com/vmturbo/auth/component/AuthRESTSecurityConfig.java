@@ -22,6 +22,7 @@ import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
 import com.vmturbo.auth.component.services.AuthUsersController;
 import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.store.AuthProvider;
+import com.vmturbo.auth.component.store.sso.SsoUtil;
 import com.vmturbo.auth.component.widgetset.WidgetsetConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -45,6 +46,9 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
      */
     @Value("${loginPolicy:ALL}")
     private String loginPolicy;
+
+    @Value("${enableMultiADGroupSupport:false}")
+    private boolean enableMultiADGroupSupport;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
@@ -139,6 +143,10 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
             .authorizeRequests()
             .antMatchers(HttpMethod.POST,"/LogConfigurationService/setLogLevels")
             .permitAll()
+            .and()
+            .authorizeRequests()
+            .antMatchers(HttpMethod.POST, "/LicenseManagerService/getLicenses")
+            .permitAll()
             .anyRequest().authenticated().and()
             .addFilterBefore(new SpringAuthFilter(securityConfig.verifier()),
                              UsernamePasswordAuthenticationFilter.class);
@@ -152,7 +160,8 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     @Bean
     public AuthProvider targetStore() {
         return new AuthProvider(authKVConfig.authKeyValueStore(), groupRpcService(), () -> keyDir,
-                widgetsetConfig.widgetsetDbStore(), userPolicy());
+                widgetsetConfig.widgetsetDbStore(), userPolicy(), new SsoUtil(),
+                enableMultiADGroupSupport);
     }
 
     /**

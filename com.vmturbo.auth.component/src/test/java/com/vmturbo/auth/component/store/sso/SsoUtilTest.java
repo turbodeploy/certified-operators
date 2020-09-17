@@ -1,6 +1,6 @@
 package com.vmturbo.auth.component.store.sso;
 
-import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OBSERVER;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OPERATIONAL_OBSERVER;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.PREDEFINED_SECURITY_GROUPS_SET;
 import static org.junit.Assert.assertEquals;
 
@@ -83,7 +83,7 @@ public class SsoUtilTest {
         // not used
         SecurityGroupDTO securityGroup = new SecurityGroupDTO("", "", "");
         ssoUtil.putSecurityGroup(groupName, securityGroup);
-        assertEquals(OBSERVER, ssoUtil.authorizeSAMLUserInGroups("user",
+        assertEquals(OPERATIONAL_OBSERVER, ssoUtil.authorizeSAMLUserInGroups("user",
                 PREDEFINED_SECURITY_GROUPS_SET.stream()
                         .map(group -> group.getDisplayName())
                         .collect(Collectors.toList())).get().getRoleName());

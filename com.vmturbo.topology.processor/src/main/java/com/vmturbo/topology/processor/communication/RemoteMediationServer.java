@@ -121,15 +121,10 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                         .map(ProbeInfo::getProbeType)
                         .collect(Collectors.toList()));
 
-        // Register the transport handlers before registering the probes, so that
-        // we still receive connection errors that happen while the probe store is saving
-        // the probe info.
-        //
-        // Note: This should be safe, because we expect the probe to be resilient to receiving a
-        // request to remove a probe while it's still processing that probe's addition.
         containerInfo.getPersistentTargetIdsList()
-            .forEach(targetId -> containerChooser.assignTargetToTransport(serverEndpoint, targetId));
-        registerTransportHandlers(serverEndpoint);
+                .forEach(targetId -> containerChooser.assignTargetToTransport(serverEndpoint,
+                        targetId));
+
         for (final ProbeInfo probeInfo : containerInfo.getProbesList()) {
             try {
                 probeStore.registerNewProbe(probeInfo, serverEndpoint);
@@ -139,6 +134,15 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                                 + " failed to register", e);
             }
         }
+
+        // Register the transport handlers after registering the probes to avoid a race
+        // condition where the transport is closed before it is registered with the probe
+        // store, but after the handler is notified of closure.  This leads to a closed
+        // transport being listed with the RemoteProbeStore.
+        //
+        // Note: This is safe, because we expect the serverEndpoint to play back any
+        // queued messages when the first handler is registered.
+        registerTransportHandlers(serverEndpoint);
     }
 
     @Override
@@ -161,19 +165,30 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
 
     private void registerTransportHandlers(
                     ITransport<MediationServerMessage, MediationClientMessage> serverEndpoint) {
-        serverEndpoint.addEventHandler(new ITransport.EventHandler<MediationClientMessage>() {
+        try {
+            serverEndpoint.addEventHandler(new ITransport.EventHandler<MediationClientMessage>() {
 
-            @Override
-            public void onClose() {
-                processContainerClose(serverEndpoint);
-            }
+                @Override
+                public void onClose() {
+                    processContainerClose(serverEndpoint);
+                }
 
-            @Override
-            public void onMessage(MediationClientMessage message) {
-                onTransportMessage(serverEndpoint, message);
-            }
-
-        });
+                @Override
+                public void onMessage(MediationClientMessage message) {
+                    onTransportMessage(serverEndpoint, message);
+                }
+            });
+        } catch (IllegalStateException e) {
+            // This can occur if the endpoint is closed immediately after it connects to the server.
+            // It means the endpoint was already closed when we added the handler, so just process
+            // it like any other close.
+            processContainerClose(serverEndpoint);
+        } catch (RuntimeException e) {
+            logger.error("Exception while adding event handler to transport " + serverEndpoint,
+                    e);
+            processContainerClose(serverEndpoint);
+            throw e;
+        }
     }
 
     /**

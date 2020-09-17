@@ -58,6 +58,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
+import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -193,6 +194,9 @@ public class ActionSpecMapperTest {
     private ActionSpecMapper mapper;
 
     private PoliciesService policiesService = mock(PoliciesService.class);
+    private final ReservedInstancesService reservedInstancesService =
+            mock(ReservedInstancesService.class);
+    private final UuidMapper uuidMapper = mock(UuidMapper.class);
 
     private PolicyDTOMoles.PolicyServiceMole policyMole = spy(new PolicyServiceMole());
 
@@ -263,6 +267,12 @@ public class ActionSpecMapperTest {
         final SearchRequest emptySearchReq = ApiTestUtils.mockEmptySearchReq();
         when(repositoryApi.getRegion(any())).thenReturn(emptySearchReq);
 
+        final ApiId apiId = mock(ApiId.class);
+        when(uuidMapper.fromOid(anyLong()))
+                .thenReturn(apiId);
+        when(apiId.isPlan())
+                .thenReturn(false);
+
         CostServiceGrpc.CostServiceBlockingStub costServiceBlockingStub =
                 CostServiceGrpc.newBlockingStub(grpcServer.getChannel());
         ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub
@@ -280,7 +290,8 @@ public class ActionSpecMapperTest {
                         null,
                         serviceEntityMapper,
                         supplyChainService,
-                        policiesService);
+                        policiesService,
+                        reservedInstancesService);
 
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         when(buyRiScopeHandler.extractActionTypes(emptyInputDto, scopeWithBuyRiActions))
@@ -294,7 +305,7 @@ public class ActionSpecMapperTest {
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory,
             serviceEntityMapper, policiesService, reservedInstanceMapper, riBuyContextFetchServiceStub, costServiceBlockingStub,
                 reservedInstanceUtilizationCoverageServiceBlockingStub, buyRiScopeHandler,
-                REAL_TIME_TOPOLOGY_CONTEXT_ID);
+                REAL_TIME_TOPOLOGY_CONTEXT_ID, uuidMapper);
     }
 
     /**
@@ -1573,7 +1584,7 @@ public class ActionSpecMapperTest {
         // Verify that we set the context ID on the request.
         verify(req).contextId(REAL_TIME_TOPOLOGY_CONTEXT_ID);
 
-        Assert.assertEquals("target doesn't comply to " + POLICY_NAME,
+        Assert.assertEquals("\"target\" doesn't comply with \"" + POLICY_NAME + "\"",
                         dtos.get(0).getRisk().getDescription());
     }
 
@@ -1615,8 +1626,8 @@ public class ActionSpecMapperTest {
         final List<ActionApiDTO> dtos1 = mapper.mapActionSpecsToActionApiDTOs(
             Arrays.asList(buildActionSpec(compoundMoveInfo, Explanation.newBuilder()
                 .setMove(moveExplanation1).build())), CONTEXT_ID);
-        Assert.assertEquals("target doesn't comply to " + POLICY_NAME,
-            dtos1.get(0).getRisk().getDescription());
+        Assert.assertEquals("\"target\" doesn't comply with \"" + POLICY_NAME + "\"",
+                dtos1.get(0).getRisk().getDescription());
 
         // Test that we do not modify the explanation if the primary explanation is not compliance.
         // We always go with the primary explanation if available

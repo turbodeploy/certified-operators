@@ -84,6 +84,8 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
@@ -344,6 +346,29 @@ public class TargetControllerTest {
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(oneMandatory));
         adder.setAccountField("mandatory", "1");
         return adder.postAndExpect(httpStatus);
+    }
+
+    /**
+     * Test requirement that only one ServiceNow target can be add in the environment.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testRestrictionOfAddingSeveralServiceNowTargets() throws Exception {
+        final ProbeInfo serviceNowProbe = createProbeInfo(SDKProbeType.SERVICENOW.getProbeType(),
+                ProbeCategory.ORCHESTRATOR.getCategory(), "mandatory", "mandatory",
+                CreationMode.STAND_ALONE);
+        probeStore.registerNewProbe(serviceNowProbe, transport);
+        final TargetAdder adder = new TargetAdder(identityProvider.getProbeId(serviceNowProbe));
+        adder.setAccountField("mandatory", "1");
+        final TargetInfo targetInfo = adder.postAndExpect(HttpStatus.OK);
+        Assert.assertNotNull(targetInfo.getTargetId());
+        // check failed to add second ServiceNow target
+        final TargetInfo failedTargetInfo = adder.postAndExpect(HttpStatus.BAD_REQUEST);
+        final List<String> errors = failedTargetInfo.getErrors();
+        Assert.assertEquals(1, errors.size());
+        Assert.assertThat(errors.get(0),
+                CoreMatchers.containsString("Cannot add more than one ServiceNow target."));
     }
 
     @Test

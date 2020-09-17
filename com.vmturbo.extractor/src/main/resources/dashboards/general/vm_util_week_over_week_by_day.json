@@ -12,10 +12,11 @@
       }
     ]
   },
+  "description": "This dashboard compares average daily utilization measurements for virtual machines week-over-week for two consecutive weeks. All VMs in the selected group are included in the averages.",
   "editable": false,
   "gnetId": null,
   "graphTooltip": 1,
-  "iteration": 1596572349745,
+  "iteration": 1598643345092,
   "links": [],
   "panels": [
     {
@@ -325,6 +326,10 @@
       }
     ]
   },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
   "timepicker": {
     "refresh_intervals": [
       "10s",
@@ -339,6 +344,6 @@
     ]
   },
   "timezone": "",
-  "title": "VM Utilization Week over Week By Day",
+  "title": "Virtual Machine Utilization Week over Week By Day",
   "uid": "vm_util_week_over_week_by_day"
 }

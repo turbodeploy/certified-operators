@@ -61,7 +61,8 @@ public abstract class BaseGraphRelatedTest {
      */
     @Nonnull
     protected static TopologyEntity mockEntity(int type, long oid, @Nonnull CommodityType ctSold,
-                    double capacitySold, double usedSold, @Nullable Long provider, @Nullable CommodityType ctBought,
+                    double capacitySold, @Nullable Double usedSold, @Nullable Long provider,
+                                               @Nullable CommodityType ctBought,
                     @Nullable Double usedBought, @Nullable UtilizationData utilizationData,
                     boolean resizable) {
         TopologyEntity e = Mockito.mock(TopologyEntity.class);
@@ -70,14 +71,15 @@ public abstract class BaseGraphRelatedTest {
         Mockito.when(e.getClonedFromEntity()).thenReturn(Optional.empty());
         TopologyEntityDTO.Builder entityBuilder = TopologyEntityDTO.newBuilder();
         entityBuilder.setOid(oid).setEntityType(type);
-        if (ctSold != null) {
-            CommoditySoldDTO.Builder commSold =
-                            entityBuilder.addCommoditySoldListBuilder().setCommodityType(ctSold)
-                                            .setUsed(usedSold).setCapacity(capacitySold)
-                                            .setIsResizeable(resizable);
-            if (utilizationData != null) {
-                commSold.setUtilizationData(utilizationData);
-            }
+        final CommoditySoldDTO.Builder commSold =
+                        entityBuilder.addCommoditySoldListBuilder().setCommodityType(ctSold)
+                                        .setCapacity(capacitySold)
+                                        .setIsResizeable(resizable);
+        if (usedSold != null) {
+            commSold.setUsed(usedSold);
+        }
+        if (utilizationData != null) {
+            commSold.setUtilizationData(utilizationData);
         }
         if (provider != null) {
             entityBuilder.addCommoditiesBoughtFromProvidersBuilder().setProviderId(provider)

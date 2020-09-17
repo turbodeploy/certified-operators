@@ -5,6 +5,7 @@ import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADVISOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.AUTOMATOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.DEPLOYER;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OBSERVER;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.OPERATIONAL_OBSERVER;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.SHARED_ADVISOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.SHARED_OBSERVER;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.SITE_ADMIN;
@@ -40,6 +41,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 
 import org.apache.commons.collections4.map.CaseInsensitiveMap;
 import org.apache.logging.log4j.LogManager;
@@ -74,6 +76,7 @@ public class SsoUtil {
                     .put(DEPLOYER, 50)
                     .put(OBSERVER, 40)
                     .put(SHARED_OBSERVER, 30)
+                    .put(OPERATIONAL_OBSERVER, 20)
                     .build());
     /**
      * The logger.
@@ -346,12 +349,13 @@ public class SsoUtil {
      * @param userName     Name of the user.
      * @param userPassword Password user presented.
      * @param ldapServers  A list of LDAP servers to query.  Assumed to be non-empty.
+     * @param multipleGroupSupport support multiple group
      * @return The security group, or {@code null} if failed.
      */
     public @Nullable
-    SecurityGroupDTO authenticateUserInGroup(final @Nonnull String userName,
-                                             final @Nonnull String userPassword,
-                                             final @Nonnull Collection<String> ldapServers) {
+    List<SecurityGroupDTO> authenticateUserInGroup(final @Nonnull String userName,
+            final @Nonnull String userPassword, final @Nonnull Collection<String> ldapServers,
+            final boolean multipleGroupSupport) {
         String upn;
 
         if (userName.contains("\\")) {
@@ -372,6 +376,7 @@ public class SsoUtil {
         }
 
         DirContext ctx = null;
+        final Set<SecurityGroupDTO> matchedGroups = Sets.newHashSet();
         for (String ldapServer : ldapServers) {
             Hashtable<String, String> props = composeLDAPConnProps(ldapServer, upn, userPassword);
             String searchFilter = "(&(objectClass=person)(userPrincipalName=" + upn + "))";
@@ -381,8 +386,8 @@ public class SsoUtil {
             sCtrl.setReturningAttributes(returnAttrs);
             try {
                 ctx = new InitialDirContext(props);
-                NamingEnumeration<SearchResult> answer = ctx.search(adSearchBase_,
-                                                                    searchFilter, sCtrl);
+                NamingEnumeration<SearchResult> answer =
+                        ctx.search(adSearchBase_, searchFilter, sCtrl);
                 // Loop through the results and check every single value in attribute "memberOf"
                 while (answer.hasMoreElements()) {
                     SearchResult sr = answer.next();
@@ -399,9 +404,11 @@ public class SsoUtil {
                             groupName = "CN=" + groupName;
                         }
                         if (memberOfAttrValue.contains(groupName.toLowerCase())) {
-                            if (!ssoGroupUsers_.contains(userName)) {
+                            if (multipleGroupSupport) {
+                                matchedGroups.add(ssoGroups_.get(adGroupNotChanged));
+                            } else if (!ssoGroupUsers_.contains(userName)) {
                                 ssoGroupUsers_.add(userName);
-                                return ssoGroups_.get(adGroupNotChanged);
+                                return ImmutableList.of(ssoGroups_.get(adGroupNotChanged));
                             }
                         }
                     }
@@ -412,8 +419,11 @@ public class SsoUtil {
                 closeContext(ctx);
             }
         }
-        return null;
+
+       return sortGroupWithLeastPrivilege(matchedGroups);
     }
+
+
 
     /**
      * Authenticates the AD user.
@@ -524,7 +534,7 @@ public class SsoUtil {
      * @param userGroups external user groups.
      * @return sorted list of external groups in ascending orders.
      */
-   private static List<SecurityGroupDTO> findLeastPrivilegeGroup(@Nonnull final Set<SecurityGroupDTO> userGroups) {
+   private static List<SecurityGroupDTO> sortGroupWithLeastPrivilege(@Nonnull final Set<SecurityGroupDTO> userGroups) {
         return userGroups.stream()
                 .sorted(Comparator.comparing(group -> LEAST_PRIVILEGE_MAP.get(group.getRoleName())))
                 .collect(Collectors.toList());
@@ -547,7 +557,7 @@ public class SsoUtil {
                         .anyMatch(assignedGroup -> assignedGroup.equalsIgnoreCase(group)))
                 .map(group -> ssoGroups_.get(group))
                 .collect(Collectors.toSet());
-        final Optional<SecurityGroupDTO> foundGroup = findLeastPrivilegeGroup(matchedGroup).stream()
+        final Optional<SecurityGroupDTO> foundGroup = sortGroupWithLeastPrivilege(matchedGroup).stream()
                 .findFirst(); // this is the least privilege group
         foundGroup.ifPresent(g -> {
             if (!ssoGroupUsers_.contains(userName)) {

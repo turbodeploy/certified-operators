@@ -1,12 +1,18 @@
 package com.vmturbo.history.ingesters;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.function.Supplier;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,18 +28,18 @@ import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.ImmutableTopologyIngesterConfig;
 import com.vmturbo.history.ingesters.common.TopologyIngesterConfig;
-import com.vmturbo.history.ingesters.live.LiveTopologyIngester;
-import com.vmturbo.history.ingesters.live.ProjectedLiveTopologyIngester;
+import com.vmturbo.history.ingesters.live.ProjectedRealtimeTopologyIngester;
+import com.vmturbo.history.ingesters.live.SourceRealtimeTopologyIngester;
 import com.vmturbo.history.ingesters.live.writers.ClusterStatsWriter;
 import com.vmturbo.history.ingesters.live.writers.EntitiesWriter;
 import com.vmturbo.history.ingesters.live.writers.EntityStatsWriter;
 import com.vmturbo.history.ingesters.live.writers.PriceIndexWriter;
 import com.vmturbo.history.ingesters.live.writers.SystemLoadWriter;
 import com.vmturbo.history.ingesters.live.writers.TopologyCommoditiesProcessor;
-import com.vmturbo.history.ingesters.plan.PlanTopologyIngester;
 import com.vmturbo.history.ingesters.plan.ProjectedPlanTopologyIngester;
+import com.vmturbo.history.ingesters.plan.SourcePlanTopologyIngester;
 import com.vmturbo.history.ingesters.plan.writers.PlanStatsWriter;
-import com.vmturbo.history.ingesters.plan.writers.ProjectedPlanStatsWriter;
+import com.vmturbo.history.ingesters.plan.writers.ProjectedPlanStatsWriter.Factory;
 import com.vmturbo.history.listeners.ImmutableTopologyCoordinatorConfig;
 import com.vmturbo.history.listeners.RollupProcessor;
 import com.vmturbo.history.listeners.TopologyCoordinator;
@@ -92,11 +98,44 @@ public class IngestersConfig {
     @Value("${ingest.excludedCommodities:#{null}}")
     private Optional<String> excludedCommodities;
 
-    @Value("${ingest.defaultChunkTimeLimitMsec:60000}") // 1 minute
-    private long defaultChunkTimeLimitMsec;
+    /**
+     * One or more thread pools for use by ingesters.
+     *
+     * <p>By default, all ingesters share a common pool capped at 3 active threads. Separate
+     * config properties bind each ingester with the thread pool it should use. In a properties
+     * file, you can use the SpEL map literal syntax, as shown here: "{name: 'size', ...}", which
+     * will pools of the given sizes to be associated with the given names. Don't forget to surround
+     * the SpEL expression with double-quotes as a YAML property, else the YAM parser will try to
+     * treat it as an inline JSON object.</p>
+     */
+    @Value("#{${ingest.threadPoolSpecs:{common:'3'}}}")
+    private Map<String, Integer> threadPoolSpecs;
 
-    @Value("${realtimeTopologyContextId}")
-    private long realtimeTopologyContextId;
+    // following four properties specify the name of the thread pool to be used by each ingester
+    @Value("${ingest.sourceRealtimeThreadPool:common}")
+    private String sourceRealtimePoolName;
+
+    @Value("${ingest.projectedRealtimeThreadPool:common}")
+    private String projectedRealtimePoolName;
+
+    @Value("${ingest.sourcePlanThreadPool:common}")
+    private String sourcePlanPoolName;
+
+    @Value("${ingest.projectedPlanThreadPool:common}")
+    private String projectedPlanPoolName;
+
+    // per-ingester default per-chunk processing time limits, all defaulting to 1 minute
+    @Value("${ingest.sourceRealtimeChunkTimeLimitMsec:60000}")
+    private long sourceRealtimeChunkTimeLimit;
+
+    @Value("${ingest.projectedRealtimeChunkTimeLimitMsec:60000}")
+    private long projectedRealtimeChunkTimeLimit;
+
+    @Value("${ingest.sourcePlanChunkTimeLimitMsec:60000}")
+    private long sourcePlanChunkTimeLimit;
+
+    @Value("${ingest.projectedPlanChunkTimeLimitMsec:60000}")
+    private long projectedPlanChunkTimeLimit;
 
     @Bean
     MarketClientConfig marketClientConfig() {
@@ -145,9 +184,9 @@ public class IngestersConfig {
     @Bean
     public TopologyCoordinator topologyCoordinator() {
         return new TopologyCoordinator(
-                liveTopologyIngester(),
-                projectedLiveTopologyIngester(),
-                planTopologyIngester(),
+                sourceRealtimeTopologyIngester(),
+                projectedRealtimeTopologyIngester(),
+                sourcePlanTopologyIngester(),
                 projectedPlanTopologyIngester(),
                 rollupProcessor(),
                 historyApiConfig.statsAvailabilityTracker(),
@@ -163,7 +202,6 @@ public class IngestersConfig {
                 .hourlyRollupTimeoutSecs(hourlyRollupTimeoutSecs)
                 .repartitioningTimeoutSecs(repartitioningTimeoutSecs)
                 .processingLoopMaxSleepSecs(processingLoopMaxSleepSecs)
-                .realtimeTopologyContextId(realtimeTopologyContextId)
                 .build();
     }
 
@@ -173,8 +211,8 @@ public class IngestersConfig {
      * @return new ingester
      */
     @Bean
-    LiveTopologyIngester liveTopologyIngester() {
-        return new LiveTopologyIngester(
+    SourceRealtimeTopologyIngester sourceRealtimeTopologyIngester() {
+        return new SourceRealtimeTopologyIngester(
                 Arrays.asList(
                         new EntityStatsWriter.Factory(
                                 historyDbConfig.historyDbIO(),
@@ -193,8 +231,7 @@ public class IngestersConfig {
                                 groupServiceBlockingStub()
                         )
                 ),
-                ingesterThreadPool(),
-                ingesterConfig(),
+                ingesterConfig(TopologyIngesterType.sourceRealtime),
                 bulkLoaderFactorySupplier()
         );
     }
@@ -205,15 +242,15 @@ public class IngestersConfig {
      * @return new ingester
      */
     @Bean
-    ProjectedLiveTopologyIngester projectedLiveTopologyIngester() {
-        return new ProjectedLiveTopologyIngester(
+    ProjectedRealtimeTopologyIngester projectedRealtimeTopologyIngester() {
+        return new ProjectedRealtimeTopologyIngester(
                 Arrays.asList(
                         new TopologyCommoditiesProcessor.Factory(
                                 statsConfig.projectedStatsStore()
                         ),
                         new PriceIndexWriter.Factory(priceIndexVisitorFactory())
                 ),
-                ingesterConfig(),
+                ingesterConfig(TopologyIngesterType.projectedRealtime),
                 bulkLoaderFactorySupplier()
         );
     }
@@ -224,12 +261,12 @@ public class IngestersConfig {
      * @return new ingester
      */
     @Bean
-    PlanTopologyIngester planTopologyIngester() {
-        return new PlanTopologyIngester(
-                Arrays.asList(
+    SourcePlanTopologyIngester sourcePlanTopologyIngester() {
+        return new SourcePlanTopologyIngester(
+                Collections.singletonList(
                         new PlanStatsWriter.Factory(historyDbConfig.historyDbIO())
                 ),
-                ingesterConfig(),
+                ingesterConfig(TopologyIngesterType.sourcePlan),
                 bulkLoaderFactorySupplier()
         );
     }
@@ -242,31 +279,99 @@ public class IngestersConfig {
     @Bean
     ProjectedPlanTopologyIngester projectedPlanTopologyIngester() {
         return new ProjectedPlanTopologyIngester(
-                Arrays.asList(
-                        new ProjectedPlanStatsWriter.Factory(historyDbConfig.historyDbIO())
+                Collections.singletonList(
+                        new Factory(historyDbConfig.historyDbIO())
                 ),
-                ingesterConfig(),
+                ingesterConfig(TopologyIngesterType.projectedPlan),
                 bulkLoaderFactorySupplier()
         );
     }
 
+    /**
+     * Create ingester thread pools and associate them with their configured names, for binding to
+     * individual ingesters.
+     *
+     * @return map of pool name to pool
+     */
     @Bean
-    ExecutorService ingesterThreadPool() {
-        return Executors.newFixedThreadPool(3); // TODO configurize, add thread factory
+    Map<String, ExecutorService> ingesterThreadPools() {
+        return threadPoolSpecs.entrySet().stream()
+                .collect(ImmutableMap.toImmutableMap(Entry::getKey,
+                        e -> createThreadPool(e.getKey(), e.getValue())));
+    }
+
+    private static ExecutorService createThreadPool(String name, int size) {
+        final ThreadFactory factory =
+                new ThreadFactoryBuilder().setNameFormat("ingester-" + name + "-%d").build();
+        return Executors.newFixedThreadPool(size, factory);
     }
 
     /**
-     * Create an ingester config object used by all our ingesters.
+     * Get the thread pool for the given ingester.
      *
-     * @return shared ingester config
+     * @param type ingester type
+     * @return thread pool for ingester
+     */
+    private ExecutorService ingesterThreadPool(TopologyIngesterType type) {
+        final Map<String, ExecutorService> pools = ingesterThreadPools();
+        switch (type) {
+            case sourceRealtime:
+                return pools.get(sourceRealtimePoolName);
+            case projectedRealtime:
+                return pools.get(projectedRealtimePoolName);
+            case sourcePlan:
+                return pools.get(sourcePlanPoolName);
+            case projectedPlan:
+                return pools.get(projectedPlanPoolName);
+            default:
+                throw new IllegalArgumentException("Unknown TopologyIngesterType: " + type.name());
+        }
+    }
+
+    /**
+     * Partially build an ingester config object to be used as a starting point for all ingesters.
+     *
+     * @return partially built shared ingester config
      */
     @Bean
-    TopologyIngesterConfig ingesterConfig() {
+    ImmutableTopologyIngesterConfig.Builder ingesterConfigBase() {
         return ImmutableTopologyIngesterConfig.builder()
-                .perChunkCommit(perChunkCommit)
-                .threadPool(ingesterThreadPool())
-                .defaultChunkTimeLimitMsec(defaultChunkTimeLimitMsec)
+                .perChunkCommit(perChunkCommit);
+    }
+
+    /**
+     * Create the ingester config for the given ingester type.
+     *
+     * @param type ingester type
+     * @return ingester config
+     */
+    private TopologyIngesterConfig ingesterConfig(TopologyIngesterType type) {
+        return ingesterConfigBase()
+                // add ingester-specific items to the base
+                .threadPool(ingesterThreadPool(type))
+                .defaultChunkTimeLimitMsec(chunkTimeLimit(type))
                 .build();
+    }
+
+    /**
+     * Get the per-chunk time limit for the given ingester type.
+     *
+     * @param type ingester type
+     * @return per-chunk time limit
+     */
+    private long chunkTimeLimit(TopologyIngesterType type) {
+        switch (type) {
+            case sourceRealtime:
+                return sourceRealtimeChunkTimeLimit;
+            case projectedRealtime:
+                return projectedRealtimeChunkTimeLimit;
+            case sourcePlan:
+                return sourcePlanChunkTimeLimit;
+            case projectedPlan:
+                return projectedPlanChunkTimeLimit;
+            default:
+                throw new IllegalArgumentException("Unknown TopologyIngesterType: " + type.name());
+        }
     }
 
     /**
@@ -348,5 +453,13 @@ public class IngestersConfig {
     Supplier<SimpleBulkLoaderFactory> bulkLoaderFactorySupplier() {
         return () -> new SimpleBulkLoaderFactory(historyDbConfig.historyDbIO(),
                 historyDbConfig.bulkLoaderConfig(), historyDbConfig.bulkLoaderThreadPool());
+    }
+
+    /** Topology ingester types, used in injector configurations. */
+    enum TopologyIngesterType {
+        sourceRealtime,
+        projectedRealtime,
+        sourcePlan,
+        projectedPlan
     }
 }

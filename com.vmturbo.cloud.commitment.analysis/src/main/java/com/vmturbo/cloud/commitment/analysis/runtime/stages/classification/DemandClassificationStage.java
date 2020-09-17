@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -16,14 +17,14 @@ import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
-import com.vmturbo.cloud.commitment.analysis.runtime.ImmutableStageResult;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.AbstractStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.AllocatedDemandClassifier.AllocatedDemandClassifierFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.CloudTierFamilyMatcher.CloudTierFamilyMatcherFactory;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.selection.EntityCloudTierDemandSet;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.EntityCloudTierDemandSet;
+import com.vmturbo.cloud.commitment.analysis.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassification;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassificationSettings;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 
 /**
  * This stage is responsible for taking in a set of {@link EntityCloudTierMapping} instances, grouping
@@ -40,7 +41,9 @@ public class DemandClassificationStage extends AbstractStage<EntityCloudTierDema
 
     private final AllocatedDemandClassifier allocatedDemandClassifier;
 
-    private final DemandClassification demandClassification;
+    private final DemandClassificationSettings demandClassificationSettings;
+
+    private final MinimalCloudTopology<MinimalEntity> cloudTopology;
 
     protected DemandClassificationStage(final long id,
                                         @Nonnull final CloudCommitmentAnalysisConfig analysisConfig,
@@ -49,11 +52,13 @@ public class DemandClassificationStage extends AbstractStage<EntityCloudTierDema
                                         @Nonnull CloudTierFamilyMatcherFactory cloudTierFamilyMatcherFactory) {
         super(id, analysisConfig, analysisContext);
 
-        this.demandClassification = analysisConfig.getDemandClassification();
+        this.demandClassificationSettings = analysisConfig.getDemandClassificationSettings();
         this.allocatedDemandClassifier = allocatedDemandClassifierFactory.newClassifier(
                 cloudTierFamilyMatcherFactory.newFamilyMatcher(analysisContext.getCloudCommitmentSpecMatcher()),
                 // defaults to zero if no allocated classification settings are sent
-                demandClassification.getAllocatedClassificationSettings().getMinEntityUptime());
+                demandClassificationSettings.getAllocatedClassificationSettings().getMinStabilityMillis());
+
+        this.cloudTopology = Objects.requireNonNull(analysisContext.getSourceCloudTopology());
     }
 
     /**
@@ -74,32 +79,20 @@ public class DemandClassificationStage extends AbstractStage<EntityCloudTierDema
                         TimeSeries.toTimeSeries()));
 
 
-        logger.info("{} Classifying allocated demand for {} entities", logPrefix, allocationDemandByEntityOid.size());
+        logger.info("Classifying allocated demand for {} entities", allocationDemandByEntityOid.size());
 
         final DemandClassificationSummary classificationSummary =
                 DemandClassificationSummary.newSummary(
-                        analysisContext.getSourceCloudTopology(), demandClassification.getLogDetailedSummary());
-        final Set<ClassifiedEntityDemandAggregate<AllocatedDemandClassification>> classifiedAllocationDemand =
+                        analysisContext.getSourceCloudTopology(), demandClassificationSettings.getLogDetailedSummary());
+        final Set<ClassifiedEntityDemandAggregate> classifiedAllocationDemand =
                 allocationDemandByEntityOid.values()
                         .stream()
-                        .map(allocationTimeSeries -> {
-                            // It is assumed that the scope information of an entity is immutable.
-                            // For example, it is not possible to change the region of a VM. A representative
-                            // mapping is selected for the entity to populate the scope information.
-                            final EntityCloudTierMapping representativeMapping = allocationTimeSeries.first();
-                            return ImmutableClassifiedEntityDemandAggregate.<AllocatedDemandClassification>builder()
-                                    .entityOid(representativeMapping.entityOid())
-                                    .accountOid(representativeMapping.accountOid())
-                                    .regionOid(representativeMapping.regionOid())
-                                    .availabilityZoneOid(representativeMapping.availabilityZoneOid())
-                                    .serviceProviderOid(representativeMapping.serviceProviderOid())
-                                    .putAllClassifiedCloudTierDemand(
-                                            allocatedDemandClassifier.classifyEntityDemand(allocationTimeSeries))
-                                    .build();
-                        }).peek(classificationSummary.toAllocatedSummaryCollector())
+                        .map(this::mapToAllocationDemandAggregate)
+                        .filter(Objects::nonNull)
+                        .peek(classificationSummary.toAllocatedSummaryCollector())
                         .collect(ImmutableSet.toImmutableSet());
 
-        return ImmutableStageResult.<ClassifiedEntityDemandSet>builder()
+        return StageResult.<ClassifiedEntityDemandSet>builder()
                 .output(ImmutableClassifiedEntityDemandSet.builder()
                         .addAllClassifiedAllocatedDemand(classifiedAllocationDemand)
                         .build())
@@ -114,6 +107,41 @@ public class DemandClassificationStage extends AbstractStage<EntityCloudTierDema
     @Override
     public String stageName() {
         return STAGE_NAME;
+    }
+
+    @Nullable
+    private ClassifiedEntityDemandAggregate mapToAllocationDemandAggregate(
+            @Nonnull TimeSeries<EntityCloudTierMapping> allocationTimeSeries) {
+
+        try {
+            // It is assumed that the scope information of an entity is immutable.
+            // For example, it is not possible to change the region of a VM. A representative
+            // mapping is selected for the entity to populate the scope information.
+            final EntityCloudTierMapping representativeMapping = allocationTimeSeries.first();
+            final long entityOid = representativeMapping.entityOid();
+            final ClassifiedCloudTierDemand classifiedCloudTierDemand =
+                    allocatedDemandClassifier.classifyEntityDemand(allocationTimeSeries);
+
+            final boolean isTerminated = !cloudTopology.entityExists(entityOid);
+            // If the entity does not exist in the topology, isSuspended should be false
+            final boolean isSuspended = !cloudTopology.isEntityPoweredOn(entityOid).orElse(true);
+
+            return ClassifiedEntityDemandAggregate.builder()
+                    .entityOid(representativeMapping.entityOid())
+                    .accountOid(representativeMapping.accountOid())
+                    .regionOid(representativeMapping.regionOid())
+                    .availabilityZoneOid(representativeMapping.availabilityZoneOid())
+                    .serviceProviderOid(representativeMapping.serviceProviderOid())
+                    .putAllClassifiedCloudTierDemand(classifiedCloudTierDemand.classifiedDemand())
+                    .allocatedCloudTierDemand(classifiedCloudTierDemand.allocatedDemand())
+                    .isSuspended(isSuspended)
+                    .isTerminated(isTerminated)
+                    .build();
+        } catch (Exception e) {
+            logger.error("Error classifying allocation demand (Demand={})",
+                    allocationTimeSeries, e);
+            return null;
+        }
     }
 
     /**

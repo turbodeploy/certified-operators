@@ -62,7 +62,7 @@ public class GrafanaClientConfig {
     /**
      * Set the grafana port.
      *
-     * @param grafanaPort New grafna port.
+     * @param grafanaPort New grafana port.
      * @return The config, for method chaining.
      */
     @Nonnull

@@ -108,7 +108,7 @@ public class StitchingOperationStore {
             // allow the probe scope to be set in a data driven manner.
             List<StitchingOperation<?, ?>> operations =
                     createStitchingOperationsFromProbeInfo(probeInfo,
-                            probeScope.isEmpty() ? ImmutableSet.of(category) : probeScope);
+                            (probeScope.isEmpty() && category != ProbeCategory.CUSTOM) ? ImmutableSet.of(category) : probeScope);
             List<StitchingOperation<?, ?>> customOperations = stitchingOperationLibrary.stitchingOperationsFor(
                     probeInfo.getProbeType(), category);
 

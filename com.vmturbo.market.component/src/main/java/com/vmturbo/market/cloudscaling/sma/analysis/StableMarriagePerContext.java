@@ -94,7 +94,9 @@ public class StableMarriagePerContext {
             SMAVirtualMachine vm = match.getVirtualMachine();
             SMATemplate currentTemplate = vm.getCurrentTemplate();
             SMATemplate matchTemplate = match.getTemplate();
-            if (currentTemplate != matchTemplate || (Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons() != 0)) {
+            if (currentTemplate.getOid() != matchTemplate.getOid()
+                    || (Math.abs(vm.getCurrentRICoverage()
+                    - match.getDiscountedCoupons()) > SMAUtils.EPSILON)) {
                 mismatch++;
             }
         }
@@ -141,7 +143,7 @@ public class StableMarriagePerContext {
         final List<SMAReservedInstance> reservedInstances = (inputContext.getReservedInstances() == null ?
             Collections.EMPTY_LIST : new ArrayList<>(inputContext.getReservedInstances()));
         statistics.setNumberOfReservedInstances(reservedInstances.size());
-        statistics.setTotalRiCoupons(reservedInstances.stream().mapToInt(r -> r.getTemplate().getCoupons()).sum());
+        statistics.setTotalRiCoupons(reservedInstances.stream().mapToDouble(r -> r.getCount() * r.getTemplate().getCoupons()).sum());
         statistics.setIsZonalRIs(computeTypeOfRIs(reservedInstances));
 
         /*
@@ -178,11 +180,11 @@ public class StableMarriagePerContext {
         /*
          * Map that keeps track of all the unused coupons for used RIs.
          */
-        Map<SMAReservedInstance, Integer> remainingCoupons = new HashMap<>();
+        Map<SMAReservedInstance, Float> remainingCoupons = new HashMap<>();
         for (SMAReservedInstance reservedInstance : reservedInstances) {
-            int coupons = Math.round(reservedInstance.getNormalizedTemplate().getCoupons() *
-                    reservedInstance.getNormalizedCount());
-            if (coupons > 0) {
+            float coupons = (reservedInstance.getNormalizedTemplate().getCoupons()
+                    * reservedInstance.getNormalizedCount());
+            if (coupons > SMAUtils.EPSILON) {
                 remainingCoupons.put(reservedInstance, coupons);
                 if (!freeRIs.contains(reservedInstance)) {
                     freeRIs.add(reservedInstance);
@@ -223,7 +225,7 @@ public class StableMarriagePerContext {
         matches.addAll(currentEngagements.values());
         matches.addAll(addGroupMemberEngagement(virtualMachineGroupMap, currentEngagements));
 
-        statistics.setTotalDiscountedCoupons(matches.stream().mapToInt(m -> m.getDiscountedCoupons()).sum());
+        statistics.setTotalDiscountedCoupons(matches.stream().mapToDouble(m -> (double)m.getDiscountedCoupons()).sum());
 
         // for all the VMs that does not have a matching move them to the natural template.
         Set<SMAVirtualMachine> set = matches.stream().map(a -> a.getVirtualMachine()).collect(Collectors.toSet());
@@ -391,8 +393,8 @@ public class StableMarriagePerContext {
         for (SMAVirtualMachineGroup smaVirtualMachineGroup : virtualMachineGroupMap.values()) {
             SMAVirtualMachine groupLeader = smaVirtualMachineGroup.getGroupLeader();
             SMAMatch leaderEngagement = currentEngagements.get(groupLeader);
-            int totalGroupCouponsRemaining = 0;
-            int groupMemberRequiredCoupons = 0;
+            float totalGroupCouponsRemaining = 0;
+            float groupMemberRequiredCoupons = 0;
             if (leaderEngagement != null) {
                 totalGroupCouponsRemaining = leaderEngagement.getDiscountedCoupons();
                 groupMemberRequiredCoupons = leaderEngagement.getTemplate().getCoupons();
@@ -402,8 +404,8 @@ public class StableMarriagePerContext {
                  * if there is an engagement create engagement for all the group members.
                  */
                 if (leaderEngagement != null) {
-                    if (totalGroupCouponsRemaining > 0) {
-                        int couponsAllocated = Math.min(groupMemberRequiredCoupons, totalGroupCouponsRemaining);
+                    if (totalGroupCouponsRemaining > SMAUtils.EPSILON) {
+                        float couponsAllocated = Math.min(groupMemberRequiredCoupons, totalGroupCouponsRemaining);
                         if (groupMember != groupLeader) {
                             matches.add(new SMAMatch(groupMember, leaderEngagement.getTemplate(),
                                     leaderEngagement.getReservedInstance(),
@@ -415,8 +417,9 @@ public class StableMarriagePerContext {
                         totalGroupCouponsRemaining = totalGroupCouponsRemaining -
                                 couponsAllocated;
                     } else {
-                        // there will be a match created later with no RI associated.
-                        groupMember.setNaturalTemplate(leaderEngagement.getTemplate());
+                        matches.add(new SMAMatch(groupMember, leaderEngagement.getTemplate(),
+                                null,
+                                0f));
                     }
                 }
             }
@@ -435,7 +438,7 @@ public class StableMarriagePerContext {
      */
     public static void
     createRIToVMsMap(List<SMAVirtualMachine> virtualMachines,
-                     Map<SMAReservedInstance, Integer> remainingCoupons,
+                     Map<SMAReservedInstance, Float> remainingCoupons,
                      Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
                      Map<String, List<SMATemplate>> familyNameToTemplates,
                      SMAStatistics statistics) {
@@ -448,12 +451,8 @@ public class StableMarriagePerContext {
             if (vm.getGroupSize() >= 1) {
                 // don't add VM is in ASG and not the leader
                 for (SMATemplate template : vm.getGroupProviders()) {
-                    List<SMAVirtualMachine> instances = templateToVmsMap.get(template);
-                    if (instances == null) {
-                        templateToVmsMap.put(template, new ArrayList<>(Arrays.asList(vm)));
-                    } else {
-                        instances.add(vm);
-                    }
+                    templateToVmsMap.putIfAbsent(template, new ArrayList<>());
+                    templateToVmsMap.get(template).add(vm);
                 }
             }
         }
@@ -507,7 +506,7 @@ public class StableMarriagePerContext {
      * @param virtualMachineGroupMap map from group name to virtualMachine Group
      */
     private static void sortAndUpdateVMList(List<SMAVirtualMachine> virtualMachineList,
-                                            Integer riCoupons, SMAReservedInstance ri,
+                                            Float riCoupons, SMAReservedInstance ri,
                                             Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
         Collections.sort(virtualMachineList, new RIPreference(riCoupons, ri, virtualMachineGroupMap));
         for (int i = 0; i < virtualMachineList.size(); i++) {
@@ -554,7 +553,7 @@ public class StableMarriagePerContext {
      *
      * @return the intersection of providers of all vms in the group.
      */
-    private static List<SMATemplate>  findProviderIntersection(List<SMAVirtualMachine> virtualMachines) {
+    public static List<SMATemplate>  findProviderIntersection(List<SMAVirtualMachine> virtualMachines) {
         if (virtualMachines.isEmpty()) {
             return new ArrayList<>();
         }
@@ -634,16 +633,6 @@ public class StableMarriagePerContext {
 
             SMATemplate newTemplate = newEngagement.getTemplate();
             SMATemplate oldTemplate = oldEngagement.getTemplate();
-
-            int newAccountMoves = accountMoves(vm, newRI.getBusinessAccountId(),
-                    virtualMachineGroupMap);
-            int oldAccountMoves = accountMoves(vm, oldRI.getBusinessAccountId(),
-                    virtualMachineGroupMap);
-            if (newAccountMoves < oldAccountMoves) {
-                return true;
-            } else if (newAccountMoves > oldAccountMoves) {
-                return false;
-            }
 
             // Minimize moves based on VM's current allocated template and the new and old RI
             // template.  Beyond this point, VM's allocated template does not match either
@@ -753,17 +742,17 @@ public class StableMarriagePerContext {
         SMAVirtualMachine virtualMachine = newEngagement.getVirtualMachine();
         float costImprovement = costImprovement(virtualMachine.getBusinessAccountId(),
                 virtualMachine.getOsType(),
-                (float)newEngagement.getDiscountedCoupons() / (float)virtualMachine.getGroupSize(),
+                newEngagement.getDiscountedCoupons() / (float)virtualMachine.getGroupSize(),
                 newEngagement.getTemplate(),
                 (oldEngagement == null) ?
-                        0 : (float)oldEngagement.getDiscountedCoupons() / (float)virtualMachine.getGroupSize(),
+                        0 : oldEngagement.getDiscountedCoupons() / (float)virtualMachine.getGroupSize(),
                 (oldEngagement == null) ?
                         virtualMachine.getNaturalTemplate() : oldEngagement.getTemplate());
         costImprovement = SMAUtils.round(costImprovement);
         if (oldEngagement == null && costImprovement <
-                (SMAUtils.IMPROVEMENT_FACTOR * virtualMachine.getGroupSize() *
-                    virtualMachine.getNaturalTemplate()
-                            .getOnDemandTotalCost(virtualMachine.getBusinessAccountId(),
+                (SMAUtils.BIG_EPSILON * virtualMachine.getGroupSize()
+                        * virtualMachine.getNaturalTemplate()
+                        .getOnDemandTotalCost(virtualMachine.getBusinessAccountId(),
                                 virtualMachine.getOsType()))) {
             return false;
         }
@@ -793,31 +782,31 @@ public class StableMarriagePerContext {
      */
 
     public static void runIterations(Deque<SMAReservedInstance> freeRIs,
-                                     Map<SMAReservedInstance, Integer> remainingCoupons,
+                                     Map<SMAReservedInstance, Float> remainingCoupons,
                                      Map<SMAVirtualMachine, SMAMatch> currentEngagements,
                                      Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
                                      SMAStatistics statistics) {
         while (!freeRIs.isEmpty()) {
             statistics.incrementIterations();
             SMAReservedInstance currentRI = freeRIs.poll();
-            Integer currentRICoupons = (currentRI == null) ? 0 : remainingCoupons.get(currentRI);
+            float currentRICoupons = (currentRI == null) ? 0f : remainingCoupons.get(currentRI);
 
             // if the last matched VM was only partially filled allocated the coupons to that VM first.
             SMAVirtualMachine lastDiscountedVM = currentRI.getLastDiscountedVM();
-            if (lastDiscountedVM != null && currentRICoupons > 0) {
+            if (lastDiscountedVM != null && currentRICoupons > SMAUtils.EPSILON) {
                 SMAMatch lastMatch = currentEngagements.get(lastDiscountedVM);
                 if (lastMatch != null && lastMatch.getReservedInstance() == currentRI) {
-                    int totalCouponsReq = lastMatch.getTemplate().getCoupons() * lastDiscountedVM.getGroupSize();
-                    int additionalCouponReq = totalCouponsReq - lastMatch.getDiscountedCoupons();
-                    int allocatableCoupons = Math.min(currentRICoupons, additionalCouponReq);
-                    if (allocatableCoupons > 0) {
+                    float totalCouponsReq = lastMatch.getTemplate().getCoupons() * lastDiscountedVM.getGroupSize();
+                    float additionalCouponReq = totalCouponsReq - lastMatch.getDiscountedCoupons();
+                    float allocatableCoupons = Math.min(currentRICoupons, additionalCouponReq);
+                    if (allocatableCoupons > SMAUtils.EPSILON) {
                         currentRICoupons = currentRICoupons - allocatableCoupons;
                         remainingCoupons.put(currentRI, currentRICoupons);
                         lastMatch.setDiscountedCoupons(lastMatch.getDiscountedCoupons() + allocatableCoupons);
                     }
                 }
             }
-            if (currentRICoupons > 0 && !currentRI.isCouponToBestVMEmpty()) {
+            if (currentRICoupons > SMAUtils.EPSILON && !currentRI.isCouponToBestVMEmpty()) {
                 logger.debug("SMA new RI={} remainingCoupons={}", currentRI.getName(),
                         currentRICoupons);
                 Pair<SMAVirtualMachine, Integer> currentVMIndexPair = currentRI
@@ -852,7 +841,7 @@ public class StableMarriagePerContext {
                     continue;
                 }
 
-                Integer discountedCoupons = Math.min(currentVMCouponRequest,
+                float discountedCoupons = Math.min(currentVMCouponRequest,
                         currentRICoupons);
                 SMAMatch oldEngagement = currentEngagements.get(currentVM);
                 /* discounted coupons are the actual coupons used in this engagement.
@@ -876,14 +865,13 @@ public class StableMarriagePerContext {
                         currentEngagements.put(currentVM, newEngagement);
                         currentRI.setLastDiscountedVM(currentVM);
                         // update remaining coupons
-                        int currentRIRemainingCoupons = currentRICoupons - discountedCoupons;
+                        float currentRIRemainingCoupons = currentRICoupons - discountedCoupons;
                         remainingCoupons.put(currentRI, currentRIRemainingCoupons);
                     } else {
                         // engagement already exists. swap engagement
                         SMAReservedInstance oldRI = oldEngagement.getReservedInstance();
                         statistics.incrementSwaps();
                         // break engagement;
-                        Integer oldEngagementCoupons = oldEngagement.getDiscountedCoupons();
                         logger.debug("SMA swap: " +
                                         "VM={} pair(RI={}, coupons={}) oldRI={}",
                                 currentVM.getName(), currentRI.getName(), discountedCoupons,
@@ -891,8 +879,9 @@ public class StableMarriagePerContext {
                         currentEngagements.remove(currentVM);
                         currentEngagements.put(currentVM, newEngagement);
                         // update remaining coupons of oldRI and currentRI
-                        int currentLeftOverCoupons = currentRICoupons - discountedCoupons;
+                        float currentLeftOverCoupons = currentRICoupons - discountedCoupons;
                         remainingCoupons.put(currentRI, currentLeftOverCoupons);
+                        float oldEngagementCoupons = oldEngagement.getDiscountedCoupons();
                         remainingCoupons.put(oldRI, remainingCoupons.get(oldRI) + oldEngagementCoupons);
                         oldRI.restoreSkippedVMs();
                         currentRI.setLastDiscountedVM(currentVM);
@@ -900,7 +889,7 @@ public class StableMarriagePerContext {
                             freeRIs.add(oldRI);
                         }
                     }
-                } else if (currentRICoupons < currentVMCouponRequest) {
+                } else if (currentRICoupons < currentVMCouponRequest - SMAUtils.EPSILON) {
                     currentRI.addToSkippedVMsWIthIndex(currentVM, currentVMIndex);
                 }
 
@@ -969,7 +958,7 @@ public class StableMarriagePerContext {
      */
     public static class RIPreference implements Comparator<SMAVirtualMachine> {
         // number of coupons remaining for the reservedInstance
-        private int coupons;
+        private float coupons;
         // the reserved instance of interest.
         private SMAReservedInstance reservedInstance;
         // map containing ASG information.
@@ -981,7 +970,7 @@ public class StableMarriagePerContext {
          * @param reservedInstance the reserved instance of interest.
          * @param virtualMachineGroupMap map containing ASG information.
          */
-        public RIPreference(int coupons, SMAReservedInstance reservedInstance,
+        public RIPreference(float coupons, SMAReservedInstance reservedInstance,
                             Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
             this.coupons = coupons;
             this.reservedInstance = reservedInstance;
@@ -1011,16 +1000,6 @@ public class StableMarriagePerContext {
                 return -1;
             }
             if ((riCoverageVm2 - riCoverageVm1) > SMAUtils.EPSILON) {
-                return 1;
-            }
-
-            int vm1AccountMoves = accountMoves(vm1, reservedInstance.getBusinessAccountId(),
-                    virtualMachineGroupMap);
-            int vm2AccountMoves = accountMoves(vm2, reservedInstance.getBusinessAccountId(),
-                    virtualMachineGroupMap);
-            if (vm1AccountMoves < vm2AccountMoves) {
-                return -1;
-            } else if (vm1AccountMoves > vm2AccountMoves) {
                 return 1;
             }
 
@@ -1082,34 +1061,11 @@ public class StableMarriagePerContext {
         if (vm.getGroupSize() > 1) {
             for (SMAVirtualMachine member : virtualMachineGroupMap
                     .get(vm.getGroupName()).getVirtualMachines()) {
-                moves += member.getCurrentTemplate().equals(template) ? 0 : 1;
+                moves += member.getCurrentTemplate().getOid() == template.getOid() ? 0 : 1;
             }
             return moves;
         } else {
-            return vm.getCurrentTemplate().equals(template) ? 0 : 1;
-        }
-    }
-
-    /**
-     * the number of VMs that have different business account than the RI.
-     *
-     * @param vm                  the VM of interest
-     * @param businessAccount     business account of the RI
-     * @param virtualMachineGroupMap map from group name to virtualMachine Group
-     * @return move count
-     */
-    private static int accountMoves(final SMAVirtualMachine vm,
-                                     final long businessAccount,
-                                     Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
-        int moves = 0;
-        if (vm.getGroupSize() > 1) {
-            for (SMAVirtualMachine member : virtualMachineGroupMap
-                    .get(vm.getGroupName()).getVirtualMachines()) {
-                moves += (member.getBusinessAccountId() == businessAccount) ? 0 : 1;
-            }
-            return moves;
-        } else {
-            return (vm.getBusinessAccountId() == businessAccount) ? 0 : 1;
+            return vm.getCurrentTemplate().getOid() == template.getOid() ? 0 : 1;
         }
     }
 

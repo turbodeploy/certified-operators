@@ -23,6 +23,7 @@ import java.util.function.BiFunction;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -78,14 +79,18 @@ public class PercentileEditor extends
     // certain sold commodities should have percentile calculated from real-time points
     // even if dedicated percentile utilizations are absent in the mediation
     private static final Set<CommodityType> REQUIRED_SOLD_COMMODITY_TYPES = Sets.immutableEnumSet(
-                        CommodityDTO.CommodityType.VCPU,
-                        CommodityDTO.CommodityType.VMEM);
+                    CommodityDTO.CommodityType.VCPU,
+                    CommodityDTO.CommodityType.VMEM);
     // percentile on a bought commodity will not add up unless there is no more than one
     // consumer per provider, so only certain commodity types are applicable
     private static final Set<CommodityType> ENABLED_BOUGHT_COMMODITY_TYPES = Sets.immutableEnumSet(
                     CommodityDTO.CommodityType.IMAGE_CPU,
                     CommodityDTO.CommodityType.IMAGE_MEM,
                     CommodityDTO.CommodityType.IMAGE_STORAGE);
+    // percentile may be calculated on a bought commodity if the provider has infinite capacity
+    private static final Map<EntityType, Set<CommodityType>> ENABLED_BOUGHT_FROM_PROVIDER_TYPES =
+        ImmutableMap.of(EntityType.COMPUTE_TIER,
+            Collections.singleton(CommodityType.STORAGE_ACCESS));
 
     /**
      * Entity types for which percentile calculation is supported.
@@ -169,11 +174,16 @@ public class PercentileEditor extends
     }
 
     @Override
-    public boolean
-           isCommodityApplicable(TopologyEntity entity,
-                                 TopologyDTO.CommodityBoughtDTO.Builder commBought) {
-        return commBought.hasUtilizationData() && ENABLED_BOUGHT_COMMODITY_TYPES
-                        .contains(CommodityType.forNumber(commBought.getCommodityType().getType()));
+    public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
+            @Nonnull TopologyDTO.CommodityBoughtDTO.Builder commBought,
+            int providerType) {
+        final CommodityType boughtType =
+            CommodityType.forNumber(commBought.getCommodityType().getType());
+        return commBought.hasUtilizationData() &&
+            (ENABLED_BOUGHT_COMMODITY_TYPES.contains(boughtType) ||
+            ENABLED_BOUGHT_FROM_PROVIDER_TYPES.getOrDefault(EntityType.forNumber(providerType),
+                    Collections.emptySet())
+                .contains(boughtType));
     }
 
     @Override
@@ -237,10 +247,20 @@ public class PercentileEditor extends
     }
 
     @Override
-    public void completeBroadcast(@Nonnull HistoryAggregationContext context) throws HistoryCalculationException, InterruptedException {
+    public synchronized void completeBroadcast(@Nonnull HistoryAggregationContext context)
+                    throws HistoryCalculationException, InterruptedException {
         super.completeBroadcast(context);
         if (!context.isPlan()) {
             final long checkpointMs = getCheckpoint();
+
+            // clean up the empty entries
+            int entriesBefore = getCache().size();
+            getCache().entrySet().removeIf(field2data -> field2data.getValue().getUtilizationCountStore().isEmpty());
+            int entriesAfter = getCache().size();
+            if (entriesAfter < entriesBefore && logger.isDebugEnabled()) {
+                logger.debug("Cleared {} empty percentile records out of {}",
+                                entriesBefore - entriesAfter, entriesBefore);
+            }
 
             // perform enforce maintenance if required
             enforcedMaintenance(context, checkpointMs);
@@ -257,6 +277,23 @@ public class PercentileEditor extends
                             (data) -> String.format("Percentile utilization counts: %s",
                                             data.getUtilizationCountStore().toDebugString()));
         }
+    }
+
+    /**
+     * Re-compute the full page from the daily pages over the maximum defined observation period.
+     * Update memory cache only, without persisting it, which will happen only during maintenance.
+     * Execute synchronously (will block the ongoing broadcast, if happens at the same time).
+     *
+     * @throws InterruptedException when interrupted
+     * @throws HistoryCalculationException when failed
+     */
+    public synchronized void reassembleFullPage() throws InterruptedException, HistoryCalculationException {
+        int maxPeriod = getCache().values().stream()
+                        .map(PercentileCommodityData::getUtilizationCountStore)
+                        .map(UtilizationCountStore::getPeriodDays).max(Long::compare)
+                        .orElse(PercentileHistoricalEditorConfig
+                                        .getDefaultObservationPeriod());
+        reassembleFullPage(getCache(), maxPeriod, false);
     }
 
     private void persistDailyRecord(HistoryAggregationContext context, long checkpointMs) throws InterruptedException, HistoryCalculationException {
@@ -282,8 +319,10 @@ public class PercentileEditor extends
                     throws HistoryCalculationException, InterruptedException {
         final PercentileCounts.Builder builder = PercentileCounts.newBuilder();
         for (PercentileCommodityData data : getCache().values()) {
-            builder.addPercentileRecords(
-                            countStoreToRecordStore.apply(data.getUtilizationCountStore()));
+            PercentileRecord.Builder record = countStoreToRecordStore.apply(data.getUtilizationCountStore());
+            if (record != null) {
+                builder.addPercentileRecords(record);
+            }
         }
         return builder;
     }
@@ -319,12 +358,7 @@ public class PercentileEditor extends
             } catch (InvalidHistoryDataException e) {
                 logger.warn("Failed to read percentile full window data, re-assembling from the daily blobs", e);
                 initializeCacheValues(context, eligibleComms);
-                int maxPeriod = getCache().values().stream()
-                                .map(PercentileCommodityData::getUtilizationCountStore)
-                                .map(UtilizationCountStore::getPeriodDays).max(Long::compare)
-                                .orElse(PercentileHistoricalEditorConfig
-                                                .getDefaultObservationPeriod());
-                reassembleFullPage(getCache(), maxPeriod, false);
+                reassembleFullPage();
             }
 
             sw.reset();
@@ -458,8 +492,10 @@ public class PercentileEditor extends
             // at this point full record is a sum of all previous days up to period
             // except the latest page -> add latest to full, rescaling as necessary
             for (PercentileCommodityData entry : entriesToUpdate.values()) {
-                entry.getUtilizationCountStore().setLatestCountsRecord(
-                                entry.getUtilizationCountStore().getLatestCountsRecord().build());
+                PercentileRecord.Builder record = entry.getUtilizationCountStore().getLatestCountsRecord();
+                if (record != null) {
+                    entry.getUtilizationCountStore().setLatestCountsRecord(record.build());
+                }
             }
 
             this.enforceMaintenance = enforceMaintenance;
@@ -543,7 +579,9 @@ public class PercentileEditor extends
             for (Map.Entry<PercentileCommodityData, List<PercentileRecord>> entry : dataRef2outdatedRecords.entrySet()) {
                 final PercentileRecord.Builder checkpoint =
                                 entry.getKey().checkpoint(entry.getValue());
-                total.addPercentileRecords(checkpoint);
+                if (checkpoint != null) {
+                    total.addPercentileRecords(checkpoint);
+                }
             }
             writeBlob(total, checkpointMs, PercentilePersistenceTask.TOTAL_TIMESTAMP);
             lastCheckpointMs = checkpointMs;

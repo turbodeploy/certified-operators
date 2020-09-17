@@ -3,6 +3,8 @@ package com.vmturbo.repository.graph.operator;
 import java.util.Collection;
 import java.util.Objects;
 
+import javax.annotation.Nullable;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,6 +21,7 @@ import com.vmturbo.repository.graph.parameter.EdgeDefParameter;
 import com.vmturbo.repository.graph.parameter.GraphParameter;
 import com.vmturbo.repository.graph.parameter.IndexParameter;
 import com.vmturbo.repository.graph.parameter.IndexParameter.GraphIndexType;
+import com.vmturbo.repository.topology.TopologyID;
 
 /**
  * Constructs a topology graph in an associated graph database from input SE DTOs.
@@ -52,14 +55,15 @@ public class TopologyGraphCreator {
      * new documents based on the input DTOs.
      *
      * @param ses The {@link ServiceEntityRepoDTO} objects of the topology
+     * @param tid The {@link TopologyID} that should be referenced in edge _from and _to fields
      * @throws EdgeOperationException
      * @throws VertexOperationException
      * @throws CollectionOperationException
      */
-    public void updateTopologyToDb(Collection<ServiceEntityRepoDTO> ses)
+    public void updateTopologyToDb(Collection<ServiceEntityRepoDTO> ses, @Nullable TopologyID tid)
             throws VertexOperationException, EdgeOperationException, CollectionOperationException {
 
-        serviceEntitySubGraphCreator.create(ses);
+        serviceEntitySubGraphCreator.create(ses, tid);
     }
 
     /**

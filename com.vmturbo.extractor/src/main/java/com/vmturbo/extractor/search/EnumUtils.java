@@ -92,7 +92,7 @@ public class EnumUtils {
     }
 
     /**
-     * Class to perform conversions among EntiytType types, without limitation to the search
+     * Class to perform conversions among EntityType types, without limitation to the search
      * entity-type whitelist.
      */
     public static class EntityTypeUtils {

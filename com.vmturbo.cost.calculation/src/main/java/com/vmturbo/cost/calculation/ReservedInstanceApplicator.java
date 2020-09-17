@@ -273,7 +273,7 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
         final ReservedInstanceBoughtInfo riBoughtInfo =
                 riData.getReservedInstanceBought().getReservedInstanceBoughtInfo();
 
-        final int totalNumCoupons =
+        final double totalNumCoupons =
                 riBoughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons();
 
         if (couponsBought.getValue() > totalNumCoupons) {

@@ -17,6 +17,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.TargetDao;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -40,6 +41,8 @@ public class MigrationsLibrary {
 
     private final IdentityStore<TargetSpec> targetIdentityStore;
 
+    private final GroupScopeResolver groupScopeResolver;
+
     public MigrationsLibrary(@Nonnull DSLContext dslContext,
                              @Nonnull ProbeStore probeStore,
                              @Nonnull StatsHistoryServiceBlockingStub statsHistoryClient,
@@ -48,7 +51,8 @@ public class MigrationsLibrary {
                              @Nonnull KeyValueStore keyValueStore,
                              @Nonnull TargetStore targetStore,
                              @Nonnull TargetDao targetDao,
-                             @Nonnull IdentityStore<TargetSpec> targetIdentityStore) {
+                             @Nonnull IdentityStore<TargetSpec> targetIdentityStore,
+                             @Nonnull GroupScopeResolver groupScopeResolver) {
 
         this.dslContext = Objects.requireNonNull(dslContext);
         this.probeStore = Objects.requireNonNull(probeStore);
@@ -59,6 +63,7 @@ public class MigrationsLibrary {
         this.targetStore = Objects.requireNonNull(targetStore);
         this.targetDao = Objects.requireNonNull(targetDao);
         this.targetIdentityStore = Objects.requireNonNull(targetIdentityStore);
+        this.groupScopeResolver = Objects.requireNonNull(groupScopeResolver);
     }
 
     public SortedMap<String, Migration> getMigrationsList(){
@@ -86,7 +91,9 @@ public class MigrationsLibrary {
                         new V_01_01_00__Add_UI_Category_and_license_To_Probes_Migration(keyValueStore))
             .put("V_01_01_02__Target_Oid_Fields_To_Lowercase",
                 new V_01_01_02__Target_Oid_Fields_To_Lowercase(probeStore, targetStore,
-                    targetIdentityStore, targetDao));
+                    targetIdentityStore, targetDao))
+            .put("V_01_01_03__Target_IsProxySecure_Flag",
+                    new V_01_01_03__Target_IsProxySecure_Flag(targetStore, probeStore, groupScopeResolver));
         return builder.build();
     }
 }

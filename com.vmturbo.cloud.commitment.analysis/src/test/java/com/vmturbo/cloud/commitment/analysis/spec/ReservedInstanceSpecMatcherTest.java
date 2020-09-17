@@ -15,7 +15,7 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierDemand;
+import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
 import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierDemand;
@@ -81,7 +81,7 @@ public class ReservedInstanceSpecMatcherTest {
                         .startTime(Instant.now().minusSeconds(60))
                         .endTime(Instant.now())
                         .build())
-                .cloudTierDemand(ImmutableComputeTierDemand.builder()
+                .cloudTierDemand(ComputeTierDemand.builder()
                         .cloudTierOid(matchingCoverageScope.cloudTierOid())
                         .osType(matchingCoverageScope.osType())
                         .tenancy(matchingCoverageScope.tenancy())

@@ -20,8 +20,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
-import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
@@ -58,13 +56,10 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
 
     private final ActionEntityTypeSpecificInfo actionEntityInfo;
 
-    private final DefaultTagIndex tags;
-
     private RepoGraphEntity(@Nonnull final TopologyEntityDTO src,
             @Nonnull final DefaultTagIndex tags,
             @Nonnull final SharedByteBuffer sharedCompressionBuffer) {
         super(src);
-        this.tags = tags;
 
         this.actionEntityInfo = TopologyDTOUtil.makeActionTypeSpecificInfo(src.getTypeSpecificInfo())
                 .map(ActionEntityTypeSpecificInfo.Builder::build)
@@ -191,21 +186,6 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
     }
 
     /**
-     * Get the tags on this entity.
-     *
-     * @return The {@link Tags}.
-     */
-    @Nonnull
-    public Tags getTags() {
-        Tags.Builder tagsBuilder = Tags.newBuilder();
-        tags.getTagsForEntity(getOid()).forEach((key, vals) ->
-                tagsBuilder.putTags(key, TagValuesDTO.newBuilder()
-                        .addAllValues(vals)
-                        .build()));
-        return tagsBuilder.build();
-    }
-
-    /**
      * Get a topology entity containing the important (i.e. searchable) fields. This is smaller
      * than the entity returned by {@link RepoGraphEntity#getTopologyEntity()}.
      *
@@ -219,7 +199,6 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
             .setEntityState(getEntityState())
             .setEnvironmentType(EnvironmentType.ON_PREM)
             .setEntityType(getEntityType());
-        builder.setTags(getTags());
 
         if (!getDiscoveredTargetIds().isEmpty()) {
             DiscoveryOrigin.Builder originBldr = builder.getOriginBuilder().getDiscoveryOriginBuilder();

@@ -27,6 +27,7 @@ import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.PlanReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
@@ -94,7 +95,13 @@ public class PlanReservedInstanceStoreTest {
 
     private ReservedInstanceCostCalculator reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
 
-    private PlanReservedInstanceStore planReservedInstanceStore = new PlanReservedInstanceStore(dsl, new IdentityProvider(0), reservedInstanceCostCalculator);
+    private BusinessAccountHelper businessAccountHelper = new BusinessAccountHelper();
+    private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl);
+    private AccountRIMappingStore accountRIMappingStore = new AccountRIMappingStore(dsl);
+    private PlanReservedInstanceStore planReservedInstanceStore =
+            new PlanReservedInstanceStore(dsl, new IdentityProvider(0),
+            reservedInstanceCostCalculator, businessAccountHelper,
+                    entityReservedInstanceMappingStore, accountRIMappingStore);
 
     /**
      * Initialize instances before test.

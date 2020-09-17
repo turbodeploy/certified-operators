@@ -30,6 +30,7 @@ import com.google.gson.JsonParseException;
 
 import io.grpc.Channel;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -159,6 +160,12 @@ public class PlanDaoImpl implements PlanDao {
     @Override
     public PlanDTO.PlanInstance createPlanInstance(@Nonnull CreatePlanRequest planRequest)
             throws IntegrityException {
+        // If specific scenario instance is already specified, use the other method.
+        if (planRequest.hasScenarioId() && planRequest.hasProjectType()
+                && planRequest.hasPlanProjectId()) {
+            return createPlanInstance(planRequest.getScenarioId(), planRequest.getProjectType(),
+                    planRequest.getPlanProjectId(), planRequest.getName());
+        }
 
         final PlanDTO.PlanInstance.Builder builder = PlanDTO.PlanInstance.newBuilder();
 
@@ -181,6 +188,9 @@ public class PlanDaoImpl implements PlanDao {
             builder.setScenario(scenario);
             builder.setName(scenario.getScenarioInfo().getName());
         }
+        if (planRequest.hasName()) {
+            builder.setName(planRequest.getName());
+        }
         builder.setPlanId(IdentityGenerator.next());
         builder.setStatus(PlanStatus.READY);
         builder.setProjectType(PlanProjectType.USER);
@@ -195,20 +205,46 @@ public class PlanDaoImpl implements PlanDao {
     }
 
     /**
+     * Create a plan instance in DB with the given scenario (should exist) and project id.
+     *
+     * @param scenarioId Id of plan existing scenario.
+     * @param planProjectType Project type of plan.
+     * @param planProjectId Id of plan project.
+     * @param planName Name of plan.
+     * @return Instance of plan.
+     * @throws IntegrityException Thrown on create constraint violation.
+     */
+    @Nonnull
+    private PlanDTO.PlanInstance createPlanInstance(@Nonnull final Long scenarioId,
+                                                   @Nonnull final PlanProjectType planProjectType,
+                                                   @Nullable final Long planProjectId,
+                                                   @Nullable final String planName)
+            throws IntegrityException {
+        final Scenario scenario = ensureScenarioExist(scenarioId);
+        return createPlanInstance(scenario, planProjectType, planProjectId, planName);
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
     @Nonnull
     public PlanDTO.PlanInstance createPlanInstance(@Nonnull final Scenario scenario,
-                                                   @Nonnull final PlanProjectType planProjectType)
+                                                   @Nonnull final PlanProjectType planProjectType,
+                                                   @Nullable final Long planProjectId,
+                                                   @Nullable final String planName)
             throws IntegrityException {
-
         final PlanDTO.PlanInstance.Builder planInstanceBuilder = PlanDTO.PlanInstance.newBuilder()
                 .setScenario(scenario)
                 .setPlanId(IdentityGenerator.next())
                 .setStatus(PlanStatus.READY)
                 .setProjectType(planProjectType);
-
+        if (planProjectId != null) {
+            planInstanceBuilder.setPlanProjectId(planProjectId);
+        }
+        if (planName != null) {
+            planInstanceBuilder.setName(planName);
+        }
         // we'll set the createdByUser to either the user from the calling context, or SYSTEM if
         // a user is not found.
         Optional<String> userId = UserContextUtils.getCurrentUserId();
@@ -327,10 +363,16 @@ public class PlanDaoImpl implements PlanDao {
                             PlanDTO.PlanInstance.newBuilder(src);
                     updater.accept(newBuilder);
                     final PlanDTO.PlanInstance planInstance = newBuilder.build();
-                    logger.info("Updating planInstance : {} from {} to {}. {}",
+                    // Don't info print annoying 'from WAITING_FOR_RESULT to WAITING_FOR_RESULT'.
+                    // Log info only if status code is different or if status messages are different.
+                    boolean newStatusMessage = !src.getStatusMessage().equals(
+                            planInstance.getStatusMessage());
+                    final Level logLevel = ((src.getStatus() != planInstance.getStatus())
+                            || newStatusMessage) ? Level.INFO : Level.DEBUG;
+                    logger.log(logLevel, "Updating planInstance : {} from {} to {}. {}",
                         planId, src.getStatus().name(), planInstance.getStatus().name(),
-                        src.getStatusMessage().equals(planInstance.getStatusMessage()) ? "" :
-                            "New status message: " + planInstance.getStatusMessage());
+                        newStatusMessage ? "New status message: " + planInstance.getStatusMessage()
+                            : "");
                     checkPlanConsistency(planInstance);
                     final int numRows = context.update(PLAN_INSTANCE)
                             .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now(clock))
@@ -685,7 +727,7 @@ public class PlanDaoImpl implements PlanDao {
      *                              plan instance.
      */
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
 
         final List<String> errors = new ArrayList<>();
 

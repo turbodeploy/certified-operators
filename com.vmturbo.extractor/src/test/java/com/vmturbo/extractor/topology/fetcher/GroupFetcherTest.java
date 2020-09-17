@@ -58,7 +58,7 @@ public class GroupFetcherTest {
     /**
      * Check that group fetching works properly for groups with static members.
      *
-     * <p>For each gropu we'll ensure that the members all end up linked to the group and vice-versa
+     * <p>For each group we'll ensure that the members all end up linked to the group and vice-versa
      * in the group-to-leaves and leaf-to-groups maps created by the feature. In addition, we'll
      * verify that each member appears in the group-to-direct-members entry for its group.</p>
      */
@@ -125,7 +125,7 @@ public class GroupFetcherTest {
     }
 
     private void checkDirectEntries(GroupData groupData, long group, Long... members) {
-        // check that the group-to-direct-members map has an ehtry for this group, and that the
+        // check that the group-to-direct-members map has an entry for this group, and that the
         // value for that entry consists of the given member ids.
         final Long2ObjectMap<List<Long>> g2d = groupData.getGroupToDirectMemberIds();
         assertThat(g2d.keySet(), hasItem(group));

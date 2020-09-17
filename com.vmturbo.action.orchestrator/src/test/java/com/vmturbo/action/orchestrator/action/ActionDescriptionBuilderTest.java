@@ -1,6 +1,8 @@
 package com.vmturbo.action.orchestrator.action;
 
 import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.createReasonCommodity;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -9,7 +11,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import org.junit.Assert;
+import javax.annotation.Nonnull;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -21,11 +24,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
+import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AtomicResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityNewCapacityEntry;
@@ -36,6 +41,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
@@ -56,6 +63,7 @@ public class ActionDescriptionBuilderTest {
 
     private ActionDTO.Action moveRecommendation;
     private ActionDTO.Action scaleRecommendation;
+    private ActionDTO.Action scaleTypeRecommendation;
     private ActionDTO.Action cloudStorageMoveRecommendation;
     private ActionDTO.Action resizeRecommendation;
     private ActionDTO.Action resizeMemRecommendation;
@@ -81,6 +89,31 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action deleteCloudStorageRecommendationWithNoSourceEntity;
     private ActionDTO.Action buyRIRecommendation;
     private ActionDTO.Action allocateRecommendation;
+
+    /**
+     * Cloud->Cloud migration related action for compute.
+     */
+    private ActionDTO.Action cloudToCloudComputeMove;
+
+    /**
+     * Cloud->Cloud migration related action for storage.
+     */
+    private ActionDTO.Action cloudToCloudStorageMove;
+
+    /**
+     * onPrem->Cloud migration related action for compute.
+     */
+    private ActionDTO.Action onPremToCloudComputeMove;
+
+    /**
+     * onPrem->Cloud migration related action for storage.
+     */
+    private ActionDTO.Action onPremToCloudStorageMove;
+
+    /**
+     * Cloud zone (AWS) to region (Azure) compute move.
+     */
+    private ActionDTO.Action zoneToRegionComputeMove;
 
     private static final ReasonCommodity BALLOONING =
         createReasonCommodity(CommodityDTO.CommodityType.BALLOONING_VALUE, null);
@@ -113,10 +146,158 @@ public class ActionDescriptionBuilderTest {
     private static final Long VSAN_PM_ID = 444L;
     private static final String VSAN_PM_DISPLAY_NAME = "vsan_host";
     private static final String SWITCH1_DISPLAY_NAME = "switch1_test";
+    private static final Long CONTROLLER1_ID = 500L;
+    private static final String CONTROLLER1_DISPLAY_NAME = "controller1_test";
+    private static final Long CONTAINER_SPEC1_ID = 501L;
+    private static final String SPEC1_DISPLAY_NAME = "spec1_test";
+    private static final Long CONTAINER_SPEC2_ID = 502L;
+    private static final String SPEC2_DISPLAY_NAME = "spec2_test";
+
+
+    /**
+     * ID of Azure VM being used for cloud->cloud migration.
+     */
+    private static final Long AZURE_VM_ID = 73320335294003L;
+
+    /**
+     * Name of Azure VM being migrated.
+     */
+    private static final String AZURE_VM_NAME = "Enlin-Demo-VM";
+
+    /**
+     * ID of AWS VM being used for cloud->cloud migration.
+     */
+    private static final Long AWS_VM_ID = 73320835644076L;
+
+    /**
+     * Name of AWS VM being migrated.
+     */
+    private static final String AWS_VM_NAME = "Turbo-datadog";
+
+    /**
+     * ID of onPrem VM being used for onPrem->cloud migration.
+     */
+    private static final Long ON_PREM_VM_ID = 73433887038912L;
+
+    /**
+     * Name of onPrem VM being migrated.
+     */
+    private static final String ON_PREM_VM_NAME = "Tomcat-172.216";
+
+    /**
+     * ID of PhysicalMachine that onPrem VM is on before migration.
+     */
+    private static final Long ON_PREM_SOURCE_PM_ID = 73433887033680L;
+
+    /**
+     * Name of PhysicalMachine that onPrem VM is on before migration.
+     */
+    private static final String ON_PREM_SOURCE_PM_NAME = "dc17-host-04.eng.vmturbo.com";
+
+    /**
+     * ID of onPrem storage being cloud migrated from.
+     */
+    private static final Long ON_PREM_SOURCE_STORAGE_ID = 73433887031974L;
+
+    /**
+     * Name of onPrem storage being cloud migrated from.
+     */
+    private static final String ON_PREM_SOURCE_STORAGE_NAME = "NIMHF40:ACMDS1";
+
+    /**
+     * ID of onPrem volume (disk) that is being migrated to cloud.
+     */
+    private static final Long ON_PREM_VOLUME_RESOURCE_ID = 73433887060876L;
+
+    /**
+     * Name of onPrem volume (disk) that is being migrated to cloud.
+     */
+    private static final String ON_PREM_VOLUME_RESOURCE_NAME = "Vol-Tomcat-172.216-NIMHF40:ACMDS1";
+
+    /**
+     * Source compute tier id being migrated from.
+     */
+    private static final Long CLOUD_SOURCE_COMPUTE_TIER_ID = 73320334249387L;
+
+    /**
+     * Source compute tier name being migrated from.
+     */
+    private static final String CLOUD_SOURCE_COMPUTE_TIER_NAME = "Standard_E2s_v3";
+
+    /**
+     * Destination compute tier id being migrated to.
+     */
+    private static final Long CLOUD_DESTINATION_COMPUTE_TIER_ID = 73320835643834L;
+
+    /**
+     * Destination compute tier name being migrated to.
+     */
+    private static final String CLOUD_DESTINATION_COMPUTE_TIER_NAME = "r5a.large";
+
+    /**
+     * Source storage tier id being migrated from.
+     */
+    private static final Long CLOUD_SOURCE_STORAGE_TIER_ID = 73320334249139L;
+
+    /**
+     * Source storage tier name being migrated from.
+     */
+    private static final String CLOUD_SOURCE_STORAGE_TIER_NAME = "MANAGED_PREMIUM";
+
+    /**
+     * Destination storage tier id being migrated to.
+     */
+    private static final Long CLOUD_DESTINATION_STORAGE_TIER_ID = 73320835644404L;
+
+    /**
+     * Destination storage tier name being migrated to.
+     */
+    private static final String CLOUD_DESTINATION_STORAGE_TIER_NAME = "GP2";
+
+    /**
+     * Azure source or destination region id for cloud migration.
+     */
+    private static final Long AZURE_REGION_ID = 73320334248977L;
+
+    /**
+     * Azure source or destination region name for cloud migration.
+     */
+    private static final String AZURE_REGION_NAME = "azure-East US";
+
+    /**
+     * AWS region id being migrated to.
+     */
+    private static final Long AWS_REGION_ID = 73320835643948L;
+
+    /**
+     * AWS region name being migrated to.
+     */
+    private static final String AWS_REGION_NAME = "aws-EU (Ireland)";
+
+    /**
+     * AWS zone id being migrated from.
+     */
+    private static final Long AWS_ZONE_ID = 73320835643859L;
+
+    /**
+     * AWS zone name being migrated from.
+     */
+    private static final String AWS_ZONE_NAME = "aws-us-east-1d";
+
+    /**
+     * ID of cloud volume (disk) that is being migrated.
+     */
+    private static final Long CLOUD_VOLUME_RESOURCE_ID = 73320335294657L;
+
+    /**
+     * Name of cloud volume (disk) that is being migrated.
+     */
+    private static final String CLOUD_VOLUME_RESOURCE_NAME =
+            "Enlin-Demo-VM_4ed76baa3016488f82f3027dd8adb53f";
+
     private ActionDTO.Action resizePortChannelRecommendation;
 
     private EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
-    // private EntitiesAndSettingsSnapshot entitySettingsCacheDetachedVolume = mock(EntitiesAndSettingsSnapshot.class);
 
     @Before
     public void setup() {
@@ -135,6 +316,10 @@ public class ActionDescriptionBuilderTest {
                 makeRec(makeMoveInfo(VM1_ID, COMPUTE_TIER_SOURCE_ID, EntityType.COMPUTE_TIER.getNumber(),
                     COMPUTE_TIER_DESTINATION_ID, EntityType.COMPUTE_TIER.getNumber()),
                         SupportLevel.SUPPORTED).build();
+        scaleTypeRecommendation =
+                makeRec(makeScaleInfo(VM1_ID, 0, 0, COMPUTE_TIER_SOURCE_ID,
+                        EntityType.COMPUTE_TIER.getNumber(), COMPUTE_TIER_DESTINATION_ID,
+                        EntityType.COMPUTE_TIER.getNumber()), SupportLevel.SUPPORTED).build();
         resizeRecommendation = makeRec(makeResizeInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         resizeMemRecommendation = makeRec(makeResizeMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         resizePortChannelRecommendation = makeRec(makeResizeInfo(SWITCH1_ID,
@@ -194,6 +379,117 @@ public class ActionDescriptionBuilderTest {
 
         allocateRecommendation = makeRec(makeAllocateInfo(VM1_ID, COMPUTE_TIER_SOURCE_ID),
                 SupportLevel.UNSUPPORTED).build();
+
+        // Cloud->Cloud compute move.
+        final ActionInfo.Builder cloudComputeMove = makeMoveInfo(AZURE_VM_ID,
+                CLOUD_SOURCE_COMPUTE_TIER_ID,
+                EntityType.COMPUTE_TIER_VALUE, CLOUD_DESTINATION_COMPUTE_TIER_ID,
+                EntityType.COMPUTE_TIER_VALUE);
+        cloudComputeMove.getMoveBuilder().addChanges(ChangeProvider.newBuilder()
+                .setSource(ActionEntity.newBuilder()
+                        .setId(AZURE_REGION_ID)
+                        .setType(EntityType.REGION_VALUE)
+                        .build())
+                .setDestination(ActionEntity.newBuilder()
+                        .setId(AWS_REGION_ID)
+                        .setType(EntityType.REGION_VALUE)
+                        .build())
+                .build());
+        cloudToCloudComputeMove = makeRec(cloudComputeMove, SupportLevel.SUPPORTED).build();
+        makeMockEntityCondition(AZURE_VM_ID, EntityType.VIRTUAL_MACHINE_VALUE, AZURE_VM_NAME);
+        makeMockEntityCondition(AZURE_REGION_ID, EntityType.REGION_VALUE, AZURE_REGION_NAME);
+        makeMockEntityCondition(AWS_REGION_ID, EntityType.REGION_VALUE, AWS_REGION_NAME);
+        makeMockEntityCondition(CLOUD_SOURCE_COMPUTE_TIER_ID, EntityType.COMPUTE_TIER_VALUE,
+                CLOUD_SOURCE_COMPUTE_TIER_NAME);
+        makeMockEntityCondition(CLOUD_DESTINATION_COMPUTE_TIER_ID, EntityType.COMPUTE_TIER_VALUE,
+                CLOUD_DESTINATION_COMPUTE_TIER_NAME);
+
+        // Cloud->Cloud storage move.
+        final ActionInfo.Builder cloudStorageMove = makeMoveInfo(AZURE_VM_ID,
+                CLOUD_VOLUME_RESOURCE_ID,
+                EntityType.VIRTUAL_VOLUME_VALUE,
+                CLOUD_SOURCE_STORAGE_TIER_ID,
+                EntityType.STORAGE_TIER_VALUE, CLOUD_DESTINATION_STORAGE_TIER_ID,
+                EntityType.STORAGE_TIER_VALUE);
+        cloudStorageMove.getMoveBuilder().addChanges(ChangeProvider.newBuilder()
+                .setSource(ActionEntity.newBuilder()
+                        .setId(AZURE_REGION_ID)
+                        .setType(EntityType.REGION_VALUE)
+                        .build())
+                .setDestination(ActionEntity.newBuilder()
+                        .setId(AWS_REGION_ID)
+                        .setType(EntityType.REGION_VALUE)
+                        .build())
+                .build());
+        makeMockEntityCondition(CLOUD_SOURCE_STORAGE_TIER_ID, EntityType.STORAGE_TIER_VALUE,
+                CLOUD_SOURCE_STORAGE_TIER_NAME);
+        makeMockEntityCondition(CLOUD_DESTINATION_STORAGE_TIER_ID, EntityType.STORAGE_TIER_VALUE,
+                CLOUD_DESTINATION_STORAGE_TIER_NAME);
+        makeMockEntityCondition(CLOUD_VOLUME_RESOURCE_ID, EntityType.VIRTUAL_VOLUME_VALUE,
+                CLOUD_VOLUME_RESOURCE_NAME);
+        cloudToCloudStorageMove = makeRec(cloudStorageMove, SupportLevel.SUPPORTED).build();
+
+        // onPrem->Cloud compute move.
+        final ActionInfo.Builder onPremComputeMove = makeMoveInfo(ON_PREM_VM_ID,
+                ON_PREM_SOURCE_PM_ID,
+                EntityType.PHYSICAL_MACHINE_VALUE, CLOUD_DESTINATION_COMPUTE_TIER_ID,
+                EntityType.COMPUTE_TIER_VALUE);
+        onPremComputeMove.getMoveBuilder().addChanges(ChangeProvider.newBuilder()
+                .setSource(ActionEntity.newBuilder()
+                        .setId(ON_PREM_SOURCE_PM_ID)
+                        .setType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .build())
+                .setDestination(ActionEntity.newBuilder()
+                        .setId(AWS_REGION_ID)
+                        .setType(EntityType.REGION_VALUE)
+                        .build())
+                .build());
+        onPremToCloudComputeMove = makeRec(onPremComputeMove, SupportLevel.SUPPORTED).build();
+        makeMockEntityCondition(ON_PREM_VM_ID, EntityType.VIRTUAL_MACHINE_VALUE, ON_PREM_VM_NAME);
+        makeMockEntityCondition(ON_PREM_SOURCE_PM_ID, EntityType.PHYSICAL_MACHINE_VALUE,
+                ON_PREM_SOURCE_PM_NAME);
+
+        // onPrem->Cloud storage move.
+        final ActionInfo.Builder onPremStorageMove = makeMoveInfo(ON_PREM_VM_ID,
+                ON_PREM_VOLUME_RESOURCE_ID,
+                EntityType.VIRTUAL_VOLUME_VALUE,
+                ON_PREM_SOURCE_STORAGE_ID,
+                EntityType.STORAGE_VALUE, CLOUD_DESTINATION_STORAGE_TIER_ID,
+                EntityType.STORAGE_TIER_VALUE);
+        onPremStorageMove.getMoveBuilder().addChanges(ChangeProvider.newBuilder()
+                .setSource(ActionEntity.newBuilder()
+                        .setId(ON_PREM_SOURCE_STORAGE_ID)
+                        .setType(EntityType.STORAGE_VALUE)
+                        .build())
+                .setDestination(ActionEntity.newBuilder()
+                        .setId(AWS_REGION_ID)
+                        .setType(EntityType.REGION_VALUE)
+                        .build())
+                .build());
+        onPremToCloudStorageMove = makeRec(onPremStorageMove, SupportLevel.SUPPORTED).build();
+        makeMockEntityCondition(ON_PREM_SOURCE_STORAGE_ID, EntityType.STORAGE_VALUE,
+                ON_PREM_SOURCE_STORAGE_NAME);
+        makeMockEntityCondition(ON_PREM_VOLUME_RESOURCE_ID, EntityType.VIRTUAL_VOLUME_VALUE,
+                ON_PREM_VOLUME_RESOURCE_NAME);
+
+        // Cloud zone (AWS) -> region (Azure) compute move.
+        final ActionInfo.Builder zoneToRegionMove = makeMoveInfo(AWS_VM_ID,
+                CLOUD_SOURCE_COMPUTE_TIER_ID,
+                EntityType.COMPUTE_TIER_VALUE, CLOUD_DESTINATION_COMPUTE_TIER_ID,
+                EntityType.COMPUTE_TIER_VALUE);
+        zoneToRegionMove.getMoveBuilder().addChanges(ChangeProvider.newBuilder()
+                .setSource(ActionEntity.newBuilder()
+                        .setId(AWS_ZONE_ID)
+                        .setType(EntityType.AVAILABILITY_ZONE_VALUE)
+                        .build())
+                .setDestination(ActionEntity.newBuilder()
+                        .setId(AZURE_REGION_ID)
+                        .setType(EntityType.REGION_VALUE)
+                        .build())
+                .build());
+        zoneToRegionComputeMove = makeRec(zoneToRegionMove, SupportLevel.SUPPORTED).build();
+        makeMockEntityCondition(AWS_VM_ID, EntityType.VIRTUAL_MACHINE_VALUE, AWS_VM_NAME);
+        makeMockEntityCondition(AWS_ZONE_ID, EntityType.AVAILABILITY_ZONE_VALUE, AWS_ZONE_NAME);
     }
 
     /**
@@ -467,6 +763,36 @@ public class ActionDescriptionBuilderTest {
             .build());
     }
 
+    private ActionInfo.Builder makeScaleInfo(
+            long targetId,
+            long resourceId,
+            int resourceType,
+            long sourceId,
+            int sourceType,
+            long destinationId,
+            int destinationType) {
+
+        final ChangeProvider.Builder changeBuilder = ChangeProvider.newBuilder()
+                .setSource(ActionEntity.newBuilder()
+                        .setId(sourceId)
+                        .setType(sourceType)
+                        .build())
+                .setDestination(ActionEntity.newBuilder()
+                        .setId(destinationId)
+                        .setType(destinationType)
+                        .build());
+        if (resourceId != 0 && resourceType != 0) {
+            changeBuilder.setResource(ActionEntity.newBuilder()
+                    .setType(resourceType)
+                    .setId(resourceId)
+                    .build());
+        }
+        return ActionInfo.newBuilder().setScale(Scale.newBuilder()
+                .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId))
+                .addChanges(changeBuilder.build())
+                .build());
+    }
+
     /**
      * Create a {@link ProvisionBySupplyExplanation}.
      *
@@ -562,7 +888,7 @@ public class ActionDescriptionBuilderTest {
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, moveRecommendation);
-        Assert.assertEquals(description, "Move Virtual Machine vm1_test from pm_source_test to pm_destination_test");
+        assertEquals(description, "Move Virtual Machine vm1_test from pm_source_test to pm_destination_test");
     }
 
     /**
@@ -590,7 +916,75 @@ public class ActionDescriptionBuilderTest {
 
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudStorageMoveRecommendation);
-        Assert.assertEquals("Move Virtual Volume vm1_test from storage_source_test to storage_destination_test", description);
+        assertEquals("Move Virtual Volume vm1_test from storage_source_test to storage_destination_test", description);
+    }
+
+    /**
+     * Tests updated descriptions for cloud migration moves (from onPrem and cloud).
+     *
+     * @throws UnsupportedActionException Thrown on action problems.
+     */
+    @Test
+    public void cloudMigrationMoveDescriptions() throws UnsupportedActionException {
+        // Cloud->Cloud compute move.
+        String actualDescription = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, cloudToCloudComputeMove);
+        String expectedDescription = String.format("Move Virtual Machine %s from %s to %s",
+                AZURE_VM_NAME, AZURE_REGION_NAME, AWS_REGION_NAME);
+        assertEquals(expectedDescription, actualDescription);
+
+        // Cloud->Cloud storage move.
+        actualDescription = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, cloudToCloudStorageMove);
+        expectedDescription = String.format("Move Virtual Volume %s from %s to %s",
+                CLOUD_VOLUME_RESOURCE_NAME, AZURE_REGION_NAME, AWS_REGION_NAME);
+        assertEquals(expectedDescription, actualDescription);
+
+        // onPrem->Cloud compute move.
+        actualDescription = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, onPremToCloudComputeMove);
+        expectedDescription = String.format("Move Virtual Machine %s from %s to %s",
+                ON_PREM_VM_NAME, ON_PREM_SOURCE_PM_NAME, AWS_REGION_NAME);
+        assertEquals(expectedDescription, actualDescription);
+
+        // onPrem->Cloud storage move.
+        actualDescription = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, onPremToCloudStorageMove);
+        expectedDescription = String.format("Move Virtual Volume %s from %s to %s",
+                ON_PREM_VOLUME_RESOURCE_NAME, ON_PREM_SOURCE_STORAGE_NAME, AWS_REGION_NAME);
+        assertEquals(expectedDescription, actualDescription);
+
+        // AWS zone to Azure region compute move.
+        actualDescription = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, zoneToRegionComputeMove);
+        expectedDescription = String.format("Move Virtual Machine %s from %s to %s",
+                AWS_VM_NAME, AWS_ZONE_NAME, AZURE_REGION_NAME);
+        assertEquals(expectedDescription, actualDescription);
+
+        // same region scale.
+        makeMockEntityCondition(VM1_ID, EntityType.VIRTUAL_MACHINE_VALUE, AWS_VM_NAME);
+        makeMockEntityCondition(COMPUTE_TIER_SOURCE_ID, EntityType.COMPUTE_TIER.getNumber(),
+                COMPUTE_TIER_SOURCE_DISPLAY_NAME);
+        makeMockEntityCondition(COMPUTE_TIER_DESTINATION_ID, EntityType.COMPUTE_TIER.getNumber(),
+                COMPUTE_TIER_DESTINATION_DISPLAY_NAME);
+        actualDescription = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, scaleTypeRecommendation);
+        expectedDescription = String.format("Scale Virtual Machine %s from %s to %s",
+                AWS_VM_NAME, COMPUTE_TIER_SOURCE_DISPLAY_NAME, COMPUTE_TIER_DESTINATION_DISPLAY_NAME);
+        assertEquals(expectedDescription, actualDescription);
+    }
+
+    /**
+     * Convenience method to add mock condition for entity id -> name mapping.
+     *
+     * @param entityId Id of entity.
+     * @param entityType Type of entity.
+     * @param entityName Display name of entity that shows up in action description.
+     */
+    private void makeMockEntityCondition(@Nonnull Long entityId, int entityType,
+            @Nonnull String entityName) {
+        when(entitySettingsCache.getEntityFromOid(eq(entityId)))
+                .thenReturn((createEntity(entityId, entityType, entityName)));
     }
 
     /**
@@ -617,7 +1011,7 @@ public class ActionDescriptionBuilderTest {
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, scaleRecommendation);
-        Assert.assertEquals("Scale Virtual Machine vm1_test from tier_t1 to tier_t2", description);
+        assertEquals("Scale Virtual Machine vm1_test from tier_t1 to tier_t2", description);
     }
 
     /**
@@ -638,9 +1032,8 @@ public class ActionDescriptionBuilderTest {
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, reconfigureReasonCommoditiesRecommendation);
-        Assert.assertEquals(description, "Reconfigure Virtual Machine vm1_test which requires " +
-            "Ballooning, CPU Allocation but is hosted by Physical Machine pm_source_test which " +
-            "does not provide Ballooning, CPU Allocation");
+        assertEquals(description, "Reconfigure Virtual Machine vm1_test to provide "
+            + "Ballooning, CPU Allocation");
     }
 
     /**
@@ -661,7 +1054,7 @@ public class ActionDescriptionBuilderTest {
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, reconfigureReasonSettingsRecommendation);
-        Assert.assertEquals(description, "Reconfigure Virtual Machine vm1_test");
+        assertEquals(description, "Reconfigure Virtual Machine vm1_test");
     }
 
     /**
@@ -677,7 +1070,7 @@ public class ActionDescriptionBuilderTest {
 
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, reconfigureWithoutSourceRecommendation);
-        Assert.assertEquals(description, "Reconfigure Virtual Machine vm1_test as it is unplaced");
+        assertEquals(description, "Reconfigure Virtual Machine vm1_test as it is unplaced");
     }
 
     @Test
@@ -690,7 +1083,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
                                                      entitySettingsCache, resizeRecommendation);
 
-        Assert.assertEquals(description, "Resize up VCPU for Virtual Machine vm1_test from 10 to 20");
+        assertEquals(description, "Resize up VCPU for Virtual Machine vm1_test from 10 to 20");
     }
 
     @Test
@@ -703,7 +1096,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeMemRecommendation);
 
-        Assert.assertEquals(description, "Resize down Mem for Virtual Machine vm1_test from 16.0 GB to 8.0 GB");
+        assertEquals(description, "Resize down Mem for Virtual Machine vm1_test from 16.0 GB to 8.0 GB");
     }
 
     /**
@@ -720,7 +1113,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVStorageRecommendation);
 
-        Assert.assertEquals("Resize up VStorage for Virtual Machine vm1_test from 2.0 GB to 3.9 GB", description);
+        assertEquals("Resize up VStorage for Virtual Machine vm1_test from 2.0 GB to 3.9 GB", description);
     }
 
     /**
@@ -736,7 +1129,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, resizeMemReservationRecommendation);
 
-        Assert.assertEquals(description,
+        assertEquals(description,
                 "Resize down Mem reservation for Virtual Machine vm1_test from 16.0 GB to 8.0 GB");
     }
 
@@ -753,7 +1146,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVcpuRecommendationForVM);
 
-        Assert.assertEquals(description,
+        assertEquals(description,
             "Resize down VCPU for Virtual Machine vm1_test from 16 to 8");
     }
 
@@ -771,7 +1164,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVcpuReservationRecommendationForVM);
 
-        Assert.assertEquals(description,
+        assertEquals(description,
             "Resize down VCPU reservation for Virtual Machine vm1_test from 16 to 8");
     }
 
@@ -789,7 +1182,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVcpuRecommendationForContainer);
 
-        Assert.assertEquals(description,
+        assertEquals(description,
             "Resize down VCPU for Container container1_test from 16 MHz to 8 MHz");
     }
 
@@ -807,7 +1200,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVcpuReservationRecommendationForContainer);
 
-        Assert.assertEquals(description,
+        assertEquals(description,
             "Resize down VCPU reservation for Container container1_test from 16 MHz to 8 MHz");
     }
 
@@ -827,7 +1220,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVemRequestRecommendationForContainer);
 
-        Assert.assertEquals(description,
+        assertEquals(description,
             "Resize down VMem Request for Container container1_test from 3.1 MB to 2.1 MB");
     }
 
@@ -845,7 +1238,7 @@ public class ActionDescriptionBuilderTest {
                 SupportLevel.SUPPORTED).build();
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, resizeDBMem);
-        Assert.assertEquals(description,
+        assertEquals(description,
                 "Resize down DB Mem for Database Server sqlServer1 from 15.1 GB to 5.9 GB");
     }
 
@@ -867,7 +1260,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
                         entitySettingsCache, resizeStorageAmountRecommendationForVSanStorageUp);
 
-        Assert.assertEquals("Resize up Storage Amount for Storage vsan_storage from 50.0 GB to 75.0 GB",
+        assertEquals("Resize up Storage Amount for Storage vsan_storage from 50.0 GB to 75.0 GB",
                         description);
     }
 
@@ -889,7 +1282,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
                         entitySettingsCache, resizeStorageAmountRecommendationForVSanStorageDown);
 
-        Assert.assertEquals("Resize down Storage Amount for Storage vsan_storage from 75.0 GB to 50.0 GB",
+        assertEquals("Resize down Storage Amount for Storage vsan_storage from 75.0 GB to 50.0 GB",
                         description);
     }
 
@@ -903,7 +1296,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, deactivateRecommendation);
 
-        Assert.assertEquals(description, "Suspend Virtual Machine vm1_test");
+        assertEquals(description, "Suspend Virtual Machine vm1_test");
     }
 
     @Test
@@ -916,7 +1309,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, activateRecommendation);
 
-        Assert.assertEquals(description, "Start Virtual Machine vm1_test due to increased demand for resources");
+        assertEquals(description, "Start Virtual Machine vm1_test due to increased demand for resources");
     }
 
     /**
@@ -932,7 +1325,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, provisionBySupplyRecommendation);
 
-        Assert.assertEquals("Provision Storage similar to storage_source_test", description);
+        assertEquals("Provision Storage similar to storage_source_test", description);
     }
 
     /**
@@ -952,7 +1345,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, provisionByDemandRecommendation);
 
-        Assert.assertEquals(description,
+        assertEquals(description,
             "Provision Physical Machine similar to pm_source_test with scaled up Mem due to vm1_test");
     }
 
@@ -985,7 +1378,7 @@ public class ActionDescriptionBuilderTest {
                         .append(VSAN_PM_DISPLAY_NAME)
                         .append(" to scale Storage ").append(VSAN_STORAGE_DISPLAY_NAME)
                         .toString();
-        Assert.assertEquals(expected, description);
+        assertEquals(expected, description);
     }
 
     /**
@@ -1001,7 +1394,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizePortChannelRecommendation);
 
-        Assert.assertEquals("Resize up Port Channel 10.0.100.132:sys/switch-A/sys/chassis-1/slot-1 for Switch switch1_test from 1,000 to 2,000", description);
+        assertEquals("Resize up Port Channel 10.0.100.132:sys/switch-A/sys/chassis-1/slot-1 for Switch switch1_test from 1,000 to 2,000", description);
     }
 
     @Test
@@ -1014,7 +1407,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, deleteRecommendation);
 
-        Assert.assertEquals(description, "Delete wasted file 'filename.test' from Storage storage_source_test to free up 0 bytes");
+        assertEquals(description, "Delete wasted file 'filename.test' from Storage storage_source_test to free up 0 bytes");
     }
 
     @Test
@@ -1035,7 +1428,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, deleteCloudStorageRecommendation);
 
-        Assert.assertEquals(description, "Delete Unattached storage_source_test Volume volume_display_name");
+        assertEquals(description, "Delete Unattached storage_source_test Volume volume_display_name");
     }
 
     @Test
@@ -1061,7 +1454,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, deleteCloudStorageRecommendation);
 
-        Assert.assertEquals(description, "Delete Unattached storage_source_test Volume volume_display_name from business_account_name");
+        assertEquals(description, "Delete Unattached storage_source_test Volume volume_display_name from business_account_name");
     }
 
     /**
@@ -1088,7 +1481,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, deleteCloudStorageRecommendation);
 
-        Assert.assertEquals(description, "Delete Unattached  Volume volume_display_name from business_account_name");
+        assertEquals(description, "Delete Unattached  Volume volume_display_name from business_account_name");
     }
 
     /**
@@ -1113,7 +1506,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, deleteCloudStorageRecommendationWithNoSourceEntity);
 
-        Assert.assertEquals(description, "Delete Unattached  Volume volume_display_name from business_account_name");
+        assertEquals(description, "Delete Unattached  Volume volume_display_name from business_account_name");
     }
 
     @Test
@@ -1134,7 +1527,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, buyRIRecommendation);
 
-        Assert.assertEquals(description, "Buy 0 tier_t1 RIs for my.super.account in Manhattan");
+        assertEquals(description, "Buy 0 tier_t1 RIs for my.super.account in Manhattan");
     }
 
     /**
@@ -1160,7 +1553,7 @@ public class ActionDescriptionBuilderTest {
 
         final String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, allocateRecommendation);
-        Assert.assertEquals(description,
+        assertEquals(description,
                 "Increase RI coverage for Virtual Machine vm1_test in Development");
     }
 
@@ -1182,8 +1575,74 @@ public class ActionDescriptionBuilderTest {
 
         final String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, allocateRecommendation);
-        Assert.assertEquals(description,
+        assertEquals(description,
                 "Increase RI coverage for Virtual Machine vm1_test in ");
+    }
+
+    /**
+     * Test atomic resize description.
+     *
+     * @throws UnsupportedActionException  In case of unsupported action type.
+     */
+    @Test
+    public void testAtomicResizeDescription() throws UnsupportedActionException {
+        final ActionDTO.Action.Builder atomicAction = ActionDTO.Action.newBuilder()
+                .setId(0).setDeprecatedImportance(0)
+                .setInfo(ActionInfo.newBuilder()
+                        .setAtomicResize(AtomicResize.newBuilder()
+                                .setExecutionTarget(ActionEntity.newBuilder()
+                                        .setId(CONTROLLER1_ID)
+                                        .setType(EntityType.WORKLOAD_CONTROLLER_VALUE))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(CONTAINER_SPEC1_ID)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(123).setNewCapacity(456))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(CONTAINER_SPEC1_ID)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(890).setNewCapacity(567))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(CONTAINER_SPEC2_ID)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_REQUEST_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(890).setNewCapacity(567))
+                                .addResizes(ResizeInfo.newBuilder()
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(CONTAINER_SPEC2_ID)
+                                                .setType(EntityType.CONTAINER_SPEC_VALUE))
+                                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_REQUEST_VALUE))
+                                        .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                                        .setOldCapacity(123).setNewCapacity(456))))
+                .setExplanation(Explanation.newBuilder()
+                        .setAtomicResize(AtomicResizeExplanation.newBuilder()
+                                .setMergeGroupId("bar")));
+
+        when(entitySettingsCache.getEntityFromOid(eq(CONTROLLER1_ID)))
+                .thenReturn((createEntity(CONTROLLER1_ID,
+                        EntityType.WORKLOAD_CONTROLLER_VALUE, CONTROLLER1_DISPLAY_NAME)));
+        when(entitySettingsCache.getEntityFromOid(eq(CONTAINER_SPEC1_ID)))
+                .thenReturn((createEntity(CONTAINER_SPEC1_ID,
+                        EntityType.CONTAINER_SPEC_VALUE, SPEC1_DISPLAY_NAME)));
+        when(entitySettingsCache.getEntityFromOid(eq(CONTAINER_SPEC2_ID)))
+                .thenReturn((createEntity(CONTAINER_SPEC2_ID,
+                        EntityType.CONTAINER_SPEC_VALUE, SPEC2_DISPLAY_NAME)));
+
+        final String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, atomicAction.build());
+        assertTrue(description.startsWith("Resize"));
+        assertTrue(description.contains("VCPU Request")
+                        && description.contains("VMem Request")
+                        && description.contains("VCPU Limit")
+                        && description.contains("VMem Limit"));
+        assertTrue(description.endsWith("Workload Controller controller1_test"));
     }
 
     /**
@@ -1191,11 +1650,11 @@ public class ActionDescriptionBuilderTest {
      */
     @Test
     public void testGetHumanReadableSize() {
-        Assert.assertEquals("1023 Bytes", ActionDescriptionBuilder.getHumanReadableSize(1023L));
-        Assert.assertEquals("1.8 KB", ActionDescriptionBuilder.getHumanReadableSize(1800L));
-        Assert.assertEquals("6.7 MB", ActionDescriptionBuilder.getHumanReadableSize(7000000L));
-        Assert.assertEquals("372.5 GB", ActionDescriptionBuilder.getHumanReadableSize(400000000000L));
-        Assert.assertEquals("1.4 TB", ActionDescriptionBuilder.getHumanReadableSize(1500000000000L));
-        Assert.assertEquals("8.0 EB", ActionDescriptionBuilder.getHumanReadableSize(Long.MAX_VALUE));
+        assertEquals("1023 Bytes", ActionDescriptionBuilder.getHumanReadableSize(1023L));
+        assertEquals("1.8 KB", ActionDescriptionBuilder.getHumanReadableSize(1800L));
+        assertEquals("6.7 MB", ActionDescriptionBuilder.getHumanReadableSize(7000000L));
+        assertEquals("372.5 GB", ActionDescriptionBuilder.getHumanReadableSize(400000000000L));
+        assertEquals("1.4 TB", ActionDescriptionBuilder.getHumanReadableSize(1500000000000L));
+        assertEquals("8.0 EB", ActionDescriptionBuilder.getHumanReadableSize(Long.MAX_VALUE));
     }
 }

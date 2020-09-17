@@ -6,10 +6,12 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 
 /**
- * Interface to create Atomic action DTOs from a group of actions.
+ * Interface to de-duplicate and merge the market actions to {@link AggregatedAction} that will
+ * be used to create the action DTOs for the atomic actions.
+ * AtomicActionMerger will create AggregatedAction objects when a new action plan is received
+ * by the Action Orchestrator.
  */
 public interface AtomicActionMerger {
 
@@ -21,10 +23,14 @@ public interface AtomicActionMerger {
     boolean appliesTo(@Nonnull ActionDTO.Action action);
 
     /**
-     * Create a new atomic ActionDTO from a group of actions.
+     * Create {@link AggregatedAction}'s from a group of market recommended actions.
+     * Each AggregatedAction will be executed by a single aggregation entity that controls
+     * the target entities of the original market actions.
      *
-     * @param actionsToMerge    actions that will be merged to create a new Atomic action
-     * @return Map of atomic actions and the list of actions that were merged for that atomic action
+     * @param actionsToMerge  actions that will be merged to create a new Atomic action
+     * @return Map of OID of the aggregation target and the AggregatedAction.
+     *          AggregatedAction will be used to create the atomic action that
+     *          will be executed by the aggregation target.
      */
-    Map<Action.Builder, List<Action>> merge(@Nonnull List<ActionDTO.Action> actionsToMerge);
+    Map<Long, AggregatedAction> mergeActions(@Nonnull List<ActionDTO.Action> actionsToMerge);
 }

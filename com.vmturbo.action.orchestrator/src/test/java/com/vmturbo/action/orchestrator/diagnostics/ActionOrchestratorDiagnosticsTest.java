@@ -31,7 +31,6 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.CannotExecuteEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
@@ -105,7 +104,6 @@ public class ActionOrchestratorDiagnosticsTest {
         testSingleAction(action -> {
             action.receive(new ManualAcceptanceEvent("0", 1));
             action.receive(new QueuedEvent());
-            action.receive(new PrepareExecutionEvent());
             action.receive(new BeginExecutionEvent());
         });
     }
@@ -125,7 +123,6 @@ public class ActionOrchestratorDiagnosticsTest {
         testSingleAction(action -> {
             action.receive(new ManualAcceptanceEvent("0", 1L));
             action.receive(new QueuedEvent());
-            action.receive(new PrepareExecutionEvent());
             action.receive(new BeginExecutionEvent());
             action.receive(new SuccessEvent());
         });
@@ -136,7 +133,6 @@ public class ActionOrchestratorDiagnosticsTest {
         testSingleAction(action -> {
             action.receive(new ManualAcceptanceEvent("0", 1L));
             action.receive(new QueuedEvent());
-            action.receive(new PrepareExecutionEvent());
             action.receive(new BeginExecutionEvent());
             action.receive(new FailureEvent("It was a trap!"));
         });
@@ -147,7 +143,6 @@ public class ActionOrchestratorDiagnosticsTest {
         testSingleAction(action -> {
             action.receive(new ManualAcceptanceEvent("0", 1L));
             action.receive(new QueuedEvent());
-            action.receive(new PrepareExecutionEvent());
             action.receive(new BeginExecutionEvent());
             action.receive(new ProgressEvent(10, "Star date 20184..."));
         });
@@ -307,6 +302,6 @@ public class ActionOrchestratorDiagnosticsTest {
         final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
         Mockito.verify(appender).appendString(diags.capture());
 
-        diagnostics.restoreDiags(diags.getAllValues());
+        diagnostics.restoreDiags(diags.getAllValues(), null);
     }
 }

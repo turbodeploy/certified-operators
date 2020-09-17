@@ -43,7 +43,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
-import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -91,11 +90,11 @@ public class ActionDTOUtil {
     public static final Pattern TRANSLATION_PATTERN = Pattern.compile(TRANSLATION_REGEX);
 
     private static final Set<Integer> PRIMARY_TIER_VALUES = ImmutableSet.of(
-        EntityType.COMPUTE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
-        EntityType.DATABASE_TIER_VALUE);
+            EntityType.COMPUTE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
+            EntityType.STORAGE_TIER_VALUE, EntityType.DATABASE_TIER_VALUE);
 
     // String constant for displayName.
-    private static final String DISPLAY_NAME = "displayName";
+    public static final String DISPLAY_NAME = "displayName";
 
     private ActionDTOUtil() {}
 
@@ -298,8 +297,9 @@ public class ActionDTOUtil {
     }
 
     /**
-     * If a move action has a volume as resource and is from one storage tier to another, the
-     * resource volume should be treated as the target of the action.
+     * If a move action has a volume as resource and it is moving from one storage tier to another
+     * or it is moving a storage from on-prem to cloud, the volume should be treated as the target
+     * of the action.
      *
      * @param actionInfo action info to be assessed
      * @return the entity that should be treated as its target
@@ -310,7 +310,8 @@ public class ActionDTOUtil {
             if (primaryChangeProvider.hasSource()
                 && primaryChangeProvider.hasDestination()
                 && primaryChangeProvider.hasResource()
-                && TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getSource().getType())
+                && (TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getSource().getType())
+                    || EntityType.STORAGE_VALUE == primaryChangeProvider.getSource().getType())
                 && TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getDestination().getType())
                 && TopologyDTOUtil.isStorageEntityType(primaryChangeProvider.getSource().getType())
                 && TopologyDTOUtil.isStorageEntityType(primaryChangeProvider.getDestination().getType())) {
@@ -448,11 +449,6 @@ public class ActionDTOUtil {
             case ATOMICRESIZE:
                 final List<ActionEntity> atomicResizeEntities = new ArrayList<>();
                 atomicResizeEntities.add(getPrimaryEntity(action));
-                for (ResizeInfo resize : action.getInfo().getAtomicResize().getResizesList()) {
-                    if (resize.hasTarget()) {
-                        atomicResizeEntities.add(resize.getTarget());
-                    }
-                }
                 return atomicResizeEntities;
             case RESIZE:
             case ACTIVATE:
@@ -787,7 +783,9 @@ public class ActionDTOUtil {
      * @return true if the entity type is a primary entity type. false otherwise.
      */
     public static boolean isPrimaryEntityType(int entityType) {
-        return entityType == EntityType.PHYSICAL_MACHINE_VALUE || PRIMARY_TIER_VALUES.contains(entityType);
+        return entityType == EntityType.PHYSICAL_MACHINE_VALUE
+                || entityType == EntityType.VIRTUAL_VOLUME_VALUE
+                || PRIMARY_TIER_VALUES.contains(entityType);
     }
 
     /**
@@ -912,6 +910,24 @@ public class ActionDTOUtil {
     }
 
     /**
+     * Gets the display name of the commodity found in atomic resize action.
+     * The VCPU and VMem commodities are tagged with 'Limit' to distinguish them from the
+     * VCPU and VMeme request commodities.
+     *
+     * @param commType {@link CommodityType}
+     * @return commodity display name
+     */
+    public static String getAtomicResizeCommodityDisplayName(@Nonnull TopologyDTO.CommodityType commType) {
+        String commodityDisplayName = getCommodityDisplayName(commType);
+
+        if (commType.getType() == CommodityDTO.CommodityType.VCPU_VALUE
+                || commType.getType() == CommodityDTO.CommodityType.VMEM_VALUE) {
+            commodityDisplayName += " " + "Limit";
+        }
+        return commodityDisplayName;
+    }
+
+    /**
      * Convert a string from UPPER_UNDERSCORE format to Mixed Spaces format. e.g.:
      *
      *      I_AM_A_CONSTANT ==> I Am A Constant
@@ -1009,13 +1025,23 @@ public class ActionDTOUtil {
      * "beautify" methods. We seem to create a lot of singleton lists just for the purpose of calling
      * the list-based version of this method when really it's not needed at all.
      *
-     * @param commodityType
+     * @param commodityType {@link TopologyDTO.CommodityType}
      * @return
      */
     public static String beautifyCommodityType(@Nonnull final TopologyDTO.CommodityType commodityType) {
         return getCommodityDisplayName(commodityType);
     }
 
+    /**
+     * Convert the commodity type to a readable commodity name that are used to construct
+     * explanation and descriptions for atomic actions.
+     *
+     * @param commodityType {@link TopologyDTO.CommodityType}
+     * @return commodity string
+     */
+    public static String beautifyAtomicActionsCommodityType(@Nonnull final TopologyDTO.CommodityType commodityType) {
+        return getAtomicResizeCommodityDisplayName(commodityType);
+    }
 
     /**
      * Returns the entity type and entity name in a nicely formatted way separated by a space.

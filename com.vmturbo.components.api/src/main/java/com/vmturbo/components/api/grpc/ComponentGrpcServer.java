@@ -304,7 +304,7 @@ public class ComponentGrpcServer implements ServerStartedListener {
             .build();
 
         if (useInProcess()) {
-            logger.info("Creating in-process channel to {} maxInboundMessageSize:{} bytes", maxMessageSize);
+            logger.debug("Creating in-process channel to {} maxInboundMessageSize:{} bytes", maxMessageSize);
             return InProcessChannelBuilder.forName(LOCAL_SERVER_NAME)
                 .maxInboundMessageSize(maxMessageSize)
                 .intercept(clientTracingInterceptor);

@@ -6,12 +6,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -27,8 +29,10 @@ import java.util.stream.Stream;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
 import org.hamcrest.Matchers;
@@ -36,7 +40,9 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.ArgumentMatcher;
 
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -45,6 +51,8 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.MigrationReference;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -52,6 +60,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
@@ -62,13 +71,16 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.common.dto.CommonDTOREST;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.processor.group.GroupResolutionException;
+import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 /**
  * Unit tests for {@link ScenarioChange}.
@@ -97,7 +109,7 @@ public class TopologyEditorTest {
         .setType(CommodityDTO.CommodityType.VMEM_VALUE).build();
     private static final CommodityType VMPM = CommodityType.newBuilder()
         .setType(CommodityDTO.CommodityType.VMPM_ACCESS_VALUE).build();
-
+    private TopologyPipelineContext context;
     private static final TopologyEntity.Builder vm = TopologyEntityUtils.topologyEntityBuilder(
         TopologyEntityDTO.newBuilder()
             .setOid(vmId)
@@ -264,12 +276,250 @@ public class TopologyEditorTest {
             .setTopologyType(TopologyType.PLAN)
             .build();
 
+    /**
+     * How many times is the dummy clone id to be compared to the entity id.
+     */
+    private static final long CLONE_ID_MULTIPLIER = 100;
+
     @Before
     public void setup() {
         when(identityProvider.getCloneId(any(TopologyEntityDTO.class)))
             .thenAnswer(invocation -> cloneId++);
-        topologyEditor = new TopologyEditor(identityProvider, templateConverterFactory,
+        context = new TopologyPipelineContext(groupResolver, topologyInfo,
+                mock(ConsistentScalingManager.class));
+        topologyEditor = new TopologyEditor(identityProvider,
+                templateConverterFactory,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+    }
+
+    /**
+     * Tests expandAndFlattenReferences in the context of an empty cluster. Verifies that an empty
+     * cluster resolves to an empty OID set, as opposed to all OIDs in the {@link TopologyGraph}.
+     *
+     * @throws Exception If {@link GroupResolver} fails to resolve a group
+     */
+    @Test
+    public void testResolveEmptyCluster() throws Exception {
+        final long clusterOid = 1L;
+        final List<MigrationReference> clusters = Lists.newArrayList(
+                MigrationReference.newBuilder()
+                        .setGroupType(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER_VALUE)
+                        .setOid(clusterOid)
+                        .build());
+
+        final Grouping emptyCluster = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder().setStaticGroupMembers(
+                        GroupDTO.StaticMembers.getDefaultInstance()).build())
+                .setId(clusterOid)
+                .build();
+        when(groupResolver.resolve(eq(emptyCluster), isA(TopologyGraph.class)))
+                .thenReturn(emptyResolvedGroup(emptyCluster, ApiEntityType.PHYSICAL_MACHINE));
+
+        final Map<Long, Grouping> groupIdToGroupMap = new HashMap<Long, Grouping>() {{
+            put(clusterOid, emptyCluster);
+        }};
+        final TopologyEntity.Builder pmEntity = TopologyEntityUtils
+                .topologyEntity(pmId, 0, 0, "PM", EntityType.PHYSICAL_MACHINE);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(pmEntity);
+        final Set<Long> migratingEntities = topologyEditor.expandAndFlattenReferences(
+                clusters,
+                EntityType.VIRTUAL_MACHINE_VALUE,
+                groupIdToGroupMap,
+                groupResolver,
+                graph);
+
+        assertTrue(migratingEntities.isEmpty());
+    }
+
+    /**
+     * Test migrating entities in a plan.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    //@Test
+    // TODO: Fix this later.
+    public void testTopologyMigrationVMClone() throws Exception {
+        final long migrationSourceGroupId = 1000;
+        final long migrationDestinationGroupId = 2000;
+        final MigrationReference migrationSourceGroup = MigrationReference.newBuilder()
+                .setOid(migrationSourceGroupId)
+                .setGroupType(CommonDTOREST.GroupDTO.GroupType.REGULAR.getValue()).build();
+        final MigrationReference migrationDestinationGroup = MigrationReference.newBuilder()
+                .setOid(migrationDestinationGroupId)
+                .setGroupType(CommonDTOREST.GroupDTO.GroupType.REGULAR.getValue()).build();
+
+        final long pmId = 2;
+        final long pmCloneId = pmId * CLONE_ID_MULTIPLIER;
+        final long vmId = 3;
+        final long vmCloneId = vmId * CLONE_ID_MULTIPLIER;
+        final ScenarioChange migrateVm = ScenarioChange.newBuilder()
+                .setTopologyMigration(TopologyMigration.newBuilder()
+                        .addSource(migrationSourceGroup)
+                        .addDestination(migrationDestinationGroup)
+                        .setDestinationEntityType(TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)
+                        .build())
+                .build();
+
+        final Grouping sourceGroup = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder().setStaticGroupMembers(
+                        GroupDTO.StaticMembers.newBuilder().addMembersByType(
+                                GroupDTO.StaticMembers.StaticMembersByType.newBuilder().addMembers(vmId).build()
+                        ).build()
+                ))
+                .setId(migrationSourceGroupId)
+                .build();
+        final long regionId = 11;
+        final Grouping destinationGroup = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder().setStaticGroupMembers(
+                        GroupDTO.StaticMembers.newBuilder().addMembersByType(
+                                GroupDTO.StaticMembers.StaticMembersByType.newBuilder().addMembers(regionId).build()
+                        ).build()
+                ))
+                .setId(migrationDestinationGroupId)
+                .build();
+        final TopologyEntity.Builder pmEntity = TopologyEntityUtils
+                .topologyEntity(pmId, 0, 0, "PM", EntityType.PHYSICAL_MACHINE);
+        // Volumes/Storages
+        final long vv1Id = 4;
+        final long vv1CloneId = vv1Id * CLONE_ID_MULTIPLIER;
+        final long s1Id = 5;
+        final long s1CloneId = s1Id * CLONE_ID_MULTIPLIER;
+        final long vv2Id = 6;
+        final long vv2CloneId = vv2Id * CLONE_ID_MULTIPLIER;
+        final long s2Id = 7;
+        final long s2CloneId = s2Id * CLONE_ID_MULTIPLIER;
+        final TopologyEntity.Builder storageEntity1 = TopologyEntityUtils
+                .topologyEntity(s1Id, 0, 0, "S1", EntityType.STORAGE);
+        final TopologyEntity.Builder volumeEntity1 = TopologyEntityUtils
+                .topologyEntity(vv1Id, 0, 0, "VV1", EntityType.VIRTUAL_VOLUME, s1Id);
+        final TopologyEntity.Builder storageEntity2 = TopologyEntityUtils
+                .topologyEntity(s2Id, 0, 0, "S2", EntityType.STORAGE);
+        final TopologyEntity.Builder volumeEntity2 = TopologyEntityUtils
+                .topologyEntity(vv2Id, 0, 0, "VV2", EntityType.VIRTUAL_VOLUME, s2Id);
+        final TopologyEntity.Builder vmEntity = TopologyEntityUtils
+                .topologyEntity(vmId, 0, 0, "VM", EntityType.VIRTUAL_MACHINE, pmId, vv1Id, vv2Id);
+        vmEntity.addProvider(pmEntity);
+
+        // region connected VM
+        final long vmToRemoveFromTargetRegionId = 8;
+        final TopologyEntity.Builder regionConnectedEntityToRemove = TopologyEntityUtils
+                .topologyEntity(vmToRemoveFromTargetRegionId, 0, 0, "regionVM", EntityType.VIRTUAL_MACHINE);
+        ConnectedEntity regionConnectedEntity = ConnectedEntity.newBuilder()
+                .setConnectedEntityId(regionId)
+                .setConnectedEntityType(EntityType.REGION_VALUE)
+                .setConnectionType(ConnectedEntity.ConnectionType.AGGREGATED_BY_CONNECTION)
+                .build();
+        regionConnectedEntityToRemove.getEntityBuilder().addConnectedEntityList(regionConnectedEntity);
+
+        final long zoneId = 9;
+        final TopologyEntity.Builder zone = TopologyEntityUtils
+                .topologyEntity(zoneId, 0, 0, "zone", EntityType.AVAILABILITY_ZONE);
+
+        final long vmToRemoveFromZoneId = 10;
+        final TopologyEntity.Builder zoneConnectedEntityToRemove = TopologyEntityUtils
+                .topologyEntity(vmToRemoveFromZoneId, 0, 0, "zoneVM", EntityType.VIRTUAL_MACHINE);
+        ConnectedEntity zoneConnectedEntityAggregatedBy = ConnectedEntity.newBuilder()
+                .setConnectedEntityId(zoneId)
+                .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                .setConnectionType(ConnectedEntity.ConnectionType.AGGREGATED_BY_CONNECTION)
+                .build();
+        zoneConnectedEntityToRemove.getEntityBuilder().addConnectedEntityList(zoneConnectedEntityAggregatedBy);
+
+        ConnectedEntity zoneConnectedEntityOwns = ConnectedEntity.newBuilder()
+                .setConnectedEntityId(zoneId)
+                .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                .setConnectionType(ConnectedEntity.ConnectionType.OWNS_CONNECTION)
+                .build();
+
+
+        final TopologyEntity.Builder region = TopologyEntityUtils
+                .topologyEntity(regionId, 0, 0, "region", EntityType.REGION);
+        region.getEntityBuilder().addConnectedEntityList(zoneConnectedEntityOwns);
+
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
+        topology.put(pmId, pmEntity);
+        topology.put(vmId, vmEntity);
+        topology.put(vv1Id, volumeEntity1);
+        topology.put(s1Id, storageEntity1);
+        topology.put(vv2Id, volumeEntity2);
+        topology.put(s2Id, storageEntity2);
+
+        topology.put(regionId, region);
+        topology.put(zoneId, zone);
+        topology.put(vmToRemoveFromTargetRegionId, regionConnectedEntityToRemove);
+        topology.put(vmToRemoveFromZoneId, zoneConnectedEntityToRemove);
+
+        when(groupServiceSpy.getGroups(any())).thenReturn(Lists.newArrayList(sourceGroup, destinationGroup));
+        when(groupResolver.resolve(eq(sourceGroup), isA(TopologyGraph.class)))
+                .thenReturn(resolvedGroup(sourceGroup, ApiEntityType.VIRTUAL_MACHINE, vmId));
+        when(groupResolver.resolve(eq(destinationGroup), isA(TopologyGraph.class)))
+                .thenReturn(resolvedGroup(destinationGroup, ApiEntityType.REGION, regionId));
+        // Make sure the right clone id is returned when a specific entity build is being cloned.
+        ImmutableSet.of(vmCloneId, pmCloneId, vv1CloneId, s1CloneId, vv2CloneId, s2CloneId)
+                .forEach(cloneId -> {
+                    when(identityProvider.getCloneId(argThat(new EntityDtoMatcher(cloneId))))
+                            .thenReturn(cloneId);
+                });
+
+        assertEquals(10, topology.size());
+        topologyEditor.editTopology(topology,
+                Lists.newArrayList(migrateVm), context, groupResolver);
+
+        // TODO: rework needed here, no longer using clones. Scoping for MCP not the same as OCP.
+        assertEquals(10, topology.size());
+
+        assertTrue(topology.containsKey(vmId));
+        assertTrue(topology.containsKey(vmCloneId));
+        assertTrue(topology.containsKey(pmId));
+        assertTrue(topology.containsKey(pmCloneId));
+
+        assertTrue(topology.containsKey(s1CloneId));
+        assertTrue(topology.containsKey(s2CloneId));
+
+        assertTrue(regionConnectedEntityToRemove.getEntityBuilder().hasEdit()
+                && regionConnectedEntityToRemove.getEntityBuilder().getEdit().hasRemoved());
+        assertTrue(zoneConnectedEntityToRemove.getEntityBuilder().hasEdit()
+                && zoneConnectedEntityToRemove.getEntityBuilder().getEdit().hasRemoved());
+
+        // Verify that the cloned source VM id has been added to the addedEntityOids.
+        Collection<Long> clonedSourceVms = context.getSourceEntities();
+        assertFalse(clonedSourceVms.isEmpty());
+        assertTrue(clonedSourceVms.contains(vmCloneId));
+    }
+
+    /**
+     * Helper class to enable matching of entity DTO builders with the associated clone ids.
+     */
+    static class EntityDtoMatcher extends ArgumentMatcher<TopologyEntityDTO> {
+        /**
+         * Id of the cloned entity.
+         */
+        private final long cloneId;
+
+        /**
+         * Makes up a matcher.
+         *
+         * @param cloneId Id of cloned entity.
+         */
+        EntityDtoMatcher(final long cloneId) {
+            this.cloneId = cloneId;
+        }
+
+        /**
+         * Used to match an entity DTO builder with the cloneId for this matcher.
+         *
+         * @param input TopologyEntityDTO.Builder instance.
+         * @return Whether builder's id matches the clone id of this matcher, goes by the
+         * assumption that entityId x multiple = cloneId.
+         */
+        @Override
+        public boolean matches(Object input) {
+            if (!(input instanceof TopologyEntityDTO.Builder)) {
+                return false;
+            }
+            TopologyEntityDTO.Builder dtoBuilder = (TopologyEntityDTO.Builder)input;
+            return dtoBuilder.getOid() * CLONE_ID_MULTIPLIER == cloneId;
+        }
     }
 
     /**
@@ -283,18 +533,18 @@ public class TopologyEditorTest {
                 .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
         List<ScenarioChange> changes = Lists.newArrayList(ADD_VM);
 
-        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         List<TopologyEntity.Builder> clones = topology.values().stream()
-                        .filter(entity -> entity.getOid() != vm.getOid())
-                        .filter(entity -> entity.getEntityType() == vm.getEntityType())
-                        .collect(Collectors.toList());
+                .filter(entity -> entity.getOid() != vm.getOid())
+                .filter(entity -> entity.getEntityType() == vm.getEntityType())
+                .collect(Collectors.toList());
         clones.remove(vm);
         assertEquals(NUM_CLONES, clones.size());
 
         // Verify display names are (e.g.) "VM - Clone #123"
         List<String> names = clones.stream().map(TopologyEntity.Builder::getDisplayName)
-                        .collect(Collectors.toList());
+                .collect(Collectors.toList());
         names.sort(String::compareTo);
         IntStream.range(0, NUM_CLONES).forEach(i -> {
             assertEquals(names.get(i), vm.getDisplayName() + " - Clone #" + i);
@@ -303,26 +553,26 @@ public class TopologyEditorTest {
         TopologyEntityDTO.Builder oneClone = clones.get(0).getEntityBuilder();
         // clones are unplaced - all provider IDs are negative
         boolean allNegative = oneClone.getCommoditiesBoughtFromProvidersList()
-                        .stream()
-                        .map(CommoditiesBoughtFromProvider::getProviderId)
-                        .allMatch(key -> key < 0);
+                .stream()
+                .map(CommoditiesBoughtFromProvider::getProviderId)
+                .allMatch(key -> key < 0);
         assertTrue(allNegative);
 
         // "oldProviders" entry in EntityPropertyMap captures the right placement
         @SuppressWarnings("unchecked")
         Map<String, Double> oldProviders = new Gson().fromJson(
-            oneClone.getEntityPropertyMapMap().get("oldProviders"), Map.class);
+                oneClone.getEntityPropertyMapMap().get("oldProviders"), Map.class);
         Map<Long, Long> oldProvidersMap = oldProviders.entrySet().stream().collect(
-            Collectors.toMap(e -> Long.decode(e.getKey()), e -> e.getValue().longValue()));
+                Collectors.toMap(e -> Long.decode(e.getKey()), e -> e.getValue().longValue()));
         for (CommoditiesBoughtFromProvider cloneCommBought :
                 oneClone.getCommoditiesBoughtFromProvidersList()) {
             long oldProvider = oldProvidersMap.get(cloneCommBought.getProviderId());
             CommoditiesBoughtFromProvider vmCommBought =
-                vm.getEntityBuilder().getCommoditiesBoughtFromProvidersList().stream()
-                    .filter(bought -> bought.getProviderId() == oldProvider)
-                    .findAny().get();
+                    vm.getEntityBuilder().getCommoditiesBoughtFromProvidersList().stream()
+                            .filter(bought -> bought.getProviderId() == oldProvider)
+                            .findAny().get();
             assertEquals(cloneCommBought.getCommodityBoughtList(),
-                vmCommBought.getCommodityBoughtList());
+                    vmCommBought.getCommodityBoughtList());
         }
         // Assert that the commodity sold usages are the same.
         assertEquals(vm.getEntityBuilder().getCommoditySoldListList(), oneClone.getCommoditySoldListList());
@@ -343,7 +593,7 @@ public class TopologyEditorTest {
         List<ScenarioChange> changes = Lists.newArrayList(ADD_HOST);
         changes.addAll(Lists.newArrayList(ADD_STORAGE));
 
-        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
         List<TopologyEntity.Builder> pmClones = topology.values().stream()
                         .filter(entity -> entity.getOid() != pm.getOid())
                         .filter(entity -> entity.getEntityType() == pm.getEntityType())
@@ -453,7 +703,7 @@ public class TopologyEditorTest {
         when(groupResolver.resolve(eq(group), isA(TopologyGraph.class)))
             .thenReturn(resolvedGroup(group, ApiEntityType.PHYSICAL_MACHINE, pmId));
         when(identityProvider.getCloneId(any(TopologyEntityDTO.class))).thenReturn(pmCloneId);
-        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         assertTrue(topology.containsKey(pmCloneId));
         final TopologyEntity.Builder cloneBuilder = topology.get(pmCloneId);
@@ -467,6 +717,10 @@ public class TopologyEditorTest {
 
     private ResolvedGroup resolvedGroup(Grouping group, ApiEntityType type, long member) {
         return new ResolvedGroup(group, Collections.singletonMap(type, Collections.singleton(member)));
+    }
+
+    private ResolvedGroup emptyResolvedGroup(Grouping group, ApiEntityType type) {
+        return new ResolvedGroup(group, Collections.singletonMap(type, Sets.newHashSet()));
     }
 
     // test remove PM when user choose from a host cluster
@@ -493,7 +747,7 @@ public class TopologyEditorTest {
         when(groupServiceSpy.getGroups(any())).thenReturn(Collections.singletonList(group));
         when(groupResolver.resolve(eq(group), isA(TopologyGraph.class)))
             .thenReturn(resolvedGroup(group, ApiEntityType.PHYSICAL_MACHINE, pmId));
-        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         TopologyEntity.Builder pmToRemove = topology.get(pmId);
         assertTrue(pmToRemove.getEntityBuilder().hasEdit()
@@ -527,7 +781,7 @@ public class TopologyEditorTest {
         when(groupResolver.resolve(eq(group), isA(TopologyGraph.class)))
             .thenReturn(resolvedGroup(group, ApiEntityType.STORAGE, stId));
         when(identityProvider.getCloneId(any(TopologyEntityDTO.class))).thenReturn(stCloneId);
-        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         assertTrue(topology.containsKey(stCloneId));
         final TopologyEntity.Builder cloneBuilder = topology.get(stCloneId);
@@ -563,7 +817,7 @@ public class TopologyEditorTest {
         when(groupServiceSpy.getGroups(any())).thenReturn(Collections.singletonList(group));
         when(groupResolver.resolve(eq(group), isA(TopologyGraph.class)))
             .thenReturn(resolvedGroup(group, ApiEntityType.STORAGE, stId));
-        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         TopologyEntity.Builder stToRemove = topology.get(stId);
         assertTrue(stToRemove.getEntityBuilder().hasEdit()
@@ -599,7 +853,7 @@ public class TopologyEditorTest {
             .thenReturn(resolvedGroup(group, ApiEntityType.PHYSICAL_MACHINE, hostId));
         when(identityProvider.getCloneId(any(TopologyEntityDTO.class))).thenReturn(vmCloneId);
 
-        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         assertTrue(topology.containsKey(vmCloneId));
         final TopologyEntity.Builder cloneBuilder = topology.get(vmCloneId);
@@ -635,7 +889,7 @@ public class TopologyEditorTest {
         when(groupServiceSpy.getGroups(any())).thenReturn(Collections.singletonList(group));
         when(groupResolver.resolve(eq(group), isA(TopologyGraph.class)))
             .thenReturn(resolvedGroup(group, ApiEntityType.PHYSICAL_MACHINE, hostId));
-        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         TopologyEntity.Builder vmToRemove = topology.get(vmId);
         assertTrue(vmToRemove.getEntityBuilder().hasEdit()
@@ -669,7 +923,7 @@ public class TopologyEditorTest {
             .thenReturn(resolvedGroup(group, ApiEntityType.VIRTUAL_MACHINE, vmId));
         when(identityProvider.getCloneId(any(TopologyEntityDTO.class))).thenReturn(vmCloneId);
 
-        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         assertTrue(topology.containsKey(vmCloneId));
         final TopologyEntity.Builder cloneBuilder = topology.get(vmCloneId);
@@ -693,7 +947,7 @@ public class TopologyEditorTest {
                 UtilizationLevel.newBuilder().setPercentage(50).build()
             ).build()
         ).build());
-        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
         final List<CommodityBoughtDTO> vmCommodities = topology.get(vmId)
             .getEntityBuilder()
             .getCommoditiesBoughtFromProvidersList().stream()
@@ -730,7 +984,7 @@ public class TopologyEditorTest {
                         UtilizationLevel.newBuilder().setPercentage(50).build()
                 ).build()
         ).build());
-        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
         final List<CommodityBoughtDTO> vmCommodities = topology.get(vmId)
                 .getEntityBuilder()
                 .getCommoditiesBoughtFromProvidersList().stream()
@@ -771,7 +1025,7 @@ public class TopologyEditorTest {
                     .setOid(1234L)
                     .setDisplayName("Test PM1")));
 
-        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
         final List<TopologyEntityDTO> topologyEntityDTOS = topology.entrySet().stream()
                 .map(Entry::getValue)
                 .map(entity -> entity.getEntityBuilder().build())
@@ -793,7 +1047,7 @@ public class TopologyEditorTest {
             .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
         List<ScenarioChange> changes = Lists.newArrayList(ADD_POD);
 
-        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
+        topologyEditor.editTopology(topology, changes, context, groupResolver);
 
         List<TopologyEntity.Builder> clones = topology.values().stream()
             .filter(entity -> entity.getOid() != pod.getOid())

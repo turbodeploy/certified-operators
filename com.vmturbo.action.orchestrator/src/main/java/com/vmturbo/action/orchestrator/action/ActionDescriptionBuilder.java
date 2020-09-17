@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyAtomicActionsCommodityType;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodityType;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodityTypes;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyEntityTypeAndName;
@@ -7,7 +8,6 @@ import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyEntityTyp
 import java.text.CharacterIterator;
 import java.text.MessageFormat;
 import java.text.StringCharacterIterator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -27,6 +27,7 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.common.protobuf.StringUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
@@ -40,7 +41,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -54,9 +54,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.commons.Units;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 public class ActionDescriptionBuilder {
 
@@ -98,7 +98,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT("Remove {0} limit on entity {1}"),
         ACTION_DESCRIPTION_RESIZE("Resize {0} {1} for {2} from {3} to {4}"),
         ACTION_DESCRIPTION_RESIZE_RESERVATION("Resize {0} {1} reservation for {2} from {3} to {4}"),
-        ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES("Reconfigure {0} which requires {1} but is hosted by {2} which does not provide {1}"),
+        ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES("Reconfigure {0} to provide {1}"),
         ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS("Reconfigure {0}"),
         ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE("Reconfigure {0} as it is unplaced"),
         ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE("Start {0} on {1}"),
@@ -177,6 +177,10 @@ public class ActionDescriptionBuilder {
     /**
      * Builds the description for a Atomic Resize action.
      *
+     * <p>e.g. description for merged actions on workload controller:
+     * "Resize VCPU Request,VMem Limit,VMem Request,VCPU Limit
+     *  for Workload Controller controller1_test"
+     *
      * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains entities
      *                                                      information.
      * @param recommendation the Action DTO
@@ -196,42 +200,19 @@ public class ActionDescriptionBuilder {
 
         ActionPartialEntity targetEntity = optEntity.get();
 
-        List<ResizeInfo> resizeInfos = atomicResize.getResizesList();
+        Set<TopologyDTO.CommodityType> commodityTypes
+                = atomicResize.getResizesList().stream()
+                    .map(resize -> resize.getCommodityType())
+                    .collect(Collectors.toSet());
 
-        StringBuilder formattedSourceEntities = new StringBuilder();
-        StringBuilder formattedCommodityTypes = new StringBuilder();
-
-        Set<TopologyDTO.CommodityType> commodityTypes = new HashSet<>();
-        for (ResizeInfo resize : resizeInfos) {
-            commodityTypes.add(resize.getCommodityType());
-
-            // target entity in the resize
-            Optional<ActionPartialEntity> sourceEntity =
-                        entitiesSnapshot.getEntityFromOid(resize.getTarget().getId());
-            if (sourceEntity.isPresent()) {
-                if (formattedSourceEntities.length() > 0) {
-                        formattedSourceEntities.append(',');
-                }
-                formattedSourceEntities.append(beautifyEntityTypeAndName(sourceEntity.get()));
-            }
-        }
-
-        for (TopologyDTO.CommodityType commType : commodityTypes) {
-            if (formattedCommodityTypes.length() > 0) {
-                formattedCommodityTypes.append(',');
-            }
-
-            if (commType.getType() == CommodityType.VCPU_VALUE
-                    || commType.getType() == CommodityType.VMEM_VALUE)    {
-                formattedCommodityTypes.append(beautifyCommodityType(commType)).append(" Limit");
-            } else {
-                formattedCommodityTypes.append(beautifyCommodityType(commType));
-            }
-        }
+        List<String> formattedCommodityTypes
+                = commodityTypes.stream()
+                    .map(commType -> beautifyAtomicActionsCommodityType(commType))
+                    .collect(Collectors.toList());
 
         ActionMessageFormat messageFormat = ActionMessageFormat.ACTION_DESCRIPTION_ATOMIC_RESIZE;
         return messageFormat.format(
-                formattedCommodityTypes.toString(),
+                String.join(",", formattedCommodityTypes),
                 beautifyEntityTypeAndName(targetEntity)
         );
     }
@@ -313,8 +294,7 @@ public class ActionDescriptionBuilder {
                     beautifyCommodityTypes(explanation.getReconfigure()
                         .getReconfigureCommodityList().stream()
                         .map(ReasonCommodity::getCommodityType)
-                        .collect(Collectors.toList())),
-                    beautifyEntityTypeAndName(currentEntityDTO.get()));
+                        .collect(Collectors.toList())));
             }
         } else {
             return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE.format(
@@ -405,10 +385,24 @@ public class ActionDescriptionBuilder {
             long sourceEntityId = primaryChange.getSource().getId();
             ActionPartialEntity currentEntityDTO = entitiesSnapshot.getEntityFromOid(
                 sourceEntityId).get();
-            int sourceType = currentEntityDTO.getEntityType();
-            int destinationType = newEntityDTO.getEntityType();
-            String verb = TopologyDTOUtil.isPrimaryTierEntityType(destinationType)
-                && TopologyDTOUtil.isPrimaryTierEntityType(sourceType) ? SCALE : MOVE;
+            String currentLocation = currentEntityDTO.getDisplayName();
+            String newLocation = newEntityDTO.getDisplayName();
+
+            // We show scale if move is within same region. In cloud-to-cloud migration, there
+            // is a region change, so we keep the action as MOVE, and don't change it to a SCALE.
+            String verb = SCALE;
+            if (TopologyDTOUtil.isMigrationAction(recommendation)) {
+                verb = MOVE;
+                Pair<String, String> regions = getRegions(recommendation, entitiesSnapshot);
+                String sourceRegion = regions.getFirst();
+                String destinationRegion = regions.getSecond();
+                if (sourceRegion != null) {
+                    currentLocation = sourceRegion;
+                }
+                if (destinationRegion != null) {
+                    newLocation = destinationRegion;
+                }
+            }
             String resource = "";
             if (primaryChange.hasResource() &&
                     targetEntityId != primaryChange.getResource().getId()) {
@@ -420,9 +414,53 @@ public class ActionDescriptionBuilder {
             }
             return ActionMessageFormat.ACTION_DESCRIPTION_MOVE.format(verb, resource,
                 beautifyEntityTypeAndName(targetEntityDTO),
-                currentEntityDTO.getDisplayName(),
-                newEntityDTO.getDisplayName());
+                currentLocation,
+                newLocation);
         }
+    }
+
+    /**
+     * Gets names of source and destination regions for cloud migration actions. These names are
+     * now used in the final action description text, instead of the compute/storage tier names.
+     * Change only being done for cloud migration move actions, all other descriptions remain same.
+     *
+     * @param action Action whose change providers are checked to look for regions.
+     * @param entitiesSnapshot Region names are looked up in the snapshot map.
+     * @return Pair with first value (can be null for onPrem) for source region/zone name, second
+     *       value for destination region name.
+     */
+    @Nonnull
+    private static Pair<String, String> getRegions(@Nonnull final ActionDTO.Action action,
+            @Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot) {
+        // source can be zone or region in case of cloud, not set for onPrem.
+        String sourceLocation = null;
+        String destinationRegion = null;
+        if (action.getInfo().getActionTypeCase() != ActionTypeCase.MOVE) {
+            return new Pair<>(sourceLocation, destinationRegion);
+        }
+        // Find the change provider first that has the destination region.
+        final Optional<ChangeProvider> regionChangeProvider = action.getInfo().getMove()
+                .getChangesList()
+                .stream()
+                .filter(cp -> cp.hasDestination()
+                        && cp.getDestination().getType() == EntityType.REGION_VALUE)
+                .findFirst();
+        if (!regionChangeProvider.isPresent()) {
+            return new Pair<>(sourceLocation, destinationRegion);
+        }
+        final Optional<ActionPartialEntity> destinationEntity = entitiesSnapshot.getEntityFromOid(
+                regionChangeProvider.get().getDestination().getId());
+        if (destinationEntity.isPresent()) {
+            destinationRegion = destinationEntity.get().getDisplayName();
+        }
+        if (regionChangeProvider.get().hasSource()) {
+            final Optional<ActionPartialEntity> sourceEntity = entitiesSnapshot.getEntityFromOid(
+                    regionChangeProvider.get().getSource().getId());
+            if (sourceEntity.isPresent()) {
+                sourceLocation = sourceEntity.get().getDisplayName();
+            }
+        }
+        return new Pair<>(sourceLocation, destinationRegion);
     }
 
     /**

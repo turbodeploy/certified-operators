@@ -21,8 +21,6 @@ public abstract class AbstractStage<StageInputT, StageOutputT> implements Analys
 
     protected final CloudCommitmentAnalysisConfig analysisConfig;
 
-    protected final String logPrefix;
-
 
     protected AbstractStage(long id,
                             @Nonnull CloudCommitmentAnalysisConfig analysisConfig,
@@ -31,8 +29,6 @@ public abstract class AbstractStage<StageInputT, StageOutputT> implements Analys
         this.id = id;
         this.analysisConfig = Objects.requireNonNull(analysisConfig);
         this.analysisContext = Objects.requireNonNull(analysisContext);
-
-        this.logPrefix = String.format("%s(%s)", analysisContext.getLogMarker(), this.stageName());
 
     }
 

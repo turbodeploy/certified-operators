@@ -45,6 +45,8 @@ public class ReservationRpcService extends ReservationServiceImplBase {
 
     private final String logPrefix = "FindInitialPlacement: ";
 
+    private static final String RESERVATION_NAME_UNIQUE = "reservation_name_unique";
+
     private final ReservationDao reservationDao;
 
     private final TemplatesDao templatesDao;
@@ -335,21 +337,38 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                     + "invalid").asException());
             return;
         }
-        try {
-            final Reservation reservation = reservationDao.createReservation(request.getReservation());
-            final Reservation queuedReservation = reservationManager.intializeReservationStatus(reservation);
-            responseObserver.onNext(queuedReservation);
-            responseObserver.onCompleted();
-        }  catch (DataIntegrityViolationException e) {
-            responseObserver.onError(Status.INTERNAL
-                    .withDescription("Reservation name "
-                            + request.getReservation().getName() + " already exists.")
-                    .asException());
-        } catch (Exception e) {
-            responseObserver.onError(Status.INTERNAL
-                    .withDescription("Failed to create reservation.")
-                    .asException());
-            return;
+        boolean duplicateName = true;
+        Reservation.Builder reservationRequest = request.getReservation().toBuilder();
+        String reservationName = reservationRequest.getName();
+        int count = 1;
+        while (duplicateName) {
+            duplicateName = false;
+            try {
+                final Reservation reservation = reservationDao.createReservation(reservationRequest.build());
+                final Reservation queuedReservation = reservationManager.intializeReservationStatus(reservation);
+                responseObserver.onNext(queuedReservation);
+                responseObserver.onCompleted();
+            } catch (DataIntegrityViolationException e) {
+                if (e.getCause() != null && e.getCause().getMessage() != null
+                        && e.getCause().getMessage().contains(RESERVATION_NAME_UNIQUE)) {
+                    duplicateName = true;
+                } else {
+                    responseObserver.onError(Status.INTERNAL
+                            .withDescription("Failed to create reservation.")
+                            .asException());
+                    return;
+                }
+            } catch (Exception e) {
+                responseObserver.onError(Status.INTERNAL
+                        .withDescription("Failed to create reservation.")
+                        .asException());
+                return;
+            }
+            if (duplicateName) {
+                reservationRequest.setName(reservationName + " (" + count + ")");
+                logger.info(logPrefix + "Updated Reservation Name: " + reservationRequest.getName());
+                count++;
+            }
         }
         reservationManager.checkAndStartReservationPlan();
     }

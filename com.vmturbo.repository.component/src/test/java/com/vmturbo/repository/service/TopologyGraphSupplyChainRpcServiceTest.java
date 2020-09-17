@@ -49,7 +49,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
+import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
+import com.vmturbo.topology.graph.search.SearchResolver;
+import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 
@@ -58,7 +61,9 @@ import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
  * {@link TopologyGraphSupplyChainRpcService}.
  */
 public class TopologyGraphSupplyChainRpcServiceTest {
-    private LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator());
+    private SearchResolver<RepoGraphEntity>
+            searchResolver = new SearchResolver<>(new TopologyFilterFactory<RepoGraphEntity>());
+    private LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator(), searchResolver);
     private final UserSessionContext userSessionContext = Mockito.mock(UserSessionContext.class);
 
     private final long realTimeContextId = 7L;

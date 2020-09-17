@@ -47,7 +47,7 @@ public class DiagnosticsHandlerTest {
                     "Like cucumber", "So green");
 
     private StringDiagnosable diagnosable;
-    private DiagsRestorable restorable;
+    private DiagsRestorable<Void> restorable;
     private DiagsZipReaderFactory zipReaderFactory;
 
     /**
@@ -86,7 +86,7 @@ public class DiagnosticsHandlerTest {
         Assert.assertEquals(Arrays.asList(FILE1, FILE2 + DiagsZipReader.TEXT_DIAGS_SUFFIX),
                 new ArrayList<>(getZipEntries(bytes).keySet()));
         restoreDiags(handler, bytes);
-        Mockito.verify(restorable).restoreDiags(Mockito.any());
+        Mockito.verify(restorable).restoreDiags(Mockito.any(), Mockito.any());
     }
 
     /**
@@ -130,16 +130,16 @@ public class DiagnosticsHandlerTest {
         final String restoreException = "Restore failed";
         Mockito.doThrow(new DiagnosticsException(restoreException))
                 .when(failing)
-                .restoreDiags(Mockito.any());
+                .restoreDiags(Mockito.any(), Mockito.any());
         try {
             restoreDiags(handler, bytes);
         } catch (DiagnosticsException e) {
             // NOOP This is expected
         }
-        Mockito.verify(failing).restoreDiags(Mockito.any());
+        Mockito.verify(failing).restoreDiags(Mockito.any(), Mockito.any());
         @SuppressWarnings("unchecked") final ArgumentCaptor<List<String>> captor =
                 (ArgumentCaptor<List<String>>)ArgumentCaptor.forClass((Class)List.class);
-        Mockito.verify(restorable).restoreDiags(captor.capture());
+        Mockito.verify(restorable).restoreDiags(captor.capture(), Mockito.any());
         Assert.assertEquals(CONTENTS2, captor.getValue());
     }
 
@@ -159,7 +159,8 @@ public class DiagnosticsHandlerTest {
         final byte[] diags = collecteDiags(handler);
         restoreDiags(handler, diags);
         final ArgumentCaptor<byte[]> captor = ArgumentCaptor.forClass(byte[].class);
-        Mockito.verify(diagnosable, Mockito.atLeastOnce()).restoreDiags(captor.capture());
+        Mockito.verify(diagnosable, Mockito.atLeastOnce()).restoreDiags(captor.capture(),
+            Mockito.any());
         Assert.assertArrayEquals(data, captor.getValue());
     }
 
@@ -198,7 +199,7 @@ public class DiagnosticsHandlerTest {
         initDiagnosable(diagnosable, FILE_BINARY, new byte[]{0, 1, 2});
         Mockito.doThrow(new DiagnosticsException("some exception"))
                 .when(diagnosable)
-                .restoreDiags(Mockito.any());
+                .restoreDiags(Mockito.any(), Mockito.any());
         final DiagnosticsHandlerImportable handler =
                 new DiagnosticsHandlerImportable(zipReaderFactory,
                         Arrays.asList(diagnosable, restorable));
@@ -212,8 +213,8 @@ public class DiagnosticsHandlerTest {
             errors = e.getErrors();
         }
         Assert.assertEquals(Collections.singletonList("some exception"), errors);
-        Mockito.verify(diagnosable, Mockito.atLeastOnce()).restoreDiags(Mockito.any());
-        Mockito.verify(restorable, Mockito.atLeastOnce()).restoreDiags(Mockito.any());
+        Mockito.verify(diagnosable, Mockito.atLeastOnce()).restoreDiags(Mockito.any(), Mockito.any());
+        Mockito.verify(restorable, Mockito.atLeastOnce()).restoreDiags(Mockito.any(), Mockito.any());
     }
 
     /**
@@ -242,7 +243,7 @@ public class DiagnosticsHandlerTest {
     private String restoreDiags(@Nonnull DiagnosticsHandlerImportable handler,
             @Nonnull byte[] bytes) throws IOException, DiagnosticsException {
         try (ByteArrayInputStream is = new ByteArrayInputStream(bytes)) {
-            return handler.restore(is);
+            return handler.restore(is, null);
         }
     }
 

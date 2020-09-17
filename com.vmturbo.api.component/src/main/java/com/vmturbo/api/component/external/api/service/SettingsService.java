@@ -109,10 +109,10 @@ public class SettingsService implements ISettingsService {
      *
      * @param uuid the manager uuid
      * @return a list of settings
-     * @throws Exception
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Override
-    public List<? extends SettingApiDTO<?>> getSettingsByUuid(String uuid) throws Exception {
+    public List<? extends SettingApiDTO<?>> getSettingsByUuid(String uuid) throws UnknownObjectException {
         // check if the input manager is supported
         final SettingsManagerInfo managerInfo = settingsManagerMapping.getManagerInfo(uuid)
                 .orElseThrow(() -> new UnknownObjectException("Setting with Manager Uuid: "

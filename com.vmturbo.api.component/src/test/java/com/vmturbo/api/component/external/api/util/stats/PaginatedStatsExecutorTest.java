@@ -937,7 +937,7 @@ public class PaginatedStatsExecutorTest {
      * @throws OperationFailedException exception thrown from unexpected behavior
      */
     @Test
-    public void testRunRequestThroughHistoricalComponent() throws OperationFailedException {
+    public void testRunRequestThroughHistoricalComponent() throws Exception {
         final StatScopesApiInputDTO inputDto =
                 createStatScopesApiInputDTOWithCostAndHistoryStatsSortedBy(costCommodity, historyCommodity);
         final EntityStatsPaginationRequest paginationRequest = new EntityStatsPaginationRequest(null,

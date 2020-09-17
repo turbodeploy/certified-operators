@@ -14,7 +14,6 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalUnit;
 import java.util.Optional;
 
 import com.google.common.collect.Lists;
@@ -30,23 +29,24 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
+import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
+import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
+import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext.AnalysisContextFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext.DefaultAnalysisContextFactory;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher.CloudCommitmentSpecMatcherFactory;
 import com.vmturbo.cloud.commitment.analysis.topology.BillingFamilyRetriever;
 import com.vmturbo.cloud.commitment.analysis.topology.BillingFamilyRetrieverFactory;
+import com.vmturbo.cloud.commitment.analysis.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.cloud.commitment.analysis.topology.MinimalCloudTopology;
 import com.vmturbo.cloud.commitment.analysis.topology.MinimalCloudTopology.MinimalCloudTopologyFactory;
 import com.vmturbo.cloud.commitment.analysis.topology.MinimalEntityCloudTopology.DefaultMinimalEntityCloudTopologyFactory;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.ClassifiedDemandScope;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisInfo;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.RecommendationSettings;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.ReservedInstancePurchaseProfile;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.TopologyReference;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
@@ -86,11 +86,15 @@ public class CloudCommitmentAnalysisContextTest {
     private final CloudCommitmentSpecMatcherFactory cloudCommitmentSpecMatcherFactory =
             mock(CloudCommitmentSpecMatcherFactory.class);
 
-    private final long analysisSegmentInterval = 543;
-    private final TemporalUnit analysisSegmentUnit = ChronoUnit.HOURS;
+    private final ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory =
+            mock(ComputeTierFamilyResolverFactory.class);
+
+    private final BoundedDuration analysisBucket = BoundedDuration.builder()
+            .amount(543)
+            .unit(ChronoUnit.HOURS)
+            .build();
     private final StaticAnalysisConfig staticAnalysisConfig = ImmutableStaticAnalysisConfig.builder()
-            .analysisSegmentInterval(analysisSegmentInterval)
-            .analysisSegmentUnit(analysisSegmentUnit)
+            .analysisBucket(analysisBucket)
             .build();
 
     private AnalysisContextFactory analysisContextFactory;
@@ -135,26 +139,8 @@ public class CloudCommitmentAnalysisContextTest {
                 minimalCloudTopologyFactory,
                 fullCloudTopologyFactory,
                 cloudCommitmentSpecMatcherFactory,
+                computeTierFamilyResolverFactory,
                 staticAnalysisConfig);
-    }
-
-    /**
-     * Testing the log marker for analysis.
-     */
-    @Test
-    public void testLogMarker() {
-
-        final String analysisTag = "analysisTagTest";
-        final CloudCommitmentAnalysisInfo analysisInfo = CloudCommitmentAnalysisInfo.newBuilder()
-                .setOid(123L)
-                .setAnalysisTag(analysisTag)
-                .setCreationTime(Instant.now().toEpochMilli())
-                .build();
-
-        final CloudCommitmentAnalysisContext analysisContext = analysisContextFactory.createContext(
-                analysisInfo, TestUtils.createBaseConfig());
-
-        assertThat(analysisContext.getLogMarker(), equalTo(String.format("[123|%s]", analysisTag)));
     }
 
     /**
@@ -275,10 +261,10 @@ public class CloudCommitmentAnalysisContextTest {
     }
 
     /**
-     * Test the analysis segment on creation of the context.
+     * Test the analysis bucket on creation of the context.
      */
     @Test
-    public void testAnalysisSegment() {
+    public void testAnalysisBucket() {
 
         final CloudCommitmentAnalysisInfo analysisInfo = CloudCommitmentAnalysisInfo.newBuilder()
                 .setOid(123L)
@@ -289,8 +275,7 @@ public class CloudCommitmentAnalysisContextTest {
         final CloudCommitmentAnalysisContext analysisContext = analysisContextFactory.createContext(
                 analysisInfo, TestUtils.createBaseConfig());
 
-        assertThat(analysisContext.getAnalysisSegmentInterval(), equalTo(analysisSegmentInterval));
-        assertThat(analysisContext.getAnalysisSegmentUnit(), equalTo(analysisSegmentUnit));
+        assertThat(analysisContext.getAnalysisBucket(), equalTo(analysisBucket));
     }
 
     /**
@@ -365,10 +350,16 @@ public class CloudCommitmentAnalysisContextTest {
      * Testing the analysis start time.
      */
     @Test
-    public void testAnalysisStartTime() {
+    public void testAnalysisWindow() {
 
-        final Instant firstStartTime = Instant.now().minus(10, ChronoUnit.DAYS);
-        final Instant secondStartTime = Instant.now();
+        final TimeInterval firstWindow = ImmutableTimeInterval.builder()
+                .startTime(Instant.now().minus(10, ChronoUnit.DAYS))
+                .endTime(Instant.now())
+                .build();
+        final TimeInterval secondWindow = ImmutableTimeInterval.builder()
+                .startTime(Instant.now())
+                .endTime(Instant.now())
+                .build();
 
         final CloudCommitmentAnalysisInfo analysisInfo = CloudCommitmentAnalysisInfo.newBuilder()
                 .setOid(123L)
@@ -379,9 +370,9 @@ public class CloudCommitmentAnalysisContextTest {
         final CloudCommitmentAnalysisContext analysisContext = analysisContextFactory.createContext(
                 analysisInfo, TestUtils.createBaseConfig());
 
-        assertTrue(analysisContext.setAnalysisStartTime(firstStartTime));
-        assertFalse(analysisContext.setAnalysisStartTime(secondStartTime));
-        assertThat(analysisContext.getAnalysisStartTime(), equalTo(Optional.of(firstStartTime)));
+        assertTrue(analysisContext.setAnalysisWindow(firstWindow));
+        assertFalse(analysisContext.setAnalysisWindow(secondWindow));
+        assertThat(analysisContext.getAnalysisWindow(), equalTo(Optional.of(firstWindow)));
     }
 
     @Test
@@ -411,12 +402,9 @@ public class CloudCommitmentAnalysisContextTest {
         final CloudCommitmentAnalysisConfig analysisConfig = TestUtils.createBaseConfig()
                 .toBuilder()
                 .setPurchaseProfile(CommitmentPurchaseProfile.newBuilder()
-                        .addScope(ClassifiedDemandScope.newBuilder()
-                                .setScope(DemandScope.newBuilder())
-                                .addAllocatedDemandClassification(AllocatedDemandClassification.ALLOCATED))
                         .setRecommendationSettings(RecommendationSettings.newBuilder()
-                                .setIncludeTerminatedEntities(false)
-                                .setIncludeSuspendedEntities(false))
+                                .setMaxDemandPercent(80.0)
+                                .setMinimumSavingsOverOnDemandPercent(10.0))
                         .setRiPurchaseProfile(ReservedInstancePurchaseProfile.newBuilder()))
                 .build();
 

@@ -165,7 +165,7 @@ public class MarketTopologyListener implements
             while (projectedTopo.hasNext()) {
                 Collection<ProjectedTopologyEntity> chunk = projectedTopo.nextChunk();
                 logger.debug("Received chunk #{} of size {} for topology {}", ++chunkNumber, chunk.size(), tid);
-                topologyCreator.addEntities(chunk);
+                topologyCreator.addEntities(chunk, tid);
                 numberOfEntities += chunk.size();
             }
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_GAUGE

@@ -5,6 +5,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -62,11 +65,13 @@ public enum ColType {
     JSON("jsonb"),
     /** Timestamp column. */
     TIMESTAMP("timestamptz"),
+    /** OffsetDateTime column. */
+    OFFSET_DATE_TIME("timestamptz"),
     /**
-     *  entity_type column. the type selected here doesn't really matter, getName here means the
-     *  type name (like entity_type) registered in db, not the member name (APPLICATION).
-     *  Unfortunately Jooq doesn't generate a static method to get type name, and getName() returns
-     *  same type name for all enum members. Same for other enums below.
+     * entity_type column. the type selected here doesn't really matter, getName here means the type
+     * name (like entity_type) registered in db, not the member name (APPLICATION). Unfortunately
+     * Jooq doesn't generate a static method to get type name, and getName() returns same type name
+     * for all enum members. Same for other enums below.
      */
     ENTITY_TYPE(EntityType.values()[0].getName()),
     /** environment_type column. */
@@ -207,9 +212,19 @@ public enum ColType {
                 return value.toString().getBytes(UTF_8);
             case TIMESTAMP:
                 return ByteBuffer.allocate(Long.BYTES + Integer.BYTES).putLong(((Timestamp)value).getTime())
-                    .putInt(((Timestamp)value).getNanos()).array();
-            case ENTITY_TYPE: case ENVIRONMENT_TYPE: case SEVERITY: case ENTITY_STATE: case ACTION_TYPE:
-            case ACTION_STATE: case ACTION_CATEGORY:
+                        .putInt(((Timestamp)value).getNanos()).array();
+            case OFFSET_DATE_TIME: {
+                Instant t = ((OffsetDateTime)value).toInstant();
+                return ByteBuffer.allocate(Long.BYTES + Integer.BYTES)
+                        .putLong(t.getEpochSecond()).putInt(t.getNano()).array();
+            }
+            case ENTITY_TYPE:
+            case ENVIRONMENT_TYPE:
+            case SEVERITY:
+            case ENTITY_STATE:
+            case ACTION_TYPE:
+            case ACTION_STATE:
+            case ACTION_CATEGORY:
                 return ((EnumType)value).getLiteral().getBytes(UTF_8);
             default:
                 throw new IllegalArgumentException("Unknown column type: " + colType.name());
@@ -311,11 +326,19 @@ public enum ColType {
             }
             case JSON:
                 return new JsonString(new String(bytes, UTF_8));
-            case TIMESTAMP:
+            case TIMESTAMP: {
                 ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
                 Timestamp result = new Timestamp(byteBuffer.getLong());
                 result.setNanos(byteBuffer.getInt());
                 return result;
+            }
+            case OFFSET_DATE_TIME: {
+                ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
+                final long secs = byteBuffer.getLong();
+                final int nanos = byteBuffer.getInt();
+                Instant result = Instant.ofEpochSecond(secs, nanos);
+                return OffsetDateTime.ofInstant(result, ZoneOffset.UTC);
+            }
             case ENTITY_TYPE:
                 return EntityType.valueOf(new String(bytes, UTF_8));
             case ENVIRONMENT_TYPE:
@@ -414,8 +437,16 @@ public enum ColType {
                 return quoteString(value.toString());
             case TIMESTAMP:
                 return value.toString();
-            case ENTITY_TYPE: case ENVIRONMENT_TYPE: case SEVERITY: case ENTITY_STATE:
-            case ACTION_TYPE: case ACTION_STATE: case ACTION_CATEGORY: case METRIC_TYPE:
+            case OFFSET_DATE_TIME:
+                return value.toString();
+            case ENTITY_TYPE:
+            case ENVIRONMENT_TYPE:
+            case SEVERITY:
+            case ENTITY_STATE:
+            case ACTION_TYPE:
+            case ACTION_STATE:
+            case ACTION_CATEGORY:
+            case METRIC_TYPE:
                 return ((EnumType)value).getLiteral();
             default:
                 throw new IllegalArgumentException("Unknown column type: " + colType.name());

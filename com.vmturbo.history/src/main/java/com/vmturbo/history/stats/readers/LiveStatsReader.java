@@ -194,8 +194,7 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
         // We first get the IDs of the entities in the next page using the most recent snapshot
         // in the pagination time range.
         final NextPageInfo nextPageInfo = historydbIO.getNextPage(entityStatsScope,
-                paginationTimeRange.getMostRecentSnapshotTime(),
-                paginationTimeRange.getTimeFrame(),
+                paginationTimeRange,
                 paginationParams,
                 entityType,
                 statsFilter);
@@ -215,38 +214,10 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
         nextPageInfo.getEntityOids().forEach(entityId ->
                 recordsByEntityId.put(Long.parseLong(entityId), new ArrayList<>()));
 
-        // get the time range for commodities in the statsFilter request list. If the request
-        // contains only price index and the pagination parameter is price index, commRequestTimeRange
-        // will be the same as paginationTimeRange. If the request contains other commodities or
-        // the pagination param is not price index, we need to resolve the time range for commodity
-        // in request.
-        final Optional<TimeRange> commRequestTimeRange;
-        boolean isCommRequestOnlyPI = historydbIO.isCommRequestsOnlyPI(statsFilter.getCommodityRequestsList());
-        boolean isPaginationParamPI = StringConstants.PRICE_INDEX.equals(paginationParams.getSortCommodity())
-                || StringConstants.CURRENT_PRICE_INDEX.equals(paginationParams.getSortCommodity());
-        // when 1) the request contains only price index or current price index and pagination param is
-        // price index or 2) the request is empty or contains regular commodities and pagination param
-        // is not price index(means it is regular commodities), reuse the pagination time range for comm
-        // request time range
-        if (isCommRequestOnlyPI == isPaginationParamPI) {
-            commRequestTimeRange = paginationTimeRangeOpt;
-        } else {
-            commRequestTimeRange = timeRangeFactory.resolveTimeRange(statsFilter,
-                    Optional.empty(), Optional.of(entityType), Optional.empty(), Optional.empty());
-        }
-        if (!commRequestTimeRange.isPresent()) {
-            // no data persisted yet; just return an empty answer
-            logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps for commodities {}."
-                            + " There may not be any data.", statsFilter.getStartDate(), statsFilter.getEndDate(),
-                    statsFilter.getCommodityRequestsList());
-            return StatRecordPage.empty();
-        }
-        // we need to specifically query for PI stats record if the commodity request list only
-        // contains price index, otherwise, just fetch the regular commodity stats
         final List<String> nextPageEntityOids = nextPageInfo.getEntityOids();
         Optional<Select<?>> query = statsQueryFactory.createStatsQuery(nextPageEntityOids,
                 nextPageInfo.getTable(), statsFilter.getCommodityRequestsList(),
-                commRequestTimeRange.get(), AGGREGATE.NO_AGG);
+            paginationTimeRange, AGGREGATE.NO_AGG);
         if (!query.isPresent()) {
             return StatRecordPage.empty();
         }

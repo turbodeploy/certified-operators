@@ -57,7 +57,8 @@ public class DiagnosticsControllerImportable extends DiagnosticsController {
         try {
             getLogger().info("Restoring component's state from diagnostics...");
             try {
-                final String message = importableHandler.restore(inputStream.getInputStream());
+                final String message = importableHandler.restore(inputStream.getInputStream(),
+                    null);
                 getLogger().info("Restoring component's state finished: " + message);
                 return new ResponseEntity<>(message, HttpStatus.OK);
             } catch (DiagnosticsException e) {

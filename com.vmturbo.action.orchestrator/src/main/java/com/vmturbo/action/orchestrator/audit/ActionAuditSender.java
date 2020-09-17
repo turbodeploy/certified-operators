@@ -13,6 +13,7 @@ import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
@@ -53,8 +54,14 @@ public class ActionAuditSender {
             throws CommunicationException, InterruptedException {
         int counter = 0;
         for (ActionView action : actions) {
-            final Optional<WorkflowDTO.Workflow> workflowOptional = action.getWorkflow(
-                    workflowStore);
+            Optional<WorkflowDTO.Workflow> workflowOptional;
+            try {
+                workflowOptional = action.getWorkflow(workflowStore);
+            } catch (WorkflowStoreException e) {
+                logger.warn("Failed to fetch workflow for " + action.getId()
+                        + ". Will be sent for audit without a workflow");
+                workflowOptional = Optional.empty();
+            }
             if (workflowOptional.isPresent()) {
                 if (processWorkflow(action, workflowOptional.get())) {
                     counter++;

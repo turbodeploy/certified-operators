@@ -363,7 +363,7 @@ public class PriceTableUploaderTest {
 
         PriceTableUploader newUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(),
                 100, targetStore, spotPriceTableConverter);
-        newUploader.restoreDiags(argumentCaptor.getAllValues());
+        newUploader.restoreDiags(argumentCaptor.getAllValues(), null);
         final Map<Long, PricingDTO.PriceTable> newSrcTables = newUploader.getSourcePriceTables();
 
         assertThat(newSrcTables, is(originalSrcTables));

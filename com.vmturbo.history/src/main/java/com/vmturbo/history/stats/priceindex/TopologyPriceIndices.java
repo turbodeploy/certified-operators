@@ -143,6 +143,10 @@ public class TopologyPriceIndices {
          */
         public Builder addEntity(@Nonnull final ProjectedTopologyEntity projectedTopologyEntity) {
             final double priceIdx;
+            // We do not want to write stats for entities originated by the market
+            if (projectedTopologyEntity.getEntity().getOrigin().hasAnalysisOrigin()) {
+                return this;
+            }
             if (projectedTopologyEntity.hasOriginalPriceIndex()) {
                 priceIdx = projectedTopologyEntity.getOriginalPriceIndex();
                 numEntities++;

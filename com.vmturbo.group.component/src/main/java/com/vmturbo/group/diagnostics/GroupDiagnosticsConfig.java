@@ -14,6 +14,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsHandlerImportable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
 import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
+import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.group.group.GroupDaoDiagnostics;
 import com.vmturbo.group.policy.PolicyConfig;
@@ -52,6 +53,9 @@ public class GroupDiagnosticsConfig {
     @Autowired
     private RpcConfig rpcConfig;
 
+    @Autowired
+    private GroupComponentDBConfig databaseConfig;
+
     @Bean
     public DiagsZipReaderFactory recursiveZipReaderFactory() {
         return new DefaultDiagsZipReader();
@@ -64,12 +68,13 @@ public class GroupDiagnosticsConfig {
 
     @Bean
     public DiagnosticsHandlerImportable diagsHandler() {
-        return new DiagnosticsHandlerImportable(recursiveZipReaderFactory(),
+        return new TransactionalDiagnosticsHandlerImportable(recursiveZipReaderFactory(),
                 Lists.newArrayList(groupStoreDiagnostics(), policyConfig.policyStore(),
                         settingConfig.settingStore(),
                         topologyDataDefConfig.topologyDataDefinitionStore(),
                         topologyDataDefConfig.persistentTopologyDataDefinitionIdentityStore(),
-                        scheduleConfig.scheduleStore(), prometheusDiagnisticsProvider()));
+                        scheduleConfig.scheduleStore(), prometheusDiagnisticsProvider()),
+                databaseConfig.dsl());
     }
 
     @Bean

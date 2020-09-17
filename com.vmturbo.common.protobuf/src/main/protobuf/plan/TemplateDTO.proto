@@ -50,12 +50,14 @@ message TemplateInfo {
     // String representation of the template name
     required string name = 1;
 
-    // Model related to the discoverd template, it is unused on user-created templates,
+    // Model related to the discovered template, it is unused on user-created templates,
     // and it contains additional information about discovered template.
     // such as: AVG:VMs_Development41 Cloudstack:GROUP-VMsByCluster_vsphere-dc3.eng.vmturbo.com datacenter-22 domain-c72
     optional string model = 2;
 
-    // Model of the CPU in the PhysicalMachine
+    // Model of the CPU in the PhysicalMachine or VirtualMachine.
+    // The CPU Model is necessary because 500MHz used on a Intel Pentium 4 is no where close to
+    // to 500MHz used on an Intel Xeon Gold 5115.
     optional string cpu_model = 10;
 
     // Vendor related to the template

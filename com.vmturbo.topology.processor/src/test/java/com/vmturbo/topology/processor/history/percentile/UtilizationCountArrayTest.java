@@ -167,6 +167,10 @@ public class UtilizationCountArrayTest {
     @Test
     public void testSerialize() throws HistoryCalculationException {
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
+
+        PercentileRecord.Builder empty = counts.serialize(REF);
+        Assert.assertNull(empty);
+
         float capacity = 72631;
         counts.addPoint(2, capacity, "", timestamp);
         PercentileRecord.Builder builder = counts.serialize(REF);
@@ -195,6 +199,7 @@ public class UtilizationCountArrayTest {
     public void testSerializeCommodityWithoutKey() {
         final UtilizationCountArray utilizationCountArray =
                 new UtilizationCountArray(new PercentileBuckets());
+        utilizationCountArray.addPoint(1.0F, 1.0F, "", timestamp);
         Assert.assertFalse(utilizationCountArray.serialize(COMMODITY_WITHOUT_KEY_REF).hasKey());
     }
 

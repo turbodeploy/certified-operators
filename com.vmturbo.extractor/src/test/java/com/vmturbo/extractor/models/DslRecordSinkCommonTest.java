@@ -158,7 +158,7 @@ public class DslRecordSinkCommonTest {
      */
     private Connection getMockConnection(@Nullable List<String> saveTo) throws SQLException {
         // our connection object needs to be capable of executing conn.createStatement() yielding
-        // a (mock) Statement object. And if we we'er given a saveTo list, that mock should
+        // a (mock) Statement object. And if we we're given a saveTo list, that mock should
         // capture SQL strings from #execute() methods to that list
         final Statement stmt = mock(Statement.class);
         if (saveTo != null) {

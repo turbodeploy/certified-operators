@@ -36,6 +36,7 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.Daily;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.Schedule;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.TimeOfRun;
+import com.vmturbo.common.protobuf.plan.PlanProjectREST.PlanProject.PlanProjectStatus;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
@@ -173,9 +174,11 @@ public class PlanProjectRpcServiceTest {
     private PlanProjectOuterClass.PlanProject toPlanProjectDTO(
             @Nonnull final PlanProject planProject) {
         return PlanProjectOuterClass.PlanProject.newBuilder()
-                .setPlanProjectId(planProject.getId())
-                .setPlanProjectInfo(planProject.getProjectInfo())
-                .build();
+            .setPlanProjectId(planProject.getId())
+            .setPlanProjectInfo(planProject.getProjectInfo())
+            .setStatus(PlanProjectOuterClass.PlanProject.PlanProjectStatus
+                .valueOf(planProject.getStatus()))
+            .build();
     }
 
     private void prePopulatePlanProjectTestData() {
@@ -192,12 +195,12 @@ public class PlanProjectRpcServiceTest {
         // For testing get
         PlanProject getPlanProject = new
                 PlanProject(GET_PLAN_PROJECT_ID, curTime, curTime, toCreate,
-                PlanProjectType.CLUSTER_HEADROOM.name());
+                PlanProjectType.CLUSTER_HEADROOM.name(), PlanProjectStatus.UNAVAILABLE.name());
         dbConfig.getDslContext().newRecord(PLAN_PROJECT, getPlanProject).store();
         // For testing delete
         PlanProject deletePlanProject = new
                 PlanProject(DELETE_PLAN_PROJECT_ID, curTime, curTime, toCreate,
-                PlanProjectType.CLUSTER_HEADROOM.name());
+                PlanProjectType.CLUSTER_HEADROOM.name(), PlanProjectStatus.UNAVAILABLE.name());
         dbConfig.getDslContext().newRecord(PLAN_PROJECT, deletePlanProject).store();
     }
 }

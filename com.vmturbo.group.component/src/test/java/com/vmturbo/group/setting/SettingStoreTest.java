@@ -1,10 +1,12 @@
 package com.vmturbo.group.setting;
 
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
@@ -17,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +28,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Functions;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
@@ -76,6 +80,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingVal
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingNotFoundException;
@@ -98,6 +103,9 @@ import com.vmturbo.sql.utils.DbConfigurationRule;
  * Unit test for {@link SettingStore}.
  */
 public class SettingStoreTest {
+    private static final long DEFAULT_POLICY_ID = 1023L;
+    private static final float VMEM_INCREMENT = 10.0f;
+    private static final float VCPU_INCREMENT = 15.0f;
 
     /**
      * Rule to create the DB schema and migrate it.
@@ -285,7 +293,7 @@ public class SettingStoreTest {
                 .setEnumSettingValue(
                         EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()).build())
                 .setSettingSpecName(
-                        EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+                        ConfigurableActionSettings.ResizeVcpuDownInBetweenThresholds.getSettingName())
                 .build();
 
         final Setting executionScheduleSetting = Setting.newBuilder()
@@ -294,7 +302,7 @@ public class SettingStoreTest {
                         .build())
                 .setSettingSpecName(
                         ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                                EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds,
+                            ConfigurableActionSettings.ResizeVcpuDownInBetweenThresholds,
                                 ActionSettingType.SCHEDULE))
                 .build();
 
@@ -608,6 +616,175 @@ public class SettingStoreTest {
     }
 
     /**
+     * Tests successful updating of default setting.
+     *
+     * @throws StoreOperationException if something goes wrong.
+     */
+    @Test
+    public void testUpdateDefaultPolicy() throws StoreOperationException {
+        // ARRANGE
+        final Map<String, Setting> defaultSettingPolicyMap = DefaultSettingPolicyCreator
+            .defaultSettingPoliciesFromSpecs(settingSpecStore.getAllSettingSpecs())
+            .get(EntityType.VIRTUAL_MACHINE.getNumber()).getSettingsList().stream()
+            .collect(Collectors.toMap(Setting::getSettingSpecName, Functions.identity()));
+
+        SettingPolicy originalPolicy = SettingPolicy.newBuilder()
+            .setId(DEFAULT_POLICY_ID)
+            .setInfo(SettingPolicyInfo.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .addAllSettings(defaultSettingPolicyMap.values()))
+            .setSettingPolicyType(Type.DEFAULT)
+            .build();
+        // we create the initial setting we want to update
+        settingStore.createSettingPolicies(dbConfig.getDslContext(),
+            Collections.singleton(originalPolicy));
+
+        final Map<String, Setting> updatedSettingPolicyMap = new HashMap<>(defaultSettingPolicyMap);
+        updatedSettingPolicyMap.put(EntitySettingSpecs.VmVmemIncrement.getSettingName(),
+            Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.VmVmemIncrement.getSettingName())
+                .setNumericSettingValue(
+                NumericSettingValue
+                    .newBuilder()
+                    .setValue(VMEM_INCREMENT))
+            .build());
+        updatedSettingPolicyMap.put(EntitySettingSpecs.VmVcpuIncrement.getSettingName(),
+            Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.VmVcpuIncrement.getSettingName())
+                .setNumericSettingValue(
+                    NumericSettingValue
+                        .newBuilder()
+                        .setValue(VCPU_INCREMENT))
+                .build());
+        SettingPolicyInfo updatedPolicy = SettingPolicyInfo.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+            .addAllSettings(updatedSettingPolicyMap.values())
+            .build();
+
+        // ACT
+        settingStore.updateSettingPolicy(DEFAULT_POLICY_ID, updatedPolicy);
+
+        // ASSERT
+        Collection<SettingPolicy> retrievedPolicies =
+            settingStore.getSettingPolicies(dbConfig.getDslContext(),
+            SettingPolicyFilter.newBuilder().withId(DEFAULT_POLICY_ID).build());
+
+        assertTrue(retrievedPolicies.iterator().hasNext());
+        SettingPolicy retrievedPolicy = retrievedPolicies.iterator().next();
+        assertThat(retrievedPolicy.getInfo().getSettingsList(),
+            containsInAnyOrder(updatedPolicy.getSettingsList().toArray()));
+    }
+
+    /**
+     * Tests when a user tries does not send a policy and don't sent a field that should always
+     * have value. We go with existing value in this case.
+     *
+     * @throws StoreOperationException if something goes wrong.
+     */
+    @Test
+    public void testRemovingSettingFromDefaultPolicyWithDefaultValue() throws StoreOperationException {
+        // ARRANGE
+        final Map<String, Setting> defaultSettingPolicyMap = DefaultSettingPolicyCreator
+            .defaultSettingPoliciesFromSpecs(settingSpecStore.getAllSettingSpecs())
+            .get(EntityType.VIRTUAL_MACHINE.getNumber()).getSettingsList().stream()
+            .collect(Collectors.toMap(Setting::getSettingSpecName, Functions.identity()));
+
+        defaultSettingPolicyMap.put(EntitySettingSpecs.VmVmemIncrement.getSettingName(),
+            Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.VmVmemIncrement.getSettingName())
+                .setNumericSettingValue(
+                    NumericSettingValue
+                        .newBuilder()
+                        .setValue(25f))
+                .build());
+
+        SettingPolicy originalPolicy = SettingPolicy.newBuilder()
+            .setId(DEFAULT_POLICY_ID)
+            .setInfo(SettingPolicyInfo.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .addAllSettings(defaultSettingPolicyMap.values()))
+            .setSettingPolicyType(Type.DEFAULT)
+            .build();
+        // we create the initial setting we want to update
+        settingStore.createSettingPolicies(dbConfig.getDslContext(),
+            Collections.singleton(originalPolicy));
+
+        final Map<String, Setting> updatedSettingPolicyMap = new HashMap<>(defaultSettingPolicyMap);
+        updatedSettingPolicyMap.remove(EntitySettingSpecs.VmVmemIncrement.getSettingName());
+        SettingPolicyInfo updatedPolicy = SettingPolicyInfo.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+            .addAllSettings(updatedSettingPolicyMap.values())
+            .build();
+
+        // ACT
+        settingStore.updateSettingPolicy(DEFAULT_POLICY_ID, updatedPolicy);
+
+        // ASSERT
+        Collection<SettingPolicy> retrievedPolicies =
+            settingStore.getSettingPolicies(dbConfig.getDslContext(),
+                SettingPolicyFilter.newBuilder().withId(DEFAULT_POLICY_ID).build());
+
+        assertTrue(retrievedPolicies.iterator().hasNext());
+        SettingPolicy retrievedPolicy = retrievedPolicies.iterator().next();
+        assertThat(retrievedPolicy.getInfo().getSettingsCount(), is(1));
+        assertThat((double)retrievedPolicy.getInfo().getSettings(0).getNumericSettingValue().getValue(),
+            closeTo(25f, 0.01f));
+    }
+
+    /**
+     * Tests successful updating of default setting when removing a setting that can be removed.
+     *
+     * @throws StoreOperationException if something goes wrong.
+     */
+    @Test
+    public void testRemoveSettingFromDefaultPolicyWithDefaultNoValue() throws StoreOperationException {
+        // ARRANGE
+        final Map<String, Setting> defaultSettingPolicyMap = DefaultSettingPolicyCreator
+            .defaultSettingPoliciesFromSpecs(settingSpecStore.getAllSettingSpecs())
+            .get(EntityType.VIRTUAL_MACHINE.getNumber()).getSettingsList().stream()
+            .collect(Collectors.toMap(Setting::getSettingSpecName, Functions.identity()));
+        defaultSettingPolicyMap.put(EntitySettingSpecs.VmVcpuIncrement.getSettingName(),
+            Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.VmVcpuIncrement.getSettingName())
+                .setNumericSettingValue(
+                    NumericSettingValue
+                        .newBuilder()
+                        .setValue(VCPU_INCREMENT))
+                .build());
+
+        SettingPolicy originalPolicy = SettingPolicy.newBuilder()
+            .setId(DEFAULT_POLICY_ID)
+            .setInfo(SettingPolicyInfo.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .addAllSettings(defaultSettingPolicyMap.values()))
+            .setSettingPolicyType(Type.DEFAULT)
+            .build();
+        // we create the initial setting we want to update
+        settingStore.createSettingPolicies(dbConfig.getDslContext(),
+            Collections.singleton(originalPolicy));
+
+        final Map<String, Setting> updatedSettingPolicyMap = new HashMap<>(defaultSettingPolicyMap);
+        updatedSettingPolicyMap.remove(EntitySettingSpecs.VmVcpuIncrement.getSettingName());
+        SettingPolicyInfo updatedPolicy = SettingPolicyInfo.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+            .addAllSettings(updatedSettingPolicyMap.values())
+            .build();
+
+        // ACT
+        settingStore.updateSettingPolicy(DEFAULT_POLICY_ID, updatedPolicy);
+
+        // ASSERT
+        Collection<SettingPolicy> retrievedPolicies =
+            settingStore.getSettingPolicies(dbConfig.getDslContext(),
+                SettingPolicyFilter.newBuilder().withId(DEFAULT_POLICY_ID).build());
+
+        assertTrue(retrievedPolicies.iterator().hasNext());
+        SettingPolicy retrievedPolicy = retrievedPolicies.iterator().next();
+        assertThat(retrievedPolicy.getInfo().getSettingsList(),
+            containsInAnyOrder(updatedPolicy.getSettingsList().toArray()));
+    }
+
+    /**
      * Tests removal of non-existing policy. Exception is expected. Store data should not change.
      *
      * @throws Exception on exceptions occurred
@@ -743,7 +920,7 @@ public class SettingStoreTest {
         // might make this test to fail
 
         Collection<SettingSpec> retrievedSettingSpecs = settingSpecStore.getAllSettingSpecs();
-        assertEquals(retrievedSettingSpecs.size(), 5);
+        assertEquals(retrievedSettingSpecs.size(), 6);
     }
 
     private static final String NAME = "foo";
@@ -987,16 +1164,22 @@ public class SettingStoreTest {
      */
     @Test
     public void testSaveGetAndDeletePlanSettings() throws Exception {
-        final Setting setting = Setting.newBuilder()
-                .setSettingSpecName("maxObservationPeriodVirtualMachine")
-                .setNumericSettingValue(NumericSettingValue.getDefaultInstance())
-                .build();
         final long planId = 1L;
         final long vmId = 100L;
-        final Multimap<Long, Setting> entityToSettingMap = HashMultimap.create();
-        final Multimap<Setting, Long> settingToEntityMap = HashMultimap.create();
-        entityToSettingMap.put(vmId, setting);
-        settingToEntityMap.put(setting, vmId);
+        final long policyId1 = 481516L;
+        final long policyId2 = 2342L;
+        final Setting setting = Setting.newBuilder()
+            .setSettingSpecName("maxObservationPeriodVirtualMachine")
+            .setNumericSettingValue(NumericSettingValue.getDefaultInstance())
+            .build();
+        final SettingToPolicyId settingToPolicyId = SettingToPolicyId.newBuilder()
+            .setSetting(setting)
+            .addAllSettingPolicyId(Arrays.<Long>asList(policyId1, policyId2))
+            .build();
+        final Multimap<Long, SettingToPolicyId> entityToSettingMap = HashMultimap.create();
+        final Multimap<SettingToPolicyId, Long> settingToEntityMap = HashMultimap.create();
+        entityToSettingMap.put(vmId, settingToPolicyId);
+        settingToEntityMap.put(settingToPolicyId, vmId);
         settingStore.savePlanEntitySettings(planId, entityToSettingMap, settingToEntityMap);
 
         Map<Long, Collection<SettingToPolicyId>> settingsMap =
@@ -1004,7 +1187,14 @@ public class SettingStoreTest {
         Collection<SettingToPolicyId> settingToPolicyIds = settingsMap.get(vmId);
         assertNotNull(settingToPolicyIds);
         assertEquals(1, settingsMap.keySet().size());
+        assertEquals(1, settingToPolicyIds.size());
+
+        List<Long> policyIdList = settingToPolicyId.getSettingPolicyIdList();
+        assertTrue(policyIdList.contains(policyId1));
+        assertTrue(policyIdList.contains(policyId2));
+
         assertEquals(vmId, settingsMap.keySet().stream().findFirst().get().longValue());
+
         assertThat(settingStore.getContextsWithSettings(), containsInAnyOrder(planId));
 
         settingStore.deletePlanSettings(planId);
@@ -1036,12 +1226,12 @@ public class SettingStoreTest {
         assertTrue(savedSchedule2.hasId());
 
         final Setting actionModeSetting =
-                createActionModeSetting(EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.name(),
+                createActionModeSetting(ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds.name(),
                         ActionMode.MANUAL);
 
         final Setting executionScheduleSetting = createExecutionScheduleSetting(
             ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds, ActionSettingType.SCHEDULE),
+                ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds, ActionSettingType.SCHEDULE),
                 Arrays.asList(savedSchedule1.getId(), savedSchedule2.getId()));
 
         final SettingPolicyInfo settingPolicyInfo =
@@ -1060,11 +1250,11 @@ public class SettingStoreTest {
         assertTrue(savedPolicy.isPresent());
 
         final Setting newActionModeSetting =
-                createActionModeSetting(EntitySettingSpecs.Move.name(), ActionMode.RECOMMEND);
+                createActionModeSetting(ConfigurableActionSettings.Move.name(), ActionMode.RECOMMEND);
         final Setting newExecutionScheduleSetting =
                 createExecutionScheduleSetting(
                     ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                        EntitySettingSpecs.Move, ActionSettingType.SCHEDULE),
+                        ConfigurableActionSettings.Move, ActionSettingType.SCHEDULE),
                     Collections.singletonList(savedSchedule1.getId()));
 
         final SettingPolicyInfo updatedSettingPolicyInfo = savedPolicy.get()
@@ -1104,12 +1294,12 @@ public class SettingStoreTest {
         assertTrue(savedSchedule2.hasId());
 
         final Setting actionModeSetting = createActionModeSetting(
-                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName(),
+            ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds.getSettingName(),
                 ActionMode.MANUAL);
 
         final Setting executionScheduleSetting = createExecutionScheduleSetting(
             ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds, ActionSettingType.SCHEDULE),
+                ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds, ActionSettingType.SCHEDULE),
             Arrays.asList(savedSchedule1.getId(), savedSchedule2.getId()));
 
         final SettingPolicyInfo settingPolicyInfo =
@@ -1157,11 +1347,11 @@ public class SettingStoreTest {
         createGroup(groupId);
 
         final Setting externalApprovalSetting = createActionModeSetting(
-                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName(),
+            ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds.getSettingName(),
                 ActionMode.EXTERNAL_APPROVAL);
 
         final Setting newActionModeSetting = createActionModeSetting(
-                EntitySettingSpecs.Move.getSettingName(),
+            ConfigurableActionSettings.Move.getSettingName(),
                 ActionMode.AUTOMATIC);
 
         final SettingPolicyInfo settingPolicyInfo =
@@ -1217,12 +1407,12 @@ public class SettingStoreTest {
         assertTrue(savedSchedule2.hasId());
 
         final Setting actionModeSetting = createActionModeSetting(
-                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName(),
+            ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds.getSettingName(),
                 ActionMode.MANUAL);
 
         final Setting executionScheduleSetting = createExecutionScheduleSetting(
                 ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                    EntitySettingSpecs.ResizeVmemUpInBetweenThresholds, ActionSettingType.SCHEDULE),
+                    ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds, ActionSettingType.SCHEDULE),
                 Collections.singletonList(savedSchedule1.getId()));
 
         final SettingPolicyInfo settingPolicyInfo =
@@ -1242,7 +1432,7 @@ public class SettingStoreTest {
 
         final Setting updatedExecutionScheduleSetting = createExecutionScheduleSetting(
             ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds, ActionSettingType.SCHEDULE),
+                ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds, ActionSettingType.SCHEDULE),
             Collections.singletonList(savedSchedule2.getId()));
 
         final SettingPolicyInfo updatedSettingPolicyInfo = savedPolicy.get()
@@ -1282,12 +1472,12 @@ public class SettingStoreTest {
         assertTrue(savedSchedule2.hasId());
 
         final Setting actionModeSetting = createActionModeSetting(
-                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName(),
+            ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds.getSettingName(),
                 ActionMode.MANUAL);
 
         final Setting executionScheduleSetting = createExecutionScheduleSetting(
             ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds, ActionSettingType.SCHEDULE),
+                ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds, ActionSettingType.SCHEDULE),
             Arrays.asList(savedSchedule1.getId(), savedSchedule2.getId()));
 
         final SettingPolicyInfo settingPolicyInfo =
@@ -1306,7 +1496,7 @@ public class SettingStoreTest {
         assertTrue(savedPolicy.isPresent());
 
         final Setting updatedActionModeSetting = createActionModeSetting(
-                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName(),
+            ConfigurableActionSettings.ResizeVmemUpInBetweenThresholds.getSettingName(),
                 ActionMode.AUTOMATIC);
 
         final SettingPolicyInfo updatedSettingPolicyInfo = savedPolicy.get()

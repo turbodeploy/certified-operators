@@ -74,6 +74,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
     private final ActionTopologyStore actionTopologyStore;
 
     private final boolean riskPropagationEnabled;
+    private final int queryTimeWindowForLastExecutedActionsMins;
 
     /**
      * To create a new ActionStoreFactory, use the {@link #newBuilder()}.
@@ -103,6 +104,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.involvedEntitiesExpander = Objects.requireNonNull(builder.involvedEntitiesExpander);
         this.externalAuditEventSender = Objects.requireNonNull(builder.actionAuditSender);
         this.riskPropagationEnabled =  builder.riskPropagationEnabled;
+        this.queryTimeWindowForLastExecutedActionsMins = builder.queryTimeWindowForLastExecutedActionsMins;
     }
 
     /**
@@ -119,7 +121,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
                     actionHistoryDao, actionsStatistician, actionTranslator, atomicActionFactory,
                     clock, userSessionContext, licenseCheckClient, acceptedActionsStore,
                     rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
-                    externalAuditEventSender, riskPropagationEnabled);
+                    externalAuditEventSender, riskPropagationEnabled,
+                    queryTimeWindowForLastExecutedActionsMins);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId,
                 entitySettingsCache, actionTranslator, realtimeTopologyContextId, actionTargetSelector,
@@ -169,6 +172,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         private InvolvedEntitiesExpander involvedEntitiesExpander;
         private ActionAuditSender actionAuditSender;
         private boolean riskPropagationEnabled;
+        private int queryTimeWindowForLastExecutedActionsMins = -1;
 
         private Builder() {
         }
@@ -412,6 +416,20 @@ public class ActionStoreFactory implements IActionStoreFactory {
          */
         public Builder withRiskPropagationEnabledFlag(boolean riskPropagationEnabled) {
             this.riskPropagationEnabled = riskPropagationEnabled;
+            return this;
+        }
+
+        /**
+         * Sets time frame to look for succeeded actions in the history. If an action is found
+         * within this timeframe, it will not be populated into action store.
+         *
+         * @param queryTimeWindowForLastExecutedActionsMins time frame in minutes
+         * @return the builder for chained calls
+         */
+        public Builder withQueryTimeWindowForLastExecutedActionsMins(
+                int queryTimeWindowForLastExecutedActionsMins) {
+            this.queryTimeWindowForLastExecutedActionsMins =
+                    queryTimeWindowForLastExecutedActionsMins;
             return this;
         }
 
