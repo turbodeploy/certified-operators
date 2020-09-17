@@ -186,7 +186,7 @@ public class BusinessAccountPriceTableKeyStoreTest {
         Mockito.verify(appender, Mockito.atLeastOnce()).appendString(captor.capture());
 
         dsl.truncate(Tables.BUSINESS_ACCOUNT_PRICE_TABLE_KEY).execute();
-        businessAccountPriceTableKeyStore.restoreDiags(captor.getAllValues());
+        businessAccountPriceTableKeyStore.restoreDiags(captor.getAllValues(), null);
         Map<Long, Long> priceTableKeyMap = businessAccountPriceTableKeyStore.fetchPriceTableKeyOidsByBusinessAccount(Collections.emptySet());
 
         assertThat(priceTableKeyMap.size(), is(2));

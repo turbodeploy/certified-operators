@@ -8,6 +8,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextRefreshedEvent;
 
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.metrics.ScheduledMetrics.ScheduledMetricsObserver;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 
@@ -39,8 +40,8 @@ public class ComponentLifespanMetrics implements ScheduledMetricsObserver,
             .register();
 
     private static final DataMetricGauge COMPONENT_UPTIME_GAUGE = DataMetricGauge.builder()
-            .withName("component_uptime_mins")
-            .withHelp("How many minutes the component instance has been up and running.")
+            .withName(StringConstants.METRICS_TURBO_PREFIX + "component_uptime_seconds")
+            .withHelp("How many seconds the component instance has been up and running.")
             .build()
             .register();
 
@@ -74,8 +75,8 @@ public class ComponentLifespanMetrics implements ScheduledMetricsObserver,
             // only measure component uptime if it's actually started
             COMPONENT_UPTIME_GAUGE.setData(0.);
         } else {
-            double uptimeMins = TimeUnit.MILLISECONDS.toMinutes (System.currentTimeMillis() - startedTime);
-            COMPONENT_UPTIME_GAUGE.setData(uptimeMins);
+            double uptimeSecs = TimeUnit.MILLISECONDS.toSeconds (System.currentTimeMillis() - startedTime);
+            COMPONENT_UPTIME_GAUGE.setData(uptimeSecs);
         }
     }
 

@@ -36,7 +36,7 @@ public class SMAUtils {
     /**
      * Improvement factor for a vm to be discounted by an RI.
      */
-    public static final double IMPROVEMENT_FACTOR = 0.01f;
+    public static final double BIG_EPSILON = 0.01f;
     /**
      * ROUNDING to trim floating point for comparison.
      */
@@ -95,7 +95,7 @@ public class SMAUtils {
      * Placeholder for invalid SMATemplate.
      */
     public static final SMATemplate BOGUS_TEMPLATE = new SMATemplate(-1, "SMATemplate placeholder",
-        "xxx", 0, BOGUS_CONTEXT, null);
+        "xxx", 0, null);
 
     /**
      * if Azure, then OS type agnostic and use UNKNOWN_OS.
@@ -105,9 +105,7 @@ public class SMAUtils {
     /**
      * Placeholder for an invalid RI.
      */
-    public static final SMAReservedInstance BOGUS_RI = new SMAReservedInstance(UNKNOWN_OID, UNKNOWN_OID,
-        UNKNOWN_NAME, UNKNOWN_OID, Collections.emptySet(), BOGUS_TEMPLATE, UNKNOWN_OID, 0, false, false, false);
-
+    public static final SMAReservedInstance BOGUS_RI = null;
     /**
      * Ensures there are only 4 significant decimal places.  Round up if needed.
      * @param value float value

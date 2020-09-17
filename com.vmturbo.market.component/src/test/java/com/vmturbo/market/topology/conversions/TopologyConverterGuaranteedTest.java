@@ -64,6 +64,8 @@ public class TopologyConverterGuaranteedTest {
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
     private ConsistentScalingHelperFactory consistentScalingHelperFactory =
             mock(ConsistentScalingHelperFactory.class);
+    private ReversibilitySettingFetcher reversibilitySettingFetcher =
+            mock(ReversibilitySettingFetcher.class);
 
     /**
      * Create a topology with two VDCs, one that qualifies as guaranteed buyer and one that doesn't,
@@ -129,7 +131,8 @@ public class TopologyConverterGuaranteedTest {
         // includeVDC is false
         TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable, ccd,
-                CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
+                CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
+                    reversibilitySettingFetcher);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         // VDCs are skipped, VMs in maintenance and unknown state are not skipped for trader creation
         assertEquals(3, traders.size());
@@ -152,7 +155,7 @@ public class TopologyConverterGuaranteedTest {
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory);
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         assertEquals(6, traders.size());
         List<Long> guaranteedBuyers = traders.stream()

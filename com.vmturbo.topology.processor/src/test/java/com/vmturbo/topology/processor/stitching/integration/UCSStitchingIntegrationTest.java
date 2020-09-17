@@ -245,7 +245,8 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
         final IStitchingJournal<TopologyEntity> postStitchingJournal = journal.childJournal(
                 new TopologyEntitySemanticDiffer(journal.getJournalOptions().getVerbosity()));
         stitchingManager.postStitch(new GraphWithSettings(TopologyEntityTopologyGraphCreator.newGraph(topology),
-                Collections.emptyMap(), Collections.emptyMap()), postStitchingJournal);
+                Collections.emptyMap(), Collections.emptyMap()), postStitchingJournal,
+                Collections.emptySet());
     }
 
     private static Collection<CommodityType> boughtDataFromChassisToPM =

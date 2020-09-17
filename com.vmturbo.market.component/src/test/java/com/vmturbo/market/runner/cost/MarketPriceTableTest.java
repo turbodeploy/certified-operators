@@ -466,7 +466,7 @@ public class MarketPriceTableTest {
 
     @Test
     public void testStoragePriceBundleGBMonth() {
-        // $10 for the first 7 GB-month, $5 for the next 3, $4 afterwards.
+        // $10 for the first 7 GB-month, $15 for the next 3, $20 afterwards. (Not accumulative)
         final PriceTable priceTable = PriceTable.newBuilder()
             .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
                 .putCloudStoragePricesByTierId(STORAGE_TIER_ID, StorageTierPriceList.newBuilder()
@@ -478,12 +478,12 @@ public class MarketPriceTableTest {
                             .setEndRangeInUnits(7))
                         .addPrices(Price.newBuilder()
                             .setPriceAmount(CurrencyAmount.newBuilder()
-                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.GB_MONTH, 5)))
+                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.GB_MONTH, 15)))
                             .setUnit(Unit.GB_MONTH)
                             .setEndRangeInUnits(10))
                         .addPrices(Price.newBuilder()
                             .setPriceAmount(CurrencyAmount.newBuilder()
-                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.GB_MONTH, 4)))
+                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.GB_MONTH, 20)))
                             .setUnit(Unit.GB_MONTH)))
                     .build())
                 .build())
@@ -501,26 +501,26 @@ public class MarketPriceTableTest {
                             .setRegionId(REGION_ID).setPrice(10).build())
                     // Unit price true because it's priced per GB-month
                     .setIsUnitPrice(true)
-                    // Accumulative price true because we have ranges
-                    .setIsAccumulativeCost(true)
+                    // Accumulative price is always false for storage tiers.
+                    .setIsAccumulativeCost(false)
                     .setUpperBound(7)
                     .build(),
                 StorageTierPriceData.newBuilder()
                     .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
-                            .setRegionId(REGION_ID).setPrice(5).build())
+                            .setRegionId(REGION_ID).setPrice(15).build())
                     // Unit price true because it's priced per GB-month
                     .setIsUnitPrice(true)
-                    // Accumulative price true because we have ranges
-                    .setIsAccumulativeCost(true)
+                    // Accumulative price is always false for storage tiers.
+                    .setIsAccumulativeCost(false)
                     .setUpperBound(10)
                     .build(),
                 StorageTierPriceData.newBuilder()
                     .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
-                            .setRegionId(REGION_ID).setPrice(4).build())
+                            .setRegionId(REGION_ID).setPrice(20).build())
                     // Unit price true because it's priced per GB-month
                     .setIsUnitPrice(true)
-                    // Accumulative price true because we have ranges
-                    .setIsAccumulativeCost(true)
+                    // Accumulative price is always false for storage tiers.
+                    .setIsAccumulativeCost(false)
                     .setUpperBound(Double.POSITIVE_INFINITY)
                     .build()};
 
@@ -534,7 +534,7 @@ public class MarketPriceTableTest {
 
     @Test
     public void testStoragePriceBundleIOPSMonth() {
-        // $10 for the first 7 million-iops, $5 afterwards.
+        // $10 for the first 7 million-iops, $15 afterwards. (Not accumulative)
         final PriceTable priceTable = PriceTable.newBuilder()
             .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
                 .putCloudStoragePricesByTierId(STORAGE_TIER_ID, StorageTierPriceList.newBuilder()
@@ -546,7 +546,7 @@ public class MarketPriceTableTest {
                             .setEndRangeInUnits(7))
                         .addPrices(Price.newBuilder()
                             .setPriceAmount(CurrencyAmount.newBuilder()
-                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.MILLION_IOPS, 5)))
+                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.MILLION_IOPS, 15)))
                             .setUnit(Unit.MILLION_IOPS)))
                     .build())
                 .build())
@@ -567,17 +567,17 @@ public class MarketPriceTableTest {
                         .setRegionId(REGION_ID).setPrice(10).build())
                 // Unit price true because it's priced per million-iops.
                 .setIsUnitPrice(true)
-                // Accumulative price true because we have ranges
-                .setIsAccumulativeCost(true)
+                // Accumulative price is always false for storage tiers.
+                .setIsAccumulativeCost(false)
                 .setUpperBound(7)
                 .build(),
                 StorageTierPriceData.newBuilder()
                         .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
-                                .setRegionId(REGION_ID).setPrice(5).build())
+                                .setRegionId(REGION_ID).setPrice(15).build())
                         // Unit price true because it's priced per million-iops.
                         .setIsUnitPrice(true)
-                        // Accumulative price true because we have ranges
-                        .setIsAccumulativeCost(true)
+                        // Accumulative price is always false for storage tiers.
+                        .setIsAccumulativeCost(false)
                         .setUpperBound(Double.POSITIVE_INFINITY)
                         .build());
 
@@ -633,7 +633,7 @@ public class MarketPriceTableTest {
 
     @Test
     public void testStoragePriceBundleFlatCostRanges() {
-        // $10/month for the first 7 GB, $5/month afterwards.
+        // $10/month for the first 7 GB, $15/month afterwards. (not accumulative)
         final PriceTable priceTable = PriceTable.newBuilder()
             .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
                 .putCloudStoragePricesByTierId(STORAGE_TIER_ID, StorageTierPriceList.newBuilder()
@@ -645,7 +645,7 @@ public class MarketPriceTableTest {
                             .setEndRangeInUnits(7))
                         .addPrices(Price.newBuilder()
                             .setPriceAmount(CurrencyAmount.newBuilder()
-                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.MONTH, 5)))
+                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.MONTH, 15)))
                             .setUnit(Unit.MONTH)))
                     .build())
                 .build())
@@ -671,17 +671,17 @@ public class MarketPriceTableTest {
                         .setRegionId(REGION_ID).setPrice(10).build())
                 // Not unit price, because it's a flat cost for each range.
                 .setIsUnitPrice(false)
-                // Accumulative price true because we have ranges
-                .setIsAccumulativeCost(true)
+                // Accumulative price is false for all storage tiers.
+                .setIsAccumulativeCost(false)
                 .setUpperBound(7)
                 .build(),
             StorageTierPriceData.newBuilder()
                 .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
-                        .setRegionId(REGION_ID).setPrice(5).build())
+                        .setRegionId(REGION_ID).setPrice(15).build())
                 // Not unit price, because it's a flat cost for each range.
                 .setIsUnitPrice(false)
-                // Accumulative price true because we have ranges
-                .setIsAccumulativeCost(true)
+                // Accumulative price is always false for storage tiers.
+                .setIsAccumulativeCost(false)
                 .setUpperBound(Double.POSITIVE_INFINITY)
                 .build());
 
@@ -695,7 +695,7 @@ public class MarketPriceTableTest {
 
     @Test
     public void testStoragePriceBundleGBMonthWithDiscount() {
-        // $10 for the first 7 GB-month, $5 afterwards.
+        // $10 for the first 7 GB-month, $15 afterwards. (Not accumulative)
         final PriceTable priceTable = PriceTable.newBuilder()
             .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
                 .putCloudStoragePricesByTierId(STORAGE_TIER_ID, StorageTierPriceList.newBuilder()
@@ -707,7 +707,7 @@ public class MarketPriceTableTest {
                             .setEndRangeInUnits(7))
                         .addPrices(Price.newBuilder()
                             .setPriceAmount(CurrencyAmount.newBuilder()
-                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.GB_MONTH, 5)))
+                                .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.GB_MONTH, 15)))
                             .setUnit(Unit.GB_MONTH)))
                     .build())
                 .build())
@@ -734,18 +734,18 @@ public class MarketPriceTableTest {
                             .setRegionId(REGION_ID).setPrice(8).build())
                     // Unit price true because it's priced per GB-month
                     .setIsUnitPrice(true)
-                    // Accumulative price true because we have ranges
-                    .setIsAccumulativeCost(true)
+                    // Accumulative price is always false for storage tiers.
+                    .setIsAccumulativeCost(false)
                     .setUpperBound(7)
                     // 20% off $10
                     .build(),
                 StorageTierPriceData.newBuilder()
                     .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
-                            .setRegionId(REGION_ID).setPrice(4).build())
+                            .setRegionId(REGION_ID).setPrice(12).build())
                     // Unit price true because it's priced per GB-month
                     .setIsUnitPrice(true)
-                    // Accumulative price true because we have ranges
-                    .setIsAccumulativeCost(true)
+                    // Accumulative price is always false for storage tiers.
+                    .setIsAccumulativeCost(false)
                     .setUpperBound(Double.POSITIVE_INFINITY)
                     .build());
 

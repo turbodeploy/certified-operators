@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,12 +35,13 @@ import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.PlanReservedInstanceBought;
 import com.vmturbo.cost.component.db.tables.records.PlanReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.cost.component.util.BusinessAccountHelper;
 
 /**
  * This class is used to update plan RI table by plan reserved instance bought data
  * from Topology Processor.
  */
-public class PlanReservedInstanceStore extends AbstractReservedInstanceStore implements DiagsRestorable {
+public class PlanReservedInstanceStore extends AbstractReservedInstanceStore implements DiagsRestorable<Void> {
 
     private static final String planReservedInstanceDumpFile = "planReservedInstance_dump";
 
@@ -47,14 +49,20 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore imp
 
     /**
      * Creates {@link PlanReservedInstanceStore} instance.
-     *
-     * @param dsl DSL context.
+     *  @param dsl DSL context.
      * @param identityProvider identity provider.
      * @param reservedInstanceCostCalculator RI cost calculator.
+     * @param businessAccountHelper BusinessAccountHelper.
+     * @param entityReservedInstanceMappingStore the entity to RI mapping store.
+     * @param accountRIMappingStore undiscovered account to RI mapping store.
      */
     public PlanReservedInstanceStore(@Nonnull DSLContext dsl, @Nonnull IdentityProvider identityProvider,
-        @Nonnull final ReservedInstanceCostCalculator reservedInstanceCostCalculator) {
-        super(dsl, identityProvider, reservedInstanceCostCalculator);
+                                     @Nonnull final ReservedInstanceCostCalculator reservedInstanceCostCalculator,
+                                     final BusinessAccountHelper businessAccountHelper,
+                                     final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
+                                     final AccountRIMappingStore accountRIMappingStore) {
+        super(dsl, identityProvider, reservedInstanceCostCalculator,
+                accountRIMappingStore, entityReservedInstanceMappingStore, businessAccountHelper);
     }
 
     /**
@@ -173,11 +181,21 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore imp
      * @param planId plan ID.
      * @return list of {@link ReservedInstanceBought}.
      */
-    public List<ReservedInstanceBought> getReservedInstanceBoughtByPlanId(long planId) {
+    public List<ReservedInstanceBought> getReservedInstanceBoughtByPlanId(final long planId) {
         final List<PlanReservedInstanceBoughtRecord> records = getDsl().selectFrom(Tables.PLAN_RESERVED_INSTANCE_BOUGHT)
                         .where(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.PLAN_ID.eq(planId))
                         .fetch();
         return records.stream().map(this::toReservedInstanceBoughtProto).collect(Collectors.toList());
+    }
+
+    /**
+     * Returns reserved instance bought list for the specified plan.
+     *
+     * @param planId plan ID.
+     * @return list of {@link ReservedInstanceBought}.
+     */
+    public List<ReservedInstanceBought> getReservedInstanceBoughtForAnalysis(final long planId) {
+        return adjustAvailableCouponsForPartialCloudEnv(getReservedInstanceBoughtByPlanId(planId));
     }
 
     private ReservedInstanceBought toReservedInstanceBoughtProto(PlanReservedInstanceBoughtRecord record) {
@@ -189,7 +207,7 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore imp
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
         // TODO to be implemented as part of OM-58627
     }
 

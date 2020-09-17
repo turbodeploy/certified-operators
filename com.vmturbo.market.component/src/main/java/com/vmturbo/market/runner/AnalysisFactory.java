@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
@@ -37,6 +38,7 @@ import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
+import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
@@ -115,6 +117,13 @@ public interface AnalysisFactory {
 
         private final ConsistentScalingHelperFactory consistentScalingHelperFactory;
 
+        private final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory;
+
+        /**
+         * The service that will perform cloud commitment (RI) buy analysis during a migrate to cloud plan.
+         */
+        private final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService;
+
         // Determines if the market or the SMA (Stable Marriage Algorithm) library generates compute scaling action for cloud vms
         private final MarketMode marketMode;
 
@@ -126,22 +135,24 @@ public interface AnalysisFactory {
             GlobalSettingSpecs.ContainerRateOfResize.getSettingName());
 
         public DefaultAnalysisFactory(@Nonnull final GroupMemberRetriever groupMemberRetriever,
-                  @Nonnull final SettingServiceBlockingStub settingServiceClient,
-                  @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
-                  @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
-                  @Nonnull final TopologyCostCalculatorFactory topologyCostCalculatorFactory,
-                  @Nonnull final WastedFilesAnalysisFactory wastedFilesAnalysisFactory,
-                  @Nonnull final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory,
-                  @Nonnull final CloudCostDataProvider cloudCostDataProvider,
-                  @Nonnull final Clock clock,
-                  final float alleviatePressureQuoteFactor,
-                  final float standardQuoteFactor,
-                  final String marketModeName,
-                  final float liveMarketMoveCostFactor,
-                  final boolean suspensionThrottlingPerCluster,
-                  @Nonnull final TierExcluderFactory tierExcluderFactory,
-                  @Nonnull AnalysisRICoverageListener listener,
-                  @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory) {
+                                      @Nonnull final SettingServiceBlockingStub settingServiceClient,
+                                      @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
+                                      @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
+                                      @Nonnull final TopologyCostCalculatorFactory topologyCostCalculatorFactory,
+                                      @Nonnull final WastedFilesAnalysisFactory wastedFilesAnalysisFactory,
+                                      @Nonnull final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory,
+                                      @Nonnull final CloudCostDataProvider cloudCostDataProvider,
+                                      @Nonnull final Clock clock,
+                                      final float alleviatePressureQuoteFactor,
+                                      final float standardQuoteFactor,
+                                      final String marketModeName,
+                                      final float liveMarketMoveCostFactor,
+                                      final boolean suspensionThrottlingPerCluster,
+                                      @Nonnull final TierExcluderFactory tierExcluderFactory,
+                                      @Nonnull AnalysisRICoverageListener listener,
+                                      @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
+                                      @Nonnull final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory,
+                                      @Nonnull MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
@@ -165,6 +176,8 @@ public interface AnalysisFactory {
             this.tierExcluderFactory = tierExcluderFactory;
             this.listener = listener;
             this.consistentScalingHelperFactory = consistentScalingHelperFactory;
+            this.reversibilitySettingFetcherFactory = reversibilitySettingFetcherFactory;
+            this.migratedWorkloadCloudCommitmentAnalysisService = migratedWorkloadCloudCommitmentAnalysisService;
         }
 
         /**
@@ -186,7 +199,8 @@ public interface AnalysisFactory {
                 groupMemberRetriever, clock,
                 configBuilder.build(), cloudTopologyFactory,
                 topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisFactory,
-                buyRIImpactAnalysisFactory, tierExcluderFactory, listener, consistentScalingHelperFactory, initialPlacementFinder);
+                buyRIImpactAnalysisFactory, tierExcluderFactory, listener, consistentScalingHelperFactory,
+                initialPlacementFinder, reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService);
         }
 
         /**

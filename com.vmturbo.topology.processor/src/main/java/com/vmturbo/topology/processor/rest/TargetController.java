@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.ws.rs.BadRequestException;
 import javax.ws.rs.ForbiddenException;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -48,6 +49,7 @@ import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
@@ -97,6 +99,9 @@ public class TargetController {
 
     private final SettingPolicyServiceBlockingStub settingPolicyRpcService;
 
+    private static final Collection<String> PROBES_ALLOWS_SINGLE_TARGET_INSTANCE =
+            Collections.singletonList(SDKProbeType.SERVICENOW.getProbeType());
+
     /**
      * Constructor of {@link TargetController}.
      *
@@ -139,7 +144,25 @@ public class TargetController {
             final Optional<ProbeInfo> probeInfo = probeStore.getProbe(targetSpec.toDto().getProbeId());
             if (probeInfo.isPresent()) {
                 final CreationMode creationMode = probeInfo.get().getCreationMode();
+                final String probeType = probeInfo.get().getProbeType();
                 if (TargetOperation.ADD.isValidTargetOperation(creationMode)) {
+                    if (PROBES_ALLOWS_SINGLE_TARGET_INSTANCE.contains(probeType)) {
+                        final Optional<Target> optSingleAllowedTarget = targetStore.getAll()
+                                .stream()
+                                .filter(target -> PROBES_ALLOWS_SINGLE_TARGET_INSTANCE.contains(
+                                        target.getProbeInfo().getProbeType()))
+                                .findFirst();
+                        if (optSingleAllowedTarget.isPresent()) {
+                            // requirement that only one instance of the target (i.g. ServiceNow)
+                            // can be added in the environment
+                            return errorResponse(new BadRequestException(
+                                            "Cannot add more than one " + probeType
+                                                    + " target. Please delete the existing '"
+                                                    + optSingleAllowedTarget.get().getDisplayName()
+                                                    + "' target in order to add a new target."),
+                                    HttpStatus.BAD_REQUEST);
+                        }
+                    }
                     TopologyProcessorDTO.TargetSpec targetDto
                             = probeInfo.get().getCreationMode() == CreationMode.INTERNAL
                             ? targetSpec.toDto().toBuilder().setIsHidden(true).build()

@@ -13,8 +13,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.Action.SerializationState;
-import com.vmturbo.action.orchestrator.action.ActionEvent.AfterFailureEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.AfterSuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
@@ -26,9 +24,11 @@ import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
 import com.vmturbo.action.orchestrator.execution.FailedCloudVMGroupProcessor;
+import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -167,61 +167,40 @@ public class ActionStateUpdater implements ActionExecutionListener {
             .flatMap(store -> store.getAction(actionSuccess.getActionId()));
         if (storedAction.isPresent()) {
             Action action = storedAction.get();
-            ActionState previousState = action.getState();
+            // Notify the action of the successful completion, possibly triggering a transition
+            // within the action's state machine.
+            final TransitionResult<ActionState> transitionResult = action.receive(new SuccessEvent());
 
-            // Special case: if a POST workflow just completed for an action with previous failures,
-            // then we want to move the action to FAILED state.
-            if (ActionState.POST_IN_PROGRESS == action.getState() && action.hasFailures()) {
-                action.receive(new FailureEvent(PREVIOUS_FAILURE_MESSAGE));
+            failedCloudVMGroupProcessor.handleActionSuccess(action);
+            writeSuccessActionToAudit(action);
+            if (action.isFinished()) {
+                // Store the updated action and update the audit log
+                saveToDb(action);
             } else {
-                // Notify the action of the successful completion, possibly triggering a transition
-                // within the action's state machine.
-                action.receive(new SuccessEvent());
-
-                if (ActionState.POST_IN_PROGRESS == action.getState()) {
-                    // Allow the action to immediately transition from POST_IN_PROGRESS to SUCCEEDED,
-                    // if no post-execution workflow is defined
-                    action.receive(new AfterSuccessEvent());
+                logger.debug("Action {} completed state {} successfully and transitioned to state {}.",
+                        action::getId, transitionResult::getBeforeState, action::getState);
+                if (action.hasPendingExecution()) {
+                    continueActionExecution(action);
                 }
             }
-            failedCloudVMGroupProcessor.handleActionSuccess(action);
 
-            // Store the updated action and update the audit log
-            saveToDb(action);
-            writeSuccessActionToAudit(action);
-
-            // Retrieve the current action state, now that the action has received all events
-            final ActionState actionState = action.getState();
             // Multiple SuccessEvents can also be triggered for a single action that has PRE
             // and POST states. If the action does not transition to the succeeded state, then
             // this is a partial completion, which does not indicate that the overall action has
             // completed yet.
-            switch (actionState) {
-                case IN_PROGRESS:
-                case POST_IN_PROGRESS:
-                    logger.debug("Action {} completed state {} successfully and transitioned to state {}.",
-                        action.getId(), previousState, actionState);
-                    if (action.hasPendingExecution()) {
-                        continueActionExecution(action);
-                    }
-                    break;
-                case SUCCEEDED:
-                    // If the action transitions to the SUCCEEDED state, notify the rest of the system
-                    logger.info("Action executed successfully: {}", action);
-                    removeAcceptanceForSuccessfullyExecutedAction(action);
-                    try {
-                        auditSender.sendActionEvents(Collections.singleton(action));
-                        notificationSender.notifyActionSuccess(actionSuccess);
-                        sendStateUpdateIfNeeded(action, actionSuccess.hasSuccessDescription()
-                                ? actionSuccess.getSuccessDescription()
-                                : action.getRecommendationOid() + " executed successfully", 100);
-                    } catch (CommunicationException | InterruptedException e) {
-                        logger.error("Unable to send notification for success of " + actionSuccess, e);
-                    }
-                    break;
-                default:
-                    logger.warn("Unexpected action state following ActionSuccess event. Action {}, "
-                            + "State {}.", action.getId(), actionState);
+            if (transitionResult.getAfterState() == ActionState.SUCCEEDED) {
+                // If the action transitions to the SUCCEEDED state, notify the rest of the system
+                logger.info("Action executed successfully: {}", action);
+                removeAcceptanceForSuccessfullyExecutedAction(action);
+                try {
+                    auditSender.sendActionEvents(Collections.singleton(action));
+                    notificationSender.notifyActionSuccess(actionSuccess);
+                    sendStateUpdateIfNeeded(action, actionSuccess.hasSuccessDescription()
+                            ? actionSuccess.getSuccessDescription()
+                            : action.getRecommendationOid() + " executed successfully", 100);
+                } catch (CommunicationException | InterruptedException e) {
+                    logger.error("Unable to send notification for success of " + actionSuccess, e);
+                }
             }
         } else {
             logger.error("Unable to mark success for " + actionSuccess);
@@ -314,13 +293,6 @@ public class ActionStateUpdater implements ActionExecutionListener {
         // Notify the action of the failure, possibly triggering a transition
         // within the action's state machine.
         action.receive(new FailureEvent(errorDescription));
-
-        if (ActionState.POST_IN_PROGRESS == action.getState()) {
-            // Allow the action to immediately transition from POST_IN_PROGRESS to FAILED,
-            // if no post-execution workflow is defined
-            action.receive(new AfterFailureEvent(errorDescription));
-        }
-
         logger.info("Action execution failed for action: {}", action);
 
         if (action.getMode() == ActionMode.EXTERNAL_APPROVAL) {
@@ -480,7 +452,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
             try {
                 actionExecutor.execute(targetId, translatedRecommendation.get(),
                     action.getWorkflow(workflowStore));
-            } catch (ExecutionStartException e) {
+            } catch (ExecutionStartException | WorkflowStoreException e) {
                 logger.error("Failed to start next executable step of action " + action.getId()
                     + " due to error: " + e.getMessage(), e);
                 action.receive(new FailureEvent(e.getMessage()));

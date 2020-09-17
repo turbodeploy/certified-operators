@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 
 /**
@@ -67,6 +68,13 @@ public class MinimalEntityCloudTopology implements MinimalCloudTopology<MinimalE
     @Override
     public boolean entityExists(final long entityOid) {
         return minimalEntitiesByOid.containsKey(entityOid);
+    }
+
+    @Nonnull
+    @Override
+    public Optional<Boolean> isEntityPoweredOn(final long entityOid) {
+        return getEntity(entityOid)
+                .map(entity -> entity.getEntityState() == EntityState.POWERED_ON);
     }
 
 

@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.gson.Gson;
@@ -311,7 +312,7 @@ public class IdentityProviderImpl implements IdentityProvider {
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> diagsLines) {
+    public void restoreDiags(@Nonnull final List<String> diagsLines, @Nullable Void context) {
         logger.info("Restoring diagnostics to the Identity Provider...");
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         synchronized (probeIdLock) {

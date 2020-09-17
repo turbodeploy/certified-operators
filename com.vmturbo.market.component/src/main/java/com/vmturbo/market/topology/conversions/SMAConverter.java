@@ -113,7 +113,7 @@ public class SMAConverter {
                 Long destinationRIDiscountedMarketTierOid = destinationOnDemandMarketTierOid;
                 // If SMAMatch uses an RI, then create a corresponding
                 // RiDiscountedMarketTier and use it instead of the OnDemandMarketTier.
-                if (smaMatch.getProjectedRICoverage() > SMAUtils.EPSILON) {
+                if (smaMatch.getDiscountedCoupons() > SMAUtils.EPSILON) {
                     final ReservedInstanceData riData = converter.getCloudTc().getRiDataById(
                             smaMatch.getReservedInstance().getOid());
                     if (riData == null) {
@@ -146,7 +146,7 @@ public class SMAConverter {
                         ShoppingListTO.newBuilder(sl)
                                 .setSupplier(destinationOnDemandMarketTierOid)
                                 .clearCouponId();
-                if (smaMatch.getProjectedRICoverage() > SMAUtils.EPSILON) {
+                if (smaMatch.getDiscountedCoupons() > SMAUtils.EPSILON) {
                     // add the coupon commodity to the compute shopping list.
                     Optional<CommodityBoughtTO> coupon =
                             converter.createCouponCommodityBoughtForCloudEntity(
@@ -155,7 +155,7 @@ public class SMAConverter {
                     if (coupon.isPresent()) {
                         CommodityBoughtTO.Builder couponCommodity =
                                 CommodityBoughtTO.newBuilder(coupon.get());
-                        couponCommodity.setQuantity(smaMatch.getProjectedRICoverage());
+                        couponCommodity.setQuantity(smaMatch.getDiscountedCoupons());
                         slWithSMA.addCommoditiesBought(couponCommodity);
                         slWithSMA.setCouponId(destinationRIDiscountedMarketTierOid);
                     }
@@ -249,7 +249,7 @@ public class SMAConverter {
                 }
                 if (smaMatch.getVirtualMachine()
                         .getCurrentTemplate().getOid() == smaMatch.getTemplate().getOid()
-                        && Math.abs(smaMatch.getVirtualMachine().getCurrentRICoverage() - smaMatch.getProjectedRICoverage()) < 0.01) {
+                        && Math.abs(smaMatch.getVirtualMachine().getCurrentRICoverage() - smaMatch.getDiscountedCoupons()) < 0.01) {
                     continue;
                 }
                 MoveExplanation.Builder moveExplanation = MoveExplanation.newBuilder();
@@ -268,7 +268,7 @@ public class SMAConverter {
                         .setMoveContext(Context.newBuilder()
                                 .setRegionId(outputContext.getContext().getRegionId())
                                 .setZoneId(smaMatch.getVirtualMachine().getZoneId()));
-                if (smaMatch.getProjectedRICoverage() > SMAUtils.EPSILON) {
+                if (smaMatch.getDiscountedCoupons() > SMAUtils.EPSILON) {
                     // This is just a dummy piece of code because this is used in
                     // one place to figure out if the vm is moving to a RI.
                     // ActionInterpreter.createChangeProviders while computing isAccountingAction.

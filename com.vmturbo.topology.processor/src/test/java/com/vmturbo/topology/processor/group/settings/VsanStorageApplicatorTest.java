@@ -162,7 +162,7 @@ public class VsanStorageApplicatorTest {
                         getNumericSettingValue(STORAGE_OVERPROVISIONED_PERCENTAGE_DEFAULT));
 
         Pair<GraphWithSettings, Integer> graphNHostsCnt = makeGraphWithSettings(storage, settings);
-        new VsanStorageApplicator(graphNHostsCnt.getFirst()).apply(storage, settings);
+        new VsanStorageApplicator(graphNHostsCnt.getFirst()).apply(storage, settings, Collections.emptyMap());
 
         return new ApplicatorResult(storage, graphNHostsCnt);
     }
@@ -178,7 +178,7 @@ public class VsanStorageApplicatorTest {
         Map<EntitySettingSpecs, Setting> settings = new HashMap<>();
 
         Pair<GraphWithSettings, Integer> graphNHostsCnt = makeGraphWithSettings(storage, settings);
-        new VsanStorageApplicator(graphNHostsCnt.getFirst()).apply(storage, settings);
+        new VsanStorageApplicator(graphNHostsCnt.getFirst()).apply(storage, settings, Collections.emptyMap());
 
         return new ApplicatorResult(storage, graphNHostsCnt);
     }

@@ -76,10 +76,11 @@ public class TopologyConversionUtils {
     }
 
     static double convertMarketUnitToTopologyUnit(final int commodityType,
-            final double valueToConvert, final TopologyEntityDTO entityDTO) {
-        if (isEntityConsumingCloud(entityDTO) &&
-                entityDTO.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE &&
-                commodityType == CommodityType.STORAGE_AMOUNT_VALUE) {
+                                                final double valueToConvert,
+                                                final TopologyEntityDTO entityDTO) {
+        if (isEntityConsumingCloud(entityDTO)
+            && entityDTO.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE
+            && commodityType == CommodityType.STORAGE_AMOUNT_VALUE) {
             return valueToConvert * Units.KBYTE;
         }
         return valueToConvert;

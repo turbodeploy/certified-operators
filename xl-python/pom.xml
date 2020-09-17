@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <artifactId>Turbonomic-XL</artifactId>
+        <groupId>com.vmturbo</groupId>
+        <version>7.22.9-SNAPSHOT</version>
+        <relativePath>../build/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>xl-python</artifactId>
+    <description>Python bindings for XL components' internal communications over gRPC.</description>
+
+    <properties>
+        <dockerHost>unix:///var/run/docker.sock</dockerHost>
+        <rawProtoLocation>${project.build.directory}/protobuf</rawProtoLocation>
+        <outputProtoLocation>${project.build.directory}/${project.name}</outputProtoLocation>
+        <zipLocation>${project.build.directory}/${project.name}-${project.version}.zip</zipLocation>
+        <inputMount>/protos</inputMount>
+        <outputMount>/grpc</outputMount>
+
+        <!-- This image is built from a separate repository (python-grpc-generator) -->
+        <dockerImageName>turbonomic/python-grpc-generator</dockerImageName>
+        <python.grpc.generator.version>1.0</python.grpc.generator.version>
+
+        <!-- The image creation (when the docker profile is set) needs to happen before the
+             generation of the bindings, so that the newly built image gets used for the
+             generation. -->
+        <imageCreationPhase>prepare-package</imageCreationPhase>
+        <generationPhase>package</generationPhase>
+    </properties>
+
+    <build>
+        <!-- The ORDER here is very important - we need to first fetch the dependency .proto
+             files, then run the container to generate the Python bindings, and then zip up
+             and package the bindings. -->
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>unpack</id>
+                        <phase>${generationPhase}</phase>
+                        <goals>
+                            <goal>unpack</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <!-- These are the protobufs defined in the SDK, which are sometimes
+                                     imported in the common-protobuf protos. -->
+                                <artifactItem>
+                                    <groupId>com.vmturbo</groupId>
+                                    <artifactId>com.vmturbo.platform.sdk.common</artifactId>
+                                    <type>jar</type>
+                                    <overWrite>true</overWrite>
+                                    <outputDirectory>${rawProtoLocation}</outputDirectory>
+                                    <includes>**/*.proto</includes>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>com.vmturbo</groupId>
+                                    <artifactId>common-protobuf</artifactId>
+                                    <type>jar</type>
+                                    <overWrite>true</overWrite>
+                                    <outputDirectory>${rawProtoLocation}</outputDirectory>
+                                    <includes>**/*.proto</includes>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>io.fabric8</groupId>
+                <artifactId>docker-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>generate-grpc</id>
+                        <phase>${generationPhase}</phase>
+                        <goals>
+                            <!-- Stop any leaked containers -->
+                            <goal>stop</goal>
+                            <!-- Run the container, which will generate the gRPC bindings -->
+                            <goal>start</goal>
+                            <!-- Stop and remove the container.
+                                 For some reason the "autoRemove" property wasn't working reliably
+                                 so we add this separate goal. -->
+                            <goal>stop</goal>
+                        </goals>
+                        <configuration>
+                            <dockerHost>${dockerHost}</dockerHost>
+                            <showLogs>true</showLogs>
+                            <images>
+                                <image>
+                                    <alias>generate-proto-bindings</alias>
+                                    <name>${dockerImageName}:${python.grpc.generator.version}</name>
+                                    <run>
+                                        <!--
+                                        pattern needs to start with "maven-" so jenkins builds
+                                        will properly clean up leaked containers
+                                        -->
+                                        <containerNamePattern>maven-%a-%i</containerNamePattern>
+                                        <volumes>
+                                            <bind>
+                                                <volume>${rawProtoLocation}:${inputMount}</volume>
+                                                <volume>${outputProtoLocation}:${outputMount}</volume>
+                                            </bind>
+                                        </volumes>
+                                        <wait>
+                                            <!-- Wait for the script to finish before proceeding. -->
+                                            <exit>0</exit>
+                                            <time>60000</time>
+                                        </wait>
+                                        <!-- See the generate.py script -->
+                                        <cmd>--output ${outputMount} ${inputMount}</cmd>
+                                    </run>
+                                </image>
+                            </images>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <phase>${generationPhase}</phase>
+                        <configuration>
+                            <tasks>
+                                <zip destfile="${zipLocation}"
+                                     basedir="${outputProtoLocation}"
+                                     update="true" />
+                            </tasks>
+                        </configuration>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>attach-artifacts</id>
+                        <phase>${generationPhase}</phase>
+                        <goals>
+                            <goal>attach-artifact</goal>
+                        </goals>
+                        <configuration>
+                            <artifacts>
+                                <artifact>
+                                    <file>${zipLocation}</file>
+                                    <type>zip</type>
+                                </artifact>
+                            </artifacts>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>common-protobuf</artifactId>
+        </dependency>
+    </dependencies>
+</project>

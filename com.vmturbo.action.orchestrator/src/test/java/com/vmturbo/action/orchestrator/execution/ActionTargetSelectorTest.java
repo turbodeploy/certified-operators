@@ -120,12 +120,12 @@ public class ActionTargetSelectorTest {
                 .addAllDiscoveringTargetIds(Arrays.asList(target1Id, target2Id))
                 .build();
 
-        Mockito.when(cachedCapabilities.getSupportLevel(action, actionEntity, probe1Id))
-                .thenReturn(SupportLevel.SHOW_ONLY);
+        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
+                .thenReturn(MergedActionCapability.createShowOnly());
         Mockito.when(cachedCapabilities.getProbeCategory(probe1Id))
                 .thenReturn(Optional.of(ProbeCategory.CLOUD_NATIVE));
-        Mockito.when(cachedCapabilities.getSupportLevel(action, actionEntity, probe2Id))
-                .thenReturn(SupportLevel.SUPPORTED);
+        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
+                .thenReturn(MergedActionCapability.createSupported());
         // Target 2 has a "lower" probe category priority, but a higher support level.
         // The higher support level should win out.
         Mockito.when(cachedCapabilities.getProbeCategory(probe2Id))
@@ -152,8 +152,8 @@ public class ActionTargetSelectorTest {
                 .addAllDiscoveringTargetIds(Collections.singletonList(target1Id))
                 .build();
 
-        Mockito.when(cachedCapabilities.getSupportLevel(action, actionEntity, probe1Id))
-                .thenReturn(SupportLevel.UNSUPPORTED);
+        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
+                .thenReturn(MergedActionCapability.createNotSupported());
         Mockito.when(cachedCapabilities.getProbeCategory(probe1Id))
                 .thenReturn(Optional.of(ProbeCategory.HYPERVISOR));
         Mockito.when(cachedCapabilities.getProbeFromTarget(target1Id))
@@ -195,13 +195,13 @@ public class ActionTargetSelectorTest {
                 .addAllDiscoveringTargetIds(Arrays.asList(target1Id, target2Id))
                 .build();
 
-        Mockito.when(cachedCapabilities.getSupportLevel(action, actionEntity, probe1Id))
-                .thenReturn(SupportLevel.SUPPORTED);
+        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
+                .thenReturn(MergedActionCapability.createSupported());
         // Target 1 has a lower priority.
         Mockito.when(cachedCapabilities.getProbeCategory(probe1Id))
                 .thenReturn(Optional.of(ProbeCategory.CLOUD_MANAGEMENT));
-        Mockito.when(cachedCapabilities.getSupportLevel(action, actionEntity, probe2Id))
-                .thenReturn(SupportLevel.SUPPORTED);
+        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
+                .thenReturn(MergedActionCapability.createSupported());
         // Target 2 has a higher priority.
         Mockito.when(cachedCapabilities.getProbeCategory(probe2Id))
                 .thenReturn(Optional.of(ProbeCategory.CLOUD_NATIVE));
@@ -230,13 +230,13 @@ public class ActionTargetSelectorTest {
                 .setOid(actionEntity.getId())
                 .addAllDiscoveringTargetIds(Arrays.asList(target1Id, target2Id))
                 .build();
-        Mockito.when(cachedCapabilities.getSupportLevel(action, actionEntity, probe1Id))
-                .thenReturn(SupportLevel.SUPPORTED);
+        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
+                .thenReturn(MergedActionCapability.createSupported());
         // Target 1 has the lowest explicitly-specified priority (last probe in the list).
         Mockito.when(cachedCapabilities.getProbeCategory(probe1Id))
                 .thenReturn(Optional.of(ProbeCategory.GUEST_OS_PROCESSES));
-        Mockito.when(cachedCapabilities.getSupportLevel(action, actionEntity, probe2Id))
-                .thenReturn(SupportLevel.SUPPORTED);
+        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
+                .thenReturn(MergedActionCapability.createSupported());
         // Target 2 has no known probe category. This shouldn't happen regularly, but
         // might happen based on the interface definition.
         Mockito.when(cachedCapabilities.getProbeCategory(probe2Id)).thenReturn(Optional.empty());
@@ -266,13 +266,13 @@ public class ActionTargetSelectorTest {
                 .addAllDiscoveringTargetIds(Collections.singletonList(target1Id))
                 .build();
 
-        Mockito.when(cachedCapabilities.getSupportLevel(action, actionEntity, probe1Id))
-                .thenReturn(SupportLevel.SUPPORTED);
+        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
+                .thenReturn(MergedActionCapability.createSupported());
         // Target 1 has the lowest explicitly-specified priority (last probe in the list).
         Mockito.when(cachedCapabilities.getProbeCategory(probe1Id))
                 .thenReturn(Optional.of(ProbeCategory.GUEST_OS_PROCESSES));
-        Mockito.when(cachedCapabilities.getSupportLevel(action, actionEntity, probe2Id))
-                .thenReturn(SupportLevel.SUPPORTED);
+        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
+                .thenReturn(MergedActionCapability.createSupported());
         // Target 2 has some unknown probe category.
         Mockito.when(cachedCapabilities.getProbeCategory(probe2Id))
                 .thenReturn(Optional.of(ProbeCategory.UNKNOWN));
@@ -316,8 +316,8 @@ public class ActionTargetSelectorTest {
 
         Mockito.when(cachedCapabilities.getProbeFromTarget(targetId))
                 .thenReturn(Optional.of(probeId));
-        Mockito.when(cachedCapabilities.getSupportLevel(action, selectedEntity, probeId))
-                .thenReturn(SupportLevel.SUPPORTED);
+        Mockito.when(cachedCapabilities.getMergedActionCapability(action, selectedEntity, probeId))
+                .thenReturn(MergedActionCapability.createSupported());
         Mockito.when(cachedCapabilities.getProbeCategory(probeId))
                 .thenReturn(Optional.of(ProbeCategory.HYPERVISOR));
 
@@ -344,7 +344,6 @@ public class ActionTargetSelectorTest {
         final long selectedEntityId = 1;
         final ActionDTO.Action action =
                 testActionBuilder.buildMoveAction(selectedEntityId, 2L, 1, 4L, 1);
-        final ActionDTO.ActionEntity selectedEntity = action.getInfo().getMove().getTarget();
         final ActionPartialEntity actionPartialEntity = ActionPartialEntity.newBuilder()
                 .setOid(2)
                 .addAllDiscoveringTargetIds(Collections.singletonList(targetId))
@@ -438,8 +437,8 @@ public class ActionTargetSelectorTest {
                 .addAllDiscoveringTargetIds(Collections.singletonList(targetId2))
                 .build();
         Mockito.when(
-                cachedCapabilities.getSupportLevel(action, ActionDTOUtil.getPrimaryEntity(action),
-                        probeId)).thenReturn(SupportLevel.SUPPORTED);
+                cachedCapabilities.getMergedActionCapability(action, ActionDTOUtil.getPrimaryEntity(action),
+                        probeId)).thenReturn(MergedActionCapability.createSupported());
         Mockito.when(cachedCapabilities.getProbeCategory(probeId))
                 .thenReturn(Optional.of(ProbeCategory.VIRTUAL_DESKTOP_INFRASTRUCTURE));
         Mockito.when(cachedCapabilities.getProbeFromTarget(targetId1))

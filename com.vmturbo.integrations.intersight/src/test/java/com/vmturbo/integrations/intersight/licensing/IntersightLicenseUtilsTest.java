@@ -2,6 +2,8 @@ package com.vmturbo.integrations.intersight.licensing;
 
 import static com.vmturbo.integrations.intersight.licensing.IntersightLicenseTestUtils.createIwoLicense;
 import static com.vmturbo.integrations.intersight.licensing.IntersightLicenseTestUtils.createProxyLicense;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -21,6 +23,8 @@ import org.junit.Test;
 
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TypeCase;
 import com.vmturbo.integrations.intersight.licensing.IntersightLicenseUtils.BestAvailableIntersightLicenseComparator;
 import com.vmturbo.licensing.utils.CWOMLicenseEdition;
 
@@ -36,8 +40,9 @@ public class IntersightLicenseUtilsTest {
     public void testIsIntersightLicense() {
         for (IntersightProxyLicenseEdition licenseEdition: IntersightProxyLicenseEdition.values()) {
             LicenseDTO license = LicenseDTO.newBuilder()
-                    .setEdition(licenseEdition.name())
-                    .build();
+                .setTurbo(TurboLicense.newBuilder()
+                    .setEdition(licenseEdition.name()))
+                .build();
             assertTrue(IntersightLicenseUtils.isIntersightLicense(license));
         }
     }
@@ -48,8 +53,9 @@ public class IntersightLicenseUtilsTest {
     @Test
     public void testIsIntersightLicenseNegative() {
         LicenseDTO license = LicenseDTO.newBuilder()
-                .setEdition("Advanced")
-                .build();
+            .setTurbo(TurboLicense.newBuilder()
+                .setEdition("Advanced"))
+            .build();
         assertFalse(IntersightLicenseUtils.isIntersightLicense(license));
     }
 
@@ -59,10 +65,13 @@ public class IntersightLicenseUtilsTest {
     @Test
     public void testToProxyEssentialsLicense() {
         LicenseDTO mappedLicense = createProxyLicense("1", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.COMPLIANCE);
-        assertEquals("1", mappedLicense.getExternalLicenseKey());
-        assertEquals(IntersightProxyLicenseEdition.IWO_ESSENTIALS.name(), mappedLicense.getEdition());
-        assertEquals(ILicense.PERM_LIC, mappedLicense.getExpirationDate());
-        assertTrue(CWOMLicenseEdition.CWOM_ESSENTIALS.getFeatures().containsAll(mappedLicense.getFeaturesList()));
+        assertThat(mappedLicense.getTypeCase(), is(TypeCase.TURBO));
+
+        TurboLicense turboLicense = mappedLicense.getTurbo();
+        assertEquals("1", turboLicense.getExternalLicenseKey());
+        assertEquals(IntersightProxyLicenseEdition.IWO_ESSENTIALS.name(), turboLicense.getEdition());
+        assertEquals(ILicense.PERM_LIC, turboLicense.getExpirationDate());
+        assertTrue(CWOMLicenseEdition.CWOM_ESSENTIALS.getFeatures().containsAll(turboLicense.getFeaturesList()));
     }
 
     /**
@@ -71,10 +80,12 @@ public class IntersightLicenseUtilsTest {
     @Test
     public void testToProxyAdvantageLicense() {
         LicenseDTO mappedLicense = createProxyLicense("1", LicenseTypeEnum.ADVANTAGE, LicenseStateEnum.COMPLIANCE);
-        assertEquals("1", mappedLicense.getExternalLicenseKey());
-        assertEquals(IntersightProxyLicenseEdition.IWO_ADVANTAGE.name(), mappedLicense.getEdition());
-        assertEquals(ILicense.PERM_LIC, mappedLicense.getExpirationDate());
-        assertTrue(CWOMLicenseEdition.CWOM_ADVANCED.getFeatures().containsAll(mappedLicense.getFeaturesList()));
+        assertThat(mappedLicense.getTypeCase(), is(TypeCase.TURBO));
+
+        assertEquals("1", mappedLicense.getTurbo().getExternalLicenseKey());
+        assertEquals(IntersightProxyLicenseEdition.IWO_ADVANTAGE.name(), mappedLicense.getTurbo().getEdition());
+        assertEquals(ILicense.PERM_LIC, mappedLicense.getTurbo().getExpirationDate());
+        assertTrue(CWOMLicenseEdition.CWOM_ADVANCED.getFeatures().containsAll(mappedLicense.getTurbo().getFeaturesList()));
     }
 
     /**
@@ -83,10 +94,12 @@ public class IntersightLicenseUtilsTest {
     @Test
     public void testToProxyPremiereLicense() {
         LicenseDTO mappedLicense = createProxyLicense("1", LicenseTypeEnum.PREMIER, LicenseStateEnum.COMPLIANCE);
-        assertEquals("1", mappedLicense.getExternalLicenseKey());
-        assertEquals(IntersightProxyLicenseEdition.IWO_PREMIER.name(), mappedLicense.getEdition());
-        assertEquals(ILicense.PERM_LIC, mappedLicense.getExpirationDate());
-        assertTrue(CWOMLicenseEdition.CWOM_PREMIER.getFeatures().containsAll(mappedLicense.getFeaturesList()));
+        assertThat(mappedLicense.getTypeCase(), is(TypeCase.TURBO));
+
+        assertEquals("1", mappedLicense.getTurbo().getExternalLicenseKey());
+        assertEquals(IntersightProxyLicenseEdition.IWO_PREMIER.name(), mappedLicense.getTurbo().getEdition());
+        assertEquals(ILicense.PERM_LIC, mappedLicense.getTurbo().getExpirationDate());
+        assertTrue(CWOMLicenseEdition.CWOM_PREMIER.getFeatures().containsAll(mappedLicense.getTurbo().getFeaturesList()));
     }
 
     /**
@@ -95,9 +108,10 @@ public class IntersightLicenseUtilsTest {
     @Test
     public void testToProxyBaseLicense() {
         LicenseDTO mappedLicense = createProxyLicense("1", LicenseTypeEnum.BASE, LicenseStateEnum.COMPLIANCE);
-        assertEquals("1", mappedLicense.getExternalLicenseKey());
-        assertEquals(IntersightProxyLicenseEdition.IWO_BASE.name(), mappedLicense.getEdition());
-        assertEquals(ILicense.PERM_LIC, mappedLicense.getExpirationDate());
+        assertThat(mappedLicense.getTypeCase(), is(TypeCase.TURBO));
+        assertEquals("1", mappedLicense.getTurbo().getExternalLicenseKey());
+        assertEquals(IntersightProxyLicenseEdition.IWO_BASE.name(), mappedLicense.getTurbo().getEdition());
+        assertEquals(ILicense.PERM_LIC, mappedLicense.getTurbo().getExpirationDate());
     }
 
     /**
@@ -107,7 +121,8 @@ public class IntersightLicenseUtilsTest {
     @Test
     public void testToProxyGracePeriodLicense() {
         LicenseDTO mappedLicense = createProxyLicense("1", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.OUTOFCOMPLIANCE);
-        assertEquals(ILicense.PERM_LIC, mappedLicense.getExpirationDate());
+        assertThat(mappedLicense.getTypeCase(), is(TypeCase.TURBO));
+        assertEquals(ILicense.PERM_LIC, mappedLicense.getTurbo().getExpirationDate());
     }
 
     /**
@@ -116,8 +131,9 @@ public class IntersightLicenseUtilsTest {
     @Test
     public void testToProxyOutOfGracePeriodLicense() {
         LicenseDTO mappedLicense = createProxyLicense("1", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.GRACEEXPIRED);
-        assertFalse(mappedLicense.getIsValid());
-        assertTrue(StringUtils.isBlank(mappedLicense.getExpirationDate()));
+        assertThat(mappedLicense.getTypeCase(), is(TypeCase.TURBO));
+        assertFalse(mappedLicense.getTurbo().getIsValid());
+        assertTrue(StringUtils.isBlank(mappedLicense.getTurbo().getExpirationDate()));
     }
 
 
@@ -127,7 +143,8 @@ public class IntersightLicenseUtilsTest {
     @Test
     public void testToProxyTrialPeriodLicense() {
         LicenseDTO mappedLicense = createProxyLicense("1", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.TRIALPERIOD);
-        assertEquals(ILicense.PERM_LIC, mappedLicense.getExpirationDate());
+        assertThat(mappedLicense.getTypeCase(), is(TypeCase.TURBO));
+        assertEquals(ILicense.PERM_LIC, mappedLicense.getTurbo().getExpirationDate());
     }
 
     /**
@@ -136,9 +153,10 @@ public class IntersightLicenseUtilsTest {
     @Test
     public void testToProxyTrialExpiredLicense() {
         LicenseDTO mappedLicense = createProxyLicense("1", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.TRIALEXPIRED);
-        assertEquals("1", mappedLicense.getExternalLicenseKey());
-        assertFalse(mappedLicense.getIsValid());
-        assertTrue(StringUtils.isBlank(mappedLicense.getExpirationDate()));
+        assertThat(mappedLicense.getTypeCase(), is(TypeCase.TURBO));
+        assertEquals("1", mappedLicense.getTurbo().getExternalLicenseKey());
+        assertFalse(mappedLicense.getTurbo().getIsValid());
+        assertTrue(StringUtils.isBlank(mappedLicense.getTurbo().getExpirationDate()));
     }
 
     /**

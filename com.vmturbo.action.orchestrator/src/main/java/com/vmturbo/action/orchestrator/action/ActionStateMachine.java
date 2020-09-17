@@ -8,15 +8,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceRemovalEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.AfterFailureEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.AfterSuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.CannotExecuteEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionEvent;
@@ -105,8 +102,8 @@ public class ActionStateMachine {
                 .onEvent(NotRecommendedEvent.class)
                 .after(action::onActionCleared))
 
-            .addTransition(from(ActionState.QUEUED).to(ActionState.PRE_IN_PROGRESS)
-                .onEvent(PrepareExecutionEvent.class)
+            .addTransition(from(ActionState.QUEUED).to(action::getExecutionState)
+                .onEvent(BeginExecutionEvent.class)
                 .after(action::onActionPrepare))
             .addTransition(from(ActionState.QUEUED).to(ActionState.FAILED)
                 .onEvent(FailureEvent.class)
@@ -127,9 +124,6 @@ public class ActionStateMachine {
             // If a pre workflow is in progress, this will not transition.
             .addTransition(from(ActionState.PRE_IN_PROGRESS).to(ActionState.IN_PROGRESS)
                 .onEvent(BeginExecutionEvent.class)
-                // Guard against attempts to begin action execution while a PRE workflow
-                // is still running.
-                .guardedBy(action::executionGuard)
                 .after(action::onActionStart))
             // Transition from PRE_IN_PROGRESS to IN_PROGRESS when a PRE workflow completes successfully
             .addTransition(from(ActionState.PRE_IN_PROGRESS).to(ActionState.IN_PROGRESS)
@@ -143,11 +137,13 @@ public class ActionStateMachine {
                 .onEvent(ProgressEvent.class)
                 .after(action::onActionProgress))
 
-            .addTransition(from(ActionState.IN_PROGRESS).to(ActionState.POST_IN_PROGRESS)
+            .addTransition(from(ActionState.IN_PROGRESS).to(
+                    () -> action.getPostExecutionStep(ActionState.SUCCEEDED))
                 .onEvent(SuccessEvent.class)
                 .after(action::onActionPostSuccess))
 
-            .addTransition(from(ActionState.IN_PROGRESS).to(ActionState.POST_IN_PROGRESS)
+            .addTransition(from(ActionState.IN_PROGRESS).to(
+                    () -> action.getPostExecutionStep(ActionState.FAILED))
                 .onEvent(FailureEvent.class)
                 .after(action::onActionPostFailure))
 
@@ -156,22 +152,15 @@ public class ActionStateMachine {
                 .after(action::onActionProgress))
 
             .addTransition(from(ActionState.POST_IN_PROGRESS).to(ActionState.SUCCEEDED)
-                .onEvent(AfterSuccessEvent.class)
-                // Guard against attempts to complete action execution while a POST workflow
-                // still needs to be run.
-                .guardedBy(action::completionGuard)
+                .onEvent(SuccessEvent.class)
                 .after(action::onActionSuccess))
 
             .addTransition(from(ActionState.POST_IN_PROGRESS).to(ActionState.FAILED)
-                .onEvent(AfterFailureEvent.class)
-                // Guard against attempts to complete action execution while a POST workflow
-                // still needs to be run.
-                .guardedBy(action::completionGuard)
+                .onEvent(FailureEvent.class)
                 .after(action::onActionFailure))
 
-            .addTransition(from(ActionState.POST_IN_PROGRESS).to(ActionState.SUCCEEDED)
+            .addTransition(from(ActionState.POST_IN_PROGRESS).to(action::getPostExecutionSuccessState)
                 .onEvent(SuccessEvent.class)
-                .guardedBy(action::successGuard)
                 .after(action::onActionSuccess))
 
             .addTransition(from(ActionState.POST_IN_PROGRESS).to(ActionState.FAILED)

@@ -17,6 +17,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.arangodb.ArangoDBException;
 import com.google.common.annotations.VisibleForTesting;
@@ -64,7 +65,7 @@ import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
  * Topologies may also be removed (e.g. when a plan is deleted) via
  * {@link TopologyLifecycleManager#deleteTopology(TopologyID)}.
  */
-public class TopologyLifecycleManager implements DiagsRestorable {
+public class TopologyLifecycleManager implements DiagsRestorable<Void> {
 
     /**
      * The file name for the state of the {@link TopologyLifecycleManager}. It's a string file,
@@ -190,7 +191,8 @@ public class TopologyLifecycleManager implements DiagsRestorable {
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags,
+                             @Nullable Void context) throws DiagnosticsException {
         // Overwrite whatever is in the lifecycle manager with the restored diags.
         // We rely on the diags handler to actually do the restoration of the database
         // to arangodb.
@@ -615,7 +617,14 @@ public class TopologyLifecycleManager implements DiagsRestorable {
     public interface TopologyCreator<ENTITY_DTO_TYPE> {
         void initialize() throws GraphDatabaseException;
 
-        void addEntities(final Collection<ENTITY_DTO_TYPE> entities) throws TopologyEntitiesException;
+        /**
+         * Add entities to the topology.
+         *
+         * @param entities To be added
+         * @param tid The {@link TopologyID} being referenced
+         * @throws TopologyEntitiesException If there is any issue writing the entities.
+         */
+        void addEntities(Collection<ENTITY_DTO_TYPE> entities, TopologyID tid) throws TopologyEntitiesException;
 
         /**
          * Finalize the topology. To be called after all the entities are added.
@@ -644,7 +653,7 @@ public class TopologyLifecycleManager implements DiagsRestorable {
         }
 
         @Override
-        public void addEntities(final Collection<TopologyEntityDTO> entities) throws TopologyEntitiesException {
+        public void addEntities(final Collection<TopologyEntityDTO> entities, final TopologyID tid) throws TopologyEntitiesException {
             sourceRealtimeTopologyBuilder.addEntities(entities);
         }
 
@@ -671,8 +680,12 @@ public class TopologyLifecycleManager implements DiagsRestorable {
             // Nothing to initialize.
         }
 
-        @Override
         public void addEntities(final Collection<ProjectedTopologyEntity> entities) throws TopologyEntitiesException {
+            projectedTopologyBuilder.addEntities(entities);
+        }
+
+        @Override
+        public void addEntities(final Collection<ProjectedTopologyEntity> entities, final TopologyID tid) throws TopologyEntitiesException {
             projectedTopologyBuilder.addEntities(entities);
         }
 
@@ -697,7 +710,7 @@ public class TopologyLifecycleManager implements DiagsRestorable {
      *
      *  {@link TopologyCreator#initialize()}
      *     |
-     *  {@link TopologyCreator#addEntities(Collection)} as many times as necessary
+     *  {@link TopologyCreator#addEntities(Collection, TopologyID)} as many times as necessary
      *     |
      *  {@link TopologyCreator#complete()} or {@link TopologyCreator#rollback()}.
      */
@@ -817,18 +830,31 @@ public class TopologyLifecycleManager implements DiagsRestorable {
          * The caller can call this method as many times as necessary.
          *
          * @param entities The entities to add.
+         * @param tid the {@link TopologyID} being referenced.
          * @throws TopologyEntitiesException If there is any issue writing the entities.
          */
         @Override
-        public void addEntities(final Collection<TopologyEntityDTO> entities)
+        public void addEntities(final Collection<TopologyEntityDTO> entities, TopologyID tid)
                 throws TopologyEntitiesException {
             try {
-                topologyGraphCreator.updateTopologyToDb(entityConverter.convert(entities));
+                topologyGraphCreator.updateTopologyToDb(entityConverter.convert(entities), tid);
                 globalSupplyChain.processEntities(entities);
                 topologyProtobufWriter.ifPresent(writer -> writer.storeChunk(entities));
             } catch (VertexOperationException | EdgeOperationException | CollectionOperationException e) {
                 throw new TopologyEntitiesException(e);
             }
+        }
+
+        /**
+         * Add a collection of entities to the topology.
+         * The caller can call this method as many times as necessary.
+         *
+         * @param entities The entities to add.
+         * @throws TopologyEntitiesException If there is any issue writing the entities.
+         */
+        public void addEntities(final Collection<TopologyEntityDTO> entities)
+                throws TopologyEntitiesException {
+            addEntities(entities, null);
         }
 
         /**
@@ -876,19 +902,32 @@ public class TopologyLifecycleManager implements DiagsRestorable {
          * The caller can call this method as many times as necessary.
          *
          * @param entities The entities to add.
+         * @param tid the {@link TopologyID} being referenced.
          * @throws TopologyEntitiesException If there is any issue writing the entities.
          */
         @Override
-        public void addEntities(final Collection<ProjectedTopologyEntity> entities)
+        public void addEntities(final Collection<ProjectedTopologyEntity> entities, TopologyID tid)
                 throws TopologyEntitiesException {
             try {
                 topologyGraphCreator.updateTopologyToDb(
                     entityConverter.convert(Collections2.transform(entities,
-                            ProjectedTopologyEntity::getEntity)));
+                            ProjectedTopologyEntity::getEntity)), tid);
                 topologyProtobufWriter.ifPresent(writer -> writer.storeChunk(entities));
             } catch (VertexOperationException | EdgeOperationException | CollectionOperationException e) {
                 throw new TopologyEntitiesException(e);
             }
+        }
+
+        /**
+         * Add a collection of entities to the topology.
+         * The caller can call this method as many times as necessary.
+         *
+         * @param entities The entities to add.
+         * @throws TopologyEntitiesException If there is any issue writing the entities.
+         */
+        public void addEntities(final Collection<ProjectedTopologyEntity> entities)
+                throws TopologyEntitiesException {
+            addEntities(entities, null);
         }
     }
 

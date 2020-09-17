@@ -5,29 +5,102 @@
     <parent>
         <artifactId>Turbonomic-XL</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>7.22.100-TeamPaaS-SNAPSHOT</version>
+        <version>7.22.9-SNAPSHOT</version>
         <relativePath>../build/pom.xml</relativePath>
     </parent>
 
-    <artifactId>com.vmturbo.grafana</artifactId>
+    <artifactId>grafana</artifactId>
+
+    <properties>
+        <python.zip.file>xl-python.zip</python.zip.file>
+        <grpc.intermediate.folder>${project.build.directory}/grpc</grpc.intermediate.folder>
+        <dockerImageName>${docker.image.prefix}/${project.name}</dockerImageName>
+    </properties>
 
     <profiles>
         <profile>
             <id>docker</id>
             <build>
                 <plugins>
+                    <!-- Get the python gRPC bindings zip from the xl-python dependency -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>attach-artifact</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>copy</goal>
+                                </goals>
+                                <configuration>
+                                    <artifactItems>
+                                        <artifactItem>
+                                            <groupId>com.vmturbo</groupId>
+                                            <artifactId>xl-python</artifactId>
+                                            <type>zip</type>
+                                            <overWrite>true</overWrite>
+                                            <outputDirectory>${project.build.directory}</outputDirectory>
+                                            <destFileName>${python.zip.file}</destFileName>
+                                        </artifactItem>
+                                    </artifactItems>
+                                </configuration>
+                            </execution>
+                        </executions>
+                        <dependencies>
+                            <dependency>
+                                <groupId>com.vmturbo</groupId>
+                                <artifactId>xl-python</artifactId>
+                                <version>${project.version}</version>
+                            </dependency>
+                        </dependencies>
+                    </plugin>
+                    <!-- Extract the ZIP file into an intermediate folder, which is referenced
+                         from the Dockerfile -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>unpack-jar-features</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <echo message="unpack gRPC bindings zip file"/>
+                                        <mkdir dir="${grpc.intermediate.folder}"/>
+                                        <unzip src="${project.build.directory}/${python.zip.file}"
+                                               dest="${grpc.intermediate.folder}"
+                                               failOnEmptyArchive="true">
+                                        </unzip>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
                     <plugin>
                         <groupId>com.spotify</groupId>
                         <artifactId>docker-maven-plugin</artifactId>
                         <configuration>
                             <dockerDirectory>${project.basedir}/docker</dockerDirectory>
-                            <imageName>${docker.image.prefix}/grafana</imageName>
+                            <imageName>${dockerImageName}</imageName>
                             <imageTags>
                                 <imageTag>${project.version}</imageTag>
                             </imageTags>
                             <labels>
                                 <label>com.vmturbo.version=${project.version}</label>
                             </labels>
+                            <resources>
+                                <resource>
+                                    <!-- Make the contents of the gRPC folder available to the
+                                         Dockerfile at "grpc". This is equivalent to copying the
+                                         folder into docker/grpc, but less messy. -->
+                                    <targetPath>/grpc</targetPath>
+                                    <directory>${grpc.intermediate.folder}</directory>
+                                </resource>
+                            </resources>
                         </configuration>
                         <executions>
                             <execution>
@@ -44,8 +117,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>${docker.image.prefix}/grafana:${project.version}</image>
-                                    <newName>${docker.registry}/${docker.image.prefix}/grafana:${project.version}</newName>
+                                    <image>${dockerImageName}</image>
+                                    <newName>${docker.registry}/${dockerImageName}:${project.version}</newName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -55,8 +128,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>${docker.image.prefix}/grafana</image>
-                                    <newName>${docker.registry}/${docker.image.prefix}/grafana:latest</newName>
+                                    <image>${dockerImageName}</image>
+                                    <newName>${docker.registry}/${dockerImageName}:latest</newName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -66,7 +139,7 @@
                                     <goal>push</goal>
                                 </goals>
                                 <configuration>
-                                    <imageName>${docker.registry}/${docker.image.prefix}/grafana</imageName>
+                                    <imageName>${docker.registry}/${dockerImageName}</imageName>
                                 </configuration>
                             </execution>
                         </executions>
@@ -75,4 +148,11 @@
             </build>
         </profile>
     </profiles>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>xl-python</artifactId>
+        </dependency>
+    </dependencies>
 </project>

@@ -473,9 +473,16 @@ public class ReservedInstanceAnalyzer {
             for (float f : entry.getValue()) {
                 weeklyWorkloadDemand += (f / numberOfCoupons);
             }
-            totalCostAcrossWorkloads += (weeklyWorkloadDemand * onDemandPrice);
+            float weeklyCost = (weeklyWorkloadDemand * onDemandPrice);
+            logger.debug("Calculated weekly on demand cost of {} for tier {} at an"
+                            + " on demand rate of {} for weekly demand of {} hours", weeklyCost,
+                            computerTier.getDisplayName(), onDemandPrice, weeklyWorkloadDemand);
+            totalCostAcrossWorkloads += weeklyCost;
         }
-        return (totalCostAcrossWorkloads / RIBuyDemandCalculator.WEEKLY_DEMAND_DATA_SIZE);
+        float onDemandCost = (totalCostAcrossWorkloads / RIBuyDemandCalculator.WEEKLY_DEMAND_DATA_SIZE);
+        logger.debug("Calculated on demand cost as {}, based on total weekly cost of {}",
+                onDemandCost, totalCostAcrossWorkloads);
+        return onDemandCost;
     }
 
     /**

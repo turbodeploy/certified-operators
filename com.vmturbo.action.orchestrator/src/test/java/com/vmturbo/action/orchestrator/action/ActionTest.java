@@ -5,8 +5,10 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -17,6 +19,7 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -28,8 +31,8 @@ import org.mockito.Mockito;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator.ActionSpecifications;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -47,6 +50,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -184,7 +188,6 @@ public class ActionTest {
 
         moveAction.receive(new ManualAcceptanceEvent("0", targetId));
         moveAction.receive(new QueuedEvent());
-        moveAction.receive(new PrepareExecutionEvent());
         moveAction.receive(new BeginExecutionEvent());
     }
 
@@ -200,7 +203,6 @@ public class ActionTest {
 
         moveAction.receive(new ManualAcceptanceEvent("0", 24L));
         moveAction.receive(new QueuedEvent());
-        moveAction.receive(new PrepareExecutionEvent());
         moveAction.receive(new BeginExecutionEvent());
 
         assertFalse(moveAction.determineExecutability());
@@ -390,6 +392,43 @@ public class ActionTest {
         assertEquals(moveAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(storageMoveAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(reconfigureAction.getMode(), ActionMode.RECOMMEND);
+    }
+
+    /**
+     * Tests the case that translation is not populated.
+     *
+     * @throws UnsupportedActionException if something goes wrong.
+     */
+    @Test
+    public void testGetActionAssociatedPolicyTranslationNotPopulated() throws UnsupportedActionException {
+        resizeVmAction.refreshAction(entitySettingsCache);
+        assertEquals(Collections.emptySet(), resizeVmAction.getAssociatedSettingsPolicies());
+    }
+
+    /**
+     * Tests the case that associated policies gets populated.
+     *
+     * @throws UnsupportedActionException if something goes wrong.
+     */
+    @Test
+    public void testGetAssociatedPolicy() throws UnsupportedActionException {
+        resizeVmAction.getActionTranslation().setTranslationSuccess(vmResizeRecommendation);
+        Map<String, Setting> settings = ImmutableMap.<String, Setting>builder()
+            .put("resize", makeSetting("resize", ActionMode.AUTOMATIC))
+            .build();
+
+        doAnswer(invocationOnMock -> Stream.of(new ActionSpecifications(ConfigurableActionSettings.Resize)))
+            .when(actionModeCalculator)
+            .specsApplicableToAction(any(), any());
+
+        when(entitySettingsCache.getSettingsForEntity(eq(11L)))
+            .thenReturn(settings);
+
+        when(entitySettingsCache.getSettingPoliciesForEntity(eq(11L)))
+            .thenReturn(Collections.singletonMap("resize", Collections.singletonList(5555L)));
+
+        resizeVmAction.refreshAction(entitySettingsCache);
+        assertEquals(Collections.singleton(5555L), resizeVmAction.getAssociatedSettingsPolicies());
     }
 
     /**

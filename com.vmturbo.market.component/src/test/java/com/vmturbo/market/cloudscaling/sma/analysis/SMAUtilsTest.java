@@ -33,17 +33,6 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
  */
 public class SMAUtilsTest {
 
-    /**
-     * update the reserved instances by combining similar RI's.
-     * Market component does this externally. This is just for test purposes.
-     *
-     * @param smaInput the sma Input
-     */
-    static void normalizeReservedInstance(SMAInput smaInput) {
-        for (SMAInputContext smaInputContext : smaInput.getContexts()) {
-            normalizeReservedInstance(smaInputContext);
-        }
-    }
 
     /**
      * update the reserved instances by combining similar RI's.
@@ -258,7 +247,7 @@ public class SMAUtilsTest {
                         outputContext.getMatches().get(i).getTemplate(),
                         oldVM.getProviders(),
                         //oldVM.getCurrentRICoverage(),
-                        (float)outputContext.getMatches().get(i).getDiscountedCoupons(),
+                        outputContext.getMatches().get(i).getDiscountedCoupons(),
                         oldVM.getZoneId(),
                         outputContext.getMatches().get(i).getReservedInstance() == null ?
                                 SMAUtils.BOGUS_RI :
@@ -285,7 +274,7 @@ public class SMAUtilsTest {
                 SMAVirtualMachine vm = match.getVirtualMachine();
                 SMATemplate currentTemplate = vm.getCurrentTemplate();
                 SMATemplate matchTemplate = match.getTemplate();
-                if (currentTemplate != matchTemplate || (Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons() != 0)) {
+                if (currentTemplate.getOid() != matchTemplate.getOid() || (Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons() != 0)) {
                     //System.out.println(String.format("testStability mismatch VM=%s: currentTemplate=%s != matchTemplate=%s coverage=%s discount=%s",
                     //      vm.toStringShallow(), currentTemplate, matchTemplate, vm.getCurrentRICoverage(), match.getDiscountedCoupons()));
                     mismatch++;
@@ -293,7 +282,7 @@ public class SMAUtilsTest {
                     newsaving += (vm.getCurrentTemplate().getNetCost(vm.getBusinessAccountId(), vm.getOsType(), vm.getCurrentRICoverage()) -
                             match.getTemplate().getNetCost(vm.getBusinessAccountId(), vm.getOsType(), match.getDiscountedCoupons()));
                 }
-                if (currentTemplate != matchTemplate) {
+                if (currentTemplate.getOid() != matchTemplate.getOid()) {
                     templatemismatch++;
                 }
             }
@@ -361,8 +350,7 @@ public class SMAUtilsTest {
                 SMACost discountedCost = new SMACost(0, 0);
                 String name = family + ".t" + i;
                 SMATemplate smaTemplate = new SMATemplate(SMATestConstants.TEMPLATE_BASE +
-                        (nFamily * 1000L) + i, name, family,
-                        numberOfCoupons, SMAUtils.BOGUS_CONTEXT, null);
+                        (nFamily * 1000L) + i, name, family, numberOfCoupons, null);
                 for (int j = 0; j < nBusinessAccounts; j++) {
                     smaTemplate.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + j, os, onDemandCost);
                     smaTemplate.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + j, os, discountedCost);
@@ -415,7 +403,7 @@ public class SMAUtilsTest {
         OSType os = OSType.UNKNOWN_OS;
         SMATemplate smaTemplate = new SMATemplate(SMATestConstants.TEMPLATE_BASE + 1,
                 SMATestConstants.TEMPLATE_NAME_ONE,
-                "family1", 1, SMAUtils.BOGUS_CONTEXT, null);
+                "family1", 1, null);
         for (int i = 0; i <  10; i++) {
             smaTemplate.setOnDemandCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + i, os, new SMACost(1, 0));
             smaTemplate.setDiscountedCost(SMATestConstants.BUSINESS_ACCOUNT_BASE + i, os, new SMACost(0, 0));
@@ -428,7 +416,7 @@ public class SMAUtilsTest {
                     SMAUtils.NO_GROUP_ID,
                     SMATestConstants.BUSINESS_ACCOUNT_BASE,
                     smaTemplate,
-                    Arrays.asList(smaTemplate),
+                    new ArrayList(Arrays.asList(smaTemplate)),
                     0,
                     SMATestConstants.ZONE_BASE,
                     SMAUtils.BOGUS_RI,
@@ -460,7 +448,8 @@ public class SMAUtilsTest {
                 Tenancy.DEFAULT);
         SMAInputContext inputContext = new SMAInputContext(context, virtualMachines,
                 reservedInstances, templates);
-        SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
+        SMAOutputContext outputContext = StableMarriageAlgorithm
+                .execute(new SMAInput(Collections.singletonList(inputContext))).getContexts().get(0);
 
     }
 
@@ -504,7 +493,7 @@ public class SMAUtilsTest {
                         outputContext.getMatches().get(i).getTemplate(),
                         oldVM.getProviders(),
                         //oldVM.getCurrentRICoverage(),
-                        (float)outputContext.getMatches().get(i).getDiscountedCoupons(),
+                        outputContext.getMatches().get(i).getDiscountedCoupons(),
                         oldVM.getZoneId(),
                         outputContext.getMatches().get(i).getReservedInstance() == null ?
                                 SMAUtils.BOGUS_RI :
@@ -531,7 +520,7 @@ public class SMAUtilsTest {
                 SMAVirtualMachine vm = match.getVirtualMachine();
                 SMATemplate currentTemplate = vm.getCurrentTemplate();
                 SMATemplate matchTemplate = match.getTemplate();
-                if (currentTemplate != matchTemplate || (Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons() != 0)) {
+                if (currentTemplate.getOid() != matchTemplate.getOid() || (Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons() != 0)) {
                     System.out.println(String.format("testStability mismatch VM=%s: "
                                     + "currentTemplate=%s != matchTemplate=%s "
                                     + "coverage=%s discount=%s",
@@ -543,7 +532,7 @@ public class SMAUtilsTest {
                     newsaving += (vm.getCurrentTemplate().getNetCost(vm.getBusinessAccountId(), os, vm.getCurrentRICoverage()) -
                             match.getTemplate().getNetCost(vm.getBusinessAccountId(), os, match.getDiscountedCoupons()));
                 }
-                if (currentTemplate != matchTemplate) {
+                if (currentTemplate.getOid() != matchTemplate.getOid()) {
                     templatemismatch++;
                 }
             }
@@ -800,7 +789,7 @@ public class SMAUtilsTest {
                 SMAVirtualMachine vm = match.getVirtualMachine();
                 SMATemplate currentTemplate = vm.getCurrentTemplate();
                 SMATemplate matchTemplate = match.getTemplate();
-                if (currentTemplate != matchTemplate || (Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons() != 0)) {
+                if ((currentTemplate.getOid() != matchTemplate.getOid()) || (Math.round(vm.getCurrentRICoverage()) - match.getDiscountedCoupons() != 0)) {
                     //System.out.println(String.format("testStability mismatch VM=%s: currentTemplate=%s != matchTemplate=%s coverage=%s discount=%s",
                     //        vm.toStringShallow(), currentTemplate, matchTemplate, vm.getCurrentRICoverage(), match.getDiscountedCoupons()));
                     mismatch++;

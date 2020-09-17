@@ -115,7 +115,7 @@ public class ReservedInstanceMapperTest {
                         .build());
         final ReservedInstanceApiDTO reservedInstanceApiDTO =
                 reservedInstanceMapper.mapToReservedInstanceApiDTO(riBought.build(), riSpec,
-                        serviceEntityApiDTOMap, 50, null);
+                        serviceEntityApiDTOMap, 50, null, null);
         assertEquals("RI_ID", reservedInstanceApiDTO.getTrueID());
         assertEquals(String.valueOf(ACCOUNT_1_ID), reservedInstanceApiDTO.getAccountId());
         assertEquals("Account", reservedInstanceApiDTO.getAccountDisplayName());
@@ -180,7 +180,7 @@ public class ReservedInstanceMapperTest {
         // Act
         final ReservedInstanceApiDTO reservedInstanceApiDTO =
                 reservedInstanceMapper.mapToReservedInstanceApiDTO(riBought.build(), riSpec,
-                        serviceEntityApiDTOMap, null, 100);
+                        serviceEntityApiDTOMap, null, 100, null);
         assertEquals(reservedInstanceApiDTO.getExpDateEpochTime(), new Long(1L));
         Assert.assertEquals(100, (int)reservedInstanceApiDTO.getUndiscoveredAccountsCoveredCount());
         Assert.assertNull(reservedInstanceApiDTO.getCoveredEntityCount());
@@ -204,7 +204,7 @@ public class ReservedInstanceMapperTest {
         // Act
         final ReservedInstanceApiDTO reservedInstanceApiDTO =
                 reservedInstanceMapper.mapToReservedInstanceApiDTO(riBought.build(), riSpec,
-                        serviceEntityApiDTOMap, 100, 50);
+                        serviceEntityApiDTOMap, 100, 50, null);
 
         // Assert
         assertEquals(CloudType.AZURE, reservedInstanceApiDTO.getCloudType());

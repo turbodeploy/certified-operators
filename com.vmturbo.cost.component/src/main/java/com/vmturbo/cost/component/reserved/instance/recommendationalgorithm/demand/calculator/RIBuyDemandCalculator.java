@@ -388,7 +388,7 @@ public class RIBuyDemandCalculator {
             String logTag) {
 
         final ReservedInstanceBoughtInfo riInfo = riBought.getReservedInstanceBoughtInfo();
-        final int riCoupons = riInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons();
+        final double riCoupons = riInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons();
         final Calendar riPurchaseHour = roundDownToHour(riInfo.getStartTime());
         final int purchaseWeeksAgo = weeksAgo(currentHour, riPurchaseHour);
 
@@ -422,7 +422,7 @@ public class RIBuyDemandCalculator {
                   based on expiry date override will already have been
                   done in ChangeLoadObjectImpl, there is no need to check RIs for expiry here.
                 */
-                largeAdjustment = smallAdjustment = riCoupons;
+                largeAdjustment = smallAdjustment = (float)riCoupons;
             } else {
                 /*
                  *  For consumption demand, RIs that existed at the time of recording were
@@ -447,10 +447,10 @@ public class RIBuyDemandCalculator {
                  *  In the case where P and T are literally the same hour (not just the same slot),
                  *  we remove the full demand (1 * C) from every hour.
                  */
-                largeAdjustment = (float)Math.pow(1.0f - demandWeight, purchaseWeeksAgo)
-                        * riCoupons;
-                smallAdjustment = (float)Math.pow(1.0f - demandWeight, purchaseWeeksAgo + 1)
-                        * riCoupons;
+                largeAdjustment = (float)(Math.pow(1.0f - demandWeight, purchaseWeeksAgo)
+                        * riCoupons);
+                smallAdjustment = (float)(Math.pow(1.0f - demandWeight, purchaseWeeksAgo + 1)
+                        * riCoupons);
             }
 
             largeAdjustmentArray = new float[WEEKLY_DEMAND_DATA_SIZE];

@@ -1,7 +1,5 @@
 package com.vmturbo.api.component.external.api.service;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
@@ -39,6 +37,7 @@ import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseSummaryResponse;
+import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicensesResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
 import com.vmturbo.common.protobuf.licensing.Licensing.RemoveLicenseRequest;
@@ -165,17 +164,13 @@ public class LicenseService implements ILicenseService {
     }
 
     @Override
-    public List<LicenseApiDTO> addLicenses(final List<LicenseApiDTO> list, final boolean dryRun) {
+    public List<LicenseApiDTO> addLicenses(final List<LicenseInput> list, final boolean dryRun) {
         // filter out duplicate licenses in the request. I don't know how/when a duplicate license
         // gets into the request, but this check exists in ops manager so I'm carrying it into XL.
-        List<LicenseApiDTO> distinctLicenses = list.stream()
-                .distinct()
-                .collect(Collectors.toList());
-
-        // convert from LicenseApiDTO to LicenseDTO objects
-        List<LicenseDTO> licenseDTOS = distinctLicenses.stream()
-                .map(LicenseMapper::licenseApiDTOtoLicenseDTO)
-                .collect(Collectors.toList());
+        List<LicenseDTO> licenseDTOS = list.stream()
+            .map(licenseInput -> LicenseDeserializer.deserialize(licenseInput.getLicense(), licenseInput.getFilename()))
+            .distinct()
+            .collect(Collectors.toList());
 
         List<LicenseDTO> processedLicenseDTOS;
         // if it's a "dry run", we will only validate the licenses and skip the storage part. The
@@ -214,7 +209,7 @@ public class LicenseService implements ILicenseService {
 
     @Override
     public List<LicenseApiDTO> findAllLicenses() {
-        GetLicensesResponse response = licenseManagerService.getLicenses(Empty.getDefaultInstance());
+        GetLicensesResponse response = licenseManagerService.getLicenses(GetLicensesRequest.getDefaultInstance());
         List<LicenseApiDTO> allLicenses = response.getLicenseDTOList().stream()
                                             .map(LicenseMapper::licenseDTOtoLicenseApiDTO)
                                             .collect(Collectors.toList());
@@ -232,34 +227,6 @@ public class LicenseService implements ILicenseService {
             .targetName(s)
             .audit();
         return isSuccessful;
-    }
-
-    @Override
-    public LicenseApiDTO deserializeLicenseToLicenseDTO(final InputStream inputStream,
-            final String s) {
-        try {
-            return LicenseDeserializer.deserialize(inputStream, s);
-        } catch (SecurityException e) {
-            AuditLog.newEntry(AuditAction.ADD_LICENSE,
-                    FAILED_TO_PARSE_POTENTIAL_MALICIOUS_LICENSE_FILE, false)
-                    .targetName(s)
-                    .audit();
-            throw new SecurityException(FAILED_TO_PARSE_POTENTIAL_MALICIOUS_LICENSE_FILE);
-        } catch (IOException ioe) {
-            // this is how we're handling this in OM. The LicenseController is streaming the
-            // results, and I'm assuming the empty LicenseApiDTO is part of the expected results.
-            return new LicenseApiDTO();
-        }
-    }
-
-    @Override
-    public LicenseApiDTO deserializeLicenseToLicenseDTO(final String s) {
-        // duplicating how this works in the Ops Manager LicenseService.
-        try {
-            return LicenseDeserializer.deserialize(s, null);
-        } catch (IOException ioe) {
-            return new LicenseApiDTO();
-        }
     }
 
     @Override

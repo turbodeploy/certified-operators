@@ -1,13 +1,12 @@
 package com.vmturbo.topology.processor.conversions;
 
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.loadEntityDTO;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.URL;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -20,7 +19,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import com.google.protobuf.util.JsonFormat;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -97,11 +95,11 @@ public class SdkToTopologyEntityConverterTest {
      */
     @Test
     public void testConverter() throws IOException {
-        CommonDTO.EntityDTO vmProbeDTO = messageFromJsonFile("protobuf/messages/vm-1.dto.json");
-        CommonDTO.EntityDTO pmPoweredonProbeDTO = messageFromJsonFile("protobuf/messages/pm-1.dto.json");
-        CommonDTO.EntityDTO pmMaintenanceProbeDTO = messageFromJsonFile("protobuf/messages/pm-2-maintenance.dto.json");
-        CommonDTO.EntityDTO pmFailoverProbeDTO = messageFromJsonFile("protobuf/messages/pm-3-failover.dto.json");
-        CommonDTO.EntityDTO dsProbeDTO = messageFromJsonFile("protobuf/messages/ds-1.dto.json");
+        CommonDTO.EntityDTO vmProbeDTO = loadEntityDTO("vm-1.dto.json");
+        CommonDTO.EntityDTO pmPoweredonProbeDTO = loadEntityDTO("pm-1.dto.json");
+        CommonDTO.EntityDTO pmMaintenanceProbeDTO = loadEntityDTO("pm-2-maintenance.dto.json");
+        CommonDTO.EntityDTO pmFailoverProbeDTO = loadEntityDTO("pm-3-failover.dto.json");
+        CommonDTO.EntityDTO dsProbeDTO = loadEntityDTO("ds-1.dto.json");
         Map<Long, CommonDTO.EntityDTO> probeDTOs = Maps.newLinkedHashMap(); // preserve the order
         // The entities are placed in the map so that there are forward references (from the VM to the other two)
         probeDTOs.put(VM_OID, vmProbeDTO);
@@ -240,7 +238,7 @@ public class SdkToTopologyEntityConverterTest {
 
     @Test
     public void testVDC() throws IOException {
-        CommonDTO.EntityDTO vdcProbeDTO = messageFromJsonFile("protobuf/messages/vdc-1.dto.json");
+        CommonDTO.EntityDTO vdcProbeDTO = loadEntityDTO("vdc-1.dto.json");
         Map<Long, CommonDTO.EntityDTO> probeDTOs = Maps.newLinkedHashMap(); // preserve the order
         probeDTOs.put(VDC_OID, vdcProbeDTO);
         final List<TopologyEntityDTO> topologyDTOs =
@@ -277,31 +275,16 @@ public class SdkToTopologyEntityConverterTest {
     }
 
     /**
-     * Load a json file into a DTO.
-     * @param fileName the name of the file to load
-     * @return The entity DTO represented by the file
-     * @throws IOException when the file is not found
-     */
-    public static CommonDTO.EntityDTO messageFromJsonFile(String fileName) throws IOException {
-        URL fileUrl = SdkToTopologyEntityConverterTest.class.getClassLoader().getResources(fileName)
-                .nextElement();
-        CommonDTO.EntityDTO.Builder builder = CommonDTO.EntityDTO.newBuilder();
-        JsonFormat.parser().merge(new InputStreamReader(fileUrl.openStream()), builder);
-        CommonDTO.EntityDTO message = builder.build();
-        return message;
-    }
-
-    /**
      * Load a small topology with one of each: VM, PM, Storage, Datacenter and verify that the
      * accesses property is set properly when needed and not set when not needed.
      * @throws IOException if the test file can't be loaded properly
      */
     @Test
     public void testAccesses() throws IOException {
-        CommonDTO.EntityDTO vm = messageFromJsonFile("protobuf/messages/accesses-vm.json");
-        CommonDTO.EntityDTO pm = messageFromJsonFile("protobuf/messages/accesses-pm.json");
-        CommonDTO.EntityDTO dc = messageFromJsonFile("protobuf/messages/accesses-dc.json");
-        CommonDTO.EntityDTO st = messageFromJsonFile("protobuf/messages/accesses-st.json");
+        CommonDTO.EntityDTO vm = loadEntityDTO("accesses-vm.json");
+        CommonDTO.EntityDTO pm = loadEntityDTO("accesses-pm.json");
+        CommonDTO.EntityDTO dc = loadEntityDTO("accesses-dc.json");
+        CommonDTO.EntityDTO st = loadEntityDTO("accesses-st.json");
         Map<Long, CommonDTO.EntityDTO> probeDTOs = Maps.newHashMap();
         long VM_ID = 10;
         long PM_ID = 20;
@@ -605,6 +588,39 @@ public class SdkToTopologyEntityConverterTest {
     }
 
     /**
+     * Test that if SDK CommodityDTO does not have used value set, then the converted
+     * CommoditySoldDTO also does not have used value set.
+     */
+    @Test
+    public void testCommoditySoldUsedUnset() {
+        // given
+        final EntityDTO entity = EntityDTO.newBuilder()
+            .setId("111")
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .addCommoditiesSold(CommodityDTO.newBuilder()
+                .setCapacity(10000)
+                .setCommodityType(CommodityType.VMEM)
+                .build())
+            .build();
+        final TopologyStitchingEntity stitchingEntity = new TopologyStitchingEntity(
+            StitchingEntityData.newBuilder(entity.toBuilder())
+                .build());
+        entity.getCommoditiesSoldList().forEach(commodity -> stitchingEntity
+            .addCommoditySold(commodity.toBuilder(), Optional.empty()));
+
+        // when
+        final TopologyEntityDTO.Builder topologyEntityDTO =
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(stitchingEntity,
+                resoldCommodityCache);
+
+        // then
+        final List<CommoditySoldDTO> commoditySoldDTOS =
+            topologyEntityDTO.getCommoditySoldListList();
+        Assert.assertFalse(commoditySoldDTOS.isEmpty());
+        Assert.assertFalse(commoditySoldDTOS.iterator().next().hasUsed());
+    }
+
+    /**
      * Tests that {@link SdkToTopologyEntityConverter} preserves
      * the connections between cloud entities correctly.
      */
@@ -833,9 +849,9 @@ public class SdkToTopologyEntityConverterTest {
     @Test
     public void testNodeAndPodWithActionEligibility() throws IOException {
         // VM DTO containing suspendable = false
-        CommonDTO.EntityDTO vmProbeDTO = messageFromJsonFile("protobuf/messages/kube-master-node-1.dto.json");
+        CommonDTO.EntityDTO vmProbeDTO = loadEntityDTO("kube-master-node-1.dto.json");
         // Pod DTO containing suspendable = false, cloneable = false, movable across providers = false
-        CommonDTO.EntityDTO podProbeDTO = messageFromJsonFile("protobuf/messages/kube-daemon-pod-1.dto.json");
+        CommonDTO.EntityDTO podProbeDTO = loadEntityDTO("kube-daemon-pod-1.dto.json");
 
         Map<Long, CommonDTO.EntityDTO> probeDTOs = Maps.newLinkedHashMap(); // preserve the order
         // The entities are placed in the map so that there are forward references (from the VM to the other two)
@@ -883,7 +899,7 @@ public class SdkToTopologyEntityConverterTest {
     @Test
     public void testApplicationSuspendWithoutActionEligibility() throws IOException {
         // Application DTO containing no info
-        CommonDTO.EntityDTO applicationProbeDTO = messageFromJsonFile("protobuf/messages/aws_engineering_entity_application.dto.json");
+        CommonDTO.EntityDTO applicationProbeDTO = loadEntityDTO("aws_engineering_entity_application.dto.json");
 
         Map<Long, CommonDTO.EntityDTO> probeDTOs = Maps.newLinkedHashMap();
         probeDTOs.put(APPLICATION_OID, applicationProbeDTO);

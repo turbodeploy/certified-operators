@@ -1,7 +1,6 @@
 package com.vmturbo.cloud.commitment.analysis.runtime.stages.classification;
 
 import java.time.Duration;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,10 +55,10 @@ public class DemandClassificationSummary {
     private static final String SCOPED_DEMAND_TEMPLATE =
             "[Tier=<tier>(<tierDemand>) Classification=<classification>]: <duration>";
 
-    private final Map<AllocatedDemandClassification, Duration> allocatedDurationByClassification =
-            new EnumMap(AllocatedDemandClassification.class);
+    private final Map<DemandClassification, Duration> allocatedDurationByClassification =
+            new HashMap<>();
 
-    private final Map<ClassifiedDemandScope<AllocatedDemandClassification>, Duration> durationByDemandScope =
+    private final Map<ClassifiedDemandScope, Duration> durationByDemandScope =
             new HashMap<>();
 
     private final MinimalCloudTopology<MinimalEntity> cloudTopology;
@@ -93,7 +92,7 @@ public class DemandClassificationSummary {
      * Converts this summary to a collector, useful in summarizing data with a stream.
      * @return A {@link Consumer} of {@link ClassifiedEntityDemandAggregate} instances for allocated demand.
      */
-    public Consumer<ClassifiedEntityDemandAggregate<AllocatedDemandClassification>> toAllocatedSummaryCollector() {
+    public Consumer<ClassifiedEntityDemandAggregate> toAllocatedSummaryCollector() {
 
         return (classifiedDemandAggregate) ->
                 classifiedDemandAggregate.classifiedCloudTierDemand().forEach(
@@ -147,7 +146,7 @@ public class DemandClassificationSummary {
                 allocatedDurationByClassification.entrySet()
                         .stream()
                         .map(e -> {
-                            final AllocatedDemandClassification classification = e.getKey();
+                            final DemandClassification classification = e.getKey();
                             final Duration duration = e.getValue();
 
                             final ST perClassificationTemplate = new ST(PER_CLASSIFICATION_TEMPLATE);
@@ -226,10 +225,9 @@ public class DemandClassificationSummary {
 
     /**
      * A scoping class for detailed demand data.
-     * @param <ClassificationTypeT> The demand classification type (allocated or projected).
      */
     @Immutable(lazyhash = true)
-    abstract static class ClassifiedDemandScope<ClassificationTypeT> {
+    abstract static class ClassifiedDemandScope {
 
         abstract CloudTierDemand cloudTierDemand();
 
@@ -237,6 +235,6 @@ public class DemandClassificationSummary {
 
         abstract long regionOid();
 
-        abstract ClassificationTypeT classification();
+        abstract DemandClassification classification();
     }
 }

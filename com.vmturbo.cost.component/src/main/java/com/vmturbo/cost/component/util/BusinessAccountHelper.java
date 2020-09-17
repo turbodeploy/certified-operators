@@ -3,7 +3,6 @@ package com.vmturbo.cost.component.util;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -11,13 +10,12 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.tuple.ImmutablePair;
-
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.cost.component.reserved.instance.AccountRIMappingStore;
-import com.vmturbo.cost.component.reserved.instance.AccountRIMappingStore.AccountRIMappingItem;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 /**
  * A helper class for business account. It's currently only used
@@ -28,6 +26,9 @@ public class BusinessAccountHelper {
     // It will be populated when new topology are sent to Cost component.
     //BA OID --> List of TargetID
     private Map<ImmutablePair<Long, String>, Set<Long>> businessAccountToTargetIdMap =
+            Collections.synchronizedMap(Maps.newHashMap());
+
+    private Map<Long, TopologyEntityDTO> discoveredBusinessAccounts =
             Collections.synchronizedMap(Maps.newHashMap());
 
     /**
@@ -73,6 +74,10 @@ public class BusinessAccountHelper {
                 .filter(baToTargets -> baToTargets.getValue().isEmpty())
                 .map(Entry::getKey).collect(Collectors.toSet());
         businessAccountToTargetIdMap.keySet().removeAll(baWithNoAttachedTargets);
+        // Clean up discovered business account set
+        for (ImmutablePair<Long, String> removedBa : baWithNoAttachedTargets) {
+            discoveredBusinessAccounts.remove(removedBa.getLeft());
+        }
         return baWithNoAttachedTargets;
     }
 
@@ -91,23 +96,15 @@ public class BusinessAccountHelper {
     }
 
     /**
-
-     * Returns the sum of usage from all undiscovered accounts.
+     * Store discovered account to the discoveredBusinessAccounts map.
      *
-     * @param baOids the list of undiscovered ba oids for which we want the usage.
-     * @param accountRIMappingStore An instance of {@link AccountRIMappingStore}
-     * @return Map of RI id and corresponding usage from undiscovered accounts.
+     * @param entityDTO the discovered business account.
      */
-    public static Map<Long, Double> getUndiscoveredAccountUsageForRI(
-            final List<Long> baOids, AccountRIMappingStore accountRIMappingStore) {
-        final Map<Long, List<AccountRIMappingItem>> usedCouponInUndiscAccounts =
-                accountRIMappingStore.getAccountRICoverageMappings(baOids);
-        Map<Long, Double> undiscoveredAccountRIUsage =
-                usedCouponInUndiscAccounts.values().stream()
-                        .flatMap(List::stream)
-                        .collect(Collectors.toMap(AccountRIMappingItem::getReservedInstanceId,
-                                AccountRIMappingItem::getUsedCoupons,
-                                (oldValue, newValue) -> oldValue + newValue));
-        return undiscoveredAccountRIUsage;
+    public void storeDiscoveredBusinessAccount(final TopologyEntityDTO entityDTO) {
+        discoveredBusinessAccounts.put(entityDTO.getOid(), entityDTO);
+    }
+
+    public Set<Long> getDiscoveredBusinessAccounts() {
+        return discoveredBusinessAccounts.keySet();
     }
 }

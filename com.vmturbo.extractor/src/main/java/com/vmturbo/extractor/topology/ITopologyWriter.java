@@ -22,17 +22,18 @@ public interface ITopologyWriter {
     /**
      * Start processing a new topology ingestion.
      *
-     * @param topologyInfo   the {@link TopologyInfo} for the topology
-     * @param writerConfig   writer config properties
-     * @param timer          a {@link MultiStageTimer} to collect overall timing information
+     * @param topologyInfo the {@link TopologyInfo} for the topology
+     * @param writerConfig writer config properties
+     * @param timer        a {@link MultiStageTimer} to collect overall timing information
      * @return a consumer to which topology entities will be delivered for processing by this writer
      * @throws IOException                 if there's a problem setting up for processing
      * @throws UnsupportedDialectException if our database endpoint is mis-configured
      * @throws SQLException                if there's a problem establishing database access
+     * @throws InterruptedException        if we're interrupted
      */
     Consumer<TopologyEntityDTO> startTopology(
             TopologyInfo topologyInfo, WriterConfig writerConfig, MultiStageTimer timer)
-            throws IOException, UnsupportedDialectException, SQLException;
+            throws IOException, UnsupportedDialectException, SQLException, InterruptedException;
 
     /**
      * Perform any final processing required after the whole topology has been processed.

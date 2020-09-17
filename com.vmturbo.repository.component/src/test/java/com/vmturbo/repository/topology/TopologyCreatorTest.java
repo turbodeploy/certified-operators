@@ -159,7 +159,7 @@ public class TopologyCreatorTest {
         creator.addEntities(Collections.emptySet());
 
         verify(entityConverter).convert(any());
-        verify(graphCreator).updateTopologyToDb(any());
+        verify(graphCreator).updateTopologyToDb(any(), any());
         verify(protobufWriter).storeChunk(any());
     }
 
@@ -171,7 +171,7 @@ public class TopologyCreatorTest {
         creator.addEntities(Collections.emptySet());
 
         verify(entityConverter).convert(any());
-        verify(graphCreator).updateTopologyToDb(any());
+        verify(graphCreator).updateTopologyToDb(any(), any());
         verify(protobufWriter).storeChunk(any());
     }
 

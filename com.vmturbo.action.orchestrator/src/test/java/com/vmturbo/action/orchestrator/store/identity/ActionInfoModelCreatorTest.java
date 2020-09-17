@@ -113,6 +113,86 @@ public class ActionInfoModelCreatorTest {
     }
 
     /**
+     * Test the ActionInfoModel for atomic resize
+     * with the same execution target but multiple resizes in different order
+     * for different de-duplication targets.
+     */
+    @Test
+    public void testAtomicResizeActionTypeWithMultipleDeDuplicationTargets() {
+        ActionInfo resize1 = ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(createActionEntity(1))
+                        .addResizes(createResizeInfo(2, 1))
+                        .addResizes(createResizeInfo(3, 1))
+                        .build())
+                .build();
+
+        ActionInfoModel model1 = modelCreator.apply(resize1);
+
+        ActionInfo resize2 = ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(createActionEntity(1))
+                        .addResizes(createResizeInfo(3, 1))
+                        .addResizes(createResizeInfo(2, 1))
+                        .build())
+                .build();
+        ActionInfoModel model2 = modelCreator.apply(resize2);
+        Assert.assertEquals(model1, model2);
+
+        ActionInfo resize3 = ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(createActionEntity(1))
+                        .addResizes(createResizeInfo(2, 1))
+                        .build())
+                .build();
+        ActionInfoModel model3 = modelCreator.apply(resize3);
+        Assert.assertNotEquals(model1, model3);
+
+        ActionInfo resize4 = ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(createActionEntity(1))
+                        .addResizes(createResizeInfo(3, 1))
+                        .build())
+                .build();
+        ActionInfoModel model4 = modelCreator.apply(resize4);
+        Assert.assertNotEquals(model1, model4);
+    }
+
+    private ResizeInfo.Builder createResizeInfo(long id, int commType) {
+        return ResizeInfo.newBuilder()
+                .setTarget(createActionEntity(id))
+                .setCommodityType(CommodityType.newBuilder().setType(commType))
+                .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                .setOldCapacity(124).setNewCapacity(456);
+    }
+
+    /**
+     * Test the ActionInfoModel for atomic resize
+     * with the same execution target but multiple commodity resizes in different order.
+     */
+    @Test
+    public void testAtomicResizeActionTypeWithMultipleCommodities() {
+        ActionInfo resize1 = ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(createActionEntity(1))
+                        .addResizes(createResizeInfo(2, 1))
+                        .addResizes(createResizeInfo(2, 2))
+                        .build())
+                .build();
+        ActionInfoModel model1 = modelCreator.apply(resize1);
+
+        ActionInfo resize2 = ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(createActionEntity(1))
+                        .addResizes(createResizeInfo(2, 2))
+                        .addResizes(createResizeInfo(2, 1))
+                        .build())
+                .build();
+        ActionInfoModel model2 = modelCreator.apply(resize2);
+        Assert.assertEquals(model2, model1);
+    }
+
+    /**
      * Tests the case when action type is undefined.
      */
     @Test

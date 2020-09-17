@@ -4,6 +4,7 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS_PER_HOST
 import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS_PER_STORAGE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.PRICE_INDEX;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -47,12 +48,15 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.SortCommodityValueGetter;
+import com.vmturbo.components.common.stats.StatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
+import com.vmturbo.repository.service.AbridgedSoldCommoditiesForProvider.AbridgedSoldCommodity;
 import com.vmturbo.repository.service.PlanEntityStatsExtractor.DefaultPlanEntityStatsExtractor;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufReader;
@@ -490,7 +494,13 @@ public class PlanStatsService {
                 getFilteredDensityStats(statsFilter.getCommodityRequestsList(), relatedEntityType);
         final boolean hasDensityStats = !requestedDensityStats.isEmpty();
         final Predicate<TopologyEntityDTO> vmDensityStatMatcher = getVMDensityStatsMatcher();
-
+        final List<ProjectedTopologyEntity> requestedEntities = new ArrayList<>();
+        final Map<Long, AbridgedSoldCommoditiesForProvider> providerIdToSoldCommodities
+            = new HashMap<>();
+        final Set<Integer> requestedCommodities =
+            StatsUtils.collectCommodityNames(statsFilter).stream()
+            .map(commodityName -> UICommodityType.fromString(commodityName).typeNumber())
+            .collect(Collectors.toSet());
         // process the chunks of TopologyEntityDTO protobufs as received
         while (reader.hasNext()) {
             List<ProjectedTopologyEntity> chunk = reader.nextChunk();
@@ -500,33 +510,50 @@ public class PlanStatsService {
 
                 // If VM density stats requested, we update map with providerIds to vmDensities
                 // Records get added after all entities processed in while loop
-                    if (hasDensityStats && vmDensityStatMatcher.test(entityDto)) {
+                if (hasDensityStats && vmDensityStatMatcher.test(entityDto)) {
                     final Set<Long> providerIdsToIncrementDensityStats =
-                            getProvidersToIncrementVMDensityStats(entityDto, relatedEntityType);
-                            updateMapIncrementsWithProviderSet(providerIdsToIncrementDensityStats,
-                                    providerVMDensitycounts);
+                        getProvidersToIncrementVMDensityStats(entityDto, relatedEntityType);
+                    updateMapIncrementsWithProviderSet(providerIdsToIncrementDensityStats,
+                        providerVMDensitycounts);
                 }
-
                 // apply the filtering predicate
-                if (!entityMatcher.test(entityDto)) {
-                    logger.trace("skipping {}", entityDto.getDisplayName());
-                    continue;
+                if (entityMatcher.test(entityDto)) {
+                    requestedEntities.add(entity);
                 }
-
-                // Calculate the stats for this entity
-                final EntityStats.Builder stats =
-                    planEntityStatsExtractor.extractStats(entity, statsFilter, statEpoch, snapshotDate);
-
-                entities.put(entity.getEntity().getOid(), new EntityAndStats(entity, stats));
+                providerIdToSoldCommodities.put(entityDto.getOid(),
+                    abridgeSoldCommodities(entityDto, requestedCommodities));
             }
         }
-
+        final Map<String, Set<Integer>> commodityNameToProviderTypes = StatsUtils
+            .commodityNameToProviderType(statsFilter);
+        final Map<String, Set<String>> commodityNameToGroupByFilters =
+            StatsUtils.commodityNameToGroupByFilters(statsFilter);
+        for (final ProjectedTopologyEntity entity : requestedEntities) {
+            // Calculate the stats for this entity
+            final EntityStats.Builder stats =
+                planEntityStatsExtractor.extractStats(entity, statEpoch,
+                    providerIdToSoldCommodities, commodityNameToProviderTypes,
+                    commodityNameToGroupByFilters, snapshotDate);
+            entities.put(entity.getEntity().getOid(), new EntityAndStats(entity, stats));
+        }
         //Add VMDensity stats to result if they were part of request
         if (hasDensityStats) {
             addVMDensityStatRecordsToEntities(entities, providerVMDensitycounts, requestedDensityStats);
         }
 
         return entities;
+    }
+
+    private AbridgedSoldCommoditiesForProvider abridgeSoldCommodities(
+        final TopologyEntityDTO provider, final Set<Integer> requestedCommodities) {
+        final List<AbridgedSoldCommodity> soldCommodities = provider.getCommoditySoldListList()
+            .stream()
+            .filter(commoditySold -> requestedCommodities
+                .contains(commoditySold.getCommodityType().getType()))
+            .map(commoditySold -> new AbridgedSoldCommodity(
+                commoditySold.getCommodityType().getType(), commoditySold.getCapacity()))
+            .collect(Collectors.toList());
+        return new AbridgedSoldCommoditiesForProvider(provider.getEntityType(), soldCommodities);
     }
 
     /**

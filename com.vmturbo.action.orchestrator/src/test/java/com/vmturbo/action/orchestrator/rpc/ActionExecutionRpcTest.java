@@ -102,7 +102,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 
 /**
  * Tests for action execution RPCs.
@@ -206,7 +206,7 @@ public class ActionExecutionRpcTest {
                 statistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
                 actionIdentityService, involvedEntitiesExpander,
-                Mockito.mock(ActionAuditSender.class), true));
+                Mockito.mock(ActionAuditSender.class), true, 60));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
@@ -278,9 +278,9 @@ public class ActionExecutionRpcTest {
                 ImmutableMap.of(executionScheduleId, executionSchedule));
         when(snapshot.getSettingPoliciesForEntity(actionTargetId)).thenReturn(
                 new ImmutableMap.Builder<String, Collection<Long>>().put(
-                        EntitySettingSpecs.Move.getSettingName(), Collections.singletonList(22L))
+                        ConfigurableActionSettings.Move.getSettingName(), Collections.singletonList(22L))
                         .put(ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                                EntitySettingSpecs.Move, ActionSettingType.SCHEDULE),
+                            ConfigurableActionSettings.Move, ActionSettingType.SCHEDULE),
                             Collections.singleton(23L))
                         .build());
 
@@ -549,7 +549,7 @@ public class ActionExecutionRpcTest {
                                                               @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
                 return actionStream;
             }
-        }, grpcServer.getChannel()));
+        }, grpcServer.getChannel(), new ActionTopologyStore()));
 
         final AtomicActionSpecsCache atomicActionSpecsCache = Mockito.spy(new AtomicActionSpecsCache());
         final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
@@ -572,7 +572,7 @@ public class ActionExecutionRpcTest {
                 statistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
                 actionIdentityService, involvedEntitiesExpander,
-                Mockito.mock(ActionAuditSender.class), true));
+                Mockito.mock(ActionAuditSender.class), true, 60));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
 
         actionStorehouse.storeActions(plan);

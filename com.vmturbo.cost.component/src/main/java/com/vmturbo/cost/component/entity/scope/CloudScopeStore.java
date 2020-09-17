@@ -12,7 +12,7 @@ import com.vmturbo.components.common.diagnostics.DiagsRestorable;
  * when the entity is removed from the topology. This store allows other dependent stores to track
  * historical entity data and support queries based on a cloud scope.
  */
-public interface CloudScopeStore extends DiagsRestorable {
+public interface CloudScopeStore extends DiagsRestorable<Void> {
 
 
     /**

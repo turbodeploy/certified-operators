@@ -1,5 +1,8 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
+
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
@@ -7,19 +10,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
 
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.AccountRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
@@ -33,7 +38,6 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.component.notification.CostNotificationSender;
-import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysis;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -71,6 +75,8 @@ public class ReservedInstanceCoverageUpdate {
 
     private final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
 
+    private final AccountRIMappingStore accountRIMappingStore;
+
     private final ReservedInstanceUtilizationStore reservedInstanceUtilizationStore;
 
     private final ReservedInstanceCoverageStore reservedInstanceCoverageStore;
@@ -93,6 +99,7 @@ public class ReservedInstanceCoverageUpdate {
     public ReservedInstanceCoverageUpdate(
             @Nonnull final DSLContext dsl,
             @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
+            @Nonnull final AccountRIMappingStore accountRIMappingStore,
             @Nonnull final ReservedInstanceUtilizationStore reservedInstanceUtilizationStore,
             @Nonnull final ReservedInstanceCoverageStore reservedInstanceCoverageStore,
             @Nonnull final ReservedInstanceCoverageValidatorFactory reservedInstanceCoverageValidatorFactory,
@@ -100,6 +107,7 @@ public class ReservedInstanceCoverageUpdate {
             @Nonnull final CostNotificationSender costNotificationSender,
             final long riCoverageCacheExpireMinutes) {
         this.dsl = Objects.requireNonNull(dsl);
+        this.accountRIMappingStore = Objects.requireNonNull(accountRIMappingStore);
         this.entityReservedInstanceMappingStore = Objects.requireNonNull(entityReservedInstanceMappingStore);
         this.reservedInstanceUtilizationStore = Objects.requireNonNull(reservedInstanceUtilizationStore);
         this.reservedInstanceCoverageStore = Objects.requireNonNull(reservedInstanceCoverageStore);
@@ -159,11 +167,13 @@ public class ReservedInstanceCoverageUpdate {
 
         try (DataMetricTimer timer = COVERAGE_UPDATE_METRIC_SUMMARY.startTimer()) {
             final long topologyId = topologyInfo.getTopologyId();
+            persistUndiscoveredAccountRiMappings(cloudTopology, topologyId);
             final List<EntityRICoverageUpload> entityRICoverageUploads =
                     getCoverageUploadsForTopology(topologyId, cloudTopology);
 
             final List<ServiceEntityReservedInstanceCoverageRecord> seRICoverageRecord =
-                    createServiceEntityReservedInstanceCoverageRecords(entityRICoverageUploads, cloudTopology);
+                    createServiceEntityReservedInstanceCoverageRecords(entityRICoverageUploads,
+                            cloudTopology);
 
             dsl.transaction(configuration -> {
                 final DSLContext transactionContext = DSL.using(configuration);
@@ -184,6 +194,46 @@ public class ReservedInstanceCoverageUpdate {
             logger.error("Error processing RI coverage update (Topology Context ID={}, Topology ID={})",
                     topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId(), e);
             sendSourceEntityRICoverageNotification(topologyInfo, Status.FAIL);
+        }
+    }
+
+    private void persistUndiscoveredAccountRiMappings(final CloudTopology<TopologyEntityDTO> cloudTopology,
+            final long topologyId) {
+        logger.debug("riCoverageAccountCache: {}", () -> riCoverageAccountCache.asMap().toString());
+        final List<AccountRICoverageUpload> accountRICoverageList =
+                riCoverageAccountCache.getIfPresent(topologyId);
+        if (!CollectionUtils.isEmpty(accountRICoverageList)) {
+            // Persist RI coverage mappings per account.
+            // Store the account RI coverage mappings only for the undiscovered accounts.
+
+            final List<TopologyEntityDTO> allAccounts = cloudTopology
+                    .getAllEntitiesOfType(EntityType.BUSINESS_ACCOUNT_VALUE);
+            final Set<Long> discoveredAccounts = allAccounts.stream().filter(
+                    acc -> acc.hasTypeSpecificInfo()
+                            && acc.getTypeSpecificInfo().hasBusinessAccount()
+                            && acc.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId())
+                    .map(TopologyEntityDTO::getOid)
+                    .collect(toSet());
+
+            final List<AccountRICoverageUpload> undiscoveredAccountCoverageList =
+                    accountRICoverageList.stream()
+                            .filter(coverage -> !discoveredAccounts.contains(coverage.getAccountId()))
+                            .collect(toList());
+            logger.debug(
+                    "allAccounts: {}, discoveredAccounts: {}, undiscoveredAccountCoverageList: {}",
+                    () -> allAccounts, () -> discoveredAccounts,
+                    () -> undiscoveredAccountCoverageList);
+
+            if (CollectionUtils.isNotEmpty(undiscoveredAccountCoverageList)) {
+                logger.info("Persisting RI coverage for undiscovered accounts {}...",
+                        undiscoveredAccountCoverageList.stream()
+                                .map(AccountRICoverageUpload::getAccountId)
+                                .collect(toList()));
+                accountRIMappingStore.updateAccountRICoverageMappings(undiscoveredAccountCoverageList);
+            }
+        } else {
+            logger.warn("No per-Account RI Coverage mapping records found in cache for topology {}",
+                    topologyId);
         }
     }
 

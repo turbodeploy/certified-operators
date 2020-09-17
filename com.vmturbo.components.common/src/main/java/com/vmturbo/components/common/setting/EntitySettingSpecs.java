@@ -19,7 +19,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
@@ -36,33 +35,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public enum EntitySettingSpecs {
 
     /**
-     * Move action automation mode.
-     */
-    Move("move", "Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_VOLUME,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER, EntityType.DISK_ARRAY,
-                    EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
-
-    /**
-     * Cloud compute scale action automation mode.
-     */
-    CloudComputeScale("cloudComputeScale", "Cloud Compute Scale", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER), actionExecutionModeSetToManual(), true),
-
-    /**
-     * Move action automation mode for business user.
-     */
-    BusinessUserMove("businessUserMove", "Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.BUSINESS_USER), actionExecutionModeSetToManual(), true),
-
-    /**
-     * Storage Move action automation mode.
-     */
-    StorageMove("storageMove", "Storage Move", Collections.emptyList(),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            actionExecutionModeSetToRecommend(), true),
-
-    /**
      * Shop together setting for VMs.
      */
     ShopTogether("shopTogether", "Shared-Nothing Migration",
@@ -71,69 +43,6 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.VIRTUAL_MACHINE),
             new BooleanSettingDataType(false),
             true),
-
-    /**
-     * Resize action automation mode.
-     *
-     * For VM, this setting is only being used for commodities other than cpu, vcpu, mem and vmem.
-     * The reason is that those commodities are handled by their specific settings,
-     * such as ResizeVcpuUpInBetweenThresholds.
-     */
-    Resize("resize", "Resize", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.CONTAINER,
-                            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-                    EntityType.DATABASE_SERVER, EntityType.WORKLOAD_CONTROLLER),
-            actionExecutionModeSetToManual(), true),
-
-    /**
-     * Resize Up Heap automation mode.
-     */
-    ResizeUpHeap("resizeUpHeap", "Resize Up Heap", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToRecommend(), true),
-
-    /**
-     * Resize Down Heap automation mode.
-     */
-    ResizeDownHeap("resizeDownHeap", "Resize Down Heap", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION_COMPONENT), actionExecutionModeSetToRecommend(), true),
-
-    /**
-     * Resize Up DBMem automation mode.
-     */
-    ResizeUpDBMem("resizeUpDBMem", "Resize Up DBMem", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DATABASE_SERVER), actionExecutionModeSetToManual(), true),
-
-    /**
-     * Resize Down DBMem automation mode.
-     */
-    ResizeDownDBMem("resizeDownDBMem", "Resize Down DBMem", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DATABASE_SERVER), actionExecutionModeSetToManual(), true),
-
-    /**
-     * Resize action automation mode for vcpu resize ups where the target capacity is between
-     * {@link EntitySettingSpecs#ResizeVcpuMinThreshold} and {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
-     */
-    ResizeVcpuUpInBetweenThresholds("resizeVcpuUpInBetweenThresholds", "VCPU Resize Up", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
-
-    /**
-     * Resize action automation mode for vcpu resize downs where the target capacity is between
-     * {@link EntitySettingSpecs#ResizeVcpuMinThreshold} and {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
-     */
-    ResizeVcpuDownInBetweenThresholds("resizeVcpuDownInBetweenThresholds", "VCPU Resize Down", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
-
-    /**
-     * Resize action automation mode for vcpu resizes where the target capacity is above the max threshold value {@link EntitySettingSpecs#ResizeVcpuMaxThreshold}.
-     */
-    ResizeVcpuAboveMaxThreshold("resizeVcpuAboveMaxThreshold", "VCPU Resize Above Max", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
-
-    /**
-     * Resize action automation mode for vcpu resizes where the target capacity is below the min value {@link EntitySettingSpecs#ResizeVcpuMinThreshold}.
-     */
-    ResizeVcpuBelowMinThreshold("resizeVcpuBelowMinThreshold", "VCPU Resize Below Min", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
 
     /**
      * The minimum number of vcpu cores which is the threshold to decide automation mode.
@@ -148,32 +57,6 @@ public enum EntitySettingSpecs {
     ResizeVcpuMaxThreshold("resizeVcpuMaxThreshold", "VCPU Resize Max Threshold (in Cores)",
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 1000, 64), true),
-
-    /**
-     * Resize action automation mode for vmem resize ups where the target capacity is between
-     * {@link EntitySettingSpecs#ResizeVmemMinThreshold} and {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
-     */
-    ResizeVmemUpInBetweenThresholds("resizeVmemUpInBetweenThresholds", "VMem Resize Up", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
-
-    /**
-     * Resize action automation mode for vmem resize downs where the target capacity is between
-     * {@link EntitySettingSpecs#ResizeVmemMinThreshold} and {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
-     */
-    ResizeVmemDownInBetweenThresholds("resizeVmemDownInBetweenThresholds", "VMem Resize Down", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToManual(), true),
-
-    /**
-     * Resize action automation mode for vmem resizes where the target capacity is above the max threshold value {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
-     */
-    ResizeVmemAboveMaxThreshold("resizeVmemAboveMaxThreshold", "VMem Resize Above Max", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
-
-    /**
-     * Resize action automation mode for vmem resizes where the target capacity is below the min value {@link EntitySettingSpecs#ResizeVmemMinThreshold}.
-     */
-    ResizeVmemBelowMinThreshold("resizeVmemBelowMinThreshold", "VMem Resize Below Min", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionModeSetToRecommend(), true),
 
     /**
      * The minimum number of vmem cores which is the threshold to decide automation mode.
@@ -205,62 +88,19 @@ public enum EntitySettingSpecs {
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), new BooleanSettingDataType(true), true),
 
+    /**
+     * Enable Scale actions (currently it is used for Volumes only).
+     */
+    EnableScaleActions("enableScaleActions", "Enable Scale Actions", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            new BooleanSettingDataType(true), true),
 
     /**
-     * Suspend action automation mode.
+     * Enable Delete actions (currently it is used for Volumes only).
      */
-    Suspend("suspend", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-            EntityType.CONTAINER_POD, EntityType.CONTAINER,
-            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-            EntityType.APPLICATION_COMPONENT),
-            actionExecutionModeSetToManualTypeSpecific(
-                    Collections.singletonMap(EntityType.APPLICATION_COMPONENT, ActionMode.RECOMMEND)),
-            true),
-
-    /**
-     * For some types of entities Suspend actions are disabled by default.
-     */
-    DisabledSuspend("suspendIsDisabled", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.IO_MODULE), actionExecutionModeSetToDisabled(), true),
-
-    /**
-     * Delete action automation mode.
-     */
-    Delete("delete", "Delete", Collections.emptyList(), SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_VOLUME), actionExecutionModeSetToManual(), true),
-
-    /**
-     * Provision action automation mode.
-     */
-    Provision("provision", "Provision", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
-                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER,
-                    EntityType.APPLICATION_COMPONENT),
-            actionExecutionModeSetToManualTypeSpecific(
-                    Collections.singletonMap(EntityType.APPLICATION_COMPONENT, ActionMode.RECOMMEND)),
-            true),
-
-    /**
-     * For some types of entities Suspend actions are disabled by default.
-     */
-    DisabledProvision("provisionIsDisabled", "Provision", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE_CONTROLLER), actionExecutionModeSetToDisabled(), true),
-
-    /**
-     * Reconfigure action automation mode (not executable).
-     */
-    Reconfigure("reconfigure", "Reconfigure", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD), nonExecutableActionMode(), true),
-
-    /**
-     * Activate action automation mode.
-     */
-    Activate("activate", "Start", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
+    EnableDeleteActions("enableDeleteActions", "Enable Delete Actions", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            new BooleanSettingDataType(true), true),
 
     /**
      * CPU utilization threshold.
@@ -391,7 +231,8 @@ public enum EntitySettingSpecs {
             //path is needed for the UI to display this setting in a separate category
             Arrays.asList(CategoryPathConstants.ADVANCED, CategoryPathConstants.UTILTARGET),
             SettingTiebreaker.BIGGER, /*this is related to the center setting. bigger diameter is more conservative*/
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0.0f/*min*/, 100.0f/*max*/, 10.0f/*default*/), true),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_VOLUME), numeric(0.0f/*min*/,
+        100.0f/*max*/, 10.0f/*default*/), true),
 
     /**
      * Aggressiveness for business user.
@@ -421,6 +262,15 @@ public enum EntitySettingSpecs {
             numeric(90.0f, 100.0f, 95.0f), true),
 
     /**
+     * Aggressiveness for virtual volume.
+     */
+    PercentileAggressivenessVirtualVolume("percentileAggressivenessVirtualVolume",
+            SettingConstants.AGGRESSIVENESS,
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            numeric(90.0f, 100.0f, 95.0f), true),
+
+    /**
      * Min observation period for container spec.
      */
     MinObservationPeriodContainerSpec("minObservationPeriodContainerSpec",
@@ -439,13 +289,22 @@ public enum EntitySettingSpecs {
             numeric(90.0f, 99.0f, 95.0f), true),
 
     /**
-     * Min observation period for business user.
+     * Min observation period for virtual machine.
      */
     MinObservationPeriodVirtualMachine("minObservationPeriodVirtualMachine",
             "Min Observation Period",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f, 90.0f, 0.0f), true),
+
+    /**
+     * Min observation period for virtual volume.
+     */
+    MinObservationPeriodVirtualVolume("minObservationPeriodVirtualVolume",
+            "Min Observation Period",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            numeric(0.0f, 7.0f, 0.0f), true),
 
     /**
      * Max observation period for business user.
@@ -472,6 +331,15 @@ public enum EntitySettingSpecs {
             SettingConstants.MAX_OBSERVATION_PERIOD,
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(7.0f, 90.0f, 30.0f), true),
+
+    /**
+     * Max observation period for virtual volume.
+     */
+    MaxObservationPeriodVirtualVolume("maxObservationPeriodVirtualVolume",
+            SettingConstants.MAX_OBSERVATION_PERIOD,
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
             numeric(7.0f, 90.0f, 30.0f), true),
 
     /**
@@ -552,6 +420,26 @@ public enum EntitySettingSpecs {
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 100.0f/*max*/, 90.0f/*default*/), true),
+
+    /**
+     * Resize target Utilization for IOPS and Throughput. We use this unified setting for both IOPS
+     * and Throughput because IOPS and Throughput utilization values are dependent on each other.
+     */
+    ResizeTargetUtilizationIopsAndThroughput("resizeTargetUtilizationIopsAndThroughput",
+            "Scaling Target IOPS/Throughput Utilization",
+            //path is needed for the UI to display this setting in a separate category
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            numeric(1.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
+
+    /**
+     * Resize target Utilization for IOPs.
+     */
+    ResizeTargetUtilizationIops("resizeTargetUtilizationIops", "Scaling Target IOPs Utilization",
+        //path is needed for the UI to display this setting in a separate category
+        Collections.emptyList(), SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.VIRTUAL_MACHINE),
+        numeric(0.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
     /**
      * IOPS capacity to set on the entity.
@@ -648,238 +536,6 @@ public enum EntitySettingSpecs {
         new BooleanSettingDataType(false), true),
 
     /**
-     * Automation Policy for the Activate Workflow. The value is the name of an
-     * Orchestration workflow to invoke when an activate action is generated and executed.
-     */
-    ActivateActionWorkflow("activateActionWorkflow", "Activate Workflow",
-            Collections.singletonList(CategoryPathConstants.AUTOMATION),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
-            string(), true),
-
-    /**
-     * Automation Policy for the Activate pre workflow. The value is the name of an
-     * Orchestration workflow to invoke before an activate action is executed.
-     *
-     * NOTE: For action workflows, the first word MUST be the name of the action
-     *       type affected by the workflow policy. The UI relies on this convention.
-     *       So "Activate Pre Workflow" is okay, but "Pre Activate Workflow" is not.
-     */
-    PreActivateActionWorkflow("preActivateActionWorkflow", "Activate Pre Workflow",
-        Collections.singletonList(CategoryPathConstants.AUTOMATION),
-        SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
-        string(), true),
-
-    /**
-     * Automation Policy for the Activate post workflow. The value is the name of an
-     * Orchestration workflow to invoke after an activate action is executed (whether successful or not).
-     */
-    PostActivateActionWorkflow("postActivateActionWorkflow", "Activate Post Workflow",
-        Collections.singletonList(CategoryPathConstants.AUTOMATION),
-        SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
-        string(), true),
-
-    /**
-     * Automation Policy for the Move Workflow. The value is the name of an
-     * Orchestration workflow to invoke when a move action is generated and executed.
-     */
-    MoveActionWorkflow("moveActionWorkflow", "Move Workflow",
-        Collections.singletonList(CategoryPathConstants.AUTOMATION),
-        SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
-                EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
-        string(), true),
-
-    /**
-     * Same as {@link #MoveActionWorkflow} but with different default value.
-     */
-    MoveActionWorkflowWithNativeAsDefault("moveActionWorkflowWithNativeAsDefault", "Move Workflow",
-                       Collections.singletonList(CategoryPathConstants.AUTOMATION),
-                       SettingTiebreaker.SMALLER,
-                       EnumSet.of(EntityType.BUSINESS_USER),
-                       string("false"), true),
-
-    /**
-     * Automation Policy for the Move Workflow pre workflow. The value is the name of an
-     * Orchestration workflow to invoke before a resize action is executed.
-     */
-    PreMoveActionWorkflow("preMoveActionWorkflow", "Move Pre Workflow",
-        Collections.singletonList(CategoryPathConstants.AUTOMATION),
-        SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
-                    EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL, EntityType.BUSINESS_USER),
-            string(), true),
-
-    /**
-     * Automation Policy for the Move Workflow post workflow. The value is the name of an
-     * Orchestration workflow to invoke after a resize action is executed (whether successful or not).
-     */
-    PostMoveActionWorkflow("postMoveActionWorkflow", "Move Post Workflow",
-        Collections.singletonList(CategoryPathConstants.AUTOMATION),
-        SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
-                    EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL, EntityType.BUSINESS_USER),
-        string(), true),
-
-    /**
-     * Automation Policy for the Provision Workflow. The value is the name of an
-     * Orchestration workflow to invoke when a provision action is generated and executed.
-     */
-    ProvisionActionWorkflow("provisionActionWorkflow", "Provision Workflow",
-            Collections.singletonList(CategoryPathConstants.AUTOMATION),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
-                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER,
-                    EntityType.APPLICATION_COMPONENT),
-            string(), true),
-
-    /**
-     * Automation Policy for the Provision pre workflow. The value is the name of an
-     * Orchestration workflow to invoke before a provision action is executed.
-     */
-    PreProvisionActionWorkflow("preProvisionActionWorkflow", "Provision Pre Workflow",
-        Collections.singletonList(CategoryPathConstants.AUTOMATION),
-        SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
-                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER,
-                    EntityType.APPLICATION_COMPONENT),
-        string(), true),
-
-    /**
-     * Automation Policy for the Provision post workflow. The value is the name of an
-     * Orchestration workflow to invoke after a provision action is executed (whether successful or not).
-     */
-    PostProvisionActionWorkflow("postProvisionActionWorkflow", "Provision Post Workflow",
-        Collections.singletonList(CategoryPathConstants.AUTOMATION),
-        SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
-                    EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER,
-                    EntityType.APPLICATION_COMPONENT),
-        string(), true),
-
-    /**
-     * Automation Policy for the Resize Workflow. The value is the name of an
-     * Orchestration workflow to invoke when a resize action is generated and executed.
-     */
-    ResizeActionWorkflow("resizeActionWorkflow", "Resize Workflow",
-            Collections.singletonList(CategoryPathConstants.AUTOMATION),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-                    EntityType.APPLICATION_COMPONENT,
-                    EntityType.DATABASE_SERVER,
-                    EntityType.WORKLOAD_CONTROLLER),
-            string(), true),
-
-    /**
-     * Automation Policy for the Resize pre workflow. The value is the name of an
-     * Orchestration workflow to invoke before a resize action is executed.
-     */
-    PreResizeActionWorkflow("preResizeActionWorkflow", "Resize Pre Workflow",
-        Collections.singletonList(CategoryPathConstants.AUTOMATION),
-        SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-                    EntityType.APPLICATION_COMPONENT,
-                    EntityType.DATABASE_SERVER,
-                    EntityType.WORKLOAD_CONTROLLER),
-            string(), true),
-
-    /**
-     * Automation Policy for the Resize post workflow. The value is the name of an
-     * Orchestration workflow to invoke after a resize action is executed (whether successful or not).
-     */
-    PostResizeActionWorkflow("postResizeActionWorkflow", "Resize Post Workflow",
-        Collections.singletonList(CategoryPathConstants.AUTOMATION),
-        SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-                    EntityType.APPLICATION_COMPONENT,
-                    EntityType.DATABASE_SERVER,
-                    EntityType.WORKLOAD_CONTROLLER),
-        string(), true),
-
-    /**
-     * Automation Policy for the Suspend Workflow. The value is the name of an
-     * Orchestration workflow to invoke when a suspend action is generated and executed.
-     */
-    SuspendActionWorkflow("suspendActionWorkflow", "Suspend Workflow",
-        Collections.singletonList(CategoryPathConstants.AUTOMATION),
-        SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-                    EntityType.APPLICATION_COMPONENT),
-        string(), true),
-
-    /**
-     * Automation Policy for the Suspend pre workflow. The value is the name of an
-     * Orchestration workflow to invoke before a suspend action is executed.
-     */
-    PreSuspendActionWorkflow("preSuspendActionWorkflow", "Suspend Pre Workflow",
-        Collections.singletonList(CategoryPathConstants.AUTOMATION),
-        SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-                    EntityType.APPLICATION_COMPONENT),
-        string(), true),
-
-    /**
-     * Automation Policy for the Suspend post workflow. The value is the name of an
-     * Orchestration workflow to invoke after a suspend action is executed (whether successful or not).
-     */
-    PostSuspendActionWorkflow("postSuspendActionWorkflow", "Suspend Post Workflow",
-        Collections.singletonList(CategoryPathConstants.AUTOMATION),
-        SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-                    EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
-                    EntityType.APPLICATION_COMPONENT),
-        string(), true),
-
-    /**
-     * Automation Policy for the Delete Workflow. The value is the name of an
-     * Orchestration workflow to invoke when a delete action is generated and executed.
-     */
-    DeleteActionWorkflow("deleteActionWorkflow", "Delete Workflow",
-        Collections.singletonList(CategoryPathConstants.AUTOMATION),
-        SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_VOLUME),
-        string(), true),
-
-    /**
-     * Automation Policy for the Delete pre workflow. The value is the name of an
-     * Orchestration workflow to invoke before a delete action is executed.
-     */
-    PreDeleteActionWorkflow("preDeleteActionWorkflow", "Delete Pre Workflow",
-        Collections.singletonList(CategoryPathConstants.AUTOMATION),
-        SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_VOLUME),
-        string(), true),
-
-    /**
-     * Automation Policy for the Delete post workflow. The value is the name of an
-     * Orchestration workflow to invoke after a delete action is executed (whether successful or not).
-     */
-    PostDeleteActionWorkflow("postDeleteActionWorkflow", "Delete Post Workflow",
-        Collections.singletonList(CategoryPathConstants.AUTOMATION),
-        SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_VOLUME),
-        string(), true),
-
-    /**
      * Response Time SLO used by Application and Database.
      * @deprecated since ResponseTimeSLO was added.
      * This setting shouldn't be removed in case an old topology is loaded.
@@ -892,6 +548,18 @@ public enum EntitySettingSpecs {
                     EntityType.DATABASE_SERVER,  EntityType.APPLICATION_COMPONENT,
                     EntityType.BUSINESS_TRANSACTION),
             numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 2000.0f/*default*/),
+            true),
+
+    /**
+     * SLA Capacity used by Application and Database.
+     */
+    @Deprecated
+    SLACapacity("slaCapacity", "SLA Capacity",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.APPLICATION_COMPONENT,
+                    EntityType.BUSINESS_APPLICATION, EntityType.DATABASE_SERVER),
+            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
             true),
 
     /**
@@ -1281,37 +949,30 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE),
             numeric(0, Float.POSITIVE_INFINITY, 50000),
+            true),
+
+    /**
+     * Instructs Market analysis to prefer savings over reversibility when generating Volume Scale
+     * actions.
+     */
+    PreferSavingsOverReversibility(
+            "preferSavingsOverReversibility",
+            "Prefer Savings Over Reversibility",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            new BooleanSettingDataType(true),
             true);
 
-    private static final ImmutableSet<String> AUTOMATION_SETTINGS =
-            ImmutableSet.of(
-                    EntitySettingSpecs.Activate.name,
-                    EntitySettingSpecs.Move.name,
-                    EntitySettingSpecs.BusinessUserMove.name,
-                    EntitySettingSpecs.StorageMove.name,
-                    EntitySettingSpecs.CloudComputeScale.name,
-                    EntitySettingSpecs.Provision.name,
-                    EntitySettingSpecs.DisabledProvision.name,
-                    EntitySettingSpecs.Reconfigure.name,
-                    EntitySettingSpecs.Resize.name,
-                    EntitySettingSpecs.Suspend.name,
-                    EntitySettingSpecs.DisabledSuspend.name,
-                    EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.name,
-                    EntitySettingSpecs.ResizeVcpuBelowMinThreshold.name,
-                    EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.name,
-                    EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.name,
-                    EntitySettingSpecs.ResizeVmemAboveMaxThreshold.name,
-                    EntitySettingSpecs.ResizeVmemBelowMinThreshold.name,
-                    EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.name,
-                    EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.name,
-                    EntitySettingSpecs.EnforceNonDisruptive.name,
-            EntitySettingSpecs.ResizeUpHeap.name,
-            EntitySettingSpecs.ResizeDownHeap.name,
-            EntitySettingSpecs.ScalingPolicy.name,
-            EntitySettingSpecs.ResizeUpDBMem.name,
-            EntitySettingSpecs.ResizeDownDBMem.name,
-            EntitySettingSpecs.UseHypervisorMetricsForResizing.name,
-                    EntitySettingSpecs.ShopTogether.name);
+    private static final ImmutableSet<String> AUTOMATION_SETTINGS = ImmutableSet.<String>builder()
+        .add(EntitySettingSpecs.EnforceNonDisruptive.name)
+        .add(EntitySettingSpecs.ScalingPolicy.name)
+        .add(EntitySettingSpecs.UseHypervisorMetricsForResizing.name)
+        .add(EntitySettingSpecs.ShopTogether.name)
+        .addAll(Arrays.stream(ConfigurableActionSettings.values())
+            .map(ConfigurableActionSettings::getSettingName)
+            .collect(Collectors.toList()))
+        .build();
 
     /**
      * Default regex for a String-type SettingDataStructure = matches anything.
@@ -1515,33 +1176,6 @@ public enum EntitySettingSpecs {
     }
 
     @Nonnull
-    private static SettingDataStructure<?> actionExecutionModeSetToManual() {
-        return new EnumSettingDataType<>(ActionMode.MANUAL, ActionMode.class);
-    }
-
-    @Nonnull
-    private static SettingDataStructure<?> actionExecutionModeSetToManualTypeSpecific(
-            @Nonnull Map<EntityType, ActionMode> entityDefaults) {
-        return new EnumSettingDataType<>(ActionMode.MANUAL, null, entityDefaults, ActionMode.class);
-    }
-
-    @Nonnull
-    private static SettingDataStructure<?> actionExecutionModeSetToRecommend() {
-        return new EnumSettingDataType<>(ActionMode.RECOMMEND, ActionMode.class);
-    }
-
-    @Nonnull
-    private static SettingDataStructure<?> nonExecutableActionMode() {
-        return new EnumSettingDataType<>(ActionMode.RECOMMEND, ActionMode.RECOMMEND, ActionMode.class);
-    }
-
-    @Nonnull
-    private static SettingDataStructure<?> actionExecutionModeSetToDisabled() {
-        return new EnumSettingDataType<>(ActionMode.DISABLED, ActionMode.class);
-    }
-
-
-    @Nonnull
     private static SettingDataStructure<?> numeric(float min, float max, float defaultValue) {
         return new NumericSettingDataType(min, max, defaultValue);
     }
@@ -1561,7 +1195,6 @@ public enum EntitySettingSpecs {
         return new SortedSetOfOidSettingDataType(type, null);
     }
 
-    @Nonnull
     public boolean isAllowGlobalDefault() {
         return allowGlobalDefault;
     }

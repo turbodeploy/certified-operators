@@ -107,20 +107,22 @@ class TopologyCommoditiesSnapshot {
      * @param commodityNames The names of the commodities - must not be empty.
      * @param targetEntities The entities to get the information from. If empty, accumulate
      *                       information from the whole topology.
+     * @param providerIds ids of the potential commodity providers.
      * @return A stream of {@link StatRecord}s, with at most two {@link StatRecord}s for each
      *         commodity (bought, sold). Stream may be empty if no entities in the target set
      *         are buying or selling any of the commodities.
      */
     @Nonnull
     Stream<StatRecord> getRecords(@Nonnull final Set<String> commodityNames,
-                                  @Nonnull final Set<Long> targetEntities) {
+                                  @Nonnull final Set<Long> targetEntities,
+                                  @Nonnull final Set<Long> providerIds) {
         if (commodityNames.isEmpty()) {
             throw new IllegalArgumentException("Must specify commodity names.");
         }
 
         return commodityNames.stream()
                 .flatMap(commodityName ->
-                        getCommodityRecords(commodityName, targetEntities).stream());
+                        getCommodityRecords(commodityName, targetEntities, providerIds).stream());
     }
 
     /**
@@ -178,7 +180,8 @@ class TopologyCommoditiesSnapshot {
 
     @Nonnull
     private List<StatRecord> getCommodityRecords(@Nonnull final String commodityName,
-                                                 @Nonnull final Set<Long> targetEntities) {
+                                                 @Nonnull final Set<Long> targetEntities,
+                                                 @Nonnull final Set<Long> providerOids) {
         if (entityCountInfo.isCountStat(commodityName)) {
             return entityCountInfo.getCountRecord(commodityName)
                     .map(Collections::singletonList)
@@ -194,7 +197,7 @@ class TopologyCommoditiesSnapshot {
             soldCommoditiesInfo.getAccumulatedRecords(commodityName, targetEntities)
                     .ifPresent(retList::add);
 
-            boughtCommoditiesInfo.getAccumulatedRecord(commodityName, targetEntities)
+            boughtCommoditiesInfo.getAccumulatedRecord(commodityName, targetEntities, providerOids)
                     .ifPresent(retList::add);
 
             return retList;

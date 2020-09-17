@@ -141,18 +141,46 @@ public class ProbeContainerChooserTest {
     @Test
     public void testProbeRestart() throws ProbeException {
         final ITransport<MediationServerMessage, MediationClientMessage> transport1 =
-            createTransport();
+                createTransport();
         final ITransport<MediationServerMessage, MediationClientMessage> transport2 =
-            createTransport();
+                createTransport();
         final List<ITransport<MediationServerMessage, MediationClientMessage>>
-            transportList = Lists.newArrayList(transport1);
+                transportList = Lists.newArrayList(transport1);
         Mockito.when(probeStore.getTransport(probeId)).thenReturn(transportList);
         ProbeContainerChooser chooser = new ProbeContainerChooserImpl(probeStore);
         assertEquals(chooser.choose(probeId, targetIdentifier1, discoveryRequest), transport1);
         // If probe restarts, the available transports might be different than the previous ones
         final List<ITransport<MediationServerMessage, MediationClientMessage>>
-            newTransportList = Lists.newArrayList(transport2);
+                newTransportList = Lists.newArrayList(transport2);
         Mockito.when(probeStore.getTransport(probeId)).thenReturn(newTransportList);
+        assertEquals(chooser.choose(probeId, targetIdentifier1, discoveryRequest), transport2);
+    }
+
+    /**
+     * Tests that calling assignTargetToTransport overwrites existing assignments.
+     *
+     * @throws ProbeException if probe can't be found.
+     */
+    @Test
+    public void testAssignTargetToTransport() throws ProbeException {
+        final ITransport<MediationServerMessage, MediationClientMessage> transport1 =
+                createTransport();
+        final ITransport<MediationServerMessage, MediationClientMessage> transport2 =
+                createTransport();
+        final List<ITransport<MediationServerMessage, MediationClientMessage>>
+                transportList = Lists.newArrayList(transport1);
+        Mockito.when(probeStore.getTransport(probeId)).thenReturn(transportList);
+        ProbeContainerChooser chooser = new ProbeContainerChooserImpl(probeStore);
+        assertEquals(chooser.choose(probeId, targetIdentifier1, discoveryRequest), transport1);
+        // assert that when transport1 is now assigned to target1 even if other transports are
+        // available
+        final List<ITransport<MediationServerMessage, MediationClientMessage>>
+                newTransportList = Lists.newArrayList(transport1, transport2);
+        Mockito.when(probeStore.getTransport(probeId)).thenReturn(newTransportList);
+        assertEquals(chooser.choose(probeId, targetIdentifier1, discoveryRequest), transport1);
+
+        // now assign transport2 to target 1 and confirm that chooser now chooses transport2
+        chooser.assignTargetToTransport(transport2, targetIdentifier1);
         assertEquals(chooser.choose(probeId, targetIdentifier1, discoveryRequest), transport2);
     }
 

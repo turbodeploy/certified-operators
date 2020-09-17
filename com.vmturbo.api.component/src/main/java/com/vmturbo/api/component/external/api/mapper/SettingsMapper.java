@@ -95,6 +95,7 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.DailyObservationWindowsCount;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -1491,7 +1492,7 @@ public class SettingsMapper {
         resizeSetting.setDefaultValue("MANUAL");
         resizeSetting.setDisplayName("Resize");
         resizeSetting.setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
-        resizeSetting.setUuid(EntitySettingSpecs.Resize.getSettingName());
+        resizeSetting.setUuid(ConfigurableActionSettings.Resize.getSettingName());
         resizeSetting.setValueType(InputValueType.STRING);
         return resizeSetting;
     }

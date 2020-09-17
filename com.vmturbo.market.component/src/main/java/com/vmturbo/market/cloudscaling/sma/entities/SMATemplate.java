@@ -6,9 +6,6 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.Table;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -48,14 +45,9 @@ public class SMATemplate {
     private final int coupons;
 
     /*
-     * What context am I in?  For debugging purposes only.
-     */
-    private final SMAContext context;
-
-    /*
      * The compute tier in XL data structures.  Needed to compute costs.
      */
-    private final TopologyEntityDTO computeTier;
+    private TopologyEntityDTO computeTier;
 
     /*
      * instance variables set outside of the construtor
@@ -63,13 +55,13 @@ public class SMATemplate {
     /*
      *  Map from business account to on-demand cost
      */
-    private Table<Long, OSType, SMACost> onDemandCosts = HashBasedTable.create();
+    private Map<Long, Map<OSType, SMACost>> onDemandCosts = new HashMap();
 
     /*
      * Map from business account to discounted cost (only Azure).
      * For AWS, discountedCosts is always 0.
      */
-    private Table<Long, OSType, SMACost> discountedCosts = HashBasedTable.create();
+    private Map<Long, Map<OSType, SMACost>> discountedCosts = new HashMap();
 
     /**
      * Constructor of the SMATemplate.
@@ -78,21 +70,22 @@ public class SMATemplate {
      * @param name the template name
      * @param family the family the template belongs to.
      * @param coupons the number of the coupons needed for SMA template.
-     * @param context what context is this template in?
      * @param computeTier link back to XL data structures for compute tier.  Needed to compute cost.
      */
     public SMATemplate(final long oid,
                        @Nonnull final String name,
                        @Nonnull final String family,
                        final int coupons,
-                       @Nonnull final SMAContext context,
                        TopologyEntityDTO computeTier
                        ) {
         this.oid = oid;
         this.name = Objects.requireNonNull(name, "name is null");
         this.family = Objects.requireNonNull(family, "family is null");
         this.coupons = coupons;
-        this.context = Objects.requireNonNull(context);
+        this.computeTier = computeTier;
+    }
+
+    public void setComputeTier(final TopologyEntityDTO computeTier) {
         this.computeTier = computeTier;
     }
 
@@ -118,14 +111,6 @@ public class SMATemplate {
         return computeTier;
     }
 
-    public Table<Long, OSType, SMACost> getDiscountedCosts() {
-        return discountedCosts;
-    }
-
-    public Table<Long, OSType, SMACost> getOnDemandCosts() {
-        return onDemandCosts;
-    }
-
     /**
      * Given a business account ID, set the on-demand cost.
      * @param businessAccountId business account ID
@@ -133,7 +118,8 @@ public class SMATemplate {
      * @param cost cost
      */
     public void setOnDemandCost(long businessAccountId, @Nonnull OSType osType, @Nonnull SMACost cost) {
-        onDemandCosts.put(businessAccountId, Objects.requireNonNull(osType), Objects.requireNonNull(cost));
+        onDemandCosts.putIfAbsent(businessAccountId, new HashMap<>());
+        onDemandCosts.get(businessAccountId).put(osType, Objects.requireNonNull(cost));
     }
 
     /**
@@ -143,7 +129,8 @@ public class SMATemplate {
      * @param cost discounted cost
      */
     public void setDiscountedCost(long businessAccountId, @Nonnull OSType osType, @Nonnull SMACost cost) {
-        this.discountedCosts.put(businessAccountId, Objects.requireNonNull(osType), Objects.requireNonNull(cost));
+        this.discountedCosts.putIfAbsent(businessAccountId, new HashMap<>());
+        this.discountedCosts.get(businessAccountId).put(osType, Objects.requireNonNull(cost));
     }
 
     /**
@@ -153,7 +140,8 @@ public class SMATemplate {
      * @return on-demand total cost or Float.MAX_VALUE if not found.
      */
     public float getOnDemandTotalCost(long businessAccountId, OSType osType) {
-        SMACost cost = onDemandCosts.get(businessAccountId, osType);
+        Map<OSType, SMACost> costMap = onDemandCosts.get(businessAccountId);
+        SMACost cost = costMap != null ? costMap.get(osType) : null;
         if (cost == null) {
             logger.debug("getOnDemandTotalCost: OID={} name={} has no discounted cost for businessAccountId={} and OSType={}",
                 oid, name, businessAccountId, osType.name());
@@ -170,7 +158,8 @@ public class SMATemplate {
      * @return discounted total cost or Float.MAX_VALUE if not found.
      */
     public float getDiscountedTotalCost(long businessAccountId, OSType osType) {
-        SMACost cost = discountedCosts.get(businessAccountId, osType);
+        Map<OSType, SMACost> costMap = discountedCosts.get(businessAccountId);
+        SMACost cost = costMap != null ? costMap.get(osType) : null;
         if (cost == null) {
             logger.debug("getDiscountedTotalCost: OID={} name={} has no discounted cost for businessAccountId={} and OSType={}",
                 oid, name, businessAccountId, osType.name());
@@ -228,8 +217,32 @@ public class SMATemplate {
             ", name='" + name + '\'' +
             ", family='" + family + '\'' +
             ", coupons=" + coupons +
-            ", accounts=" + onDemandCosts.rowKeySet() +
-            ", OSTypes=" + onDemandCosts.columnKeySet() +
             '}';
+    }
+
+    /**
+     * Determine if two templates are equivalent.  They are equivalent if they have same oid.
+     * @return hash code based on oid
+     */
+    @Override
+    public int hashCode() {
+        return Objects.hash(oid);
+    }
+
+    /**
+     * Determine if two templates are equivalent.  They are equivalent if they have same oid.
+     * @param obj the other RI
+     * @return true if the RI's are equivalent.
+     */
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        final SMATemplate that = (SMATemplate)obj;
+        return oid == that.oid;
     }
 }

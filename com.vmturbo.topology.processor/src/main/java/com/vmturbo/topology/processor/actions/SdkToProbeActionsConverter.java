@@ -19,6 +19,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement.CommodityScope;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement.ProviderScope;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.MoveParameters;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
@@ -166,6 +168,20 @@ public class SdkToProbeActionsConverter {
             }
         }
         builder.setActionCapability(convert(sdkPolicyElement.getActionCapability()));
+        if (sdkPolicyElement.hasProviderScope()) {
+            builder.setProviderScope(ProviderScope.newBuilder()
+                    .setProviderType(sdkPolicyElement.getProviderScope().getProviderType()));
+        }
+        if (sdkPolicyElement.hasCommodityScope()) {
+            builder.setCommodityScope(CommodityScope.newBuilder()
+                    .setCommodityType(sdkPolicyElement.getCommodityScope().getCommodityType()));
+        }
+        if (sdkPolicyElement.hasDisruptive()) {
+            builder.setDisruptive(sdkPolicyElement.getDisruptive());
+        }
+        if (sdkPolicyElement.hasReversible()) {
+            builder.setReversible(sdkPolicyElement.getReversible());
+        }
         return builder.build();
     }
 

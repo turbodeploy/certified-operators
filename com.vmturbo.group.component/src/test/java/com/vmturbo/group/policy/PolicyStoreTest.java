@@ -301,7 +301,7 @@ public class PolicyStoreTest {
 
         final PolicyStore newPolicyStore =
                 new PolicyStore(dbConfig.getDslContext(), identityProvider, policyValidator);
-        newPolicyStore.restoreDiags(diags.getAllValues());
+        newPolicyStore.restoreDiags(diags.getAllValues(), dbConfig.getDslContext());
 
         final Policy gotPolicy = policyStore.get(POLICY_ID).get();
         assertThat(gotPolicy, is(policy));

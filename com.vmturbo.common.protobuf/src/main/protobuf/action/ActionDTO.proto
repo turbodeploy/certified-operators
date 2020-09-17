@@ -634,6 +634,12 @@ message Action {
         // Azure read-only locks preventing writes.
         LOCKS = 6;
     }
+
+    // Defines if actions is disruptive.
+    optional bool disruptive = 9;
+
+    // Defines if actions is reversible.
+    optional bool reversible = 10;
 }
 
 // Auxiliary information for an action plan.
@@ -1611,6 +1617,9 @@ message HistoricalActionStatsQuery {
             // A specific "management unit". Note that only certain management units have
             // historical action stats tracked.
             int64 mgmt_unit_id = 2;
+
+            // A set of management units
+            ManagementUnits mgmt_units = 3;
         }
 
         // Restrict to a particular environment type.
@@ -1629,6 +1638,11 @@ message HistoricalActionStatsQuery {
         // (roman, Jan 16 2019): It's not clear if it's an important use case to support arbitrary
         // groupings of entity types. For now we typically see exactly one entity type.
         repeated int32 entity_type = 11;
+
+        message ManagementUnits {
+            // The list of management units
+            repeated int64 mgmt_unit_ids = 1;
+        }
     }
 
     message TimeRange {
@@ -1665,6 +1679,10 @@ message HistoricalActionStatsQuery {
         // "live" action stats query, we will NOT return a "0"-valued business account group for
         // actions without a business account.
         BUSINESS_ACCOUNT_ID = 9;
+
+        // The ID of the resource group associated with action. Only actions that have associated
+        // resource group will be returned.
+        RESOURCE_GROUP_ID = 10;
     }
 
     // The time range for the query.
@@ -1688,7 +1706,7 @@ message HistoricalActionStatsQuery {
 message ActionStats {
     // The ID of the mgmt unit the stats are for (e.g. a cluster, a business account, etc.)
     // Not set if describing the whole market.
-    optional int64 mgmt_unit_id = 1;
+    repeated int64 mgmt_unit_ids = 1;
 
     // One snapshot for every distinct time that has stats in the time range specified by the
     // query. Note that even if there are no stats matching the query in the snapshot, there
@@ -1829,6 +1847,10 @@ message ActionStat {
         // "ACTION_RELATED_RISK". This is similar to the action explanation, but without entity
         // details, and more general
         optional string action_related_risk = 4;
+
+        // The resource group for this action stat. Only present if the "group_by" in the query was
+        // "RESOURCE_GROUP_ID".
+        optional int64 resource_group_id = 5;
     }
 
     // The stat group for this particular stat. Only set if the group_by in the request was

@@ -33,7 +33,7 @@ public class ControllableConfig {
     public EntityActionDaoImp entityActionDaoImp() {
         return new EntityActionDaoImp(topologyProcessorDBConfig.dsl(), moveSucceedRecordExpiredSeconds,
                 inProgressActionExpiredSeconds, activateSucceedRecordExpiredSeconds,
-                resizeSucceedRecordExpiredSeconds, scaleSucceedRecordExpiredSeconds);
+                scaleSucceedRecordExpiredSeconds, resizeSucceedRecordExpiredSeconds);
     }
 
     @Bean

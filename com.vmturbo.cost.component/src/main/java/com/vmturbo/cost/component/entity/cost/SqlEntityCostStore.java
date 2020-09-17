@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
@@ -316,13 +317,13 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
         selectableFields.add(max(costGroupBy.getAmountFieldInTable()));
         selectableFields.add(min(costGroupBy.getAmountFieldInTable()));
         selectableFields.add(avg(costGroupBy.getAmountFieldInTable()));
-        final Result<Record> res = dsl
+        final org.jooq.Select<Record> select = dsl
                 .select(selectableFields)
                 .from(table)
                 .where(Arrays.asList(entityCostFilter.getConditions()))
                 .and(getConditionForEntityCost(dsl, entityCostFilter, createdTimeField, table))
-                .groupBy(groupByFields)
-                .fetch();
+                .groupBy(groupByFields);
+        final Result<Record> res = select.fetch();
         return createGroupByStatRecords(res, selectableFields);
     }
 
@@ -583,7 +584,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     /**
      * Helper class for dumping latest entity cost db records to exported topology.
      */
-    private static final class LatestEntityCostsDiagsHelper implements DiagsRestorable {
+    private static final class LatestEntityCostsDiagsHelper implements DiagsRestorable<Void> {
 
         private final DSLContext dsl;
 
@@ -591,7 +592,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
             this.dsl = dsl;
         }
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
 
         }
 
@@ -621,7 +622,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     /**
      * Helper class for dumping daily entity cost db records to exported topology.
      */
-    private static final class EntityCostsByDayDiagsHelper implements DiagsRestorable {
+    private static final class EntityCostsByDayDiagsHelper implements DiagsRestorable<Void> {
         private static final String entityCostByDayDumpFile = "entityCostByDay_dump";
 
         private final DSLContext dsl;
@@ -630,7 +631,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
             this.dsl = dsl;
         }
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
 
         }
 
@@ -660,7 +661,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     /**
      * Helper class for dumping hourly entity cost db records to exported topology.
      */
-    private static final class EntityCostsByHourDiagsHelper implements DiagsRestorable {
+    private static final class EntityCostsByHourDiagsHelper implements DiagsRestorable<Void> {
         private static final String entityCostByDayDumpFile = "entityCostByHour_dump";
 
         private final DSLContext dsl;
@@ -669,7 +670,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
             this.dsl = dsl;
         }
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
 
         }
 
@@ -699,7 +700,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     /**
      * Helper class for dumping monthly entity cost db records to exported topology.
      */
-    private static final class EntityCostsByMonthDiagsHelper implements DiagsRestorable {
+    private static final class EntityCostsByMonthDiagsHelper implements DiagsRestorable<Void> {
         private static final String entityCostByDayDumpFile = "entityCostByMonth_dump";
 
         private final DSLContext dsl;
@@ -709,7 +710,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
             // TODO to be implemented as part of OM-58627
         }
 

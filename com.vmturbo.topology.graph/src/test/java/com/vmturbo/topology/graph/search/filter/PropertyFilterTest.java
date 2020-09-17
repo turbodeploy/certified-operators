@@ -31,12 +31,12 @@ public class PropertyFilterTest {
 
     @Test
     public void testTestPasses() {
-        assertTrue(oidFilter.test(entity1));
+        assertTrue(oidFilter.test(entity1, graph));
     }
 
     @Test
     public void testTestFails() {
-        assertFalse(oidFilter.test(entity2));
+        assertFalse(oidFilter.test(entity2, graph));
     }
 
     @Test

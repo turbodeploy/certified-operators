@@ -44,11 +44,4 @@ public interface TopologyCoordinatorConfig {
      * @return max sleep time in seconds
      */
     int processingLoopMaxSleepSecs();
-
-    /**
-     * Topology context id reserved for realtime topology.
-     *
-     * @return realtime topology context id
-     */
-    long realtimeTopologyContextId();
 }

@@ -44,6 +44,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -64,6 +65,7 @@ import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
+import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord.CapacityChange;
 import com.vmturbo.topology.processor.history.percentile.PercentileEditor.CacheBackup;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
@@ -230,6 +232,71 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         // Percentile should be set for business user entities
         Assert.assertTrue(percentileEditor.isEntityApplicable(
             topologyBuilderMap.get(BUSINESS_USER_OID).build()));
+    }
+
+    /**
+     * Test the applicability of percentile calculation at the commodity level.
+     */
+    @Test
+    public void testIsCommodityApplicable() {
+        // Don't set percentile for commodity sold without utilization data or required type
+        Assert.assertFalse(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommoditySoldDTO.newBuilder()));
+        // Set percentile for commodity sold with utilization data and without required type
+        Assert.assertTrue(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommoditySoldDTO.newBuilder()
+                .setUtilizationData(UtilizationData.getDefaultInstance())));
+        // Set percentile for commodity sold without utilization data and with required type
+        Assert.assertTrue(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommoditySoldDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.VCPU_VALUE))));
+        // Set percentile for commodity sold with utilization data and required type
+        Assert.assertTrue(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommoditySoldDTO.newBuilder()
+                .setUtilizationData(UtilizationData.getDefaultInstance())
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.VCPU_VALUE))));
+
+        // Don't set percentile for commodity bought without utilization data
+        Assert.assertFalse(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommodityBoughtDTO.newBuilder(),
+            0));
+        // Don't set percentile for commodity bought without enabled type of commodity or provider
+        Assert.assertFalse(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommodityBoughtDTO.newBuilder()
+                .setUtilizationData(UtilizationData.getDefaultInstance()),
+            0));
+        // Set percentile for commodity bought with enabled type
+        Assert.assertTrue(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommodityBoughtDTO.newBuilder()
+                .setUtilizationData(UtilizationData.getDefaultInstance())
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.IMAGE_CPU_VALUE)),
+            0));
+        // Don't set percentile for commodity bought from enabled provider type without associated commodity type
+        Assert.assertFalse(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommodityBoughtDTO.newBuilder()
+                .setUtilizationData(UtilizationData.getDefaultInstance())
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.BALLOONING_VALUE)),
+            EntityType.COMPUTE_TIER_VALUE));
+        // Set percentile for commodity bought from enabled provider type with enabled commodity type
+        Assert.assertTrue(percentileEditor.isCommodityApplicable(
+            TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()).build(),
+            TopologyDTO.CommodityBoughtDTO.newBuilder()
+                .setUtilizationData(UtilizationData.getDefaultInstance())
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                    .setType(CommodityType.STORAGE_ACCESS_VALUE)),
+            EntityType.COMPUTE_TIER_VALUE));
     }
 
     /**
@@ -455,14 +522,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                     ArgumentCaptor<Long> periodCaptor, PercentileCounts maintenanceCurrentDay) {
         final List<PercentileRecord> currentDayRecords =
                         maintenanceCurrentDay.getPercentileRecordsList();
-        final Set<Long> currentDayPeriods = currentDayRecords.stream().filter(Objects::nonNull)
-                        .map(r -> (long)r.getPeriod()).collect(Collectors.toSet());
-        Assert.assertThat(currentDayPeriods.size(), CoreMatchers.is(1));
-        Assert.assertThat(currentDayPeriods, Matchers.containsInAnyOrder(1L));
-        Assert.assertThat(currentDayRecords.stream().map(PercentileRecord::getUtilizationList)
-                                        .flatMap(Collection::stream).collect(Collectors.toSet()),
-                        CoreMatchers.is(Collections.singleton(0)));
-
+        // after maintenance, latest is cleared and will get saved w/o entries at all
+        Assert.assertTrue(currentDayRecords.isEmpty());
         if (enforceMaintenanceIsExpected) {
             final int indexOfYesterdaySave = 1;
             final long period = periodCaptor.getAllValues().get(indexOfYesterdaySave);
@@ -683,7 +744,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         createKvConfig();
         try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             percentileEditor.collectDiags(output);
-            percentileEditor.restoreDiags(output.toByteArray());
+            percentileEditor.restoreDiags(output.toByteArray(), null);
         }
         // LATEST(1, 2, 3, 4, 5) + TOTAL(42, 44, 46, 48, 50) = FULL(43, 46, 49, 52, 55)
         Assert.assertEquals(Arrays.asList(43, 46, 49, 52, 55),
@@ -908,6 +969,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                             .setEntityOid(VIRTUAL_MACHINE_OID)
                             .setCommodityType(VCPU_COMMODITY_REFERENCE.getCommodityType().getType())
                             .setCapacity(CAPACITY)
+                            .addCapacityChanges(CapacityChange.newBuilder().setNewCapacity(CAPACITY).setTimestamp(0L))
                             .setPeriod((int)PREVIOUS_VIRTUAL_MACHINE_OBSERVATION_PERIOD)
                             .build();
 
@@ -916,6 +978,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                             .setCommodityType(IMAGE_CPU_COMMODITY_REFERENCE.getCommodityType().getType())
                             .setProviderOid(IMAGE_CPU_COMMODITY_REFERENCE.getProviderOid())
                             .setKey(IMAGE_CPU_COMMODITY_REFERENCE.getCommodityType().getKey())
+                            .addCapacityChanges(CapacityChange.newBuilder().setNewCapacity(CAPACITY).setTimestamp(0L))
                             .setCapacity(CAPACITY)
                             .setProviderOid(DESKTOP_POOL_PROVIDER_OID)
                             .setPeriod((int)PREVIOUS_BUSINESS_USER_OBSERVATION_PERIOD)

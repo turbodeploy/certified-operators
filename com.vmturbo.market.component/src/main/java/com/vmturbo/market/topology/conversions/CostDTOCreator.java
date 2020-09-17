@@ -462,8 +462,9 @@ public class CostDTOCreator {
     public CostDTO createStorageTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> connectedRegions,
                                             Set<AccountPricingData> uniqueAccountPricingData) {
         CostDTO.StorageTierCostDTO.Builder storageDTO =  StorageTierCostDTO.newBuilder();
-        StorageTierCostDTO.StorageResourceCost.Builder builder = StorageTierCostDTO.StorageResourceCost
-                .newBuilder();
+        // Mapping from commodityType to StorageResourceCost builder.
+        Map<CommodityType, StorageTierCostDTO.StorageResourceCost.Builder> commType2ResourceCostBuilderMap
+                = new HashMap<>();
         for (TopologyEntityDTO region: connectedRegions) {
             for (AccountPricingData accountPricingData : uniqueAccountPricingData) {
                 StoragePriceBundle storageCostBundle = marketPriceTable
@@ -478,13 +479,18 @@ public class CostDTOCreator {
                     CommodityType commType = c.getCommodityType();
                     List<StorageTierPriceData> priceDataList = storageCostBundle.getPrices(commType);
                     if (!priceDataList.isEmpty()) {
-                        builder.setResourceType(commodityConverter.commoditySpecification(commType));
+                        StorageTierCostDTO.StorageResourceCost.Builder builder =
+                                commType2ResourceCostBuilderMap.computeIfAbsent(commType,
+                                        k -> StorageTierCostDTO.StorageResourceCost.newBuilder()
+                                                .setResourceType(commodityConverter.commoditySpecification(commType)));
                         priceDataList.forEach(p -> builder.addStorageTierPriceData(p));
-                        storageDTO.addStorageResourceCost(builder.build());
                     }
                 });
             }
         }
+        // StorageTier CostDTO contains one StorageResourceCost object for one commodityType,
+        // and each StorageResourceCost object contains price data including all regions and accounts combinations.
+        commType2ResourceCostBuilderMap.values().forEach(b -> storageDTO.addStorageResourceCost(b.build()));
         tier.getCommoditySoldListList().forEach(c -> {
             CommodityType commType = c.getCommodityType();
             // populates the min and max capacity for a given commodity

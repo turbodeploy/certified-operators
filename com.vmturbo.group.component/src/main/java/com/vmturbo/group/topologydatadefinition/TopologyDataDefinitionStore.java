@@ -37,6 +37,7 @@ import org.jooq.DSLContext;
 import org.jooq.Query;
 import org.jooq.Record1;
 import org.jooq.TableRecord;
+import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.springframework.util.StopWatch;
 
@@ -72,7 +73,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 /**
  * DB backed store for TopologyDataDefinitions.
  */
-public class TopologyDataDefinitionStore implements DiagsRestorable {
+public class TopologyDataDefinitionStore implements DiagsRestorable<DSLContext> {
 
     /**
      * The file name for the TopolodyDataDefinition dump collected from the
@@ -760,42 +761,46 @@ public class TopologyDataDefinitionStore implements DiagsRestorable {
      * Restore topology data definitions from diags.
      *
      * @param collectedDiags previously collected diagnostics
+     * @param context the dsl context for transaction
      * @throws DiagnosticsException when an error is encountered.
      */
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags)
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nonnull DSLContext context)
             throws DiagnosticsException {
-        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
-        dslContext.transaction(configuration -> {
-            DSLContext transactionDsl = DSL.using(configuration);
+        try {
+            final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
             // Replace all existing topology data definitions with those from the diags
             // clear any existing topology data definitions from the DB
-            transactionDsl.deleteFrom(MANUAL_TOPO_DATA_DEFS).execute();
-            transactionDsl.deleteFrom(AUTO_TOPO_DATA_DEFS).execute();
+            context.deleteFrom(MANUAL_TOPO_DATA_DEFS).execute();
+            context.deleteFrom(AUTO_TOPO_DATA_DEFS).execute();
             logger.info("All existing topology data definitions deleted.");
             logger.info("Attempting to parse {} topology data definitions.",
-                    collectedDiags.size());
+                collectedDiags.size());
             final Collection<TopologyDataDefinitionEntry> allDefinitions = collectedDiags.stream()
-                    .map(string -> gson.fromJson(string, TopologyDataDefinitionEntry.class))
-                    .collect(Collectors.toList());
+                .map(string -> gson.fromJson(string, TopologyDataDefinitionEntry.class))
+                .collect(Collectors.toList());
             logger.info("Parsed {} topology data definitions.", allDefinitions.size());
             logger.info("Creating topology data defintions.");
             int num_created = 0;
             int num_errors = 0;
             for (TopologyDataDefinitionEntry entry : allDefinitions) {
                 try {
-                    createTopologyDataDefinition(transactionDsl, entry.getId(),
-                            entry.getDefinition());
+                    createTopologyDataDefinition(context, entry.getId(),
+                        entry.getDefinition());
                     num_created += 1;
                 } catch (StoreOperationException e) {
                     logger.error("Could not create topology data definition {} from diags.",
-                            entry, e);
+                        entry, e);
                     num_errors += 1;
                 }
             }
             logger.info("{} topology data definitions created. {} errors encountered.", num_created,
-                    num_errors);
-        });
+                num_errors);
+        } catch (DataAccessException ex) {
+            throw new DiagnosticsException("There was an error accessing database while restoring"
+                + " topology data definitions.", ex);
+        }
+
     }
 
     /**

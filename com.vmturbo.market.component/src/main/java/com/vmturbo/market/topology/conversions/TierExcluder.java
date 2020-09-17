@@ -21,6 +21,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
@@ -373,13 +374,22 @@ public class TierExcluder {
         EntitySettingFilter.Builder entitySettingFilter = EntitySettingFilter.newBuilder()
             .addAllEntities(tierExcluderEntityOids)
             .addSettingName(EntitySettingSpecs.ExcludedTemplates.getSettingName());
-        // Do not set topology selection in GetEntitySettingsRequest because resolved settings are
-        // not uplodaded to group component for plans. So pick the real time settings always.
-        // This is fine because we cannot set template exclusion exclusively for plans today
-        GetEntitySettingsRequest request = GetEntitySettingsRequest.newBuilder()
+
+        GetEntitySettingsRequest.Builder requestBuilder = GetEntitySettingsRequest.newBuilder()
             .setSettingFilter(entitySettingFilter)
-            .setIncludeSettingPolicies(true).build();
-        return SettingDTOUtil.flattenEntitySettings(settingPolicyService.getEntitySettings(request));
+            .setIncludeSettingPolicies(true);
+
+        // For cloud migration we must use the settings uploaded to the group component for
+        // that plan to get settings for the migrating entities. For OCP we can use the realtime
+        // settings.
+
+        if (topologyInfo.getPlanInfo().getPlanProjectType() == PlanProjectType.CLOUD_MIGRATION) {
+            requestBuilder.getTopologySelectionBuilder()
+                .setTopologyContextId(topologyInfo.getTopologyContextId())
+                .setTopologyId(topologyInfo.getTopologyId());
+        }
+        return SettingDTOUtil.flattenEntitySettings(
+            settingPolicyService.getEntitySettings(requestBuilder.build()));
     }
 
     /**

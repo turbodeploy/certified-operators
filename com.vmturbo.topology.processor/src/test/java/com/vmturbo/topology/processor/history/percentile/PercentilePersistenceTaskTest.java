@@ -9,38 +9,38 @@ import java.util.Map;
 
 import com.google.protobuf.ByteString;
 
+import io.grpc.Status;
 import io.grpc.stub.CallStreamObserver;
+import io.grpc.stub.StreamObserver;
 
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
-import org.powermock.api.mockito.PowerMockito;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
 
 import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
+import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.Units;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
-import com.vmturbo.topology.processor.history.percentile.PercentilePersistenceTask.ReaderObserver;
 
 /**
  * Unit tests for PercentilePersistenceTask.
  */
-@RunWith(PowerMockRunner.class)
-@PrepareForTest({StatsHistoryServiceStub.class})
 public class PercentilePersistenceTaskTest {
     private static final Pair<Long, Long> DEFAULT_RANGE = Pair.create(null, null);
     /**
@@ -58,6 +58,28 @@ public class PercentilePersistenceTaskTest {
     private static final long oid3 = 3;
     private static final int ct1 = 7;
     private static final int ct2 = 8;
+    private StatsHistoryServiceMole history;
+    private GrpcTestServer grpcServer;
+
+    /**
+     * Initializes the tests.
+     *
+     * @throws IOException if error occurred while creating gRPC server
+     */
+    @Before
+    public void init() throws IOException {
+        history = Mockito.spy(new StatsHistoryServiceMole());
+        grpcServer = GrpcTestServer.newServer(history);
+        grpcServer.start();
+    }
+
+    /**
+     * Cleans up resources.
+     */
+    @After
+    public void shutdown() {
+        grpcServer.close();
+    }
 
     /**
      * Test that a stream of two chunks each having commodities is retrieved and parsed successfully.
@@ -88,7 +110,8 @@ public class PercentilePersistenceTaskTest {
                                 .getArgumentAt(0, GetPercentileCountsRequest.class);
                 Assert.assertNotNull(request);
                 Assert.assertEquals(chunkSizeKb * Units.KBYTE, request.getChunkSize());
-                ReaderObserver observer = invocation.getArgumentAt(1, ReaderObserver.class);
+                @SuppressWarnings("unchecked")
+                StreamObserver<PercentileChunk> observer = invocation.getArgumentAt(1, StreamObserver.class);
                 int pos = payload.length / 3;
                 observer.onNext(PercentileChunk.newBuilder().setPeriod(0).setStartTimestamp(PercentilePersistenceTask.TOTAL_TIMESTAMP)
                                 .setContent(ByteString.copyFrom(payload, 0, pos))
@@ -100,11 +123,11 @@ public class PercentilePersistenceTaskTest {
                 return null;
             }
         };
-        StatsHistoryServiceStub history = PowerMockito.mock(StatsHistoryServiceStub.class);
         Mockito.doAnswer(answerGetCounts).when(history).getPercentileCounts(Mockito.any(),
                                                                             Mockito.any());
 
-        PercentilePersistenceTask task = new PercentilePersistenceTask(history, DEFAULT_RANGE);
+        final PercentilePersistenceTask task = new PercentilePersistenceTask(
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE);
         Map<EntityCommodityFieldReference, PercentileRecord> comms = task
                         .load(Collections.emptyList(), config);
         Assert.assertNotNull(comms);
@@ -130,19 +153,13 @@ public class PercentilePersistenceTaskTest {
      */
     @Test
     public void testLoadIoFailureThrown() throws HistoryCalculationException, InterruptedException {
-        StatsHistoryServiceStub history = PowerMockito.mock(StatsHistoryServiceStub.class);
-        Answer<Void> answerGetCounts = new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                ReaderObserver observer = invocation.getArgumentAt(1, ReaderObserver.class);
-                observer.onError(new Exception("qqq"));
-                return null;
-            }
-        };
-        Mockito.doAnswer(answerGetCounts).when(history).getPercentileCounts(Mockito.any(),
-                                                                            Mockito.any());
 
-        PercentilePersistenceTask task = new PercentilePersistenceTask(history, DEFAULT_RANGE);
+        Mockito.doThrow(Status.INTERNAL.withCause(new Exception("qqq")).asRuntimeException())
+                .when(history)
+                .getPercentileCounts(Mockito.any(), Mockito.any());
+
+        final PercentilePersistenceTask task = new PercentilePersistenceTask(
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE);
         expectedException.expect(HistoryCalculationException.class);
         expectedException.expectMessage("Failed to load");
         task.load(Collections.emptyList(), config);
@@ -157,11 +174,12 @@ public class PercentilePersistenceTaskTest {
     @Test
     public void testLoadParseFailureThrown()
                     throws HistoryCalculationException, InterruptedException {
-        StatsHistoryServiceStub history = PowerMockito.mock(StatsHistoryServiceStub.class);
         Answer<Void> answerGetCounts = new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                ReaderObserver observer = invocation.getArgumentAt(1, ReaderObserver.class);
+                @SuppressWarnings("unchecked")
+                StreamObserver<PercentileChunk> observer =
+                        invocation.getArgumentAt(1, StreamObserver.class);
                 observer.onNext(PercentileChunk.newBuilder()
                                 .setPeriod(0).setStartTimestamp(0)
                                 .setContent(ByteString.copyFrom("qqq", StandardCharsets.UTF_8))
@@ -173,7 +191,8 @@ public class PercentilePersistenceTaskTest {
         Mockito.doAnswer(answerGetCounts).when(history).getPercentileCounts(Mockito.any(),
                                                                             Mockito.any());
 
-        PercentilePersistenceTask task = new PercentilePersistenceTask(history, DEFAULT_RANGE);
+        final PercentilePersistenceTask task = new PercentilePersistenceTask(
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE);
         expectedException.expect(HistoryCalculationException.class);
         expectedException.expectMessage("Failed to deserialize");
         task.load(Collections.emptyList(), config);
@@ -197,10 +216,12 @@ public class PercentilePersistenceTaskTest {
                         .addPercentileRecords(rec2).build();
         long periodMs = 4756L;
         TestWriter writer = new TestWriter();
-        StatsHistoryServiceStub history = PowerMockito.mock(StatsHistoryServiceStub.class);
-        Mockito.doReturn(writer).when(history).setPercentileCounts(Mockito.any());
+        Mockito.doReturn(writer)
+                .when(history)
+                .setPercentileCounts(Mockito.any(StreamObserver.class));
 
-        PercentilePersistenceTask task = new PercentilePersistenceTask(history, DEFAULT_RANGE);
+        final PercentilePersistenceTask task = new PercentilePersistenceTask(
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE);
         task.save(counts, periodMs, config);
         Assert.assertArrayEquals(counts.toByteArray(), writer.getResult());
     }
@@ -217,10 +238,10 @@ public class PercentilePersistenceTaskTest {
     @Test
     public void testSaveWithEmptyInput() throws InterruptedException, HistoryCalculationException {
         TestWriter writer = Mockito.spy(new TestWriter());
-        StatsHistoryServiceStub history = PowerMockito.mock(StatsHistoryServiceStub.class);
-        Mockito.doReturn(writer).when(history).setPercentileCounts(Mockito.any());
+        Mockito.doReturn(writer).when(history).setPercentileCounts(Mockito.any(StreamObserver.class));
 
-        PercentilePersistenceTask task = new PercentilePersistenceTask(history, DEFAULT_RANGE);
+        PercentilePersistenceTask task = new PercentilePersistenceTask(
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE);
         task.save(PercentileCounts.newBuilder().build(), 0, config);
         Mockito.verify(writer, Mockito.never()).onNext(Mockito.any());
 
@@ -233,9 +254,8 @@ public class PercentilePersistenceTaskTest {
      */
     @Test
     public void testDefaultConstructor() {
-        final PercentilePersistenceTask task =
-                        new PercentilePersistenceTask(Mockito.mock(StatsHistoryServiceStub.class),
-                                        DEFAULT_RANGE);
+        final PercentilePersistenceTask task = new PercentilePersistenceTask(
+                StatsHistoryServiceGrpc.newStub(grpcServer.getChannel()), DEFAULT_RANGE);
         Assert.assertEquals(PercentilePersistenceTask.TOTAL_TIMESTAMP, task.getStartTimestamp());
     }
 

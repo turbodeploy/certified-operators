@@ -406,13 +406,6 @@ public class StatsService implements IStatsService {
                     explicitlyRequestedIds.remove(grouping.getId());
                 });
 
-            // if not all ids in the original scope have been found
-            // then throw an exception
-            if (!explicitlyRequestedIds.isEmpty()) {
-                throw new UnknownObjectException("Cannot find the group(s) with ids: "
-                                                        + explicitlyRequestedIds.toString());
-            }
-
             // if groups of clusters were found, bring their members
             if (!idsOfMembers.isEmpty()) {
                 groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
@@ -427,6 +420,21 @@ public class StatsService implements IStatsService {
                                     "The group with id " + grouping.getId() + " is not a cluster");
                             }
                         });
+            }
+
+            // if not all ids in the original scope have been found
+            // then throw an exception
+            if (!explicitlyRequestedIds.isEmpty()) {
+                if (clusters.isEmpty()) {
+                    // If NONE of the explicitly requested IDs amounted to anything, throw an error.
+                    throw new UnknownObjectException("Cannot find the group(s) with ids: "
+                            + explicitlyRequestedIds);
+                } else {
+                    // If SOME of the explicitly requested IDs amounted to anything, ignore the
+                    // rest.
+                    logger.warn("Cannot find the group(s) with ids: {}. No stats returned for"
+                            + "those groups", explicitlyRequestedIds);
+                }
             }
         }
 
@@ -478,42 +486,46 @@ public class StatsService implements IStatsService {
         }
 
         // construct the response
-        final List<EntityStatsApiDTO> results =
-            entityStatsList.stream()
-                .map(entityStats -> {
-                        final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-                        final GroupDefinition cluster = clusters.get(entityStats.getOid());
-                        entityStatsApiDTO.setUuid(Long.toString(entityStats.getOid()));
-                        entityStatsApiDTO.setStats(entityStats.getStatSnapshotsList().stream()
-                                                        .map(statsMapper::toStatSnapshotApiDTO)
-                                                        .collect(Collectors.toList()));
-                        if (cluster != null) {
-                            entityStatsApiDTO.setDisplayName(cluster.getDisplayName());
-                            switch (cluster.getType()) {
-                                case COMPUTE_HOST_CLUSTER:
-                                    entityStatsApiDTO.setClassName(StringConstants.CLUSTER);
-                                    break;
-                                case COMPUTE_VIRTUAL_MACHINE_CLUSTER:
-                                    entityStatsApiDTO.setClassName(StringConstants.VIRTUAL_MACHINE_CLUSTER);
-                                    break;
-                                case STORAGE_CLUSTER:
-                                    entityStatsApiDTO.setClassName(StringConstants.STORAGE_CLUSTER);
-                                    break;
-                                default:
-                                    logger.error("Cluster stats contain entry about non-cluster");
-                            }
-                            entityStatsApiDTO.setEnvironmentType(
-                                    cluster.getType() == GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER
-                                            ? com.vmturbo.api.enums.EnvironmentType.HYBRID
-                                            : com.vmturbo.api.enums.EnvironmentType.ONPREM);
-                        } else {
-                            logger.error("Could not get information about cluster with id "
-                                                + entityStats.getOid());
-                            entityStatsApiDTO.setDisplayName(Long.toString(entityStats.getOid()));
-                        }
-                        return entityStatsApiDTO;
-                })
-                .collect(Collectors.toList());
+        final List<EntityStatsApiDTO> results = entityStatsList.stream()
+            .map(entityStats -> {
+                final GroupDefinition cluster = clusters.get(entityStats.getOid());
+                if (cluster != null) {
+                    final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+                    entityStatsApiDTO.setUuid(Long.toString(entityStats.getOid()));
+                    entityStatsApiDTO.setStats(entityStats.getStatSnapshotsList().stream()
+                            .map(statsMapper::toStatSnapshotApiDTO)
+                            .collect(Collectors.toList()));
+                    entityStatsApiDTO.setDisplayName(cluster.getDisplayName());
+                    switch (cluster.getType()) {
+                        case COMPUTE_HOST_CLUSTER:
+                            entityStatsApiDTO.setClassName(StringConstants.CLUSTER);
+                            break;
+                        case COMPUTE_VIRTUAL_MACHINE_CLUSTER:
+                            entityStatsApiDTO.setClassName(StringConstants.VIRTUAL_MACHINE_CLUSTER);
+                            break;
+                        case STORAGE_CLUSTER:
+                            entityStatsApiDTO.setClassName(StringConstants.STORAGE_CLUSTER);
+                            break;
+                        default:
+                            logger.error("Cluster stats contain entry about non-cluster");
+                    }
+                    entityStatsApiDTO.setEnvironmentType(
+                            cluster.getType() == GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER
+                                    ? com.vmturbo.api.enums.EnvironmentType.HYBRID
+                                    : com.vmturbo.api.enums.EnvironmentType.ONPREM);
+                    return entityStatsApiDTO;
+                } else {
+                    logger.error("Could not get information about cluster with id "
+                                        + entityStats.getOid());
+                    // The cluster had stats in the database, but does not exist in the current
+                    // topology. This can happen because we don't clean out cluster stats, since
+                    // clusters can come and go (e.g. when discoveries of specific targets fail).
+                    // However, this can affect pagination.
+                    return null;
+                }
+            })
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
         if (optionalPaginationResponse.isPresent() && optionalPaginationResponse.get().hasNextCursor()) {
             PaginationResponse paginationResponse = optionalPaginationResponse.get();
             return paginationRequest.nextPageResponse(results, paginationResponse.getNextCursor(),

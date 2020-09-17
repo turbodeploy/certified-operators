@@ -257,8 +257,6 @@ public class ReservedInstanceCoverageUpdateTest {
      */
     private TopologyEntityCloudTopologyFactory cloudTopologyFactory =
             new DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class));
-    private BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore =
-            mock(BusinessAccountPriceTableKeyStore.class);
 
     @Before
     public void setup() throws CommunicationException {
@@ -266,10 +264,10 @@ public class ReservedInstanceCoverageUpdateTest {
         MockitoAnnotations.initMocks(this);
 
         reservedInstanceCoverageUpdate = new ReservedInstanceCoverageUpdate(dsl,
-                entityReservedInstanceMappingStore, reservedInstanceUtilizationStore,
-                reservedInstanceCoverageStore, reservedInstanceCoverageValidatorFactory,
-                supplementalRICoverageAnalysisFactory, costNotificationSender,
-                120);
+                entityReservedInstanceMappingStore, mock(AccountRIMappingStore.class),
+                reservedInstanceUtilizationStore, reservedInstanceCoverageStore,
+                reservedInstanceCoverageValidatorFactory, supplementalRICoverageAnalysisFactory,
+                costNotificationSender, 120);
 
         when(reservedInstanceCoverageValidatorFactory.newValidator(any()))
                 .thenReturn(reservedInstanceCoverageValidator);

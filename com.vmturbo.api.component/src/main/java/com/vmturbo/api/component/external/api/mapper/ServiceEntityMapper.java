@@ -22,6 +22,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 
+import io.grpc.StatusRuntimeException;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -319,42 +321,42 @@ public class ServiceEntityMapper {
         if (entities.isEmpty()) {
             return;
         }
-        final Iterator<GetCloudCostStatsResponse> response =
-            costServiceBlockingStub.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
-                .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
-                    .setEntityFilter(EntityFilter.newBuilder()
-                        .addAllEntityId(entities.keySet())))
-                .build());
+        try {
+            final Iterator<GetCloudCostStatsResponse> response = costServiceBlockingStub.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
+                    .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
+                            .setEntityFilter(EntityFilter.newBuilder().addAllEntityId(entities.keySet())))
+                    .build());
 
-        final List<CloudCostStatRecord> cloudStatRecords = new ArrayList<>();
-        while (response.hasNext()) {
-            cloudStatRecords.addAll(response.next().getCloudStatRecordList());
-        }
-        cloudStatRecords.forEach(cloudCostStatRecord -> {
-            // On average, 1 or 2 stat record is expected per entity.
-            cloudCostStatRecord.getStatRecordsList().forEach(statRecord -> {
-                final ServiceEntityApiDTO serviceEntityApiDTO =
-                        entities.get(statRecord.getAssociatedEntityId());
-                if (serviceEntityApiDTO == null) {
-                    return;
-                }
-                final float price = statRecord.getValues().getAvg();
-                final Float costPrice = serviceEntityApiDTO.getCostPrice();
-                serviceEntityApiDTO.setCostPrice(costPrice != null ? costPrice + price : price);
-                if (TEMPLATE_PRICE_CATEGORIES.contains(statRecord.getCategory())
-                        && statRecord.getCostSource() == CostSource.ON_DEMAND_RATE) {
-                    final TemplateApiDTO template = serviceEntityApiDTO.getTemplate();
-                    if (template != null) {
-                        final Float templatePrice = template.getPrice();
-                        template.setPrice(templatePrice != null ? templatePrice + price : price);
-                    } else {
-                        final TemplateApiDTO templateApiDTO = new TemplateApiDTO();
-                        templateApiDTO.setPrice(price);
-                        serviceEntityApiDTO.setTemplate(templateApiDTO);
+            final List<CloudCostStatRecord> cloudStatRecords = new ArrayList<>();
+            while (response.hasNext()) {
+                cloudStatRecords.addAll(response.next().getCloudStatRecordList());
+            }
+            cloudStatRecords.forEach(cloudCostStatRecord -> {
+                // On average, 1 or 2 stat record is expected per entity.
+                cloudCostStatRecord.getStatRecordsList().forEach(statRecord -> {
+                    final ServiceEntityApiDTO serviceEntityApiDTO = entities.get(statRecord.getAssociatedEntityId());
+                    if (serviceEntityApiDTO == null) {
+                        return;
                     }
-                }
+                    final float price = statRecord.getValues().getAvg();
+                    final Float costPrice = serviceEntityApiDTO.getCostPrice();
+                    serviceEntityApiDTO.setCostPrice(costPrice != null ? costPrice + price : price);
+                    if (TEMPLATE_PRICE_CATEGORIES.contains(statRecord.getCategory()) && statRecord.getCostSource() == CostSource.ON_DEMAND_RATE) {
+                        final TemplateApiDTO template = serviceEntityApiDTO.getTemplate();
+                        if (template != null) {
+                            final Float templatePrice = template.getPrice();
+                            template.setPrice(templatePrice != null ? templatePrice + price : price);
+                        } else {
+                            final TemplateApiDTO templateApiDTO = new TemplateApiDTO();
+                            templateApiDTO.setPrice(price);
+                            serviceEntityApiDTO.setTemplate(templateApiDTO);
+                        }
+                    }
+                });
             });
-        });
+        } catch (StatusRuntimeException e) {
+            logger.error("Failed to retrieve cost stats for entities: {}", e.toString());
+        }
     }
 
     /**

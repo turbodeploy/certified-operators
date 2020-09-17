@@ -33,6 +33,7 @@ import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
+import com.vmturbo.topology.processor.topology.CloudMigrationPlanHelper;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.DemandOverriddenCommodityEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
@@ -48,6 +49,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommo
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.CachingConstructTopologyFromStitchingContextStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.CloudMigrationPlanStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.CommoditiesEditStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ConstructTopologyFromStitchingContextStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EntityValidationStage;
@@ -135,6 +137,8 @@ public class PlanPipelineFactory {
 
     private final GroupResolverSearchFilterResolver searchFilterResolver;
 
+    private final CloudMigrationPlanHelper cloudMigrationPlanHelper;
+
     public PlanPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                @Nonnull final PolicyManager policyManager,
                                @Nonnull final StitchingManager stitchingManager,
@@ -160,7 +164,8 @@ public class PlanPipelineFactory {
                                @Nonnull final ConsistentScalingManager consistentScalingManager,
                                @Nonnull final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector,
                                @Nonnull final EphemeralEntityEditor ephemeralEntityEditor,
-                               @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver) {
+                               @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver,
+                               @Nonnull final CloudMigrationPlanHelper cloudMigrationPlanHelper) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -187,6 +192,7 @@ public class PlanPipelineFactory {
         this.requestAndLimitCommodityThresholdsInjector = Objects.requireNonNull(requestAndLimitCommodityThresholdsInjector);
         this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
         this.searchFilterResolver = Objects.requireNonNull(searchFilterResolver);
+        this.cloudMigrationPlanHelper = Objects.requireNonNull(cloudMigrationPlanHelper);
     }
 
     /**
@@ -242,6 +248,7 @@ public class PlanPipelineFactory {
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
                 .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient, searchFilterResolver))
                 .addStage(new EnvironmentTypeStage(environmentTypeInjector))
+                .addStage(new CloudMigrationPlanStage(cloudMigrationPlanHelper, scope, changes))
                 .addStage(new PolicyStage(policyManager, changes))
                 .addStage(new IgnoreConstraintsStage(context.getGroupResolver(), groupServiceClient, changes))
                 .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))

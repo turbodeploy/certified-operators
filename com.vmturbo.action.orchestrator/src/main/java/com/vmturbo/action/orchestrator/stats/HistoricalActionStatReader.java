@@ -103,7 +103,7 @@ public class HistoricalActionStatReader {
             return ActionStats.getDefaultInstance();
         }
 
-        final Optional<Long> targetMgmtUnit = mgmtUnitSubgroupResult.get().mgmtUnit();
+        final List<Long> targetMgmtUnits = mgmtUnitSubgroupResult.get().mgmtUnit();
         final Map<Integer, MgmtUnitSubgroup> targetMgmtUnitSubgroups = mgmtUnitSubgroupResult.get().mgmtUnitSubgroups();
 
         // Find action groups after finding the mgmt unit, so that we don't issue a query
@@ -128,7 +128,7 @@ public class HistoricalActionStatReader {
                 applicableAgIds.get());
 
         final ActionStats.Builder retStatsBuilder = ActionStats.newBuilder();
-        targetMgmtUnit.ifPresent(retStatsBuilder::setMgmtUnitId);
+        retStatsBuilder.addAllMgmtUnitIds(targetMgmtUnits);
 
         queryResultsFromSnapshots.forEach(queryResult -> {
             final ActionStatSnapshot.Builder thisTimeSnapshot = ActionStatSnapshot.newBuilder()
@@ -268,6 +268,37 @@ public class HistoricalActionStatReader {
                         statsByBusinessAccount.forEach((distinctAccountId, stats) -> {
                             final GroupByBucketKey bucketKey = ImmutableGroupByBucketKey.builder()
                                 .businessAccountId(distinctAccountId)
+                                .build();
+                            buckets.addStatsForGroup(bucketKey, numSnapshots, stats.stream());
+                        });
+                        break;
+                    case RESOURCE_GROUP_ID:
+                        final Map<Long, List<RolledUpActionGroupStat>> statsByResourceGroup =
+                            new HashMap<>();
+                        statsByGroupAndMu.forEach((group, statsByMu) -> {
+                            statsByMu.forEach((muId, stats) -> {
+                                final MgmtUnitSubgroup mu = muById.get(muId);
+                                if (mu != null && mu.key().mgmtUnitType() == ManagementUnitType.RESOURCE_GROUP) {
+                                    statsByResourceGroup.computeIfAbsent(mu.key().mgmtUnitId(), k -> new ArrayList<>())
+                                        .add(stats);
+                                } else if (mu != null) {
+                                    // This shouldn't happen, unless we found the wrong mgmt unit types
+                                    // upstream.
+                                    logger.warn("Unexpected management unit subgroup {} when "
+                                            + "grouping by resource group. Expected all relevant "
+                                            + "management subgroups to have type {}.",
+                                        mu, ManagementUnitType.RESOURCE_GROUP);
+                                } else {
+                                    // This shouldn't happen, because the management units in the
+                                    // full query response should be a subset of the management units
+                                    // in the initial "mgmt unit subgroup" search.
+                                    logger.warn("Management unit {} missing from index.", muId);
+                                }
+                            });
+                        });
+                        statsByResourceGroup.forEach((distinctAccountId, stats) -> {
+                            final GroupByBucketKey bucketKey = ImmutableGroupByBucketKey.builder()
+                                .resourceGroupId(distinctAccountId)
                                 .build();
                             buckets.addStatsForGroup(bucketKey, numSnapshots, stats.stream());
                         });
@@ -442,6 +473,13 @@ public class HistoricalActionStatReader {
         Optional<Long> businessAccountId();
 
         /**
+         * The resource group associated with the actions in this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the resource group.
+         */
+        Optional<Long> resourceGroupId();
+
+        /**
          * The risk related to the actions for this bucket.
          *
          * @return action related risk, like "VMem congestion", "Underutilized VMem", etc.
@@ -458,6 +496,7 @@ public class HistoricalActionStatReader {
             state().ifPresent(bldr::setActionState);
             category().ifPresent(bldr::setActionCategory);
             businessAccountId().ifPresent(bldr::setBusinessAccountId);
+            resourceGroupId().ifPresent(bldr::setResourceGroupId);
             relatedRisk().ifPresent(bldr::setActionRelatedRisk);
             return bldr.build();
         }

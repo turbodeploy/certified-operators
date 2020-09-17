@@ -14,7 +14,7 @@ import org.immutables.value.Value.Immutable;
 /**
  * A time interval, representing a (start time, end time) tuple.
  */
-@Immutable
+@Immutable(lazyhash = true)
 public abstract class TimeInterval {
 
     /**

@@ -9,6 +9,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -65,8 +67,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Analys
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Removed;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -106,6 +111,23 @@ public class TopologyConverterToMarketTest {
             .setPlanInfo(PlanTopologyInfo.newBuilder()
                     .setPlanProjectType(PlanProjectType.USER))
             .build();
+
+    private static final TopologyInfo MCP_COSUMPTION_PLAN_TOPOLOGY_INFO = TopologyInfo.newBuilder()
+            .setTopologyType(TopologyType.PLAN)
+            .setPlanInfo(PlanTopologyInfo.newBuilder()
+                    .setPlanProjectType(PlanProjectType.CLOUD_MIGRATION)
+                    .setPlanType(PlanProjectType.CLOUD_MIGRATION.name())
+                    .setPlanSubType(StringConstants.CLOUD_MIGRATION_PLAN__CONSUMPTION))
+            .build();
+
+    private static final TopologyInfo MCP_ALLOCATION_PLAN_TOPOLOGY_INFO = TopologyInfo.newBuilder()
+            .setTopologyType(TopologyType.PLAN)
+            .setPlanInfo(PlanTopologyInfo.newBuilder()
+                    .setPlanProjectType(PlanProjectType.CLOUD_MIGRATION)
+                    .setPlanType(PlanProjectType.CLOUD_MIGRATION.name())
+                    .setPlanSubType(StringConstants.CLOUD_MIGRATION_PLAN__ALLOCATION))
+            .build();
+
     private static final long PROVIDER_ID = 1;
     private static final double DELTA = 0.001d;
 
@@ -121,6 +143,8 @@ public class TopologyConverterToMarketTest {
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
     private AccountPricingData accountPricingData = mock(AccountPricingData.class);
     private ConsistentScalingHelperFactory consistentScalingHelperFactory;
+    private ReversibilitySettingFetcher reversibilitySettingFetcher
+            = mock(ReversibilitySettingFetcher.class);
     private SettingPolicyServiceMole settingPolicyServiceMole = spy(new SettingPolicyServiceMole());
 
     /**
@@ -165,7 +189,10 @@ public class TopologyConverterToMarketTest {
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketPriceTable,
             ccd,
-            CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
+            CommodityIndex.newFactory(),
+            tierExcluderFactory,
+            consistentScalingHelperFactory,
+            reversibilitySettingFetcher);
         TraderTO traderTO = converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto)).iterator().next();
         assertTrue(traderTO.getCommoditiesSold(1).getSpecification().getCloneWithNewType());
     }
@@ -194,7 +221,7 @@ public class TopologyConverterToMarketTest {
             MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory);
+            consistentScalingHelperFactory, reversibilitySettingFetcher);
         TraderTO traderTO = converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto)).iterator().next();
         assertFalse(traderTO.getCommoditiesSold(0).getSettings().getResizable());
     }
@@ -411,7 +438,8 @@ public class TopologyConverterToMarketTest {
                 MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable,
                 ccd,
-                CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
+                CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
         converter.convertToMarket(ImmutableMap.of(entityDTO.getOid(), entityDTO));
 
         assertEquals(topologyCommodity1, converter.getCommodityConverter()
@@ -454,7 +482,8 @@ public class TopologyConverterToMarketTest {
                 ccd,
                 CommodityIndex.newFactory(),
                 tierExcluderFactory,
-                consistentScalingHelperFactory);
+                consistentScalingHelperFactory,
+                reversibilitySettingFetcher);
         Set<TraderTO> vmTrader = converter.convertToMarket(ImmutableMap.of(entityDTO.getOid(), entityDTO));
 
         TraderTO vm = vmTrader.iterator().next();
@@ -488,7 +517,8 @@ public class TopologyConverterToMarketTest {
         return new TopologyConverter(topologyInfo, true, MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketPriceTable,
-            ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory)
+            ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+            consistentScalingHelperFactory, reversibilitySettingFetcher)
             .convertToMarket(topology.stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
     }
@@ -509,7 +539,8 @@ public class TopologyConverterToMarketTest {
             MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketPriceTable,
-            ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory)
+            ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+            consistentScalingHelperFactory, reversibilitySettingFetcher)
             .convertToMarket(topologyDTOs);
         assertEquals(2, traderTOs.size());
         for (TraderTO traderTO : traderTOs) {
@@ -607,7 +638,8 @@ public class TopologyConverterToMarketTest {
             .setOid(1005L).setEntityType(2).setEntityState(TopologyDTO.EntityState.UNKNOWN).build();
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
             marketPriceTable,
-            ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
+            ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
+            reversibilitySettingFetcher);
         assertEquals(4, converter.convertToMarket(
             Stream.of(container, virtualApp, actionManager, storage, unknownStorage)
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())))
@@ -888,7 +920,7 @@ public class TopologyConverterToMarketTest {
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
             MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory);
+            consistentScalingHelperFactory, reversibilitySettingFetcher);
         Map<Long, TopologyEntityDTO> topology = new HashMap<>();
         topology.put(pmEntityDTO.getOid(), pmEntityDTO);
         topology.put(vmEntityDTO.getOid(), vmEntityDTO);
@@ -915,7 +947,7 @@ public class TopologyConverterToMarketTest {
         getResizedCapacityForCloud(EntityType.DATABASE_SERVER_VALUE,
                 CommodityDTO.CommodityType.CPU_VALUE,
                 CommodityDTO.CommodityType.VCPU_VALUE, used, peak, max,
-                commSoldCap, commSoldRtu, 70d, 80d, EnvironmentType.CLOUD, null, null);
+                commSoldCap, commSoldRtu, 70d, 80d, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
         // Expects no exception with a zero resize target util
     }
 
@@ -930,13 +962,51 @@ public class TopologyConverterToMarketTest {
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE,
                 used, peak, max, 200, 0.9,
-                histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null);
+                histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
         // new used = histPercentile * capacity / target util
         // new peak = max(peak, used) / rtu
         // percentile in the historical values is set as a percent value that needs to
         // be converted to the absolute used for the capacity.
         assertEquals(histPercentile * 200 / 0.9, quantities[0], 0.01f);
         assertEquals(88.888, quantities[1], 0.01f);
+    }
+
+    /**
+     * Test that if the percentile utilization is within target band, then resize quantity is
+     * same as current capacity.
+     */
+    @Test
+    public void testGetResizedCapacityWithinTargetBand() {
+        double used = 30;
+        double peak = 50;
+        double max = 100;
+        double histPercentile = 0.72;
+        double histUtilizaiton = 0.72;
+        double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_VOLUME_VALUE,
+            CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
+            CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
+            used, peak, max, 100, 0.7,
+            histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
+        assertEquals(100, quantities[0], 0.01f);
+    }
+
+    /**
+     * Test that if the percentile utilization is outside of target band, then resize quantity is
+     * calculated based on target utilization, percentile and capacity.
+     */
+    @Test
+    public void testGetResizedCapacityOutsideTargetBand() {
+        double used = 10;
+        double peak = 20;
+        double max = 20;
+        double histPercentile = 0.2;
+        double histUtilizaiton = 0.2;
+        double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_VOLUME_VALUE,
+            CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
+            CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
+            used, peak, max, 100, 0.7,
+            histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
+        assertEquals(0.2 * 100 / 0.7, quantities[0], 0.01f);
     }
 
     /**
@@ -951,7 +1021,7 @@ public class TopologyConverterToMarketTest {
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE,
                 used, peak, max, 200, 0.9,
-                null, null, EnvironmentType.CLOUD, null, null);
+                null, null, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
         // new used = [(max * 0.9) + (used * 0.1)] / rtu
         // new peak = max(peak, used) / rtu
         assertEquals(used / 0.9, quantities[0], 0.01f);
@@ -971,7 +1041,7 @@ public class TopologyConverterToMarketTest {
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE,
                 used, peak, max, 200, 0.9,
-                null, histUtil, EnvironmentType.ON_PREM, used, peak);
+                null, histUtil, EnvironmentType.ON_PREM, used, peak, REALTIME_TOPOLOGY_INFO);
         // new used = [(max * 0.9) + (used * 0.1)] / rtu
         // new peak = max(peak, used) / rtu
         assertEquals(histUtil, quantities[0], 0.01f);
@@ -992,7 +1062,7 @@ public class TopologyConverterToMarketTest {
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE,
                 used, peak, max, 200, 0.9,
-                histPercentile, histUtil, EnvironmentType.ON_PREM, used, peak);
+                histPercentile, histUtil, EnvironmentType.ON_PREM, used, peak, REALTIME_TOPOLOGY_INFO);
         // new used = [(max * 0.9) + (used * 0.1)] / rtu
         // new peak = max(peak, used) / rtu
         assertEquals(histPercentile, quantities[0], 0.01f);
@@ -1013,7 +1083,7 @@ public class TopologyConverterToMarketTest {
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE,
                 used, peak, max, 200, 0.9,
-                null, histUtil, EnvironmentType.CLOUD, null, null);
+                null, histUtil, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
         assertEquals(histUtil / 0.9, quantities[0], 0.01f);
         assertEquals(88.888, quantities[1], 0.01f);
     }
@@ -1032,7 +1102,7 @@ public class TopologyConverterToMarketTest {
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE,
                 used, peak, max, 100, 0.5,
-                histPercentile, histUtil, EnvironmentType.CLOUD, null, null);
+                histPercentile, histUtil, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
         // new used = percentile * capacity / target util
         // new peak = max(peak, used) / rtu
         // percentile in the historical values is set as a percent value that needs to
@@ -1049,18 +1119,46 @@ public class TopologyConverterToMarketTest {
         double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE, used, peak, max,
-                100, 0.8, 80d, 75d, EnvironmentType.CLOUD, null, null);
+                100, 0.8, 0.8, 75d, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
         // new used = capacity
         // new peak = max(peak, used) / rtu
-        assertEquals(100 * 100, quantities[0], 0.01f);
+        assertEquals(100, quantities[0], 0.01f);
         assertEquals(peak / 0.8, quantities[1], 0.01f);
+    }
+
+    /**
+     * Test that if percentile is not set and used is 0, then sold commodity resize quantity is same
+     * as current capacity.
+     */
+    @Test
+    public void testResizeQuantityForZeroUsed() {
+        final double capacity = 100;
+        final double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+            CommodityDTO.CommodityType.MEM_VALUE, CommodityDTO.CommodityType.VMEM_VALUE, 0,
+            0, 0, capacity, 0.8, null, null, EnvironmentType.CLOUD, null, null,
+            REALTIME_TOPOLOGY_INFO);
+        assertEquals(capacity, quantities[0], 0.01f);
+    }
+
+    /**
+     * Test that if percentile is set to 0, then the resize quantity is also 0.
+     */
+    @Test
+    public void testResizeQuantityForZeroPercentile() {
+        final double capacity = 100;
+        final double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+            CommodityDTO.CommodityType.MEM_VALUE, CommodityDTO.CommodityType.VMEM_VALUE, 0,
+            0, 0, capacity, 0.8, 0d, null, EnvironmentType.CLOUD, null, null,
+            REALTIME_TOPOLOGY_INFO);
+        assertEquals(0, quantities[0], 0.01f);
     }
 
     private double[] getResizedCapacityForCloud(int entityType, int commBoughtType, int commSoldType,
                                                 double commSoldUsed, double commSoldPeak,
                                                 double commSoldMax, double commSoldCap, double commSoldRtu,
                                                 Double histPercentile, Double histoUtilization,
-                                                final EnvironmentType envType, Double boughtUsed, Double boughtPeak) {
+                                                final EnvironmentType envType, Double boughtUsed,
+                                                Double boughtPeak, TopologyInfo topologyInfo) {
 
         final HistoricalValues.Builder histValueBuilder = HistoricalValues.newBuilder();
         histValueBuilder.setMaxQuantity(commSoldMax);
@@ -1108,13 +1206,13 @@ public class TopologyConverterToMarketTest {
                         .addCommodityBought(commBought))
                 .build();
         final TopologyConverter converter =
-                new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+                new TopologyConverter(topologyInfo, true,
                     MarketAnalysisUtils.QUOTE_FACTOR,
                     MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                     marketPriceTable,
                     ccd,
                     CommodityIndex.newFactory(), tierExcluderFactory,
-                    consistentScalingHelperFactory);
+                    consistentScalingHelperFactory, reversibilitySettingFetcher);
         final float[][] resizedCapacitites = converter.getResizedCapacity(vmEntityDTO, commBought, PROVIDER_ID);
         return new double[]{resizedCapacitites[0][0], resizedCapacitites[1][0]};
     }
@@ -1204,6 +1302,50 @@ public class TopologyConverterToMarketTest {
         Assert.assertEquals(140, quantities[1], 0.01f);
     }
 
+    /**
+     * Test migrate to cloud "Lift and Shift" (a.k.a. Allocation) scenario.
+     * The capacity of the commodity sold is used as the demand of the commodity.
+     */
+    @Test
+    public void testGetResizedCapacityForMCPLiftAndShift() {
+        double used = 40;
+        double peak = 80;
+        double max = 90;
+        double histPercentile = 75;
+        double commSoldCapacity = 200;
+        double commSoldRtu = 0.9;
+        double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.MEM_VALUE,
+                CommodityDTO.CommodityType.VMEM_VALUE,
+                used, peak, max, commSoldCapacity, commSoldRtu,
+                histPercentile, null, EnvironmentType.CLOUD, used, peak,
+                MCP_ALLOCATION_PLAN_TOPOLOGY_INFO);
+        assertEquals(commSoldCapacity, quantities[0], 0.01f);
+        assertEquals(commSoldCapacity, quantities[1], 0.01f);
+    }
+
+    /**
+     * Test migrate to cloud "Optimization" plan (a.k.a. Consumption) scenario.
+     * The percentile utilization and target utilization will be considered to come up with the
+     * demand.
+     */
+    @Test
+    public void testGetResizedCapacityForMCPOptimizationPlan() {
+        double used = 40;
+        double peak = 80;
+        double max = 90;
+        double histPercentile = 0.8;
+        double commSoldCapacity = 200;
+        double commSoldRtu = 0.9;
+        double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.MEM_VALUE,
+                CommodityDTO.CommodityType.VMEM_VALUE,
+                used, peak, max, commSoldCapacity, commSoldRtu,
+                histPercentile, null, EnvironmentType.CLOUD, used, peak,
+                MCP_COSUMPTION_PLAN_TOPOLOGY_INFO);
+        assertEquals(histPercentile * commSoldCapacity / commSoldRtu, quantities[0], 0.01f);
+        assertEquals(peak / commSoldRtu, quantities[1], 0.01f);
+    }
 
     /**
      * Test that the region_id field is set for a VM's startContext object if the VM is connected
@@ -1230,7 +1372,7 @@ public class TopologyConverterToMarketTest {
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory);
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
 
         final Set<TraderTO> traders =
                 converter.convertToMarket(ImmutableList.of(region, vm, ba).stream()
@@ -1273,7 +1415,7 @@ public class TopologyConverterToMarketTest {
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory);
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
 
         final Set<TraderTO> traders =
                 converter.convertToMarket(ImmutableList.of(zone, region, vm, ba).stream()
@@ -1312,7 +1454,7 @@ public class TopologyConverterToMarketTest {
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory);
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
 
         final Set<TraderTO> traders =
                 converter.convertToMarket(ImmutableList.of(region, vm, ba).stream()
@@ -1411,7 +1553,7 @@ public class TopologyConverterToMarketTest {
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory);
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
         Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
         entityMap.put(entityDTO.getOid(), entityDTO);
         TraderTO entityTO = converter.convertToMarket(entityMap).iterator().next();
@@ -1447,7 +1589,7 @@ public class TopologyConverterToMarketTest {
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory);
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
         Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
         entityMap.put(entityDTO.getOid(), entityDTO);
         final TraderTO entityTO = converter.convertToMarket(entityMap).iterator().next();
@@ -1481,7 +1623,7 @@ public class TopologyConverterToMarketTest {
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory);
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
         Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
         entityMap.put(entityDTO.getOid(), entityDTO);
         final TraderTO entityTO = converter.convertToMarket(entityMap).iterator().next();
@@ -1639,7 +1781,7 @@ public class TopologyConverterToMarketTest {
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory);
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
 
         final List<CommodityBoughtTO> boughtTOs = converter.createAndValidateCommBoughtTO(user, boughtCommodityDTO, 1005L, Optional.empty());
         assertEquals(3, boughtTOs.size());
@@ -1682,7 +1824,8 @@ public class TopologyConverterToMarketTest {
             MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketPriceTable,
-            ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory)
+            ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+            consistentScalingHelperFactory, reversibilitySettingFetcher)
             .convertToMarket(topologyDTOs);
         // Container 1 and 2's SLs are movable.  Container 1 is hosted by a VM, so it should
         // be movable.  Container 2 is hosted by a container pod, so it should not be movable.
@@ -1711,6 +1854,173 @@ public class TopologyConverterToMarketTest {
     }
 
     /**
+     * Ensure that contaienr pods hosted on cloud entities do not get entries inserted into the
+     * CommoditiesResizeTracker. The CommoditiesResizeTracker should only be used to track entities
+     * whose bought commodities are adjusted prior to entering the market for cloud scaling.
+     * @throws IOException when one of the files cannot be load
+     */
+    @Test
+    public void testNoResizeTrackerForCloudPod() throws IOException {
+        final List<TopologyEntityDTO.Builder> topologyDTOBuilders = Arrays.asList(
+            messageFromJsonFile("protobuf/messages/vm-1.dto.json").toBuilder(),
+            messageFromJsonFile("protobuf/messages/vm-3.dto.json").toBuilder(),
+            messageFromJsonFile("protobuf/messages/pod-1.dto.json").toBuilder(),
+            messageFromJsonFile("protobuf/messages/container-1.dto.json").toBuilder(),
+            messageFromJsonFile("protobuf/messages/container-2.dto.json").toBuilder(),
+            messageFromJsonFile("protobuf/messages/cloud-db.json").toBuilder(),
+            messageFromJsonFile("protobuf/messages/vm-4.dto.json").toBuilder());
+        final Map<Long, TopologyEntityDTO> topologyDTOs = topologyDTOBuilders.stream()
+            .map(builder -> {
+                // Set environment type to cloud
+                return builder.setEnvironmentType(EnvironmentType.CLOUD).build();
+            }).collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+
+        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
+            MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+            marketPriceTable,
+            ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
+        final CommoditiesResizeTracker resizeTracker = Mockito.mock(CommoditiesResizeTracker.class);
+        Whitebox.setInternalState(topologyConverter,
+            "commoditiesResizeTracker", resizeTracker);
+
+        // One of the trader is for StorageTier.
+        Optional<TraderTO> optinalDbEntityTraderTo = entityTraderTOs.stream().filter(entityTraderTO -> entityTraderTO.getType()
+                == EntityType.DATABASE_VALUE).findAny();
+        assertTrue(optinalDbEntityTraderTo.isPresent());
+        TraderTO  dbEntityTraderTo = optinalDbEntityTraderTo.get();
+        assertEquals(2048.0d, dbEntityTraderTo.getCommoditiesSoldList().get(0).getCapacity(), 0.01f);
+
+        topologyConverter.convertToMarket(topologyDTOs);
+        // Only the VirtualMachine (OID==101) should be saved to the resize tracker. The other converted
+        // entities should not be saved. The other VMs in the test case have no commodities bought.
+        Mockito.verify(resizeTracker).save(Mockito.eq(101L), anyLong(),
+            Mockito.eq(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE).setKey("P1").build()), anyBoolean());
+        Mockito.verify(resizeTracker).save(Mockito.eq(101L), anyLong(),
+            Mockito.eq(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE).setKey("").build()), anyBoolean());
+        Mockito.verifyNoMoreInteractions(resizeTracker);
+    }
+
+    /**
+     * Test IOPs (STORAGE_ACCESS) VM bought from Compute Tier is using the percentile value in the utilization data
+     *   when converting from TopologyEntityDTO to TraderTO.
+     * STORAGE_ACCESS commodity has percentile utilization bought in VM from CT
+     *   which STORAGE_ACCESS in CT sold list is resizable and has capacity.
+     *
+     * @throws IOException when one of the files cannot be load
+     */
+    @Test
+    public void testCommodityBoughtFromAProviderWithPercentileUtilization() throws IOException {
+        // These values should match with data stored in the json files
+        final long ctOid = 73403214215586L;
+        final long vmOid = 73470833555810L;
+        final int ctIopsCapacity = 2000;
+        final float targetUtilization = 0.7f;
+
+        final TopologyEntityDTO computeTier = messageFromJsonFile("protobuf/messages/ct-azure-1.topologyDto.json");
+
+        // The topology requires both the VM itself and provider Compute Tier.
+        final Map<Long, TopologyEntityDTO> topologyDTOs = Stream.of(
+            messageFromJsonFile("protobuf/messages/vm-azure-1.topologyDto.json"),
+            computeTier)
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+
+
+        final MarketTier marketTier = mock(MarketTier.class);
+        Mockito.when(marketTier.getTier()).thenReturn(computeTier);
+
+        Set<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
+            MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+            marketPriceTable,
+            ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory, reversibilitySettingFetcher)
+            .convertToMarket(topologyDTOs);
+
+        assertEquals(2, traderTOs.size());
+
+        traderTOs.stream().forEach(traderTO -> {
+            if (traderTO.getOid() == vmOid) {
+                assertEquals("Trader should be a VM", 10, traderTO.getType());
+                assertEquals("Shopping List have one shoppingListTO", 1, traderTO.getShoppingListsCount());
+                ShoppingListTO shoppingListTO = traderTO.getShoppingLists(0);
+                assertEquals("There should be two commodities in the shopping list", 2, shoppingListTO.getCommoditiesBoughtCount());
+                List<CommodityBoughtTO> commoditiesBoughtList = shoppingListTO.getCommoditiesBoughtList();
+                boolean hasStorageAccessCommodity = false;
+                for (CommodityBoughtTO commodityBoughtTO : commoditiesBoughtList) {
+                    if (commodityBoughtTO.getSpecification().getBaseType() == 64) {
+                        hasStorageAccessCommodity = true;
+                        final float expectedQuantity = (float)(ctIopsCapacity * 0.8 / targetUtilization);
+
+                        assertEquals(expectedQuantity, commodityBoughtTO.getQuantity(), epsilon);
+                        assertEquals(expectedQuantity, commodityBoughtTO.getPeakQuantity(), epsilon);
+                    }
+                }
+                assertTrue(hasStorageAccessCommodity);
+            }
+        });
+    }
+
+    /**
+     * Test {@link TopologyConverter#createProviderUsedSubtractionMap(Map, Set)}.
+     */
+    @Test
+    public void testCreateProviderUsedSubtractionMap() {
+        final TopologyEntityDTO pm = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .setEntityState(EntityState.POWERED_ON)
+            .setOid(3L)
+            .build();
+
+        final long topologyId = 2222;
+        final double used1 = 10;
+        final double scalingFactor1 = 20;
+        final double used2 = 5;
+        final double scalingFactor2 = 3;
+        final CommodityType commodityType = CommodityType.newBuilder().setType(10).build();
+
+        final TopologyEntityDTO removedVM1 = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setEntityState(EntityState.POWERED_ON)
+            .setEdit(Edit.newBuilder()
+                .setRemoved(Removed.newBuilder().setPlanId(topologyId).build())
+                .build())
+            .setOid(1L)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(pm.getOid()).addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(commodityType).setUsed(used1).setScalingFactor(scalingFactor1)))
+            .build();
+        final TopologyEntityDTO removedVM2 = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setEntityState(EntityState.POWERED_ON)
+            .setEdit(Edit.newBuilder()
+                .setRemoved(Removed.newBuilder().setPlanId(topologyId).build())
+                .build())
+            .setOid(2L)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(pm.getOid()).addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(commodityType).setUsed(used2).setScalingFactor(scalingFactor2)))
+            .build();
+
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+            MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+            marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+            consistentScalingHelperFactory, reversibilitySettingFetcher);
+
+        final Map<Long, Map<CommodityType, Double>> result =
+            converter.createProviderUsedSubtractionMap(ImmutableMap.of(pm.getOid(), pm,
+                removedVM1.getOid(), removedVM1, removedVM2.getOid(), removedVM2),
+                ImmutableSet.of(removedVM1.getOid(), removedVM2.getOid()));
+
+        assertEquals(1, result.size());
+        assertEquals(1, result.get(pm.getOid()).size());
+        assertEquals(used1 * scalingFactor1 + used2 * scalingFactor2,
+            result.get(pm.getOid()).get(commodityType), 10e-7);
+    }
+
+    /**
      * The intent of this test is to ensure that for entities which have collapsed relationship, shoppingLists
      * are created based on the collapsed entities.
      * For example, for cloud VMs which consume from cloud volumes, VMs will be trader and volumes are collapsed.
@@ -1721,50 +2031,89 @@ public class TopologyConverterToMarketTest {
         final Map<Long, TopologyEntityDTO> topologyDTOs = Stream.of(
                 messageFromJsonFile("protobuf/messages/cloud-volume.json"),
                 messageFromJsonFile("protobuf/messages/cloud-vm.json"),
-                messageFromJsonFile("protobuf/messages/cloud-storageTier.json"),
-                messageFromJsonFile("protobuf/messages/cloud-db.json"))
+                messageFromJsonFile("protobuf/messages/cloud-storageTier.json"))
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
                 MarketAnalysisUtils.QUOTE_FACTOR,
                 MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable,
-                ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory);
+                ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
         Set<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
-        assertEquals(3, traderTOs.size());
+        assertEquals(2, traderTOs.size());
         // One of the trader is for StorageTier.
         Optional<TraderTO> storageTierTraderTO = traderTOs.stream().filter(t -> t.getType() == EntityType.STORAGE_TIER_VALUE).findAny();
         assertTrue(storageTierTraderTO.isPresent());
         // The other trader is for VirtualMachine.
-        List<TraderTO> entityTraderTOs = traderTOs.stream().filter(t -> t.getType() != EntityType.STORAGE_TIER_VALUE).collect(toList());
-        assertThat(entityTraderTOs .size(), greaterThan(0));
-        Optional<TraderTO> optinalEntityTraderTo = entityTraderTOs.stream().filter(entityTraderTO -> entityTraderTO.getType()
-                == EntityType.VIRTUAL_MACHINE_VALUE).findAny();
-        assertTrue(optinalEntityTraderTo.isPresent());
-        TraderTO entityTraderTo = optinalEntityTraderTo.get();
-        // One of the trader is for StorageTier.
-        Optional<TraderTO> optinalDbEntityTraderTo = entityTraderTOs.stream().filter(entityTraderTO -> entityTraderTO.getType()
-                == EntityType.DATABASE_VALUE).findAny();
-        assertTrue(optinalDbEntityTraderTo.isPresent());
-        TraderTO  dbEntityTraderTo = optinalDbEntityTraderTo.get();
-        assertEquals(2048.0d, dbEntityTraderTo.getCommoditiesSoldList().get(0).getCapacity(), 0.01f);
+        TraderTO entityTraderTO = traderTOs.stream().filter(t -> t.getType() != EntityType.STORAGE_TIER_VALUE).findAny().orElse(null);
+        assertNotNull(entityTraderTO);
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, entityTraderTO.getType());
 
         // Test the shoppingList within the VM trader which represents cloud volume.
-        ShoppingListTO volumeSL = entityTraderTo.getShoppingListsCount() > 0 ? entityTraderTo.getShoppingLists(0) : null;
+        ShoppingListTO volumeSL = entityTraderTO.getShoppingListsCount() > 0 ? entityTraderTO.getShoppingLists(0) : null;
         assertNotNull(volumeSL);
-
-
         // shoppingList provider is storageTier
         assertEquals(storageTierTraderTO.get().getOid(), volumeSL.getSupplier());
         CommodityBoughtTO commodityBoughtTO = volumeSL.getCommoditiesBoughtCount() > 0 ? volumeSL.getCommoditiesBought(0) : null;
         assertNotNull(commodityBoughtTO);
         assertEquals(1506, commodityBoughtTO.getAssignedCapacityForBuyer(), 0.01f);
         assertEquals(1506 * 0.01f, commodityBoughtTO.getQuantity(), 0.01f);
+        // Check that Savings mode is enabled
+        assertTrue(volumeSL.getDemandScalable());
         // Test ShoppingListInfo
         assertEquals(1, topologyConverter.getShoppingListOidToInfos().size());
         ShoppingListInfo shoppingListInfo = topologyConverter.getShoppingListOidToInfos().values().iterator().next();
         assertTrue(shoppingListInfo.getCollapsedBuyerId().isPresent());
         // Test collapsedBuyerId
         assertEquals(73442089143125L, shoppingListInfo.getCollapsedBuyerId().get().longValue());
+    }
 
+    /**
+     * Tests that "Savings vs Reversibility" mode is respected by {@code TopologyConverter}.
+     * If reversibility is preferred then "demandScalable" flag must be set to {@code false}
+     * in the volume shopping list.
+     *
+     * @throws IOException In case of file loading error.
+     */
+    @Test
+    public void testConvertEntityWithReversibilityPreferred() throws IOException {
+        final Map<Long, TopologyEntityDTO> topologyDTOs = Stream.of(
+                messageFromJsonFile("protobuf/messages/cloud-volume.json"),
+                messageFromJsonFile("protobuf/messages/cloud-vm.json"),
+                messageFromJsonFile("protobuf/messages/cloud-storageTier.json"))
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+
+        // Mock that Volume is in reversibility mode
+        final long volumeOid = 73442089143125L;
+        final ReversibilitySettingFetcher settingFetcher = mock(ReversibilitySettingFetcher.class);
+        when(settingFetcher.getEntityOidsWithReversibilityPreferred())
+                .thenReturn(ImmutableSet.of(volumeOid));
+
+        final TopologyConverter topologyConverter = new TopologyConverter(
+                REALTIME_TOPOLOGY_INFO,
+                false,
+                MarketAnalysisUtils.QUOTE_FACTOR,
+                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable,
+                ccd,
+                CommodityIndex.newFactory(),
+                tierExcluderFactory,
+                consistentScalingHelperFactory,
+                settingFetcher);
+
+        final Set<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
+
+        // Find VirtualMachine trader.
+        final TraderTO vmTrader = traderTOs.stream()
+                .filter(t -> t.getType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .findAny().orElse(null);
+        assertNotNull(vmTrader);
+
+        // Retrieve shopping list representing Volume.
+        assertTrue(vmTrader.getShoppingListsCount() > 0);
+        final ShoppingListTO volumeSL = vmTrader.getShoppingLists(0);
+
+        // Check that Reversibility mode is enabled.
+        assertFalse(volumeSL.getDemandScalable());
     }
 }

@@ -35,7 +35,7 @@ public interface WastedFilesAnalysisFactory {
                                                @Nonnull final CloudTopology<TopologyEntityDTO> originalCloudTopology);
 
     /**
-     * The default implementation of {@link AnalysisFactory}.
+     * The default implementation of {@link WastedFilesAnalysisFactory}.
      */
     class DefaultWastedFilesAnalysisFactory implements WastedFilesAnalysisFactory {
         @Nonnull

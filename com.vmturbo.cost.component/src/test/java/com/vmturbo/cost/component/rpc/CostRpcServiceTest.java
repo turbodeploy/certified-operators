@@ -725,6 +725,7 @@ public class CostRpcServiceTest {
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
                 .setSnapshotDate(TIME)
                 .setQueryId(0L)
+                .setIsProjected(false)
                 .addStatRecords(CloudCostStatRecord.StatRecord.newBuilder()
                         .setName(StringConstants.COST_PRICE)
                         .setUnits("$/h")
@@ -809,10 +810,10 @@ public class CostRpcServiceTest {
                         .convertEntityToStatRecord(projectedEntityCostMap.values()));
 
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
-        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), TIME));
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), TIME, false));
         // the Projected stats will be 1 hour ahead
         builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost),
-                TIME + TimeUnit.HOURS.toMillis(1)));
+                TIME + TimeUnit.HOURS.toMillis(1), true));
         costRpcService.getCloudCostStats(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
         verify(mockObserver).onCompleted();
@@ -850,10 +851,10 @@ public class CostRpcServiceTest {
         )).willReturn(snapshotToAccountExpensesMap);
 
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
-        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), TIME));
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), TIME, false));
         // the Projected stats will be 1 hour ahead
         builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost),
-                TIME + TimeUnit.HOURS.toMillis(1)));
+                TIME + TimeUnit.HOURS.toMillis(1), true));
         costRpcService.getCloudCostStats(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
         verify(mockObserver).onCompleted();
@@ -894,10 +895,10 @@ public class CostRpcServiceTest {
                 .build())).willReturn(latestEntityCostMap);
 
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
-        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), TIME));
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), TIME, false));
         // the Projected stats will be 1 hour ahead
         builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost),
-                TIME + TimeUnit.HOURS.toMillis(1)));
+                TIME + TimeUnit.HOURS.toMillis(1), true));
         costRpcService.getCloudCostStats(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
         verify(mockObserver).onCompleted();
@@ -934,10 +935,10 @@ public class CostRpcServiceTest {
             .build())).willReturn(Collections.emptyMap());
 
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
-        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), TIME));
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), TIME, false));
         // the Projected stats will be 1 hour ahead
         builder.addCloudStatRecord(createCloudStatRecord(Collections.emptyList(),
-                TIME + TimeUnit.HOURS.toMillis(1)));
+                TIME + TimeUnit.HOURS.toMillis(1), true));
         costRpcService.getCloudCostStats(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
         verify(mockObserver).onCompleted();
@@ -1021,10 +1022,10 @@ public class CostRpcServiceTest {
         given(projectedEntityCostStore.getProjectedStatRecords(any(EntityCostFilter.class)))
             .willReturn(EntityCostToStatRecordConverter.convertEntityToStatRecord(projectedEntityCostMap.values()));
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
-        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), TIME));
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), TIME, false));
         // the Projected stats will be 1 hour ahead
         builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost),
-                TIME + TimeUnit.HOURS.toMillis(1)));
+                TIME + TimeUnit.HOURS.toMillis(1), true));
         costRpcService.getCloudCostStats(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
         verify(mockObserver).onCompleted();
@@ -1128,6 +1129,7 @@ public class CostRpcServiceTest {
                 .addStatRecords(getStatRecordBuilder(CostCategory.ON_DEMAND_COMPUTE))
                 .addStatRecords(getStatRecordBuilder(CostCategory.IP))
                 .setQueryId(0L)
+                .setIsProjected(false)
                 .build();
 
         final CloudCostStatRecord cloudStatRecord1 = CloudCostStatRecord.newBuilder()
@@ -1136,10 +1138,11 @@ public class CostRpcServiceTest {
                 .addStatRecords(getStatRecordBuilder(CostCategory.IP))
                 .addStatRecords(getStatRecordBuilder(CostCategory.IP))
                 .setQueryId(0L)
+                .setIsProjected(false)
                 .build();
         builder.addCloudStatRecord(cloudStatRecord).addCloudStatRecord(cloudStatRecord1);
         builder.addCloudStatRecord(createCloudStatRecord(Collections.emptyList(),
-                MID_TIME + TimeUnit.HOURS.toMillis(1)));
+                MID_TIME + TimeUnit.HOURS.toMillis(1), true));
         costRpcService.getCloudCostStats(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
         verify(mockObserver).onCompleted();
@@ -1379,10 +1382,12 @@ public class CostRpcServiceTest {
      * Create Cloud Stat record from the entity cost.
      */
     private CloudCostStatRecord createCloudStatRecord(List<EntityCost> entityCosts,
-                                                      long snapshotTime) {
+                                                      long snapshotTime,
+            boolean isProjected) {
         final CloudCostStatRecord.Builder cloudStatRecordBuilder =
                 CloudCostStatRecord.newBuilder()
                         .setSnapshotDate(snapshotTime)
+                        .setIsProjected(isProjected)
                         .setQueryId(0L);
         for (EntityCost entityCost : entityCosts) {
             for (ComponentCost componentCost : entityCost.getComponentCostList()) {

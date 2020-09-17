@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
 
@@ -93,7 +94,7 @@ public class WorkflowDiagnosticsTest {
         Mockito.when(workflowStore.fetchWorkflows(new WorkflowFilter(Collections.emptyList())))
                 .thenReturn(Sets.newHashSet(WORKFLOW_1, WORKFLOW_2, WORKFLOW_3));
         final List<String> diags = collectDiags();
-        final Map<Long, List<WorkflowInfo>> persistedWorkflows = restoreDiags(diags);
+        final Map<Long, List<WorkflowInfo>> persistedWorkflows = restoreDiags(diags, null);
         Assert.assertEquals(Sets.newHashSet(TGT1, TGT2), persistedWorkflows.keySet());
         Assert.assertEquals(Sets.newHashSet(INFO_1, INFO_3),
                 new HashSet<>(persistedWorkflows.get(TGT1)));
@@ -116,7 +117,7 @@ public class WorkflowDiagnosticsTest {
         final List<String> diags = collectDiags();
         Mockito.when(workflowStore.fetchWorkflows(new WorkflowFilter(Collections.emptyList())))
                 .thenReturn(Sets.newHashSet(WORKFLOW_2, workflow3));
-        final Map<Long, List<WorkflowInfo>> persistedWorkflows = restoreDiags(diags);
+        final Map<Long, List<WorkflowInfo>> persistedWorkflows = restoreDiags(diags, null);
         Assert.assertEquals(Sets.newHashSet(TGT1, TGT2, TGT3), persistedWorkflows.keySet());
         Assert.assertEquals(Collections.singletonList(INFO_1), persistedWorkflows.get(TGT1));
         Assert.assertEquals(Collections.singletonList(INFO_2), persistedWorkflows.get(TGT2));
@@ -124,9 +125,10 @@ public class WorkflowDiagnosticsTest {
     }
 
     @Nonnull
-    private Map<Long, List<WorkflowInfo>> restoreDiags(@Nonnull List<String> diags)
+    private Map<Long, List<WorkflowInfo>> restoreDiags(@Nonnull List<String> diags,
+                                                       @Nullable Void context)
             throws WorkflowStoreException, DiagnosticsException {
-        workflowDiagnostics.restoreDiags(diags);
+        workflowDiagnostics.restoreDiags(diags, null);
         Mockito.verify(workflowStore, Mockito.atLeastOnce())
                 .persistWorkflows(targetCaptor.capture(), workflowCaptor.capture());
         final Map<Long, List<WorkflowInfo>> persistedWorkflows = new HashMap<>();

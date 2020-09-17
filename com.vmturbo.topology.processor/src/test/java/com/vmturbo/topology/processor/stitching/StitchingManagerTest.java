@@ -252,7 +252,7 @@ public class StitchingManagerTest {
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
             preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore,
                 cpuCapacityStore);
-        stitchingManager.postStitch(graphWithSettings, stitchingJournal);
+        stitchingManager.postStitch(graphWithSettings, stitchingJournal, Collections.emptySet());
 
         graph.entities().forEach(entity -> {
             if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {

@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.TemplateProtoUtil;
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc.CpuCapacityServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -46,19 +47,32 @@ public class TemplateConverterFactory {
     private final IdentityProvider identityProvider;
     private final SettingPolicyServiceBlockingStub settingPolicyService;
 
-    private final Map<Integer, ITopologyEntityConstructor> templateConverterMap = ImmutableMap.of(
-            EntityType.VIRTUAL_MACHINE_VALUE, new VirtualMachineEntityConstructor(),
+    private final Map<Integer, ITopologyEntityConstructor> templateConverterMap;
+
+    /**
+     * Object for matching templates to the appropriate TopologyEntityDTO. Each type of template
+     * has unique characteristics handled by it's appropriate ITopologyEntityConstructor.
+     *
+     * @param templateService the service used to retrieve template information.
+     * @param identityProvider manages re-use and creation of oids.
+     * @param settingPolicyService the service used to get setting policy info from.
+     * @param cpuCapacityService the service used to estimate the scaling factor of a cpu model.
+     */
+    public TemplateConverterFactory(@Nonnull TemplateServiceBlockingStub templateService,
+            @Nonnull final IdentityProvider identityProvider,
+            @Nonnull SettingPolicyServiceBlockingStub settingPolicyService,
+            @Nonnull CpuCapacityServiceBlockingStub cpuCapacityService) {
+        this.templateService = Objects.requireNonNull(templateService);
+        this.identityProvider = Objects.requireNonNull(identityProvider);
+        this.settingPolicyService = Objects.requireNonNull(settingPolicyService);
+
+        templateConverterMap = ImmutableMap.of(
+            EntityType.VIRTUAL_MACHINE_VALUE, new VirtualMachineEntityConstructor(
+                Objects.requireNonNull(cpuCapacityService)),
             EntityType.PHYSICAL_MACHINE_VALUE, new PhysicalMachineEntityConstructor(),
             // TODO OM-59961 Do not handle the HCI Host as a regular host
             EntityType.HCI_PHYSICAL_MACHINE_VALUE, new PhysicalMachineEntityConstructor(),
             EntityType.STORAGE_VALUE, new StorageEntityConstructor());
-
-    public TemplateConverterFactory(@Nonnull TemplateServiceBlockingStub templateService,
-            @Nonnull final IdentityProvider identityProvider,
-            @Nonnull SettingPolicyServiceBlockingStub settingPolicyService) {
-        this.templateService = Objects.requireNonNull(templateService);
-        this.identityProvider = Objects.requireNonNull(identityProvider);
-        this.settingPolicyService = Objects.requireNonNull(settingPolicyService);
     }
 
     /**

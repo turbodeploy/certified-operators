@@ -1,0 +1,220 @@
+{
+  "entityType": 57,
+  "oid": "73320334249139",
+  "displayName": "MANAGED_PREMIUM",
+  "commoditySoldList": [{
+    "commodityType": {
+      "type": 8
+    },
+    "used": 7.0E8,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "minAmountForConsumer": 4.0,
+    "maxAmountForConsumer": 32767.0,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 6
+    },
+    "capacity": 1.0E10,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 64
+    },
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "minAmountForConsumer": 120.0,
+    "maxAmountForConsumer": 20000.0,
+    "ratioDependency": {
+      "baseCommodity": {
+        "type": 8
+      },
+      "ratio": 4
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 39
+    },
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "minAmountForConsumer": 25600.0,
+    "maxAmountForConsumer": 921600.0,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 22
+    },
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 59,
+      "key": "Group::MANAGED_PREMIUM"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }],
+  "entityState": "POWERED_ON",
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "suspendable": false,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1593138862083",
+      "discoveredTargetData": {
+        "73320333631169": {
+        },
+        "73320333631168": {
+        },
+        "73320333631170": {
+          "vendorId": "azure::ST::MANAGED_PREMIUM"
+        }
+      }
+    }
+  },
+  "connectedEntityList": [{
+    "connectedEntityId": "73320334249172",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249004",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249400",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249104",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249343",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249010",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249351",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249219",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249298",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249327",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249375",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249347",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249073",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249117",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249365",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249245",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334248996",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249046",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249211",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249281",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249129",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249056",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249081",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334248977",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249341",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249237",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249273",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249103",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249205",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }, {
+    "connectedEntityId": "73320334249044",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }],
+  "tags": {
+  },
+  "typeSpecificInfo": {
+  }
+}

@@ -13,14 +13,14 @@ import java.util.stream.LongStream;
 
 import javax.annotation.Nonnull;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
-
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -224,7 +224,7 @@ public class TraversalToPropertyFilterTest {
     private static PropertyFilter entityTypeFilter(@Nonnull final EntityType entityType) {
         PropertyFilter<TestGraphEntity> entityTypeFilter = Mockito.mock(PropertyFilter.class);
         doAnswer(invocation -> ((TestGraphEntity)invocation.getArguments()[0]).getEntityType() == entityType.getNumber())
-            .when(entityTypeFilter).test(any(TestGraphEntity.class));
+            .when(entityTypeFilter).test(any(TestGraphEntity.class), any());
 
         return entityTypeFilter;
     }

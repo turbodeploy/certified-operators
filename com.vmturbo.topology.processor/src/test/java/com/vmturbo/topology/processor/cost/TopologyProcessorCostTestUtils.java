@@ -1,7 +1,7 @@
 package com.vmturbo.topology.processor.cost;
 
 import static org.mockito.Mockito.mock;
-import static org.powermock.api.mockito.PowerMockito.when;
+import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.Map;

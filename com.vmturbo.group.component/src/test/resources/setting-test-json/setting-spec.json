@@ -46,7 +46,31 @@
         "max": 99.9
       }
     },
-
+    {
+      "name": "usedIncrement_VMEM",
+      "path": {
+        "rootPathNode": {
+          "nodeName": "Automation"
+        }
+      },
+      "entitySettingSpec": {
+        "tiebreaker": "SMALLER",
+        "entitySettingScope": {
+          "entityTypeSet": {
+            "entityType": [
+              10
+            ]
+          }
+        }
+      },
+      "numericSettingValueType": {
+        "min": 1.0,
+        "max": 99.9,
+        "entityDefaults" : {
+          "10" : 11.0
+        }
+      }
+    },
     {
       "name": "name2",
       "path": {

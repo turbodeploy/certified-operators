@@ -92,25 +92,25 @@ public class CloudCommitmentAnalysisTest {
      * @throws CloudCommitmentAnalysisException A cloud commitment analysis exception.
      */
     @Test
-    public void testSuccessfulPipeline() throws CloudCommitmentAnalysisException {
+    public void testSuccessfulPipeline() throws Exception {
 
         // setup stage output
         final Object stageAOutput = new Object();
-        final StageResult<Object> stageAResult = ImmutableStageResult.builder()
+        final StageResult<Object> stageAResult = StageResult.builder()
                 .output(stageAOutput)
                 .resultSummary("stageASummery")
                 .build();
         when(stageA.execute(any())).thenReturn(stageAResult);
 
         final Object stageBOutput = new Object();
-        final StageResult<Object> stageBResult = ImmutableStageResult.builder()
+        final StageResult<Object> stageBResult = StageResult.builder()
                 .output(stageBOutput)
                 .resultSummary("stageBSummery")
                 .build();
         when(stageB.execute(any())).thenReturn(stageBResult);
 
         final Object stageCOutput = new Object();
-        final StageResult<Object> stageCResult = ImmutableStageResult.builder()
+        final StageResult<Object> stageCResult = StageResult.builder()
                 .output(stageCOutput)
                 .resultSummary("stageCSummery")
                 .build();
@@ -154,25 +154,25 @@ public class CloudCommitmentAnalysisTest {
      * @throws CloudCommitmentAnalysisException A cloud commitment analysis exception.
      */
     @Test(expected = CloudCommitmentAnalysisException.class)
-    public void testFailedPipeline() throws CloudCommitmentAnalysisException {
+    public void testFailedPipeline() throws Exception {
 
         // setup stage output
         final Object stageAOutput = new Object();
-        final StageResult<Object> stageAResult = ImmutableStageResult.builder()
+        final StageResult<Object> stageAResult = StageResult.builder()
                 .output(stageAOutput)
                 .resultSummary("stageASummery")
                 .build();
         when(stageA.execute(any())).thenReturn(stageAResult);
 
         final Object stageBOutput = new Object();
-        final StageResult<Object> stageBResult = ImmutableStageResult.builder()
+        final StageResult<Object> stageBResult = StageResult.builder()
                 .output(stageBOutput)
                 .resultSummary("stageBSummery")
                 .build();
         when(stageB.execute(any())).thenReturn(stageBResult);
 
         final Object stageCOutput = new Object();
-        final StageResult<Object> stageCResult = ImmutableStageResult.builder()
+        final StageResult<Object> stageCResult = StageResult.builder()
                 .output(stageCOutput)
                 .resultSummary("stageCSummery")
                 .build();

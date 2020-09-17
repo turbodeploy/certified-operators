@@ -135,9 +135,9 @@ public class ReservedInstanceAggregate {
      *
      * @return Total number of coupons bought by the RIs in this RIAggregate
      */
-    public int getTotalNumberOfCouponsBought() {
+    public double getTotalNumberOfCouponsBought() {
         return riCouponInfoMap.values().stream().map(RICouponInfo::getTotalNumberOfCoupons)
-                .mapToInt(Integer::intValue).sum();
+                .mapToDouble(Double::doubleValue).sum();
     }
 
     /**
@@ -238,7 +238,7 @@ public class ReservedInstanceAggregate {
      * running, we will not lose that information
      */
     private static class RICouponInfo {
-        private int totalNumberOfCoupons;
+        private double totalNumberOfCoupons;
         private double numberOfCouponsUsed;
 
         private RICouponInfo(ReservedInstanceBought riBought, double usedCoupons) {
@@ -255,7 +255,7 @@ public class ReservedInstanceAggregate {
             return numberOfCouponsUsed;
         }
 
-        private int getTotalNumberOfCoupons() {
+        private double getTotalNumberOfCoupons() {
             return totalNumberOfCoupons;
         }
 

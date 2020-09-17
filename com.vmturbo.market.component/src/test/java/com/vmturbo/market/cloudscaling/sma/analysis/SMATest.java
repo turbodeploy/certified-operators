@@ -2,17 +2,16 @@ package com.vmturbo.market.cloudscaling.sma.analysis;
 
 import static org.junit.Assert.assertEquals;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.vmturbo.auth.api.Pair;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
-import com.vmturbo.market.cloudscaling.sma.entities.SMAOutput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
 import com.vmturbo.market.cloudscaling.sma.jsonprocessing.JsonToSMAInputTranslator;
@@ -29,14 +28,12 @@ public class SMATest {
      * @param filename the json file with the info of vms, ris and templates.
      */
     private void testExactResult(String filename) {
-        JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
-        Pair<SMAInput, SMAOutput> inputOutputPair = jsonToSMAInputTranslator.parseInputWithExpectedOutput(dirPath + filename);
-        int index = 0;
-        for (SMAInputContext inputContext : inputOutputPair.first.getContexts()) {
-            SMAOutputContext outputActualContext = StableMarriagePerContext.execute(inputContext);
-            SMAOutputContext outputExpectedContext = inputOutputPair.second.getContexts().get(index);
-            Assert.assertTrue(compareSMAMatches(outputActualContext.getMatches(), outputExpectedContext.getMatches()));
-        }
+        JsonToSMAInputTranslator jsonToSMAInputTranslator =
+                new JsonToSMAInputTranslator();
+        SMAInputContext smaInputContext = jsonToSMAInputTranslator.readsmaInput(dirPath + filename + ".i");
+        List<SMAMatch> expectedouput = jsonToSMAInputTranslator.readsmaOutput(dirPath + filename + ".o.txt", smaInputContext);
+        SMAOutputContext outputActualContext = StableMarriageAlgorithm.execute(new SMAInput(Collections.singletonList(smaInputContext))).getContexts().get(0);
+        Assert.assertTrue(compareSMAMatches(outputActualContext.getMatches(), expectedouput));
     }
 
     /**
@@ -46,10 +43,15 @@ public class SMATest {
      * @param count expected output.
      */
     private void testSMACount(String filename, int count) {
-        JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
-        SMAInput smaInput = jsonToSMAInputTranslator.parseInput(dirPath + filename);
+        JsonToSMAInputTranslator jsonToSMAInputTranslator =
+                new JsonToSMAInputTranslator();
+        SMAInputContext smaInputContext = jsonToSMAInputTranslator
+                .readsmaInput(dirPath + filename + ".i");
+        SMAInput smaInput = new SMAInput(Collections.singletonList(smaInputContext));
         for (SMAInputContext inputContext : smaInput.getContexts()) {
-            SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
+            SMAOutputContext outputContext = StableMarriageAlgorithm
+                    .execute(new SMAInput(Collections.singletonList(inputContext)))
+                    .getContexts().get(0);
             List<SMAMatch> actualMatches = outputContext.getMatches().stream()
                     .filter(a -> (a.getReservedInstance() != null)).collect(Collectors.toList());
             assertEquals(count, actualMatches.size());
@@ -62,7 +64,7 @@ public class SMATest {
     @Test
     public void testSMACount() {
         testSMACount("testStress.json", 30);
-        testSMACount("realExample.json", 10);
+        testSMACount("realExample.json", 12);
     }
 
     /**
@@ -72,16 +74,17 @@ public class SMATest {
     public void testPostProcessing() {
         String filename = "2vm1rinorioptimisation.json";
         JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
-        SMAInputContext inputContext = jsonToSMAInputTranslator
-                .parseInput(dirPath + filename).getContexts().get(0);
-        SMAOutputContext outputContext = StableMarriagePerContext.execute(inputContext);
+        SMAInputContext inputContext = jsonToSMAInputTranslator.readsmaInput(dirPath + filename + ".i");
+        SMAOutputContext outputContext = StableMarriageAlgorithm
+                .execute(new SMAInput(Collections.singletonList(inputContext)))
+                .getContexts().get(0);
         StableMarriageAlgorithm.postProcessing(outputContext);
         assertEquals(outputContext.getMatches().stream()
                 .filter(sm -> sm.getVirtualMachine().getOid() == 2000001L)
-                .findFirst().get().getProjectedRICoverage(), 2.8f, 0.001);
+                .findFirst().get().getDiscountedCoupons(), 2.8f, 0.001);
         assertEquals(outputContext.getMatches().stream()
                 .filter(sm -> sm.getVirtualMachine().getOid() == 2000002L)
-                .findFirst().get().getProjectedRICoverage(), 1.2f, 0.001);
+                .findFirst().get().getDiscountedCoupons(), 1.2f, 0.001);
 
     }
 
@@ -92,15 +95,40 @@ public class SMATest {
     public void testPostProcessing2() {
         String filename = "2vm1rinorioptimisation2.json";
         JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
-        SMAInput smaInput = jsonToSMAInputTranslator
-                .parseInput(dirPath + filename);
+        SMAInputContext smaInputContext = jsonToSMAInputTranslator.readsmaInput(dirPath + filename + ".i");
+        SMAInput smaInput = new SMAInput(Collections.singletonList(smaInputContext));
         SMAOutputContext outputContext = StableMarriageAlgorithm.execute(smaInput).getContexts().get(0);
         assertEquals(outputContext.getMatches().stream()
                 .filter(sm -> sm.getVirtualMachine().getOid() == 2000001L)
-                .findFirst().get().getProjectedRICoverage(), 32f, 0.001);
+                .findFirst().get().getDiscountedCoupons(), 32f, 0.001);
         assertEquals(outputContext.getMatches().stream()
                 .filter(sm -> sm.getVirtualMachine().getOid() == 2000002L)
-                .findFirst().get().getProjectedRICoverage(), 0f, 0.001);
+                .findFirst().get().getDiscountedCoupons(), 0f, 0.001);
+
+    }
+
+    /**
+     * test post processing. undo unnecessary coverage.
+     */
+    @Test
+    public void testPostProcessingASG() {
+        String filename = "2vm1rinorioptimisationASG.json";
+        JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
+        SMAInputContext smaInputContext = jsonToSMAInputTranslator.readsmaInput(dirPath + filename + ".i");
+        SMAInput smaInput = new SMAInput(Collections.singletonList(smaInputContext));
+        SMAOutputContext outputContext = StableMarriageAlgorithm.execute(smaInput).getContexts().get(0);
+        assertEquals(outputContext.getMatches().stream()
+                .filter(sm -> sm.getVirtualMachine().getOid() == 2000001L)
+                .findFirst().get().getDiscountedCoupons(), 32f, 0.001);
+        assertEquals(outputContext.getMatches().stream()
+                .filter(sm -> sm.getVirtualMachine().getOid() == 2000002L)
+                .findFirst().get().getDiscountedCoupons(), 0f, 0.001);
+        assertEquals(outputContext.getMatches().stream()
+                .filter(sm -> sm.getVirtualMachine().getOid() == 2000002L)
+                .findFirst().get().getTemplate().getOid(), 100004L);
+        assertEquals(outputContext.getMatches().stream()
+                .filter(sm -> sm.getVirtualMachine().getOid() == 2000003L)
+                .findFirst().get().getTemplate().getOid(), 100004L);
 
     }
 
@@ -112,12 +140,12 @@ public class SMATest {
     public void testPostProcessing3() {
         String filename = "2vm1rinorioptimisation3.json";
         JsonToSMAInputTranslator jsonToSMAInputTranslator = new JsonToSMAInputTranslator();
-        SMAInput smaInput = jsonToSMAInputTranslator
-                .parseInput(dirPath + filename);
+        SMAInputContext smaInputContext = jsonToSMAInputTranslator.readsmaInput(dirPath + filename + ".i");
+        SMAInput smaInput = new SMAInput(Collections.singletonList(smaInputContext));
         SMAOutputContext outputContext = StableMarriageAlgorithm.execute(smaInput).getContexts().get(0);
         assertEquals(outputContext.getMatches().stream()
                 .filter(sm -> sm.getVirtualMachine().getOid() == 2000001L)
-                .findFirst().get().getProjectedRICoverage(), 2f, 0.001);
+                .findFirst().get().getDiscountedCoupons(), 2f, 0.001);
 
     }
 
@@ -126,6 +154,8 @@ public class SMATest {
      */
     @Test
     public void testAwsSMA() {
+
+        testExactResult("1vm1riPartialRI.json");
 
         /*
          * 2 vms. both belong to ASG. no common provider. THey should keep using the RI. Increase in
@@ -263,10 +293,10 @@ public class SMATest {
             boolean found = false;
             for (SMAMatch match2 : matches2) {
                 if (compareReservedInstance(match1.getReservedInstance(),
-                        match2.getReservedInstance()) &&
-                        (match1.getDiscountedCoupons() == match2.getDiscountedCoupons()) &&
-                        (match1.getVirtualMachine().getOid() == match2.getVirtualMachine().getOid()) &&
-                        (match1.getTemplate().getOid() == match2.getTemplate().getOid())) {
+                        match2.getReservedInstance())
+                        && Math.abs(match1.getDiscountedCoupons() - match2.getDiscountedCoupons()) < SMAUtils.EPSILON
+                        && (match1.getVirtualMachine().getOid() == match2.getVirtualMachine().getOid())
+                        && (match1.getTemplate().getOid() == match2.getTemplate().getOid())) {
                     found = true;
                     break;
                 }

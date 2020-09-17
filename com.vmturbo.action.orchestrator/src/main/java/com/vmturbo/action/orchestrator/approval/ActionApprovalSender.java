@@ -15,6 +15,7 @@ import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -69,14 +70,17 @@ public class ActionApprovalSender {
                                 .getTranslatedRecommendation();
                 if (recommendationOptional.isPresent()) {
                     final ActionDTO.Action recommendation = recommendationOptional.get();
-                    final Optional<WorkflowDTO.Workflow> workflowOpt = action.getWorkflow(
-                            workflowStore);
+                    try {
+                        final Optional<WorkflowDTO.Workflow> workflowOpt = action.getWorkflow(workflowStore);
 
-                    // It does not matter which target this action is expected to face.
-                    final ExecuteActionRequest request =
-                            ActionExecutor.createRequest(-1, recommendation, workflowOpt,
-                                    action.getDescription(), action.getRecommendationOid());
-                    builder.addActions(request);
+                        // It does not matter which target this action is expected to face.
+                        final ExecuteActionRequest request =
+                                ActionExecutor.createRequest(-1, recommendation, workflowOpt, action.getDescription(), action.getRecommendationOid());
+                        builder.addActions(request);
+                    } catch (WorkflowStoreException e) {
+                        logger.warn("Could not get workflow for action " + action.getId()
+                                + ". Skip approval request for it");
+                    }
                 }
             }
         }

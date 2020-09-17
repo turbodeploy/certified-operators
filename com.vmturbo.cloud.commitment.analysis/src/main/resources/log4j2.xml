@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration name="CloudCommitmentAnalysisConfig" status="error">
+    <Appenders>
+        <Console name="ccaStdout">
+            <PatternLayout>
+                <Pattern>%d %5p [%t] [%c{1}]\t: [%X{analysisTag}] %m%n%throwable</Pattern>
+            </PatternLayout>
+        </Console>
+    </Appenders>
+
+    <Loggers>
+        <Logger name="com.vmturbo.cloud.commitment.analysis" level="info" additivity="false">
+            <AppenderRef ref="ccaStdout"/>
+        </Logger>
+    </Loggers>
+</Configuration>

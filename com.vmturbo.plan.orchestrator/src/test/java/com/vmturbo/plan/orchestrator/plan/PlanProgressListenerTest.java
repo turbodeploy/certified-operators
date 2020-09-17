@@ -23,6 +23,8 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Lists;
+
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.junit.Assert;
@@ -50,12 +52,13 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastFailure;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastSuccess;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable.UpdateFailure;
@@ -213,15 +216,23 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatus() {
-        PlanStatus planStatus1 = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+        PlanStatus planStatus1 = PlanProgressListener.getCloudPlanStatus(getPlan(
                 getPlanProgress(SUCCESS, SUCCESS).setAnalysisStatus(SUCCESS), true, SOURCE_TOPOLOGY_ID,
-                PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID, null, null).addActionPlanId(2),
-                true);
+                PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID, null, null).addActionPlanId(2));
         Assert.assertEquals(SUCCEEDED, planStatus1);
-        PlanStatus planStatus2 = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+        PlanStatus planStatus2 = PlanProgressListener.getCloudPlanStatus(getPlan(
                 getPlanProgress(SUCCESS, SUCCESS).setAnalysisStatus(Status.UNKNOWN), true, SOURCE_TOPOLOGY_ID,
-                PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID, null, null),
-                true);
+                PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID, null, Scenario.newBuilder().setScenarioInfo(
+                        ScenarioInfo.newBuilder().addAllChanges(Lists.newArrayList(
+                                ScenarioChange.newBuilder()
+                                    .setSettingOverride(SettingOverride.newBuilder().setSetting(
+                                            Setting.newBuilder()
+                                                    .setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName().toLowerCase())
+                                                    .setEnumSettingValue(EnumSettingValue.getDefaultInstance()).build()
+                                    ).build()).build(),
+                                ScenarioChange.newBuilder()
+                                        .setRiSetting(RISetting.getDefaultInstance()).build())
+                ))));
         Assert.assertEquals(WAITING_FOR_RESULT, planStatus2);
     }
 
@@ -237,15 +248,15 @@ public class PlanProgressListenerTest {
         final ScenarioInfo.Builder scenarioInfo = ScenarioInfo.newBuilder()
                 .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).addChanges(scenarioChangeRI);
         final Scenario.Builder scenario = Scenario.newBuilder().setScenarioInfo(scenarioInfo);
-        PlanStatus planStatus1 = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+        PlanStatus planStatus1 = PlanProgressListener.getCloudPlanStatus(getPlan(
                 getPlanProgress(null, null).setAnalysisStatus(SUCCESS),
                 true, SOURCE_TOPOLOGY_ID, PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID,
-                null, scenario), false);
+                null, scenario));
         Assert.assertEquals(SUCCEEDED, planStatus1);
-        PlanStatus planStatus2 = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+        PlanStatus planStatus2 = PlanProgressListener.getCloudPlanStatus(getPlan(
                     getPlanProgress(null, null).setAnalysisStatus(Status.UNKNOWN),
                     true, SOURCE_TOPOLOGY_ID, PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID,
-                    null, scenario), false);
+                    null, scenario));
         Assert.assertEquals(SUCCEEDED, planStatus2);
     }
 
@@ -256,7 +267,7 @@ public class PlanProgressListenerTest {
     @Test
     public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatusNoProjectedCostNotification() {
         final Setting.Builder setting =
-                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+                Setting.newBuilder().setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName());
         final SettingOverride.Builder scaleSetting =
                 SettingOverride.newBuilder().setSetting(setting);
         final ScenarioChange.Builder scenarioChangeScale =
@@ -265,10 +276,10 @@ public class PlanProgressListenerTest {
                 .setType(StringConstants.OPTIMIZE_CLOUD_PLAN)
                 .addChanges(scenarioChangeScale);
         final Scenario.Builder scenario = Scenario.newBuilder().setScenarioInfo(scenarioInfo);
-        PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+        PlanStatus planStatus = PlanProgressListener.getCloudPlanStatus(getPlan(
                 getPlanProgress(null, SUCCESS), null,
                 null, null, null, null,
-                null), true);
+                null));
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
     }
 
@@ -278,10 +289,10 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatusNoProjectedRICoverageNotification() {
-        PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+        PlanStatus planStatus = PlanProgressListener.getCloudPlanStatus(getPlan(
                 getPlanProgress(SUCCESS, null), null,
                 null, null, null, null,
-                null), true);
+                null));
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
     }
 
@@ -290,10 +301,10 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatusNoStats() {
-        PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+        PlanStatus planStatus = PlanProgressListener.getCloudPlanStatus(getPlan(
                 getPlanProgress(SUCCESS, SUCCESS), null,
                 SOURCE_TOPOLOGY_ID, PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID, null,
-                null), true);
+                null));
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
     }
 
@@ -302,10 +313,10 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetOCPWithBuyRIPlanStatusNoStats() {
-        PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+        PlanStatus planStatus = PlanProgressListener.getCloudPlanStatus(getPlan(
                 getPlanProgress(null, null),
                 null, SOURCE_TOPOLOGY_ID, PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID,
-                null, null), false);
+                null, null));
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
     }
 
@@ -315,10 +326,9 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatusNoProjectedTopology() {
-        PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+        PlanStatus planStatus = PlanProgressListener.getCloudPlanStatus(getPlan(
                 getPlanProgress(SUCCESS, SUCCESS), true, SOURCE_TOPOLOGY_ID,
-                null, ACTION_PLAN_ID, null, null),
-                true);
+                null, ACTION_PLAN_ID, null, null));
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
     }
 
@@ -327,10 +337,10 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetOCPWithBuyRIPlanStatusNoProjectedTopology() {
-        PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+        PlanStatus planStatus = PlanProgressListener.getCloudPlanStatus(getPlan(
                 getPlanProgress(null, null),
                 true, SOURCE_TOPOLOGY_ID, null, ACTION_PLAN_ID,
-                null, null), false);
+                null, null));
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
     }
 
@@ -339,10 +349,9 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatusEmptyActionIdList() {
-        PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+        PlanStatus planStatus = PlanProgressListener.getCloudPlanStatus(getPlan(
                 getPlanProgress(SUCCESS, SUCCESS), true, SOURCE_TOPOLOGY_ID,
-                null, ACTION_PLAN_ID, null, null),
-                true);
+                null, ACTION_PLAN_ID, null, null));
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
     }
 
@@ -351,10 +360,10 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetOCPWithBuyRIPlanStatusEmptyActionIdList() {
-        PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+        PlanStatus planStatus = PlanProgressListener.getCloudPlanStatus(getPlan(
                 getPlanProgress(null, null),
                 true, SOURCE_TOPOLOGY_ID, null, ACTION_PLAN_ID,
-                null, null), false);
+                null, null));
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
     }
 
@@ -363,10 +372,10 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatusProjectedCostFail() {
-        PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+        PlanStatus planStatus = PlanProgressListener.getCloudPlanStatus(getPlan(
                 getPlanProgress(FAIL, null), null,
                 SOURCE_TOPOLOGY_ID, null, null, null,
-                null), true);
+                null));
         Assert.assertEquals(FAILED, planStatus);
     }
 
@@ -375,10 +384,10 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatusProjectedRICoverageFail() {
-        PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+        PlanStatus planStatus = PlanProgressListener.getCloudPlanStatus(getPlan(
                 getPlanProgress(null, FAIL), null,
                 SOURCE_TOPOLOGY_ID, null, null, null,
-                null), true);
+                null));
         Assert.assertEquals(FAILED, planStatus);
     }
 
@@ -417,7 +426,7 @@ public class PlanProgressListenerTest {
         final ScenarioChange.Builder scenarioChangeRI =
                 ScenarioChange.newBuilder().setRiSetting(riSetting);
         final Setting.Builder setting =
-                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+                Setting.newBuilder().setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName());
         final SettingOverride.Builder scaleSetting =
                 SettingOverride.newBuilder().setSetting(setting);
         final ScenarioChange.Builder scenarioChangeScale =
@@ -463,7 +472,7 @@ public class PlanProgressListenerTest {
         final ScenarioChange.Builder scenarioChangeRI =
                 ScenarioChange.newBuilder().setRiSetting(riSetting);
         final Setting.Builder setting =
-                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+                Setting.newBuilder().setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName());
         final SettingOverride.Builder scaleSetting =
                 SettingOverride.newBuilder().setSetting(setting);
         final ScenarioChange.Builder scenarioChangeScale =
@@ -489,7 +498,7 @@ public class PlanProgressListenerTest {
         final ScenarioChange.Builder scenarioChangeRI =
                 ScenarioChange.newBuilder().setRiSetting(riSetting);
         final Setting.Builder setting =
-                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+                Setting.newBuilder().setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName());
         final SettingOverride.Builder scaleSetting =
                 SettingOverride.newBuilder().setSetting(setting);
         final ScenarioChange.Builder scenarioChangeScale =
@@ -514,21 +523,21 @@ public class PlanProgressListenerTest {
                 .setType(StringConstants.OPTIMIZE_CLOUD_PLAN);
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
-        Assert.assertTrue(PlanProgressListener.isOCP(getPlan(getPlanProgress(null,
+        Assert.assertTrue(PlanProgressListener.isCloudPlan(getPlan(getPlanProgress(null,
                 null), true, null,
                 null, null, null, scenario)));
     }
 
     /**
-     * Tests if the is OCP recognizes non-OCP plans correctly.
+     * Tests if isCloudPlan recognizes non-OCP plans correctly.
      */
     @Test
-    public void testIsOCPNegative() {
+    public void testIsCloudPlan() {
         final ScenarioInfo.Builder scenarioInfo = ScenarioInfo.newBuilder()
                 .setType(StringConstants.CLOUD_MIGRATION_PLAN);
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
-        Assert.assertFalse(PlanProgressListener.isOCP(getPlan(getPlanProgress(null,
+        Assert.assertTrue(PlanProgressListener.isCloudPlan(getPlan(getPlanProgress(null,
                 null), true, null,
                 null, null, null, scenario)));
     }
@@ -542,7 +551,7 @@ public class PlanProgressListenerTest {
         final ScenarioChange.Builder scenarioChangeRI =
                 ScenarioChange.newBuilder().setRiSetting(riSetting);
         final Setting.Builder setting =
-                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+                Setting.newBuilder().setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName());
         final SettingOverride.Builder scaleSetting =
                 SettingOverride.newBuilder().setSetting(setting);
         final ScenarioChange.Builder scenarioChangeScale =
@@ -552,10 +561,12 @@ public class PlanProgressListenerTest {
                 .addChanges(scenarioChangeScale);
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
-        Assert.assertTrue(PlanProgressListener.isOCPOptimizeAndBuyRI(
-            getPlan(getPlanProgress(null, null),
-                        true, null, null,
-                        null, null, scenario)));
+        PlanInstance.Builder plan = getPlan(getPlanProgress(null, null),
+                true, null, null,
+                null, null, scenario);
+        final String planSubType = PlanRpcServiceUtil.getCloudPlanSubType(plan.getScenario()
+                .getScenarioInfo());
+        Assert.assertTrue(PlanProgressListener.isAnalyzeAndBuyRICloudPlan(planSubType));
     }
 
     /**
@@ -565,7 +576,7 @@ public class PlanProgressListenerTest {
     @Test
     public void isBuyRIAndOptimizeServicesNegative() {
         final Setting.Builder setting =
-                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+                Setting.newBuilder().setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName());
         final SettingOverride.Builder scaleSetting =
                 SettingOverride.newBuilder().setSetting(setting);
         final ScenarioChange.Builder scenarioChangeScale =
@@ -574,10 +585,12 @@ public class PlanProgressListenerTest {
                 .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).addChanges(scenarioChangeScale);
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
-        Assert.assertFalse(PlanProgressListener.isOCPOptimizeAndBuyRI(
-            getPlan(getPlanProgress(null, null),
-                        true, null, null,
-                        null, null, scenario)));
+        final PlanInstance.Builder plan = getPlan(getPlanProgress(null, null),
+                true, null, null,
+                null, null, scenario);
+        final String planSubType = PlanRpcServiceUtil.getCloudPlanSubType(plan.getScenario()
+                .getScenarioInfo());
+        Assert.assertFalse(PlanProgressListener.isAnalyzeAndBuyRICloudPlan(planSubType));
     }
 
     /**
@@ -592,10 +605,12 @@ public class PlanProgressListenerTest {
                 .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).addChanges(scenarioChange);
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
+        final PlanInstance.Builder plan = getPlan(getPlanProgress(null, null),
+                true, null, null,
+                null, null, scenario);
         Assert.assertTrue(PlanProgressListener.isOCPBuyRIOnly(
-            getPlan(getPlanProgress(null, null),
-                        true, null, null,
-                        null, null, scenario)));
+                PlanRpcServiceUtil.getCloudPlanSubType(plan.getScenario().getScenarioInfo())
+        ));
     }
 
     /**
@@ -607,10 +622,12 @@ public class PlanProgressListenerTest {
                 .setType(StringConstants.OPTIMIZE_CLOUD_PLAN);
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
+        final PlanInstance.Builder plan = getPlan(getPlanProgress(null, null),
+                true, null, null,
+                null, null, scenario);
         Assert.assertFalse(PlanProgressListener.isOCPBuyRIOnly(
-            getPlan(getPlanProgress(null, null),
-                        true, null, null,
-                        null, null, scenario)));
+                PlanRpcServiceUtil.getCloudPlanSubType(plan.getScenario().getScenarioInfo())
+        ));
     }
 
     /**

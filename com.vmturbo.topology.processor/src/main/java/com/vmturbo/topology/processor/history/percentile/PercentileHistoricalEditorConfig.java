@@ -11,8 +11,6 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -30,7 +28,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      */
     public static final int DEFAULT_MAINTENANCE_WINDOW_HOURS = 24;
 
-    private static final Logger logger = LogManager.getLogger();
     private static final Map<EntityType, EntitySettingSpecs> TYPE_AGGRESSIVENESS = ImmutableMap
                     .of(EntityType.BUSINESS_USER,
                         EntitySettingSpecs.PercentileAggressivenessBusinessUser,
@@ -38,6 +35,8 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                         EntitySettingSpecs.PercentileAggressivenessContainerSpec,
                         EntityType.VIRTUAL_MACHINE,
                         EntitySettingSpecs.PercentileAggressivenessVirtualMachine,
+                        EntityType.VIRTUAL_VOLUME,
+                        EntitySettingSpecs.PercentileAggressivenessVirtualVolume);
                         EntityType.DATABASE,
                         EntitySettingSpecs.PercentileAggressivenessDatabase);
     private static final Map<EntityType, EntitySettingSpecs> TYPE_MAX_OBSERVATION_PERIOD = ImmutableMap
@@ -47,13 +46,17 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                         EntitySettingSpecs.MaxObservationPeriodContainerSpec,
                         EntityType.VIRTUAL_MACHINE,
                         EntitySettingSpecs.MaxObservationPeriodVirtualMachine,
+                        EntityType.VIRTUAL_VOLUME,
+                        EntitySettingSpecs.MaxObservationPeriodVirtualVolume);
                         EntityType.DATABASE,
                         EntitySettingSpecs.MaxObservationPeriodDatabase);
     private static final Map<EntityType, EntitySettingSpecs> TYPE_MIN_OBSERVATION_PERIOD =
             ImmutableMap.of(EntityType.CONTAINER_SPEC,
                             EntitySettingSpecs.MinObservationPeriodContainerSpec,
                             EntityType.VIRTUAL_MACHINE,
-                            EntitySettingSpecs.MinObservationPeriodVirtualMachine);
+                            EntitySettingSpecs.MinObservationPeriodVirtualMachine,
+                            EntityType.VIRTUAL_VOLUME,
+                            EntitySettingSpecs.MinObservationPeriodVirtualVolume);
     private final Map<CommodityType, PercentileBuckets> buckets = new HashMap<>();
     private final int maintenanceWindowHours;
     private final int grpcStreamTimeoutSec;
@@ -187,9 +190,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
             return context.getSettingValue(oid, spec, Number.class, Function.identity(),
                 ss -> ss.getNumericSettingValueType().getDefault());
         }
-        logger.trace("{} Returning default value {} for spec with description {} for entity "
-                + "with oid {}",
-            getClass().getSimpleName(), defaultValue, description, oid);
         return defaultValue;
     }
 }

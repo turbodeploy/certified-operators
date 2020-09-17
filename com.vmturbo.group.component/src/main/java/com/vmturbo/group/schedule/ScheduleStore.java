@@ -51,7 +51,7 @@ import com.vmturbo.group.identity.IdentityProvider;
 /**
  * This class implements persistence layer for schedules.
  */
-public class ScheduleStore implements DiagsRestorable {
+public class ScheduleStore implements DiagsRestorable<DSLContext> {
 
     /**
      * The file name for the schedules dump collected from the {@link ScheduleStore}.
@@ -103,28 +103,25 @@ public class ScheduleStore implements DiagsRestorable {
      * {@inheritDoc}
      */
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nonnull DSLContext context) throws DiagnosticsException {
         final List<String> errors = new ArrayList<>();
         try {
-            dslContext.transaction(configuration -> {
-                final DSLContext context = DSL.using(configuration);
-                logger.info("Restoring schedules");
-                deleteAllSchedules(context);
-                final Optional<String> schedulesToRestore = collectedDiags.stream()
-                    // An older version of diags contained two lines - one for schedules, and one
-                    // for schedule-policy mappings. We no longer need schedule-policy mappings to
-                    // restore the state of the schedule-store but to keep compatibility with older
-                    // customer diags we look only for the "schedule" line (skipping the other line).
-                    .filter(str -> str.contains("\"schedule\""))
-                    .findFirst();
-                if (schedulesToRestore.isPresent()) {
-                    final int schedSize = importSchedulesFromJson(context, schedulesToRestore.get());
-                    logger.info("Imported {} schedules", () -> schedSize);
-                } else {
-                    logger.info("No schedules to restore - no schedule info in diags.");
-                }
-            });
-        } catch (DataAccessException e) {
+            logger.info("Restoring schedules");
+            deleteAllSchedules(context);
+            final Optional<String> schedulesToRestore = collectedDiags.stream()
+                // An older version of diags contained two lines - one for schedules, and one
+                // for schedule-policy mappings. We no longer need schedule-policy mappings to
+                // restore the state of the schedule-store but to keep compatibility with older
+                // customer diags we look only for the "schedule" line (skipping the other line).
+                .filter(str -> str.contains("\"schedule\""))
+                .findFirst();
+            if (schedulesToRestore.isPresent()) {
+                final int schedSize = importSchedulesFromJson(context, schedulesToRestore.get());
+                logger.info("Imported {} schedules", () -> schedSize);
+            } else {
+                logger.info("No schedules to restore - no schedule info in diags.");
+            }
+        } catch (DataAccessException | IOException e) {
             logger.error("Exception restoring schedule diags", e);
             errors.add("Exception restoring schedule diags: " + e.getMessage() + ": "
                     + ExceptionUtils.getStackTrace(e));

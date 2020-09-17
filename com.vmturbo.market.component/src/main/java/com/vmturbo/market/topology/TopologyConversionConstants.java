@@ -42,29 +42,29 @@ public class TopologyConversionConstants {
     // a map for the type of the dependent commodity bought by an entity on the cloud to the type of
     // the resizable commodity sold
     public static ImmutableMap<Integer, Integer> commDependancyMapForCloudResize = ImmutableMap.<Integer, Integer>builder()
-            .put(CommodityType.MEM_PROVISIONED_VALUE, CommodityType.VMEM_VALUE)
-            .put(CommodityType.CPU_PROVISIONED_VALUE, CommodityType.VCPU_VALUE)
-            .put(CommodityType.MEM_VALUE, CommodityType.VMEM_VALUE)
-            .put(CommodityType.CPU_VALUE, CommodityType.VCPU_VALUE)
-            // mapping for AWS DatabaseServer commodities
-            .put(CommodityType.VMEM_VALUE, CommodityType.VMEM_VALUE)
-            .put(CommodityType.VCPU_VALUE, CommodityType.VCPU_VALUE)
-            // mapping for Azure Database commodities
-            .put(CommodityType.DB_MEM_VALUE, CommodityType.VMEM_VALUE)
-            .put(CommodityType.TRANSACTION_VALUE, CommodityType.VCPU_VALUE)
-            .put(CommodityType.DTU_VALUE, CommodityType.DTU_VALUE)
-            .put(CommodityType.STORAGE_AMOUNT_VALUE, CommodityType.STORAGE_AMOUNT_VALUE)
+                    .put(CommodityType.MEM_PROVISIONED_VALUE, CommodityType.VMEM_VALUE)
+                    .put(CommodityType.CPU_PROVISIONED_VALUE, CommodityType.VCPU_VALUE)
+                    .put(CommodityType.MEM_VALUE, CommodityType.VMEM_VALUE)
+                    .put(CommodityType.CPU_VALUE, CommodityType.VCPU_VALUE)
+                    // mapping for AWS DatabaseServer commodities
+                    .put(CommodityType.VMEM_VALUE, CommodityType.VMEM_VALUE)
+                    .put(CommodityType.VCPU_VALUE, CommodityType.VCPU_VALUE)
+                    // mapping for Azure Database commodities
+                    .put(CommodityType.DB_MEM_VALUE, CommodityType.VMEM_VALUE)
+                    .put(CommodityType.TRANSACTION_VALUE, CommodityType.VCPU_VALUE)
+                    .put(CommodityType.DTU_VALUE, CommodityType.DTU_VALUE)
+                    .put(CommodityType.STORAGE_AMOUNT_VALUE, CommodityType.STORAGE_AMOUNT_VALUE)
             // mapping for cloud volume commodities
-            .put(CommodityType.STORAGE_ACCESS_VALUE, CommodityType.STORAGE_ACCESS_VALUE)
-            .put(CommodityType.IO_THROUGHPUT_VALUE, CommodityType.IO_THROUGHPUT_VALUE)
-            .build();
+                    .put(CommodityType.STORAGE_ACCESS_VALUE, CommodityType.STORAGE_ACCESS_VALUE)
+                    .put(CommodityType.IO_THROUGHPUT_VALUE, CommodityType.IO_THROUGHPUT_VALUE)
+                    .build();
 
     /**
      * Map for the type of the commodity in an entity on the cloud to the type of
      * the commodity sold in a cloud tier.
      **/
     public static Map<Integer, ImmutableMap<Integer, Integer>> entityCommTypeToTierCommType
-            = ImmutableMap.<Integer, ImmutableMap<Integer, Integer>>builder()
+        = ImmutableMap.<Integer, ImmutableMap<Integer, Integer>>builder()
             .put(EntityType.COMPUTE_TIER.getNumber(),
                     ImmutableMap.<Integer, Integer>builder()
                             .put(CommodityType.VMEM_VALUE, CommodityType.MEM_VALUE)

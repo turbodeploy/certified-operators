@@ -1,26 +1,31 @@
 package com.vmturbo.cost.component.reserved.instance.coverage.analysis;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableTable;
-
+import org.jooq.DSLContext;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentMatcher;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -33,11 +38,17 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.AccountRIMappingStore;
 import com.vmturbo.cost.component.reserved.instance.AccountRIMappingStore.AccountRIMappingItem;
+import com.vmturbo.cost.component.reserved.instance.EntityReservedInstanceMappingStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCostCalculator;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
+import com.vmturbo.cost.component.reserved.instance.SQLReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
+import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocation;
@@ -53,8 +64,21 @@ public class SupplementalRICoverageAnalysisTest {
     private final CoverageTopologyFactory coverageTopologyFactory =
             mock(CoverageTopologyFactory.class);
 
-    private final ReservedInstanceBoughtStore reservedInstanceBoughtStore =
-            mock(ReservedInstanceBoughtStore.class);
+
+
+    private final DSLContext dsl = Mockito.mock(DSLContext.class);
+    private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
+    private final ReservedInstanceCostCalculator reservedInstanceCostCalculato =
+            Mockito.mock(ReservedInstanceCostCalculator.class);
+    private final PriceTableStore priceTableStore = Mockito.mock(PriceTableStore.class);
+    private final EntityReservedInstanceMappingStore reservedInstanceMappingStore =
+            mock(EntityReservedInstanceMappingStore.class);
+    private final AccountRIMappingStore accountMappingStore = mock(AccountRIMappingStore.class);
+    private final BusinessAccountHelper businessAccountHelper = mock(BusinessAccountHelper.class);
+    private final ReservedInstanceBoughtStore riBoughtStore =
+            new SQLReservedInstanceBoughtStore(dsl, identityProvider, reservedInstanceCostCalculato,
+                    priceTableStore, reservedInstanceMappingStore, accountMappingStore, businessAccountHelper);
+    private final ReservedInstanceBoughtStore reservedInstanceBoughtStore = spy(riBoughtStore);
 
     private final ReservedInstanceSpecStore reservedInstanceSpecStore =
             mock(ReservedInstanceSpecStore.class);
@@ -63,11 +87,12 @@ public class SupplementalRICoverageAnalysisTest {
             mock(ReservedInstanceCoverageAllocator.class);
     private final CoverageTopology coverageTopology = mock(CoverageTopology.class);
 
-    private final AccountRIMappingStore accountMappingStore = mock(AccountRIMappingStore.class);
+
 
     @Before
     public void setup() {
         when(allocatorFactory.createAllocator(any())).thenReturn(riCoverageAllocator);
+        when(businessAccountHelper.getDiscoveredBusinessAccounts()).thenReturn(ImmutableSet.of(1L));
     }
 
     @Test
@@ -78,6 +103,7 @@ public class SupplementalRICoverageAnalysisTest {
                                     .setOid(1)
                                     .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                                             .setBusinessAccount(BusinessAccountInfo.newBuilder()
+                                                    .setAccountId("1")
                                                     .setAssociatedTargetId(1).build()))
                                     .build();
         TopologyEntityDTO unDiscoveredBA = TopologyEntityDTO.newBuilder()
@@ -108,6 +134,7 @@ public class SupplementalRICoverageAnalysisTest {
                                         .setRiCoverageSource(RICoverageSource.BILLING)
                                         .build())
                         .build());
+
         // setup RI allocator output
         final ReservedInstanceCoverageAllocation coverageAllocation = ReservedInstanceCoverageAllocation.from(
                 // total coverage
@@ -132,12 +159,18 @@ public class SupplementalRICoverageAnalysisTest {
         when(item.getUsedCoupons()).thenReturn(2d);
         when(item.getReservedInstanceId()).thenReturn(1L);
         when(item.getBusinessAccountOid()).thenReturn(1L);
+
         final Map<Long, List<AccountRIMappingItem>> riAccountMappings = ImmutableMap.of(
                 1L, ImmutableList.of(item));
         when(accountMappingStore.getAccountRICoverageMappings(anyList()))
                 .thenReturn(riAccountMappings);
+        when(accountMappingStore.getUndiscoveredAccountUsageForRI())
+                .thenReturn(ImmutableMap.of(1L, 2d));
 
-        /*
+        doReturn(ImmutableMap.of(3L, 1d))
+                .when(reservedInstanceMappingStore).getReservedInstanceUsedCouponsMapByFilter(any());
+
+        /*ReservedInstanceBoughtRpcServiceTest.java
         Setup Factory
          */
 
@@ -164,6 +197,11 @@ public class SupplementalRICoverageAnalysisTest {
                     .setReservedInstanceBoughtInfo(
                             ReservedInstanceBoughtInfo.newBuilder()
                                 .setBusinessAccountId(2)
+                                .setReservedInstanceBoughtCoupons(
+                                    ReservedInstanceBoughtCoupons.newBuilder()
+                                    .setNumberOfCoupons(10)
+                                    .setNumberOfCouponsUsed(1)
+                                    .build())
                                 .build())
                     .build());
 
@@ -181,9 +219,10 @@ public class SupplementalRICoverageAnalysisTest {
         /*
         Setup mocks for factory
          */
-        when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(
-                eq(ReservedInstanceBoughtFilter.SELECT_ALL_FILTER)))
-                .thenReturn(reservedInstances);
+        doReturn(reservedInstances).when(reservedInstanceBoughtStore)
+            .getReservedInstanceBoughtByFilter(
+                eq(ReservedInstanceBoughtFilter.SELECT_ALL_FILTER));
+
         when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
                 .thenReturn(riSpecs);
         when(coverageTopologyFactory.createCoverageTopology(
@@ -193,14 +232,17 @@ public class SupplementalRICoverageAnalysisTest {
                     @Override
                     public boolean matches(final Object o) {
                         List<ReservedInstanceBought> receivedList = (List<ReservedInstanceBought>)o;
-                        if (receivedList.size() > 2) {
+                        if (receivedList.size() > 3) {
                             return false;
                         }
-                        // verify there are no undiscovered RIs
+                        // verify there is one undiscovered RI
                         Optional<ReservedInstanceBought> unDiscoveredRIs = receivedList.stream()
                                 .filter(ri -> ri.getReservedInstanceBoughtInfo().getBusinessAccountId() == unDiscoveredBA.getOid())
                                 .findFirst();
-                        if (unDiscoveredRIs.isPresent()) {
+                        if (!unDiscoveredRIs.isPresent()
+                            ||  unDiscoveredRIs.get()
+                                .getReservedInstanceBoughtInfo()
+                                .getReservedInstanceBoughtCoupons().getNumberOfCoupons() != 1) {
                             return false;
                         }
                         // verify the discovered RI coupons
@@ -285,7 +327,30 @@ public class SupplementalRICoverageAnalysisTest {
         Assertions
          */
         assertThat(aggregateRICoverages, iterableWithSize(3));
-        assertThat(aggregateRICoverages, containsInAnyOrder(expectedAggregateRICoverages.toArray()));
+
+        for (EntityRICoverageUpload expectedCoverageUpload: expectedAggregateRICoverages) {
+            Optional<EntityRICoverageUpload> actualCoverageUpload =
+                    aggregateRICoverages.stream().filter(c -> expectedCoverageUpload.getEntityId()
+                            == c.getEntityId()).findFirst();
+            Assert.assertTrue(actualCoverageUpload.isPresent());
+            Assert.assertTrue(actualCoverageUpload.get().getCoverageList().size()
+                    == expectedCoverageUpload.getCoverageList().size());
+            for (Coverage expectedCoverage: expectedCoverageUpload.getCoverageList()) {
+                Optional<Coverage> actualCoverageOpt = actualCoverageUpload.get().getCoverageList()
+                        .stream().filter(
+                                c -> c.getReservedInstanceId() == expectedCoverage.getReservedInstanceId()
+                                && c.getRiCoverageSource() == expectedCoverage.getRiCoverageSource())
+                        .findFirst();
+                Assert.assertTrue(actualCoverageOpt.isPresent());
+                Coverage actualCoverage = actualCoverageOpt.get();
+                if (expectedCoverage.getRiCoverageSource() == RICoverageSource.SUPPLEMENTAL_COVERAGE_ALLOCATION) {
+                    Assert.assertTrue(actualCoverage.hasUsageStartTimestamp());
+                    Assert.assertTrue(actualCoverage.hasUsageEndTimestamp());
+                }
+                actualCoverage = actualCoverage.toBuilder().clearUsageStartTimestamp().clearUsageEndTimestamp().build();
+                Assert.assertEquals(expectedCoverage, actualCoverage);
+            }
+        }
 
     }
 }

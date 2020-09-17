@@ -53,7 +53,7 @@ public class SMAReservedInstance {
      * Template, used to infer CSP, family and coupons.
      */
 
-    private final SMATemplate template;
+    private SMATemplate template;
 
     /*
      * The count of coupons this RI represents.  Count is a float, and not an int, to handle VMs
@@ -394,13 +394,13 @@ public class SMAReservedInstance {
      * @return the most preferred vm for the RI that the RI has not yet proposed and doesnt require more
      * coupons than what the RI has. In other words vm that can be fully covered by RI.
      */
-    public Pair<SMAVirtualMachine, Integer> findBestVMIndexFromCouponToBestVM(int coupon,
+    public Pair<SMAVirtualMachine, Integer> findBestVMIndexFromCouponToBestVM(float coupon,
                                                                Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
         // all possible coupons are passed to compute bestPartialVM.
         Pair<SMAVirtualMachine, Integer> bestPartialVM = findBestVM(couponToBestVM.keySet());
         // only those coupons which are below "coupon" are passed. We need full coverage.
         Pair<SMAVirtualMachine, Integer> bestFullVM = findBestVM(couponToBestVM.keySet().stream()
-                .filter(a -> a <= coupon).collect(Collectors.toSet()));
+                .filter(a -> a < coupon + SMAUtils.BIG_EPSILON).collect(Collectors.toSet()));
         if (bestFullVM.first == null) {
             return bestPartialVM;
         }
@@ -488,7 +488,7 @@ public class SMAReservedInstance {
      */
     public int compareCost(SMAVirtualMachine vm1, SMAVirtualMachine vm2,
                            Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
-                           int coupons) {
+                           float coupons) {
         float netSavingVm1 = computeSaving(vm1, virtualMachineGroupMap, coupons);
         float netSavingVm2 = computeSaving(vm2, virtualMachineGroupMap, coupons);
 
@@ -496,8 +496,8 @@ public class SMAReservedInstance {
         float couponsVm1 = 0.0f;
         float couponsVm2 = 0.0f;
         if (isIsf()) {
-            couponsVm1 = (float)Math.min(coupons, vm1.getMinCostProviderPerFamily(riFamily).getCoupons() * vm1.getGroupSize());
-            couponsVm2 = (float)Math.min(coupons, vm2.getMinCostProviderPerFamily(riFamily).getCoupons() * vm2.getGroupSize());
+            couponsVm1 = Math.min(coupons, vm1.getMinCostProviderPerFamily(riFamily).getCoupons() * vm1.getGroupSize());
+            couponsVm2 = Math.min(coupons, vm2.getMinCostProviderPerFamily(riFamily).getCoupons() * vm2.getGroupSize());
         } else {
             couponsVm1 = (float)getNormalizedTemplate().getCoupons() * vm1.getGroupSize();
             couponsVm2 = (float)getNormalizedTemplate().getCoupons() * vm2.getGroupSize();
@@ -514,13 +514,6 @@ public class SMAReservedInstance {
             return -1;
         }
         if ((netSavingVm2PerCoupon - netSavingVm1PerCoupon) > SMAUtils.EPSILON) {
-            return 1;
-        }
-
-        if ((couponsVm1 - couponsVm2) > SMAUtils.EPSILON) {
-            return -1;
-        }
-        if ((couponsVm2 - couponsVm1) > SMAUtils.EPSILON) {
             return 1;
         }
         return 0;
@@ -633,5 +626,20 @@ public class SMAReservedInstance {
                 ", shared=" + shared +
                 ", normalizedTemplate=" + normalizedTemplate.toStringWithOutCost() +
                 '}';
+    }
+
+    // Compression for diags related code
+    private long templateOid;
+
+    public void setTemplate(final SMATemplate template) {
+        this.template = template;
+    }
+
+    public long getTemplateOid() {
+        return templateOid;
+    }
+
+    public void setTemplateOid(final long templateOid) {
+        this.templateOid = templateOid;
     }
 }

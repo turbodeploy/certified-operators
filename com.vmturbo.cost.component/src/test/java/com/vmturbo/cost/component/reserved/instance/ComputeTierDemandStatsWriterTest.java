@@ -3,16 +3,21 @@ package com.vmturbo.cost.component.reserved.instance;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+
+import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -28,7 +33,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter.ComputeTierDemandStatsRecord;
+import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter.WeightedCounts;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
@@ -195,6 +202,58 @@ public class ComputeTierDemandStatsWriterTest {
                         .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
                         .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
                 .build();
+    }
+
+    /**
+     * Tests the demand stats calculation.
+     */
+    @Test
+    public void testUpdateStaleStatsRecords() {
+
+        TopologyEntityDTO businessAccount = buildBusinessAccountDTO(Collections.emptyList());
+        final TopologyEntityDTO computeTierDTO1 = buildComputeTierDTO();
+        final TopologyEntityDTO computeTierDTO2 = buildComputeTierDTO();
+        final ComputeTierDemandStatsRecord record1 = new ComputeTierDemandStatsRecord(
+                businessAccount.getOid(), computeTierDTO1.getOid(), availabilityZone.getOid(),
+                (byte)OSType.LINUX.getNumber(), (byte)Tenancy.DEFAULT.getNumber());
+        final ComputeTierDemandStatsRecord record2 = new ComputeTierDemandStatsRecord(
+                businessAccount.getOid(), computeTierDTO2.getOid(), availabilityZone.getOid(),
+                (byte)OSType.LINUX.getNumber(), (byte)Tenancy.DEFAULT.getNumber());
+        final ComputeTierDemandStatsRecord record3 = new ComputeTierDemandStatsRecord(
+                businessAccount.getOid(), computeTierDTO2.getOid(), availabilityZone.getOid(),
+                (byte)OSType.WINDOWS.getNumber(), (byte)Tenancy.DEFAULT.getNumber());
+        final ComputeTierDemandStatsRecord record4 = new ComputeTierDemandStatsRecord(
+                businessAccount.getOid(), computeTierDTO2.getOid(), availabilityZone.getOid(),
+                (byte)OSType.LINUX.getNumber(), (byte)Tenancy.DEDICATED.getNumber());
+
+        WeightedCounts count = mock(WeightedCounts.class);
+        Mockito.when(count.getCountFromProjectedTopology()).thenReturn(new BigDecimal(1.0));
+        Mockito.when(count.getCountFromSourceTopology()).thenReturn(new BigDecimal(1.0));
+
+
+        final Map<ComputeTierDemandStatsRecord, WeightedCounts> existingRecords =
+                ImmutableMap.of(record1, count, record2, count, record3, count, record4, count);
+
+        final Map<ComputeTierDemandStatsRecord, Integer> newRecords =
+                ImmutableMap.of(record1, 1, record2, 1, record4, 1);
+        computeTierDemandStatsWriter = new
+                ComputeTierDemandStatsWriter(mock(ComputeTierDemandStatsStore.class),
+                mock(ProjectedRICoverageAndUtilStore.class), 0.6f);
+        final Set<ComputeTierTypeHourlyByWeekRecord> updatedRecords =
+                computeTierDemandStatsWriter.getComputeTierTypeHourlyByWeekRecords(newRecords,
+                        existingRecords,  "Live",
+                        false, 8, 10);
+        Assert.assertTrue(updatedRecords.size() == 4);
+        for (ComputeTierTypeHourlyByWeekRecord newStatsRecord: updatedRecords) {
+            // the WINDOWS record is the only one not in the new topology.
+            if (newStatsRecord.getPlatform() == (byte)OSType.WINDOWS.getNumber()) {
+                Assert.assertTrue(newStatsRecord.getCountFromSourceTopology().floatValue() < 1f);
+            } else {
+                Assert.assertEquals(newStatsRecord.getCountFromSourceTopology().floatValue(),
+                        1.0f, 0.0001);
+            }
+        }
+
     }
 
     /**

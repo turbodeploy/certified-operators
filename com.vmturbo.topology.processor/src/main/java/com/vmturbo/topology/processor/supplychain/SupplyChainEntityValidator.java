@@ -307,7 +307,7 @@ public class SupplyChainEntityValidator {
                 "Entity {} must buy from provider {} a commodity of type {}",
                 entity::getDisplayName, matchingProvider::getDisplayName,
                 () -> templateCommodity.getCommodityType().ordinal());
-            if (commodityBoughtDTOs.stream().noneMatch(commodityBought ->
+            if (!templateCommodity.getOptional() && commodityBoughtDTOs.stream().noneMatch(commodityBought ->
                     commodityMatch(commodityBought, templateCommodity))) {
                 // found an instance of a missing commodity bought
                 validationFailures.add(new MandatoryCommodityBoughtNotFoundFailure(

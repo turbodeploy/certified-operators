@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.DayOfWe
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.Monthly;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.TimeOfRun;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.Weekly;
+import com.vmturbo.common.protobuf.plan.PlanProjectREST.PlanProject.PlanProjectStatus;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.plan.orchestrator.db.Plan;
@@ -185,7 +186,8 @@ public class PlanProjectSchedulerTest {
                 .setName("Plan Project Info")
                 .build();
         PlanProject planProject = new
-                PlanProject(planProjectId, curTime, curTime, toCreate, PlanProjectType.USER.name());
+                PlanProject(planProjectId, curTime, curTime, toCreate, PlanProjectType.USER.name(),
+                PlanProjectStatus.UNAVAILABLE.name());
         dsl.newRecord(PLAN_PROJECT, planProject).store();
         expectedException.expect(PlanProjectInfoNotFoundException.class);
         planProjectScheduler.setPlanProjectSchedule(planProjectId);
@@ -243,7 +245,8 @@ public class PlanProjectSchedulerTest {
                 .build();
 
         PlanProject planProject = new
-                PlanProject(planProjecId, curTime, curTime, toCreate, PlanProjectType.USER.name());
+                PlanProject(planProjecId, curTime, curTime, toCreate, PlanProjectType.USER.name(),
+                PlanProjectStatus.UNAVAILABLE.name());
         dsl.newRecord(PLAN_PROJECT, planProject).store();
     }
 

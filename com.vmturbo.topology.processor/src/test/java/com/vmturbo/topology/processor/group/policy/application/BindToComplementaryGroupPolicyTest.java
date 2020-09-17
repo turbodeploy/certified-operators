@@ -22,6 +22,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -31,6 +32,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
@@ -127,6 +129,10 @@ public class BindToComplementaryGroupPolicyTest {
         topologyMap.put(13L, topologyEntity(13L, EntityType.PHYSICAL_MACHINE));
         topologyMap.get(2L).getEntityBuilder().getEditBuilder().setReplaced(
                 TopologyDTO.TopologyEntityDTO.Replaced.newBuilder().setPlanId(7777L).setReplacementId(13L).build());
+
+        topologyMap.put(14L, topologyEntity(14L, EntityType.VIRTUAL_MACHINE));
+        topologyMap.put(15L, topologyEntity(15L, EntityType.CONTAINER_POD, 14L));
+        topologyMap.put(16L, topologyEntity(16L, EntityType.CONTAINER_POD, 14L));
 
         // VM12 is also buying from the StorageTiers
         topologyMap.get(12L)
@@ -352,6 +358,46 @@ public class BindToComplementaryGroupPolicyTest {
         assertThat(topologyGraph.getEntity(8L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         // verify that tier 9 is selling segment
         assertThat(topologyGraph.getEntity(9L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
+    }
+
+    /**
+     * Test applying pod to VM affinity policy and SegmentationCommodities deduplication when calling
+     * {@link PlacementPolicyApplication#addCommoditySoldToComplementaryProviders(Set, Set, long, InvertedIndex, CommoditySoldDTO)}.
+     *
+     * @throws GroupResolutionException Exception when resolving group.
+     */
+    @Test
+    public void testApplyPodToVMAffinity() throws GroupResolutionException {
+        Grouping podConsumerGroup = PolicyGroupingHelper.policyGrouping(
+            searchParametersCollection(), EntityType.CONTAINER_POD_VALUE, 123L);
+        Grouping vmProviderGroup = PolicyGroupingHelper.policyGrouping(
+            searchParametersCollection(), EntityType.VIRTUAL_MACHINE_VALUE, 456L);
+        when(groupResolver.resolve(eq(podConsumerGroup), eq(topologyGraph)))
+            .thenReturn(resolvedGroup(podConsumerGroup, 15L, 16L));
+        // Add all VMs to vmProviderGroup except VM 14L
+        when(groupResolver.resolve(eq(vmProviderGroup), eq(topologyGraph)))
+            .thenReturn(resolvedGroup(vmProviderGroup, 5L, 6L, 7L, 12L));
+
+        // All VMs are available as providers.
+        mockInvertedIndex(topologyGraph.entitiesOfType(EntityType.VIRTUAL_MACHINE)
+            .map(TopologyEntity::getOid)
+            .collect(Collectors.toSet()));
+
+        applyPolicy(new BindToComplementaryGroupPolicy(policy,
+            new PolicyEntities(podConsumerGroup, Sets.newHashSet(15L, 16L)),
+            new PolicyEntities(vmProviderGroup)));
+
+        // 2 ContainerPods will buy same SegmentationCommodities with key as POLICY_ID from VM
+        TopologyEntity pod1 = topologyGraph.getEntity(15L).get();
+        TopologyEntity pod2 = topologyGraph.getEntity(16L).get();
+        assertThat(pod1, policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.VIRTUAL_MACHINE));
+        assertThat(pod2, policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.VIRTUAL_MACHINE));
+
+        // VM will sell only one SegmentationCommodity
+        TopologyEntity vm = topologyGraph.getEntity(14L).get();
+        assertThat(vm, policyMatcher.hasProviderSegment(POLICY_ID));
+        Assert.assertEquals(1, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList().size());
+
     }
 
     private void applyPolicy(@Nonnull final BindToComplementaryGroupPolicy policy) {

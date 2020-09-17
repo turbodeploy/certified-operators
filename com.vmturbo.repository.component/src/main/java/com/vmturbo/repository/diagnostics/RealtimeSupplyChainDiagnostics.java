@@ -5,6 +5,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,7 +23,7 @@ import com.vmturbo.repository.topology.TopologyLifecycleManager;
 /**
  * Class to collect and restore supply chain diagnostics.
  */
-public class RealtimeSupplyChainDiagnostics implements DiagsRestorable {
+public class RealtimeSupplyChainDiagnostics implements DiagsRestorable<Void> {
     private final Logger logger = LogManager.getLogger(getClass());
     private final TopologyLifecycleManager topologyLifecycleManager;
     private final GlobalSupplyChainManager globalSupplyChainManager;
@@ -45,12 +46,12 @@ public class RealtimeSupplyChainDiagnostics implements DiagsRestorable {
     }
 
     @Override
-    public void restoreDiags(@Nonnull List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
         Optional<TopologyID> realtimeTopologyId = topologyLifecycleManager.getRealtimeTopologyId();
         if (realtimeTopologyId.isPresent()) {
             GlobalSupplyChain globalSupplyChain =
                     new GlobalSupplyChain(realtimeTopologyId.get(), graphDBExecutor);
-            globalSupplyChain.restoreDiags(collectedDiags);
+            globalSupplyChain.restoreDiags(collectedDiags, null);
             globalSupplyChainManager.addNewGlobalSupplyChain(realtimeTopologyId.get(),
                     globalSupplyChain);
             logger.info("Restored {} ", GlobalSupplyChain.GLOBAL_SUPPLY_CHAIN_DIAGS_FILE);

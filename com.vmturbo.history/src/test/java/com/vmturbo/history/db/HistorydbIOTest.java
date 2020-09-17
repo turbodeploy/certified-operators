@@ -36,11 +36,12 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-
-import javax.validation.constraints.AssertTrue;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -61,7 +62,6 @@ import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.api.enums.CommodityType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
@@ -78,6 +78,7 @@ import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.schema.abstraction.tables.AvailableTimestamps;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 import com.vmturbo.history.stats.DbTestConfig;
+import com.vmturbo.history.stats.live.TimeRange;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.sql.utils.DbCleanupRule;
 
@@ -345,10 +346,13 @@ public class HistorydbIOTest {
                     PaginationParameters.newBuilder().setCursor("sdf:2134").build());
 
             HistorydbIO historydbIOSpy = spy(historydbIO);
-
+            TimeRange timeRange = Mockito.mock(TimeRange.class);
+            when(timeRange.getMostRecentSnapshotTime()).thenReturn(new Timestamp(1L));
+            when(timeRange.getTimeFrame()).thenReturn(TimeFrame.LATEST);
+            when(timeRange.getLatestPriceIndexTimeStamp()).thenReturn(Optional.empty());
             //WHEN
             NextPageInfo nextPageInfo = historydbIOSpy.getNextPage(entityStatsScope,
-                    new Timestamp(1L), TimeFrame.LATEST, paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
+                timeRange, paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
 
             //THEN
             assertTrue(nextPageInfo.getTotalRecordCount().get().equals(1));
@@ -446,10 +450,13 @@ public class HistorydbIOTest {
                         RelationType.COMMODITIES)
                 .execute();
 
-
+        TimeRange timeRange = Mockito.mock(TimeRange.class);
+        when(timeRange.getMostRecentSnapshotTime()).thenReturn(timestamp);
+        when(timeRange.getTimeFrame()).thenReturn(TimeFrame.LATEST);
+        when(timeRange.getLatestPriceIndexTimeStamp()).thenReturn(Optional.empty());
         // initial call: no cursor provided, cursor to next records returned
-        NextPageInfo nextPageInfo = historydbIO.getNextPage(entityStatsScope, timestamp,
-                TimeFrame.LATEST, paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE,
+        NextPageInfo nextPageInfo = historydbIO.getNextPage(entityStatsScope,
+            timeRange, paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE,
                 StatsFilter.newBuilder().build());
         boolean cursorShouldHaveValue = true;
         // ascending order, 2 is expected to be returned first
@@ -467,7 +474,11 @@ public class HistorydbIOTest {
                         .setCursor(cursor.toCursorString().get())
                         .setAscending(true)
                         .build());
-        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timestamp, TimeFrame.LATEST,
+        timeRange = Mockito.mock(TimeRange.class);
+        when(timeRange.getMostRecentSnapshotTime()).thenReturn(timestamp);
+        when(timeRange.getTimeFrame()).thenReturn(TimeFrame.LATEST);
+        when(timeRange.getLatestPriceIndexTimeStamp()).thenReturn(Optional.empty());
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
                 paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
         assertEquals(1, nextPageInfo.getEntityOids().size());
         assertEquals(entityUuid1, nextPageInfo.getEntityOids().get(0));
@@ -521,10 +532,14 @@ public class HistorydbIOTest {
                         RelationType.METRICS)
                 .execute();
 
-
+        TimeRange timeRange = Mockito.mock(TimeRange.class);
+        when(timeRange.getMostRecentSnapshotTime()).thenReturn(timestamp);
+        when(timeRange.getTimeFrame()).thenReturn(TimeFrame.LATEST);
+        when(timeRange.getLatestPriceIndexTimeStamp()).thenReturn(Optional.empty());
         // initial call: no cursor provided, cursor to next records returned
-        NextPageInfo nextPageInfo = historydbIO.getNextPage(entityStatsScope, timestamp,
-                TimeFrame.LATEST, paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE,
+        NextPageInfo nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
+            paginationParams,
+            VIRTUAL_MACHINE_ENTITY_TYPE,
                 StatsFilter.newBuilder().build());
         boolean cursorShouldHaveValue = false;
         validateNextPageValues(nextPageInfo, entityUuid1, cursorShouldHaveValue, 0.0, 2);
@@ -539,7 +554,11 @@ public class HistorydbIOTest {
                         .setCursor(cursor.toCursorString().get())
                         .setAscending(false)
                         .build());
-        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timestamp, TimeFrame.LATEST,
+        timeRange = Mockito.mock(TimeRange.class);
+        when(timeRange.getMostRecentSnapshotTime()).thenReturn(timestamp);
+        when(timeRange.getTimeFrame()).thenReturn(TimeFrame.LATEST);
+        when(timeRange.getLatestPriceIndexTimeStamp()).thenReturn(Optional.empty());
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
                 paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
         assertEquals(1, nextPageInfo.getEntityOids().size());
         assertEquals(entityUuid2, nextPageInfo.getEntityOids().get(0));
@@ -622,10 +641,14 @@ public class HistorydbIOTest {
                         RelationType.METRICS)
                 .execute();
 
-
+        TimeRange timeRange = Mockito.mock(TimeRange.class);
+        when(timeRange.getMostRecentSnapshotTime()).thenReturn(timestamp);
+        when(timeRange.getTimeFrame()).thenReturn(TimeFrame.LATEST);
+        when(timeRange.getLatestPriceIndexTimeStamp()).thenReturn(Optional.empty());
         // 1st call
-        NextPageInfo nextPageInfo = historydbIO.getNextPage(entityStatsScope, timestamp,
-                TimeFrame.LATEST, paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE,
+        NextPageInfo nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
+            paginationParams,
+            VIRTUAL_MACHINE_ENTITY_TYPE,
                 StatsFilter.newBuilder().build());
         boolean cursorShouldHaveValue = true;
         validateNextPageValues(nextPageInfo, entityUuid5, cursorShouldHaveValue, entityValue5, 6);
@@ -640,7 +663,8 @@ public class HistorydbIOTest {
                         .setCursor(cursor.toCursorString().get())
                         .setAscending(true)
                         .build());
-        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timestamp, TimeFrame.LATEST,
+
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
                 paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
         validateNextPageValues(nextPageInfo, entityUuid2, cursorShouldHaveValue, entityValue2, 6);
         cursor =  SeekPaginationCursor.parseCursor(nextPageInfo.getNextCursor().get());
@@ -654,7 +678,8 @@ public class HistorydbIOTest {
                         .setCursor(cursor.toCursorString().get())
                         .setAscending(true)
                         .build());
-        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timestamp, TimeFrame.LATEST,
+
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope,timeRange,
                 paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
         validateNextPageValues(nextPageInfo, entityUuid6, cursorShouldHaveValue, entityValue6, 6);
         cursor =  SeekPaginationCursor.parseCursor(nextPageInfo.getNextCursor().get());
@@ -670,7 +695,8 @@ public class HistorydbIOTest {
                         .setCursor(cursor.toCursorString().get())
                         .setAscending(true)
                         .build());
-        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timestamp, TimeFrame.LATEST,
+
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
                 paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
         validateNextPageValues(nextPageInfo, entityUuid1, cursorShouldHaveValue, 0.0, 6);
         cursor =  SeekPaginationCursor.parseCursor(nextPageInfo.getNextCursor().get());
@@ -681,7 +707,7 @@ public class HistorydbIOTest {
                 PaginationParameters.newBuilder()
                         .setCursor(cursor.toCursorString().get())
                         .build());
-        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timestamp, TimeFrame.LATEST,
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
                 paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
         validateNextPageValues(nextPageInfo, entityUuid4, cursorShouldHaveValue, 0.0, 6);
         cursor =  SeekPaginationCursor.parseCursor(nextPageInfo.getNextCursor().get());
@@ -693,7 +719,7 @@ public class HistorydbIOTest {
                         .setCursor(cursor.toCursorString().get())
                         .setAscending(true)
                         .build());
-        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timestamp, TimeFrame.LATEST,
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
                 paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
         assertEquals(1, nextPageInfo.getEntityOids().size());
         assertEquals(entityUuid9, nextPageInfo.getEntityOids().get(0));
@@ -709,7 +735,8 @@ public class HistorydbIOTest {
                 PaginationParameters.newBuilder()
                         .setCursor(cursorForExtraCase.toCursorString().get())
                         .build());
-        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timestamp, TimeFrame.LATEST,
+
+        nextPageInfo = historydbIO.getNextPage(entityStatsScope, timeRange,
                 paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
         assertEquals(2, nextPageInfo.getEntityOids().size());
         assertEquals(entityUuid6, nextPageInfo.getEntityOids().get(0));
@@ -747,11 +774,9 @@ public class HistorydbIOTest {
             .values(HistoryVariety.ENTITY_STATS.toString(), ts, LATEST)
             .execute();
 
-        Optional<Timestamp> timeStamp = historydbIO.getClosestTimestampBefore(statsFilter,
+        Optional<Timestamp> timeStamp = historydbIO.getClosestTimestampBefore(
             Optional.empty(),
-            Optional.empty(),
-            Optional.of(new EntityStatsPaginationParams(10, 10, "priceIndex",
-                PaginationParameters.getDefaultInstance())));
+            Optional.empty(), HistoryVariety.ENTITY_STATS);
         Assert.assertTrue(timeStamp.isPresent());
         Assert.assertEquals(ts, timeStamp.get());
 
@@ -766,11 +791,9 @@ public class HistorydbIOTest {
             .values(HistoryVariety.ENTITY_STATS.toString(), ts2, LATEST)
             .execute();
 
-        Optional<Timestamp> timeStamp2 = historydbIO.getClosestTimestampBefore(statsFilter,
+        Optional<Timestamp> timeStamp2 = historydbIO.getClosestTimestampBefore(Optional.empty(),
             Optional.empty(),
-            Optional.empty(),
-            Optional.of(new EntityStatsPaginationParams(10, 10, "priceIndex",
-                PaginationParameters.getDefaultInstance())));
+            HistoryVariety.ENTITY_STATS);
         Assert.assertTrue(timeStamp2.isPresent());
         Assert.assertEquals(ts2, timeStamp2.get());
     }
@@ -810,5 +833,106 @@ public class HistorydbIOTest {
         assertTrue(nextPageInfo.getTotalRecordCount().isPresent());
         assertEquals(expectedTotalRecordCount,
                 nextPageInfo.getTotalRecordCount().get().longValue());
+    }
+
+    /**
+     * Tests that in a table that has only entities with the orderBy commodity,
+     * the cursors returned by subsequent calls to getNextPage are correct.
+     *
+     * @throws VmtDbException on db error
+     */
+    @Test
+    public void testSortByOlderPriceIndexValues()
+        throws VmtDbException {
+        // setup
+        final String entityUuid1 = "1";
+        final String entityUuid2 = "2";
+        final double entityValue1 = 16.0;
+        final double entityValue2 = 5.0;
+        final int paginationLimit = 10;
+        final Stats.EntityStatsScope entityStatsScope = Stats.EntityStatsScope.newBuilder()
+            .setEntityList(Stats.EntityStatsScope.EntityList.newBuilder()
+                .addEntities(Long.parseLong(entityUuid1))
+                .addEntities(Long.parseLong(entityUuid2)))
+            .build();
+        EntityStatsPaginationParams paginationParams = new EntityStatsPaginationParams(
+            paginationLimit,
+            paginationLimit,
+            PRICE_INDEX,
+            PaginationParameters.newBuilder().setAscending(true).build());
+        final Table<?> table =
+            VIRTUAL_MACHINE_ENTITY_TYPE.getTimeFrameTable(TimeFrame.LATEST).get();
+
+        Connection conn = historydbIO.connection();
+        Timestamp t1 = new Timestamp(10000L);
+        Timestamp t0 = new Timestamp(1000L);
+
+        historydbIO.using(conn).insertInto(table,
+            getTimestampField(table, SNAPSHOT_TIME),
+            getStringField(table, UUID),
+            getStringField(table, PROPERTY_TYPE),
+            getStringField(table, PROPERTY_SUBTYPE),
+            getDoubleField(table, AVG_VALUE),
+            getDoubleField(table, CAPACITY),
+            getRelationTypeField(table, RELATION))
+            .values(t1, entityUuid1, VCPU, USED, entityValue1, null,
+                RelationType.COMMODITIES)
+            .execute();
+        historydbIO.using(conn).insertInto(table,
+            getTimestampField(table, SNAPSHOT_TIME),
+            getStringField(table, UUID),
+            getStringField(table, PROPERTY_TYPE),
+            getStringField(table, PROPERTY_SUBTYPE),
+            getDoubleField(table, AVG_VALUE),
+            getDoubleField(table, CAPACITY),
+            getRelationTypeField(table, RELATION))
+            .values(t0, entityUuid1, PRICE_INDEX, USED, entityValue1, null,
+                RelationType.COMMODITIES)
+            .execute();
+        historydbIO.using(conn).insertInto(table,
+            getTimestampField(table, SNAPSHOT_TIME),
+            getStringField(table, UUID),
+            getStringField(table, PROPERTY_TYPE),
+            getStringField(table, PROPERTY_SUBTYPE),
+            getDoubleField(table, AVG_VALUE),
+            getDoubleField(table, CAPACITY),
+            getRelationTypeField(table, RELATION))
+            .values(t0, entityUuid2, PRICE_INDEX, USED, entityValue2, null,
+                RelationType.COMMODITIES)
+            .execute();
+
+        TimeRange timeRange = Mockito.mock(TimeRange.class);
+        when(timeRange.getMostRecentSnapshotTime()).thenReturn(t1);
+        when(timeRange.getTimeFrame()).thenReturn(TimeFrame.LATEST);
+        when(timeRange.getLatestPriceIndexTimeStamp()).thenReturn(Optional.of(t0));
+        // initial call: no cursor provided, cursor to next records returned
+        NextPageInfo nextPageInfo = historydbIO.getNextPage(entityStatsScope,
+            timeRange, paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE,
+            StatsFilter.newBuilder().build());
+        assertEquals( 2, nextPageInfo.getEntityOids().size());
+        assertEquals(entityUuid2, nextPageInfo.getEntityOids().get(0));
+    }
+
+    /**
+     * Test createTemporaryTableFromUuids with uuids lists of various lengths.
+     *
+     * @throws VmtDbException indicates the test has failed
+     */
+    @Test
+    public void testCreateTemporaryTableFromUuids() throws VmtDbException {
+        final Connection conn = historydbIO.connection();
+
+        // Test boundary conditions, with lists of uuids of the following lengths
+        final List<Integer> countsToTest = Arrays.asList(0, 1, HistorydbIO.FAST_SQL_SIZE - 1,
+            HistorydbIO.FAST_SQL_SIZE, HistorydbIO.FAST_SQL_SIZE + 1);
+
+        for (int count : countsToTest) {
+            List<Long> uuids = LongStream.range(1, count + 1).boxed().collect(Collectors.toList());
+            assertEquals(count, uuids.size());
+
+            Optional<String> tempTableName = historydbIO.createTemporaryTableFromUuids(uuids, conn);
+
+            assertEquals(count != 0, tempTableName.isPresent());
+        }
     }
 }

@@ -42,22 +42,20 @@ public class CloudMoveBatchTranslator implements BatchTranslator {
      */
     @Override
     public boolean appliesTo(@Nonnull final ActionView actionView) {
-        return isCloudMoveAction(actionView.getRecommendation());
+        return isTranslateCloudMoveToScaleAction(actionView.getRecommendation());
     }
 
     /**
-     * Checks if action is a Cloud Move.
+     * Checks if action is a Cloud Move that needs to be translated to scale/allocate.
      *
      * @param action Action to check.
-     * @return True if action is a Cloud Move.
+     * @return True if action is a Cloud Move that needs to be translated.
      */
-    public static boolean isCloudMoveAction(@Nonnull final ActionDTO.Action action) {
-        final ActionInfo actionInfo = action.getInfo();
-        return actionInfo.getActionTypeCase() == ActionTypeCase.MOVE
-                && actionInfo.getMove().getChangesList().stream()
-                .anyMatch(m -> m.hasSource()
-                        && TopologyDTOUtil.isPrimaryTierEntityType(m.getSource().getType())
-                        && TopologyDTOUtil.isPrimaryTierEntityType(m.getDestination().getType()));
+    public static boolean isTranslateCloudMoveToScaleAction(@Nonnull final ActionDTO.Action action) {
+        // In case of cloud-to-cloud migration, move will be across regions, so we should
+        // return false from here, as we don't want to translate such moves to scale.
+        return action.getInfo().getActionTypeCase() == ActionTypeCase.MOVE
+                && TopologyDTOUtil.isMoveWithinSameRegion(action);
     }
 
     /**

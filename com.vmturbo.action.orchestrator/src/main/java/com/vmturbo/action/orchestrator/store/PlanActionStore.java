@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.collect.Iterators;
@@ -50,6 +51,7 @@ import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -60,6 +62,7 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 
@@ -121,6 +124,12 @@ public class PlanActionStore implements ActionStore {
     // TODO: a temp fix to get the source entities used for buy RI. We can get rid of it
     // if we have a source topology saved for every plan.
     private final long realtimeTopologyContextId;
+
+    /**
+     * Info about plan topology. Used to check if it is a cloud migration plan.
+     */
+    @Nullable
+    private TopologyInfo topologyInfo;
 
     /**
      * All immutable (plan) actions are considered visible (from outside the Action Orchestrator's perspective).
@@ -192,6 +201,10 @@ public class PlanActionStore implements ActionStore {
         if (ActionDTOUtil.getActionPlanContextId(actionPlan.getInfo()) != topologyContextId) {
             throw new IllegalArgumentException("Attempt to set store with topologyContextId " + topologyContextId +
                 " with information from an action plan with topologyContextId " + actionPlan);
+        }
+        if (actionPlan.hasInfo() && actionPlan.getInfo().hasMarket()
+                && actionPlan.getInfo().getMarket().hasSourceTopologyInfo()) {
+            topologyInfo = actionPlan.getInfo().getMarket().getSourceTopologyInfo();
         }
         return replaceAllActions(actionPlan.getActionList(),
             actionPlanData(actionPlan, LocalDateTime.now()));
@@ -344,6 +357,16 @@ public class PlanActionStore implements ActionStore {
         return topologyContextId;
     }
 
+    /**
+     * Gets topology info if available, containing info about plan.
+     *
+     * @return Plan topology info.
+     */
+    @Nullable
+    public TopologyInfo getTopologyInfo() {
+        return topologyInfo;
+    }
+
     @Override
     @Nonnull
     public Optional<EntitySeverityCache> getEntitySeverityCache() {
@@ -464,7 +487,8 @@ public class PlanActionStore implements ActionStore {
         // TODO: remove hack to go to realtime if source plan topology is not available.  Needed to
         // compute action descriptions.
         EntitiesAndSettingsSnapshot snapshotHack = entitySettingsCache.newSnapshot(
-                entitiesToRetrieve,deleteVolumesToRetrieve, planContextId);
+                entitiesToRetrieve, deleteVolumesToRetrieve, planContextId);
+        snapshotHack.setTopologyInfo(topologyInfo);
         if (MapUtils.isEmpty(snapshotHack.getEntityMap())) {
             // Hack: if the plan source topology is not ready, use realtime.
             // This should only occur initially when the plan  created.
@@ -475,11 +499,38 @@ public class PlanActionStore implements ActionStore {
                                                            realtimeTopologyContextId);
         }
         final EntitiesAndSettingsSnapshot snapshot = snapshotHack;
-        final List<ActionDTO.Action> actionsStream = new ArrayList<>(actions.size());
 
         Map<Long, ActionTargetInfo> actionTargetInfo = actionTargetSelector.getTargetsForActions(actions.stream(), snapshot);
         Stream<ActionDTO.Action> actionStream = actions.stream().map(
-            action -> action.toBuilder().addAllPrerequisite(actionTargetInfo.get(action.getId()).prerequisites()).build());
+            action -> {
+                final ActionTargetInfo targetInfo = actionTargetInfo.get(action.getId());
+                final ActionDTO.Action.Builder actionBuilder = action.toBuilder();
+                final Set<Prerequisite> prerequisites = Optional.ofNullable(targetInfo)
+                        .map(ActionTargetInfo::prerequisites)
+                        .orElse(null);
+                if (prerequisites != null) {
+                    actionBuilder.addAllPrerequisite(prerequisites);
+                } else {
+                    actionBuilder.clearPrerequisite();
+                }
+                final Boolean disruptive = Optional.ofNullable(targetInfo)
+                        .map(ActionTargetInfo::disruptive)
+                        .orElse(null);
+                final Boolean reversible = Optional.ofNullable(targetInfo)
+                        .map(ActionTargetInfo::reversible)
+                        .orElse(null);
+                if (disruptive != null) {
+                    actionBuilder.setDisruptive(disruptive);
+                } else {
+                    actionBuilder.clearDisruptive();
+                }
+                if (reversible != null) {
+                    actionBuilder.setReversible(reversible);
+                } else {
+                    actionBuilder.clearReversible();
+                }
+                return actionBuilder.build();
+            });
 
         final Stream<Action> translatedActions = actionTranslator.translate(actionStream
             .map(recommendedAction -> actionFactory.newAction(recommendedAction, planData.getId(), IdentityGenerator.next())),

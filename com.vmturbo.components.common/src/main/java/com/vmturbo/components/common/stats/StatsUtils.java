@@ -1,6 +1,11 @@
 package com.vmturbo.components.common.stats;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.KEY;
+import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_DISK;
+
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -10,6 +15,8 @@ import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.PropertyValueFilter;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -18,6 +25,15 @@ public class StatsUtils {
 
     private StatsUtils() {
     }
+
+    /**
+     * stat filters used to filter commodity stats by provider type.
+     */
+    public static final String PROVIDER_TYPE_STAT_FILTER = "providerType";
+    /**
+     * stat filters used to filter commodity stats by provider.
+     */
+    public static final String PROJECTED_PROVIDER_STAT_FILTER = "projectedProvider";
 
     /**
      * Collect just the stats names to fetch from the list of commodities listed in this filter.
@@ -31,6 +47,51 @@ public class StatsUtils {
                 .filter(StatsFilter.CommodityRequest::hasCommodityName)
                 .map(StatsFilter.CommodityRequest::getCommodityName)
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Return Map from commodity name to provider type for which the commodities are being
+     * requested.
+     *
+     * @param statsFilter for which the Map is being returned.
+     * @return map from commodity name to provider type.
+     */
+    public static Map<String, Set<Integer>> commodityNameToProviderType(
+        @Nonnull StatsFilter statsFilter) {
+        return statsFilter.getCommodityRequestsList().stream()
+            .collect(Collectors.toMap(CommodityRequest::getCommodityName,
+                request -> extractProviderType(request.getPropertyValueFilterList())));
+    }
+
+    /**
+     * Return Map from commodity name to groupBy fields specific in the statsFilter.
+     *
+     * @param statsFilter for which the map is being created.
+     * @return map from commodity name to groupBy fields.
+     */
+    public static Map<String, Set<String>> commodityNameToGroupByFilters(
+        @Nonnull StatsFilter statsFilter) {
+        return statsFilter
+            .getCommodityRequestsList().stream()
+            .filter(CommodityRequest::hasCommodityName)
+            .collect(Collectors.toMap(CommodityRequest::getCommodityName,
+                commodityRequest -> commodityRequest.getGroupByList().stream()
+                    .filter(Objects::nonNull)
+                    // Only support "key" and "virtualDisk" group by for now
+                    // Both equate to grouping by the key (matches existing logic in
+                    // History component).
+                    .filter(groupBy -> KEY.equalsIgnoreCase(groupBy)
+                        || VIRTUAL_DISK.equalsIgnoreCase(groupBy))
+                    .collect(Collectors.toSet())
+            ));
+    }
+
+    private static Set<Integer> extractProviderType(
+        final List<PropertyValueFilter> propertyValueFilterList) {
+        return propertyValueFilterList.stream()
+            .filter(property -> PROVIDER_TYPE_STAT_FILTER.equals(property.getProperty()))
+            .map(property -> ApiEntityType.fromString(property.getValue()).typeNumber())
+            .collect(Collectors.toSet());
     }
 
     /**

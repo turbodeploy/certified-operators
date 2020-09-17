@@ -15,6 +15,7 @@ import com.vmturbo.auth.component.licensing.LicenseCheckService.LicenseSummaryPu
 import com.vmturbo.auth.component.licensing.store.ILicenseStore;
 import com.vmturbo.auth.component.licensing.store.LicenseKVStore;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
+import com.vmturbo.common.protobuf.licensing.LicensingREST.LicenseManagerServiceController;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
@@ -69,6 +70,16 @@ public class LicensingConfig {
                         LicenseSummaryPublisher::generateMessageKey);
     }
 
+
+    /**
+     * Bean to enable licenseManagerService
+     * @return
+     */
+    @Bean
+    public LicenseManagerServiceController licenseManagerServiceController() {
+        return new LicenseManagerServiceController(licenseManager());
+    }
+
     /**
      * License manager.
      * @return License manager bean.
@@ -79,9 +90,19 @@ public class LicensingConfig {
     }
 
     @Bean
+    public LicensedEntitiesCountCalculator licensedEntitiesCountCalculator() {
+        return new LicensedEntitiesCountCalculator(repositoryClientConfig.searchServiceClient());
+    }
+
+    /**
+     * The {@link LicenseCheckService}.
+     *
+     * @return The {@link LicenseCheckService}.
+     */
+    @Bean
     public LicenseCheckService licenseCheckService() {
         return new LicenseCheckService(licenseManager(),
-                repositoryClientConfig.searchServiceClient(),
+                licensedEntitiesCountCalculator(),
                 repositoryClientConfig.repositoryListener(),
                 licenseSummaryPublisher(),
                 notificationApiConfig.notificationMessageSender(),

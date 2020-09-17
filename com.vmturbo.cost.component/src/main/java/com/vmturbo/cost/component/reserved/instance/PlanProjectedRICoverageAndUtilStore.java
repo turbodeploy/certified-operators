@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -23,6 +24,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Batch;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record;
@@ -274,6 +276,30 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
         });
         Lists.partition(coverageRcd, chunkSize).forEach(
                 entityChunk -> context.batchInsert(coverageRcd).execute());
+    }
+
+    /**
+     * Updates RI coverage used coupons in plan projected RI coverage table. This is needed for
+     * MPC plan BuyRI case where we need to update used_coupons after plan has completed.
+     *
+     * @param planId Id of the plan for which update needs to be done.
+     * @param usedCouponsPerEntity Map of entityId to used coupon coverage value to update.
+     * @return Count of records updated.
+     */
+    public int updatePlanProjectedRiCoverage(long planId,
+            @Nonnull final Map<Long, Double> usedCouponsPerEntity) {
+        final List<PlanProjectedReservedInstanceCoverageRecord> coverageRecords = new ArrayList<>();
+        usedCouponsPerEntity.forEach((entityId, usedCoupons) -> {
+            final PlanProjectedReservedInstanceCoverageRecord rec =
+                    new PlanProjectedReservedInstanceCoverageRecord();
+            rec.setPlanId(planId);
+            rec.setEntityId(entityId);
+            rec.setUsedCoupons(usedCoupons);
+            coverageRecords.add(rec);
+        });
+        final Batch batch = context.batchUpdate(coverageRecords);
+        batch.execute();
+        return batch.size();
     }
 
     /**
@@ -561,7 +587,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
     /**
      * Helper class for dumping Plan Projected Reserved Instance Utilization db records.
      */
-    private static final class PlanProjectedReservedInstanceUtilizationDiagsHelper implements DiagsRestorable {
+    private static final class PlanProjectedReservedInstanceUtilizationDiagsHelper implements DiagsRestorable<Void> {
         private static final String planProjectedReservedInstanceUtilizationDumpFile = "planProjectedReservedInstanceUtilization_dump";
 
         private final DSLContext dsl;
@@ -571,7 +597,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
 
         }
 
@@ -601,7 +627,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
     /**
      * Helper class for dumping Plan Projected Reserved Instance Coverage db records.
      */
-    private static final class PlanProjectedReservedInstanceCoverageDiagsHelper implements DiagsRestorable {
+    private static final class PlanProjectedReservedInstanceCoverageDiagsHelper implements DiagsRestorable<Void> {
         private static final String planProjectedReservedInstanceCoverageDumpFile = "planProjectedReservedInstanceCoverage_dump";
 
         private final DSLContext dsl;
@@ -611,7 +637,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
 
         }
 
@@ -641,7 +667,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
     /**
      * Helper class for dumping Plan Projected RI to Entity mapping db records.
      */
-    private static final class PlanProjectedRIToEntityMappingDiagsHelper implements DiagsRestorable {
+    private static final class PlanProjectedRIToEntityMappingDiagsHelper implements DiagsRestorable<Void> {
         private static final String planProjectedRIToEntityMappingDumpFile = "planProjectedRIToEntity_dump";
 
         private final DSLContext dsl;
@@ -651,7 +677,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
             // TODO to be implemented as part of OM-58627
         }
 

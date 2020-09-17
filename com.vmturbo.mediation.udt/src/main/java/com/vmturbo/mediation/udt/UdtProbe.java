@@ -25,6 +25,7 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.BaseVmtComponent.ContextConfigurationException;
+import com.vmturbo.mediation.udt.config.ConnectionConfiguration;
 import com.vmturbo.mediation.udt.config.ConnectionProperties;
 import com.vmturbo.mediation.udt.config.PropertyReader;
 import com.vmturbo.mediation.udt.explore.Connection;
@@ -44,6 +45,7 @@ import com.vmturbo.platform.sdk.probe.IDiscoveryProbe;
 import com.vmturbo.platform.sdk.probe.IProbeContext;
 import com.vmturbo.platform.sdk.probe.ISupplyChainAwareProbe;
 import com.vmturbo.platform.sdk.probe.ProbeConfiguration;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * A probe that creates topology based on topology data definitions pulled from the group component.
@@ -63,12 +65,13 @@ public class UdtProbe implements IDiscoveryProbe<UdtProbeAccount>, ISupplyChainA
      * Creates a {@link Connection} instance, which contains gRpc channels to the
      * Group and Repository components.
      *
-     * @param properties - connection properties.
+     * @param config - connection configuration.
      * @return an instance of {@link Connection}.
      */
     @Nonnull
     @VisibleForTesting
-    Connection createProbeConnection(@Nonnull ConnectionProperties properties) {
+    Connection createProbeConnection(@Nonnull ConnectionConfiguration config) {
+        final ConnectionProperties properties = config.getProperties();
         final ManagedChannel groupChannel = ComponentGrpcServer.newChannelBuilder(
                 properties.getGroupHost(), properties.getgRpcPort(), MAX_MSG_SIZE_BYTES)
                 .build();
@@ -80,8 +83,9 @@ public class UdtProbe implements IDiscoveryProbe<UdtProbeAccount>, ISupplyChainA
                 properties.getTopologyProcessorHost(), properties.getgRpcPort())
                 .keepAliveTime(properties.getgRpcPingIntervalSeconds(), TimeUnit.SECONDS)
                 .build();
+        final TopologyProcessor topologyProcessorApi = config.getTpConfig().topologyProcessorRpcOnly();
         LOGGER.info("UDT Probe connection created.");
-        return new Connection(groupChannel, repositoryChannel, topologyProcessorChannel);
+        return new Connection(groupChannel, repositoryChannel, topologyProcessorChannel, topologyProcessorApi);
     }
 
     @VisibleForTesting
@@ -94,8 +98,8 @@ public class UdtProbe implements IDiscoveryProbe<UdtProbeAccount>, ISupplyChainA
         final AnnotationConfigWebApplicationContext context = new AnnotationConfigWebApplicationContext();
         final PropertyReader propertyReader = new PropertyReader(context);
         try {
-            final ConnectionProperties properties = propertyReader.getConnectionProperties();
-            final Connection connection = createProbeConnection(properties);
+            final ConnectionConfiguration configuration = propertyReader.getConnectionConfiguration();
+            final Connection connection = createProbeConnection(configuration);
             initializeConnection(connection);
         } catch (ContextConfigurationException e) {
             LOGGER.error("Initialization exception.", e);
@@ -135,9 +139,10 @@ public class UdtProbe implements IDiscoveryProbe<UdtProbeAccount>, ISupplyChainA
             if (isNull(connection)) {
                 throw new Exception("Probe Connection is NULL.");
             }
+            final long startTime = System.currentTimeMillis();
             final Set<UdtEntity> entities = new UdtProbeExplorer(buildDataProvider(connection)).exploreDataDefinition();
             final DiscoveryResponse response = new UdtProbeConverter(entities).createDiscoveryResponse();
-            LOGGER.info("Discovery info:\n{}", getDiscoveryInfo(entities));
+            LOGGER.info("Discovery info:\n{}", getDiscoveryInfo(entities, startTime));
             LOGGER.info("{} discovery finished.", account.getTargetName());
             if (LOGGER.isTraceEnabled()) {
                 entities.forEach(entity -> {
@@ -153,8 +158,10 @@ public class UdtProbe implements IDiscoveryProbe<UdtProbeAccount>, ISupplyChainA
     }
 
     @Nonnull
-    private String getDiscoveryInfo(@Nonnull Set<UdtEntity> entities) {
-        String info = String.format("Discovered %d entities.\n", entities.size());
+    private String getDiscoveryInfo(@Nonnull Set<UdtEntity> entities, long startTime) {
+        final long durationSec = (System.currentTimeMillis() - startTime) / 1000;
+        String info = String.format("Discovered %d entities in %s seconds.\n",
+                entities.size(), durationSec);
         final Map<EntityType, Set<UdtEntity>> typeMap = entities.stream().reduce(new HashMap<>(),
                 (map, entity) -> {
                     if (!map.containsKey(entity.getEntityType())) {

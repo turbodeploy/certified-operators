@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -24,6 +25,7 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
+import com.vmturbo.market.cloudscaling.sma.entities.SMATemplate;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAVirtualMachine;
 
 /**
@@ -50,9 +52,9 @@ public class StableMarriageAlgorithm {
             postProcessing(outputContext);
             outputContexts.add(outputContext);
             for (SMAMatch match : outputContext.getMatches()) {
-                if ((match.getVirtualMachine().getCurrentTemplate() != match.getTemplate())
+                if ((match.getVirtualMachine().getCurrentTemplate().getOid() != match.getTemplate().getOid())
                         || (Math.abs(match.getVirtualMachine().getCurrentRICoverage()
-                        - match.getProjectedRICoverage()) > SMAUtils.EPSILON)) {
+                        - match.getDiscountedCoupons()) > SMAUtils.EPSILON)) {
                     actionCount++;
                 }
             }
@@ -78,8 +80,6 @@ public class StableMarriageAlgorithm {
         Map<Long, List<SMAMatch>> matchesWithOutgoingCoupons = new HashMap<>();
         Map<Long, List<SMAMatch>> matchesWithIncomingCoupons = new HashMap<>();
         for (SMAMatch smaMatch : outputContext.getMatches()) {
-            // effective discounted coupons is initialised to discounted coupons.
-            smaMatch.setProjectedRICoverage(smaMatch.getDiscountedCoupons());
             SMAReservedInstance projectedRI = smaMatch.getReservedInstance();
             SMAReservedInstance sourceRI = smaMatch.getVirtualMachine().getCurrentRI();
             // investment optimisation action. outgoing  coupons
@@ -111,7 +111,7 @@ public class StableMarriageAlgorithm {
             for (SMAMatch outgoingCouponMatch : outgoingCouponMatches) {
                 float coupons_required = outgoingCouponMatch.getVirtualMachine()
                         .getCurrentRICoverage()
-                        - outgoingCouponMatch.getProjectedRICoverage();
+                        - outgoingCouponMatch.getDiscountedCoupons();
                 for (SMAMatch incomingCouponMatch : matchesWithIncomingCoupons.get(riKeyId)) {
                     float coupons_grabbed;
                     if (incomingCouponMatch.getVirtualMachine().getCurrentRI() == null
@@ -119,27 +119,27 @@ public class StableMarriageAlgorithm {
                             .getRiKeyOid() != riKeyId) {
                         // If the VM is not previously covered
                         // by this ri then all coupons can be taken.
-                        coupons_grabbed = Math.min(coupons_required, incomingCouponMatch.getProjectedRICoverage());
+                        coupons_grabbed = Math.min(coupons_required, incomingCouponMatch.getDiscountedCoupons());
                     } else {
                         // If the VM is previously covered by the same RI
                         // then we can take upto the coupons which was previously covered.
                         // Since covered by same RI incomingCouponMatch is
                         // discounted more than previously discounted.
                         coupons_grabbed = Math.min(coupons_required,
-                                incomingCouponMatch.getProjectedRICoverage()
+                                incomingCouponMatch.getDiscountedCoupons()
                                         - incomingCouponMatch.getVirtualMachine()
                                         .getCurrentRICoverage());
                     }
                     if (coupons_grabbed > SMAUtils.EPSILON) {
                         coupons_required = coupons_required - coupons_grabbed;
-                        incomingCouponMatch.setProjectedRICoverage(incomingCouponMatch.getProjectedRICoverage()
+                        incomingCouponMatch.setDiscountedCoupons(incomingCouponMatch.getDiscountedCoupons()
                                 - coupons_grabbed);
                     }
                     if (coupons_required < SMAUtils.EPSILON) {
                         break;
                     }
                 }
-                outgoingCouponMatch.setProjectedRICoverage(outgoingCouponMatch
+                outgoingCouponMatch.setDiscountedCoupons(outgoingCouponMatch
                         .getVirtualMachine().getCurrentRICoverage() - coupons_required);
                 outgoingCouponMatch.setReservedInstance(outgoingCouponMatch.getVirtualMachine()
                         .getCurrentRI());
@@ -164,10 +164,10 @@ public class StableMarriageAlgorithm {
             if (smaMatch.getReservedInstance() != null) {
                 float saving = smaMatch.getReservedInstance()
                         .computeSaving(smaMatch.getVirtualMachine(),
-                                new HashMap<>(), smaMatch.getProjectedRICoverage());
+                                new HashMap<>(), smaMatch.getDiscountedCoupons());
                 if (saving < SMAUtils.EPSILON) {
                     smaMatch.setReservedInstance(null);
-                    smaMatch.setProjectedRICoverage(0);
+                    smaMatch.setDiscountedCoupons(0);
                     smaMatch.setTemplate(smaMatch.getVirtualMachine().getNaturalTemplate());
                 }
             }
@@ -179,17 +179,26 @@ public class StableMarriageAlgorithm {
             float saving = 0;
             Optional<SMAMatch> matchWithCoverage = smaMatches.stream()
                     .filter(a -> a.getReservedInstance() != null).findFirst();
+            List<SMAVirtualMachine> virtualMachines = smaMatches.stream()
+                    .map(a -> a.getVirtualMachine()).collect(Collectors.toList());
+            List<SMATemplate> groupProviderList = StableMarriagePerContext
+                    .findProviderIntersection(virtualMachines);
+            if (!groupProviderList.isEmpty()) {
+                virtualMachines.stream().forEach(a -> a.setGroupProviders(groupProviderList));
+            } else {
+                continue;
+            }
             // at least one member is convered.
             if (matchWithCoverage.isPresent()) {
                 for (SMAMatch smaMatch : smaMatches) {
                     saving += matchWithCoverage.get().getReservedInstance()
                             .computeSaving(smaMatch.getVirtualMachine(),
-                                    new HashMap<>(), smaMatch.getProjectedRICoverage());
+                                    new HashMap<>(), smaMatch.getDiscountedCoupons());
                 }
                 if (saving < SMAUtils.EPSILON) {
                     for (SMAMatch smaMatch : smaMatches) {
                         smaMatch.setReservedInstance(null);
-                        smaMatch.setProjectedRICoverage(0);
+                        smaMatch.setDiscountedCoupons(0);
                         smaMatch.setTemplate(smaMatch.getVirtualMachine().getNaturalTemplate());
                     }
                 }
@@ -216,7 +225,7 @@ public class StableMarriageAlgorithm {
                 && (projectedRI == null // lost coverage. vm did not use up any other RI.
                 || ((sourceRI.getRiKeyOid() == projectedRI.getRiKeyOid())
                 && (virtualMachine.getCurrentRICoverage()
-                - smaMatch.getProjectedRICoverage() > SMAUtils.EPSILON)) //same RI lesser coupons
+                - smaMatch.getDiscountedCoupons() > SMAUtils.EPSILON)) //same RI lesser coupons
         ));
     }
 
@@ -234,7 +243,7 @@ public class StableMarriageAlgorithm {
         return (projectedRI != null
                 && (sourceRI == null //a vm which had 0 coverage now has some coverage.
                 || sourceRI.getRiKeyOid() != projectedRI.getRiKeyOid() //a vm covered by another RI.
-                || (smaMatch.getProjectedRICoverage()
+                || (smaMatch.getDiscountedCoupons()
                 - virtualMachine.getCurrentRICoverage() > SMAUtils.EPSILON) //gained coverage from same RI.
         ));
     }

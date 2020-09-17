@@ -12,7 +12,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
 import com.vmturbo.history.ingesters.common.writers.ProjectedTopologyWriterBase;
-import com.vmturbo.history.ingesters.live.ProjectedLiveTopologyIngester;
+import com.vmturbo.history.ingesters.live.ProjectedRealtimeTopologyIngester;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.stats.projected.TopologyCommoditiesSnapshot;
 import com.vmturbo.history.stats.projected.TopologyCommoditiesSnapshot.Builder;
@@ -21,7 +21,7 @@ import com.vmturbo.history.stats.projected.TopologyCommoditiesSnapshot.Builder;
  * {@link TopologyCommoditiesProcessor} updates the in-memory {@link ProjectedStatsStore}.
  *
  * <p>It is not a "writer" in the sense of writing anything to a database, but it's one of the
- * "writers" configured for {@link ProjectedLiveTopologyIngester}.
+ * "writers" configured for {@link ProjectedRealtimeTopologyIngester}.
  * </p>
  */
 public class TopologyCommoditiesProcessor extends ProjectedTopologyWriterBase {
@@ -43,17 +43,13 @@ public class TopologyCommoditiesProcessor extends ProjectedTopologyWriterBase {
 
     @Override
     public ChunkDisposition processChunk(@Nonnull final Collection<ProjectedTopologyEntity> chunk,
-                                         @Nonnull final String infoSummary)
-        throws InterruptedException {
-
+                                         @Nonnull final String infoSummary) {
         chunk.forEach(topologyCommoditiesSnapshotBuilder::addProjectedEntity);
         return ChunkDisposition.SUCCESS;
     }
 
     @Override
-    public void finish(int entityCount, final boolean expedite, final String infoSummary)
-        throws InterruptedException {
-
+    public void finish(int entityCount, final boolean expedite, final String infoSummary) {
         projectedStatsStore.updateProjectedTopology(topologyCommoditiesSnapshotBuilder);
     }
 

@@ -27,7 +27,6 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
@@ -40,8 +39,6 @@ import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
-import com.vmturbo.common.protobuf.schedule.ScheduleProto.GetScheduleRequest;
-import com.vmturbo.common.protobuf.schedule.ScheduleProto.GetScheduleResponse;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 
@@ -219,8 +216,6 @@ public class AutomatedActionExecutor {
                         if (isActionValidForExecution(action)) {
                             // A prepare event prepares the action for execution, and initiates a PRE
                             // workflow if one is associated with this action.
-                            action.receive(new PrepareExecutionEvent());
-                            // Allows the action to begin execution, if a PRE workflow is not running
                             action.receive(new BeginExecutionEvent());
                             Optional<ActionDTO.Action> translated =
                                     action.getActionTranslation().getTranslatedRecommendation();

@@ -5,11 +5,8 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -40,8 +37,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.context.ConfigurableWebApplicationContext;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
-import com.vmturbo.api.component.external.api.service.LicenseService;
-import com.vmturbo.api.dto.license.LicenseApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastRequest;
 import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc.TopologyServiceBlockingStub;
@@ -53,7 +48,6 @@ import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.api.localbus.LocalBus;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsControllerImportable;
-import com.vmturbo.components.common.utils.EnvironmentUtils;
 import com.vmturbo.external.api.TurboApiClient;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
@@ -258,38 +252,9 @@ public class VoltronsContainer {
                     .setPassword("a")
                     .build();
 
-            // Add a license.
-            initializeLicense();
+            // Need to add a license.
             return client;
         });
-    }
-
-    private void initializeLicense() {
-        final String licensePath = config.getLicensePath().orElseGet(
-                () -> EnvironmentUtils.getOptionalEnvProperty("license_path")
-                .orElseThrow(() -> new IllegalStateException("Must specify license path in configuration, or set the license_path env property")));
-        try {
-            LicenseService licenseService = context.getComponents().get(Component.API).getBean(LicenseService.class);
-            RetriableOperation.newOperation(() -> {
-                List<LicenseApiDTO> existing = licenseService.findAllLicenses();
-                if (existing.stream().noneMatch(license -> license.isValid() && !license.isExpired())) {
-                    String licenseContent = null;
-                    try {
-                        licenseContent = new String(Files.readAllBytes(Paths.get(licensePath)));
-                    } catch (IOException e) {
-                        throw new RetriableOperationFailedException(e);
-                    }
-                    LicenseApiDTO inputLicense = licenseService.deserializeLicenseToLicenseDTO(licenseContent);
-                    return licenseService.addLicenses(Collections.singletonList(inputLicense), false);
-                } else {
-                    return existing;
-                }
-            })
-            .retryOnUnavailable()
-            .run(60, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize license", e);
-        }
     }
 
     private void loadComponentDiags(@Nonnull final Component component, @Nonnull final InputStream input) {

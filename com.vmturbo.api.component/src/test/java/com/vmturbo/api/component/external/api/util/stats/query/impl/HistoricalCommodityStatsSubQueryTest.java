@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doReturn;
@@ -12,6 +13,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -20,15 +22,18 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.stats.ImmutableGlobalScope;
@@ -38,10 +43,11 @@ import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.Epoch;
-import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -52,7 +58,11 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.stats.StatsUtils;
 
 public class HistoricalCommodityStatsSubQueryTest {
     private static final long MILLIS = 1_000_000;
@@ -80,6 +90,8 @@ public class HistoricalCommodityStatsSubQueryTest {
 
     private final StatsMapper statsMapper = mock(StatsMapper.class);
 
+    private final RepositoryApi repositoryApi = mock(RepositoryApi.class);
+
     private final StatsHistoryServiceMole backend = spy(StatsHistoryServiceMole.class);
 
     @Captor
@@ -103,7 +115,7 @@ public class HistoricalCommodityStatsSubQueryTest {
         MockitoAnnotations.initMocks(this);
         query = new HistoricalCommodityStatsSubQuery(statsMapper,
             StatsHistoryServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
-            userSessionContext);
+            userSessionContext, repositoryApi);
 
         when(context.getInputScope()).thenReturn(vmGroupScope);
 
@@ -324,7 +336,7 @@ public class HistoricalCommodityStatsSubQueryTest {
     }
 
     @Test
-    public void testlGroupStatsRequestWithNoOid() throws OperationFailedException {
+    public void testGroupStatsRequestWithNoOid() {
         // These entities in the scope.
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
         when(queryScope.getGlobalScope()).thenReturn(Optional.empty());
@@ -340,7 +352,7 @@ public class HistoricalCommodityStatsSubQueryTest {
     }
 
     @Test
-    public void testlGroupStatsRequestWithNoOidGlobal() throws OperationFailedException {
+    public void testGroupStatsRequestWithNoOidGlobal() {
         // These entities in the scope.
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
         //Setting to global scope.
@@ -356,5 +368,129 @@ public class HistoricalCommodityStatsSubQueryTest {
 
         verify(backend, atLeastOnce()).getAveragedEntityStats(any());
         assertThat(results.size(), greaterThan(0));
+    }
+
+    /**
+     * Test that stat filters with no conversion needed are not converted.
+     */
+    @Test
+    public void testFiltersWithoutConversion() {
+        final StatApiInputDTO inputWithNullFilters = new StatApiInputDTO();
+        final StatApiInputDTO inputWithNoFilters = new StatApiInputDTO();
+        inputWithNoFilters.setFilters(Collections.emptyList());
+        final StatApiInputDTO inputWithNoProviderFilter = new StatApiInputDTO();
+        final StatFilterApiDTO nonProviderFilter = new StatFilterApiDTO();
+        nonProviderFilter.setType("jkljkl");
+        nonProviderFilter.setValue("asdfasdf");
+        inputWithNoProviderFilter.setFilters(Collections.singletonList(nonProviderFilter));
+
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        when(queryScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
+        when(queryScope.getGlobalScope()).thenReturn(Optional.empty());
+        when(context.getQueryScope()).thenReturn(queryScope);
+
+        final ImmutableSet<StatApiInputDTO> inputStats =
+            ImmutableSet.of(inputWithNullFilters, inputWithNoFilters, inputWithNoProviderFilter);
+        query.getAggregateStats(inputStats, context);
+
+        verifyZeroInteractions(repositoryApi);
+        final ArgumentCaptor<Set<StatApiInputDTO>> convertedStatCaptor =
+            ArgumentCaptor.forClass((Class)Set.class);
+        verify(context).newPeriodInputDto(convertedStatCaptor.capture());
+        final Set<StatApiInputDTO> convertedStats = convertedStatCaptor.getValue();
+        assertEquals(inputStats, convertedStats);
+    }
+
+    /**
+     * Test that when there are no providers of desired type, no provider id filter is added.
+     *
+     * @throws ConversionException never
+     * @throws InterruptedException never
+     */
+    @Test
+    public void testConvertEmptyFilter() throws ConversionException, InterruptedException {
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        when(queryScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
+        when(queryScope.getGlobalScope()).thenReturn(Optional.empty());
+        when(context.getQueryScope()).thenReturn(queryScope);
+
+        final StatApiInputDTO input = new StatApiInputDTO();
+        final StatFilterApiDTO filter = new StatFilterApiDTO();
+        filter.setType(StatsUtils.PROVIDER_TYPE_STAT_FILTER);
+        filter.setValue(ApiEntityType.COMPUTE_TIER.apiStr());
+        input.setFilters(Collections.singletonList(filter));
+
+        final MultiEntityRequest empty = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(empty);
+
+        query.getAggregateStats(Collections.singleton(input), context);
+
+        verify(repositoryApi).entitiesRequest(Collections.singleton(1L));
+        final ArgumentCaptor<Set<StatApiInputDTO>> convertedStatCaptor =
+            ArgumentCaptor.forClass((Class)Set.class);
+        verify(context).newPeriodInputDto(convertedStatCaptor.capture());
+        final Set<StatApiInputDTO> convertedStats = convertedStatCaptor.getValue();
+        assertTrue(convertedStats.stream()
+            .filter(stat -> stat.getFilters() != null)
+            .flatMap(stat -> stat.getFilters().stream())
+            .noneMatch(newFilter -> StringConstants.PRODUCER_UUID.equals(newFilter.getType()) ));
+    }
+
+    /**
+     * Test that provider type filter is converted into separate provider ID filters as appropriate.
+     */
+    @Test
+    public void testConvertProviderFilter() {
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        when(queryScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
+        when(queryScope.getGlobalScope()).thenReturn(Optional.empty());
+        when(context.getQueryScope()).thenReturn(queryScope);
+
+        final StatApiInputDTO input = new StatApiInputDTO();
+        final StatFilterApiDTO filter = new StatFilterApiDTO();
+        filter.setType(StatsUtils.PROVIDER_TYPE_STAT_FILTER);
+        filter.setValue(ApiEntityType.COMPUTE_TIER.apiStr());
+        input.setFilters(Collections.singletonList(filter));
+        final RelatedEntity providerWrongType = RelatedEntity.newBuilder()
+            .setEntityType(ApiEntityType.STORAGE_TIER.typeNumber())
+            .setOid(2L)
+            .build();
+        final RelatedEntity providerRightType1 = RelatedEntity.newBuilder()
+            .setEntityType(ApiEntityType.COMPUTE_TIER.typeNumber())
+            .setOid(3L)
+            .build();
+        final RelatedEntity providerRightType2 = RelatedEntity.newBuilder()
+            .setEntityType(ApiEntityType.COMPUTE_TIER.typeNumber())
+            .setOid(4L)
+            .build();
+        final ApiPartialEntity scopeEntity = ApiPartialEntity.newBuilder()
+            .setOid(1L)
+            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .addProviders(providerRightType1)
+            .addProviders(providerRightType2)
+            .addProviders(providerWrongType)
+            .build();
+
+        final MultiEntityRequest repoRequest =
+            ApiTestUtils.mockMultiEntityReq(Collections.singletonList(scopeEntity));
+        when(repositoryApi.entitiesRequest(any())).thenReturn(repoRequest);
+
+        query.getAggregateStats(Collections.singleton(input), context);
+
+        verify(repositoryApi).entitiesRequest(Collections.singleton(1L));
+
+        final ArgumentCaptor<Set<StatApiInputDTO>> convertedStatCaptor =
+            ArgumentCaptor.forClass((Class)Set.class);
+        verify(context).newPeriodInputDto(convertedStatCaptor.capture());
+        final Set<StatApiInputDTO> convertedStats = convertedStatCaptor.getValue();
+        assertEquals(2, convertedStats.size());
+        final Set<String> producerFilterValues = convertedStats.stream()
+            .filter(stat -> stat.getFilters() != null)
+            .flatMap(stat -> stat.getFilters().stream())
+            .filter(newFilter -> StringConstants.PRODUCER_UUID.equals(newFilter.getType()))
+            .map(StatFilterApiDTO::getValue)
+            .collect(Collectors.toSet());
+        assertTrue(producerFilterValues.contains("3"));
+        assertTrue(producerFilterValues.contains("4"));
     }
 }

@@ -25,6 +25,7 @@ import org.javatuples.Triplet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.analysis.CommodityResizeDependencyMap;
 import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.analysis.UpdateFunction;
@@ -232,41 +233,42 @@ public class TopologyEntitiesHandler {
             final DataMetricTimer runTimer = ANALYSIS_RUNTIME
                 .labels(scopeType)
                 .startTimer();
-            final List<Action> actions;
             AnalysisResults results;
 
             // Generate actions
-            final String marketId = topologyInfo.getTopologyType() + "-"
-                + Long.toString(topologyInfo.getTopologyContextId()) + "-"
-                + Long.toString(topologyInfo.getTopologyId());
-            // Set replay actions.
-            final @NonNull ReplayActions seedActions = isRealtime ? analysis.getReplayActions()
-                : new ReplayActions();
-            // trigger suspension throttling in XL
-            actions = ede.generateActions(economy, true, true, true, true,
+        final String marketId = topologyInfo.getTopologyType() + "-"
+            + Long.toString(topologyInfo.getTopologyContextId()) + "-"
+            + Long.toString(topologyInfo.getTopologyId());
+        // Set replay actions.
+        final @NonNull ReplayActions seedActions = isRealtime ? analysis.getReplayActions()
+                                                              : new ReplayActions();
+
+        boolean isCloudMigrationPlan = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
+        // Set isResize to false for migration to cloud use case. Set isResize to true otherwise.
+        boolean isResize = !isCloudMigrationPlan;
+        // trigger suspension throttling in XL
+        List<Action> actions = ede.generateActions(economy, true, true, true, isResize,
                 true, seedActions, marketId, isRealtime,
                 isRealtime ? analysisConfig.getSuspensionsThrottlingConfig() : SuspensionsThrottlingConfig.DEFAULT);
-            final long stop = System.nanoTime();
-
+        final long stop = System.nanoTime();
         results = AnalysisToProtobuf.analysisResults(actions,
             topology.getShoppingListOids(), stop - start,
             topology, startPriceStatement);
-
-            if (isRealtime) {
-                // run another round of analysis on the new state of the economy with provisions enabled
-                // and resize disabled. We add only the provision recommendations to the list of actions generated.
-                // We neglect suspensions since there might be associated moves that we dont want to include
-                //
-                // This is done because in a real-time scenario, we assume that provision actions cannot be
-                // automated and in order to be executed manually require a physical hardware purchase (this
-                // seems like a bad assumption to hardcode for an entire category of actions rather than
-                // provide a mechanism to convey the information on a per-entity basis). Given this assumption,
-                // we want to do the best job of getting the customer's environment to a desired state WITHOUT
-                // provision actions (market subcycle 1) and then if there are still insufficient resources
-                // to meet demand, add any necessary provision actions on top of the recommendations without
-                // provisions (market subcycle 2).
-                AnalysisResults.Builder builder = results.toBuilder();
-                economy.getSettings().setResizeDependentCommodities(false);
+        if (isRealtime) {
+            // run another round of analysis on the new state of the economy with provisions enabled
+            // and resize disabled. We add only the provision recommendations to the list of actions generated.
+            // We neglect suspensions since there might be associated moves that we dont want to include
+            //
+            // This is done because in a real-time scenario, we assume that provision actions cannot be
+            // automated and in order to be executed manually require a physical hardware purchase (this
+            // seems like a bad assumption to hardcode for an entire category of actions rather than
+            // provide a mechanism to convey the information on a per-entity basis). Given this assumption,
+            // we want to do the best job of getting the customer's environment to a desired state WITHOUT
+            // provision actions (market subcycle 1) and then if there are still insufficient resources
+            // to meet demand, add any necessary provision actions on top of the recommendations without
+            // provisions (market subcycle 2).
+            AnalysisResults.Builder builder = results.toBuilder();
+            economy.getSettings().setResizeDependentCommodities(false);
 
                 // Make sure clones and only clones are suspendable. Currently suspend actions generated
                 // in the second sub-cycle are discarded and only useful when collapsed with a provision

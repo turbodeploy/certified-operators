@@ -20,6 +20,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,21 +38,14 @@ import org.jooq.Result;
 import org.jooq.TableField;
 import org.jooq.impl.DSL;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Sets;
-
-import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
-import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
+import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
+import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
+import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
@@ -159,7 +159,7 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
      * inserted as new records into the table. If a previous set of data points has been persisted since
      * the store was initialized, the store will first try to "extend" previous records.
      *
-     * In extending records, the store will check if the compute tier demand matches for an entity from
+     * <p>In extending records, the store will check if the compute tier demand matches for an entity from
      * the topology immediately prior to {@code topologyInfo}. The prior topology is determined through
      * {@link TopologyInfoTracker}. If an entity does not have a record from the previous topology or
      * the compute tier demand differs, a new record will be inserted into the DB.
@@ -184,8 +184,9 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
             // Extend any previously recorded records, if the store has been initialized. On first
             // persistence of records after initialization, the store will insert new records for
             // each datapoint.
-            final Set<Long> extendedEntityRecords = initialized.getAndSet(true) ?
-                    extendEntityRecords(topologyInfo, allocationsByEntityOid) : Collections.EMPTY_SET;
+            final Set<Long> extendedEntityRecords = initialized.getAndSet(true)
+                    ? extendEntityRecords(topologyInfo, allocationsByEntityOid)
+                    : Collections.EMPTY_SET;
 
 
             // Determine the set of data points to insert as new records by taking the difference
@@ -322,7 +323,7 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
      * First, the previous topology is queried from {@link TopologyInfoTracker}. If no prior topology can
      * be found, this method returns without extending any records.
      *
-     * If the prior topology is found, a query is performed for records in which the end time (last recorded
+     * <p>If the prior topology is found, a query is performed for records in which the end time (last recorded
      * time) matches the prior topology's creation time. For any record from the prior topology, if the entity
      * exists in the current set of allocations to store (in {@code allocationsByEntityOid}) and the compute
      * tier demand remains unchanged, the record is "extended", meaning its end time is updated to the
@@ -358,16 +359,20 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
                 final Set<Long> updatedEntityOids = new HashSet<>();
                 Iterators.partition(updatedRecordsStream.iterator(), batchExtensionSize)
                         .forEachRemaining(allocationRecordsBatch -> {
-                            allocationRecordsBatch.forEach(r -> updatedEntityOids.add(r.getEntityOid()));
-                            dslContext.batchUpdate(allocationRecordsBatch).execute();
+                            try {
+                                dslContext.batchUpdate(allocationRecordsBatch).execute();
+                                allocationRecordsBatch.forEach(r -> updatedEntityOids.add(r.getEntityOid()));
+                            } catch (Exception e) {
+                                logger.error("Error extending entity allocation records", e);
+                            }
 
                         });
 
                 return Collections.unmodifiableSet(updatedEntityOids);
             } else {
 
-                logger.warn("Unable to find previous topology in extending allocation records " +
-                                "(Context ID={}, Topology ID={}, Type={}, Creation Time={})",
+                logger.warn("Unable to find previous topology in extending allocation records "
+                        + "(Context ID={}, Topology ID={}, Type={}, Creation Time={})",
                         topologyInfo.getTopologyContextId(),
                         topologyInfo.getTopologyId(),
                         topologyInfo.getTopologyType(),
@@ -384,12 +389,12 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
      * The compute tier demand between the record and data point must match for a record to be extended.
      * The {@link EntityComputeTierAllocationRecord#getEndTime()} attribute of {@codeallocationRecord}
      * will be updated to {@code topologyCreationTime}, if a match is found.
-     * <p>
-     * Note: The {@code allocationRecord} is updated, instead of creating a new record, in order to optimize
+     *
+     * <p>Note: The {@code allocationRecord} is updated, instead of creating a new record, in order to optimize
      * the update query. Updating a record already attached to a context should allow jOOQ to create an UPDATE
      * query for only the updated attribute (and not the entire record).
      *
-     * @param allocationRecord The {@link EntityComputeTierAllocationRecord} to extend
+     * @param record The {@link EntityComputeTierAllocationRecord} to extend
      * @param allocationsByEntityOid The set of allocation datapoints, in which a matching allocation to
      *                               the target {@code allocationRecord} will be matched against.
      * @param topologyCreationTime The topology creation time associated with the allocation datapoints.
@@ -399,23 +404,23 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
      * found and the record cannot be extended, {@link Optional#empty()} will be returned.
      */
     private Optional<EntityComputeTierAllocationRecord> extendAllocationRecord(
-            @Nonnull EntityComputeTierAllocationRecord allocationRecord,
+            @Nonnull EntityComputeTierAllocationRecord record,
             @Nonnull Map<Long, ComputeTierAllocationDatapoint> allocationsByEntityOid,
             @Nonnull LocalDateTime topologyCreationTime) {
 
-        if (allocationsByEntityOid.containsKey(allocationRecord.getEntityOid())) {
+        if (allocationsByEntityOid.containsKey(record.getEntityOid())) {
             final ComputeTierAllocationDatapoint allocationDatapoint = allocationsByEntityOid.get(
-                    allocationRecord.getEntityOid());
+                    record.getEntityOid());
 
             final ComputeTierDemand computeTierDemand = allocationDatapoint.cloudTierDemand();
 
-            if (computeTierDemand.osType().equals(OSType.forNumber(allocationRecord.getOsType())) &&
-                    computeTierDemand.tenancy().equals(Tenancy.forNumber(allocationRecord.getTenancy())) &&
-                    computeTierDemand.cloudTierOid() == allocationRecord.getAllocatedComputeTierOid()) {
+            if (computeTierDemand.osType().equals(OSType.forNumber(record.getOsType()))
+                    && computeTierDemand.tenancy().equals(Tenancy.forNumber(record.getTenancy()))
+                    && computeTierDemand.cloudTierOid() == record.getAllocatedComputeTierOid()) {
 
-                allocationRecord.setEndTime(topologyCreationTime);
+                record.setEndTime(topologyCreationTime);
 
-                return Optional.of(allocationRecord);
+                return Optional.of(record);
             }
         }
 
@@ -527,7 +532,7 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
                 .regionOid(entityCloudScopeRecord.getRegionOid())
                 .availabilityZoneOid(Optional.ofNullable(entityCloudScopeRecord.getAvailabilityZoneOid()))
                 .serviceProviderOid(entityCloudScopeRecord.getServiceProviderOid())
-                .cloudTierDemand(ImmutableComputeTierDemand.builder()
+                .cloudTierDemand(ComputeTierDemand.builder()
                         .cloudTierOid(allocationRecord.getAllocatedComputeTierOid())
                         .osType(OSType.forNumber(allocationRecord.getOsType()))
                         .tenancy(Tenancy.forNumber(allocationRecord.getTenancy()))
@@ -559,7 +564,7 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
         //TODO To be implemented as a part of OM-58627
         return;
     }

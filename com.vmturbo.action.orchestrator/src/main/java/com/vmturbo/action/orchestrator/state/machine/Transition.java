@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -32,7 +33,7 @@ import com.vmturbo.action.orchestrator.state.machine.StateMachine.TransitionList
  */
 public class Transition<STATE, EVENT extends StateMachineEvent> {
     private final Node<STATE, EVENT> source;
-    private final Node<STATE, EVENT> destination;
+    private final Supplier<Node<STATE, EVENT>> destination;
     private final Optional<TransitionGuard<EVENT>> guard;
     private final List<TransitionListener<EVENT>> beforeListeners;
     private final List<TransitionListener<EVENT>> afterListeners;
@@ -48,7 +49,7 @@ public class Transition<STATE, EVENT extends StateMachineEvent> {
      * @param afterListeners A list of listeners to be called after the transition is taken.
      */
     Transition(@Nonnull final Node<STATE, EVENT> source,
-               @Nonnull final Node<STATE, EVENT> destination,
+               @Nonnull final Supplier<Node<STATE, EVENT>> destination,
                @Nullable final TransitionGuard<EVENT> guard,
                @Nonnull final List<TransitionListener<EVENT>> beforeListeners,
                @Nonnull final List<TransitionListener<EVENT>> afterListeners) {
@@ -78,7 +79,7 @@ public class Transition<STATE, EVENT extends StateMachineEvent> {
         return source;
     }
 
-    Node<STATE, EVENT> getDestination() {
+    Supplier<Node<STATE, EVENT>> getDestination() {
         return destination;
     }
 
@@ -106,6 +107,11 @@ public class Transition<STATE, EVENT extends StateMachineEvent> {
         afterListeners.forEach(listener -> listener.onTransition(event));
     }
 
+    @Override
+    public String toString() {
+        return source.getState() + "->" + destination.get().getState();
+    }
+
     /**
      * A builder for transitions that captures the source state.
      * Destination and eventType information must be configured to generate a valid transition.
@@ -128,6 +134,17 @@ public class Transition<STATE, EVENT extends StateMachineEvent> {
          * @return A {@link RequiringEventBuilder} that should be configured with an eventType.
          */
         public RequiringEventBuilder<STATE, EVENT> to(@Nonnull final STATE destination) {
+            return new RequiringEventBuilder<>(source, () -> destination);
+        }
+
+        /**
+         * Configure the destination state supplier that will be transitioned from the source state.
+         *
+         * @param destination destination supplier. Will be calculated at the point in time
+         *         when transition si applied
+         * @return A {@link RequiringEventBuilder} that should be configured with an eventType.
+         */
+        public RequiringEventBuilder<STATE, EVENT> to(@Nonnull final Supplier<STATE> destination) {
             return new RequiringEventBuilder<>(source, destination);
         }
 
@@ -146,9 +163,9 @@ public class Transition<STATE, EVENT extends StateMachineEvent> {
      */
     public static class RequiringEventBuilder<STATE, EVENT extends StateMachineEvent> {
         private final STATE source;
-        private final STATE destination;
+        private final Supplier<STATE> destination;
 
-        private RequiringEventBuilder(final STATE source, final STATE destination) {
+        private RequiringEventBuilder(final STATE source, final Supplier<STATE> destination) {
             Objects.requireNonNull(source);
             Objects.requireNonNull(destination);
 
@@ -176,8 +193,13 @@ public class Transition<STATE, EVENT extends StateMachineEvent> {
             return source;
         }
 
-        STATE getDestination() {
+        Supplier<STATE> getDestination() {
             return destination;
+        }
+
+        @Override
+        public String toString() {
+            return source + "->" + destination.get();
         }
     }
 
@@ -200,9 +222,10 @@ public class Transition<STATE, EVENT extends StateMachineEvent> {
      */
     public static class Builder<STATE, EVENT extends StateMachineEvent, SPECIFIC_EVENT extends EVENT> {
         private final STATE source;
-        private final STATE destination;
+        private final Supplier<STATE> destination;
         private final Class<SPECIFIC_EVENT> eventClass;
         private TransitionGuard<SPECIFIC_EVENT> guard;
+        private Supplier<Boolean> condition;
         private final List<TransitionListener<EVENT>> beforeListeners;
         private final List<TransitionListener<EVENT>> afterListeners;
 
@@ -216,7 +239,7 @@ public class Transition<STATE, EVENT extends StateMachineEvent> {
          * @param eventClass The class of event on which the transition should be performed.
          */
         private Builder(@Nonnull final STATE source,
-                        @Nonnull final STATE destination,
+                        @Nonnull final Supplier<STATE> destination,
                         @Nonnull final Class<SPECIFIC_EVENT> eventClass) {
             this.source = Objects.requireNonNull(source);
             this.destination = Objects.requireNonNull(destination);
@@ -293,7 +316,7 @@ public class Transition<STATE, EVENT extends StateMachineEvent> {
             return source;
         }
 
-        STATE getDestination() {
+        Supplier<STATE> getDestination() {
             return destination;
         }
 
@@ -319,14 +342,12 @@ public class Transition<STATE, EVENT extends StateMachineEvent> {
          */
         Transition<STATE, EVENT> build(@Nonnull final Map<STATE, Node<STATE, EVENT>> nodes) {
             Node<STATE, EVENT> sourceNode = nodes.get(source);
-            Node<STATE, EVENT> destinationNode = nodes.get(destination);
 
             if (sourceNode == null) {
                 sourceNode = new Node<>(source);
             }
-            if (destinationNode == null) {
-                destinationNode = new Node<>(destination);
-            }
+            final Supplier<Node<STATE, EVENT>> destinationNode =
+                    () -> nodes.computeIfAbsent(destination.get(), Node::new);
 
             /**
              * While this sort of cast is generally unsafe to do, because of the invariants

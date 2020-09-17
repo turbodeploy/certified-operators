@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.conversions;
 
 import java.util.Collections;
+import java.util.function.BiFunction;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,6 +33,7 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.RatioDependency;
@@ -60,6 +63,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.TagValues;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.stitching.utilities.CopyActionEligibility;
 import com.vmturbo.topology.processor.conversions.typespecific.ApplicationInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessAccountInfoMapper;
@@ -181,6 +185,20 @@ public class SdkToTopologyEntityConverter {
         return builder.build();
     }
 
+    // TODO: This function will be moved into newTopologyEntityDTO when VVs are ready to handle num_disks (OM-59261)
+
+    /**
+     * This is the original logic without any notion of numDisk- generate a list of
+     * CommodityBoughtDTO purchased from a single provider.
+     *
+     * @return a BiFunction that returns a list of CommodityBoughtDTO purchased from a single provider
+     */
+    private static BiFunction<Map.Entry<StitchingEntity, List<CommoditiesBought>>, CommoditiesBought, List<CommodityBoughtDTO>> getCommoditiesBoughtLambda() {
+        return (entry, commodityBought) -> commodityBought.getBoughtList().stream()
+                .map(commDTO -> newCommodityBoughtDTO(commDTO, entry.getKey().getCommoditiesSold()))
+                .collect(Collectors.toList());
+    }
+
     /**
      * Convert one probe entity DTO to one topology entity DTO.
      *
@@ -235,9 +253,9 @@ public class SdkToTopologyEntityConverter {
                             CommoditiesBoughtFromProvider.newBuilder()
                                 .setProviderId(entry.getKey().getOid())
                                 .addAllCommodityBought(commodityBought.getBoughtList().stream()
-                                    .map(commDTO -> newCommodityBoughtDTO(commDTO,
-                                        entry.getKey().getCommoditiesSold()))
-                                    .collect(Collectors.toList()))
+                                        .map(commDTO -> newCommodityBoughtDTO(commDTO,
+                                                entry.getKey().getCommoditiesSold()))
+                                        .collect(Collectors.toList()))
                                 .setProviderEntityType(entry.getKey().getEntityType().getNumber());
                         Long volumeId = commodityBought.getVolumeId();
                         if (volumeId != null) {
@@ -253,7 +271,6 @@ public class SdkToTopologyEntityConverter {
                     })
                 )
                 .collect(Collectors.toList());
-
         // Create a Set of connected-to entities.
         // Here we use a Set because the same stitchingEntity can appear multiple times in the
         // connected entity set, e.g. one business account can be discovered by multiple targets.
@@ -304,6 +321,12 @@ public class SdkToTopologyEntityConverter {
                 (f, v) -> entityPropertyMap.put(f.getFullName(), v.toString())
             )
         );
+
+        if (dto.hasVirtualMachineData()
+                && MapUtils.isNotEmpty(dto.getVirtualMachineData().getDiskToStorageMap())) {
+            // Subtract 1 from the diskToStorageCount to account for the OS disk
+            entityPropertyMap.put(StringConstants.NUM_VIRTUAL_DISKS, String.valueOf(Math.max(0, dto.getVirtualMachineData().getDiskToStorageCount() - 1)));
+        }
 
         if (dto.hasOrigin()) {
             entityPropertyMap.put("origin", dto.getOrigin().toString()); // TODO: DISCOVERED/PROXY use number?
@@ -737,9 +760,6 @@ public class SdkToTopologyEntityConverter {
         final TopologyDTO.CommoditySoldDTO.Builder retCommSoldBuilder =
             TopologyDTO.CommoditySoldDTO.newBuilder()
                 .setCommodityType(commodityType(commDTO))
-                .setUsed(adjustedUsed(commDTO))
-                .setPeak(adjustedPeak(commDTO))
-                .setCapacity(commDTO.getCapacity())
                 .setIsThin(commDTO.getThin())
                 .setActive(commDTO.getActive())
                 .setIsResizeable(commDTO.getResizable())
@@ -748,6 +768,16 @@ public class SdkToTopologyEntityConverter {
                     .filter(prop -> prop.getName().equals(SDKConstants.AGGREGATES))
                     .flatMap(prop -> prop.getValuesList().stream())
                     .collect(Collectors.toList()));
+        // retain mediation values here, EntityValidator may change later
+        if (commDTO.hasCapacity()) {
+            retCommSoldBuilder.setCapacity(commDTO.getCapacity());
+        }
+        if (commDTO.hasUsed()) {
+            retCommSoldBuilder.setUsed(adjustedUsed(commDTO));
+        }
+        if (commDTO.hasPeak()) {
+            retCommSoldBuilder.setPeak(adjustedPeak(commDTO));
+        }
 
         if (commDTO.hasLimit() && (commDTO.getLimit() > 0)
                 && commDTO.hasCapacity() && (commDTO.getCapacity() > 0)) {
@@ -855,9 +885,13 @@ public class SdkToTopologyEntityConverter {
      */
     private static double adjustedUsed(
             @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO) {
-        return commDTO.getIsUsedPct()
-                ? commDTO.getUsed() * commDTO.getCapacity() / 100
-                : commDTO.getUsed();
+        // missing capacity to be processed by EntityValidator
+        if (commDTO.getIsUsedPct() && commDTO.hasCapacity()) {
+            return commDTO.getUsed() * commDTO.getCapacity() / 100;
+        } else {
+            logger.trace("Capacity is unset, unable to calculate pct used for {}", () -> commDTO);
+            return commDTO.getUsed();
+        }
     }
 
     /**
@@ -868,9 +902,13 @@ public class SdkToTopologyEntityConverter {
      */
     private static double adjustedPeak(
             @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO) {
-        return commDTO.getIsPeakPct()
-                ? commDTO.getPeak() * commDTO.getCapacity() / 100
-                : commDTO.getPeak();
+        // missing capacity to be processed by EntityValidator
+        if (commDTO.getIsPeakPct() && commDTO.hasCapacity()) {
+            return commDTO.getPeak() * commDTO.getCapacity() / 100;
+        } else {
+            logger.trace("Capacity is unset, unable to calculate pct peak for {}", () -> commDTO);
+            return commDTO.getPeak();
+        }
     }
 
     /**
@@ -886,10 +924,17 @@ public class SdkToTopologyEntityConverter {
             @Nonnull TopologyDTO.CommodityBoughtDTO.Builder builder,
             @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO,
             @Nonnull Stream<CommodityDTO.Builder> providerSoldCommodities) {
+        if (!commDTO.hasUsed() && !commDTO.hasPeak()) {
+            return;
+        }
         // if used and peak are not percentage based, return the values immediately
         if (!commDTO.getIsUsedPct() && !commDTO.getIsPeakPct()) {
-            builder.setUsed(commDTO.getUsed());
-            builder.setPeak(commDTO.getPeak());
+            if (commDTO.hasUsed()) {
+                builder.setUsed(commDTO.getUsed());
+            }
+            if (commDTO.hasPeak()) {
+                builder.setPeak(commDTO.getPeak());
+            }
             return;
         }
 
@@ -906,11 +951,16 @@ public class SdkToTopologyEntityConverter {
                     commDTO.getUsed(), commDTO.getPeak());
         }
         double factor = commSold
+                .filter(CommodityDTO.Builder::hasCapacity)
                 .map(CommodityDTO.Builder::getCapacity)
                 .map(capacity -> capacity / 100)
                 .orElse(1.0);
-        builder.setUsed(commDTO.getIsUsedPct() ? commDTO.getUsed() * factor : commDTO.getUsed());
-        builder.setPeak(commDTO.getIsPeakPct() ? commDTO.getPeak() * factor : commDTO.getPeak());
+        if (commDTO.hasUsed()) {
+            builder.setUsed(commDTO.getIsUsedPct() ? commDTO.getUsed() * factor : commDTO.getUsed());
+        }
+        if (commDTO.hasPeak()) {
+            builder.setPeak(commDTO.getIsPeakPct() ? commDTO.getPeak() * factor : commDTO.getPeak());
+        }
     }
 
     private static CommodityType commodityType(CommonDTO.CommodityDTOOrBuilder commDTO) {

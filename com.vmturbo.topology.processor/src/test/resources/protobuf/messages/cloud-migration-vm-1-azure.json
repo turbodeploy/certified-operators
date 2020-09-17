@@ -1,0 +1,284 @@
+{
+  "entityType": 10,
+  "oid": "73320335294003",
+  "displayName": "Enlin-Demo-VM",
+  "commoditySoldList": [{
+    "commodityType": {
+      "type": 56,
+      "key": "73320335294003"
+    },
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 26
+    },
+    "used": 350.0070097705078,
+    "peak": 988.5091767578125,
+    "capacity": 16613.599609375,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "hotResizeInfo": {
+      "hotReplaceSupported": false,
+      "hotAddSupported": false,
+      "hotRemoveSupported": false
+    },
+    "displayName": "",
+    "utilizationData": {
+      "point": [3.48, 5.6025, 2.0325, 1.8675, 2.03, 6.8375, 3.1425, 1.91, 2.935, 1.8475, 3.32, 2.33, 1.86, 1.7975, 1.715, 1.7225, 1.63],
+      "lastPointTimestampMs": "1593137820000",
+      "intervalMs": 60000
+    }
+  }, {
+    "commodityType": {
+      "type": 53
+    },
+    "capacity": 1.6777216E7,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "hotResizeInfo": {
+      "hotReplaceSupported": false,
+      "hotAddSupported": false
+    },
+    "displayName": ""
+  }],
+  "commoditiesBoughtFromProviders": [{
+    "providerId": "73320335294658",
+    "providerEntityType": 60,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 59,
+        "key": "Group::MANAGED_PREMIUM"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 6
+      },
+      "used": 114688.0,
+      "active": false,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 22
+      },
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 39
+      },
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 114688.0,
+      "active": true,
+      "displayName": ""
+    }],
+    "movable": false,
+    "startable": false,
+    "scalable": false
+  }, {
+    "providerId": "73320334249387",
+    "providerEntityType": 56,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 83,
+        "key": "DEFAULT"
+      },
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 40
+      },
+      "used": 350.0070097705078,
+      "peak": 988.5091767578125,
+      "active": true,
+      "displayName": "",
+      "reservedCapacity": 0.0
+    }, {
+      "commodityType": {
+        "type": 45
+      },
+      "used": 1.6777216E7,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 96
+      },
+      "used": 11.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 28
+      },
+      "used": 16613.599609375,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 86
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 84,
+        "key": "Linux"
+      },
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 21
+      },
+      "active": true,
+      "displayName": "",
+      "reservedCapacity": 0.0
+    }]
+  }, {
+    "providerId": "73320335294657",
+    "providerEntityType": 60,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 59,
+        "key": "Group::MANAGED_PREMIUM"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 6
+      },
+      "used": 31744.0,
+      "active": false,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 22
+      },
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 39
+      },
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 31744.0,
+      "active": true,
+      "displayName": ""
+    }],
+    "movable": false,
+    "startable": false,
+    "scalable": false
+  }],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap": {
+    "azureQuotaFamily": "standardESv3Family",
+    "turbo_owner": "enlin.xu@turbonomic.com",
+    "AutoSuspend": "False",
+    "billingId": "758ad253-cbf5-4b18-8863-3eed0825bf07/TURBONOMIC/Enlin-Demo-VM",
+    "resourceGroupName": "TURBONOMIC",
+    "numCpus": "2",
+    "compatibleStorageTier": "PREMIUM",
+    "tenancy": "default",
+    "turbo_comment": "",
+    "availabilityZones": "[]",
+    "turbo_lifetime": ""
+  },
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1593138091551",
+      "discoveredTargetData": {
+        "73320333631169": {
+          "vendorId": "6e60657c-b6d6-48fa-b8a8-865d6d0c1dd4"
+        }
+      }
+    }
+  },
+  "connectedEntityList": [{
+    "connectedEntityId": "73320334248977",
+    "connectedEntityType": 54,
+    "connectionType": "AGGREGATED_BY_CONNECTION"
+  }],
+  "tags": {
+    "tags": {
+      "turbo_owner": {
+        "values": ["enlin.xu@turbonomic.com"]
+      },
+      "AutoSuspend": {
+        "values": ["False"]
+      },
+      "turbo_comment": {
+        "values": [""]
+      },
+      "turbo_lifetime": {
+        "values": [""]
+      }
+    }
+  },
+  "environmentType": "CLOUD",
+  "typeSpecificInfo": {
+    "virtualMachine": {
+      "guestOsInfo": {
+        "guestOsType": "LINUX",
+        "guestOsName": "Linux"
+      },
+      "tenancy": "DEFAULT",
+      "ipAddresses": [{
+        "ipAddress": "10.1.3.4",
+        "isElastic": true
+      }, {
+        "ipAddress": "13.72.65.224",
+        "isElastic": false
+      }],
+      "numCpus": 2,
+      "billingType": "ONDEMAND",
+      "licenseModel": "LICENSE_INCLUDED",
+      "driverInfo": {
+      },
+      "dynamicMemory": false
+    }
+  }
+}

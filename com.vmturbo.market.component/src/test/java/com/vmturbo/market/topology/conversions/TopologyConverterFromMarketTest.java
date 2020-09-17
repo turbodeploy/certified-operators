@@ -7,8 +7,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyByte;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.longThat;
 import static org.mockito.Mockito.doReturn;
@@ -19,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -42,12 +46,14 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -61,12 +67,17 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.ReservedCapacityAnalysis;
@@ -77,21 +88,24 @@ import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.conversions.CommodityIndex.CommodityIndexFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.mediation.hybrid.cloud.common.OsType;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
+import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
  * Unit tests for {@link TopologyConverter}.
@@ -146,6 +160,8 @@ public class TopologyConverterFromMarketTest {
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
     private ConsistentScalingHelperFactory consistentScalingHelperFactory =
             mock(ConsistentScalingHelperFactory.class);
+    private ReversibilitySettingFetcher reversibilitySettingFetcher =
+            mock(ReversibilitySettingFetcher.class);
 
     private static final int BICLIQUE_TYPE_ID = ID_ALLOCATOR.allocate("BICLIQUE");
     private static final int CPU_TYPE_ID = ID_ALLOCATOR.allocate("CPU");
@@ -195,7 +211,9 @@ public class TopologyConverterFromMarketTest {
             mockCCD,
             commodityIndexFactory,
             tierExcluderFactory,
-            consistentScalingHelperFactory, cloudTopology));
+            consistentScalingHelperFactory,
+            cloudTopology,
+            reversibilitySettingFetcher));
     }
 
     /**
@@ -568,9 +586,10 @@ public class TopologyConverterFromMarketTest {
                         .setModelBuyer(-DS_OID).setModelSeller(DA_OID)
                         .setProvisionedSeller(DA_OID + 100L).build())
                 .build();
-        Optional<Action> provByDemandOptional =
+        List<Action> provByDemandList =
                 converter.interpretAction(provByDemandTO, projectedTopo, null, null, null);
-        assertNotNull(provByDemandOptional.get());
+        assertTrue(!provByDemandList.isEmpty());
+        assertNotNull(provByDemandList.get(0));
 
         //assert for wasted file actions
         Optional<CommoditySoldDTO> daStorageAmtCommSold = projectedTopo.get(traderDS.getOid()).getEntity().getCommoditySoldListList().stream()
@@ -713,12 +732,12 @@ public class TopologyConverterFromMarketTest {
         TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                 false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, indexFactory, tierExcluderFactory,
-            consistentScalingHelperFactory));
+                consistentScalingHelperFactory, reversibilitySettingFetcher));
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
         shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, VOLUME_ID, null,
-                EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
+                null, EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field shoppingListInfos =
                 TopologyConverter.class.getDeclaredField("shoppingListOidToInfos");
         shoppingListInfos.setAccessible(true);
@@ -860,7 +879,7 @@ public class TopologyConverterFromMarketTest {
                         MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketPriceTable, mockCommodityConverter, mockCCD, indexFactory,
                         tierExcluderFactory,
-            consistentScalingHelperFactory, cloudTopology));
+                        consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
@@ -978,6 +997,109 @@ public class TopologyConverterFromMarketTest {
 
         assertThat(entity.get(VM_OID).getEntity().getTypeSpecificInfo(),
                 is(originalVm.getTypeSpecificInfo()));
+    }
+
+    /**
+     * Migrating VMs may change OS. The destination OS is indicated by properties added
+     * to the migrating entity DTO. Verify that these are applied correctly.
+     */
+    @Test
+    public void testMigratedOSUpdate() {
+        final TopologyDTO.TopologyEntityDTO.Builder vmBuilder = TopologyDTO.TopologyEntityDTO
+            .newBuilder()
+            .setOid(VM_OID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualMachine(
+                VirtualMachineInfo.newBuilder()
+                    .setNumCpus(100)
+                    .setGuestOsInfo(OS.newBuilder()
+                        .setGuestOsType(OSType.LINUX)
+                        .setGuestOsName("Linux")
+                    )
+                )
+            ).putEntityPropertyMap(
+                StringConstants.PLAN_NEW_OS_TYPE_PROPERTY, OsType.RHEL.getDtoOS().name()
+            ).putEntityPropertyMap(
+                StringConstants.PLAN_NEW_OS_NAME_PROPERTY, OsType.RHEL.getDisplayName()
+            );
+
+        converter.updateProjectedEntityOsType(vmBuilder);
+
+        OS osInfo = vmBuilder.build().getTypeSpecificInfo().getVirtualMachine()
+            .getGuestOsInfo();
+
+        assertEquals(OSType.RHEL, osInfo.getGuestOsType());
+        assertEquals(OsType.RHEL.getDisplayName(), osInfo.getGuestOsName());
+    }
+
+    /**
+     * Projected costs for VMs may include licensing that depends on the number of cores.
+     * If the VM is buying from a new compute tier, the VMs number of cores should be updated
+     * to match that of the new tier.
+     */
+    @Test
+    public void testMigratedVMCoreUpdate() {
+        final int vmOldNumberOfCpus = 100;
+        final int newComputeTierCpus = 42;
+
+        TopologyDTO.TopologyEntityDTO newTierDTO = createEntityDTO(CLOUD_NEW_COMPUTE_TIER_OID,
+            EntityType.COMPUTE_TIER_VALUE, Collections.EMPTY_LIST, 0)
+            .toBuilder()
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setComputeTier(ComputeTierInfo.newBuilder()
+                    .setNumCores(newComputeTierCpus)
+                    .build())
+            ).build();
+
+        CommoditySoldTO x = CommoditySoldTO.getDefaultInstance();
+
+        when(mockCommodityConverter.createCommoditySoldTO(Mockito.anyObject(), Mockito.anyFloat(),
+            Mockito.anyFloat(), Mockito.anyObject())).thenReturn(x);
+
+        // Prime the topology converter with the compute tier by converting it,
+        // so that it can be looked up in the new topology.
+        converter.convertToMarket(ImmutableMap.of(CLOUD_NEW_COMPUTE_TIER_OID, newTierDTO),
+            Collections.EMPTY_SET);
+
+        // This VM had 100 CPUs, but is migrating to the new compute tier, which has 42
+        final TopologyDTO.TopologyEntityDTO.Builder vmBuilder = TopologyDTO.TopologyEntityDTO
+            .newBuilder()
+            .setOid(VM_OID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(VirtualMachineInfo.newBuilder().setNumCpus(vmOldNumberOfCpus)))
+            .addCommoditiesBoughtFromProviders(
+                CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(CLOUD_NEW_COMPUTE_TIER_OID)
+                    .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                    .build()
+            );
+
+        converter.updateProjectedCores(vmBuilder);
+
+        assertEquals(newComputeTierCpus,
+            vmBuilder.build().getTypeSpecificInfo().getVirtualMachine().getNumCpus());
+    }
+
+    /**
+     * Validate that the creation of BApp and BTx is skipped.
+     */
+    @Test
+    public void testSkipBAppAndBTxEntities() {
+
+        TopologyDTO.TopologyEntityDTO bAppDTO = createEntityDTO(1000,
+                EntityType.BUSINESS_APPLICATION_VALUE, Collections.EMPTY_LIST, 0);
+
+        TopologyDTO.TopologyEntityDTO bTxDTO = createEntityDTO(1001,
+                EntityType.BUSINESS_APPLICATION_VALUE, Collections.EMPTY_LIST, 0);
+
+        CommoditySoldTO x = CommoditySoldTO.getDefaultInstance();
+
+        when(mockCommodityConverter.createCommoditySoldTO(Mockito.anyObject(), Mockito.anyFloat(),
+                Mockito.anyFloat(), Mockito.anyObject())).thenReturn(x);
+
+        Set<TraderTO> traderTOs = converter.convertToMarket(ImmutableMap.of(1000L, bAppDTO,
+                1001L, bTxDTO),
+                Collections.EMPTY_SET);
+        assertTrue(traderTOs.size() == 0);
     }
 
     @Test
@@ -1305,7 +1427,7 @@ public class TopologyConverterFromMarketTest {
         TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
-            consistentScalingHelperFactory, cloudTopology));
+            consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
         converter.setCloudTc(mockCloudTc);
 
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,
@@ -1407,7 +1529,7 @@ public class TopologyConverterFromMarketTest {
         TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
-                consistentScalingHelperFactory, cloudTopology));
+                consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
         converter.setCloudTc(mockCloudTc);
 
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,
@@ -1853,43 +1975,94 @@ public class TopologyConverterFromMarketTest {
         final long vmOid = 1L;
         final long volume1Oid = 2L;
         final long volume2Oid = 3L;
+        final long storageTierOid = 4L;
+        final long storageAmountCapacity = 2000;
+        final Origin volumeOrigin = Origin.newBuilder().build();
         final TopologyDTO.TopologyEntityDTO originalVm = TopologyEntityDTO.newBuilder()
                 .setOid(vmOid)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setDisplayName("")
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                            .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                                .build())
+                            .build())
                         .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                         .setProviderId(volume1Oid))
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                            .build())
+                        .build())
                         .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                         .setProviderId(volume2Oid))
                 .setAnalysisSettings(AnalysisSettings.newBuilder())
                 .build();
+        final CommodityType commodityType = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+            .build();
         final TopologyDTO.TopologyEntityDTO originalVolume1 = TopologyEntityDTO.newBuilder()
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(commodityType)
+                    .build())
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setProviderId(storageTierOid))
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCapacity(storageAmountCapacity)
+                .setCommodityType(commodityType)
+                .build())
                 .setOid(volume1Oid)
                 .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setOrigin(volumeOrigin)
                 .build();
         final TopologyDTO.TopologyEntityDTO originalVolume2 = TopologyEntityDTO.newBuilder()
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(commodityType)
+                    .build())
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setProviderId(storageTierOid))
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCapacity(storageAmountCapacity)
+                .setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                    .build())
+                .build())
                 .setOid(volume2Oid)
                 .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                 .build();
+        final TopologyDTO.TopologyEntityDTO storageTier = TopologyEntityDTO.newBuilder()
+            .setOid(storageTierOid)
+            .setEntityType(EntityType.STORAGE_TIER_VALUE)
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(commodityType)
+                .build())
+            .build();
         final Map<Long, TopologyDTO.TopologyEntityDTO> originalTopology = ImmutableMap.of(
                 vmOid, originalVm,
+                storageTierOid, storageTier,
                 volume1Oid, originalVolume1,
                 volume2Oid, originalVolume2);
+        final CommoditySpecificationTO commoditySpecificationTO =
+            CommoditySpecificationTO.newBuilder()
+            .setBaseType(1111)
+            .setType(1112)
+            .build();
+        Mockito.doReturn(Collections.singletonList(commoditySpecificationTO)).when(mockCommodityConverter)
+            .commoditySpecification(any(), anyByte());
 
-        final EconomyDTOs.TraderTO vmTrader = TraderTO.newBuilder()
-                .setOid(vmOid)
-                .setCloneOf(vmOid)
-                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .addShoppingLists(ShoppingListTO.newBuilder().setOid(4L).setSupplier(volume1Oid))
-                .addShoppingLists(ShoppingListTO.newBuilder().setOid(4L).setSupplier(volume2Oid))
-                .build();
-        final List<EconomyDTOs.TraderTO> projectedTraders = ImmutableList.of(vmTrader);
+        Mockito.doReturn(Optional.of(commodityType)).when(mockCommodityConverter).marketToTopologyCommodity(any());
 
-        converter.convertToMarket(originalTopology);
+        Mockito.doReturn(commodityType).when(mockCommodityConverter)
+            .commodityIdToCommodityType(anyInt());
+
+        final Set<TraderTO> traders = converter.convertToMarket(originalTopology);
+
         final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
-                projectedTraders, originalTopology, PriceIndexMessage.getDefaultInstance(),
+                new ArrayList<>(traders), originalTopology, PriceIndexMessage.getDefaultInstance(),
                 reservedCapacityAnalysis, setUpWastedFileAnalysis());
 
         final ProjectedTopologyEntity projectedVm = entity.get(vmOid);
@@ -1899,6 +2072,17 @@ public class TopologyConverterFromMarketTest {
                 .map(CommoditiesBoughtFromProvider::getProviderId)
                 .collect(Collectors.toSet());
         assertEquals(ImmutableSet.of(volume1Oid, volume2Oid), projectedProviders);
+
+        final ProjectedTopologyEntity projectedVolume1 = entity.get(volume1Oid);
+        final List<CommoditySoldDTO> commoditySoldDTOS = projectedVolume1.getEntity()
+            .getCommoditySoldListList();
+        Assert.assertFalse(commoditySoldDTOS.isEmpty());
+        Assert.assertEquals(volumeOrigin, projectedVolume1.getEntity().getOrigin());
+
+        final CommoditySoldDTO commoditySoldDTO = commoditySoldDTOS.iterator().next();
+        Assert.assertEquals(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
+            commoditySoldDTO.getCommodityType().getType());
+        Assert.assertEquals(storageAmountCapacity, commoditySoldDTO.getCapacity(), 0.1);
     }
 
     private CommoditySoldTO createSoldTO(final int typeValue,
@@ -2070,4 +2254,77 @@ public class TopologyConverterFromMarketTest {
         Assert.assertEquals(THRUGHPUT_USED / 2f, actualBought.getUsed(), DELTA);
     }
 
+    /**
+     * Tests getNewlyConnectedProjectedEntitiesFromOriginalTopo to ensure new connections are
+     * made appropriately.
+     */
+    @Test
+    public void testGetNewlyConnectedProjectedEntitiesFromOriginalTopo() {
+        final long baOid = 1L;
+        final long vmOid = 2L;
+        final long regionOid = 3L;
+
+        TopologyDTO.TopologyEntityDTO ba = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setOid(baOid)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .build();
+
+        TopologyDTO.TopologyEntityDTO vm = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setOid(vmOid)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        // create trader DTO corresponds to originalEntity
+        EconomyDTOs.TraderTO trader = TraderTO.newBuilder()
+                .setOid(vmOid)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addShoppingLists(ShoppingListTO.newBuilder().setOid(vmOid)
+                        .setContext(Context.newBuilder()
+                                .setRegionId(regionOid)
+                                .setBalanceAccount(BalanceAccountDTO.newBuilder()
+                                        .setId(baOid)
+                                        .build()).build()).build()).build();
+
+
+        DiscountApplicator discountApplicator = mock(DiscountApplicator.class);
+        converter.getCloudTc().insertIntoAccountPricingDataByBusinessAccountOidMap(baOid,
+                new AccountPricingData(discountApplicator,
+                        PriceTable.newBuilder().getDefaultInstanceForType(),
+                        baOid));
+        Map<Long, Set<ConnectedEntity>> businessAccountsToNewlyOwnedEntities =
+                converter.getCloudTc().getBusinessAccountsToNewlyOwnedEntities(
+                        Lists.newArrayList(trader),
+                        new HashMap<Long, TopologyDTO.TopologyEntityDTO>() {{
+                            put(baOid, ba);
+                            put(vmOid, vm);
+                        }}, new HashMap<Long, TopologyDTO.TopologyEntityDTO>() {{
+                            put(baOid, ba);
+                        }});
+        assertFalse(businessAccountsToNewlyOwnedEntities.isEmpty());
+        Set<ConnectedEntity> connectedEntities = businessAccountsToNewlyOwnedEntities.get(baOid);
+        assertEquals(1, connectedEntities.size());
+        ConnectedEntity connectedEntity = connectedEntities.iterator().next();
+        assertEquals(ConnectionType.OWNS_CONNECTION, connectedEntity.getConnectionType());
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, connectedEntity.getConnectedEntityType());
+        assertEquals(vmOid, connectedEntity.getConnectedEntityId());
+    }
+
+    /**
+     * Checks if logic to skip shopping list creation for ephemeral storage works or not.
+     */
+    @Test
+    public void skipShoppingListForEphemeralStorage() {
+        final TopologyDTO.TopologyEntityDTO ephemeralVolume =
+                TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setOid(VOLUME_ID).setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualVolume(
+                        VirtualVolumeInfo.newBuilder().setIsEphemeral(true)))
+                .build();
+        assertTrue(converter.skipShoppingListCreation(ephemeralVolume));
+
+        final TopologyDTO.TopologyEntityDTO nonEphemeralVolume =
+                TopologyDTO.TopologyEntityDTO.newBuilder()
+                        .setOid(VOLUME_ID).setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                        .build();
+        assertFalse(converter.skipShoppingListCreation(nonEphemeralVolume));
+    }
 }

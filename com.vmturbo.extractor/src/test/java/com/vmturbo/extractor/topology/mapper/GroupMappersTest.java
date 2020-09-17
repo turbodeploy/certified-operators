@@ -68,7 +68,7 @@ public class GroupMappersTest {
         final Iterator<Grouping> groups = groupService.getGroups(GetGroupsRequest.newBuilder().build());
         // successively peel off each returned group and check that its type maps to the expected
         // value. Note that by using string literals here instead of the corresponding constants we
-        // protect against those constants being inadvertantly changed, e.g. during other editing
+        // protect against those constants being inadvertently changed, e.g. during other editing
         // in the vicinity.
         assertThat(getNextMappedTypeName(groups), is(EntityType.GROUP));
         assertThat(getNextMappedTypeName(groups), is(EntityType.RESOURCE_GROUP));

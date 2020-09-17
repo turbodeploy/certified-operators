@@ -7,7 +7,7 @@
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
-        <version>7.22.100-TeamPaaS-SNAPSHOT</version>
+        <version>7.22.9-SNAPSHOT</version>
     </parent>
 
     <artifactId>com.vmturbo.api.component</artifactId>
@@ -541,6 +541,10 @@
         <dependency>
             <groupId>org.eclipse.jetty.websocket</groupId>
             <artifactId>javax-websocket-server-impl</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>commons-beanutils</groupId>
+            <artifactId>commons-beanutils</artifactId>
         </dependency>
         <dependency>
             <groupId>com.github.stefanbirkner</groupId>

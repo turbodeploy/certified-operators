@@ -94,6 +94,7 @@ public class StatsMapperTest {
     private static final String AWS = "AWS";
     private static final String COST_COMPONENT = "costComponent";
     private static final String PERCENTILE = "percentile";
+    private static final String BYTE_PER_SEC = "Byte/sec";
 
     private PaginationMapper paginationMapper = mock(PaginationMapper.class);
 
@@ -931,6 +932,37 @@ public class StatsMapperTest {
     }
 
     /**
+     * Tests that when converting from {@link StatRecord} to {@link StatApiDTO} with commodities
+     * that need conversion from bytes to bits, totalMax & totalMin in capacity & values fields are
+     * being populated correctly.
+     */
+    @Test
+    public void testToStatApiDtoTotalMaxMinWithByteToBitConversion() {
+        // GIVEN
+        float totalMax = 123.0f;
+        float totalMin = 9.0f;
+        StatRecord record = StatRecord.newBuilder()
+                .setName(StringConstants.IO_THROUGHPUT)
+                .setUnits(BYTE_PER_SEC)
+                .setCapacity(buildStatValueWithCustomValues(totalMax, totalMin, 100.0f, 110.0f,
+                        totalMax, totalMin))
+                .setUsed(buildStatValueWithCustomValues(totalMax, totalMin, 100.0f, 110.0f,
+                        totalMax, totalMin))
+                .setValues(buildStatValueWithCustomValues(totalMax, totalMin, 100.0f, 110.0f,
+                        totalMax, totalMin))
+                .build();
+
+        // WHEN
+        StatApiDTO dto = this.statsMapper.toStatApiDto(record);
+
+        // THEN
+        assertEquals(totalMax * 8, dto.getCapacity().getTotalMax().doubleValue(), 0.001);
+        assertEquals(totalMin * 8, dto.getCapacity().getTotalMin().doubleValue(), 0.001);
+        assertEquals(totalMax * 8, dto.getValues().getTotalMax().doubleValue(), 0.001);
+        assertEquals(totalMin * 8, dto.getValues().getTotalMin().doubleValue(), 0.001);
+    }
+
+    /**
      * Tests {@link StatRecord} name matched to UICommodityType.
      *
      * <p>Name has STAT_PREFIX_CURRENT in the front, these are plan_source aggregated stats</p>
@@ -1099,6 +1131,28 @@ public class StatsMapperTest {
                 .setMax(5000+seed)
                 .setMin(6000+seed)
                 .setAvg(7000+seed)
+                .build();
+    }
+
+    /**
+     * Creates a StatValue object with custom values.
+     * @param max max value
+     * @param min min value
+     * @param avg avg value
+     * @param total total value
+     * @param totalMax totalMax value
+     * @param totalMin totalMin value
+     * @return the created object
+     */
+    private static StatValue buildStatValueWithCustomValues(float max, float min, float avg,
+            float total, float totalMax, float totalMin) {
+        return StatValue.newBuilder()
+                .setMax(max)
+                .setMin(min)
+                .setAvg(avg)
+                .setTotal(total)
+                .setTotalMax(totalMax)
+                .setTotalMin(totalMin)
                 .build();
     }
 }

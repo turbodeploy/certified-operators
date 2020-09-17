@@ -50,7 +50,6 @@ public class ProcessingLoopTest {
                         .repartitioningTimeoutSecs(Integer.MAX_VALUE)
                         .hourlyRollupTimeoutSecs(Integer.MAX_VALUE)
                         .processingLoopMaxSleepSecs(60)
-                        .realtimeTopologyContextId(REALTIME_TOPOLOGY_CONTEXT_ID)
                         .build();
         this.ps = new ProcessingStatus(config, historydbIO);
         this.loop = new ProcessingLoop(mock(TopologyCoordinator.class), ps, config);

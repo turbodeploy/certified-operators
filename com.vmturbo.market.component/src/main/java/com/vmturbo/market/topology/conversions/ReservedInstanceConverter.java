@@ -153,7 +153,7 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
         commoditiesSold.addAll(commodityConverter.commoditiesSoldList(region));
 
         // create CouponComm
-        float capacity = marketTier.getTotalNumberOfCouponsBought();
+        float capacity = (float)marketTier.getTotalNumberOfCouponsBought();
         float used = marketTier.getTotalNumberOfCouponsUsed();
         CommodityType commType =
                 CommodityType.newBuilder()
@@ -165,7 +165,7 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
                 couponUf));
 
         // create TenancyAccess
-        capacity = marketTier.getTotalNumberOfCouponsBought();
+        capacity = (float)marketTier.getTotalNumberOfCouponsBought();
         used = 0;
         commType = CommodityType.newBuilder()
                             .setType(CommodityDTO.CommodityType.TENANCY_ACCESS_VALUE)

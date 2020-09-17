@@ -99,7 +99,9 @@ public final class MarketAnalysisUtils {
                                     CommodityDTO.CommodityType.Q16_VCPU_VALUE,
                                     CommodityDTO.CommodityType.Q32_VCPU_VALUE,
                                     CommodityDTO.CommodityType.Q64_VCPU_VALUE,
-                                    CommodityDTO.CommodityType.QN_VCPU_VALUE);
+                                    CommodityDTO.CommodityType.QN_VCPU_VALUE,
+                                    CommodityDTO.CommodityType.RESPONSE_TIME_VALUE,
+                                    CommodityDTO.CommodityType.TRANSACTION_VALUE);
 
     /**
      * Commodities that will be priced with SquaredReciprocalBought function.
@@ -141,9 +143,7 @@ public final class MarketAnalysisUtils {
      * e.g. for those commodities with fake capacity.
      */
     public static final Set<Integer> VALID_COMMODITIES_TO_CAP =
-                    ImmutableSet.of(CommodityDTO.CommodityType.RESPONSE_TIME_VALUE,
-                                    CommodityDTO.CommodityType.TRANSACTION_VALUE,
-                                    CommodityDTO.CommodityType.SLA_COMMODITY_VALUE);
+                    ImmutableSet.of(CommodityDTO.CommodityType.SLA_COMMODITY_VALUE);
 
     /**
      * Commodities that are not capped but skipped for used > capacity check. They are sent
@@ -182,7 +182,9 @@ public final class MarketAnalysisUtils {
                     CommodityDTO.CommodityType.CPU_ALLOCATION_VALUE,
                     CommodityDTO.CommodityType.MEM_ALLOCATION_VALUE,
                     CommodityDTO.CommodityType.POOL_CPU_VALUE,
-                    CommodityDTO.CommodityType.POOL_MEM_VALUE);
+                    CommodityDTO.CommodityType.POOL_MEM_VALUE,
+                    CommodityDTO.CommodityType.RESPONSE_TIME_VALUE,
+                    CommodityDTO.CommodityType.TRANSACTION_VALUE);
 
     /**
      * Map of list of commodities that simulation of resize action based on historical value
@@ -221,7 +223,9 @@ public final class MarketAnalysisUtils {
                                     CommodityDTO.CommodityType.HOST_LUN_ACCESS_VALUE);
 
     public static final Set<Integer> SKIPPED_ENTITY_TYPES =
-                    ImmutableSet.of(EntityType.ACTION_MANAGER_VALUE);
+                    ImmutableSet.of(EntityType.ACTION_MANAGER_VALUE,
+                                    EntityType.BUSINESS_APPLICATION_VALUE,
+                                    EntityType.BUSINESS_TRANSACTION_VALUE);
 
     public static final Set<Integer> PROVISIONED_COMMODITIES =
                     ImmutableSet.of(CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE,

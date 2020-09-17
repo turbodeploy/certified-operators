@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
-        <version>7.22.100-TeamPaaS-SNAPSHOT</version>
+        <version>7.22.9-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
 
@@ -362,21 +362,21 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>sql-test-utils</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.powermock</groupId>
-            <artifactId>powermock-core</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.powermock</groupId>
-            <artifactId>powermock-module-junit4</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.powermock</groupId>
-            <artifactId>powermock-api-mockito</artifactId>
-            <scope>test</scope>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.powermock</groupId>-->
+<!--            <artifactId>powermock-core</artifactId>-->
+<!--            <scope>test</scope>-->
+<!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>org.powermock</groupId>-->
+<!--            <artifactId>powermock-module-junit4</artifactId>-->
+<!--            <scope>test</scope>-->
+<!--        </dependency>-->
+<!--        <dependency>-->
+<!--            <groupId>org.powermock</groupId>-->
+<!--            <artifactId>powermock-api-mockito</artifactId>-->
+<!--            <scope>test</scope>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>pl.pragmatists</groupId>
             <artifactId>JUnitParams</artifactId>
@@ -385,6 +385,11 @@
         <dependency>
             <groupId>net.sf.trove4j</groupId>
             <artifactId>trove4j</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>javax.annotation</groupId>
+            <artifactId>javax.annotation-api</artifactId>
+            <version>1.2</version>
         </dependency>
         <dependency>
             <groupId>pl.pragmatists</groupId>

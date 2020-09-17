@@ -51,11 +51,11 @@ public class SMAStatistics {
     /*
      * total RI coupons
      */
-    private int totalRiCoupons = 0;
+    private double totalRiCoupons = 0;
     /*
      * total RI coupons used
      */
-    private int totalDiscountedCoupons = 0;
+    private double totalDiscountedCoupons = 0;
 
     /*
      * Costs
@@ -253,7 +253,7 @@ public class SMAStatistics {
 
 
     // total RI coupons.
-    public void setTotalRiCoupons(int value) {
+    public void setTotalRiCoupons(double value) {
         totalRiCoupons = value;
     }
 
@@ -289,7 +289,7 @@ public class SMAStatistics {
     /*
      * total RI coupons used
      */
-    public void setTotalDiscountedCoupons(int value) {
+    public void setTotalDiscountedCoupons(double value) {
         totalDiscountedCoupons = value;
     }
 

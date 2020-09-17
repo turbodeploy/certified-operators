@@ -1,12 +1,16 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -16,10 +20,14 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.Matchers;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtCountByTemplateResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtCountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
@@ -30,11 +38,16 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceCostStat;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.cost.Cost.UpdatePlanBuyReservedInstanceCostsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.UpdatePlanBuyReservedInstanceCostsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
 /**
  * Tests for the {@link PlanReservedInstanceRpcService}.
@@ -55,8 +68,15 @@ public class PlanReservedInstanceRpcServiceTest {
 
     private BuyReservedInstanceStore buyReservedInstanceStore = mock(BuyReservedInstanceStore.class);
 
+    private PlanProjectedEntityCostStore planProjectedEntityCostStore =
+            mock(PlanProjectedEntityCostStore.class);
+
+    private PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore =
+            mock(PlanProjectedRICoverageAndUtilStore.class);
+
     private PlanReservedInstanceRpcService service = new PlanReservedInstanceRpcService(
-                    planReservedInstanceStore, buyReservedInstanceStore, reservedInstanceSpecStore);
+            planReservedInstanceStore, buyReservedInstanceStore, reservedInstanceSpecStore,
+            planProjectedEntityCostStore, planProjectedRICoverageAndUtilStore);
 
     private static final ReservedInstanceBoughtInfo RI_INFO_1 = ReservedInstanceBoughtInfo.newBuilder()
                     .setBusinessAccountId(123L)
@@ -99,7 +119,7 @@ public class PlanReservedInstanceRpcServiceTest {
         client = PlanReservedInstanceServiceGrpc.newBlockingStub(grpcServer.getChannel());
         Mockito.when(planReservedInstanceStore.getPlanReservedInstanceCountByRISpecIdMap(PLAN_ID))
                         .thenReturn(Collections.singletonMap(RI_SPEC_ID, RI_BOUGHT_COUNT));
-        Mockito.when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(Matchers.any()))
+        Mockito.when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
                         .thenReturn(Collections.singletonList(createRiSpec()));
         final Cost.ReservedInstanceCostStat riCostStat = Cost.ReservedInstanceCostStat.newBuilder().setFixedCost(90.0D)
                         .setRecurringCost(0.20D).setAmortizedCost(0.30213D)
@@ -110,7 +130,7 @@ public class PlanReservedInstanceRpcServiceTest {
         final Cost.ReservedInstanceCostStat riBuyCostStat = Cost.ReservedInstanceCostStat.newBuilder().setFixedCost(50.0D)
                         .setRecurringCost(0.10D).setAmortizedCost(0.1057077626D)
                         .setSnapshotTime(Clock.systemUTC().instant().toEpochMilli()).build();
-        Mockito.when(buyReservedInstanceStore.queryBuyReservedInstanceCostStats(Matchers.any()))
+        Mockito.when(buyReservedInstanceStore.queryBuyReservedInstanceCostStats(any()))
                         .thenReturn(Collections.singletonList(riBuyCostStat));
 
     }
@@ -230,5 +250,67 @@ public class PlanReservedInstanceRpcServiceTest {
                                         .build()).getReservedInstanceBoughtsList();
 
         assertEquals(2, riBought1.size());
+    }
+
+    /**
+     * Tests to make sure projected entity costs and RI coverage used coupons are successfully
+     * getting updated for MPC plan BuyRI scenario.
+     */
+    @Test
+    public void updatePlanBuyReservedInstanceCosts() {
+        final UpdatePlanBuyReservedInstanceCostsRequest request =
+                UpdatePlanBuyReservedInstanceCostsRequest.newBuilder().setPlanId(PLAN_ID).build();
+
+        // 1. Check for empty coverage map, should be 0 rows updated.
+        final Map<Long, EntityReservedInstanceCoverage> coverageMap = new HashMap<>();
+        when(planProjectedRICoverageAndUtilStore.getPlanProjectedRiCoverage(eq(PLAN_ID), any()))
+                .thenReturn(coverageMap);
+        UpdatePlanBuyReservedInstanceCostsResponse response =
+                client.updatePlanBuyReservedInstanceCosts(request);
+        assertNotNull(response);
+        assertEquals(0, response.getUpdateCount());
+
+        // 2. Check to make sure we return 0 update counts if there are no entity costs.
+        long vmId = 1001L;
+        long riId = 2001L;
+        int riTotalCoupons = 8;
+        double riUsedCoupons = 8d;
+        coverageMap.put(vmId, EntityReservedInstanceCoverage.newBuilder().setEntityId(vmId)
+                .setEntityCouponCapacity(riTotalCoupons)
+                .putCouponsCoveredByRi(riId, riUsedCoupons).build());
+        final Map<Long, EntityCost> originalEntityCosts = new HashMap<>();
+        when(planProjectedEntityCostStore.getPlanProjectedEntityCosts(any(), eq(PLAN_ID)))
+                .thenReturn(originalEntityCosts);
+        response = client.updatePlanBuyReservedInstanceCosts(request);
+        assertNotNull(response);
+        assertEquals(0, response.getUpdateCount());
+
+        // 3. Test with real VM costs set.
+        double onDemandComputeCost = 0.0054;
+        final CurrencyAmount onDemandAmount = CurrencyAmount.newBuilder()
+                .setAmount(onDemandComputeCost)
+                .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
+                .build();
+        final EntityCost vmCost = EntityCost.newBuilder()
+                .setAssociatedEntityId(vmId)
+                .setAssociatedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addComponentCost(ComponentCost.newBuilder()
+                        .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+                        .setCostSource(CostSource.ON_DEMAND_RATE)
+                        .setAmount(onDemandAmount))
+                .setTotalAmount(onDemandAmount)
+                .build();
+        originalEntityCosts.put(vmId, vmCost);
+        final Map<Long, Double> aggregatedCoverage = new HashMap<>();
+        aggregatedCoverage.put(vmId, riUsedCoupons);
+        when(planProjectedRICoverageAndUtilStore.getAggregatedEntityRICoverage(any()))
+                .thenReturn(aggregatedCoverage);
+        when(planProjectedRICoverageAndUtilStore.updatePlanProjectedRiCoverage(eq(PLAN_ID), any()))
+                .thenReturn(1);
+        when(planProjectedEntityCostStore.updatePlanProjectedEntityCosts(eq(PLAN_ID), any()))
+                .thenReturn(1);
+        response = client.updatePlanBuyReservedInstanceCosts(request);
+        assertNotNull(response);
+        assertEquals(1, response.getUpdateCount());
     }
 }

@@ -13,7 +13,7 @@ import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 /**
  * Data access object for creating, updating, searching, deleting reservations.
  */
-public interface ReservationDao extends DiagsRestorable {
+public interface ReservationDao extends DiagsRestorable<Void> {
 
     /**
      * Get all reservations which are stored in reservation table.

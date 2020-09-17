@@ -26,6 +26,7 @@ import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.executor.ArangoDBExecutor;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 
@@ -33,6 +34,7 @@ import com.vmturbo.repository.topology.TopologyLifecycleManager;
  * unit test for {@link SupplyChainService}.
  */
 public class GraphDBServiceTest {
+    private final LiveTopologyStore liveTopologyStore = Mockito.mock(LiveTopologyStore.class);
 
     private final ArangoDBExecutor graphDBExecutor = Mockito.mock(ArangoDBExecutor.class);
 
@@ -49,6 +51,7 @@ public class GraphDBServiceTest {
         when(graphDefinition.getSEVertexCollection(topologyId)).thenCallRealMethod();
 
         graphDBService = new GraphDBService(
+            liveTopologyStore,
             graphDBExecutor,
             graphDefinition,
             result);

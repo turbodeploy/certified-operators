@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
@@ -28,10 +29,10 @@ import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.plan.orchestrator.db.Tables;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.DeploymentProfile;
 import com.vmturbo.plan.orchestrator.plan.DiscoveredNotSupportedOperationException;
@@ -43,7 +44,7 @@ import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
  * {@link com.vmturbo.plan.orchestrator.templates.DiscoveredTemplateDeploymentProfileDaoImpl} class
  * is used for uploading discovered templates and deployment profiles.
  */
-public class DeploymentProfileDaoImpl implements DiagsRestorable {
+public class DeploymentProfileDaoImpl implements DiagsRestorable<Void> {
 
     @VisibleForTesting
     static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
@@ -236,7 +237,7 @@ public class DeploymentProfileDaoImpl implements DiagsRestorable {
      *                              deployment profile.
      */
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
 
         final List<String> errors = new ArrayList<>();
 

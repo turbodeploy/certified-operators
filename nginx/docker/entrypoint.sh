@@ -31,7 +31,11 @@ if [ "$GRAFANA" == "" ]; then
     export GRAFANA=unset
 fi
 
-envsubst '${API} ${GRAFANA} ${TOPOLOGY} ${DNS_RESOLVER} ${WORKER_PROCESSES} ${WORKER_CONNECTIONS}' < /etc/nginx/nginx.conf.template > /tmp/nginx.conf
+if [ "$UI" == "" ]; then
+    export UI=unset
+fi
+
+envsubst '${API} ${UI} ${GRAFANA} ${TOPOLOGY} ${DNS_RESOLVER} ${WORKER_PROCESSES} ${WORKER_CONNECTIONS}' < /etc/nginx/nginx.conf.template > /tmp/nginx.conf
 
 # If LOG_TO_STDOUT is defined in the environment, tee the output so that it is also logged to stdout.
 # This is generally desirable in a development setup where you want to see the output on the console when

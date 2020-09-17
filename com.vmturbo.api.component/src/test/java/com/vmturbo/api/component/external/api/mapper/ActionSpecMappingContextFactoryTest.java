@@ -41,6 +41,7 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFac
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
+import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
@@ -95,6 +96,11 @@ public class ActionSpecMappingContextFactoryTest {
     private final CostServiceMole costServiceMole = Mockito.spy(new CostServiceMole());
 
     private final PoliciesService policiesService = Mockito.mock(PoliciesService.class);
+
+    private final ReservedInstancesService reservedInstancesService =
+            Mockito.mock(ReservedInstancesService.class);
+
+    private final UuidMapper uuidMapper = mock(UuidMapper.class);
 
     private final VirtualVolumeAspectMapper virtualVolumeAspectMapper = mock(VirtualVolumeAspectMapper.class);
 
@@ -175,7 +181,7 @@ public class ActionSpecMappingContextFactoryTest {
                             777777,
                             buyRIServiceClient, riSpecService,
                             Mockito.mock(ServiceEntityMapper.class),
-                            supplyChainService, policiesService);
+                            supplyChainService, policiesService, reservedInstancesService);
 
         final Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>>
                 buyRIIdToRIBoughtandRISpec = actionSpecMappingContextFactory
@@ -283,7 +289,7 @@ public class ActionSpecMappingContextFactoryTest {
         virtualDisksAspectApiDTO.setVirtualDisks(Lists.newArrayList(virtualDiskApiDTO));
         final Map<Long, EntityAspect> virtualDisksAspectApiDTOMap = new HashMap<>();
         virtualDisksAspectApiDTOMap.put(73385266467456L, virtualDisksAspectApiDTO);
-        when(virtualVolumeAspectMapper.mapUnattachedVirtualVolumes(anySetOf(Long.class), anyLong())).thenReturn(Optional.of(virtualDisksAspectApiDTOMap));
+        when(virtualVolumeAspectMapper.mapVirtualVolumes(anySetOf(Long.class), anyLong())).thenReturn(Optional.of(virtualDisksAspectApiDTOMap));
 
         final ActionSpecMappingContextFactory actionSpecMappingContextFactory = new
             ActionSpecMappingContextFactory(policyService,
@@ -294,13 +300,13 @@ public class ActionSpecMappingContextFactoryTest {
             777777,
             buyRIServiceClient, riSpecService,
             serviceEntityMapper,
-            supplyChainService, policiesService);
+            supplyChainService, policiesService, reservedInstancesService);
 
         long topologyContextId = 777777L;
         ActionSpecMappingContext result = null;
         try {
             result = actionSpecMappingContextFactory
-                .createActionSpecMappingContext(actions, topologyContextId);
+                .createActionSpecMappingContext(actions, topologyContextId, uuidMapper);
         } catch (Exception e) {
             e.printStackTrace();  // Let test framework deal with it.
         }
@@ -388,7 +394,8 @@ public class ActionSpecMappingContextFactoryTest {
                 ReservedInstanceSpecServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
                 Mockito.mock(ServiceEntityMapper.class),
                 SupplyChainServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
-                policiesService);
+                policiesService,
+                reservedInstancesService);
 
         List<ApiPartialEntity> planPartialEntities = new ArrayList<>();
         planPartialEntities.add(ApiPartialEntity.newBuilder().setDisplayName("aws-EU (Paris)")

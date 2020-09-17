@@ -21,6 +21,7 @@ import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
+import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord.CapacityChange;
 
 /**
  * Unit tests for UtilizationCountStore.
@@ -80,7 +81,8 @@ public class UtilizationCountStoreTest {
                         .setEntityOid(ref.getEntityOid())
                         .setCommodityType(ref.getCommodityType().getType())
                         .setKey(ref.getCommodityType().getKey())
-                        .setProviderOid(ref.getProviderOid()).setCapacity(0f).setPeriod(30);
+                        .addCapacityChanges(CapacityChange.newBuilder().setTimestamp(0L).setNewCapacity(100F))
+                        .setProviderOid(ref.getProviderOid()).setCapacity(100f).setPeriod(30);
         for (int i = 0; i <= 100; ++i) {
             builder.addUtilization(20);
         }

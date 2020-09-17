@@ -28,6 +28,7 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
     private static final Logger logger = LogManager.getLogger();
 
     private final T maxValue;
+    private final T minValue;
     private final Class<T> enumClass;
 
     /**
@@ -37,7 +38,7 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
      * @param enumClass class of an enum
      */
     public EnumSettingDataType(@Nonnull T defaultValue, @Nonnull Class<T> enumClass) {
-        this(defaultValue, null, enumClass);
+        this(defaultValue, null, null, enumClass);
     }
 
     /**
@@ -45,12 +46,17 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
      *
      * @param defaultValue default value
      * @param maxValue maximum value
+     * @param minValue minimum value
      * @param enumClass class of an enum
      */
-    public EnumSettingDataType(@Nullable T defaultValue, @Nullable T maxValue,
-                    @Nonnull Class<T> enumClass) {
+    public EnumSettingDataType(
+            @Nullable T defaultValue,
+            @Nullable T maxValue,
+            @Nullable T minValue,
+            @Nonnull Class<T> enumClass) {
         super(defaultValue);
         this.maxValue = maxValue;
+        this.minValue = minValue;
         this.enumClass = enumClass;
     }
 
@@ -59,13 +65,19 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
      *
      * @param defaultValue default value
      * @param maxValue maximum value
+     * @param minValue minimum value
      * @param entityDefaults entity-specific overrides for default values
      * @param enumClass class of an enum
      */
-    public EnumSettingDataType(@Nonnull T defaultValue, @Nullable T maxValue,
-                               @Nonnull Map<EntityType, T> entityDefaults, @Nonnull Class<T> enumClass) {
+    public EnumSettingDataType(
+            @Nonnull T defaultValue,
+            @Nullable T maxValue,
+            @Nullable T minValue,
+            @Nonnull Map<EntityType, T> entityDefaults,
+            @Nonnull Class<T> enumClass) {
         super(defaultValue, entityDefaults);
         this.maxValue = maxValue;
+        this.minValue = minValue;
         this.enumClass = enumClass;
     }
 
@@ -76,6 +88,7 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
         if (defaultValue != null) {
             final List<String> values = Stream.of(getDefault().getDeclaringClass().getEnumConstants())
                     .filter(t -> ((this.maxValue == null) || (t.ordinal() <= this.maxValue.ordinal())))
+                    .filter(t -> ((this.minValue == null) || (t.ordinal() >= this.minValue.ordinal())))
                     .map(Enum::name)
                     .collect(Collectors.toList());
             settingBuilder.addAllEnumValues(values).setDefault(defaultValue.name());
@@ -113,4 +126,3 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
         return enumClass;
     }
 }
-

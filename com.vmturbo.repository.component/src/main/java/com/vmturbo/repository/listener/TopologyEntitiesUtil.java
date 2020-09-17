@@ -95,7 +95,7 @@ public class TopologyEntitiesUtil {
                 if (entities.isEmpty()) {
                     continue;
                 }
-                topologyCreator.addEntities(entities);
+                topologyCreator.addEntities(entities, tid);
                 numberOfEntities += entities.size();
             }
             topologyCreator.complete();

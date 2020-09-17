@@ -40,10 +40,10 @@ import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.bulk.BulkInserterFactoryStats;
 import com.vmturbo.history.db.bulk.BulkInserterStats;
-import com.vmturbo.history.ingesters.live.LiveTopologyIngester;
-import com.vmturbo.history.ingesters.live.ProjectedLiveTopologyIngester;
-import com.vmturbo.history.ingesters.plan.PlanTopologyIngester;
+import com.vmturbo.history.ingesters.live.ProjectedRealtimeTopologyIngester;
+import com.vmturbo.history.ingesters.live.SourceRealtimeTopologyIngester;
 import com.vmturbo.history.ingesters.plan.ProjectedPlanTopologyIngester;
+import com.vmturbo.history.ingesters.plan.SourcePlanTopologyIngester;
 import com.vmturbo.history.listeners.ImmutableTopologyCoordinatorConfig.Builder;
 import com.vmturbo.history.listeners.ProcessingLoop.ProcessingAction;
 import com.vmturbo.history.schema.abstraction.Tables;
@@ -68,8 +68,7 @@ public class TopologyCoordinatorSafetyValveTest {
                     .ingestionTimeoutSecs(Integer.MAX_VALUE)
                     .hourlyRollupTimeoutSecs(Integer.MAX_VALUE)
                     .repartitioningTimeoutSecs(Integer.MAX_VALUE)
-                    .processingLoopMaxSleepSecs(1)
-                    .realtimeTopologyContextId(REALTIME_TOPOLOGY_CONTEXT_ID);
+                    .processingLoopMaxSleepSecs(1);
 
     /**
      * Test that {@link ProcessingLoop} kicks off a repartitioning action from time to time
@@ -134,9 +133,9 @@ public class TopologyCoordinatorSafetyValveTest {
         // we only care about the listener, almost everything else can be mocked
         final HistorydbIO historydbIO = mock(HistorydbIO.class);
         final TopologyCoordinator topologyCoordinator = new TopologyCoordinator(
-                mock(LiveTopologyIngester.class),
-                mock(ProjectedLiveTopologyIngester.class),
-                mock(PlanTopologyIngester.class),
+                mock(SourceRealtimeTopologyIngester.class),
+                mock(ProjectedRealtimeTopologyIngester.class),
+                mock(SourcePlanTopologyIngester.class),
                 mock(ProjectedPlanTopologyIngester.class),
                 mock(RollupProcessor.class),
                 new ProcessingStatus(config, historydbIO), // this needs to be real
@@ -196,17 +195,17 @@ public class TopologyCoordinatorSafetyValveTest {
         doNothing().when(procStatusSpy).store();
         final CompletableFuture<TopologyCoordinator> topologyCoordinatorFuture =
                 new CompletableFuture<>();
-        final LiveTopologyIngester liveTopologyIngester = mock(LiveTopologyIngester.class);
+        final SourceRealtimeTopologyIngester sourceRealtimeTopologyIngester = mock(SourceRealtimeTopologyIngester.class);
         // we need to return from our fake ingestion a result that indicates at least one table
         // was modified, else the code to perform rollups will skip it as an optimization
         final BulkInserterStats vmStats = new BulkInserterStats(
                 Tables.VM_STATS_LATEST, Tables.VM_STATS_LATEST, Tables.VM_STATS_LATEST);
         final BulkInserterFactoryStats stats = new BulkInserterFactoryStats(Collections.singletonList(vmStats));
-        when(liveTopologyIngester.processBroadcast(any(), any(), any())).thenReturn(Pair.of(0, stats));
+        when(sourceRealtimeTopologyIngester.processBroadcast(any(), any(), any())).thenReturn(Pair.of(0, stats));
         TopologyCoordinator topologyCoordinator = new TopologyCoordinator(
-                liveTopologyIngester,
-                mock(ProjectedLiveTopologyIngester.class),
-                mock(PlanTopologyIngester.class),
+                sourceRealtimeTopologyIngester,
+                mock(ProjectedRealtimeTopologyIngester.class),
+                mock(SourcePlanTopologyIngester.class),
                 mock(ProjectedPlanTopologyIngester.class),
                 rollupProcessor,
                 procStatusSpy,

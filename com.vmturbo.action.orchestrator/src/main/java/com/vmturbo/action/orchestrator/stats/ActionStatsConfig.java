@@ -16,6 +16,7 @@ import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader.Combined
 import com.vmturbo.action.orchestrator.stats.aggregator.BusinessAccountActionAggregator.BusinessAccountActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.ClusterActionAggregator.ClusterActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator.GlobalAggregatorFactory;
+import com.vmturbo.action.orchestrator.stats.aggregator.ResourceGroupActionAggregator.ResourceGroupActionAggregatorFactory;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroupStore;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
 import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
@@ -90,8 +91,17 @@ public class ActionStatsConfig {
      */
     @Bean
     public BusinessAccountActionAggregatorFactory businessAccountActionAggregatorFactory() {
-        return new BusinessAccountActionAggregatorFactory(
-            RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()));
+        return new BusinessAccountActionAggregatorFactory();
+    }
+
+    /**
+     * Factory for resource group aggregators.
+     *
+     * @return The {@link ResourceGroupActionAggregatorFactory}.
+     */
+    @Bean
+    public ResourceGroupActionAggregatorFactory resourceGroupActionAggregatorFactory() {
+        return new ResourceGroupActionAggregatorFactory();
     }
 
     /**
@@ -158,7 +168,8 @@ public class ActionStatsConfig {
                 actionGroupStore(),
                 mgmtUnitSubgroupStore(),
                 snapshotFactory(),
-                Arrays.asList(globalAggregatorFactory(), clusterAggregatorFactory(), businessAccountActionAggregatorFactory()),
+                Arrays.asList(globalAggregatorFactory(), clusterAggregatorFactory(),
+                    businessAccountActionAggregatorFactory(), resourceGroupActionAggregatorFactory()),
                 globalConfig.actionOrchestratorClock(),
                 rollupConfig.rollupScheduler(),
                 rollupConfig.cleanupScheduler());

@@ -8,7 +8,8 @@ import java.security.PublicKey;
 
 import javax.annotation.Nullable;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.sshd.client.keyverifier.ServerKeyVerifier;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.common.config.keys.KeyEntryResolver;
@@ -32,7 +33,7 @@ import org.bouncycastle.util.encoders.Base64;
  * string or removing the existing value.</p>
  */
 public class AcceptAnyOrGivenServerKeyVerifier implements ServerKeyVerifier {
-    private static Logger logger = Logger.getLogger(AcceptAnyOrGivenServerKeyVerifier.class);
+    private static Logger logger = LogManager.getLogger(AcceptAnyOrGivenServerKeyVerifier.class);
 
     // Finishing the host key verification feature was pushed to next sprint, so rather than
     // discard these chagnes, we'll just disable the capailities and accept all server keys for

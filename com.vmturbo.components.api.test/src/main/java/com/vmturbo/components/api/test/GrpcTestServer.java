@@ -65,6 +65,10 @@ public class GrpcTestServer extends ExternalResource implements AutoCloseable {
      */
     @Nonnull
     public ManagedChannel getChannel() {
+        if (channel == null) {
+            throw new IllegalStateException(getClass().getSimpleName()
+                    + " has not been started yet. Please call start() before");
+        }
         return channel;
     }
 

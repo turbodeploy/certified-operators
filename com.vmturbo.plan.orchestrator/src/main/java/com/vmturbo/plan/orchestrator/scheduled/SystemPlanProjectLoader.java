@@ -19,6 +19,7 @@ import org.jooq.exception.DataAccessException;
 import org.springframework.dao.DataAccessResourceFailureException;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
+import com.vmturbo.plan.orchestrator.plan.IntegrityException;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDao;
 import com.vmturbo.plan.orchestrator.project.PlanProjectInfoNotFoundException;
 import com.vmturbo.plan.orchestrator.project.PlanProjectNotFoundException;
@@ -104,7 +105,7 @@ public class SystemPlanProjectLoader {
                     PlanProjectOuterClass.PlanProject planProject = planProjectDao.createPlanProject(planProjectInfo);
                     planProjectScheduler.setPlanProjectSchedule(planProject.getPlanProjectId());
                     logger.info("Plan scheduler successfully scheduled plan: {}", planProjectInfo.getName());
-                } catch (DataAccessException e) {
+                } catch (DataAccessException | IntegrityException e) {
                     logger.error("Failed to create system plan project {}: {}",
                             planProjectInfo.getName(), e.getMessage());
                 } catch (PlanProjectNotFoundException e) {

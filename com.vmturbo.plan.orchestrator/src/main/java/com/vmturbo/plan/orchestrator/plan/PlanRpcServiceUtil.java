@@ -1,5 +1,8 @@
 package com.vmturbo.plan.orchestrator.plan;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__ALLOCATION;
+import static com.vmturbo.common.protobuf.utils.StringConstants.CLOUD_MIGRATION_PLAN__CONSUMPTION;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,10 +23,12 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
@@ -33,7 +38,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
@@ -93,7 +98,7 @@ public class PlanRpcServiceUtil {
                         .setTopologyType(TopologyType.PLAN)
                         .setPlanInfo(PlanTopologyInfo.newBuilder()
                                 .setPlanType(scenarioInfo.getType())
-                                .setPlanSubType(getPlanSubType(scenarioInfo)))
+                                .setPlanSubType(getCloudPlanSubType(scenarioInfo)))
                                 .build())
                 .putAllPurchaseProfileByCloudtype(riPurchaseProfileMap);
         final Map<Integer, Set<Long>> scopeObjectByClass = getClassNameToOids(scenarioInfo.getScope()
@@ -192,49 +197,71 @@ public class PlanRpcServiceUtil {
     }
 
     /**
-     * Check if scaling is enabled for this scenario.
+     * Check if scaling (resize) is enabled for this plan scenario.
      *
      * @param scenarioInfo Input scenarioInfo
      * @return true if scaling is enabled, false otherwise
      */
-    public static boolean isScalingEnabled(ScenarioInfo scenarioInfo) {
+    public static boolean isScalingEnabled(@Nonnull final ScenarioInfo scenarioInfo) {
         return scenarioInfo.getChangesList()
                 .stream()
-                .filter(sc -> sc.hasSettingOverride())
-                .map(sc -> sc.getSettingOverride())
-                .filter(so -> so.hasSetting())
-                .map(so -> so.getSetting())
+                .filter(ScenarioChange::hasSettingOverride)
+                .map(ScenarioChange::getSettingOverride)
+                .filter(SettingOverride::hasSetting)
+                .map(SettingOverride::getSetting)
                 .anyMatch(setting -> setting.getSettingSpecName()
-                        .contains(EntitySettingSpecs.Resize.getSettingName().toLowerCase())
-                        && !setting.getEnumSettingValue().getValue().equals(StringConstants.DISABLED));
+                        .contains(ConfigurableActionSettings.Resize.getSettingName().toLowerCase())
+                        && !setting.getEnumSettingValue().getValue().equals(
+                                StringConstants.DISABLED));
     }
 
     /**
-     * Get OCP subtype for this scenario.
+     * OCP or MCP have plan sub-types.
+     *
+     * @param scenarioInfo Scenario info having plan type.
+     * @return Whether plan has a sub-type.
+     */
+    public static boolean hasPlanSubType(@Nonnull final ScenarioInfo scenarioInfo) {
+        return StringConstants.OPTIMIZE_CLOUD_PLAN.equals(scenarioInfo.getType())
+                || StringConstants.CLOUD_MIGRATION_PLAN.equals(scenarioInfo.getType());
+    }
+
+    /**
+     * Get cloud plan subtype for this scenario.
      *
      * @param scenarioInfo Input scenarioInfo
-     * @return The optimize cloud plan sub type
+     * @return The cloud plan sub type
      */
-    public static String getPlanSubType(ScenarioInfo scenarioInfo) {
-        final boolean isScalingEnbld = scenarioInfo.getChangesList()
-                .stream()
-                .filter(sc -> sc.hasSettingOverride())
-                .map(sc -> sc.getSettingOverride())
-                .map(so -> so.getSetting())
-                .anyMatch(setting -> setting.getSettingSpecName()
-                        .contains(EntitySettingSpecs.Resize.getSettingName().toLowerCase())
-                        && !setting.getEnumSettingValue().getValue().equals(StringConstants.DISABLED));
+    public static String getCloudPlanSubType(ScenarioInfo scenarioInfo) {
+        if (StringConstants.CLOUD_MIGRATION_PLAN.equals(scenarioInfo.getType())) {
+            return isScalingEnabled(scenarioInfo)
+                    ? CLOUD_MIGRATION_PLAN__CONSUMPTION : CLOUD_MIGRATION_PLAN__ALLOCATION;
+        }
         final boolean isRIBuyEnabled = !scenarioInfo.getChangesList()
                 .stream()
-                .filter(c -> c.hasRiSetting())
+                .filter(ScenarioChange::hasRiSetting)
                 .collect(Collectors.toList()).isEmpty();
         String planSubType;
         if (isRIBuyEnabled) {
-            planSubType = isScalingEnbld ? StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES :
-                    StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY;
+            planSubType = isScalingEnabled(scenarioInfo)
+                    ? StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES
+                    : StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY;
         } else {
             planSubType = StringConstants.OPTIMIZE_CLOUD_PLAN__OPTIMIZE_SERVICES;
         }
         return planSubType;
+    }
+
+    /**
+     * Check whether BuyRI costs need to be updated in DB after a plan successfully completes.
+     * This needs to be done for MPC plans, as main market and BuyRI processing happen at different
+     * unpredictable times, and we need to wait for both to finish, before updating some final costs
+     * in DB tables.
+     *
+     * @param planInstance Instance of plan to check.
+     * @return Whether BuyRI costs should be updated for this plan, only true for MPC plans for now.
+     */
+    public static boolean updateBuyRICostsOnPlanCompletion(@Nonnull final PlanInstance planInstance) {
+        return planInstance.getProjectType() == PlanProjectType.CLOUD_MIGRATION;
     }
 }

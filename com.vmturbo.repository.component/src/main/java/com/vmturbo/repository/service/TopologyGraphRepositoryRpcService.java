@@ -7,14 +7,14 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.protobuf.util.JsonFormat;
 
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
@@ -97,10 +97,11 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
                 final Optional<SourceRealtimeTopology> realtimeTopology = liveTopologyStore.getSourceTopology();
 
                 filteredEntities = realtimeTopology
-                    .map(topo -> filterEntityByType(request, topo.entityGraph()
-                            .getEntities(ImmutableSet.copyOf(request.getEntityOidsList())))
-                                .map(repoGraphEntity -> partialEntityConverter.createPartialEntity(
-                                    repoGraphEntity, request.getReturnType())))
+                    .map(topo -> {
+                        Stream<RepoGraphEntity> entities = filterEntityByType(request, topo.entityGraph()
+                                .getEntities(ImmutableSet.copyOf(request.getEntityOidsList())));
+                        return partialEntityConverter.createPartialEntities(entities, request.getReturnType());
+                    })
                     .orElse(Stream.empty());
             } else {
                 final Optional<ProjectedRealtimeTopology> projectedTopology = liveTopologyStore.getProjectedTopology();

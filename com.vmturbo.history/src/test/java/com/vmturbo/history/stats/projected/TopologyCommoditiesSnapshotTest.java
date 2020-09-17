@@ -67,7 +67,7 @@ public class TopologyCommoditiesSnapshotTest {
         when(soldCommoditiesInfo.getAccumulatedRecords(any(), any()))
                .thenReturn(Optional.empty());
         boughtCommoditiesInfo = mock(BoughtCommoditiesInfo.class);
-        when(boughtCommoditiesInfo.getAccumulatedRecord(any(), any()))
+        when(boughtCommoditiesInfo.getAccumulatedRecord(any(), any(), any()))
                 .thenReturn(Optional.empty());
         entityCountInfo = mock(EntityCountInfo.class);
         when(entityCountInfo.getCountRecord(any()))
@@ -105,7 +105,7 @@ public class TopologyCommoditiesSnapshotTest {
 
         assertThat(snapshot.getTopologySize(), is(1L));
         final List<StatRecord> records =
-                snapshot.getRecords(Collections.singleton("Mem"), Collections.singleton(77L))
+                snapshot.getRecords(Collections.singleton("Mem"), Collections.singleton(77L), Collections.emptySet())
                         .collect(Collectors.toList());
         assertThat(records.size(), is(1));
         assertThat(records.get(0).getCurrentValue(), is(10.0f));
@@ -117,7 +117,7 @@ public class TopologyCommoditiesSnapshotTest {
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
                         entityCountInfo, projectedPriceIndexSnapshot, 1);
 
-        snapshot.getRecords(Collections.emptySet(), Collections.emptySet());
+        snapshot.getRecords(Collections.emptySet(), Collections.emptySet(), Collections.emptySet());
     }
 
     @Test
@@ -133,7 +133,7 @@ public class TopologyCommoditiesSnapshotTest {
                         entityCountInfo, projectedPriceIndexSnapshot, 1);
 
          List<StatRecord> records = snapshot.getRecords(Collections.singleton("count1"),
-                     Collections.emptySet())
+                     Collections.emptySet(), Collections.emptySet())
                  .collect(Collectors.toList());
          assertEquals(1, records.size());
          assertEquals(DUMMY_1, records.get(0));
@@ -152,7 +152,7 @@ public class TopologyCommoditiesSnapshotTest {
                         entityCountInfo, projectedPriceIndexSnapshot, 1);
 
         List<StatRecord> records = snapshot.getRecords(Collections.singleton("count1"),
-                Collections.emptySet())
+                Collections.emptySet(), Collections.emptySet())
                 .collect(Collectors.toList());
         assertEquals(0, records.size());
     }
@@ -176,7 +176,7 @@ public class TopologyCommoditiesSnapshotTest {
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
                         entityCountInfo, projectedPriceIndexSnapshot, 1);
         final List<StatRecord> records =
-                snapshot.getRecords(Collections.singleton(StringConstants.PRICE_INDEX), entities)
+                snapshot.getRecords(Collections.singleton(StringConstants.PRICE_INDEX), entities, Collections.emptySet())
                 .collect(Collectors.toList());
         verify(projectedPriceIndexSnapshot).getRecord(entities);
         assertThat(records, contains(statRecord));
@@ -190,13 +190,13 @@ public class TopologyCommoditiesSnapshotTest {
 
         final List<StatRecord> records =
                 snapshot.getRecords(Collections.singleton("Mem"),
-                        Collections.emptySet())
+                        Collections.emptySet(), Collections.emptySet())
                         .collect(Collectors.toList());
 
         verify(soldCommoditiesInfo).getAccumulatedRecords(
                 Mockito.eq("Mem"), Mockito.eq(Collections.emptySet()));
         verify(boughtCommoditiesInfo).getAccumulatedRecord(
-                Mockito.eq("Mem"), Mockito.eq(Collections.emptySet()));
+                Mockito.eq("Mem"), Mockito.eq(Collections.emptySet()), Mockito.eq(Collections.emptySet()));
 
         assertEquals(0, records.size());
     }
@@ -213,7 +213,7 @@ public class TopologyCommoditiesSnapshotTest {
 
         final List<StatRecord> records =
                 snapshot.getRecords(Collections.singleton("Mem"),
-                        Collections.emptySet())
+                        Collections.emptySet(), Collections.emptySet())
                         .collect(Collectors.toList());
         assertEquals(1, records.size());
         assertEquals(DUMMY_1, records.get(0));
@@ -226,12 +226,12 @@ public class TopologyCommoditiesSnapshotTest {
                         entityCountInfo, projectedPriceIndexSnapshot, 1);
 
         when(boughtCommoditiesInfo.getAccumulatedRecord(
-                Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet())))
+                Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet()), Mockito.eq(Collections.emptySet())))
                 .thenReturn(Optional.of(DUMMY_1));
 
         final List<StatRecord> records =
                 snapshot.getRecords(Collections.singleton("Mem"),
-                        Collections.emptySet())
+                        Collections.emptySet(), Collections.emptySet())
                         .collect(Collectors.toList());
         assertEquals(1, records.size());
         assertEquals(DUMMY_1, records.get(0));
@@ -247,12 +247,12 @@ public class TopologyCommoditiesSnapshotTest {
                 Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet())))
                 .thenReturn(Optional.of(DUMMY_1));
         when(boughtCommoditiesInfo.getAccumulatedRecord(
-                Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet())))
+                Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet()), Mockito.eq(Collections.emptySet())))
                 .thenReturn(Optional.of(DUMMY_2));
 
         final List<StatRecord> records =
                 snapshot.getRecords(Collections.singleton("Mem"),
-                        Collections.emptySet())
+                        Collections.emptySet(), Collections.emptySet())
                         .collect(Collectors.toList());
         assertEquals(2, records.size());
         assertThat(records, containsInAnyOrder(DUMMY_1, DUMMY_2));

@@ -181,8 +181,8 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     public void invokeBuyRIAnalysis(StartBuyRIAnalysisRequest buyRiRequest) {
         if (cloudTopology.isPresent() && !disableRealtimeRIBuyAnalysis) {
             currentRunningRIBuy.updateAndGet((currentFuture) -> {
-                if (currentFuture == null || runRIBuyOnNewRequest) {
-                    if (currentFuture != null) {
+                if (currentFuture == null || runRIBuyOnNewRequest || currentFuture.isDone()) {
+                    if (currentFuture != null && !currentFuture.isDone()) {
                         logger.info(
                                 "RI Buy is already running, but will be discarded. A new RI buy round"
                                         + "of analysis will be run for topology id {}",

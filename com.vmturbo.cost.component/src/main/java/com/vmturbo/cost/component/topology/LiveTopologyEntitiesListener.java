@@ -1,25 +1,18 @@
 package com.vmturbo.cost.component.topology;
 
-import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toSet;
-
 import java.time.Instant;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.cache.Cache;
 import io.opentracing.SpanContext;
-import org.apache.commons.collections4.CollectionUtils;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriter;
-import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.AccountRICoverageUpload;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -29,13 +22,12 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.RemoteIteratorDrain;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
-import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
-import com.vmturbo.cost.component.reserved.instance.AccountRIMappingStore;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
@@ -62,7 +54,6 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
     private final ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate;
 
-    private final AccountRIMappingStore accountRIMappingStore;
 
     private final BusinessAccountHelper businessAccountHelper;
 
@@ -79,7 +70,6 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
                                         @Nonnull final TopologyCostCalculatorFactory topologyCostCalculatorFactory,
                                         @Nonnull final EntityCostStore entityCostStore,
                                         @Nonnull final ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate,
-                                        @Nonnull final AccountRIMappingStore accountRIMappingStore,
                                         @Nonnull final BusinessAccountHelper businessAccountHelper,
                                         @Nonnull final CostJournalRecorder journalRecorder,
                                         @Nonnull final ReservedInstanceAnalysisInvoker invoker,
@@ -90,7 +80,6 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         this.topologyCostCalculatorFactory = Objects.requireNonNull(topologyCostCalculatorFactory);
         this.entityCostStore = Objects.requireNonNull(entityCostStore);
         this.reservedInstanceCoverageUpdate = Objects.requireNonNull(reservedInstanceCoverageUpdate);
-        this.accountRIMappingStore = Objects.requireNonNull(accountRIMappingStore);
         this.businessAccountHelper = Objects.requireNonNull(businessAccountHelper);
         this.journalRecorder = Objects.requireNonNull(journalRecorder);
         this.invoker = Objects.requireNonNull(invoker);
@@ -155,8 +144,6 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
                 // RI coverage
                 reservedInstanceCoverageUpdate.updateAllEntityRICoverageIntoDB(topologyInfo, cloudTopology);
 
-                persistUndiscoveredAccountRiMappings(cloudTopology, topologyId);
-
                 final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory.newCalculator(topologyInfo, cloudTopology);
                 final Map<Long, CostJournal<TopologyEntityDTO>> costs =
                         topologyCostCalculator.calculateCosts(cloudTopology);
@@ -192,43 +179,6 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         }
     }
 
-    private void persistUndiscoveredAccountRiMappings(final CloudTopology<TopologyEntityDTO> cloudTopology,
-            final long topologyId) {
-        Cache<Long, List<AccountRICoverageUpload>> riCoverageAccountCache =
-                reservedInstanceCoverageUpdate.getRiCoverageAccountCache();
-        logger.debug("riCoverageAccountCache: {}", () -> riCoverageAccountCache.asMap().toString());
-        List<AccountRICoverageUpload> accountRICoverageList = riCoverageAccountCache.getIfPresent(topologyId);
-        if (!CollectionUtils.isEmpty(accountRICoverageList)) {
-            // Persist RI coverage mappings per account.
-            // Store the account RI coverage mappings only for the undiscovered accounts.
-
-            final List<TopologyEntityDTO> allAccounts = cloudTopology
-                    .getAllEntitiesOfType(EntityType.BUSINESS_ACCOUNT_VALUE);
-            final Set<Long> discoveredAccounts = allAccounts.stream().filter(
-                    acc -> acc.hasTypeSpecificInfo()
-                        && acc.getTypeSpecificInfo().hasBusinessAccount()
-                        && acc.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId())
-                    .map(acc -> acc.getOid())
-                    .collect(toSet());
-
-            final List<AccountRICoverageUpload> undiscoveredAccountCoverageList =
-                    accountRICoverageList.stream()
-                    .filter(coverage -> !discoveredAccounts.contains(coverage.getAccountId()))
-                    .collect(toList());
-            logger.debug("allAccounts: {}, discoveredAccounts: {}, undiscoveredAccountCoverageList: {}",
-                    () -> allAccounts, () -> discoveredAccounts, () -> undiscoveredAccountCoverageList);
-
-            if (CollectionUtils.isNotEmpty(undiscoveredAccountCoverageList)) {
-                logger.info("Persisting RI coverage for undiscovered accounts {}...",
-                        undiscoveredAccountCoverageList.stream().map(accRi -> accRi.getAccountId()).collect(toList()));
-                accountRIMappingStore.updateAccountRICoverageMappings(undiscoveredAccountCoverageList);
-            }
-        } else {
-            logger.warn("No per-Account RI Coverage mapping records found in cache for topology {}",
-                    topologyId);
-        }
-    }
-
     // store the mapping between business account id to discovered target id
     private void storeBusinessAccountIdToTargetIdMapping(@Nonnull final Map<Long, TopologyEntityDTO> cloudEntities) {
         for (TopologyEntityDTO entityDTO : cloudEntities.values()) {
@@ -237,7 +187,14 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
                 long baOID = entityDTO.getOid();
                 businessAccountHelper.storeTargetMapping(baOID,
                         entityDTO.getDisplayName(), getTargetId(entityDTO));
+                if (entityDTO.hasTypeSpecificInfo()
+                        && entityDTO.getTypeSpecificInfo().hasBusinessAccount()
+                        && entityDTO.getTypeSpecificInfo().getBusinessAccount().hasAssociatedTargetId()) {
+                    businessAccountHelper.storeDiscoveredBusinessAccount(entityDTO);
+                }
+
                 logger.debug("TopologyEntityDTO for BA {}", entityDTO);
+
             }
         }
     }

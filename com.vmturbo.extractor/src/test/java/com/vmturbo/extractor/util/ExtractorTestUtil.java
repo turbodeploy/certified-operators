@@ -50,7 +50,7 @@ public class ExtractorTestUtil {
         private final ITopologyWriter writer;
         private final TopologyInfo info;
         private final WriterConfig config;
-        List<TopologyEntityDTO> entities = new ArrayList<>();
+        final List<TopologyEntityDTO> entities = new ArrayList<>();
 
         private EntitiesProcessor(ITopologyWriter writer, TopologyInfo info, WriterConfig config) {
             this.writer = writer;
@@ -61,7 +61,7 @@ public class ExtractorTestUtil {
         /**
          * Create a new processor instance.
          *
-         * @param writer writer to recieve entities
+         * @param writer writer to receive entities
          * @param info   topology info
          * @param config writer config
          * @return this entities processor
@@ -78,7 +78,7 @@ public class ExtractorTestUtil {
          * @return this entities processor
          */
         public EntitiesProcessor process(TopologyEntityDTO... entities) {
-            Arrays.stream(entities).forEach(this.entities::add);
+            this.entities.addAll(Arrays.asList(entities));
             return this;
         }
 
@@ -99,7 +99,7 @@ public class ExtractorTestUtil {
          * @param dataProvider data provider instance
          * @return number of entities processed
          * @throws UnsupportedDialectException if db endpoint is malformed
-         * @throws SQLException                if there's an SQL exection
+         * @throws SQLException                if there's an SQL execution
          * @throws IOException                 if there's an IO problem
          * @throws InterruptedException        if interrupted
          */
@@ -107,7 +107,7 @@ public class ExtractorTestUtil {
                 throws UnsupportedDialectException, SQLException, IOException, InterruptedException {
             final Consumer<TopologyEntityDTO> consumer =
                     writer.startTopology(info, config, new MultiStageTimer(null));
-            entities.stream().forEach(consumer);
+            entities.forEach(consumer);
             return writer.finish(dataProvider);
         }
     }

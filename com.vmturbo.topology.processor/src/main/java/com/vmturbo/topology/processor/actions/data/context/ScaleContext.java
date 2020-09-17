@@ -10,6 +10,11 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -66,11 +71,11 @@ public class ScaleContext extends ChangeProviderContext {
     @Override
     protected List<Builder> initActionItemBuilders() throws ContextCreationException {
         List<ActionItemDTO.Builder> builders = new ArrayList<>();
-        logger.info("Get target entity from repository for action {}", getActionId());
+        logger.debug("Get target entity from repository for action {}", getActionId());
         final EntityDTO fullEntityDTO = getFullEntityDTO(getPrimaryEntityId());
         // ActionItemDTOs translated from ChangeProvider list.
         final List<ChangeProvider> changeProviderList
-                = ActionDTOUtil.getChangeProviderList(getActionInfo());
+                = getActionInfo().getScale().getChangesList();
         for (ChangeProvider change: changeProviderList) {
             builders.add(actionItemDtoBuilder(change, getActionId(), fullEntityDTO));
         }

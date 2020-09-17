@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.store;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -213,6 +214,9 @@ public class LiveActionStoreTest {
     private ActionEntity aggregateEntity1;
     private ActionEntity deDupEntity1;
     private ActionEntity deDupEntity2;
+    private Collection<Long> atomicActionTargetEntities;
+    private Collection<Long> actionPlanTargetEntities;
+    private ActionPlanInfo actionPlanInfo;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -230,7 +234,7 @@ public class LiveActionStoreTest {
                 actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
                 actionIdentityService, involvedEntitiesExpander,
-                Mockito.mock(ActionAuditSender.class), true);
+                Mockito.mock(ActionAuditSender.class), true, 60);
 
         when(targetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -410,7 +414,7 @@ public class LiveActionStoreTest {
                         actionsStatistician, actionTranslator, atomicActionFactory, clock,
                         userSessionContext, licenseCheckClient, acceptedActionsStore,
                         rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
-                        Mockito.mock(ActionAuditSender.class), true);
+                        Mockito.mock(ActionAuditSender.class), true, 60);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 
@@ -463,7 +467,7 @@ public class LiveActionStoreTest {
                         actionsStatistician, actionTranslator, atomicActionFactory, clock,
                         userSessionContext, licenseCheckClient, acceptedActionsStore,
                         rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
-                        listener, true);
+                        listener, true, 60);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 
@@ -618,6 +622,46 @@ public class LiveActionStoreTest {
                     .setSourceTopologyInfo(TopologyInfo.newBuilder()
                         .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                         .setTopologyId(topologyId))))
+            .setId(secondPlanId)
+            .build();
+        actionStore.populateRecommendedActions(secondPlan);
+
+        assertEquals(0, actionStore.size());
+    }
+
+    /**
+     * Tests that if the action store receives an action, and it finds out that the action was
+     * already successfully executed, it will drop it.
+     */
+    @Test
+    public void testClearReadyActionThatArleadySucceded() throws Exception {
+        ActionDTO.Action.Builder successMove =
+            move(vm3, hostA, vmType, hostB, vmType);
+
+        ActionPlan firstPlan = ActionPlan.newBuilder()
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                        .setTopologyId(topologyId))))
+            .setId(firstPlanId)
+            .addAction(successMove)
+            .build();
+        final EntitiesAndSettingsSnapshot snapshot =
+            entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
+                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+
+        actionStore.populateRecommendedActions(firstPlan);
+        when(actionStore.getAction(successMove.getId()).get().getState()).thenReturn(ActionState.SUCCEEDED);
+
+        ActionPlan secondPlan = ActionPlan.newBuilder()
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                        .setTopologyId(topologyId))))
+            .addAction(successMove)
             .setId(secondPlanId)
             .build();
         actionStore.populateRecommendedActions(secondPlan);
@@ -973,7 +1017,7 @@ public class LiveActionStoreTest {
             .build();
         actionStore.populateRecommendedActions(secondPlan);
 
-        assertThat (actionStore.size(), is(1));
+        assertThat(actionStore.size(), is(1));
         assertThat(actionStore.getAction(queuedMove.getId()).get().getState(),
             is(ActionState.QUEUED));
     }
@@ -1020,7 +1064,7 @@ public class LiveActionStoreTest {
             .build();
         actionStore.populateRecommendedActions(secondPlan);
 
-        assertThat (actionStore.size(), is(1));
+        assertThat(actionStore.size(), is(1));
         assertThat(actionStore.getAction(move.getId()).get().getRecommendation().getDeprecatedImportance(),
             is(updatedMove.getDeprecatedImportance()));
         assertThat(actionStore.getAction(move.getId()).get().getRecommendation().getExecutable(),
@@ -1204,6 +1248,27 @@ public class LiveActionStoreTest {
         Map<ActionType, List<AtomicActionSpec>> mergeSpecsInfoMap = new HashMap<>();
         mergeSpecsInfoMap.put(ActionType.RESIZE, resizeSpecs);
         atomicActionSpecsCache.updateAtomicActionSpecsInfo(mergeSpecsInfoMap);
+
+        atomicActionTargetEntities =
+                Arrays.asList(aggregateEntity1.getId(), deDupEntity1.getId(), deDupEntity2.getId());
+        actionPlanTargetEntities =
+                Arrays.asList(container1, container3, container3, container4);
+
+
+        actionPlanInfo = ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                        .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                                .setTopologyId(topologyId)))
+                .build();
+
+        Set<Long> allEntities = Stream.of(atomicActionTargetEntities, actionPlanTargetEntities)
+                .flatMap(Collection::stream).collect(Collectors.toSet());
+
+        final EntitiesAndSettingsSnapshot snapshot =
+                entitySettingsCache.newSnapshot(allEntities,
+                        Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
     }
 
     private static ActionDTO.Action.Builder resize(long targetId) {
@@ -1211,10 +1276,23 @@ public class LiveActionStoreTest {
                 targetId, CommodityDTO.CommodityType.VCPU, 1.0, 2.0).toBuilder();
     }
 
+    private static ActionDTO.Action.Builder resize(long targetId, CommodityDTO.CommodityType commType,
+                                                   final double oldCapacity,
+                                                   final double newCapacity) {
+        return ActionOrchestratorTestUtils.createResizeRecommendation(IdentityGenerator.next(),
+                targetId, commType, oldCapacity, newCapacity).toBuilder();
+    }
+
     /**
      * Test creation of atomic actions.
+     * Action plan contains one move and two resizes for container1::VCPU, container1::VCPU
+     * Two resize actions are first de-duplicated and then merged to a single atomic action.
+     * This creates two additional action DTOs for the LiveActionStore
+     * - one non-executable action dto for the de-duplication entity for UI visibility
+     * - one executable action dto for the aggregation entity that will execute the action
+     * The market actions are deleted after creation of merged actions.
      *
-     * @throws Exception
+     * @throws Exception thrown by the LiveActionStore if the current thread has been interrupted
      */
     @Test
     public void testPopulateWithAtomicActions() throws Exception {
@@ -1223,31 +1301,272 @@ public class LiveActionStoreTest {
         ActionDTO.Action.Builder resize2 = resize(container2);
 
         ActionPlan firstPlan = ActionPlan.newBuilder()
-                .setInfo(ActionPlanInfo.newBuilder()
-                        .setMarket(MarketActionPlanInfo.newBuilder()
-                                .setSourceTopologyInfo(TopologyInfo.newBuilder()
-                                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-                                        .setTopologyId(topologyId))))
+                .setInfo(actionPlanInfo)
                 .setId(firstPlanId)
                 .addAction(firstMove)
                 .addAction(resize1).addAction(resize2)
                 .build();
 
-        Collection<Long> atomicActionTargetEntities =
-                Arrays.asList(aggregateEntity1.getId(), deDupEntity1.getId(), deDupEntity2.getId());
-        Collection<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList());
-        Stream<Long> combinedStream = Stream.of(atomicActionTargetEntities, involvedEntities)
-                .flatMap(Collection::stream);
-        Set<Long> allEntities = combinedStream.collect(Collectors.toSet());
+        actionStore.populateRecommendedActions(firstPlan);
 
-        final EntitiesAndSettingsSnapshot snapshot =
-                entitySettingsCache.newSnapshot(allEntities,
-                        Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
+        assertEquals(3, actionStore.size());
+    }
+
+    /**
+     * Test atomic resize action OIDs when they contain resizes for multiple de-duplication targets.
+     * First plan contains resizes for container1
+     * 2 Atomic Resize actions created for targets
+     * WC- 31 (CS - 41)
+     * CS - 41
+     * Second plan contains resizes for container1, container3
+     * 3 Atomic Resize actions created for targets
+     * WC - 31 (CS - 41, 42)
+     * CS - 41
+     * CS - 42
+     * @throws Exception thrown by the LiveActionStore if the current thread has been interrupted
+     */
+    @Test
+    public void testPopulateRecommendedResizesForMultipleSpecs() throws Exception {
+        ActionDTO.Action.Builder resize1 = resize(container1);
+        ActionDTO.Action.Builder resize3 = resize(container3);
+
+        ActionPlan firstPlan = ActionPlan.newBuilder()
+                .setInfo(actionPlanInfo)
+                .setId(firstPlanId)
+                .addAction(resize1)
+                .build();
 
         actionStore.populateRecommendedActions(firstPlan);
 
-        assertEquals(4, actionStore.size());
+        // check action count
+        assertActionCount(1, 1);
+
+        List<Action> controllerActions = getControllerActions();
+        final Long oid1 = controllerActions.get(0).getRecommendationOid();
+
+        List<Action> containerSpecActions = getContainerSpecActions();
+        final Long csOid1 = containerSpecActions.stream()
+                .filter(action -> action.getRecommendation().getInfo().getAtomicResize()
+                        .getExecutionTarget().getId() == deDupEntity1.getId())
+                .findFirst().get().getRecommendationOid();
+
+        ActionPlan secondPlan = ActionPlan.newBuilder()
+                .setInfo(actionPlanInfo)
+                .setId(secondPlanId)
+                .addAction(resize1).addAction(resize3)
+                .build();
+
+        actionStore.populateRecommendedActions(secondPlan);
+
+        // check action count
+        assertActionCount(1, 2);
+
+        List<Action> secondPlanControllerActions = getControllerActions();
+        final Long oid2 = secondPlanControllerActions.get(0).getRecommendationOid();
+
+        List<Action> secondPlanContainerSpecActions = getContainerSpecActions();
+        final Long csOid2 = secondPlanContainerSpecActions.stream()
+                .filter(action -> action.getRecommendation().getInfo().getAtomicResize()
+                        .getExecutionTarget().getId() == deDupEntity1.getId())
+                .findFirst().get().getRecommendationOid();
+
+        // assert that the recommendation OID for atomic action on the controller created
+        // by merging resizes from the first plan
+        // is not the same as the one  for the atomic action on the same controller
+        // by merging resizes from the second plan
+        assertNotEquals(oid1, oid2);
+
+        // assert that the recommendation OID for atomic action on the container spec created
+        // by merging resizes from the first plan
+        // is not the same as the one  for the atomic action on the same container spec
+        // by merging resizes from the second plan
+        assertEquals(csOid1, csOid2);
     }
 
+    /**
+     * Test atomic resize action OIDs when they contain resizes for multiple commodities belonging
+     * to the same de-duplication target.
+     * First plan contains resizes for container1::VCPU, container1::VMEM
+     * 2 Atomic Resize actions created for targets
+     * WC- 31 (CS - 41)
+     * CS - 41
+     * Second plan contains resizes for container1::VMEM, container1::VCPU
+     * 2 Atomic Resize actions created for targets
+     * WC- 31 (CS - 41)
+     * CS - 41
+     * @throws Exception thrown by the LiveActionStore if the current thread has been interrupted
+     */
+    @Test
+    public void testPopulateMultipleCommodityResizesForSameSpecs() throws Exception {
+        ActionDTO.Action.Builder resize11 = resize(container1, CommodityDTO.CommodityType.VCPU,
+                                                        1.0, 2.0);
+        ActionDTO.Action.Builder resize12 = resize(container1, CommodityDTO.CommodityType.VMEM,
+                                                                    1024, 2048);
+
+        ActionPlan firstPlan = ActionPlan.newBuilder()
+                .setInfo(actionPlanInfo)
+                .setId(firstPlanId)
+                .addAction(resize11).addAction(resize12)
+                .build();
+
+        actionStore.populateRecommendedActions(firstPlan);
+        // check action count
+        assertActionCount(1, 1);
+
+        List<Action> controllerActions = getControllerActions();
+        final Long oid1 = controllerActions.get(0).getRecommendationOid();
+
+        List<Action> containerSpecActions = getContainerSpecActions();
+        final Long csOid1 = containerSpecActions.get(0).getRecommendationOid();
+
+        ActionPlan secondPlan = ActionPlan.newBuilder()
+                .setInfo(actionPlanInfo)
+                .setId(secondPlanId)
+                .addAction(resize12).addAction(resize11)
+                .build();
+
+        actionStore.populateRecommendedActions(secondPlan);
+        // check action count
+        assertActionCount(1, 1);
+
+        List<Action> secondPlanControllerActions = getControllerActions();
+        final Long oid2 = secondPlanControllerActions.get(0).getRecommendationOid();
+
+        List<Action> secondPlanContainerSpecActions = getContainerSpecActions();
+        final Long csOid2 = secondPlanContainerSpecActions.get(0).getRecommendationOid();
+
+        // assert that the recommendation OID for atomic action on the controller created
+        // by merging resizes from the first plan
+        // is the same as the one for the atomic action on the same controller
+        // by merging resizes from the second plan, even if the resizes were in different order
+        assertEquals(oid1, oid2);
+
+        // Same is true for the atomic actions on the container spec
+        assertEquals(csOid1, csOid2);
+    }
+
+    /**
+     * Test atomic resize action OIDs when the resizes belonging to multiple de-duplication targets
+     * are re-recommended in different order.
+     * First plan contains resizes for or container1::VCPU, container3::VCPU
+     * 3 Atomic Resize actions created for targets
+     * WC- 31 (CS - 41, 42)
+     * CS - 41
+     * CS - 42
+     * Second plan contains resizes for container3::VCPU, container1::VCPU
+     * 3 Atomic Resize actions created for targets
+     * WC- 31 (CS - 42,41)
+     * CS - 41
+     * CS - 42
+     * @throws Exception thrown by the LiveActionStore if the current thread has been interrupted
+     */
+    @Test
+    public void testPopulateRecommendedResizesInDifferentOrder() throws Exception {
+        ActionDTO.Action.Builder resize1 = resize(container1);
+        ActionDTO.Action.Builder resize3 = resize(container3);
+
+        ActionPlan firstPlan = ActionPlan.newBuilder()
+                .setInfo(actionPlanInfo)
+                .setId(firstPlanId)
+                .addAction(resize1).addAction(resize3)
+                .build();
+
+        actionStore.populateRecommendedActions(firstPlan);
+
+        // check action count
+        assertActionCount(1, 2);
+
+        List<Action> controllerActions = getControllerActions();
+        final Long oid1 = controllerActions.get(0).getRecommendationOid();
+
+        List<Action> containerSpecActions = getContainerSpecActions();
+        final Long csOid1 = containerSpecActions.stream()
+                .filter(action -> action.getRecommendation().getInfo().getAtomicResize()
+                                    .getExecutionTarget().getId() == deDupEntity1.getId())
+                .findFirst().get().getRecommendationOid();
+
+        final Long csOid2 = containerSpecActions.stream()
+                .filter(action -> action.getRecommendation().getInfo().getAtomicResize()
+                        .getExecutionTarget().getId() == deDupEntity2.getId())
+                .findFirst().get().getRecommendationOid();
+
+        Collection<ActionDTO.Action> actions = new ArrayList<>();
+        actions.add(resize3.build());
+        actions.add(resize1.build());
+        ActionPlan secondPlan = ActionPlan.newBuilder()
+                .setInfo(actionPlanInfo)
+                .setId(secondPlanId)
+                .addAction(resize3).addAction(resize1)
+                .build();
+
+        actionStore.populateRecommendedActions(secondPlan);
+
+        // check action count
+        assertActionCount(1, 2);
+
+        controllerActions = getControllerActions();
+        final Long oid2 = controllerActions.get(0).getRecommendationOid();
+
+        List<Action> secondPlanContainerSpecActions = getContainerSpecActions();
+        final Long csOid3 = secondPlanContainerSpecActions.stream()
+                .filter(action -> action.getRecommendation().getInfo().getAtomicResize()
+                        .getExecutionTarget().getId() == deDupEntity1.getId())
+                .findFirst().get().getRecommendationOid();
+
+        final Long csOid4 = secondPlanContainerSpecActions.stream()
+                .filter(action -> action.getRecommendation().getInfo().getAtomicResize()
+                        .getExecutionTarget().getId() == deDupEntity2.getId())
+                .findFirst().get().getRecommendationOid();
+
+        // assert that the recommendation OID for atomic action on the controller created
+        // by merging resizes from the first plan
+        // is the same as the one for the atomic action on the same controller
+        // by merging resizes from the second plan, even if the resizes were in different order
+        assertEquals(oid1, oid2);
+
+        // Same is true for the atomic actions on both the container specs
+        assertEquals(csOid1, csOid3);
+        assertEquals(csOid2, csOid4);
+    }
+
+    /**
+     * Assert action count in the action store.
+     *
+     * @param actionsForController atomic actions created for controller target
+     * @param actionsForContainerSpec atomic actions created for container spec target
+     */
+    private void assertActionCount(int actionsForController, int actionsForContainerSpec) {
+        assertEquals(actionsForController + actionsForContainerSpec, actionStore.size());
+    }
+
+    /**
+     * Get the atomic actions created for the controller target.
+     *
+     * @return list of atomic actions for the controler target
+     */
+    private List<Action> getControllerActions() {
+        Map<Long, Action> actions = actionStore.getActions();
+        List<Action> controllerActions = actions.entrySet()
+                .stream()
+                .filter(action -> action.getValue().getRecommendation().getInfo().hasAtomicResize()
+                        && action.getValue().getRecommendation()
+                        .getInfo().getAtomicResize().getExecutionTarget().getType()
+                        == EntityType.WORKLOAD_CONTROLLER_VALUE)
+                .map(entry -> entry.getValue())
+                .collect(Collectors.toList());
+        return controllerActions;
+    }
+
+    private List<Action> getContainerSpecActions() {
+        Map<Long, Action> actions = actionStore.getActions();
+        List<Action> controllerActions = actions.entrySet()
+                .stream()
+                .filter(action -> action.getValue().getRecommendation().getInfo().hasAtomicResize()
+                        && action.getValue().getRecommendation()
+                        .getInfo().getAtomicResize().getExecutionTarget().getType()
+                        == EntityType.CONTAINER_SPEC_VALUE)
+                .map(entry -> entry.getValue())
+                .collect(Collectors.toList());
+        return controllerActions;
+    }
 }

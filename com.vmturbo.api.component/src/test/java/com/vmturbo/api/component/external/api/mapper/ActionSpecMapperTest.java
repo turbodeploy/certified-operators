@@ -58,18 +58,22 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
+import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionExecutionAuditApiDTO;
+import com.vmturbo.api.dto.action.ActionExecutionCharacteristicApiDTO;
 import com.vmturbo.api.dto.action.ActionScheduleApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.api.enums.ActionDetailLevel;
+import com.vmturbo.api.enums.ActionDisruptiveness;
+import com.vmturbo.api.enums.ActionReversibility;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
@@ -193,6 +197,9 @@ public class ActionSpecMapperTest {
     private ActionSpecMapper mapper;
 
     private PoliciesService policiesService = mock(PoliciesService.class);
+    private final ReservedInstancesService reservedInstancesService =
+            mock(ReservedInstancesService.class);
+    private final UuidMapper uuidMapper = mock(UuidMapper.class);
 
     private PolicyDTOMoles.PolicyServiceMole policyMole = spy(new PolicyServiceMole());
 
@@ -263,6 +270,12 @@ public class ActionSpecMapperTest {
         final SearchRequest emptySearchReq = ApiTestUtils.mockEmptySearchReq();
         when(repositoryApi.getRegion(any())).thenReturn(emptySearchReq);
 
+        final ApiId apiId = mock(ApiId.class);
+        when(uuidMapper.fromOid(anyLong()))
+                .thenReturn(apiId);
+        when(apiId.isPlan())
+                .thenReturn(false);
+
         CostServiceGrpc.CostServiceBlockingStub costServiceBlockingStub =
                 CostServiceGrpc.newBlockingStub(grpcServer.getChannel());
         ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub
@@ -280,7 +293,8 @@ public class ActionSpecMapperTest {
                         null,
                         serviceEntityMapper,
                         supplyChainService,
-                        policiesService);
+                        policiesService,
+                        reservedInstancesService);
 
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         when(buyRiScopeHandler.extractActionTypes(emptyInputDto, scopeWithBuyRiActions))
@@ -289,12 +303,12 @@ public class ActionSpecMapperTest {
                 .thenReturn(buyRiOids);
 
         when(virtualVolumeAspectMapper.mapVirtualMachines(anySetOf(Long.class), anyLong())).thenReturn(Collections.emptyMap());
-        when(virtualVolumeAspectMapper.mapUnattachedVirtualVolumes(anySetOf(Long.class), anyLong())).thenReturn(Optional.empty());
+        when(virtualVolumeAspectMapper.mapVirtualVolumes(anySetOf(Long.class), anyLong())).thenReturn(Optional.empty());
 
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory,
             serviceEntityMapper, policiesService, reservedInstanceMapper, riBuyContextFetchServiceStub, costServiceBlockingStub,
                 reservedInstanceUtilizationCoverageServiceBlockingStub, buyRiScopeHandler,
-                REAL_TIME_TOPOLOGY_CONTEXT_ID);
+                REAL_TIME_TOPOLOGY_CONTEXT_ID, uuidMapper);
     }
 
     /**
@@ -414,6 +428,13 @@ public class ActionSpecMapperTest {
 
         // Validate that the importance value is 0
         assertEquals(0, actionApiDTO.getImportance(), 0.05);
+
+        // Validate actionExecutionCharacteristics
+        ActionExecutionCharacteristicApiDTO actionExecutionCharacteristics
+                = actionApiDTO.getExecutionCharacteristics();
+        assertNotNull(actionExecutionCharacteristics);
+        assertEquals(ActionDisruptiveness.NON_DISRUPTIVE, actionExecutionCharacteristics.getDisruptiveness());
+        assertEquals(ActionReversibility.REVERSIBLE, actionExecutionCharacteristics.getReversibility());
     }
 
     /**
@@ -1047,7 +1068,8 @@ public class ActionSpecMapperTest {
                 .thenReturn(projectedResponse);
 
         // act
-        Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = mapper.createCloudResizeActionDetailsDTO(Collections.singleton(targetId), null);
+        Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = mapper
+                .createCloudResizeActionDetailsDTO(Collections.singleton(targetId), Collections.emptySet(), null);
         CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = dtoMap.get(targetId);
         // check
         assertNotNull(cloudResizeActionDetailsApiDTO);
@@ -1114,11 +1136,51 @@ public class ActionSpecMapperTest {
         when(costServiceMole.getCloudCostStats(any()))
             .thenReturn(Arrays.asList(serviceResult, extraChunk1, extraChunk2));
 
-        Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = mapper.createCloudResizeActionDetailsDTO(Collections.singleton(targetId), null);
+        Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = mapper
+                .createCloudResizeActionDetailsDTO(Collections.singleton(targetId), Collections.emptySet(), null);
         CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = dtoMap.get(targetId);
 
         assertEquals(0, cloudResizeActionDetailsApiDTO.getOnDemandCostBefore(), 0);
         assertEquals(0, cloudResizeActionDetailsApiDTO.getOnDemandCostAfter(), 0);
+    }
+
+    /**
+     * Test setting before/after onDemandCost and onDemandRate for cloud volume scale action.
+     */
+    @Test
+    public void testCloudVolumeScaleOnDemandCostRate() {
+        final long targetId = 1;
+        Cost.CloudCostStatRecord.StatRecord.StatValue statValueDto1 =
+                Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder().setAvg(10f).setTotal(10f).build();
+        Cost.CloudCostStatRecord.StatRecord.StatValue statValueDto2 =
+                Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder().setAvg(20f).setTotal(20f).build();
+        Cost.CloudCostStatRecord.StatRecord statRecord1 = Cost.CloudCostStatRecord.StatRecord.newBuilder().setValues(statValueDto1).setAssociatedEntityId(targetId).build();
+        Cost.CloudCostStatRecord.StatRecord statRecord2 = Cost.CloudCostStatRecord.StatRecord.newBuilder().setValues(statValueDto2).setAssociatedEntityId(targetId).build();
+        Cost.CloudCostStatRecord record1 = Cost.CloudCostStatRecord.newBuilder()
+                .setSnapshotDate(0)
+                .addStatRecords(statRecord1)
+                .build();
+        Cost.CloudCostStatRecord record2 = Cost.CloudCostStatRecord.newBuilder()
+                .setSnapshotDate(1)
+                .addStatRecords(statRecord2)
+                .build();
+        Cost.GetCloudCostStatsResponse serviceResult = Cost.GetCloudCostStatsResponse
+                .newBuilder()
+                .addCloudStatRecord(record1)
+                .addCloudStatRecord(record2)
+                .build();
+
+        when(costServiceMole.getCloudCostStats(any()))
+                .thenReturn(Collections.singletonList(serviceResult));
+
+        Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = mapper
+                .createCloudResizeActionDetailsDTO(Collections.emptySet(), Collections.singleton(targetId), null);
+        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = dtoMap.get(targetId);
+
+        assertEquals(10, cloudResizeActionDetailsApiDTO.getOnDemandCostBefore(), 0);
+        assertEquals(10, cloudResizeActionDetailsApiDTO.getOnDemandRateBefore(), 0);
+        assertEquals(20, cloudResizeActionDetailsApiDTO.getOnDemandCostAfter(), 0);
+        assertEquals(20, cloudResizeActionDetailsApiDTO.getOnDemandRateAfter(), 0);
     }
 
     @Test
@@ -1573,7 +1635,7 @@ public class ActionSpecMapperTest {
         // Verify that we set the context ID on the request.
         verify(req).contextId(REAL_TIME_TOPOLOGY_CONTEXT_ID);
 
-        Assert.assertEquals("target doesn't comply to " + POLICY_NAME,
+        Assert.assertEquals("\"target\" doesn't comply with \"" + POLICY_NAME + "\"",
                         dtos.get(0).getRisk().getDescription());
     }
 
@@ -1615,8 +1677,8 @@ public class ActionSpecMapperTest {
         final List<ActionApiDTO> dtos1 = mapper.mapActionSpecsToActionApiDTOs(
             Arrays.asList(buildActionSpec(compoundMoveInfo, Explanation.newBuilder()
                 .setMove(moveExplanation1).build())), CONTEXT_ID);
-        Assert.assertEquals("target doesn't comply to " + POLICY_NAME,
-            dtos1.get(0).getRisk().getDescription());
+        Assert.assertEquals("\"target\" doesn't comply with \"" + POLICY_NAME + "\"",
+                dtos1.get(0).getRisk().getDescription());
 
         // Test that we do not modify the explanation if the primary explanation is not compliance.
         // We always go with the primary explanation if available
@@ -2469,11 +2531,13 @@ public class ActionSpecMapperTest {
     }
     private Action buildAction(ActionInfo actionInfo, Explanation explanation) {
         return Action.newBuilder()
-            .setDeprecatedImportance(0)
-            .setId(1234)
-            .setInfo(actionInfo)
-            .setExplanation(explanation)
-            .build();
+                .setDeprecatedImportance(0)
+                .setId(1234)
+                .setInfo(actionInfo)
+                .setExplanation(explanation)
+                .setDisruptive(false)
+                .setReversible(true)
+                .build();
     }
 
     private static ReasonCommodity createReasonCommodity(int baseType, String key) {

@@ -12,10 +12,11 @@
       }
     ]
   },
+  "description": "This dashboard compares average hourly utilization measurements for virtual machines day-over-day for the two consecutive days. All VMs in the selected group are included in the averages.",
   "editable": false,
   "gnetId": null,
   "graphTooltip": 1,
-  "iteration": 1596572272749,
+  "iteration": 1597070550382,
   "links": [],
   "panels": [
     {
@@ -339,6 +340,6 @@
     ]
   },
   "timezone": "",
-  "title": "VM Utilization Day over Day By Hour",
+  "title": "Virtual Machine Utilization Day over Day By Hour",
   "uid": "vm_util_day_over_day_by_hour"
 }

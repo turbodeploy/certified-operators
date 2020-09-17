@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
@@ -34,7 +35,7 @@ import com.vmturbo.cost.component.identity.IdentityProvider;
  * data which comes from Topology Processor. There are two parts of reserved instance spec data: first
  * part comes from reserved instance bought, second part comes from reserved instance cost price table.
  */
-public class ReservedInstanceSpecStore implements DiagsRestorable {
+public class ReservedInstanceSpecStore implements DiagsRestorable<Void> {
 
     private static final String reservedInstanceSpecDumpFile = "reservedInstanceSpec_dump";
 
@@ -275,7 +276,7 @@ public class ReservedInstanceSpecStore implements DiagsRestorable {
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
         // TODO to be implemented as part of OM-58627
     }
 

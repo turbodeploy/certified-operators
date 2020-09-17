@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Maps;
 import com.google.gson.Gson;
@@ -34,7 +35,7 @@ import com.vmturbo.identity.exceptions.IdentityStoreException;
  * we are using to determine the OID.
  */
 public class PersistentMatchingAttributesIdentityStore<RecordTypeT
-        extends UpdatableRecordImpl<RecordTypeT>> implements PersistentIdentityStore {
+        extends UpdatableRecordImpl<RecordTypeT>> implements PersistentIdentityStore<DSLContext> {
 
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
@@ -97,29 +98,39 @@ public class PersistentMatchingAttributesIdentityStore<RecordTypeT
     }
 
     @Override
-    public void saveOidMappings(@Nonnull Map<IdentityMatchingAttributes, Long> attrToOidMap)
-            throws IdentityStoreException {
+    public void saveOidMappings(@Nonnull Map<IdentityMatchingAttributes, Long> attrsToOidMap) throws IdentityStoreException {
         // run the update as a transaction; if there is an exception, the transaction will be rolled back
-        dsl.transaction(configuration -> {
-            DSLContext transactionDsl = DSL.using(configuration);
-            for (Map.Entry<IdentityMatchingAttributes, Long> mapEntry : attrToOidMap.entrySet()) {
-                final IdentityMatchingAttributes attr = mapEntry.getKey();
-                final long oid = mapEntry.getValue();
-                final String serializedAttr = serializeTargetSpecIdentityMatchingAttrs(attr);
-                try {
-                    transactionDsl.insertInto(databaseTable)
-                            .set(idField, oid)
-                            .set(matchingAttributesField, serializedAttr)
-                            .onDuplicateKeyIgnore()
-                            .execute();
-                } catch (DataAccessException e) {
-                    // capture the info about the workflow causing the error
-                    throw new IdentityStoreException(
-                            String.format(ERROR_PERSISTING_MSG, tableDescription, oid,
-                                    serializedAttr), e);
-                }
+        try {
+            dsl.transaction(configuration -> {
+                DSLContext transactionDsl = DSL.using(configuration);
+                saveOidMappings(attrsToOidMap, transactionDsl);
+            });
+        } catch (DataAccessException ex) {
+            throw new IdentityStoreException("There was error while saving OID mapping in the "
+                + "database.", ex);
+        }
+
+    }
+
+    private void saveOidMappings(@Nonnull Map<IdentityMatchingAttributes, Long> attrToOidMap,
+                                 @Nonnull DSLContext context) {
+        for (Map.Entry<IdentityMatchingAttributes, Long> mapEntry : attrToOidMap.entrySet()) {
+            final IdentityMatchingAttributes attr = mapEntry.getKey();
+            final long oid = mapEntry.getValue();
+            final String serializedAttr = serializeTargetSpecIdentityMatchingAttrs(attr);
+            try {
+                context.insertInto(databaseTable)
+                        .set(idField, oid)
+                        .set(matchingAttributesField, serializedAttr)
+                        .onDuplicateKeyIgnore()
+                        .execute();
+            } catch (DataAccessException e) {
+                // capture the info about the workflow causing the error
+                throw new DataAccessException(
+                        String.format(ERROR_PERSISTING_MSG, tableDescription, oid,
+                                serializedAttr), e);
             }
-        });
+        }
     }
 
     @Override
@@ -178,24 +189,25 @@ public class PersistentMatchingAttributesIdentityStore<RecordTypeT
     }
 
     @Override
-    public void restoreDiags(@Nonnull List<String> collectedDiags) throws DiagnosticsException {
-        dsl.transaction(configuration -> {
-            final Map<IdentityMatchingAttributes, Long> attrToOidMap = Maps.newHashMap();
-            try {
-                // Clear table first.
-                removeAllOids();
-                collectedDiags.forEach(diag -> {
-                    final MatchingAttributesHeader matchingAttributesHeader = GSON.fromJson(diag, MatchingAttributesHeader.class);
-                    final IdentityMatchingAttributes attrs = deserializeTargetSpecIdentityMatchingAttrs(
-                            matchingAttributesHeader.getIdentityMatchingAttributes());
-                    attrToOidMap.put(attrs, matchingAttributesHeader.getId());
-                });
-                saveOidMappings(attrToOidMap);
-            } catch (IdentityStoreException e) {
-                throw new DiagnosticsException(String.format("Saving target identifiers to database "
-                        + "failed. %s", e));
+    public void restoreDiags(@Nonnull List<String> collectedDiags, @Nullable DSLContext context) throws DiagnosticsException {
+        try {
+            if (context == null) {
+                context = dsl;
             }
-        });
+            // Clear table first.
+            removeAllOids(context);
+            final Map<IdentityMatchingAttributes, Long> attrToOidMap = Maps.newHashMap();
+            collectedDiags.forEach(diag -> {
+                final MatchingAttributesHeader matchingAttributesHeader = GSON.fromJson(diag, MatchingAttributesHeader.class);
+                final IdentityMatchingAttributes attrs = deserializeTargetSpecIdentityMatchingAttrs(
+                    matchingAttributesHeader.getIdentityMatchingAttributes());
+                attrToOidMap.put(attrs, matchingAttributesHeader.getId());
+            });
+            saveOidMappings(attrToOidMap, context);
+        } catch (DataAccessException e) {
+            throw new DiagnosticsException(String.format("Saving target identifiers to database "
+                + "failed. %s", e));
+        }
     }
 
     @Nonnull
@@ -207,17 +219,10 @@ public class PersistentMatchingAttributesIdentityStore<RecordTypeT
     /**
      * Method to clear the target spec oid table.
      *
-     * @throws IdentityStoreException if deleting all oid mappings failed.
+     * @param context dsl context for accessing DB.
      */
-    private void removeAllOids() throws IdentityStoreException {
-        try {
-            dsl.transaction(configuration -> {
-                DSLContext transactionDsl = DSL.using(configuration);
-                transactionDsl.delete(databaseTable).execute();
-            });
-        } catch (DataAccessException e) {
-            throw new IdentityStoreException("Error deleting all Oid Mappings", e);
-        }
+    private void removeAllOids(@Nonnull DSLContext context) {
+        context.delete(databaseTable).execute();
     }
 
     @Nonnull

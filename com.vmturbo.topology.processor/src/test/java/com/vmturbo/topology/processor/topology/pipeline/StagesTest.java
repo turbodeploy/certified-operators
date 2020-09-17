@@ -197,9 +197,10 @@ public class StagesTest {
         when(cloudScopingStage.getContext()).thenReturn(context);
         when(context.getStitchingJournalContainer()).thenReturn(container);
         when(context.getTopologyInfo()).thenReturn(cloudTopologyInfo);
-        when(scopeEditor.scopeCloudTopology(cloudTopologyInfo, graph)).thenReturn(graph);
+        when(scopeEditor.scopeTopology(cloudTopologyInfo, graph, context))
+                .thenReturn(graph);
         cloudScopingStage.execute(graph);
-        verify(scopeEditor).scopeCloudTopology(cloudTopologyInfo, graph);
+        verify(scopeEditor).scopeTopology(cloudTopologyInfo, graph, context);
     }
 
     @Test
@@ -394,7 +395,8 @@ public class StagesTest {
         postStitchingStage.setContext(context);
         postStitchingStage.execute(graphWithSettings);
 
-        verify(stitchingManager).postStitch(eq(graphWithSettings), eq(postStitchingJournal));
+        verify(stitchingManager).postStitch(eq(graphWithSettings), eq(postStitchingJournal),
+                eq(Collections.emptySet()));
         verify(postStitchingJournal).dumpTopology(any(Stream.class));
     }
 
@@ -427,12 +429,14 @@ public class StagesTest {
         when(results.getAppliedCounts()).thenReturn(Collections.emptyMap());
         when(results.getTotalAddedCommodityCounts()).thenReturn(Collections.emptyMap());
 
-        when(policyManager.applyPolicies(eq(topologyGraph), eq(groupResolver), eq(Collections.emptyList()), any()))
+        when(policyManager.applyPolicies(eq(context), eq(topologyGraph),
+                eq(Collections.emptyList())))
             .thenReturn(results);
 
         policyStage.execute(topologyGraph);
 
-        verify(policyManager).applyPolicies(eq(topologyGraph), eq(groupResolver), eq(Collections.emptyList()), any());
+        verify(policyManager).applyPolicies(eq(context), eq(topologyGraph),
+                eq(Collections.emptyList()));
     }
 
     /**
@@ -469,13 +473,13 @@ public class StagesTest {
 
         final GraphWithSettings graphWithSettings = mock(GraphWithSettings.class);
 
-        when(entitySettingsResolver.resolveSettings(eq(groupResolver), eq(topologyGraph), any(), any(), any()))
+        when(entitySettingsResolver.resolveSettings(eq(groupResolver), eq(topologyGraph), any(), any(), any(), any()))
             .thenReturn(graphWithSettings);
 
         stage.setContext(context);
         stage.execute(topologyGraph);
 
-        verify(entitySettingsResolver).resolveSettings(eq(groupResolver), eq(topologyGraph), any(), any(), any());
+        verify(entitySettingsResolver).resolveSettings(eq(groupResolver), eq(topologyGraph), any(), any(), any(), any());
     }
 
     @Test

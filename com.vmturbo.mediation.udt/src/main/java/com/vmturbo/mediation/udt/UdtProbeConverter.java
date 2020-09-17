@@ -3,13 +3,12 @@ package com.vmturbo.mediation.udt;
 import static com.vmturbo.mediation.udt.ConverterUtils.createApplicationBought;
 import static com.vmturbo.mediation.udt.ConverterUtils.createApplicationSold;
 import static com.vmturbo.mediation.udt.UdtProbe.UDT_PROBE_TAG;
-import static com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse.newBuilder;
 import static com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants.VENDOR;
 import static com.vmturbo.platform.sdk.common.util.SDKUtil.VENDOR_ID;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
@@ -21,7 +20,6 @@ import com.vmturbo.mediation.udt.inventory.UdtChildEntity;
 import com.vmturbo.mediation.udt.inventory.UdtEntity;
 import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.builders.GenericEntityBuilder;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 
@@ -65,9 +63,12 @@ class UdtProbeConverter {
                 entitiesDtoMap.put(childDto.getId(), childDto);
             }
         }
-        Set<EntityDTO> entities = entitiesDtoMap.values().stream()
-                .map(GenericEntityBuilder::build).collect(Collectors.toSet());
-        return newBuilder().addAllEntityDTO(entities).build();
+        DiscoveryResponse.Builder response = DiscoveryResponse.newBuilder();
+        Set<GenericEntityBuilder> builders = new HashSet<>(entitiesDtoMap.values());
+        for (GenericEntityBuilder builder : builders) {
+            response.addEntityDTO(builder.build());
+        }
+        return response.build();
     }
 
     /**

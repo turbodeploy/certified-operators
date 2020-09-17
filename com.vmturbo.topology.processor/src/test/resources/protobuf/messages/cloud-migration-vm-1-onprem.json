@@ -1,0 +1,293 @@
+{
+  "entityType": 10,
+  "oid": "73433887043440",
+  "displayName": "win-mssql2016-174.53",
+  "commoditySoldList": [{
+    "commodityType": {
+      "type": 26
+    },
+    "used": 3478.366666666667,
+    "peak": 4008.0,
+    "capacity": 4622.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "hotResizeInfo": {
+      "hotReplaceSupported": false,
+      "hotAddSupported": false,
+      "hotRemoveSupported": false
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 53
+    },
+    "used": 876608.0,
+    "peak": 1111488.0,
+    "capacity": 2097152.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "hotResizeInfo": {
+      "hotReplaceSupported": false,
+      "hotAddSupported": false
+    },
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 65,
+      "key": "VirtualMachine::a6e7ff920b13aeed541ffbfc142e38f3e8d37035"
+    },
+    "used": 38306.74609375,
+    "capacity": 61087.99609375,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 56,
+      "key": "73433887043440"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }],
+  "commoditiesBoughtFromProviders": [{
+    "providerId": "73433887033680",
+    "providerEntityType": 14,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 31
+      },
+      "used": 217.0,
+      "peak": 406.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 57,
+        "key": "Network::VM Network"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 21
+      },
+      "used": 1780280.0,
+      "peak": 1794672.0,
+      "active": true,
+      "displayName": "",
+      "reservedCapacity": 0.0
+    }, {
+      "commodityType": {
+        "type": 0,
+        "key": "Cluster::ec109a981367a2da23848a17d9eef401294a1d39"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 39
+      },
+      "used": 30.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 47
+      },
+      "used": 6.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 33
+      },
+      "used": 0.0,
+      "active": false,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 36,
+        "key": "Storage::5cf6e809-7d9d85ad-7a3f-001cc46d09d2"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 45
+      },
+      "used": 2097152.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 41
+      },
+      "used": 0.0,
+      "active": false,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 55,
+        "key": "DataCenter::cdcd967d1e08d20936c3aa9a0879c635214c79ee"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 28
+      },
+      "used": 4622.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 40
+      },
+      "used": 3478.366666666667,
+      "peak": 4008.0,
+      "active": true,
+      "displayName": "",
+      "reservedCapacity": 0.0
+    }]
+  }, {
+    "providerId": "73433887031974",
+    "providerEntityType": 2,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 2.7666666666666666,
+      "peak": 8.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 59,
+        "key": "free_storage_cluster"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 22
+      },
+      "used": 2.033333333333333,
+      "peak": 16.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 48147.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 6
+      },
+      "used": 61440.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 51,
+        "key": "PhysicalMachine::34313836-3333-5553-4537-32384e374132"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }],
+    "volumeId": "73433887060893"
+  }, {
+    "providerId": "73433887033681",
+    "providerEntityType": 1,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 2,
+        "key": "VirtualDataCenter::34d6ff27f0c8ac311e9364457867f62e37584dde"
+      },
+      "used": 3478.366666666667,
+      "peak": 4008.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 50,
+        "key": "VirtualDataCenter::34d6ff27f0c8ac311e9364457867f62e37584dde"
+      },
+      "used": 1780280.0,
+      "peak": 1794672.0,
+      "active": true,
+      "displayName": ""
+    }]
+  }],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap": {
+    "numCpus": "2",
+    "VcTgtIdAndInternalName": "fef5e79d1437d322b883a67649e2242ceff845ed",
+    "targetAddress": "vsphere-dc17.eng.vmturbo.com",
+    "instanceUuid": "501d08ee-7831-2a4b-b35c-9100d0e468dc",
+    "vmHardwareCompatibilityVersion": "vmx-11"
+  },
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1593103875835",
+      "discoveredTargetData": {
+        "73433887067200": {
+          "vendorId": "vm-401"
+        },
+        "73433886535248": {
+          "vendorId": "vm-401"
+        }
+      }
+    }
+  },
+  "connectedEntityList": [{
+    "connectedEntityId": "73433887060893",
+    "connectedEntityType": 60,
+    "connectionType": "NORMAL_CONNECTION"
+  }],
+  "tags": {
+  },
+  "typeSpecificInfo": {
+    "virtualMachine": {
+      "guestOsInfo": {
+        "guestOsType": "WINDOWS",
+        "guestOsName": "Microsoft Windows Server 2012 (64-bit)"
+      },
+      "ipAddresses": [{
+        "ipAddress": "10.10.168.198",
+        "isElastic": false
+      }, {
+        "ipAddress": "10.10.174.53",
+        "isElastic": false
+      }],
+      "numCpus": 2,
+      "billingType": "ONDEMAND",
+      "connectedNetworks": ["VM Network"],
+      "licenseModel": "LICENSE_INCLUDED",
+      "driverInfo": {
+      }
+    }
+  }
+}

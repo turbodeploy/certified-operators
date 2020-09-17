@@ -61,6 +61,7 @@ import com.vmturbo.topology.processor.TopologyProcessorComponent;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.cost.PriceTableUploader;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityStore.TargetIncrementalEntities;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
@@ -89,7 +90,7 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutor
  * targets, one file for their schedules, and then one file per target with the entities
  * associated with that target.
  */
-public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerImportable {
+public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerImportable<Void> {
 
     private static final String TARGETS_DIAGS_FILE_NAME = "Targets.diags";
     private static final String SCHEDULES_DIAGS_FILE_NAME = "Schedules.diags";
@@ -109,7 +110,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
     private final PriceTableUploader priceTableUploader;
     private final TopologyPipelineExecutorService topologyPipelineExecutorService;
     private final Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts;
-
+    private final BinaryDiscoveryDumper binaryDiscoveryDumper;
     private final Logger logger = LogManager.getLogger();
 
     TopologyProcessorDiagnosticsHandler(
@@ -124,7 +125,8 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             @Nonnull final DiscoveredCloudCostUploader discoveredCloudCostUploader,
             @Nonnull final PriceTableUploader priceTableUploader,
             @Nonnull final TopologyPipelineExecutorService topologyPipelineExecutorService,
-            @Nonnull final Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts) {
+            @Nonnull final Map<String, BinaryDiagsRestorable> fixedFilenameBinaryDiagnosticParts,
+            @Nonnull final BinaryDiscoveryDumper binaryDiscoveryDumper) {
         this.targetStore = targetStore;
         this.targetPersistentIdentityStore = targetPersistentIdentityStore;
         this.scheduler = scheduler;
@@ -137,6 +139,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         this.priceTableUploader = priceTableUploader;
         this.topologyPipelineExecutorService = topologyPipelineExecutorService;
         this.fixedFilenameBinaryDiagnosticParts = fixedFilenameBinaryDiagnosticParts;
+        this.binaryDiscoveryDumper = binaryDiscoveryDumper;
     }
 
     /**
@@ -256,6 +259,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                             .iterator());
         }
 
+        diagsWriter.writeCustomEntries(binaryDiscoveryDumper);
         diagsWriter.dumpDiagnosable(
                 new PrometheusDiagnosticsProvider(CollectorRegistry.defaultRegistry));
         fixedFilenameBinaryDiagnosticParts.values().forEach(diagsWriter::dumpDiagnosable);
@@ -380,7 +384,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
      */
     @Override
     @Nonnull
-    public String restore(@Nonnull InputStream zis) throws DiagnosticsException {
+    public String restore(@Nonnull InputStream zis, @Nullable Void context) throws DiagnosticsException {
         try {
             topologyPipelineExecutorService.blockBroadcasts(1, TimeUnit.HOURS);
             return internalRestore(zis);
@@ -397,7 +401,10 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         // will be written to Consul with the old ID. This entry will later become a duplicate entry
         // and cause severe problems.
         final Stopwatch stopwatch = Stopwatch.createStarted();
-        final List<Diags> sortedDiagnostics = Streams.stream(new DiagsZipReader(zis, true))
+        final DiagsZipReader diagsReader = new DiagsZipReader(zis,
+            binaryDiscoveryDumper,
+            true);
+        final List<Diags> sortedDiagnostics = Streams.stream(diagsReader)
             .sorted(diagsRestoreComparator)
             .collect(Collectors.toList());
         final List<String> errors = new ArrayList<>();
@@ -413,7 +420,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                 switch (diagsName) {
                     // TODO change this switch with mapping from Diagnosable.getFileName()
                     case IdentityProviderImpl.ID_DIAGS_FILE_NAME + DiagsZipReader.TEXT_DIAGS_SUFFIX:
-                        identityProvider.restoreDiags(diagsLines);
+                        identityProvider.restoreDiags(diagsLines, null);
                         break;
                     case PersistentTargetSpecIdentityStore.TARGET_IDENTIFIERS_DIAGS_FILE_NAME +
                             DiagsZipReader.TEXT_DIAGS_SUFFIX:
@@ -430,10 +437,10 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                         break;
                     case DiscoveredCloudCostUploader.DISCOVERED_CLOUD_COST_NAME +
                             DiagsZipReader.TEXT_DIAGS_SUFFIX:
-                        discoveredCloudCostUploader.restoreDiags(diagsLines);
+                        discoveredCloudCostUploader.restoreDiags(diagsLines, null);
                         break;
                     case PriceTableUploader.PRICE_TABLE_NAME + DiagsZipReader.TEXT_DIAGS_SUFFIX:
-                        priceTableUploader.restoreDiags(diagsLines);
+                        priceTableUploader.restoreDiags(diagsLines, null);
                         break;
                     default:
                         // TODO Roman Zimine, Emanuele Maccherani history processing restoration is
@@ -447,7 +454,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                             logger.info("'{}' state will be restored from '{}' file found in diagnostics.",
                                             diagnosticPart.getClass().getSimpleName(),
                                             diagsName);
-                            diagnosticPart.restoreDiags(bytes);
+                            diagnosticPart.restoreDiags(bytes, null);
                             break;
                         }
                         // Other diags files should match a pattern
@@ -501,7 +508,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             throws DiagnosticsException {
         logger.info("Attempting to restore " + serializedTargetIdentifiers.size() + " target identifiers data "
                 + "to database");
-        targetPersistentIdentityStore.restoreDiags(serializedTargetIdentifiers);
+        targetPersistentIdentityStore.restoreDiags(serializedTargetIdentifiers, null);
         logger.info("Restored target identifiers into database.");
     }
 

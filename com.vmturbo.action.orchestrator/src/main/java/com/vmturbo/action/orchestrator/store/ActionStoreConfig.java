@@ -35,7 +35,6 @@ import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
 import com.vmturbo.action.orchestrator.store.identity.RecommendationIdentityStore;
 import com.vmturbo.action.orchestrator.topology.ActionTopologyListener;
-import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
@@ -143,6 +142,20 @@ public class ActionStoreConfig {
     @Value("${actionIdentityCachePurgeIntervalSec:1800}")
     private int identityCachePurgeIntervalSec;
 
+    @Value("${queryTimeWindowForLastExecutedActionsMins:60}")
+    private int queryTimeWindowForLastExecutedActionsMins;
+
+    /**
+     * If true, we will expect that the topology ID of the incoming live action plan strictly
+     * matches the topology ID of the per-entity setting breakdown that the topology processor
+     * uploads to the group component. This is slightly safer because we will know the market
+     * generated the actions using the same settings. However, we may end up getting no settings
+     * at all if the topology processor uploaded a newer version of the setting breakdown before the
+     * action plan gets to the action orchestrator.
+     */
+    @Value("${actionSettingsStrictTopologyIdMatch:false}")
+    private boolean actionSettingsStrictTopologyIdMatch;
+
     @Bean
     public IActionFactory actionFactory() {
         return new ActionFactory(actionModeCalculator());
@@ -176,7 +189,8 @@ public class ActionStoreConfig {
             tpConfig.realtimeTopologyContextId(),
             repositoryClientConfig.topologyAvailabilityTracker(),
             minsToWaitForTopology,
-            TimeUnit.MINUTES, acceptedActionsStore());
+            TimeUnit.MINUTES, acceptedActionsStore(),
+            actionSettingsStrictTopologyIdMatch);
     }
 
     @Bean
@@ -239,16 +253,6 @@ public class ActionStoreConfig {
     }
 
     /**
-     * See: {@link ActionTopologyStore}.
-     *
-     * @return The {@link ActionTopologyStore}.
-     */
-    @Bean
-    public ActionTopologyStore actionTopologyStore() {
-        return new ActionTopologyStore();
-    }
-
-    /**
      * Topology processor listener, which forwards topology and entity state updates.
      *
      * @return The {@link ActionTopologyListener}.
@@ -256,7 +260,7 @@ public class ActionStoreConfig {
     @Bean
     public ActionTopologyListener tpListener() {
         final ActionTopologyListener topologyListener = new ActionTopologyListener(actionStorehouse(),
-                actionTopologyStore(),
+                tpConfig.actionTopologyStore(),
                 tpConfig.realtimeTopologyContextId());
         tpConfig.topologyProcessor().addLiveTopologyListener(topologyListener);
         tpConfig.topologyProcessor().addEntitiesWithNewStatesListener(topologyListener);
@@ -271,7 +275,7 @@ public class ActionStoreConfig {
     @Bean
     public IActionStoreFactory actionStoreFactory() {
         return ActionStoreFactory.newBuilder()
-            .withTopologyStore(actionTopologyStore())
+            .withTopologyStore(tpConfig.actionTopologyStore())
             .withActionFactory(actionFactory())
             .withRealtimeTopologyContextId(tpConfig.realtimeTopologyContextId())
             .withDatabaseDslContext(databaseConfig.dsl())
@@ -293,6 +297,7 @@ public class ActionStoreConfig {
             .withInvolvedEntitiesExpander(actionStatsConfig.involvedEntitiesExpander())
             .withActionAuditSender(auditCommunicationConfig.actionAuditSender())
             .withRiskPropagationEnabledFlag(riskPropagationEnabled)
+            .withQueryTimeWindowForLastExecutedActionsMins(queryTimeWindowForLastExecutedActionsMins)
             .build();
     }
 
