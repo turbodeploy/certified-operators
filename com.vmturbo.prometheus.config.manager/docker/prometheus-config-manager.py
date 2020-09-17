@@ -94,6 +94,8 @@ while True:
                    and datetime.today() <= datetime.strptime(license_dto['turbo']['expirationDate'],
                                                              '%Y-%m-%d')  # it has not expired
             }))
+            if not customer_domain:
+                customer_domain = "unlicensed"
         except (requests.RequestException, OSError, ValueError) as error:
             print(datetime.now(),
                   "WARNING: Can't get licence information from auth. Using old values. Cause:",
