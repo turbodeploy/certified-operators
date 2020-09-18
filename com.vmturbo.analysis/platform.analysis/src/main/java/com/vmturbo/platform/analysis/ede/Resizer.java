@@ -296,11 +296,23 @@ public class Resizer {
                     seller.getDebugInfoNeverUseInCode(), commSpec.getDebugInfoNeverUseInCode(),
                     maxAmount, resizeCommodity.getEffectiveCapacity(), capacityUpperBound);
         }
+
+        // Need to ensure that we do not go above the capacityUpperBound since we do
+        // desiredAmount / (capacityIncrement * rateOfRightSize) and we take the ceil() of the
+        // decimal. When we take the ceil(), rounding up can bring the capacity above the capacityUpperBound
+        // which is why we need to take the floor() when constricted by the capacity upper bound.
+        // The example where this happens is we have a capacity upper bound of 8 vCPUs worth of MHz
+        // and we resize the VM from 6 to 9 vCPUs because we end up with a decimal for
+        // desiredAmount/capacityIncrement.
+        boolean useMaxLimitiation = (maxAmount - capacityIncrement) < desiredAmount;
+
         if (maxAmount < desiredAmount) {
             desiredAmount = maxAmount;
         }
+        double incrementsValue = desiredAmount / (capacityIncrement * rateOfRightSize);
         // compute increments sufficient for desired amount
-        int numIncrements = (int) Math.ceil(desiredAmount / (capacityIncrement * rateOfRightSize));
+        int numIncrements = useMaxLimitiation ? (int) Math.floor(incrementsValue)
+            : (int) Math.ceil(incrementsValue);
 
         for (CommoditySold rawMaterial : rawMaterials) {
             if (rawMaterial != null
