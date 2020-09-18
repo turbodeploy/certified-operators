@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest.ActionQuery;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -341,7 +342,8 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
                             .setTopologyContextId(contextId)
                             .setPaginationParams(PaginationParameters.newBuilder()
                                     .setCursor(cursor.getAndSet("")))
-                            .setFilter(actionQueryFilter)
+                            .addActionQuery(ActionQuery.newBuilder()
+                                .setQueryFilter(actionQueryFilter))
                             .build();
             actionsServiceBlockingStub.getAllActions(filteredActionRequest)
                     .forEachRemaining(rsp -> {

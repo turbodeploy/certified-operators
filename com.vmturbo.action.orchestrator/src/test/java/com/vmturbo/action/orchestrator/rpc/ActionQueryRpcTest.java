@@ -66,6 +66,7 @@ import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
@@ -76,6 +77,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionStats;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest.ActionQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.TypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse;
@@ -91,6 +93,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextInfoRequest;
@@ -385,7 +388,8 @@ public class ActionQueryRpcTest {
 
         final FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
             .setTopologyContextId(topologyContextId)
-            .setFilter(ActionQueryFilter.newBuilder().setVisible(true))
+            .addActionQuery(ActionQuery.newBuilder()
+                .setQueryFilter(ActionQueryFilter.newBuilder().setVisible(true)))
             .build();
 
         Iterators.advance(actionOrchestratorServiceClient.getAllActions(actionRequest), 1);
@@ -412,7 +416,8 @@ public class ActionQueryRpcTest {
 
         final FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
             .setTopologyContextId(topologyContextId)
-            .setFilter(ActionQueryFilter.newBuilder().setVisible(true))
+            .addActionQuery(ActionQuery.newBuilder()
+                .setQueryFilter(ActionQueryFilter.newBuilder().setVisible(true)))
             .build();
 
         final List<ActionSpec> actionSpecs = fetchSpecList(
@@ -420,8 +425,56 @@ public class ActionQueryRpcTest {
         assertThat(actionSpecs, containsInAnyOrder(spec(visibleAction), spec(disabledAction)));
     }
 
+    /**
+     * Test that when a filtered action request contains multiple filters, they are handled correctly.
+     */
     @Test
-    public void testGetAllActionsMissingArgument() throws Exception {
+    public void testGetAllActionsMultipleFilters() {
+        final Action action1 = spy(ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId));
+        final Action action2 = spy(ActionOrchestratorTestUtils.createMoveAction(2, actionPlanId));
+        action1.setDescription("Move VM1 from Host1 to Host2");
+        action2.setDescription("Move VM2 from Host1 to Host2");
+        doReturn(ActionMode.DISABLED).when(action2).getMode();
+        doReturn(ActionMode.AUTOMATIC).when(action1).getMode();
+        doReturn(ActionCategory.COMPLIANCE).when(action1).getActionCategory();
+        doReturn(ActionCategory.EFFICIENCY_IMPROVEMENT).when(action2).getActionCategory();
+        doReturn(Severity.CRITICAL).when(action1).getActionSeverity();
+        doReturn(Severity.MINOR).when(action2).getActionSeverity();
+        final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
+            action1.getId(), action1,
+            action2.getId(), action2), PlanActionStore.VISIBILITY_PREDICATE);
+        when(actionStore.getActionViews()).thenReturn(actionViews);
+        when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
+
+        final FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
+            .setTopologyContextId(topologyContextId)
+            .addActionQuery(ActionQuery.newBuilder().setQueryId(456L)
+                .setQueryFilter(ActionQueryFilter.newBuilder().addModes(ActionMode.DISABLED)))
+            .addActionQuery(ActionQuery.newBuilder().setQueryId(123L)
+                .setQueryFilter(ActionQueryFilter.newBuilder().addCategories(ActionCategory.COMPLIANCE)))
+            .addActionQuery(ActionQuery.newBuilder()
+                .setQueryFilter(ActionQueryFilter.newBuilder().addSeverities(Severity.CRITICAL)))
+            .build();
+
+
+        final Iterator<FilteredActionResponse> result =
+            actionOrchestratorServiceClient.getAllActions(actionRequest);
+        final HashMap<Long, ActionSpec> actionsByFilterId = new HashMap<>();
+        while (result.hasNext()) {
+            final FilteredActionResponse current = result.next();
+            final Long filterId = current.hasQueryId() ? current.getQueryId() : null;
+            if (current.hasActionChunk()) {
+                assertEquals(1, current.getActionChunk().getActionsCount());
+                actionsByFilterId.put(filterId, current.getActionChunk().getActions(0).getActionSpec());
+            }
+        }
+        assertEquals(spec(action2), actionsByFilterId.get(456L));
+        assertEquals(spec(action1), actionsByFilterId.get(123L));
+        assertEquals(spec(action1), actionsByFilterId.get(null));
+    }
+
+    @Test
+    public void testGetAllActionsMissingArgument() {
         FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
             .build();
 

@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.rpc;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionPaginator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.action.orchestrator.action.ActionView;
@@ -65,6 +67,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest.ActionQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.ActionChunk;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
@@ -278,42 +281,61 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                 final Optional<ActionStore> store = actionStorehouse.getStore(request.getTopologyContextId());
                 if (store.isPresent()) {
                     Tracing.log(() -> "Getting filtered actions. Request: " + JsonFormat.printer().print(request));
+                    final ActionStore actionStore = store.get();
+                    final ActionPaginator paginator = paginatorFactory.newPaginator();
 
-                    ActionStore actionStore = store.get();
-
+                    // HashMap is specifically required because it allows a null key
+                    final HashMap<ActionQuery, PaginatedActionViews> paginatedViewsByQuery =
+                        new HashMap<>();
+                    final List<ActionQuery> queries = request.getActionQueryList();
                     // We do translation after pagination because translation failures may
                     // succeed on retry. If we do translation before pagination, success after
                     // failure will mix up the pagination limit.
-                    final Stream<ActionView> resultViews = request.hasFilter() ?
-                        actionStore.getActionViews().get(request.getFilter()) :
-                        actionStore.getActionViews().getAll();
+                    if (queries.isEmpty()) {
+                        final Stream<ActionView> allViews = actionStore.getActionViews().getAll();
+                        final PaginatedActionViews allViewsPaginated =
+                            paginator.applyPagination(allViews, request.getPaginationParams());
+                        paginatedViewsByQuery.put(null, allViewsPaginated);
+                    }
+                    queries.forEach(query -> {
+                        final Stream<ActionView> filteredViews = query.hasQueryFilter() ?
+                            actionStore.getActionViews().get(query.getQueryFilter()) :
+                            actionStore.getActionViews().getAll();
+                        final PaginatedActionViews filteredViewsPaginated =
+                            paginator.applyPagination(filteredViews, request.getPaginationParams());
+                        paginatedViewsByQuery.put(query, filteredViewsPaginated);
+                    });
 
-                    Tracing.log("Got result views.");
-
-                    final PaginatedActionViews paginatedViews = paginatorFactory.newPaginator()
-                            .applyPagination(resultViews, request.getPaginationParams());
-
-                    Tracing.log("Finished pagination.");
-
-                    final PaginationResponse.Builder paginationResponseBuilder =
-                            PaginationResponse.newBuilder();
-                    paginationResponseBuilder.setTotalRecordCount(paginatedViews.getTotalRecordCount());
-                    paginatedViews.getNextCursor().ifPresent(paginationResponseBuilder::setNextCursor);
-                    // send pagination response as first in response
-                    responseObserver.onNext(FilteredActionResponse.newBuilder()
-                            .setPaginationResponse(paginationResponseBuilder).build());
-                    // stream results in current page in chunks
-                    Lists.partition(paginatedViews.getResults(), actionPaginationMaxLimit)
+                    paginatedViewsByQuery.forEach((query, paginatedViews) -> {
+                        final PaginationResponse.Builder paginationResponseBuilder =
+                            PaginationResponse.newBuilder()
+                                .setTotalRecordCount(paginatedViews.getTotalRecordCount());
+                        paginatedViews.getNextCursor()
+                            .ifPresent(paginationResponseBuilder::setNextCursor);
+                        // send pagination response as first in response
+                        final FilteredActionResponse.Builder outerPaginationResponse =
+                            FilteredActionResponse.newBuilder()
+                                .setPaginationResponse(paginationResponseBuilder);
+                        if (query != null && query.hasQueryId()) {
+                            outerPaginationResponse.setQueryId(query.getQueryId());
+                        }
+                        responseObserver.onNext(outerPaginationResponse.build());
+                        // stream results in current page in chunks
+                        Lists.partition(paginatedViews.getResults(), actionPaginationMaxLimit)
                             .forEach(batch -> {
-                                ActionChunk.Builder actionChunk = ActionChunk.newBuilder();
+                                final ActionChunk.Builder actionChunk = ActionChunk.newBuilder();
                                 actionTranslator.translateToSpecs(batch, actionStore)
-                                        .map(ActionsRpcService::aoAction)
-                                        .forEach(actionChunk::addActions);
-                                responseObserver.onNext(FilteredActionResponse.newBuilder()
-                                        .setActionChunk(actionChunk)
-                                        .build());
+                                    .map(ActionsRpcService::aoAction)
+                                    .forEach(actionChunk::addActions);
+                                final FilteredActionResponse.Builder outerActionResponse =
+                                    FilteredActionResponse.newBuilder()
+                                        .setActionChunk(actionChunk);
+                                if (query != null && query.hasQueryId()) {
+                                    outerActionResponse.setQueryId(query.getQueryId());
+                                }
+                                responseObserver.onNext(outerActionResponse.build());
                             });
-
+                    });
                     responseObserver.onCompleted();
                 } else {
                     contextNotFoundError(responseObserver, request.getTopologyContextId());
