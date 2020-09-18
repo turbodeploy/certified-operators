@@ -32,10 +32,6 @@ import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccou
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
-import com.vmturbo.api.dto.template.TemplateApiDTO;
-import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;

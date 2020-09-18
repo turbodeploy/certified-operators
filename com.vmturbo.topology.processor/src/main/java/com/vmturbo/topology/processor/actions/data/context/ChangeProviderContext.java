@@ -74,7 +74,7 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
     public Set<Long> getControlAffectedEntities() {
         final ActionEntity targetEntity;
         try {
-            targetEntity = ActionDTOUtil.getPrimaryEntity(getActionId(), getActionInfo());
+            targetEntity = ActionDTOUtil.getPrimaryEntity(getActionId(), getActionInfo(), true);
         } catch (UnsupportedActionException e) {
             logger.error("Cannot get action primary entity", e);
             return Collections.emptySet();

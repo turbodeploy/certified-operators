@@ -203,7 +203,7 @@
         "appHeapScalingIncrement",
         "dbMemScalingIncrement",
         "resizeVStorage",
-        "preferSavingsOverReversibility"
+        "preferSavingsOverReversibility",
         "dtuUtilization"
       ]
     },

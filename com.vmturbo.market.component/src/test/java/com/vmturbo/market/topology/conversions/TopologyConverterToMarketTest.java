@@ -853,8 +853,7 @@ public class TopologyConverterToMarketTest {
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory);
-
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
         final List<CommodityBoughtTO> boughtTOs = converter.createAndValidateCommBoughtTO(entityDTO,
                 boughtCommodityDTO, 1005L, Optional.empty());
         CommodityBoughtTO to = boughtTOs.iterator().next();
@@ -1867,7 +1866,6 @@ public class TopologyConverterToMarketTest {
             messageFromJsonFile("protobuf/messages/pod-1.dto.json").toBuilder(),
             messageFromJsonFile("protobuf/messages/container-1.dto.json").toBuilder(),
             messageFromJsonFile("protobuf/messages/container-2.dto.json").toBuilder(),
-            messageFromJsonFile("protobuf/messages/cloud-db.json").toBuilder(),
             messageFromJsonFile("protobuf/messages/vm-4.dto.json").toBuilder());
         final Map<Long, TopologyEntityDTO> topologyDTOs = topologyDTOBuilders.stream()
             .map(builder -> {
@@ -1884,13 +1882,6 @@ public class TopologyConverterToMarketTest {
         final CommoditiesResizeTracker resizeTracker = Mockito.mock(CommoditiesResizeTracker.class);
         Whitebox.setInternalState(topologyConverter,
             "commoditiesResizeTracker", resizeTracker);
-
-        // One of the trader is for StorageTier.
-        Optional<TraderTO> optinalDbEntityTraderTo = entityTraderTOs.stream().filter(entityTraderTO -> entityTraderTO.getType()
-                == EntityType.DATABASE_VALUE).findAny();
-        assertTrue(optinalDbEntityTraderTo.isPresent());
-        TraderTO  dbEntityTraderTo = optinalDbEntityTraderTo.get();
-        assertEquals(2048.0d, dbEntityTraderTo.getCommoditiesSoldList().get(0).getCapacity(), 0.01f);
 
         topologyConverter.convertToMarket(topologyDTOs);
         // Only the VirtualMachine (OID==101) should be saved to the resize tracker. The other converted
@@ -2031,7 +2022,8 @@ public class TopologyConverterToMarketTest {
         final Map<Long, TopologyEntityDTO> topologyDTOs = Stream.of(
                 messageFromJsonFile("protobuf/messages/cloud-volume.json"),
                 messageFromJsonFile("protobuf/messages/cloud-vm.json"),
-                messageFromJsonFile("protobuf/messages/cloud-storageTier.json"))
+                messageFromJsonFile("protobuf/messages/cloud-storageTier.json"),
+                messageFromJsonFile("protobuf/messages/cloud-db.json"))
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
                 MarketAnalysisUtils.QUOTE_FACTOR,
@@ -2040,17 +2032,26 @@ public class TopologyConverterToMarketTest {
                 ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
         Set<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
-        assertEquals(2, traderTOs.size());
+        assertEquals(3, traderTOs.size());
         // One of the trader is for StorageTier.
         Optional<TraderTO> storageTierTraderTO = traderTOs.stream().filter(t -> t.getType() == EntityType.STORAGE_TIER_VALUE).findAny();
         assertTrue(storageTierTraderTO.isPresent());
         // The other trader is for VirtualMachine.
-        TraderTO entityTraderTO = traderTOs.stream().filter(t -> t.getType() != EntityType.STORAGE_TIER_VALUE).findAny().orElse(null);
-        assertNotNull(entityTraderTO);
-        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, entityTraderTO.getType());
+        List<TraderTO> entityTraderTOs = traderTOs.stream().filter(t -> t.getType() != EntityType.STORAGE_TIER_VALUE).collect(toList());
+        assertThat(entityTraderTOs .size(), greaterThan(0));
+        Optional<TraderTO> optinalEntityTraderTo = entityTraderTOs.stream().filter(entityTraderTO -> entityTraderTO.getType()
+                == EntityType.VIRTUAL_MACHINE_VALUE).findAny();
+        assertTrue(optinalEntityTraderTo.isPresent());
+        TraderTO entityTraderTo = optinalEntityTraderTo.get();
+        // One of the trader is for StorageTier.
+        Optional<TraderTO> optinalDbEntityTraderTo = entityTraderTOs.stream().filter(entityTraderTO -> entityTraderTO.getType()
+                == EntityType.DATABASE_VALUE).findAny();
+        assertTrue(optinalDbEntityTraderTo.isPresent());
+        TraderTO  dbEntityTraderTo = optinalDbEntityTraderTo.get();
+        assertEquals(2048.0d, dbEntityTraderTo.getCommoditiesSoldList().get(0).getCapacity(), 0.01f);
 
         // Test the shoppingList within the VM trader which represents cloud volume.
-        ShoppingListTO volumeSL = entityTraderTO.getShoppingListsCount() > 0 ? entityTraderTO.getShoppingLists(0) : null;
+        ShoppingListTO volumeSL = entityTraderTo.getShoppingListsCount() > 0 ? entityTraderTo.getShoppingLists(0) : null;
         assertNotNull(volumeSL);
         // shoppingList provider is storageTier
         assertEquals(storageTierTraderTO.get().getOid(), volumeSL.getSupplier());
@@ -2058,8 +2059,6 @@ public class TopologyConverterToMarketTest {
         assertNotNull(commodityBoughtTO);
         assertEquals(1506, commodityBoughtTO.getAssignedCapacityForBuyer(), 0.01f);
         assertEquals(1506 * 0.01f, commodityBoughtTO.getQuantity(), 0.01f);
-        // Check that Savings mode is enabled
-        assertTrue(volumeSL.getDemandScalable());
         // Test ShoppingListInfo
         assertEquals(1, topologyConverter.getShoppingListOidToInfos().size());
         ShoppingListInfo shoppingListInfo = topologyConverter.getShoppingListOidToInfos().values().iterator().next();

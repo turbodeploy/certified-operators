@@ -2,8 +2,6 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableBiMap;
-
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 
 public class LoginProviderMapper {

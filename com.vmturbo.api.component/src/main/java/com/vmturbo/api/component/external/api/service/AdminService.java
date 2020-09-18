@@ -47,7 +47,6 @@ import com.vmturbo.api.dto.admin.SystemStatusApiDTO;
 import com.vmturbo.api.dto.admin.TelemetryDTO;
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
-import com.vmturbo.api.enums.DeploymentMode;
 import com.vmturbo.api.enums.ConfigurationType;
 import com.vmturbo.api.enums.DeploymentMode;
 import com.vmturbo.api.enums.LoggingLevel;

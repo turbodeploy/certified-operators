@@ -66,7 +66,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Pair;
-import com.vmturbo.commons.Units;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
@@ -187,32 +186,6 @@ public class ActionInterpreter {
         List<Action> actionList = new ArrayList<>();
         try {
             final Action.Builder action;
-            final boolean translateMoveToScale = translateMoveToScale(actionTO);
-            try (TraxContext traxContext = Trax.track("SAVINGS", actionTO.getActionTypeCase().name())) {
-                savings = calculateActionSavings(actionTO,
-                    originalCloudTopology, projectedCosts, topologyCostCalculator);
-
-                // The action importance should never be infinite, as setImportance() will fail.
-                action = Action.newBuilder()
-                        // Assign a unique ID to each generated action.
-                        .setId(IdentityGenerator.next())
-                        .setDeprecatedImportance(actionTO.getImportance())
-                        .setExplanation(interpretExplanation(actionTO, savings, projectedTopology, translateMoveToScale))
-                        .setExecutable(!actionTO.getIsNotExecutable());
-                savings.applySavingsToAction(action);
-
-                if (traxContext.on()) {
-                    logger.info("{} calculation stack for {} action {}:\n{}",
-                        () -> savings.getClass().getSimpleName(),
-                        () -> actionTO.getActionTypeCase().name(),
-                        () -> Long.toString(action.getId()),
-                        savings.savingsAmount::calculationStack);
-
-                }
-            }
-
-            final ActionInfo.Builder infoBuilder = ActionInfo.newBuilder();
-
             switch (actionTO.getActionTypeCase()) {
                 case MOVE:
                     action = createAction(actionTO, projectedTopology,
@@ -1022,7 +995,7 @@ public class ActionInterpreter {
                 generateTierAction = !areEqual(originalRICoverage, projectedRICoverage);
                 if (generateTierAction) {
                     logger.debug("Accounting action for {} (OID: {}). " +
-                            "Original RI coverage: {}, projected RI coverage: {}.",
+                                    "Original RI coverage: {}, projected RI coverage: {}.",
                             target.getDisplayName(), target.getOid(),
                             originalRICoverage, projectedRICoverage);
                 }
@@ -1073,9 +1046,8 @@ public class ActionInterpreter {
                             .orElseThrow(() -> new IllegalArgumentException(
                                     "Resize commodity can't be converted to topology commodity format! "
                                             + commodityContext.getSpecification()));
-            final long factor = (topologyCommodityType.getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE
-                    && actionTargetEntity.getType() == EntityType.VIRTUAL_VOLUME_VALUE) ? Units.KBYTE : 1;
-
+            final float factor = calculateFactorForStorageAmount(topologyCommodityType.getType(), actionTargetEntity.getType());
+            logger.info("ROOP in action was {}", factor);
             resizeInfoList.add(ResizeInfo.newBuilder()
                     .setCommodityType(topologyCommodityType)
                     .setOldCapacity(commodityContext.getOldCapacity() * factor)
@@ -1438,7 +1410,7 @@ public class ActionInterpreter {
                         //If this SE has underutilized commodities pre-stored.
                         .orElseGet(() -> getUndertilizedExplanationFromTracker(actionTargetId, sellerId)
                                 //Get from savings
-                                .orElseGet(() -> getExplanationFromSaving(buyerId,moveTO,savings)
+                                .orElseGet(() -> getExplanationFromSaving(savings)
                                         //Default move explanation
                                         .orElseGet(() -> getDefaultExplanationForCloud(actionTargetId, moveTO).orElse(null)
                         )))));
@@ -1486,14 +1458,10 @@ public class ActionInterpreter {
         return Optional.empty();
     }
 
-    private Optional<ChangeProviderExplanation.Builder> getExplanationFromSaving(
-            final long id, @Nonnull final MoveTO moveTO, @Nonnull final CalculatedSavings savings) {
+    private Optional<ChangeProviderExplanation.Builder> getExplanationFromSaving(@Nonnull final CalculatedSavings savings) {
         if (savings.savingsAmount.getValue() > 0) {
             return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
                     Efficiency.newBuilder().setIsWastedCost(true)));
-            } else {
-                logger.error("Could not explain cloud scale action. MoveTO = {} .Action target oid = {}",
-                    moveTO, id);
         }
         return Optional.empty();
     }

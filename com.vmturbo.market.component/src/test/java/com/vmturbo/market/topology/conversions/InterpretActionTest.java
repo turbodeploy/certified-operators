@@ -15,7 +15,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -521,7 +520,7 @@ public class InterpretActionTest {
 
         final long shoppingListId = 5L;
         final ShoppingListInfo slInfo = new ShoppingListInfo(shoppingListId, entityDto.getOid(), null, null,
-                null, null, null, Arrays.asList());
+                null, null, Arrays.asList());
         final Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(shoppingListId, slInfo);
         final Map<Long, TopologyEntityDTO> originalTopology = ImmutableMap.of(entityDto.getOid(),
                 entityDto);
