@@ -46,8 +46,15 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final ProbeCapabilityCache probeCapabilityCache;
 
-    private static final String PLAN_CONTEXT_TYPE_NAME = "plan";
-    private static final String LIVE_CONTEXT_TYPE_NAME = "live";
+    /**
+     * Context type for PLAN action plans.
+     */
+    public static final String PLAN_CONTEXT_TYPE_NAME = "plan";
+
+    /**
+     * Context type for LIVE action plans.
+     */
+    public static final String LIVE_CONTEXT_TYPE_NAME = "live";
 
     private final LiveActionsStatistician actionsStatistician;
 
@@ -133,6 +140,18 @@ public class ActionStoreFactory implements IActionStoreFactory {
     @Nonnull
     @Override
     public String getContextTypeName(long topologyContextId) {
+        return getContextTypeName(topologyContextId, realtimeTopologyContextId);
+    }
+
+    /**
+     * Get the context type name (ie "live"/"plan" for an action plan by its topology context ID.
+     *
+     * @param topologyContextId The topology context ID whose context type should be checked.
+     * @param realtimeTopologyContextId The topology context ID of the realtime topology context.
+     * @return the context type name (ie "live"/"plan" for an action plan by its topology context ID.
+     */
+    public static String getContextTypeName(final long topologyContextId,
+                                            final long realtimeTopologyContextId) {
         return (topologyContextId == realtimeTopologyContextId) ? LIVE_CONTEXT_TYPE_NAME : PLAN_CONTEXT_TYPE_NAME;
     }
 

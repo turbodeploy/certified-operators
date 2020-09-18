@@ -102,12 +102,16 @@ public class TopologyEditor {
      *                We ignore those.
      * @param context Context containing topology info.
      * @param groupResolver The resolver to use when resolving group membership.
+     * @param sourceEntities The source entities for the plan.
+     * @param destinationEntities The destination entities for the plan.
      * @throws GroupResolutionException Thrown when we could not resolve groups.
      */
     public void editTopology(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
-                                         @Nonnull final List<ScenarioChange> changes,
-                                         @Nonnull final TopologyPipelineContext context,
-                                         @Nonnull final GroupResolver groupResolver) throws GroupResolutionException {
+                             @Nonnull final List<ScenarioChange> changes,
+                             @Nonnull final TopologyPipelineContext context,
+                             @Nonnull final GroupResolver groupResolver,
+                             @Nonnull final Set<Long> sourceEntities,
+                             @Nonnull final Set<Long> destinationEntities) throws GroupResolutionException {
         final TopologyInfo topologyInfo = context.getTopologyInfo();
         // Set shopTogether to false for all entities if it's not a alleviate pressure plan,
         // so SNM is not performed by default.
@@ -193,7 +197,8 @@ public class TopologyEditor {
                 final Set<Long> entitiesToMigrate = expandAndFlattenReferences(
                         topologyMigration.getSourceList(), migratingEntityType, groupIdToGroupMap,
                         groupResolver, topologyGraph);
-                context.setSourceEntities(entitiesToMigrate);
+                sourceEntities.clear();
+                sourceEntities.addAll(entitiesToMigrate);
 
                 final Set<Long> migratingToRegions = expandAndFlattenReferences(
                         topologyMigration.getDestinationList(),
@@ -202,7 +207,8 @@ public class TopologyEditor {
                         groupResolver,
                         topologyGraph);
 
-                context.setDestinationEntities(migratingToRegions);
+                destinationEntities.clear();
+                destinationEntities.addAll(migratingToRegions);
             } else if (change.hasTopologyRemoval()) {
                 final TopologyRemoval removal = change.getTopologyRemoval();
                 int targetType = removal.getTargetEntityType();

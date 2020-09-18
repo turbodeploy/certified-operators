@@ -70,7 +70,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.StitchingMergeInformation;
-import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
@@ -98,7 +97,6 @@ public class DiscoveredGroupUploaderTest {
     private GroupServiceMole groupServiceMole = spy(new GroupServiceMole());
 
     private GroupServiceStub groupServiceStub;
-    private ConsistentScalingManager consistentScalingManager = mock(ConsistentScalingManager.class);
 
     private TargetStore targetStore = mock(TargetStore.class);
 
@@ -127,7 +125,7 @@ public class DiscoveredGroupUploaderTest {
 
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
 
-        recorderSpy.uploadDiscoveredGroups(TOPOLOGY, consistentScalingManager);
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
         verify(groupServiceMole).storeDiscoveredGroupsPoliciesSettings(
                 eq(Collections.singletonList(
                         DiscoveredGroupsPoliciesSettings.newBuilder()
@@ -146,7 +144,7 @@ public class DiscoveredGroupUploaderTest {
         assertFalse(recorderSpy.getDataByTarget().isEmpty());
 
         // Uploading discovered groups should not empty the discovered groups known by the uploader.
-        recorderSpy.uploadDiscoveredGroups(TOPOLOGY, consistentScalingManager);
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
         assertFalse(recorderSpy.getDataByTarget().isEmpty());
     }
 
@@ -176,7 +174,7 @@ public class DiscoveredGroupUploaderTest {
     @Test
     public void testProcessUnsuccessfulInterpretation() throws Exception {
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
-        recorderSpy.uploadDiscoveredGroups(TOPOLOGY, consistentScalingManager);
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
 
         verify(groupServiceMole).storeDiscoveredGroupsPoliciesSettings(
                 eq(Collections.singletonList(
@@ -191,7 +189,7 @@ public class DiscoveredGroupUploaderTest {
         when(converter.interpretSdkGroupList(any(), eq(TARGET_ID)))
             .thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_CLUSTER));
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
-        recorderSpy.uploadDiscoveredGroups(TOPOLOGY, consistentScalingManager);
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
 
         verify(groupServiceMole).storeDiscoveredGroupsPoliciesSettings(
                 eq(Collections.singletonList(
@@ -208,7 +206,7 @@ public class DiscoveredGroupUploaderTest {
             .thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP));
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
 
-        recorderSpy.uploadDiscoveredGroups(TOPOLOGY, consistentScalingManager);
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
 
         verify(groupServiceMole).storeDiscoveredGroupsPoliciesSettings(
                 eq(Collections.singletonList(
@@ -233,7 +231,7 @@ public class DiscoveredGroupUploaderTest {
         when(targetStore.getProbeTypeForTarget(TARGET_ID)).thenReturn(Optional.empty());
 
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
-        recorderSpy.uploadDiscoveredGroups(TOPOLOGY, consistentScalingManager);
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
 
         verify(groupServiceMole).storeDiscoveredGroupsPoliciesSettings(
             eq(Collections.singletonList(
@@ -252,8 +250,8 @@ public class DiscoveredGroupUploaderTest {
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
 
         // trigger the upload request creation multiple times
-        recorderSpy.uploadDiscoveredGroups(TOPOLOGY, consistentScalingManager);
-        recorderSpy.uploadDiscoveredGroups(TOPOLOGY, consistentScalingManager);
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
 
         // generate the expected cluster info with the prefix name added
         // note: even after triggering the upload multiple time, we need to make sure that a single
@@ -307,7 +305,7 @@ public class DiscoveredGroupUploaderTest {
         ));
         when(graph.entities()).thenReturn(Stream.of(mergedEntity));
         recorderSpy.analyzeStitchingGroups(graph);
-        recorderSpy.uploadDiscoveredGroups(TOPOLOGY, consistentScalingManager);
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
 
         // Ensure that the group that got uploaded contained 12345L and not PLACEHOLDER_GROUP_MEMBER
         UploadedGroup.Builder modifiedGroup = PLACEHOLDER_GROUP.toBuilder();

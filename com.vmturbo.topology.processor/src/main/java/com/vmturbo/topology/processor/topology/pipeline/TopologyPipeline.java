@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
 import java.time.Clock;
+import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 
@@ -11,6 +12,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.components.common.pipeline.Pipeline;
+import com.vmturbo.components.common.pipeline.PipelineContext.PipelineContextMemberDefinition;
 import com.vmturbo.components.common.tracing.TracingManager;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -21,11 +23,14 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * {@link LivePipelineFactory} for realtime pipelines, and {@link PlanPipelineFactory} for
  * plan pipelines.
  *
- * <p>The pipeline consists of a set of {@link Stage}s. The output of one stage becomes the input
- * to the next {@link Stage}. There is some (minimal) shared state between the stages, represented
- * by the {@link TopologyPipelineContext}. The stages are executed one at a time. In the future
- * we can add parallel execution of certain subsets of the pipeline, but that's not necessary
- * at the time of this writing (Nov 2017).
+ * <p>The pipeline consists of a set of {@link Stage}s. The output of one stage becomes
+ * the input to the next {@link Stage}. State can be shared between stages by attaching
+ * and dropping members on the {@link TopologyPipelineContext}. Context state sharing is configured
+ * when defining the "providesToContext" and "requiresFromContext" of individual stages in the pipeline (see
+ * {@link Stage#requiresFromContext(PipelineContextMemberDefinition)} and
+ * {@link Stage#providesToContext(PipelineContextMemberDefinition, Supplier)}.
+ * The stages are executed one at a time. In the future we can add parallel execution of certain subsets of
+ * the pipeline, but that's not necessary.
  *
  * @param <I> The input to the pipeline. This is the input to the first stage.
  * @param <O> The output of the pipeline. This is the output of the last stage.
@@ -121,6 +126,7 @@ public class TopologyPipeline<I, O> extends
      * @param <I2> The type of the input.
      * @param <O2> The type of the output.
      */
-    public abstract static class Stage<I2, O2> extends Pipeline.Stage<I2, O2, TopologyPipelineContext> {
+    public abstract static class Stage<I2, O2> extends
+        com.vmturbo.components.common.pipeline.Stage<I2, O2, TopologyPipelineContext> {
     }
 }

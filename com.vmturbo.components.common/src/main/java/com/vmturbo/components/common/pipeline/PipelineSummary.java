@@ -14,7 +14,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.commons.lang.StringUtils;
 import org.stringtemplate.v4.ST;
 
-import com.vmturbo.components.common.pipeline.Pipeline.Stage;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.components.common.utils.TimeUtil;
 
@@ -247,7 +246,7 @@ public abstract class PipelineSummary {
                     .add("stageName", stage.getName())
                     .add("stageStatus", status());
             if (completed) {
-                template.add("message", StringUtils.strip(this.status.getMessage()));
+                template.add("message", StringUtils.strip(this.status.getMessageWithSummary()));
             }
             return template.render();
         }

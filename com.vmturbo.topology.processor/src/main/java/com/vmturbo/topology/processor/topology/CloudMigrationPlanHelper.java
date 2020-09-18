@@ -88,7 +88,6 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
-import com.vmturbo.stitching.poststitching.SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.processor.entity.EntityNotFoundException;
@@ -191,10 +190,10 @@ public class CloudMigrationPlanHelper {
      * they are controllable, non-suspendable etc.
      */
     private static final Set<EntityType> PROCESS_PROVIDER_TYPES = ImmutableSet.of(
-            PHYSICAL_MACHINE,
-            STORAGE,
-            STORAGE_TIER,
-            VIRTUAL_VOLUME);
+        PHYSICAL_MACHINE,
+        STORAGE,
+        STORAGE_TIER,
+        VIRTUAL_VOLUME);
 
     /**
      * All provider types for which we want to do something to. We don't want to see Suspend
@@ -214,9 +213,9 @@ public class CloudMigrationPlanHelper {
      * storage entities, we don't want market placement attempts.
      */
     private static final Set<EntityType> NON_CONTROLLABLE_PROVIDER_TYPES = ImmutableSet.of(
-            DATACENTER,
-            LOGICAL_POOL,
-            DISK_ARRAY);
+        DATACENTER,
+        LOGICAL_POOL,
+        DISK_ARRAY);
 
     /**
      * Providers from which LICENSE_ACCESS can be bought. Physical Machine only would
@@ -263,6 +262,12 @@ public class CloudMigrationPlanHelper {
      * @param inputGraph Graph coming in from previous pipeline stages.
      * @param planScope Scope of the plan.
      * @param changes Migration changes specified by user.
+     * @param sourceEntities The source entities for the plan.
+     * @param destinationEntities The destination entities for the plan.
+     * @param policyGroups Policy groups for the plan. New policy groups may be
+     *                     added when the stage executes.
+     * @param settingPolicyEditors The list of setting policy editors for the plan.
+     *
      * @return Output graph, mostly same as input, except non-migrating workloads/volumes removed.
      * @throws PipelineStageException Thrown on stage execution issue.
      * @throws CloudMigrationStageException Thrown when a cloud migration plan the destination does not
@@ -272,12 +277,16 @@ public class CloudMigrationPlanHelper {
             @Nonnull final TopologyPipelineContext context,
             @Nonnull final TopologyGraph<TopologyEntity> inputGraph,
             @Nullable final PlanScope planScope,
-            @Nonnull final List<ScenarioChange> changes) throws PipelineStageException, CloudMigrationStageException {
+            @Nonnull final List<ScenarioChange> changes,
+            @Nonnull final Set<Long> sourceEntities,
+            @Nonnull final Set<Long> destinationEntities,
+            @Nonnull final Set<Pair<Grouping, Grouping>> policyGroups,
+            @Nonnull final List<SettingPolicyEditor> settingPolicyEditors)
+        throws PipelineStageException, CloudMigrationStageException {
         if (!isApplicable(context, planScope)) {
             return inputGraph;
         }
-        final Set<Long> sourceEntities = context.getSourceEntities();
-        if (isIntraCloudMigration(inputGraph, sourceEntities, context.getDestinationEntities())) {
+        if (isIntraCloudMigration(inputGraph, sourceEntities, destinationEntities)) {
             final long planOid = context.getTopologyInfo().getTopologyContextId();
             logger.error("Illegal intra-cloud migration plan {} stopped.", planOid);
             throw CloudMigrationStageException.intraCloudMigrationException(planOid);
@@ -289,8 +298,8 @@ public class CloudMigrationPlanHelper {
                 .findFirst()
                 .orElseThrow(() -> new PipelineStageException("Missing cloud migration change"));
 
-        TopologyGraph<TopologyEntity> outputGraph = removeNonMigratingWorkloads(context, inputGraph,
-                migrationChange);
+        TopologyGraph<TopologyEntity> outputGraph = removeNonMigratingWorkloads(
+            sourceEntities, inputGraph, migrationChange);
 
         final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess =
                 getHistoricalStorageAccessPeak(
@@ -299,22 +308,18 @@ public class CloudMigrationPlanHelper {
                                 : EntityType.DATABASE_SERVER.getNumber(),
                         sourceEntities);
         // Set the migration destination.
-        boolean isDestinationAws = isDestinationAws(context, inputGraph);
+        boolean isDestinationAws = isDestinationAws(destinationEntities, inputGraph);
         // Prepare source entities for migration.
         prepareEntities(context, outputGraph, migrationChange, sourceToProducerToMaxStorageAccess,
-                isDestinationAws);
+            sourceEntities, isDestinationAws);
         prepareProviders(outputGraph, context.getTopologyInfo(), sourceToProducerToMaxStorageAccess,
                 isDestinationAws);
-        savePolicyGroups(context, outputGraph, migrationChange);
+        savePolicyGroups(context, outputGraph, migrationChange, sourceEntities, policyGroups);
 
         if (migrationChange.getDestinationEntityType()
             .equals(TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)) {
-            context.addSettingPolicyEditor(new CloudMigrationSettingsPolicyEditor(
-                sourceEntities, outputGraph));
+            settingPolicyEditors.add(new CloudMigrationSettingsPolicyEditor(sourceEntities, outputGraph));
         }
-        // Certain stitching operations need to be skipped to for HyperV VMs.
-        context.setPostStitchingOperationsToSkip(ImmutableSet.of(
-                new SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation().getOperationName()));
 
         return outputGraph;
     }
@@ -326,7 +331,7 @@ public class CloudMigrationPlanHelper {
      * @param planScope Scope info for plan.
      * @return True if this is a valid migration plan.
      */
-    private boolean isApplicable(@Nonnull final TopologyPipelineContext context,
+    public boolean isApplicable(@Nonnull final TopologyPipelineContext context,
                                  @Nullable final PlanScope planScope) {
         if (planScope == null || planScope.getScopeEntriesList().isEmpty()) {
             return false;
@@ -405,6 +410,7 @@ public class CloudMigrationPlanHelper {
      * @param graph Topology graph.
      * @param migrationChange User specified migration scenario change.
      * @param sourceToProducerToMaxStorageAccess a structure mapping entities to max historical
+     * @param sourceEntities The source entities for the plan.
      * @param isDestinationAws boolean to indicate if destination is AWS
      * StorageAccess bought
      * @throws PipelineStageException Thrown when entity lookup by oid fails.
@@ -413,10 +419,9 @@ public class CloudMigrationPlanHelper {
                           @Nonnull final TopologyGraph<TopologyEntity> graph,
                           @Nonnull final TopologyMigration migrationChange,
                           @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
+                          @Nonnull final Set<Long> sourceEntities,
                           final boolean isDestinationAws)
             throws PipelineStageException {
-        Set<Long> sourceEntities = context.getSourceEntities();
-
         final Map<OSType, OsType> licenseCommodityKeyByOS = computeLicenseCommodityKeysByOS(
                 migrationChange);
 
@@ -577,13 +582,13 @@ public class CloudMigrationPlanHelper {
     /**
      * Check if the migration destination is AWS.
      *
-     * @param context pipeline context
+     * @param destinationEntities The destination entities for the plan.
      * @param inputGraph input graph
      * @return true if destination is AWS
      */
-    private boolean isDestinationAws(@Nonnull final TopologyPipelineContext context,
-                                       @Nonnull final TopologyGraph<TopologyEntity> inputGraph) {
-        Set<Long> destinations = context.getDestinationEntities();
+    private boolean isDestinationAws(@Nonnull final Set<Long> destinationEntities,
+                                     @Nonnull final TopologyGraph<TopologyEntity> inputGraph) {
+        Set<Long> destinations = destinationEntities;
         if (!destinations.isEmpty()) {
             Long destinationOid = destinations.iterator().next();
             Optional<TopologyEntity> destinationOptional = inputGraph.getEntity(destinationOid);
@@ -614,21 +619,21 @@ public class CloudMigrationPlanHelper {
 
         final Iterator<EntityCommoditiesMaxValues> commMaxValues = statsHistoryServiceBlockingStub
                 .getEntityCommoditiesMaxValues(GetEntityCommoditiesMaxValuesRequest.newBuilder()
-                        .setEntityType(entityType)
-                        .addAllCommodityTypes(ImmutableSet.of(CommodityType.STORAGE_ACCESS_VALUE))
-                        .setIsBought(true)
-                        .addAllUuids(sourceEntities)
-                        .setUseHistoricalCommBoughtLookbackDays(true)
-                        .build());
+                    .setEntityType(entityType)
+                    .addAllCommodityTypes(ImmutableSet.of(CommodityType.STORAGE_ACCESS_VALUE))
+                    .setIsBought(true)
+                    .addAllUuids(sourceEntities)
+                    .setUseHistoricalCommBoughtLookbackDays(true)
+                    .build());
 
         final Map<Long, Map<Long, Double>> toReturn = Maps.newHashMap();
         commMaxValues.forEachRemaining(entityCommoditiesMaxValues -> {
             long migratingEntityOid = entityCommoditiesMaxValues.getOid();
             final Map<Long, Double> producerToMaxValue =
-                    entityCommoditiesMaxValues.getCommodityMaxValuesList().stream()
-                            .collect(Collectors.toMap(
-                                    CommodityMaxValue::getProducerOid,
-                                    CommodityMaxValue::getMaxValue));
+                entityCommoditiesMaxValues.getCommodityMaxValuesList().stream()
+                    .collect(Collectors.toMap(
+                        CommodityMaxValue::getProducerOid,
+                        CommodityMaxValue::getMaxValue));
             if (toReturn.containsKey(migratingEntityOid)) {
                 toReturn.get(migratingEntityOid).putAll(producerToMaxValue);
             } else {
@@ -696,8 +701,8 @@ public class CloudMigrationPlanHelper {
             return;
         }
         OsType licenseCommodityKey = licenseCommodityKeyByOS.getOrDefault(
-                vm.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsType(),
-                OsType.LINUX
+            vm.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsType(),
+            OsType.LINUX
         );
 
         updateAccessCommodityForVmAndProviders(vm, LICENSE_PROVIDER_TYPES,
@@ -1218,23 +1223,23 @@ public class CloudMigrationPlanHelper {
      * we use generic OCP scoping in earlier stages which ends up picking all entities in target
      * region as well, so we need to filter them out here in migration stage.
      *
-     * @param context Pipeline context.
+     * @param sourceEntities The source entities for the plan.
      * @param graph Topology graph.
      * @param migrationChange User specified migration scenario change.
      * @return Updated topology graph with non-migrating workloads filtered out.
      */
     @Nonnull
     private TopologyGraph<TopologyEntity> removeNonMigratingWorkloads(
-            @Nonnull final TopologyPipelineContext context,
+            @Nonnull final Set<Long> sourceEntities,
             @Nonnull final TopologyGraph<TopologyEntity> graph,
             @Nonnull final TopologyMigration migrationChange) {
         if (!migrationChange.getRemoveNonMigratingWorkloads()) {
             return graph;
         }
 
-        context.setSourceEntities(removeInactiveEntities(graph, context.getSourceEntities()));
-
-        final Set<Long> sourceEntities = context.getSourceEntities();
+        final Set<Long> newSourceEntities = removeInactiveEntities(graph, sourceEntities);
+        sourceEntities.clear();
+        sourceEntities.addAll(newSourceEntities);
 
         // We look at the workload entities being migrated, and skip any workload not in that set.
         // Also look for attached volumes to migrating workloads, and skip any other volumes.
@@ -1286,14 +1291,17 @@ public class CloudMigrationPlanHelper {
      * @param context Plan pipeline context
      * @param graph Topology graph.
      * @param migrationChange User specified migration scenario change.
+     * @param sourceEntities The source entities for the plan.
+     * @param policyGroups The set of policy groupings.
      */
     private void savePolicyGroups(@Nonnull final TopologyPipelineContext context,
-                                 @Nonnull final TopologyGraph<TopologyEntity> graph,
-                                 @Nonnull final TopologyMigration migrationChange) {
-        context.clearPolicyGroups();
-
-        saveWorkloadPolicyGroups(context, graph, migrationChange);
-        saveVolumePolicyGroups(context, graph);
+                                  @Nonnull final TopologyGraph<TopologyEntity> graph,
+                                  @Nonnull final TopologyMigration migrationChange,
+                                  @Nonnull final Set<Long> sourceEntities,
+                                  @Nonnull final Set<Pair<Grouping, Grouping>> policyGroups) {
+        policyGroups.clear();
+        saveWorkloadPolicyGroups(graph, migrationChange, sourceEntities, policyGroups);
+        saveVolumePolicyGroups(context, graph, sourceEntities, policyGroups);
     }
 
     /**
@@ -1304,16 +1312,16 @@ public class CloudMigrationPlanHelper {
      * commodities, create source and destination groupings (unregistered with the group component)
      * with which to create a BindToGroupPolicy. This will enforce constraints that bind the
      * consumers (workloads) to the set provider(s) (regions).
-     *
-     * @param context Pipeline context to save policy group in.
      * @param graph Topology graph to look up entities.
      * @param topologyMigration the object symbolizing an entity/group to migrate
+     * @param sourceEntities the source entities for a plan.
+     * @param policyGroups The set of policy groupings.
      */
     private void saveWorkloadPolicyGroups(
-            @Nonnull final TopologyPipelineContext context,
-            @Nonnull final TopologyGraph<TopologyEntity> graph,
-            @Nonnull final TopologyMigration topologyMigration) {
-        final Set<Long> sourceEntityOids = context.getSourceEntities();
+        @Nonnull final TopologyGraph<TopologyEntity> graph,
+        @Nonnull final TopologyMigration topologyMigration,
+        @Nonnull final Set<Long> sourceEntities, Set<Pair<Grouping, Grouping>> policyGroups) {
+        final Set<Long> sourceEntityOids = sourceEntities;
         final EntityType workloadType = topologyMigration.getDestinationEntityType().equals(
                 TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)
                 ? EntityType.VIRTUAL_MACHINE
@@ -1325,7 +1333,7 @@ public class CloudMigrationPlanHelper {
         final Map<EntityType, List<MigrationReference>> refsByProviderType =
                 getWorkloadProviders(graph, sourceEntityOids);
         refsByProviderType
-                .forEach((entityType, migrationReferenceList) -> createPolicyGroup(context,
+                .forEach((entityType, migrationReferenceList) -> createPolicyGroup(policyGroups,
                         migrationReferenceList, workloadType,
                         topologyMigration.getDestinationList(), entityType));
     }
@@ -1333,15 +1341,17 @@ public class CloudMigrationPlanHelper {
     /**
      * Saves a set of segmentation policies related to cloud migration of volumes. Source volumes
      * are forced into cloud storage tiers via these segmentation policies.
-     *
-     * @param context Pipeline context to save policy group in.
+     *  @param context Pipeline context to save policy group in.
      * @param graph Topology graph.
+     * @param sourceEntities The source entities for the plan.
+     * @param policyGroups The set of policy groupings.
      */
     private void saveVolumePolicyGroups(
-            @Nonnull final TopologyPipelineContext context,
-            @Nonnull final TopologyGraph<TopologyEntity> graph) {
+        @Nonnull final TopologyPipelineContext context,
+        @Nonnull final TopologyGraph<TopologyEntity> graph,
+        @Nonnull final Set<Long> sourceEntities, Set<Pair<Grouping, Grouping>> policyGroups) {
         final TopologyInfo topologyInfo = context.getTopologyInfo();
-        for (Long oid : context.getSourceEntities()) {
+        for (Long oid : sourceEntities) {
             final TopologyEntity sourceEntity = graph.getEntity(oid)
                     .orElseThrow(() -> new EntityNotFoundException("Missing Cloud Migration "
                             + "source entity " + oid));
@@ -1363,7 +1373,7 @@ public class CloudMigrationPlanHelper {
                     .forEach((providerType, sourceVolumeRefs) -> {
                         for (MigrationReference volumeRef : sourceVolumeRefs) {
                             // Save a policy group for each volume id.
-                            createPolicyGroup(context, Collections.singletonList(volumeRef),
+                            createPolicyGroup(policyGroups, Collections.singletonList(volumeRef),
                                     VIRTUAL_VOLUME,
                                     destinationTierRefs, providerType);
                         }
@@ -1522,15 +1532,15 @@ public class CloudMigrationPlanHelper {
     }
 
     /**
-     * Creates and adds one policy grouping to pipeline context.
+     * Creates and adds one policy grouping to the set of policy groups.
      *
-     * @param context Plan pipeline context.
+     * @param policyGroups The policy groups for the plan.
      * @param sourceRefs List of source entity references, typically 1 workload being migrated.
      * @param sourceType Type of source workload.
      * @param destinationRefs Destination region reference.
      * @param destinationType Type of destination tier.
      */
-    private void createPolicyGroup(@Nonnull final TopologyPipelineContext context,
+    private void createPolicyGroup(@Nonnull final Set<Pair<Grouping, Grouping>> policyGroups,
                                  @Nonnull final List<MigrationReference> sourceRefs,
                                  EntityType sourceType,
                                  @Nonnull final List<MigrationReference> destinationRefs,
@@ -1539,7 +1549,7 @@ public class CloudMigrationPlanHelper {
                 sourceType.getNumber());
         final Grouping destination = getStaticMigrationGroup(destinationRefs,
                 destinationType.getNumber());
-        context.addPolicyGroup(new Pair<>(source, destination));
+        policyGroups.add(new Pair<>(source, destination));
     }
 
     /**
@@ -1575,9 +1585,9 @@ public class CloudMigrationPlanHelper {
             staticGroupMemberOids.addAll(nonGroupEntities);
         }
         return PolicyManager.generateStaticGroup(
-                staticGroupMemberOids,
-                destinationEntityType,
-                POLICY_GROUP_DESCRIPTION);
+            staticGroupMemberOids,
+            destinationEntityType,
+            POLICY_GROUP_DESCRIPTION);
     }
 
     /**
@@ -1594,8 +1604,8 @@ public class CloudMigrationPlanHelper {
             @Nonnull TopologyMigration migrationScenario) {
         Map<OsType, OSMigration> licenseTranslations = migrationScenario.getOsMigrationsList()
                 .stream().collect(Collectors.toMap(
-                        migration -> OsType.fromDtoOS(migration.getFromOs()),
-                        Function.identity()));
+                migration -> OsType.fromDtoOS(migration.getFromOs()),
+                Function.identity()));
 
         ImmutableMap.Builder<OSType, OsType> licensingMap = ImmutableMap.builder();
         for (OSType os : OSType.values()) {

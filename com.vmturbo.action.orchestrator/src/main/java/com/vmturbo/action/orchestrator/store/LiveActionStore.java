@@ -305,42 +305,30 @@ public class LiveActionStore implements ActionStore {
             // Check if the atomic action factory contains specs to create atomic actions
             // for the actions received, create atomic actions if the specs are received
             // from the topology processor
-            Collection<Long> atomicActionEntities = Collections.emptyList();
             Map<Long, AggregatedAction> aggregatedActions = new HashMap<>();
 
             // Map of the id of the market action DTO that was merged and the corresponding AggregateAction
             Map<Long, AggregatedAction> actionsToAggregateActions = new HashMap<>();
 
+            final Set<Long> involvedEntityIds = ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList());
             if (atomicActionFactory.canMerge()) {
                 // First aggregate the market actions that should be de-duplicated and merged
                 aggregatedActions = atomicActionFactory.aggregate(actionPlan.getActionList());
 
                 // The original market actions that were merged
-                for (AggregatedAction result : aggregatedActions.values()) {
-                    result.getAllActions().stream()
-                            .forEach(action -> {
-                                //mergedActions.put(action.getId(), action);
-                                actionsToAggregateActions.put(action.getId(), result);
-                            });
+                for (AggregatedAction aggregatedAction : aggregatedActions.values()) {
+                    aggregatedAction.getAllActions().forEach(action ->
+                        actionsToAggregateActions.put(action.getId(), aggregatedAction));
+                    involvedEntityIds.addAll(aggregatedAction.getActionEntities());
                 }
 
                 logger.info("Created {} aggregated actions by merging {} actions",
                                 aggregatedActions.size(), actionsToAggregateActions.size());
-
-                atomicActionEntities = aggregatedActions.values().stream()
-                                        .flatMap(action -> action.getActionEntities().stream())
-                                        .collect(Collectors.toList());
             }
-
-            Collection<Long> actionEntities = ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList());
-            // adding the target entities from atomic actions to create the snapshot once
-            Set<Long> involvedEntities = Stream.of(atomicActionEntities, actionEntities)
-                    .flatMap(Collection::stream)
-                    .collect(Collectors.toSet());
 
             // EntitiesAndSettingsSnapshot includes entities involved in market and atomic actions
             // required to get settings for action mode
-            final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(involvedEntities,
+            final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(involvedEntityIds,
                             Collections.emptySet(), topologyContextId, topologyId);
 
             List<ActionDTO.Action> marketActions = actionPlan.getActionList();

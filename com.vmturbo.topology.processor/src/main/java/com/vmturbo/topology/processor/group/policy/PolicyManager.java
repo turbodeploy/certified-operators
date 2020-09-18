@@ -40,11 +40,10 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.TopologyEntity;
@@ -54,7 +53,6 @@ import com.vmturbo.topology.processor.group.policy.application.AtMostNBoundPolic
 import com.vmturbo.topology.processor.group.policy.application.AtMostNPolicy;
 import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicy;
 import com.vmturbo.topology.processor.group.policy.application.BindToComplementaryGroupPolicy;
-import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicy;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
@@ -139,13 +137,15 @@ public class PolicyManager {
      * @param context Pipeline context.
      * @param graph The topology graph on which to apply the policies.
      * @param changes list of plan changes to be applied to the policies
+     * @param groupResolver The group resolver to use for resolving groups
+     * @param policyGroups Bind sources to destinations for migrations.
      * @return Map from (type of policy) -> (num of policies of the type)
      */
     public PolicyApplicator.Results applyPolicies(@Nonnull final TopologyPipelineContext context,
                                                   @Nonnull final TopologyGraph<TopologyEntity> graph,
-                                                  @Nonnull final List<ScenarioChange> changes) {
-        final GroupResolver groupResolver = context.getGroupResolver();
-
+                                                  @Nonnull final List<ScenarioChange> changes,
+                                                  @Nonnull final GroupResolver groupResolver,
+                                                  @Nonnull final Set<Pair<Grouping, Grouping>> policyGroups) {
         try (DataMetricTimer timer = POLICY_APPLICATION_SUMMARY.startTimer()) {
             final long startTime = System.currentTimeMillis();
             final List<Policy> livePolicies = new ArrayList<>();
@@ -183,11 +183,10 @@ public class PolicyManager {
 
             // Bind sources (consumers) to destinations (providers) in case of migration
             // NOTE: the resulting BindToGroupPolicy binds source entities to destination (PM/tier).
-            context.getPolicyGroups()
-                    .forEach(policyPair -> {
-                        policiesToApply.add(createPlacementPolicy(policyPair.getFirst(),
-                                policyPair.getSecond()));
-                    });
+            policyGroups.forEach(policyPair -> {
+                policiesToApply.add(createPlacementPolicy(policyPair.getFirst(),
+                    policyPair.getSecond()));
+            });
 
             // If we are doing migration, on-prem policies should be excluded.
             if (!TopologyDTOUtil.isCloudMigrationPlan(context.getTopologyInfo())) {

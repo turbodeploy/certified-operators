@@ -7,6 +7,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -18,9 +19,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Stream;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableMap;
@@ -28,6 +34,7 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -52,18 +59,22 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
+import com.vmturbo.components.common.pipeline.PipelineContext;
+import com.vmturbo.components.common.pipeline.PipelineContext.PipelineContextMemberDefinition;
+import com.vmturbo.components.common.pipeline.Stage;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
+import com.vmturbo.stitching.journal.IStitchingJournal.StitchingMetrics;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.actions.ActionConstraintsUploader;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
-import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
@@ -122,6 +133,12 @@ public class StagesTest {
             .setEntityType(10)
             .setOid(7L);
 
+    private static final TopologyInfo TEST_TOPOLOGY_INFO = TopologyInfo.newBuilder()
+        .setTopologyContextId(1)
+        .setTopologyId(1)
+        .setTopologyType(TopologyType.REALTIME)
+        .build();
+
     final TopologyEntityDTO.Builder networkEntity = TopologyEntityDTO.newBuilder()
             .setEntityType(10)
             .setDisplayName("VM-Network")
@@ -141,11 +158,9 @@ public class StagesTest {
         final DiscoveredGroupUploader uploader = mock(DiscoveredGroupUploader.class);
         final UploadGroupsStage stage = new UploadGroupsStage(uploader);
         TopologyPipelineContext context = mock(TopologyPipelineContext.class);
-        ConsistentScalingManager csm = mock(ConsistentScalingManager.class);
-        when(context.getConsistentScalingManager()).thenReturn(csm);
         stage.setContext(context);
         stage.passthrough(topology);
-        verify(uploader).uploadDiscoveredGroups(topology, csm);
+        verify(uploader).uploadDiscoveredGroups(topology);
     }
 
     /**
@@ -162,7 +177,6 @@ public class StagesTest {
 
     @Test
     public void testEmptyPlanScopingStage() throws PipelineStageException, InterruptedException {
-        final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         final StitchingJournalContainer container = new StitchingJournalContainer();
         final IStitchingJournal<TopologyEntity> journal = spy(new EmptyStitchingJournal<TopologyEntity>());
         container.setPostStitchingJournal(journal);
@@ -177,9 +191,7 @@ public class StagesTest {
                         .build();
         final PlanTopologyScopeEditor scopeEditor = mock(PlanTopologyScopeEditor.class);
 
-        when(context.getStitchingJournalContainer()).thenReturn(container);
         when(graph.entities()).thenReturn(Stream.empty());
-        when(context.getTopologyInfo()).thenReturn(topologyInfo);
 
         GroupResolverSearchFilterResolver searchFilterResolver = mock(GroupResolverSearchFilterResolver.class);
         when(searchFilterResolver.resolveExternalFilters(any()))
@@ -188,6 +200,9 @@ public class StagesTest {
         PlanScope emptyScope = PlanScope.newBuilder().build();
         final PlanScopingStage emptyScopingStage = new PlanScopingStage(scopeEditor, emptyScope , searchResolver,
                 new ArrayList<ScenarioChange>(), groupServiceClient, searchFilterResolver);
+        final TopologyPipelineContext context = createStageContext(emptyScopingStage, topologyInfo,
+            TopologyPipelineContextMembers.PLAN_SOURCE_ENTITIES, new HashSet<>());
+
         assertTrue(emptyScopingStage.execute(graph).getResult().entities().count() == 0);
     }
 
@@ -199,7 +214,7 @@ public class StagesTest {
                         .setTopologyType(TopologyType.PLAN)
                         .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
                         .build();
-        final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+
         final StitchingJournalContainer container = new StitchingJournalContainer();
         final PlanTopologyScopeEditor scopeEditor = mock(PlanTopologyScopeEditor.class);
         final TopologyGraph<TopologyEntity> graph = mock(TopologyGraph.class);
@@ -210,15 +225,16 @@ public class StagesTest {
         GroupResolverSearchFilterResolver searchFilterResolver = mock(GroupResolverSearchFilterResolver.class);
         when(searchFilterResolver.resolveExternalFilters(any()))
                 .thenAnswer(invocation -> invocation.getArguments()[0]);
-        final PlanScopingStage cloudScopingStage = spy(new PlanScopingStage(scopeEditor, scope , searchResolver,
-                new ArrayList<ScenarioChange>(), groupServiceClient, searchFilterResolver));
+        final PlanScopingStage cloudScopingStage = spy(new PlanScopingStage(scopeEditor, scope, searchResolver,
+            new ArrayList<ScenarioChange>(), groupServiceClient, searchFilterResolver));
+        final TopologyPipelineContext context = createStageContext(cloudScopingStage, cloudTopologyInfo,
+            TopologyPipelineContextMembers.POLICY_GROUPS, Collections.emptySet());
         when(cloudScopingStage.getContext()).thenReturn(context);
-        when(context.getStitchingJournalContainer()).thenReturn(container);
         when(context.getTopologyInfo()).thenReturn(cloudTopologyInfo);
-        when(scopeEditor.scopeTopology(cloudTopologyInfo, graph, context))
+        when(scopeEditor.scopeTopology(cloudTopologyInfo, graph, Collections.emptySet()))
                 .thenReturn(graph);
         cloudScopingStage.execute(graph);
-        verify(scopeEditor).scopeTopology(cloudTopologyInfo, graph, context);
+        verify(scopeEditor).scopeTopology(cloudTopologyInfo, graph, Collections.emptySet());
     }
 
     @Test
@@ -230,7 +246,6 @@ public class StagesTest {
                         .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("CUSTOM")
                                 .setPlanProjectType(PlanProjectType.USER).build())
                         .build();
-        final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         final PlanTopologyScopeEditor scopeEditor = mock(PlanTopologyScopeEditor.class);
         final SearchResolver<TopologyEntity> searchResolver = mock(SearchResolver.class);
         final GroupServiceBlockingStub groupServiceClient = mock(GroupConfig.class).groupServiceBlockingStub();
@@ -245,6 +260,9 @@ public class StagesTest {
         final PlanScopingStage onpremScopingStage = spy(new PlanScopingStage(scopeEditor, scope,
                 searchResolver, changes, groupServiceClient, searchFilterResolver));
         TopologyGraph<TopologyEntity> result = mock(TopologyGraph.class);
+        final TopologyPipelineContext context = createStageContext(onpremScopingStage, onpremTopologyInfo,
+            TopologyPipelineContextMembers.PLAN_SOURCE_ENTITIES, new HashSet<>());
+
         when(onpremScopingStage.getContext()).thenReturn(context);
         when(context.getTopologyInfo()).thenReturn(onpremTopologyInfo);
         when(scopeEditor.indexBasedScoping(eq(index), eq(graph), any(), eq(scope), eq(PlanProjectType.USER))).thenReturn(result);
@@ -286,11 +304,10 @@ public class StagesTest {
     }
 
     @Test
-    public void testStitchingStage() {
+    public void testStitchingStage() throws Exception {
         final StitchingManager stitchingManager = mock(StitchingManager.class);
         final EntityStore entityStore = mock(EntityStore.class);
         final StitchingContext stitchingContext = mock(StitchingContext.class);
-        final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         final StitchingJournalFactory journalFactory = mock(StitchingJournalFactory.class);
         final StitchingJournalContainer container = new StitchingJournalContainer();
         final IStitchingJournal<StitchingEntity> journal = spy(new EmptyStitchingJournal<>());
@@ -300,23 +317,24 @@ public class StagesTest {
         when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
         when(stitchingManager.stitch(eq(stitchingContext), eq(journal))).thenReturn(stitchingContext);
         when(stitchingContext.constructTopology()).thenReturn(Collections.emptyMap());
-        when(context.getStitchingJournalContainer()).thenReturn(container);
         when(stitchingContext.entityTypeCounts()).thenReturn(Collections.emptyMap());
         when(journal.shouldDumpTopologyBeforePreStitching()).thenReturn(true);
         when(stitchingContext.getStitchingGraph()).thenReturn(graph);
         when(graph.entities()).thenReturn(Stream.empty());
 
-        final StitchingStage stitchingStage = new StitchingStage(stitchingManager, journalFactory);
-        stitchingStage.setContext(context);
+        final StitchingStage stitchingStage = new StitchingStage(stitchingManager, journalFactory, container);
+        final TopologyPipelineContext context = createStageContext(stitchingStage, TEST_TOPOLOGY_INFO);
         assertThat(stitchingStage.execute(entityStore).getResult().constructTopology(), is(Collections.emptyMap()));
         assertTrue(container.getMainStitchingJournal().isPresent());
         assertFalse(container.getPostStitchingJournal().isPresent());
 
         verify(journal).dumpTopology(any(Stream.class));
+        verify(context).addMember(
+            eq(TopologyPipelineContextMembers.STITCHING_JOURNAL_CONTAINER), eq(container));
     }
 
     @Test
-    public void testStitchingGroupFixup() throws PipelineStageException {
+    public void testStitchingGroupAnalyzer() throws PipelineStageException {
         final DiscoveredGroupUploader uploader = mock(DiscoveredGroupUploader.class);
         final DiscoveredGroupMemberCache memberCache = mock(DiscoveredGroupMemberCache.class);
         final StitchingContext stitchingContext = mock(StitchingContext.class);
@@ -344,7 +362,7 @@ public class StagesTest {
     }
 
     @Test
-    public void testAcquisitionStage() {
+    public void testAcquisitionStage() throws Exception {
         final RetrieveTopologyResponse response = RetrieveTopologyResponse.newBuilder()
                 .addEntities(PartialEntity.newBuilder()
                     .setFullEntity(entity)
@@ -374,52 +392,54 @@ public class StagesTest {
                 .build();
         SearchResolver<TopologyEntity> searchResolver = mock(SearchResolver.class);
         final GroupServiceBlockingStub groupServiceClient = mock(GroupConfig.class).groupServiceBlockingStub();
-        final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
-        when(context.getTopologyInfo()).thenReturn(topologyInfo);
         GroupResolverSearchFilterResolver searchFilterResolver = mock(GroupResolverSearchFilterResolver.class);
         when(searchFilterResolver.resolveExternalFilters(any()))
                 .thenAnswer(invocation -> invocation.getArguments()[0]);
         final TopologyEditStage stage =
                 new TopologyEditStage(topologyEditor, searchResolver, changes, groupServiceClient,
                         searchFilterResolver);
-        stage.setContext(context);
+        final TopologyPipelineContext context = createStageContext(stage, topologyInfo,
+            new MemberDef<>(TopologyPipelineContextMembers.PLAN_SOURCE_ENTITIES, new HashSet<>()),
+            new MemberDef<>(TopologyPipelineContextMembers.PLAN_DESTINATION_ENTITIES, new HashSet<>()));
+        when(context.getTopologyInfo()).thenReturn(topologyInfo);
         stage.execute(Collections.emptyMap());
         verify(topologyEditor).editTopology(eq(Collections.emptyMap()),
-                eq(Collections.emptyList()), any(), any(GroupResolver.class));
+            eq(Collections.emptyList()), any(), any(GroupResolver.class), anySet(), anySet());
     }
 
     @Test
     @SuppressWarnings("unchecked")
     public void testPostStitchingStage() throws Exception {
         final StitchingManager stitchingManager = mock(StitchingManager.class);
-        final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         final PostStitchingStage postStitchingStage = new PostStitchingStage(stitchingManager);
+        final StitchingJournalContainer container = new StitchingJournalContainer();
+        createStageContext(postStitchingStage,
+            TopologyPipelineContextMembers.STITCHING_JOURNAL_CONTAINER, container);
         final GraphWithSettings graphWithSettings = mock(GraphWithSettings.class);
         final TopologyGraph<TopologyEntity> graph = mock(TopologyGraph.class);
-
-        final StitchingJournalContainer container = new StitchingJournalContainer();
 
         final IStitchingJournal<StitchingEntity> mainJournal = mock(IStitchingJournal.class);
         final IStitchingJournal<TopologyEntity> postStitchingJournal = mock(IStitchingJournal.class);
         when(mainJournal.getJournalOptions()).thenReturn(JournalOptions.getDefaultInstance());
         when(mainJournal.<TopologyEntity>childJournal(any())).thenReturn(postStitchingJournal);
+        when(mainJournal.getMetrics()).thenReturn(new StitchingMetrics());
+        when(postStitchingJournal.getMetrics()).thenReturn(new StitchingMetrics());
         container.setMainStitchingJournal(mainJournal);
-        when(context.getStitchingJournalContainer()).thenReturn(container);
-        when(context.getTopologyInfo()).thenReturn(TopologyInfo.newBuilder().build());
         when(postStitchingJournal.shouldDumpTopologyAfterPostStitching()).thenReturn(true);
         when(graphWithSettings.getTopologyGraph()).thenReturn(graph);
         when(graph.entities()).thenReturn(Stream.empty());
 
-        postStitchingStage.setContext(context);
         postStitchingStage.execute(graphWithSettings);
 
         verify(stitchingManager).postStitch(eq(graphWithSettings), eq(postStitchingJournal),
                 eq(Collections.emptySet()));
         verify(postStitchingJournal).dumpTopology(any(Stream.class));
+        verify(postStitchingJournal).recordTopologyInfoAndMetrics(any(), any());
+        verify(postStitchingJournal).flushRecorders();
     }
 
     @Test
-    public void testGraphCreationStage() {
+    public void testGraphCreationStage() throws Exception {
         final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(entity));
 
         final GraphCreationStage stage = new GraphCreationStage();
@@ -435,12 +455,13 @@ public class StagesTest {
 
         final PolicyStage policyStage = new PolicyStage(policyManager);
 
-        final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         final GroupResolver groupResolver = mock(GroupResolver.class);
-        when(context.getGroupResolver()).thenReturn(groupResolver);
+        final Set<Pair<Grouping, Grouping>> policyGroups = new HashSet<>();
+        final TopologyPipelineContext context = createStageContext(policyStage, TEST_TOPOLOGY_INFO,
+            new MemberDef<>(TopologyPipelineContextMembers.GROUP_RESOLVER, groupResolver),
+            new MemberDef<>(TopologyPipelineContextMembers.POLICY_GROUPS, policyGroups));
 
         final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
-        policyStage.setContext(context);
 
         final PolicyApplicator.Results results = mock(PolicyApplicator.Results.class);
         when(results.getErrors()).thenReturn(Collections.emptyMap());
@@ -448,21 +469,23 @@ public class StagesTest {
         when(results.getTotalAddedCommodityCounts()).thenReturn(Collections.emptyMap());
 
         when(policyManager.applyPolicies(eq(context), eq(topologyGraph),
-                eq(Collections.emptyList())))
+                eq(Collections.emptyList()), eq(groupResolver), eq(policyGroups)))
             .thenReturn(results);
 
         policyStage.execute(topologyGraph);
 
         verify(policyManager).applyPolicies(eq(context), eq(topologyGraph),
-                eq(Collections.emptyList()));
+            eq(Collections.emptyList()), eq(groupResolver), eq(policyGroups));
     }
 
     /**
      * Test that the DummySettingsResolutionStage convert {@link TopologyGraph} to
      * {@link GraphWithSettings} with empty settings.
+     *
+     * @throws Exception on something bad.
      */
     @Test
-    public void testDummySettingsResolutionStage() {
+    public void testDummySettingsResolutionStage() throws Exception {
         final DummySettingsResolutionStage stage = new DummySettingsResolutionStage();
         @SuppressWarnings("unchecked")
         final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
@@ -471,21 +494,18 @@ public class StagesTest {
     }
 
     @Test
-    public void testLiveSettingsResolutionStage() throws PipelineStageException {
+    public void testLiveSettingsResolutionStage() throws PipelineStageException, InterruptedException {
         final EntitySettingsResolver entitySettingsResolver = mock(EntitySettingsResolver.class);
         final SettingsResolutionStage stage = SettingsResolutionStage.live(entitySettingsResolver, null);
 
-        final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         final GroupResolver groupResolver = mock(GroupResolver.class);
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyContextId(7L)
                 .setTopologyId(10L)
                 .build();
-
-        when(context.getGroupResolver()).thenReturn(groupResolver);
-        when(context.getTopologyInfo()).thenReturn(topologyInfo);
-
+        final TopologyPipelineContext context = createStageContext(stage, topologyInfo,
+            TopologyPipelineContextMembers.GROUP_RESOLVER, groupResolver);
 
         final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
 
@@ -512,13 +532,9 @@ public class StagesTest {
                 .setTopologyContextId(1L)
                 .setTopologyId(2L)
                 .build();
-        final StitchingJournalContainer container = new StitchingJournalContainer();
         @SuppressWarnings("unchecked")
-        final IStitchingJournal<TopologyEntity> postStitchingJournal = mock(IStitchingJournal.class);
-        container.setPostStitchingJournal(postStitchingJournal);
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
-        when(context.getStitchingJournalContainer()).thenReturn(container);
         stage.setContext(context);
 
         final TopologyBroadcast broadcast1 = mock(TopologyBroadcast.class);
@@ -542,8 +558,6 @@ public class StagesTest {
 
         verify(broadcast2).append(any());
         verify(broadcast2).append(eq(entity.build()));
-        verify(postStitchingJournal).recordTopologyInfoAndMetrics(any(), any());
-        verify(postStitchingJournal).flushRecorders();
     }
 
     /**
@@ -563,7 +577,6 @@ public class StagesTest {
                 .build();
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
-        when(context.getStitchingJournalContainer()).thenReturn(new StitchingJournalContainer());
         stage.setContext(context);
 
         final TopologyBroadcast broadcast = mock(TopologyBroadcast.class);
@@ -721,9 +734,8 @@ public class StagesTest {
                 .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
                 .build();
         final GroupResolver groupResolver = mock(GroupResolver.class);
-        final TopologyPipelineContext context = new TopologyPipelineContext(groupResolver,
-                topologyInfo, null);
-        stage.setContext(context);
+        final TopologyPipelineContext context = createStageContext(stage, topologyInfo,
+            TopologyPipelineContextMembers.GROUP_RESOLVER, groupResolver);
         final TopologyPipeline.Status status = stage.passthrough(createTopologyGraph());
         testServer.close();
         Assert.assertEquals(TopologyPipeline.Status.Type.SUCCEEDED, status.getType());
@@ -789,4 +801,48 @@ public class StagesTest {
         return graph;
     }
 
+    private <M> TopologyPipelineContext createStageContext(@Nonnull final Stage<?, ?, TopologyPipelineContext> stage,
+                                                           @Nonnull final PipelineContextMemberDefinition<M> memberDef,
+                                                           @Nonnull final M member) {
+            return createStageContext(stage, TEST_TOPOLOGY_INFO, memberDef, member);
+    }
+
+    private <M> TopologyPipelineContext createStageContext(@Nonnull final Stage<?, ?, TopologyPipelineContext> stage,
+                                                           @Nonnull final TopologyInfo topologyInfo,
+                                                           @Nonnull final PipelineContextMemberDefinition<M> memberDef,
+                                                           @Nonnull final M member) {
+        return createStageContext(stage, topologyInfo, new MemberDef<M>(memberDef, member));
+    }
+
+    private TopologyPipelineContext createStageContext(@Nonnull final Stage<?, ?, TopologyPipelineContext> stage,
+                                                           @Nonnull final TopologyInfo topologyInfo,
+                                                           MemberDef<?>... members) {
+        final TopologyPipelineContext context = spy(new TopologyPipelineContext(topologyInfo));
+        stage.setContext(context);
+        for (MemberDef<?> member: members) {
+            member.addMember(context);
+        }
+
+        return context;
+    }
+
+    /**
+     * Helper class for adding member definitions.
+     *
+     * @param <M> ContextMember data type.
+     */
+    private static class MemberDef<M> {
+        private final PipelineContextMemberDefinition<M> memberDef;
+        private final M member;
+
+        private MemberDef(@Nonnull final PipelineContextMemberDefinition<M> memberDef,
+                           @Nonnull final M member) {
+            this.memberDef = Objects.requireNonNull(memberDef);
+            this.member = Objects.requireNonNull(member);
+        }
+
+        private void addMember(@Nonnull final PipelineContext context) {
+            context.addMember(memberDef, member);
+        }
+    }
 }

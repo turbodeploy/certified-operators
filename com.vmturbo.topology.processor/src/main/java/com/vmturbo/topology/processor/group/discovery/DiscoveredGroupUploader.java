@@ -50,7 +50,6 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
@@ -69,7 +68,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * <p>Uploading discovered groups does NOT clear the latest discovered groups, policies, and settings
  * for targets known to the uploader. Thus, if no new groups, policies, or settings are set for
  * a target since the last time that target's results were uploaded, the previous ones will
- * be re-uploaded the next time that {@link #uploadDiscoveredGroups(Map, ConsistentScalingManager)} is called.
+ * be re-uploaded the next time that {@link #uploadDiscoveredGroups(Map)} is called.
  *
  * <p>TODO: (DavidBlinn 1/31/2018) There is a problem with how we presently handle
  * TODO: discovered groups/policies/settings/templates/deployment profiles etc.
@@ -363,10 +362,8 @@ public class DiscoveredGroupUploader {
      * to the group uploader.
      *
      * @param input topology entities indexed by oid
-     * @param consistentScalingManager consistent scaling manager
      */
-    public void uploadDiscoveredGroups(@Nonnull Map<Long, TopologyEntity.Builder> input,
-                                       @Nonnull ConsistentScalingManager consistentScalingManager) {
+    public void uploadDiscoveredGroups(@Nonnull Map<Long, TopologyEntity.Builder> input) {
         final List<DiscoveredGroupsPoliciesSettings> requests = new ArrayList<>();
 
         // Create requests in a synchronized block to guard against changes to discovered groups/settings/policies
