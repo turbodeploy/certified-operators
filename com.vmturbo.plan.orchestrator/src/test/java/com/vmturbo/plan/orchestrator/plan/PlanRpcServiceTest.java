@@ -17,6 +17,8 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
+import org.springframework.context.ApplicationContext;
+
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostMoles.BuyRIAnalysisServiceMole;
@@ -65,6 +67,7 @@ public class PlanRpcServiceTest {
     @Before
     public void setup() {
         planService = new PlanRpcService(mock(PlanDao.class),
+            mock(ApplicationContext.class),
             AnalysisServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             mock(PlanNotificationSender.class),
             sameThreadExecutor,
