@@ -737,8 +737,8 @@ server:
       secret:
         secretName: prometheus-datacloud-gateway # must match the name of the secret in xl/templates
     - name: prometheus-merged-config
-      emptyDir: {} # Will hold file(s) that are recreated periodically from information readily
-                   # available outside the volume.
+      persistentVolumeClaim:
+        claimName: prometheus-merged-config
 
   ## Additional Prometheus server hostPath mounts
   ##
