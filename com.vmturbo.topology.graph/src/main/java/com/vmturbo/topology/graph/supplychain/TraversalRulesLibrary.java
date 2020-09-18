@@ -248,25 +248,30 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
         @Override
         protected Stream<TraversalState.Builder> include(
                 @Nonnull E entity, @Nonnull TraversalMode traversalMode) {
-            // a connected DC is an aggregator
-            final Stream<TraversalState.Builder> dcAsAggregator =
-                entity.getConsumers().stream()
-                    .filter(e -> e.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
-                    .flatMap(e -> e.getProviders().stream()
-                                       .filter(e1 -> e1.getEntityType() == EntityType.DATACENTER_VALUE))
-                    .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.AGGREGATED_BY));
+            // add connected DCs when in seed
+            final Stream<TraversalState.Builder> dcs;
+            if (traversalMode == TraversalMode.START) {
+                dcs = entity.getConsumers().stream()
+                            .filter(e -> e.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                            .flatMap(e -> e.getProviders().stream()
+                                    .filter(e1 -> e1.getEntityType() == EntityType.DATACENTER_VALUE))
+                            .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.AGGREGATED_BY));
+            } else {
+                dcs = Stream.empty();
+            }
 
             // a consuming PM should be traversed when going up
             // however no more traversal should happen from that PM
+            final Stream<TraversalState.Builder> pms;
             if (traversalMode == TraversalMode.START || traversalMode == TraversalMode.PRODUCES) {
-                return Stream.concat(
-                        dcAsAggregator,
-                        entity.getConsumers().stream()
-                                .filter(e -> e.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
-                                .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP)));
+                pms = entity.getConsumers().stream()
+                            .filter(e -> e.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                            .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP));
             } else {
-                return dcAsAggregator;
+                pms = Stream.empty();
             }
+
+            return Stream.concat(dcs, pms);
         }
 
         @Override

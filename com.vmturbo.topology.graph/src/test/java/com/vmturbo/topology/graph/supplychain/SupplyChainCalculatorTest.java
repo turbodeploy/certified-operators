@@ -392,6 +392,46 @@ public class SupplyChainCalculatorTest {
    }
 
     /**
+     * Tests that storage does not bring irrelevant DCs, when shared.
+     */
+    @Test
+    public void testSharedStorage() {
+        /*
+         * Topology:
+         *   VM
+         *    |
+         *   PM1 PM2
+         *    | \/ |
+         *  DC1 ST DC2
+         * Scoping on VM should not bring DC2
+         */
+        final long pm1Id = 1L;
+        final long pm2Id = 2L;
+        final long stId = 11L;
+        final long dc1Id = 101L;
+        final long dc2Id = 102L;
+        final long vmId = 1001L;
+        final TopologyGraph<TestGraphEntity> graph =
+                TestGraphEntity.newGraph(
+                        TestGraphEntity.newBuilder(pm1Id, ApiEntityType.PHYSICAL_MACHINE)
+                                .addProviderId(stId)
+                                .addProviderId(dc1Id),
+                        TestGraphEntity.newBuilder(pm2Id, ApiEntityType.PHYSICAL_MACHINE)
+                                .addProviderId(stId)
+                                .addProviderId(dc2Id),
+                        TestGraphEntity.newBuilder(stId, ApiEntityType.STORAGE),
+                        TestGraphEntity.newBuilder(dc1Id, ApiEntityType.DATACENTER),
+                        TestGraphEntity.newBuilder(dc2Id, ApiEntityType.DATACENTER),
+                        TestGraphEntity.newBuilder(vmId, ApiEntityType.VIRTUAL_MACHINE)
+                                .addProviderId(pm1Id));
+
+        final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(graph, vmId);
+
+        assertThat(getAllNodeIds(supplyChain.get(ApiEntityType.DATACENTER.typeNumber())),
+                                 containsInAnyOrder(dc1Id));
+    }
+
+    /**
      * Tests that scoping on a storage does not bring VMs
      * that are not associated with that storage.
      */
