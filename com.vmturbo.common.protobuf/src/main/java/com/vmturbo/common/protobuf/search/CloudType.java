@@ -13,13 +13,17 @@ import com.google.common.collect.ImmutableMap;
  */
 public enum CloudType {
     /**
-     * Amazon Werb Services.
+     * Amazon Web Services.
      */
     AWS,
     /**
      * Microsoft Azure.
      */
-    AZURE;
+    AZURE,
+    /**
+     * Google Cloud.
+     */
+    GCP;
 
     private static Map<String, CloudType> cloudTypeByProbeType =
             new ImmutableMap.Builder<String, CloudType>().put("aws", AWS)
@@ -31,6 +35,8 @@ public enum CloudType {
                     .put("azure service principal", AZURE)
                     .put("azure cost", AZURE)
                     .put("azure wasted volumes", AZURE)
+                    .put("gcp", GCP)
+                    .put("gcp cost", GCP)
                     .build();
 
     /**
