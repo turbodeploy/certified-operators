@@ -47,6 +47,7 @@ import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
+import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -122,7 +123,6 @@ public class ActionExecutionRpcTest {
     private final RejectedActionsDAO rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = mock(IActionStoreLoader.class);
-    private final AutomatedActionExecutor executor = mock(AutomatedActionExecutor.class);
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
     private final ActionExecutionListener actionExecutionListener =
         Mockito.mock(ActionExecutionListener.class);
@@ -131,7 +131,7 @@ public class ActionExecutionRpcTest {
     private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-            executor, actionStoreLoader, Mockito.mock(ActionApprovalSender.class));
+            actionStoreLoader, mock(ActionAutomationManager.class));
     private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);
 
     private final HistoricalActionStatReader statReader = mock(HistoricalActionStatReader.class);
@@ -552,7 +552,7 @@ public class ActionExecutionRpcTest {
         final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
         final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-                executor, actionStoreLoader, Mockito.mock(ActionApprovalSender.class));
+                actionStoreLoader, Mockito.mock(ActionAutomationManager.class));
         // We use actionTranslator which can successfully translate action in order to calculate
         // appropriate action mode (>= MANUAL). As a result action can be available for acceptance
         // and possible execution.

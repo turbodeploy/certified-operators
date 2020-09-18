@@ -187,16 +187,6 @@ public class ConsistentScalingManager {
     }
 
     /**
-     * Clear CSM state that doesn't need to persist.
-     */
-    public void clear() {
-        groups.clear();
-        enabledEntities.clear();
-        disabledEntities.clear();
-        entityToScalingGroup.clear();
-    }
-
-    /**
      * Generate a group key based on the group's UUID and the CSP of the ServiceEntity.
      *
      * @param grouping the group for which to generate a key

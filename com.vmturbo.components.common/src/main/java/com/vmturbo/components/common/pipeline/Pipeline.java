@@ -1,25 +1,35 @@
 package com.vmturbo.components.common.pipeline;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
 
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
+import com.vmturbo.components.common.pipeline.PipelineContext.PipelineContextMemberDefinition;
+import com.vmturbo.components.common.pipeline.Stage.ContextMemberSummary;
+import com.vmturbo.components.common.pipeline.Stage.SupplyToContext;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
@@ -42,17 +52,29 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
 
     private static final Logger logger = LogManager.getLogger();
 
+    /**
+     * The fixed name for pipeline initialization prior to any stage being run.
+     */
+    public static final String INITIAL_STAGE_NAME = "INITIAL";
+
     private final List<Stage> stages;
 
     private final C context;
 
     private final S pipelineSummary;
 
+    /**
+     * Suppliers for initial pipeline context members. The supplied context members are set
+     * on the context prior to the execution of any stage when the pipeline is run.
+     */
+    private final List<SupplyToContext<?>> initialContextMemberSuppliers;
+
     protected Pipeline(@Nonnull final PipelineDefinition<I, O, C> stages,
-                     @Nonnull final S pipelineSummary) {
+                       @Nonnull final S pipelineSummary) {
         this.stages = stages.getStages();
         this.context = stages.getContext();
         this.pipelineSummary = pipelineSummary;
+        this.initialContextMemberSuppliers = stages.getInitialContextMemberSuppliers();
     }
 
     public C getContext() {
@@ -83,7 +105,9 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
         pipelineSummary.start();
         Object curStageInput = input;
         try (DataMetricTimer pipelineTimer = startPipelineTimer();
-             TracingScope pipelineScope = startPipelineTrace()) {
+            TracingScope pipelineScope = startPipelineTrace()) {
+            initialContextMemberSuppliers.forEach(supplier -> supplier.runSupplier(context));
+
             for (final Stage stage : stages) {
                 String stageName = getSnakeCaseName(stage);
                 try (DataMetricTimer stageTimer = startStageTimer(stageName);
@@ -92,6 +116,7 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
                     // into more of a linked-list format so that there is better type safety.
                     logger.info("Executing stage {}", stage.getClass().getSimpleName());
                     final StageResult result = stage.execute(curStageInput);
+                    result.getStatus().setContextMemberSummary(stage.contextMemberCleanup(context));
                     curStageInput = result.getResult();
                     pipelineSummary.endStage(result.getStatus());
                 } catch (PipelineStageException | RuntimeException e) {
@@ -106,6 +131,36 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
         logger.info("\n{}", pipelineSummary);
         logger.info("Pipeline: {} finished successfully.", context.getPipelineName());
         return (O)curStageInput;
+    }
+
+    /**
+     * Generate a simple tabular description summarizing the pipeline stages with their
+     * inputs, outputs, and context member provides, requires, and drops. This is useful
+     * to understand the dataflow within the pipeline at a glance.
+     *
+     * @param pipelineTitle The title of the pipeline (ie "Live TopologyPipeline") etc.
+     * @return An ASCII tabular description of the dataflow of the pipeline suitable for printing to the logs.
+     */
+    public String tabularDescription(@Nonnull final String pipelineTitle) {
+        return PipelineTabularDescription.tabularDescription(this, pipelineTitle);
+    }
+
+    /**
+     * Get the initial context member suppliers.
+     *
+     * @return the initial context member suppliers.
+     */
+    List<SupplyToContext<?>> getInitialContextMemberSuppliers() {
+        return initialContextMemberSuppliers;
+    }
+
+    /**
+     * Get the pipeline stages.
+     *
+     * @return the pipeline stages.
+     */
+    List<Stage> getStages() {
+        return stages;
     }
 
     private static String getSnakeCaseName(@Nonnull final Stage stage) {
@@ -150,10 +205,9 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
             return Optional.empty();
         }
 
-        @NotNull
         @Nonnull
         @Override
-        public StageResult<T> execute(@NotNull @Nonnull T input)
+        public StageResult<T> executeStage(@Nonnull T input)
                 throws PipelineStageException, InterruptedException {
             Status status = null;
             boolean retry = false;
@@ -343,6 +397,11 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
 
         private String message;
 
+        /**
+         * Summary of context members provided, required, and dropped by a stage.
+         */
+        private String contextMemberSummary;
+
         private Status(@Nonnull final String message,
                        final Type type) {
             this.type = type;
@@ -360,12 +419,34 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
             return message;
         }
 
+        /**
+         * Return the stage message with summary. The summary includes information about
+         * context member usage by the stage.
+         *
+         * @return The message the stage completed with. May be empty if the stage completed
+         *         successfully with no message.
+         */
+        @Nonnull
+        public String getMessageWithSummary() {
+            if (Strings.isNullOrEmpty(contextMemberSummary)) {
+                return "\t" + message;
+            } else {
+                final String msg = message.endsWith("\n") ? message : (message + "\n");
+                return msg + contextMemberSummary;
+            }
+        }
+
+        /**
+         * Get the status type.
+         *
+         * @return the status type.
+         */
         public Type getType() {
             return type;
         }
 
         /**
-         * The stage failed. See {@link Type.FAILED}.
+         * The stage failed. See {@link Type#FAILED}.
          *
          * @param message The message to display to summarize the failure.
          * @return The failure status.
@@ -399,7 +480,7 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
         }
 
         /**
-         * The stage suceeded - i.e. it didn't fail - but there were serious issues during the
+         * The stage succeeded - i.e. it didn't fail - but there were serious issues during the
          * stage execution that may dramatically affect the result of the stage or the result
          * of the pipeline.
          *
@@ -409,45 +490,23 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
         public static Status withWarnings(@Nonnull final String message) {
             return new Status(message, Type.WARNING);
         }
-    }
-
-    /**
-     * A pipeline stage takes an input and produces an output that gets passed along to the
-     * next stage.
-     *
-     * @param <I2> The type of the input.
-     * @param <O2> The type of the output.
-     * @param <C2> The {@link PipelineContext} of the pipeline to which this stage belongs.
-     */
-    public abstract static class Stage<I2, O2, C2 extends PipelineContext> {
-
-        private C2 context;
 
         /**
-         * Execute the stage.
+         * Get the summary of context member usage by the stage.
          *
-         * @param input The input.
-         * @return The output of the stage.
-         * @throws PipelineStageException If there is an error executing this stage.
-         * @throws InterruptedException If the stage is interrupted.
+         * @return the summary of context member usage by the stage.
          */
-        @Nonnull
-        public abstract StageResult<O2> execute(@Nonnull I2 input)
-                throws PipelineStageException, InterruptedException;
-
-        @VisibleForTesting
-        public void setContext(@Nonnull final C2 context) {
-            this.context = Objects.requireNonNull(context);
+        public String getContextMemberSummary() {
+            return contextMemberSummary;
         }
 
-        @Nonnull
-        public C2 getContext() {
-            return context;
-        }
-
-        @Nonnull
-        public String getName() {
-            return getClass().getSimpleName();
+        /**
+         * Set the unprovided context members for the stage associated with this status.
+         *
+         * @param summary the summary of context member usage by the stage.
+         */
+        void setContextMemberSummary(@Nonnull final ContextMemberSummary summary) {
+            this.contextMemberSummary = summary.toString();
         }
     }
 
@@ -497,6 +556,23 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
     }
 
     /**
+     * An exception that indicates an error in pipeline dependencies/configuration.
+     * Made to be a runtime exception because it indicates an unrecoverable mis-configuration
+     * in the pipeline that we want to go uncaught and blow everything up. Should only happen
+     * in development when introducing new pipeline stages or modifying stage dependencies.
+     */
+    public static class PipelineContextMemberException extends RuntimeException {
+        /**
+         * Create a new {@link PipelineContextMemberException}.
+         *
+         * @param error A description of cause of the exception.
+         */
+        public PipelineContextMemberException(@Nonnull final String error) {
+            super(error);
+        }
+    }
+
+    /**
      * The definition/spec for a {@link Pipeline}.
      *
      * @param <I3> The initial input type. This will be the input type to the entire
@@ -510,16 +586,23 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
 
         private final C2 context;
 
+        private final List<SupplyToContext<?>> initialContextMemberSuppliers;
+
         /**
          * The constructor is private. Use the builder.
          *
          * @param stages The stages.
          * @param context The context.
+         * @param initialContextMemberSuppliers Suppliers for ContextMembers initially supplied directly
+         *                                      by the pipeline rather than by a particular stage. These
+         *                                      suppliers are run prior to the execution of any stages.
          */
         private PipelineDefinition(@Nonnull final List<Stage> stages,
-                                   @Nonnull final C2 context) {
+                                   @Nonnull final C2 context,
+                                   @Nonnull final List<SupplyToContext<?>> initialContextMemberSuppliers) {
             this.stages = stages;
             this.context = context;
+            this.initialContextMemberSuppliers = initialContextMemberSuppliers;
         }
 
         @Nonnull
@@ -530,6 +613,11 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
         @Nonnull
         public C2 getContext() {
             return context;
+        }
+
+        @Nonnull
+        public List<SupplyToContext<?>> getInitialContextMemberSuppliers() {
+            return initialContextMemberSuppliers;
         }
 
         /**
@@ -571,6 +659,8 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
 
         private final C context;
 
+        private final List<SupplyToContext<?>> initialContextMemberSuppliers;
+
         /**
          * Create a new {@link PipelineDefinitionBuilder}.
          *
@@ -579,6 +669,7 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
         private PipelineDefinitionBuilder(@Nonnull final C context) {
             this.stages = new LinkedList<>();
             this.context = Objects.requireNonNull(context);
+            this.initialContextMemberSuppliers = new ArrayList();
         }
 
         /**
@@ -603,15 +694,129 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
         }
 
         /**
+         * Add a context member to the initial state of the PipelineContext. This is appropriate
+         * when the context member is initially lightweight and may be populated with data later
+         * so having it initially present is not very expensive. It is useful in situations when
+         * there are different pipeline configurations that may have conflicting requirements
+         * about which stage should be the initial provider of the member. For example, in the
+         * LIVE Topology pipeline the PolicyStage is the first to require the GroupResolver member
+         * and might normally provide it to the pipeline, but in the PLAN TopologyPipeline, the
+         * ScopeResolutionStage requires it before the PolicyStage runs, so it makes more sense
+         * to just have an empty GroupResolver initially in the context.
+         * <p/>
+         * Any context members initially provided and not required by any stages are dropped and
+         * never executed when the pipeline is run.
+         *
+         * @param memberDefinition The definition of the context member to add.
+         * @param supplier A supplier for the member associated with the definition. When the pipeline
+         *                 is run all initial context members will be added to the context prior to the
+         *                 execution of any stage.
+         * @param <M> The data type of the member data.
+         * @return The {@link PipelineDefinitionBuilder}, for method chaining.
+         */
+        @Nonnull
+        public <M> PipelineDefinitionBuilder<I, O, N, C> initialContextMember(
+            @Nonnull final PipelineContextMemberDefinition<M> memberDefinition,
+            @Nonnull final Supplier<M> supplier) {
+            initialContextMemberSuppliers.add(new SupplyToContext<>(memberDefinition, supplier));
+            return this;
+        }
+
+        /**
          * Add the final stage to the pipeline. The output of the final stage should be the same
          * type as the output of the pipeline.
          *
          * @param stage The stage.
          * @return The full {@link PipelineDefinition}.
+         * @throws PipelineContextMemberException if the pipeline stage dependencies have been misconfigured.
          */
-        public PipelineDefinition<I, O, C> finalStage(@Nonnull final Stage<N, O, C> stage) {
+        public PipelineDefinition<I, O, C> finalStage(@Nonnull final Stage<N, O, C> stage)
+            throws PipelineContextMemberException {
             addStage(stage);
-            return new PipelineDefinition<>(stages, context);
+            final List<SupplyToContext<?>> contextMemberSuppliers = configureStageContextMembers();
+            return new PipelineDefinition<>(stages, context, contextMemberSuppliers);
+        }
+
+        /**
+         * Configures the ContextMember drop behavior for the pipeline's stages.
+         * While doing this, we ensure:
+         * <p/>
+         * 1. Every ContextMember has a unique provider.
+         * 2. Every ContextMember requirement is provided by an earlier stage or has a default.
+         * <p/>
+         * Note that it's fine to provide an unused ContextMember. The pipeline will drop any
+         * provided ContextMembers as soon as there are no longer needed by any downstream stages that
+         * require them, so when a stage provides a ContextMember that no one requires, it will
+         * be immediately dropped on completion of that stage.
+         *
+         * @return A list of the context member suppliers to run before executing any stages.
+         * @throws PipelineContextMemberException If the pipeline violates one or both of the above invariants.
+         */
+        @Nonnull
+        private List<SupplyToContext<?>> configureStageContextMembers()
+            throws PipelineContextMemberException {
+            final Map<PipelineContextMemberDefinition<?>, String> providedDependencies = new HashMap<>();
+            final Map<PipelineContextMemberDefinition<?>, Stage<?, ?, ?>> requirements = new HashMap<>();
+            initialContextMemberSuppliers.forEach(def ->
+                providedDependencies.put(def.getMemberDefinition(), INITIAL_STAGE_NAME));
+
+            for (final Stage<?, ?, ?> stage : stages) {
+                // Ensure requirements are provided by an earlier stage
+                if (!providedDependencies.keySet().containsAll(stage.getContextMemberRequirements())) {
+                    final List<PipelineContextMemberDefinition<?>> missingMembers =
+                        Sets.difference(new HashSet<>(stage.getContextMemberRequirements()),
+                            providedDependencies.keySet()).stream()
+                        .filter(memberDef -> !memberDef.suppliesDefault())
+                        .collect(Collectors.toList());
+                    if (!missingMembers.isEmpty()) {
+                        throw new PipelineContextMemberException(String.format(
+                            "No earlier stage provides required pipeline dependencies (%s) without default for stage %s.",
+                            missingMembers.stream()
+                                .map(PipelineContextMemberDefinition::toString)
+                                .collect(Collectors.joining(", ")),
+                            stage.getName()));
+                    }
+                }
+                stage.getContextMemberRequirements().forEach(requirement ->
+                    requirements.put(requirement, stage));
+
+                // Ensure unique provider for every dependency
+                for (final PipelineContextMemberDefinition<?> dependency : stage.getProvidedContextMembers()) {
+                    final String firstProviderName = providedDependencies.get(dependency);
+                    if (firstProviderName == null) {
+                        providedDependencies.put(dependency, stage.getName());
+                    } else {
+                        throw new PipelineContextMemberException(String.format(
+                            "Pipeline ContextMember of type %s provided by stage %s is already "
+                                + "provided by earlier stage %s. Only one stage in the pipeline "
+                                + "may provide a particular ContextMember to the pipeline context.", dependency,
+                            stage.getName(), firstProviderName));
+                    }
+                    // If no one requires, we drop right after the initial dependency.
+                    requirements.put(dependency, stage);
+                }
+            }
+
+            // The requirements map should have the last stage in the pipeline that requires a
+            // particular dependency.
+            requirements.entrySet().stream()
+                .collect(Collectors.groupingBy(entry -> entry.getValue()))
+                .forEach((stage, entries) -> stage.setDependenciesToDrop(entries.stream()
+                    .map(Entry::getKey)
+                    .collect(Collectors.toList())));
+
+            // Now find the initial context members to provide. Log as a warning any context
+            // members that are initially provided but never required. These suppliers will be
+            // dropped here.
+            final Map<Boolean, List<SupplyToContext<?>>> suppliersByRequirement = initialContextMemberSuppliers.stream()
+                .collect(Collectors.groupingBy(member -> requirements.containsKey(member.getMemberDefinition())));
+            final List<SupplyToContext<?>> unnecessary =
+                suppliersByRequirement.getOrDefault(false, Collections.emptyList());
+            if (unnecessary.size() > 0) {
+                logger.warn("Dropping unnecessary initial context members: " + unnecessary);
+            }
+
+            return suppliersByRequirement.getOrDefault(true, Collections.emptyList());
         }
     }
 }

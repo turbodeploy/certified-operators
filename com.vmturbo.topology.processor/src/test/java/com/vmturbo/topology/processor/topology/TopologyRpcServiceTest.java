@@ -50,7 +50,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
-import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -233,8 +232,7 @@ public class TopologyRpcServiceTest {
             final List<TopoBroadcastManager> broadcastManager =
                 (List<TopoBroadcastManager>)invocation.getArgumentAt(1, List.class);
             final TopologyPipelineContext context =
-                new TopologyPipelineContext(groupResolver, info,
-                    mock(ConsistentScalingManager.class));
+                new TopologyPipelineContext(info);
 
             TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline =
                 new TopologyPipeline<>(PipelineDefinition.<EntityStore, TopologyBroadcastInfo, TopologyPipelineContext>newBuilder(context)
@@ -356,7 +354,7 @@ public class TopologyRpcServiceTest {
         @NotNull
         @Nonnull
         @Override
-        public StageResult<TopologyGraph<TopologyEntity>> execute(@NotNull @Nonnull EntityStore entityStore)
+        public StageResult<TopologyGraph<TopologyEntity>> executeStage(@NotNull @Nonnull EntityStore entityStore)
             throws PipelineStageException, InterruptedException {
             final TopologyGraph<TopologyEntity> mockGraph = mock(TopologyGraph.class);
             final Stream<TopologyEntity> entityStream = Stream.of(TopologyEntity.newBuilder(entityDTO).build());

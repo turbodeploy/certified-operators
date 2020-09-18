@@ -1,30 +1,18 @@
 package com.vmturbo.action.orchestrator.market;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.Collections;
-import java.util.Optional;
+import java.time.LocalDateTime;
 
 import io.opentracing.SpanContext;
 
-import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
-import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
-import com.vmturbo.action.orchestrator.approval.ActionApprovalSender;
-import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
-import com.vmturbo.action.orchestrator.store.ActionStore;
-import com.vmturbo.action.orchestrator.store.ActionStorehouse;
-import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
-import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
-import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
@@ -39,29 +27,16 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 public class MarketActionListenerTest {
 
     private static final long realtimeTopologyContextId = 1234;
-    private final IActionStoreFactory actionStoreFactory = Mockito.mock(IActionStoreFactory.class);
-    private final IActionStoreLoader actionStoreLoader = Mockito.mock(IActionStoreLoader.class);
-    private final AutomatedActionExecutor executor = Mockito.mock(AutomatedActionExecutor.class);
-    private ActionStorehouse actionStorehouse;
-    private final ActionStore actionStore = mock(ActionStore.class);
-    private final EntitySeverityCache severityCache = mock(EntitySeverityCache.class);
     private final ActionPlanAssessor actionPlanAssessor = mock(ActionPlanAssessor.class);
+    private final ActionOrchestrator orchestrator = mock(ActionOrchestrator.class);
 
-    @Before
-    public void setup() {
-        final ActionApprovalSender approvalSender = Mockito.mock(ActionApprovalSender.class);
-        this.actionStorehouse = new ActionStorehouse(actionStoreFactory,
-                executor, actionStoreLoader, approvalSender);
-        when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStore);
-        when(actionStore.getEntitySeverityCache()).thenReturn(Optional.of(severityCache));
-        when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
-        when(actionStore.getStoreTypeName()).thenReturn("test");
-    }
-
+    /**
+     * testOnActionsReceivedProcessActions.
+     *
+     * @throws Exception on exception.
+     */
     @Test
-    public void testOnActionsReceivedPopulatesActionStore() throws Exception {
-        ActionOrchestratorNotificationSender notificationSender =
-                mock(ActionOrchestratorNotificationSender.class);
+    public void testOnActionsReceivedProcessActions() throws Exception {
         ActionPlan actionPlan = ActionPlan.newBuilder()
             .setId(1)
             .setInfo(ActionPlanInfo.newBuilder()
@@ -73,37 +48,14 @@ public class MarketActionListenerTest {
         when(actionPlanAssessor.isActionPlanExpired(eq(actionPlan))).thenReturn(false);
 
         MarketActionListener actionsListener =
-                new MarketActionListener(notificationSender, actionStorehouse, actionPlanAssessor);
+                new MarketActionListener(orchestrator, actionPlanAssessor);
         actionsListener.onActionsReceived(actionPlan, mock(SpanContext.class));
 
-        verify(actionStore).populateRecommendedActions(actionPlan);
-    }
-
-    @Test
-    public void testOnActionsReceivedRefreshesSeverityCache() throws Exception {
-        ActionOrchestratorNotificationSender notificationSender =
-                mock(ActionOrchestratorNotificationSender.class);
-        ActionPlan actionPlan = ActionPlan.newBuilder()
-            .setId(1)
-            .setInfo(ActionPlanInfo.newBuilder()
-                .setMarket(MarketActionPlanInfo.newBuilder()
-                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
-                        .setTopologyId(123)
-                        .setTopologyContextId(realtimeTopologyContextId))))
-            .build();
-        when(actionPlanAssessor.isActionPlanExpired(eq(actionPlan))).thenReturn(false);
-
-        MarketActionListener actionsListener =
-                new MarketActionListener(notificationSender, actionStorehouse, actionPlanAssessor);
-        actionsListener.onActionsReceived(actionPlan, mock(SpanContext.class));
-
-        verify(severityCache).refresh(actionStore);
+        verify(orchestrator).processActions(eq(actionPlan), any(LocalDateTime.class), any(LocalDateTime.class));
     }
 
     @Test
     public void testDropExpiredActionPlan() throws Exception {
-        ActionOrchestratorNotificationSender notificationSender =
-            mock(ActionOrchestratorNotificationSender.class);
         ActionPlan actionPlan = ActionPlan.newBuilder()
             .setId(1)
             .setInfo(ActionPlanInfo.newBuilder()
@@ -115,17 +67,15 @@ public class MarketActionListenerTest {
         when(actionPlanAssessor.isActionPlanExpired(eq(actionPlan))).thenReturn(true);
 
         MarketActionListener actionsListener =
-            new MarketActionListener(notificationSender, actionStorehouse, actionPlanAssessor);
+            new MarketActionListener(orchestrator, actionPlanAssessor);
         actionsListener.onActionsReceived(actionPlan, mock(SpanContext.class));
 
-        verify(actionStore, never()).populateRecommendedActions(any(ActionPlan.class));
-        verify(severityCache, never()).refresh(any(ActionStore.class));
+        verify(orchestrator, never()).processActions(any(ActionPlan.class),
+            any(LocalDateTime.class), any(LocalDateTime.class));
     }
 
     @Test
     public void testDropLiveMarketActionPlanIfMoreRecentAvailable() throws Exception {
-        ActionOrchestratorNotificationSender notificationSender =
-            mock(ActionOrchestratorNotificationSender.class);
         ActionPlan actionPlan = ActionPlan.newBuilder()
             .setId(1)
             .setInfo(ActionPlanInfo.newBuilder()
@@ -138,7 +88,7 @@ public class MarketActionListenerTest {
         when(actionPlanAssessor.isActionPlanExpired(eq(actionPlan))).thenReturn(false);
 
         MarketActionListener actionsListener =
-            new MarketActionListener(notificationSender, actionStorehouse, actionPlanAssessor);
+            new MarketActionListener(orchestrator, actionPlanAssessor);
 
         actionsListener.onAnalysisSummary(AnalysisSummary.newBuilder()
             .setActionPlanSummary(ActionPlanSummary.newBuilder()
@@ -149,14 +99,12 @@ public class MarketActionListenerTest {
 
         actionsListener.onActionsReceived(actionPlan, mock(SpanContext.class));
 
-        verify(actionStore, never()).populateRecommendedActions(any(ActionPlan.class));
-        verify(severityCache, never()).refresh(any(ActionStore.class));
+        verify(orchestrator, never()).processActions(any(ActionPlan.class),
+            any(LocalDateTime.class), any(LocalDateTime.class));
     }
 
     @Test
     public void testPlanAnalysisNotIgnored() throws Exception {
-        ActionOrchestratorNotificationSender notificationSender =
-            mock(ActionOrchestratorNotificationSender.class);
         // P plan.
         ActionPlan actionPlan = ActionPlan.newBuilder()
             .setId(1)
@@ -171,7 +119,7 @@ public class MarketActionListenerTest {
         when(actionPlanAssessor.isActionPlanExpired(eq(actionPlan))).thenReturn(false);
 
         MarketActionListener actionsListener =
-            new MarketActionListener(notificationSender, actionStorehouse, actionPlanAssessor);
+            new MarketActionListener(orchestrator, actionPlanAssessor);
 
         // Got a NEWER live action plan
         actionsListener.onAnalysisSummary(AnalysisSummary.newBuilder()
@@ -184,14 +132,12 @@ public class MarketActionListenerTest {
         actionsListener.onActionsReceived(actionPlan, mock(SpanContext.class));
 
         // We should still have saved the plan action plan.
-        verify(actionStore).populateRecommendedActions(actionPlan);
-        verify(severityCache).refresh(any(ActionStore.class));
+        verify(orchestrator).processActions(eq(actionPlan),
+            any(LocalDateTime.class), any(LocalDateTime.class));
     }
 
     @Test
     public void testPlanAnalysisSummaryNoAffectLiveActionPlan() throws Exception {
-        ActionOrchestratorNotificationSender notificationSender =
-            mock(ActionOrchestratorNotificationSender.class);
         // Realtime plan.
         ActionPlan actionPlan = ActionPlan.newBuilder()
             .setId(1)
@@ -206,7 +152,7 @@ public class MarketActionListenerTest {
         when(actionPlanAssessor.isActionPlanExpired(eq(actionPlan))).thenReturn(false);
 
         MarketActionListener actionsListener =
-            new MarketActionListener(notificationSender, actionStorehouse, actionPlanAssessor);
+            new MarketActionListener(orchestrator, actionPlanAssessor);
 
         // Got a NEWER plan action plan
         actionsListener.onAnalysisSummary(AnalysisSummary.newBuilder()
@@ -219,10 +165,7 @@ public class MarketActionListenerTest {
         actionsListener.onActionsReceived(actionPlan, mock(SpanContext.class));
 
         // We should still have saved the realtime plan.
-        verify(actionStore).populateRecommendedActions(actionPlan);
-        verify(severityCache).refresh(any(ActionStore.class));
+        verify(orchestrator).processActions(eq(actionPlan),
+            any(LocalDateTime.class), any(LocalDateTime.class));
     }
-
-//    @Test
-//    public void
 }

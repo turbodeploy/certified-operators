@@ -242,7 +242,6 @@ public class EntitySettingsResolver {
          // to do this after the default settings are applied in order to avoid the membership
          // setting removing the default settings.
         consistentScalingManager.addScalingGroupSettings(userSettingsByEntityAndName);
-        consistentScalingManager.clear();  // Clear all state that doesn't need to persist
 
         // We have applied all the user settings. Now traverse the graph and
         // for each entity, associate its user settings and default setting policy id.

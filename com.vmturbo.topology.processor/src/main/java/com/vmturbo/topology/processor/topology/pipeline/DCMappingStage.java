@@ -38,7 +38,7 @@ public class DCMappingStage extends Stage<EntityStore, EntityStore> {
 
     @NotNull
     @Override
-    public StageResult<EntityStore> execute(@NotNull EntityStore input)
+    public StageResult<EntityStore> executeStage(@NotNull EntityStore input)
                     throws PipelineStageException, InterruptedException {
         if (!discoveredGroupUploader.isFabricTargetPresent())   {
             return StageResult.withResult(input)

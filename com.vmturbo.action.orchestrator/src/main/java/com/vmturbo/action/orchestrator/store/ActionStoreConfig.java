@@ -28,6 +28,7 @@ import com.vmturbo.action.orchestrator.action.RejectedActionsStore;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
 import com.vmturbo.action.orchestrator.approval.ApprovalCommunicationConfig;
 import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
+import com.vmturbo.action.orchestrator.execution.ActionAutomationManager;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
@@ -358,11 +359,20 @@ public class ActionStoreConfig {
     }
 
     @Bean
+    public ActionAutomationManager automationManager() {
+        return new ActionAutomationManager(automatedActionExecutor(),
+            approvalCommunicationConfig.approvalRequester());
+    }
+
+    /**
+     * The actions storehouse.
+     *
+     * @return The actions storehouse.
+     */
+    @Bean
     public ActionStorehouse actionStorehouse() {
         ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory(),
-                automatedActionExecutor(),
-                actionStoreLoader(),
-                approvalCommunicationConfig.approvalRequester());
+                actionStoreLoader(), automationManager());
         return actionStorehouse;
     }
 

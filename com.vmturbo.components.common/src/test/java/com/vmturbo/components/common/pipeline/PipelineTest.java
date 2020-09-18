@@ -1,7 +1,11 @@
 package com.vmturbo.components.common.pipeline;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.eq;
@@ -14,26 +18,30 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-
-import javax.annotation.Nonnull;
+import java.util.function.Supplier;
 
 import org.apache.commons.lang3.mutable.MutableInt;
-import org.jetbrains.annotations.NotNull;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.mockito.InOrder;
+import org.mockito.Mockito;
 
-import com.vmturbo.components.api.tracing.Tracing.TracingScope;
-import com.vmturbo.components.common.pipeline.Pipeline.PassthroughStage;
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineContextMemberException;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineDefinition;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineException;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
-import com.vmturbo.components.common.pipeline.Pipeline.Stage;
-import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
 import com.vmturbo.components.common.pipeline.Pipeline.Status;
-import com.vmturbo.proactivesupport.DataMetricTimer;
+import com.vmturbo.components.common.pipeline.PipelineTestUtilities.TestMemberDefinitions;
+import com.vmturbo.components.common.pipeline.PipelineTestUtilities.TestPassthroughStage;
+import com.vmturbo.components.common.pipeline.PipelineTestUtilities.TestPipeline;
+import com.vmturbo.components.common.pipeline.PipelineTestUtilities.TestPipelineContext;
+import com.vmturbo.components.common.pipeline.PipelineTestUtilities.TestStage;
+import com.vmturbo.components.common.pipeline.Stage.ContextMemberSummary;
+import com.vmturbo.components.common.pipeline.Stage.FromContext;
 
 /**
  * Unit tests for the {@link Pipeline}.
@@ -43,6 +51,12 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 public class PipelineTest {
 
     private final TestPipelineContext context = new TestPipelineContext();
+
+    /**
+     * Expected exception.
+     */
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     /**
      * Test running a multi-stage pipeline.
@@ -181,89 +195,242 @@ public class PipelineTest {
     }
 
     /**
-     * A stage for the {@link TestPipeline}.
-     */
-    public static class TestStage extends Stage<Long, Long, TestPipelineContext> {
-        @NotNull
-        @Nonnull
-        @Override
-        public StageResult<Long> execute(@NotNull @Nonnull final Long input)
-                throws PipelineStageException, InterruptedException {
-            return StageResult.withResult(input)
-                    .andStatus(Status.success());
-        }
-    }
-
-    /**
-     * A passthrough stage for the {@link TestPipeline}.
-     */
-    public static class TestPassthroughStage extends PassthroughStage<Long, TestPipelineContext> {
-        @NotNull
-        @Override
-        public Status passthrough(final Long input) throws PipelineStageException {
-            // Don't do anything.
-            return Status.success();
-        }
-    }
-
-    /**
-     * The {@link PipelineContext} for the {@link TestPipeline}.
-     */
-    public static class TestPipelineContext implements PipelineContext {
-
-        @NotNull
-        @Override
-        public String getPipelineName() {
-            return "test-pipeline";
-        }
-    }
-
-    /**
-     * The {@link PipelineSummary} for the {@link TestPipeline}.
-     */
-    public static class TestPipelineSummary extends PipelineSummary {
-
-        protected TestPipelineSummary(@NotNull Clock clock,
-                @NotNull List<Stage> stages) {
-            super(clock, stages);
-        }
-
-        @Override
-        protected String getPreamble() {
-            return "FOO";
-        }
-    }
-
-    /**
-     * A {@link Pipeline} implementation for tests.
+     * Basic membership test.
      *
-     * @param <I> The input type.
-     * @param <O> The output type.
+     * @throws PipelineContextMemberException on bad.
      */
-    public static class TestPipeline<I, O> extends Pipeline<I, O, TestPipelineContext, TestPipelineSummary> {
+    @Test
+    public void testPipelineContextMembership() throws PipelineContextMemberException {
+        final TestPipelineContext context = new TestPipelineContext();
 
-        protected TestPipeline(@NotNull PipelineDefinition<I, O, TestPipelineContext> stages) {
-            super(stages, new TestPipelineSummary(Clock.systemUTC(), stages.getStages()));
-        }
+        assertThat(context.hasMember(TestMemberDefinitions.FOO), is(false));
+        context.addMember(TestMemberDefinitions.FOO, "foo");
+        assertThat(context.getMember(TestMemberDefinitions.FOO), is("foo"));
+        assertThat(context.hasMember(TestMemberDefinitions.FOO), is(true));
 
-        @Override
-        protected DataMetricTimer startPipelineTimer() {
-            return null;
-        }
+        context.dropMember(TestMemberDefinitions.FOO);
+        assertThat(context.hasMember(TestMemberDefinitions.FOO), is(false));
+    }
 
-        @Override
-        protected DataMetricTimer startStageTimer(String stageName) {
-            return null;
-        }
+    /**
+     * Test a valid set of dependencies does not throw an exception.
+     */
+    @Test
+    public void testValidPipelineDependencies() {
+        final TestPassthroughStage stage1 = new TestPassthroughStage();
+        final TestPassthroughStage stage2 = new TestPassthroughStage();
+        final TestPassthroughStage stage3 = new TestPassthroughStage();
 
-        @Override
-        protected TracingScope startPipelineTrace() {
-            return null;
-        }
+        stage1.providesToContext(TestMemberDefinitions.FOO, "foo");
+        stage1.providesToContext(TestMemberDefinitions.BAR, 1);
 
-        @Override
-        protected TracingScope startStageTrace(String stageName) {
-            return null;
-        }
+        stage2.providesToContext(TestMemberDefinitions.BAZ, Arrays.asList(1L, 2L));
+        stage2.requiresFromContext(TestMemberDefinitions.FOO);
+
+        stage3.requiresFromContext(TestMemberDefinitions.BAZ);
+        stage3.requiresFromContext(TestMemberDefinitions.BAR);
+
+        final TestPipeline<Long, Long> abc = new TestPipeline<>(
+            PipelineDefinition.<Long, Long, TestPipelineContext>newBuilder(context)
+            .addStage(stage1)
+            .addStage(stage2)
+            .finalStage(stage3));
+    }
+
+    /**
+     * Test that providing a starting dependency allows a downstream stage to require it
+     * while still passing validation.
+     */
+    @Test
+    public void testStartingDependencies() {
+        final TestPassthroughStage stage = new TestPassthroughStage();
+        stage.requiresFromContext(TestMemberDefinitions.FOO);
+        stage.providesToContext(TestMemberDefinitions.BAR, 1);
+
+        final TestPipeline<Long, Long> pipeline = new TestPipeline<>(PipelineDefinition.<Long, Long, TestPipelineContext>newBuilder(context)
+            .initialContextMember(TestMemberDefinitions.FOO, () -> "foo")
+            .initialContextMember(TestMemberDefinitions.BAZ, () -> Arrays.asList(1L, 2L))
+            .finalStage(stage));
+    }
+
+    /**
+     * Test that an exception is thrown when a stage says it will provide a ContextMember
+     * that the pipeline ALSO says it will provide.
+     */
+    @Test
+    public void testStartingDependenciesOverlapWithProvides() {
+        expectedException.expect(PipelineContextMemberException.class);
+        expectedException.expectMessage("Pipeline ContextMember of type foo[String] "
+            + "provided by stage TestPassthroughStage is already provided by earlier "
+            + "stage INITIAL. Only one stage in the pipeline may provide a particular "
+            + "ContextMember to the pipeline context.");
+
+        final TestPassthroughStage stage = new TestPassthroughStage();
+        stage.providesToContext(TestMemberDefinitions.FOO, "foo");
+
+        new TestPipeline<>(PipelineDefinition.<Long, Long, TestPipelineContext>newBuilder(context)
+            .initialContextMember(TestMemberDefinitions.FOO, () -> "foo")
+            .finalStage(stage));
+    }
+
+    /**
+     * Test that a stage requiring an unprovided dependency throws an exception.
+     * Here the final stage requires a BAZ but no one provides it.
+     */
+    @Test
+    public void testMissingRequirement() {
+        expectedException.expect(PipelineContextMemberException.class);
+        expectedException.expectMessage("No earlier stage provides required pipeline "
+            + "dependencies (baz[List]) without default for stage TestPassthroughStage.");
+
+        final TestPassthroughStage stage1 = new TestPassthroughStage();
+        final TestPassthroughStage stage2 = new TestPassthroughStage();
+        final TestPassthroughStage stage3 = new TestPassthroughStage();
+
+        stage1.providesToContext(TestMemberDefinitions.FOO, "foo");
+        stage1.providesToContext(TestMemberDefinitions.BAR, 1);
+
+        stage2.requiresFromContext(TestMemberDefinitions.FOO);
+
+        stage3.requiresFromContext(TestMemberDefinitions.BAZ);
+        stage3.requiresFromContext(TestMemberDefinitions.BAR);
+
+        new TestPipeline<>(PipelineDefinition.<Long, Long, TestPipelineContext>newBuilder(context)
+            .addStage(stage1)
+            .addStage(stage2)
+            .finalStage(stage3));
+    }
+
+    /**
+     * Test that a stage requiring an unprovided dependency does not throw an exception when there is a default.
+     * Here the final stage requires a QUUX and no one provides it but there is a default.
+     */
+    @Test
+    public void testMissingRequirementWithDefault() {
+        final TestPassthroughStage stage1 = new TestPassthroughStage();
+        final TestPassthroughStage stage2 = new TestPassthroughStage();
+        final TestPassthroughStage stage3 = new TestPassthroughStage();
+
+        stage1.providesToContext(TestMemberDefinitions.FOO, "foo");
+        stage1.providesToContext(TestMemberDefinitions.BAR, 1);
+
+        stage2.requiresFromContext(TestMemberDefinitions.FOO);
+
+        stage3.requiresFromContext(TestMemberDefinitions.QUUX);
+        stage3.requiresFromContext(TestMemberDefinitions.BAR);
+
+        final TestPipeline<Long, Long> pipeline = new TestPipeline<>(PipelineDefinition.<Long, Long, TestPipelineContext>newBuilder(context)
+            .addStage(stage1)
+            .addStage(stage2)
+            .finalStage(stage3));
+
+        final String description = pipeline.tabularDescription("TestPipeline");
+        // The quux member should be highlighted with an asterisk because it uses a default
+        assertThat(description, containsString("*quux"));
+        // It should also be dropped without an asterisk.
+        assertThat(description, containsString("|quux"));
+
+        // The other members should not have an asterisk
+        assertThat(description, not(containsString("*foo")));
+        assertThat(description, not(containsString("*bar")));
+    }
+
+    /**
+     * Test that multiple stages providing the same requirement throws an exception.
+     * Here two stages provide a BAR.
+     */
+    @Test
+    public void testDuplicateRequirementProviders() {
+        expectedException.expect(PipelineContextMemberException.class);
+        expectedException.expectMessage("Pipeline ContextMember of type bar[Integer] "
+            + "provided by stage TestPassthroughStage is already provided by earlier stage "
+            + "TestPassthroughStage. Only one stage in the pipeline may provide a particular "
+            + "ContextMember to the pipeline context.");
+
+        final TestPassthroughStage stage1 = new TestPassthroughStage();
+        final TestPassthroughStage stage2 = new TestPassthroughStage();
+        final TestPassthroughStage stage3 = new TestPassthroughStage();
+
+        stage1.providesToContext(TestMemberDefinitions.FOO, "foo");
+        stage1.providesToContext(TestMemberDefinitions.BAR, 1);
+
+        stage2.providesToContext(TestMemberDefinitions.BAR, 2);
+        stage2.requiresFromContext(TestMemberDefinitions.FOO);
+
+        stage3.requiresFromContext(TestMemberDefinitions.QUUX);
+        stage3.requiresFromContext(TestMemberDefinitions.BAR);
+
+        new TestPipeline<>(PipelineDefinition.<Long, Long, TestPipelineContext>newBuilder(context)
+            .addStage(stage1)
+            .addStage(stage2)
+            .finalStage(stage3));
+    }
+
+    /**
+     * The pipeline should call providers and consumers when stages execute.
+     *
+     * @throws Exception on error.
+     */
+    @Test
+    public void testProvidesConsumesCalledOnStageExecution() throws Exception {
+        final TestPipelineContext spyContext = Mockito.spy(context);
+
+        final TestPassthroughStage stage1 = new TestPassthroughStage();
+        final TestPassthroughStage stage2 = new TestPassthroughStage();
+        final TestPassthroughStage stage3 = new TestPassthroughStage();
+
+        stage1.providesToContext(TestMemberDefinitions.FOO, "foo");
+        stage1.providesToContext(TestMemberDefinitions.BAR, 1);
+
+        stage2.providesToContext(TestMemberDefinitions.BAZ, Arrays.asList(1L, 2L));
+        stage2.requiresFromContext(TestMemberDefinitions.FOO);
+
+        final FromContext<List<Long>> baz = stage3.requiresFromContext(TestMemberDefinitions.BAZ);
+        final FromContext<Integer> bar = stage3.requiresFromContext(TestMemberDefinitions.BAR);
+
+        final TestPipeline<Long, Long> pipeline = new TestPipeline<>(PipelineDefinition.<Long, Long, TestPipelineContext>newBuilder(spyContext)
+            .addStage(stage1)
+            .addStage(stage2)
+            .finalStage(stage3));
+
+        pipeline.run(456L);
+        final InOrder inOrder = inOrder(spyContext);
+        inOrder.verify(spyContext).addMember(eq(TestMemberDefinitions.FOO), eq("foo"));
+        inOrder.verify(spyContext).addMember(eq(TestMemberDefinitions.BAR), eq(1));
+        inOrder.verify(spyContext).getMember(eq(TestMemberDefinitions.FOO));
+        inOrder.verify(spyContext).addMember(eq(TestMemberDefinitions.BAZ), eq(Arrays.asList(1L, 2L)));
+        inOrder.verify(spyContext).getMember(eq(TestMemberDefinitions.BAZ));
+        inOrder.verify(spyContext).getMember(eq(TestMemberDefinitions.BAR));
+        assertEquals(1, (int)bar.get());
+        assertEquals(Arrays.asList(1L, 2L), baz.get());
+    }
+
+    /**
+     * Test that the pipeline status generates the correct message with summary.
+     *
+     * @throws Exception on exception.
+     */
+    @Test
+    public void testStatusMessageWithSummary() throws Exception {
+        final Stage<Long, Long, TestPipelineContext> stage = new TestPassthroughStage();
+        stage.providesToContext(TestMemberDefinitions.BAZ, (Supplier<List<Long>>)() -> Arrays.asList(1L, 2L));
+        stage.requiresFromContext(TestMemberDefinitions.QUUX);
+        new TestPipeline<>(PipelineDefinition.<Long, Long, TestPipelineContext>newBuilder(context)
+            .finalStage(stage));
+        stage.execute(1L);
+
+        final Status status = Status.success("My message");
+        status.setContextMemberSummary(new ContextMemberSummary(stage, context));
+        assertThat(status.getMessageWithSummary(), either(
+            is("My message\n"
+                + "PIPELINE_CONTEXT_MEMBERS:\n"
+                + "\tPROVIDED=(baz[size=2])\n"
+                + "\tREQUIRED=(quux[one object])\n"
+                + "\tDROPPED=(quux, baz)\n")).or(
+            is("My message\n"
+                + "PIPELINE_CONTEXT_MEMBERS:\n"
+                + "\tPROVIDED=(baz[size=2])\n"
+                + "\tREQUIRED=(quux[one object])\n"
+                + "\tDROPPED=(baz, quux)\n")));
     }
 }

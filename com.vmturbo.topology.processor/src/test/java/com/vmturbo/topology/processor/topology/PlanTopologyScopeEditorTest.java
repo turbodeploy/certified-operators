@@ -711,7 +711,7 @@ public class PlanTopologyScopeEditorTest {
                         .addAllScopeSeedOids(oidsList)
                         .build();
         final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeTopology(
-                cloudTopologyInfo, graph, context);
+                cloudTopologyInfo, graph, new HashSet<>());
         Assert.assertEquals(expectedEntities.size(), result.size());
         expectedEntities.forEach(entity -> assertTrue(entity.getOid() + " is missing", result.getEntity(entity.getOid())
                         .isPresent()));
@@ -1264,9 +1264,8 @@ public class PlanTopologyScopeEditorTest {
                 .collect(Collectors.toSet());
         final Set<Long> sourceVMOids = new HashSet<>();
         sourceVMOids.add(vm1InDc1.getOid());
-        when(context.getSourceEntities()).thenReturn(sourceVMOids);
         final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeTopology(
-                cloudTopologyInfo, cloudMigrationGraph, context);
+                cloudTopologyInfo, cloudMigrationGraph, sourceVMOids);
         // Now we use generic scoping, that pulls in more entities than directly connected ones.
         Assert.assertEquals(21, result.size());
         awsRegionExpectedEntities.forEach(entity -> assertTrue(entity.getOid()

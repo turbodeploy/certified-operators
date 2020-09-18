@@ -134,7 +134,7 @@ public class PolicyManagerTest {
         when(topologyGraph.entities()).thenReturn(Stream.empty());
         when(policyApplicator.applyPolicies(any(), any(), eq(topologyGraph)))
             .thenReturn(new Results());
-        policyManager.applyPolicies(context, topologyGraph, Collections.emptyList());
+        policyManager.applyPolicies(context, topologyGraph, Collections.emptyList(), groupResolver, Collections.emptySet());
 
         // There shouldn't be a call to get groups if there are no policies.
         verify(groupServiceMole, never()).getGroups(any());
@@ -157,7 +157,7 @@ public class PolicyManagerTest {
             .thenReturn(expectedResults);
 
         final Results results = policyManager.applyPolicies(context, topologyGraph,
-                Collections.emptyList());
+                Collections.emptyList(), groupResolver, Collections.emptySet());
         // We should filter out the invalid policy.
         verify(policyApplicator).applyPolicies(eq(Collections.emptyList()), any(), eq(topologyGraph));
         assertThat(results, is(expectedResults));
@@ -176,7 +176,8 @@ public class PolicyManagerTest {
         // Do not configure the group service to return any of the groups.
         when(topologyGraph.entities()).thenReturn(Stream.empty());
 
-        policyManager.applyPolicies(context, topologyGraph, Collections.emptyList());
+        policyManager.applyPolicies(context, topologyGraph, Collections.emptyList(),
+            groupResolver, Collections.emptySet());
     }
 
 
