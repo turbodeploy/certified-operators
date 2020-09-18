@@ -13,6 +13,7 @@ import requests
 import sys
 import time
 import yaml
+import uuid
 
 if len(sys.argv) < 2:
     print(datetime.now(), "ERROR: Insufficient arguments! Usage: ", sys.argv[0],
@@ -42,11 +43,17 @@ while True:
         old_remote_writers = prometheus_old_config['remote_write']
         customer_domain = prometheus_old_config['global']['external_labels']['customer_domain']
         customer_id = prometheus_old_config['global']['external_labels']['customer_id']
+        instance_id = prometheus_old_config['global']['external_labels']['instance_id']
+        if instance_id == "00000000-0000-0000-0000-000000000000":
+            instance_id = str(uuid.uuid4())
     except (yaml.YAMLError, OSError, KeyError) as error:
         print(datetime.now(), "WARNING: Can't get old values. Using defaults. Cause:", error)
         old_remote_writers = []
         customer_domain = "unlicensed"
         customer_id = "000000"
+        instance_id = "00000000-0000-0000-0000-000000000000"
+    finally:
+        prometheus_new_config['global']['external_labels']['instance_id'] = instance_id
 
     try:
         try:

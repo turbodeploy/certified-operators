@@ -690,6 +690,9 @@ server:
     ## The labels to add to any time series or alerts when communicating with
     ## external systems (federation, remote storage, Alertmanager).
     external_labels:
+      # This should be overridden automatically by a version-4 UUID during initialization of the
+      # instance.
+      instance_id: "00000000-0000-0000-0000-000000000000"
       # These should be overridden automatically with information in the license once it's installed
       customer_id: "000000"
       customer_domain: "unlicensed"
