@@ -93,6 +93,14 @@ public interface OperationSummary {
     default void recordUserUnchanged(String username, long userId) {}
 
     /**
+     * A user was modified successfully.
+     *
+     * @param username Username.
+     * @param userId The user ID.
+     */
+    default void recordUserChanged(String username, long userId) {}
+
+    /**
      * A user was created successfully.
      *
      * @param username Username.

@@ -1,3 +1,5 @@
+# When updating grafana versions, copy the "defaults.ini" of the new version into the
+# docker/defaults.ini file, and port the appropriate changes (changed lines start with "TURBO").
 ARG grafana_version=7.1.1
 
 FROM registry.access.redhat.com/ubi8 AS builder
@@ -80,6 +82,7 @@ RUN chown -R grafana:grafana $GF_PATHS_HOME && \
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+COPY defaults.ini $GF_PATHS_HOME/conf/
 COPY grafana_mgr.py /
 
 EXPOSE 3000
