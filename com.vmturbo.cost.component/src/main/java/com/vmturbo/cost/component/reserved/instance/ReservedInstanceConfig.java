@@ -60,16 +60,16 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
     EntityCostConfig.class})
 public class ReservedInstanceConfig {
 
-    @Value("${retention.numRetainedMinutes}")
+    @Value("${retention.numRetainedMinutes:130}")
     private int numRetainedMinutes;
 
-    @Value("${retention.updateRetentionIntervalSeconds}")
+    @Value("${retention.updateRetentionIntervalSeconds:10}")
     private int updateRetentionIntervalSeconds;
 
     @Value("${riCoverageCacheExpireMinutes:120}")
     private int riCoverageCacheExpireMinutes;
 
-    @Value("${persistEntityCostChunkSize}")
+    @Value("${persistEntityCostChunkSize:1000}")
     private int persistEntityCostChunkSize;
 
     @Value("${realtimeTopologyContextId}")

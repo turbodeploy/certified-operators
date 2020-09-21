@@ -44,18 +44,18 @@ import com.vmturbo.topology.processor.topology.HistoryAggregator;
 @Configuration
 @Import({HistoryClientConfig.class, ClockConfig.class, KVConfig.class, TopologyProcessorApiConfig.class})
 public class HistoryAggregationConfig {
-    @Value("${historyAggregationMaxPoolSize}")
+    @Value("${historyAggregationMaxPoolSize:8}")
     private int historyAggregationMaxPoolSize = Runtime.getRuntime().availableProcessors();
 
     // TODO dmitry different per-editor values
-    @Value("${historyAggregationLoadingChunkSize}")
+    @Value("${historyAggregationLoadingChunkSize:1000}")
     private int historyAggregationLoadingChunkSize = 1000;
-    @Value("${historyAggregationCalculationChunkSize}")
+    @Value("${historyAggregationCalculationChunkSize:2000}")
     private int historyAggregationCalculationChunkSize = 2000;
 
     @Value("${historyAggregation.percentileEnabled:true}")
     private boolean percentileEnabled = true;
-    @Value("${historyAggregation.percentileMaintenanceWindowHours}")
+    @Value("${historyAggregation.percentileMaintenanceWindowHours:24}")
     private int percentileMaintenanceWindowHours = PercentileHistoricalEditorConfig.DEFAULT_MAINTENANCE_WINDOW_HOURS;
     @Value("${historyAggregation.percentileBuckets.VCPU:}")
     private String percentileBucketsVcpu;

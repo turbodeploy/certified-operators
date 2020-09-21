@@ -37,10 +37,10 @@ public class IdentityProviderConfig {
     @Autowired
     private TopologyProcessorDBConfig topologyProcessorDBConfig;
 
-    @Value("${identityGeneratorPrefix}")
+    @Value("${identityGeneratorPrefix:1}")
     private long identityGeneratorPrefix;
 
-    @Value("${assignedIdReloadReattemptIntervalSeconds}")
+    @Value("${assignedIdReloadReattemptIntervalSeconds:10}")
     private long assignedIdReloadReattemptIntervalSeconds;
 
 

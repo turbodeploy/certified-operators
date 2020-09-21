@@ -7,6 +7,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -27,11 +28,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
+import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AtomicResizeExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AtomicResizeExplanation.ResizeExplanationPerEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
@@ -51,6 +55,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
@@ -184,6 +189,25 @@ public class ActionDTOUtilTest {
             .setBuyRI(BuyRIExplanation.getDefaultInstance())
             .build())
         .build();
+
+    private static final Action mergedResizeAction = Action.newBuilder()
+        .setId(1L)
+        .setDeprecatedImportance(1.0)
+        .setInfo(ActionInfo.newBuilder()
+            .setAtomicResize(AtomicResize.newBuilder()
+                .setExecutionTarget(createActionEntity(TARGET))
+                .addResizes(ResizeInfo.newBuilder().setTarget(createActionEntity(SOURCE_1)))
+                .addResizes(ResizeInfo.newBuilder().setTarget(createActionEntity(SOURCE_2)))
+            ))
+        .setExplanation(Explanation.newBuilder()
+            .setAtomicResize(AtomicResizeExplanation.newBuilder()
+                .addPerEntityExplanation(
+                    ResizeExplanationPerEntity.newBuilder().addResizeEntityIds(2L).setEntityId("foo"))
+                .addAllEntityIds(Arrays.asList(1L))
+                .setMergeGroupId("bar")
+                .build())
+            .build())
+                .build();
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -699,7 +723,7 @@ public class ActionDTOUtilTest {
     @Test
     public void testInvolvedEntitiesBuyRI() throws UnsupportedActionException {
         Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(
-            buyRIAction, InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+            buyRIAction, InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
         assertEquals(Sets.newHashSet(COMPUTE_TIER_ID, REGION_ID, MASTER_ACCOUNT_ID), involvedEntities);
 
         involvedEntities = ActionDTOUtil.getInvolvedEntityIds(
@@ -736,6 +760,32 @@ public class ActionDTOUtilTest {
         Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(
             moveCompliance, InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS);
         assertEquals(Sets.newHashSet(TARGET), involvedEntities);
+    }
+
+    /**
+     * Tests that INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES does NOT include entities for
+     * merged actions from the aggregated/deduplicated actions.
+     *
+     * @throws UnsupportedActionException should not be thrown.
+     */
+    @Test
+    public void testInvolvedEntitiesMergedActionExcluded() throws UnsupportedActionException {
+        Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(
+            mergedResizeAction, InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
+        assertEquals(Sets.newHashSet(TARGET), involvedEntities);
+    }
+
+    /**
+     * Tests that INCLUDE_ALL_MERGED_INVOLVED_ENTITIES does NOT include entities for
+     * merged actions from the aggregated/deduplicated actions.
+     *
+     * @throws UnsupportedActionException should not be thrown.
+     */
+    @Test
+    public void testInvolvedEntitiesMergedActionIncluded() throws UnsupportedActionException {
+        Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(
+            mergedResizeAction, InvolvedEntityCalculation.INCLUDE_ALL_MERGED_INVOLVED_ENTITIES);
+        assertEquals(Sets.newHashSet(TARGET, SOURCE_1, SOURCE_2), involvedEntities);
     }
 
     private static ActionEntity createActionEntity(long id) {

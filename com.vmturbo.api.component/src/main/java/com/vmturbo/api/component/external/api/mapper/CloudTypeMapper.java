@@ -28,6 +28,7 @@ public class CloudTypeMapper {
                     .put(SDKProbeType.AZURE_COST.getProbeType(), CloudType.AZURE)
                     .put(SDKProbeType.APPINSIGHTS.getProbeType(), CloudType.AZURE)
                     .put(SDKProbeType.GCP.getProbeType(), CloudType.GCP)
+                    .put(SDKProbeType.GCP_COST.getProbeType(), CloudType.GCP)
                     .build();
 
     /**

@@ -94,13 +94,13 @@ public class OperationConfig {
     @Autowired
     private MatrixConfig matrixConfig;
 
-    @Value("${discoveryTimeoutSeconds}")
+    @Value("${discoveryTimeoutSeconds:120}")
     private long discoveryTimeoutSeconds;
 
-    @Value("${validationTimeoutSeconds}")
+    @Value("${validationTimeoutSeconds:30}")
     private long validationTimeoutSeconds;
 
-    @Value("${actionTimeoutSeconds}")
+    @Value("${actionTimeoutSeconds:30}")
     private long actionTimeoutSeconds;
 
     @Value("${maxConcurrentTargetDiscoveriesPerProbeCount:10}")
@@ -109,10 +109,10 @@ public class OperationConfig {
     @Value("${maxConcurrentTargetIncrementalDiscoveriesPerProbeCount:10}")
     private int maxConcurrentTargetIncrementalDiscoveriesPerProbeCount;
 
-    @Value("${probeDiscoveryPermitWaitTimeoutMins}")
+    @Value("${probeDiscoveryPermitWaitTimeoutMins:40}")
     private int probeDiscoveryPermitWaitTimeoutMins;
 
-    @Value("${probeDiscoveryPermitWaitTimeoutIntervalMins}")
+    @Value("${probeDiscoveryPermitWaitTimeoutIntervalMins:20}")
     private int probeDiscoveryPermitWaitTimeoutIntervalMins;
 
     @Value("${enableDiscoveryResponsesCaching:true}")

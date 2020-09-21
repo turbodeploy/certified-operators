@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest.ActionQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.TypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -117,7 +118,8 @@ public class ActionFetcher extends DataFetcher<Long2IntMap> {
         final Long2ObjectMap<Set<Long>> actionsByEntityId = new Long2ObjectArrayMap<>();
         final FilteredActionRequest request = FilteredActionRequest.newBuilder()
                 .setTopologyContextId(topologyContextId)
-                .setFilter(ActionQueryFilter.newBuilder().addAllStates(INTERESTED_ACTION_STATES))
+                .addActionQuery(ActionQuery.newBuilder().setQueryFilter(
+                    ActionQueryFilter.newBuilder().addAllStates(INTERESTED_ACTION_STATES)))
                 // stream all actions
                 .setPaginationParams(PaginationParameters.newBuilder().setEnforceLimit(false))
                 .build();

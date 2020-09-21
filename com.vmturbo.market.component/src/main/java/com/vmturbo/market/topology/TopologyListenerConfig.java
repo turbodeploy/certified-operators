@@ -33,7 +33,7 @@ public class TopologyListenerConfig {
     @Autowired
     private LicenseCheckClientConfig licenseCheckClientConfig;
 
-    @Value("${maxPlacementIterations}")
+    @Value("${maxPlacementIterations:-1}")
     private int maxPlacementIterations;
 
     @Value("${useQuoteCacheDuringSNM:false}")
@@ -42,10 +42,10 @@ public class TopologyListenerConfig {
     @Value("${replayProvisionsForRealTime:false}")
     private boolean replayProvisionsForRealTime;
 
-    @Value("${rightsizeLowerWatermark}")
+    @Value("${rightsizeLowerWatermark:0.7}")
     private float rightsizeLowerWatermark;
 
-    @Value("${rightsizeUpperWatermark}")
+    @Value("${rightsizeUpperWatermark:0.7}")
     private float rightsizeUpperWatermark;
 
     @Value("${discountedComputeCostFactor:4.0}")

@@ -47,7 +47,7 @@ public class SchedulerConfig {
     @Autowired
     private StitchingConfig stitchingConfig;
 
-    @Value("${topologyBroadcastIntervalMinutes}")
+    @Value("${topologyBroadcastIntervalMinutes:10}")
     private long topologyBroadcastIntervalMinutes;
 
     @Bean

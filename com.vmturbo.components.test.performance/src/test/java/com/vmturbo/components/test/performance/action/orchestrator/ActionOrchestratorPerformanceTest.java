@@ -42,6 +42,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest.ActionQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.TypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -189,9 +190,9 @@ public class ActionOrchestratorPerformanceTest {
         entityServiceStub.loadEntitiesForActionPlan(sendActionPlan);
         populateActions(actionOrchestrator, sendActionPlan, "LIVE");
 
-        fetchActions(actionsService, FilteredActionRequest.newBuilder().setFilter(
-                ActionQueryFilter.newBuilder()
-                    .setVisible(true)
+        fetchActions(actionsService, FilteredActionRequest.newBuilder().addActionQuery(
+                ActionQuery.newBuilder().setQueryFilter(
+                    ActionQueryFilter.newBuilder().setVisible(true))
             ).setTopologyContextId(ComponentUtils.REALTIME_TOPOLOGY_CONTEXT)
                 .build(), "VISIBLE LIVE");
 

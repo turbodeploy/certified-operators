@@ -93,7 +93,7 @@ public class QueryInfoFactory {
         } else {
             desiredEntities = null;
             immutableQueryInfo.involvedEntityCalculation(
-                InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+                InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
         }
         immutableQueryInfo.desiredEntities(desiredEntities);
 

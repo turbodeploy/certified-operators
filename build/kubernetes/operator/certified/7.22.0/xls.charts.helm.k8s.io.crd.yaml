@@ -65,6 +65,9 @@ spec:
                 tag:
                   description: Global container tag
                   type: string
+                serviceAccountName:
+                  description: Global serviceAccountName
+                  type: string
                 pullPolicy:
                   description: Global image pull policy
                   type: string
@@ -166,12 +169,6 @@ spec:
                   description: Enable nginx ingress
                   type: boolean
               type: object
-            ui:
-              properties:
-                enabled:
-                  description: Enable UI Component
-                  type: boolean
-              type: object
             openshiftingress:
               properties:
                 enabled:
@@ -227,6 +224,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -280,6 +280,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -312,6 +315,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -330,6 +336,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -357,6 +366,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -382,6 +394,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -416,6 +431,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -449,6 +467,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -546,6 +567,18 @@ spec:
               properties:
                 enabled:
                   description: Enable AIX mediation
+                  type: boolean
+              type: object
+            acims:
+              properties:
+                enabled:
+                  description: Enable Cisco APIC mediation
+                  type: boolean
+              type: object
+            apic:
+              properties:
+                enabled:
+                  description: Enable Cisco APIC mediation
                   type: boolean
               type: object
             appdynamics:
@@ -816,6 +849,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -851,6 +887,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -888,6 +927,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -923,6 +965,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -960,6 +1005,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -995,6 +1043,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -1032,6 +1083,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1067,6 +1121,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -1104,6 +1161,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1140,6 +1200,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1175,6 +1238,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -1214,6 +1280,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1249,6 +1318,87 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
+                    pullPolicy:
+                      description: component image pull policy
+                      type: string
+                  type: object
+                javaComponentOptions:
+                  description: component additional java options
+                  type: string
+                debug:
+                  description: component debug
+                  type: boolean
+                resources:
+                  description: component resource configuration
+                  properties:
+                    limits:
+                      description: component limits
+                      properties:
+                        memory:
+                          description: component memory limits
+                          type: string
+                      type: object
+                  type: object
+              type: object
+            mediation-acims:
+              properties:
+                annotations:
+                  description: component specific pod annotations list
+                  type: object
+                image:
+                  description: component specific image options
+                  properties:
+                    repository:
+                      description: component container registry and repository name
+                      type: string
+                    tag:
+                      description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
+                    pullPolicy:
+                      description: component image pull policy
+                      type: string
+                  type: object
+                javaComponentOptions:
+                  description: component additional java options
+                  type: string
+                debug:
+                  description: component debug
+                  type: boolean
+                resources:
+                  description: component resource configuration
+                  properties:
+                    limits:
+                      description: component limits
+                      properties:
+                        memory:
+                          description: component memory limits
+                          type: string
+                      type: object
+                  type: object
+              type: object
+            mediation-apic:
+              properties:
+                annotations:
+                  description: component specific pod annotations list
+                  type: object
+                image:
+                  description: component specific image options
+                  properties:
+                    repository:
+                      description: component container registry and repository name
+                      type: string
+                    tag:
+                      description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -1286,6 +1436,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1321,6 +1474,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -1358,6 +1514,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1393,6 +1552,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -1430,6 +1592,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1465,6 +1630,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -1502,6 +1670,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1537,6 +1708,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -1574,6 +1748,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1609,6 +1786,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -1646,6 +1826,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1681,6 +1864,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -1718,6 +1904,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1753,6 +1942,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -1790,6 +1982,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1825,6 +2020,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -1862,6 +2060,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1897,6 +2098,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -1934,6 +2138,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -1969,6 +2176,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -2006,6 +2216,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2041,6 +2254,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -2078,6 +2294,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2113,6 +2332,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -2150,6 +2372,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2185,6 +2410,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -2222,6 +2450,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2257,6 +2488,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -2294,6 +2528,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2329,6 +2566,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -2366,6 +2606,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2401,6 +2644,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -2438,6 +2684,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2473,6 +2722,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -2510,6 +2762,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2545,6 +2800,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -2582,6 +2840,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2617,6 +2878,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -2654,6 +2918,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2689,6 +2956,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -2726,6 +2996,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2761,6 +3034,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -2798,6 +3074,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2833,6 +3112,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -2870,6 +3152,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2905,6 +3190,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -2942,6 +3230,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -2977,6 +3268,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -3014,6 +3308,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3049,6 +3346,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -3086,6 +3386,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3121,6 +3424,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy
@@ -3158,6 +3464,9 @@ spec:
                     tag:
                       description: component container tag
                       type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
                     pullPolicy:
                       description: component image pull policy
                       type: string
@@ -3193,6 +3502,9 @@ spec:
                       type: string
                     tag:
                       description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
                       type: string
                     pullPolicy:
                       description: component image pull policy

@@ -41,7 +41,7 @@ import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 @Import({LicenseCheckClientConfig.class})
 public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
 
-    @Value("${identityGeneratorPrefix}")
+    @Value("${identityGeneratorPrefix:5}")
     private long identityGeneratorPrefix;
 
     @Value("${publicVersionString}")

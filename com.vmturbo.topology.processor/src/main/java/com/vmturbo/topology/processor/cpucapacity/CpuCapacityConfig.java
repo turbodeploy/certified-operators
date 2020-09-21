@@ -21,7 +21,7 @@ public class CpuCapacityConfig {
     @Autowired
     private PlanOrchestratorClientConfig planClientConfig;
 
-    @Value("${scaleFactorCacheTimeoutHr}")
+    @Value("${scaleFactorCacheTimeoutHr:8}")
     private int scaleFactorCacheTimeoutHr;
 
     @Bean

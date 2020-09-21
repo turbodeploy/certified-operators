@@ -99,6 +99,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest.ActionQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -1119,9 +1120,10 @@ public class MarketsService implements IMarketsService {
                                 .setTopologyContextId(plan.getPlanId())
                                 .setPaginationParams(PaginationParameters.newBuilder()
                                         .setCursor(cursor.getAndSet("")))
-                                .setFilter(ActionQueryFilter.newBuilder()
+                                .addActionQuery(ActionQuery.newBuilder().setQueryFilter(
+                                    ActionQueryFilter.newBuilder()
                                         .setVisible(true)
-                                        .addTypes(ActionType.MOVE))
+                                        .addTypes(ActionType.MOVE)))
                                 .build();
                 actionOrchestratorRpcService.getAllActions(filteredActionRequest)
                         .forEachRemaining(rsp -> {

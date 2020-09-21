@@ -15,6 +15,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -341,7 +342,8 @@ public class TopologyEditor {
      * @return a set of all entities represented by {@param migrationReferences}
      * @throws GroupResolutionException when a group by a migration source/destination is not resolved
      */
-    private Set<Long> expandAndFlattenReferences(@Nonnull final List<MigrationReference> migrationReferences,
+    @VisibleForTesting
+    protected static Set<Long> expandAndFlattenReferences(@Nonnull final List<MigrationReference> migrationReferences,
                                                  @Nonnull final Integer migratingEntityType,
                                                  @Nonnull final Map<Long, Grouping> groupIdToGroupMap,
                                                  @Nonnull final GroupResolver groupResolver,
@@ -356,34 +358,35 @@ public class TopologyEditor {
         if (CollectionUtils.isNotEmpty(areGroupsToEntityOids.get(areGroups))) {
             // Add the members of expanded groups
             for (Long groupOid : areGroupsToEntityOids.get(areGroups)) {
-                Map<ApiEntityType, Set<Long>> entityTypeToMembers = groupResolver.resolve(groupIdToGroupMap.get(groupOid), topologyGraph)
+                final Map<ApiEntityType, Set<Long>> entityTypeToMembers = groupResolver.resolve(groupIdToGroupMap.get(groupOid), topologyGraph)
                         .getEntitiesByType();
                 final ApiEntityType apiEntityType = ApiEntityType.fromType(migratingEntityType);
                 // Add members of migratingEntityType
                 if (entityTypeToMembers.containsKey(apiEntityType)) {
                     migrationEntities.addAll(entityTypeToMembers.get(apiEntityType));
                 }
-                if (entityTypeToMembers.containsKey(ApiEntityType.PHYSICAL_MACHINE)) {
+                final Set<Long> pms = entityTypeToMembers.get(ApiEntityType.PHYSICAL_MACHINE);
+                if (CollectionUtils.isNotEmpty(pms)) {
                     // We're dealing with a cluster...
-                    Set<Long> workloadsComingFromCluster = getConsumersOfType(
-                            topologyGraph.getEntities(entityTypeToMembers.get(ApiEntityType.PHYSICAL_MACHINE)),
+                    final Set<Long> clusterWorkloads = getConsumersOfType(
+                            topologyGraph.getEntities(pms),
                             migratingEntityType);
-                    migrationEntities.addAll(workloadsComingFromCluster);
+                    migrationEntities.addAll(clusterWorkloads);
                 }
             }
         }
-        Set<Long> nonGroupSources = areGroupsToEntityOids.get(!areGroups);
+        final Set<Long> nonGroupSources = areGroupsToEntityOids.get(!areGroups);
         if (CollectionUtils.isNotEmpty(nonGroupSources)) {
             // Add individual entities
             // If these are workloads, add them (VMs, DBs, DBSs)
-            Map<Integer, Set<TopologyEntity>> typeToEntity = topologyGraph.getEntities(nonGroupSources)
+            final Map<Integer, Set<TopologyEntity>> typeToEntity = topologyGraph.getEntities(nonGroupSources)
                     .collect(Collectors.groupingBy(TopologyEntity::getEntityType,
                             Collectors.mapping(Function.identity(), Collectors.toSet())));
 
-            Set<Long> dataCenterOids = Sets.newHashSet();
-            if (typeToEntity.containsKey(EntityType.DATACENTER_VALUE)) {
+            final Set<Long> dataCenterOids = Sets.newHashSet();
+            final Set<TopologyEntity> dataCenters = typeToEntity.get(EntityType.DATACENTER_VALUE);
+            if (CollectionUtils.isNotEmpty(dataCenters)) {
                 // Get migratingEntityType entities from the DC...
-                final Set<TopologyEntity> dataCenters = typeToEntity.get(EntityType.DATACENTER_VALUE);
                 Set<Long> entitiesAggregatedByDCs = getConsumersOfType(
                         dataCenters.stream()
                             .flatMap(dataCenter -> dataCenter.getConsumers().stream()),
@@ -409,7 +412,7 @@ public class TopologyEditor {
      * @return a set of OIDs representing consumers of a specified type
      */
     @Nonnull
-    private Set<Long> getConsumersOfType(Stream<TopologyEntity> topologyEntityStream, Integer type) {
+    private static Set<Long> getConsumersOfType(Stream<TopologyEntity> topologyEntityStream, Integer type) {
         return topologyEntityStream.flatMap(pm -> pm.getConsumers().stream())
                 .filter(consumer -> type.equals(consumer.getEntityType()))
                 .map(TopologyEntity::getOid)

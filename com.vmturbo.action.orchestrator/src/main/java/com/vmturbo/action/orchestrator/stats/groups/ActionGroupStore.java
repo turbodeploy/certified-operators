@@ -190,7 +190,11 @@ public class ActionGroupStore {
         // if risk is null, it means it's an action group record that existed before the
         // action_risk column is added. It's only used for historical action stats before the
         // action_risk column is added; all new actions stats will use new ActionGroupKey.
-        keyBuilder.actionRelatedRisk(record.value6() != null ? record.value6() : "");
+        keyBuilder.actionRelatedRisk(record.value6() != null
+                ? record.value6()
+                // Use a default related risk string for action group records that existed before
+                // the action_risk column was added to the database.
+                : "N/A for actions executed with version 7.22.5 or earlier");
 
         try {
             return Optional.of(ImmutableActionGroup.builder()

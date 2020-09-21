@@ -52,7 +52,7 @@ public class SettingConfig {
     @Autowired
     private ScheduleConfig scheduleConfig;
 
-    @Value("${createDefaultSettingPolicyRetryIntervalSec}")
+    @Value("${createDefaultSettingPolicyRetryIntervalSec:30}")
     public long createDefaultSettingPolicyRetryIntervalSec;
 
     @Value("${realtimeTopologyContextId}")

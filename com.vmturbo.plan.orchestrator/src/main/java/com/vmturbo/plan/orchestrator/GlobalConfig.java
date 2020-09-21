@@ -31,7 +31,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
     TopologyProcessorClientConfig.class,
     CostClientConfig.class})
 public class GlobalConfig {
-    @Value("${identityGeneratorPrefix}")
+    @Value("${identityGeneratorPrefix:3}")
     private long identityGeneratorPrefix;
 
     @Autowired

@@ -202,6 +202,38 @@ public class SupplyChainCalculator {
         public int getDepth() {
             return depth;
         }
+
+        /**
+         * This class is used to construct a mutable version of a
+         * {@link TraversalState} object.  It is used when the depth of
+         * the traversal is not known at the time of the construction
+         * of the {@link TraversalState} object.
+         */
+        public static class Builder {
+            private final TraversalState traversalState;
+
+            /**
+             * Pair an entity and a traversal mode to create a new
+             * mutable {@link TraversalState}.
+             *
+             * @param entityId id of the entity related to the traversal state
+             * @param traversalMode traversal mode related to the traversal state
+             */
+            public Builder(long entityId, @Nonnull TraversalMode traversalMode) {
+                traversalState = new TraversalState(entityId, traversalMode, 0);
+            }
+
+            /**
+             * Set depth and return the immutable {@link TraversalState} object.
+             *
+             * @param depth the depth of the immutable {@link TraversalState} object
+             * @return the immutable {@link TraversalState} object
+             */
+            public TraversalState withDepth(int depth) {
+                traversalState.depth = depth;
+                return traversalState;
+            }
+        }
     }
 
     /**
@@ -228,6 +260,10 @@ public class SupplyChainCalculator {
          * We are traversing controllers.
          */
         CONTROLLED_BY,
+        /**
+         * Traversal must stop here.
+         */
+        STOP
     }
 
     /**

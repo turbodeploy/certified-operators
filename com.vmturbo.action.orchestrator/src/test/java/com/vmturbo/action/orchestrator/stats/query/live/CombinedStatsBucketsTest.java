@@ -80,7 +80,7 @@ public class CombinedStatsBucketsTest {
         // No group by
         when(queryInfo.query()).thenReturn(CurrentActionStatsQuery.getDefaultInstance());
         when(queryInfo.entityPredicate()).thenReturn(entity -> true);
-        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
 
         final SingleActionInfo savingsAction = actionInfo(
@@ -116,7 +116,7 @@ public class CombinedStatsBucketsTest {
             .addGroupBy(GroupBy.ACTION_CATEGORY)
             .build());
         when(queryInfo.entityPredicate()).thenReturn(entity -> true);
-        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
         final SingleActionInfo inProgressCompliance = actionInfo(
             bldr -> {},
@@ -187,7 +187,7 @@ public class CombinedStatsBucketsTest {
             .addGroupBy(GroupBy.COST_TYPE)
             .build());
         when(queryInfo.entityPredicate()).thenReturn(entity -> true);
-        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
         final SingleActionInfo savingsAction = actionInfo(
             bldr -> {
@@ -274,7 +274,7 @@ public class CombinedStatsBucketsTest {
                 .addGroupBy(GroupBy.SEVERITY)
                 .build());
         when(queryInfo.entityPredicate()).thenReturn(entity -> true);
-        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
         final SingleActionInfo criticalActionPerfmance = actionInfo(
                 bldr -> { },
@@ -349,7 +349,7 @@ public class CombinedStatsBucketsTest {
             .addGroupBy(GroupBy.REASON_COMMODITY)
             .build());
         when(queryInfo.entityPredicate()).thenReturn(entity -> true);
-        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
         final SingleActionInfo reason1 = actionInfo(
             bldr -> {
@@ -395,7 +395,7 @@ public class CombinedStatsBucketsTest {
             .addGroupBy(GroupBy.TARGET_ENTITY_TYPE)
             .build());
         when(queryInfo.entityPredicate()).thenReturn(entity -> true);
-        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
         final SingleActionInfo vmTarget = actionInfo(
             bldr -> {
@@ -446,7 +446,7 @@ public class CombinedStatsBucketsTest {
             .addGroupBy(GroupBy.TARGET_ENTITY_ID)
             .build());
         when(queryInfo.entityPredicate()).thenReturn(entity -> true);
-        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
         final SingleActionInfo vmTarget1 = actionInfo(
             bldr -> {
@@ -505,7 +505,7 @@ public class CombinedStatsBucketsTest {
             .addGroupBy(GroupBy.ACTION_RELATED_RISK)
             .build());
         when(queryInfo.entityPredicate()).thenReturn(entity -> true);
-        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
         final SingleActionInfo pmTarget1 = actionInfo(
             bldr -> {
@@ -611,7 +611,7 @@ public class CombinedStatsBucketsTest {
         when(queryInfo.query()).thenReturn(CurrentActionStatsQuery.getDefaultInstance());
         // Only match the cloud VM, not the on-prem VM.
         when(queryInfo.entityPredicate()).thenReturn(entity -> entity.equals(CLOUD_VM));
-        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        when(queryInfo.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
 
         final SingleActionInfo savingsAction = actionInfo(
@@ -652,7 +652,7 @@ public class CombinedStatsBucketsTest {
 
         final SingleActionInfo singleActionInfo = ImmutableSingleActionInfo.builder()
             .action(actionView)
-            .putInvolvedEntities(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES, involvedEntities)
+            .putInvolvedEntities(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES, involvedEntities)
             .build();
         return singleActionInfo;
     }

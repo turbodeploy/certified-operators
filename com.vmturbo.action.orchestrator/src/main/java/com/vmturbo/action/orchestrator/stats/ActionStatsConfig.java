@@ -76,7 +76,7 @@ public class ActionStatsConfig {
     @Autowired
     private UserSessionConfig userSessionConfig;
 
-    @Value("${actionStatsWriteBatchSize}")
+    @Value("${actionStatsWriteBatchSize:500}")
     private int actionStatsWriteBatchSize;
 
     @Bean

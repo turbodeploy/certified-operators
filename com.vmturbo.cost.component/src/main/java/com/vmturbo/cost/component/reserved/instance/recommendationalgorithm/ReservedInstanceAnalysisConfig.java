@@ -45,10 +45,10 @@ public class ReservedInstanceAnalysisConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
-    @Value("${preferredCurrentWeight}")
+    @Value("${preferredCurrentWeight:0.6}")
     private float preferredCurrentWeight;
 
-    @Value("${riMinimumDataPoints}")
+    @Value("${riMinimumDataPoints:168}")
     private int riMinimumDataPoints;
 
     @Value("${allowStandaloneAccountRIBuyAnalysis:false}")

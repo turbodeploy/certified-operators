@@ -2,12 +2,16 @@ package com.vmturbo.api.component.external.api.util.action;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -27,13 +31,16 @@ import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest.ActionQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.TypeCase;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -127,6 +134,66 @@ public class ActionSearchUtil {
     }
 
     /**
+     * Get the actions related to each requested scope.
+     *
+     * @param scopeIds IDs of requested scopes
+     * @param inputDto API query
+     * @param topologyContextId topology context in which scope exists
+     * @return a mapping of scope ID to associated {@link ActionApiDTO}s
+     * @throws OperationFailedException if call to supply chain service fails
+     * @throws InterruptedException if thread is interrupted during processing.
+     * @throws UnsupportedActionException if action spec mapping fails because action is of unsupported type
+     * @throws ExecutionException if action spec mapping cannot retrieve necessary entities
+     * @throws ConversionException if error occurs converting objects to API DTOs
+     */
+    @Nullable
+    public Map<Long, List<ActionApiDTO>> getActionsByScopes(@Nonnull Set<ApiId> scopeIds,
+        @Nonnull ActionApiInputDTO inputDto, long topologyContextId)
+        throws  InterruptedException, OperationFailedException,
+        UnsupportedActionException, ExecutionException, ConversionException {
+
+        final List<String> relatedTypes = inputDto.getRelatedEntityTypes();
+        final boolean expandSupplyChainWithRelatedEntityTypes =
+            !CollectionUtils.isEmpty(relatedTypes);
+
+        final Map<ApiId, Set<Long>> originalToExpandedScope = new HashMap<>();
+        for (final ApiId scopeId : scopeIds) {
+            final Set<Long> byGroup = groupExpander.expandOids(Collections.singleton(scopeId.oid()));
+            if (!byGroup.isEmpty()) {
+                final Set<Long> byProvider = serviceProviderExpander.expand(byGroup);
+                final Set<Long> bySupplyChain = expandSupplyChainWithRelatedEntityTypes ?
+                    supplyChainFetcherFactory.expandScope(byProvider, relatedTypes) :
+                    supplyChainFetcherFactory.expandAggregatedEntities(byProvider);
+                if (!bySupplyChain.isEmpty()) {
+                    originalToExpandedScope.put(scopeId, bySupplyChain);
+                }
+            }
+        }
+        if (originalToExpandedScope.isEmpty()) {
+            return null;
+        }
+        final Set<ActionQuery> actionQueries = new HashSet<>();
+        final AtomicInteger queryId = new AtomicInteger(0);
+        final Map<Long, Long> filterIdToScopeId = new HashMap<>();
+
+        originalToExpandedScope.forEach((apiId, expandedOidSet) -> {
+            final long filterId = queryId.getAndIncrement();
+            filterIdToScopeId.put(filterId, apiId.oid());
+            actionQueries.add(ActionQuery.newBuilder()
+                .setQueryId(filterId)
+                .setQueryFilter(actionSpecMapper.createActionFilter(
+                    inputDto, Optional.of(expandedOidSet), apiId)).build());
+        });
+
+        final Map<Long, ActionPaginationResponse> serviceResult = callActionServiceMultiFilter(
+            actionQueries, inputDto.getDetailLevel(), topologyContextId);
+        final Map<Long, List<ActionApiDTO>> resultsByScope = new HashMap<>();
+        serviceResult.forEach((filter, response) ->
+            resultsByScope.put(filterIdToScopeId.get(filter), response.getRawResults()));
+        return resultsByScope;
+    }
+
+    /**
      * Call the action RPC with a constructed {@link ActionQueryFilter}.
      *
      * @param filter the filter
@@ -156,7 +223,7 @@ public class ActionSearchUtil {
         Iterator<FilteredActionResponse> responseIterator = actionOrchestratorRpc.getAllActions(
                 FilteredActionRequest.newBuilder()
                         .setTopologyContextId(contextId)
-                        .setFilter(filter)
+                        .addActionQuery(ActionQuery.newBuilder().setQueryFilter(filter))
                         .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
                         .build());
 
@@ -189,6 +256,67 @@ public class ActionSearchUtil {
     }
 
     /**
+     * Call the action RPC with a set of {@link ActionQueryFilter}s.
+     *
+     * @param queries set of {@link ActionQuery}s containing {@link ActionQueryFilter}s
+     * @param detailLevelOpt detail level of returned actions (if null, uses {@link ActionDetailLevel#STANDARD})
+     * @param contextId Real-time or plan topology context id.
+     * @return mapping of pagination response to the id of the filter associated with the response
+     * @throws InterruptedException if thread is interrupted during processing.
+     * @throws UnsupportedActionException if action spec mapping fails because action is of unsupported type
+     * @throws ExecutionException if action spec mapping cannot retrieve necessary entities
+     * @throws ConversionException if error occurs converting objects to API DTOs
+     */
+    private Map<Long, ActionPaginationResponse> callActionServiceMultiFilter(
+            @Nonnull final Set<ActionQuery> queries,
+            @Nullable final ActionDetailLevel detailLevelOpt,
+            final long contextId) throws  InterruptedException, UnsupportedActionException,
+                ExecutionException, ConversionException {
+        final ActionDetailLevel detailLevel = detailLevelOpt != null ? detailLevelOpt :
+            ActionDetailLevel.STANDARD;
+
+        // call the service and retrieve results
+        Iterator<FilteredActionResponse> responseIterator = actionOrchestratorRpc.getAllActions(
+            FilteredActionRequest.newBuilder()
+                .setTopologyContextId(contextId)
+                .addAllActionQuery(queries)
+                .setPaginationParams(PaginationParameters.newBuilder().setEnforceLimit(false))
+                .build());
+
+        final List<ActionSpec> specsToMap = new ArrayList<>();
+        final Map<Long, Set<Long>> recsByFilter = new HashMap<>();
+        while (responseIterator.hasNext()) {
+            final FilteredActionResponse response = responseIterator.next();
+            final List<ActionSpec> specs = response.getActionChunk().getActionsList().stream()
+                    .map(ActionOrchestratorAction::getActionSpec)
+                    .collect(Collectors.toList());
+                specsToMap.addAll(specs);
+                recsByFilter.computeIfAbsent(response.getQueryId(), (arg) -> new HashSet<>())
+                    .addAll(specs.stream()
+                        .map(ActionSpec::getRecommendationId)
+                        .collect(Collectors.toList()));
+        }
+        final Map<Long, ActionApiDTO> actionsByRec =
+            actionSpecMapper.mapActionSpecsToActionApiDTOs(specsToMap, contextId, detailLevel).stream()
+                .collect(Collectors.toMap(ActionApiDTO::getActionID, dto -> dto));
+        final Map<Long, ActionPaginationResponse> results = new HashMap<>();
+        try {
+            final ActionPaginationRequest emptyPaginationRequest =
+                new ActionPaginationRequest(null, null, true, null);
+            recsByFilter.forEach((filterId, recIds) -> {
+                final List<ActionApiDTO> actions = recIds.stream()
+                    .map(actionsByRec::get)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+                results.put(filterId, emptyPaginationRequest.finalPageResponse(actions, actions.size()));
+            });
+        } catch (InvalidOperationException e) {
+            // this won't happen because the ActionPaginationRequest's params are not invalid
+        }
+        return results;
+    }
+
+    /**
      * Call the action RPC with a constructed {@link ActionQueryFilter}. No pagination involved.
      *
      * @param filter the filter
@@ -205,7 +333,7 @@ public class ActionSearchUtil {
         final Iterator<FilteredActionResponse> responseIterator = actionOrchestratorRpc.getAllActions(
                 FilteredActionRequest.newBuilder()
                         .setTopologyContextId(realtimeTopologyContextId)
-                        .setFilter(filter)
+                        .addActionQuery(ActionQuery.newBuilder().setQueryFilter(filter))
                         // stream all actions
                         .setPaginationParams(PaginationParameters.newBuilder().setEnforceLimit(false))
                         .build());

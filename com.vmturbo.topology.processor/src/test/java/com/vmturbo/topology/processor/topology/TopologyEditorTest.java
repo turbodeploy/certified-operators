@@ -32,6 +32,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
 import org.hamcrest.Matchers;
@@ -70,6 +71,7 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -288,6 +290,45 @@ public class TopologyEditorTest {
         topologyEditor = new TopologyEditor(identityProvider,
                 templateConverterFactory,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+    }
+
+    /**
+     * Tests expandAndFlattenReferences in the context of an empty cluster. Verifies that an empty
+     * cluster resolves to an empty OID set, as opposed to all OIDs in the {@link TopologyGraph}.
+     *
+     * @throws Exception If {@link GroupResolver} fails to resolve a group
+     */
+    @Test
+    public void testResolveEmptyCluster() throws Exception {
+        final long clusterOid = 1L;
+        final List<MigrationReference> clusters = Lists.newArrayList(
+                MigrationReference.newBuilder()
+                        .setGroupType(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER_VALUE)
+                        .setOid(clusterOid)
+                        .build());
+
+        final Grouping emptyCluster = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder().setStaticGroupMembers(
+                        GroupDTO.StaticMembers.getDefaultInstance()).build())
+                .setId(clusterOid)
+                .build();
+        when(groupResolver.resolve(eq(emptyCluster), isA(TopologyGraph.class)))
+                .thenReturn(emptyResolvedGroup(emptyCluster, ApiEntityType.PHYSICAL_MACHINE));
+
+        final Map<Long, Grouping> groupIdToGroupMap = new HashMap<Long, Grouping>() {{
+            put(clusterOid, emptyCluster);
+        }};
+        final TopologyEntity.Builder pmEntity = TopologyEntityUtils
+                .topologyEntity(pmId, 0, 0, "PM", EntityType.PHYSICAL_MACHINE);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(pmEntity);
+        final Set<Long> migratingEntities = topologyEditor.expandAndFlattenReferences(
+                clusters,
+                EntityType.VIRTUAL_MACHINE_VALUE,
+                groupIdToGroupMap,
+                groupResolver,
+                graph);
+
+        assertTrue(migratingEntities.isEmpty());
     }
 
     /**
@@ -676,6 +717,10 @@ public class TopologyEditorTest {
 
     private ResolvedGroup resolvedGroup(Grouping group, ApiEntityType type, long member) {
         return new ResolvedGroup(group, Collections.singletonMap(type, Collections.singleton(member)));
+    }
+
+    private ResolvedGroup emptyResolvedGroup(Grouping group, ApiEntityType type) {
+        return new ResolvedGroup(group, Collections.singletonMap(type, Sets.newHashSet()));
     }
 
     // test remove PM when user choose from a host cluster

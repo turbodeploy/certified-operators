@@ -37,6 +37,8 @@ import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import org.springframework.context.ApplicationContext;
+
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostMoles.BuyRIAnalysisServiceMole;
@@ -124,6 +126,7 @@ public class PlanTest {
     public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
         planRpcService = new PlanRpcService(planDao,
+           mock(ApplicationContext.class),
            AnalysisServiceGrpc.newBlockingStub(grpcDependenciesServer.getChannel()),
             planNotificationSender,
             analysisExecutor, userSessionContext,

@@ -144,6 +144,15 @@ public abstract class OidSetTest<T extends OidSet> {
     }
 
     /**
+     * Test that a union with a NULL set returns the original set.
+     */
+    @Test
+    public void testUnionWithNull() {
+        T testSetA = createOidSet(new long[]{2, 3, 4});
+        Assert.assertEquals(testSetA, testSetA.union(null));
+    }
+
+    /**
      * test to ensure that the oid set hash code is order-independent.
      */
     @Test

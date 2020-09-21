@@ -16,6 +16,7 @@ import javax.annotation.Nullable;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -38,6 +39,7 @@ import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.extractor.grafana.model.CreateDatasourceResponse;
 import com.vmturbo.extractor.grafana.model.DashboardSpec.UpsertDashboardRequest;
@@ -153,6 +155,47 @@ public class GrafanaClient {
     }
 
     /**
+     * This is a temporary method, that should get removed when we have no more reporting users
+     * on pre-7.22.9 installations.
+     *
+     * <p/>This ensures that the grafana user created to represent the turbo administrator has
+     * the "Admin" role in the default organization. This is necessary because only admins have
+     * access to the reports button.
+     *
+     * @param operationSummary To record the operations.
+     */
+    public void ensureTurboAdminIsAdmin(@Nonnull final OperationSummary operationSummary) {
+        final String defaultOrgId = "1";
+        String requiredRole = "Admin";
+        final URI checkUri =  grafanaClientConfig.getGrafanaUrl("orgs", defaultOrgId, "users");
+        ResponseEntity<JsonArray> response = restTemplate.getForEntity(checkUri, JsonArray.class);
+        if (response.getBody() == null) {
+            logger.warn("No response when getting users in default org: {}", defaultOrgId);
+            return;
+        }
+
+        for (int i = 0; i < response.getBody().size(); ++i) {
+            final JsonObject userObj = response.getBody().get(i).getAsJsonObject();
+            final String username = userObj.get("login").getAsString();
+            final long userId = userObj.get("userId").getAsLong();
+            if (username.equalsIgnoreCase(SecurityConstant.ADMINISTRATOR)) {
+                if (!userObj.get("role").getAsString().equalsIgnoreCase(requiredRole)) {
+                    // The administrator user needs to have the "Admin" role.
+                    if (ensureUserRole(defaultOrgId, userId, requiredRole)) {
+                        operationSummary.recordUserChanged(username, userId);
+                    } else {
+                        operationSummary.recordUserUnchanged(username, userId);
+                    }
+                } else {
+                    operationSummary.recordUserUnchanged(username, userId);
+                }
+                // No need to continue once we find the right user.
+                break;
+            }
+        }
+    }
+
+    /**
      * Ensure that a particular user exists in the system.
      *
      * @param userInput The {@link UserInput}.
@@ -180,14 +223,25 @@ public class GrafanaClient {
 
         // Ensure the user has a "viewer" role.
         if (userId != null) {
-            final URI orgRole = grafanaClientConfig.getGrafanaUrl("orgs", Integer.toString(userInput.getOrgId()), "users", Long.toString(userId));
-            JsonParser jsonParser = new JsonParser();
-            JsonElement jsonElement = jsonParser.parse("{ \"role\" : \"Viewer\" }");
-            final ResponseEntity<JsonObject> userUpdateResp = restTemplate.exchange(orgRole, HttpMethod.PATCH,
-                    new HttpEntity<>(jsonElement), JsonObject.class);
-            logger.info(userUpdateResp.getBody());
+            ensureUserRole(Integer.toString(userInput.getOrgId()), userId, "Viewer");
         }
     }
+
+    private boolean ensureUserRole(String orgId, long userId, String role) {
+        final URI orgRole = grafanaClientConfig.getGrafanaUrl("orgs", orgId, "users", Long.toString(userId));
+        JsonParser jsonParser = new JsonParser();
+        JsonElement jsonElement = jsonParser.parse(FormattedString.format("{ \"role\" : \"{}\" }", role));
+        final ResponseEntity<JsonObject> userUpdateResp = restTemplate.exchange(orgRole, HttpMethod.PATCH,
+            new HttpEntity<>(jsonElement), JsonObject.class);
+        logger.info(userUpdateResp.getBody());
+        if (userUpdateResp.getStatusCode() == HttpStatus.OK) {
+            return true;
+        } else {
+            logger.warn("Failed to change the role of user {} in org {} to {}", userId, orgId, role);
+            return false;
+        }
+    }
+
 
     /**
      * Create a folder, or update it if it already exists, and is not equal to the provided spec.

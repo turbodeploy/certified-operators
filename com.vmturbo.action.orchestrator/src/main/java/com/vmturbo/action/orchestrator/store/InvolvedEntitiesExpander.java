@@ -54,7 +54,7 @@ public class InvolvedEntitiesExpander {
      */
     public static final List<String> PROPAGATED_ARM_ENTITY_TYPES = Arrays.asList(
         ApiEntityType.APPLICATION_COMPONENT.apiStr(),
-        ApiEntityType.CONTAINER.apiStr(),
+        ApiEntityType.WORKLOAD_CONTROLLER.apiStr(),
         ApiEntityType.CONTAINER_POD.apiStr(),
         ApiEntityType.VIRTUAL_MACHINE.apiStr(),
         ApiEntityType.DATABASE_SERVER.apiStr(),
@@ -134,7 +134,7 @@ public class InvolvedEntitiesExpander {
         }
         return new InvolvedEntitiesFilter(
             new HashSet<>(involvedEntities),
-            InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+            InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
     }
 
     /**

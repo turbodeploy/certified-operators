@@ -51,7 +51,7 @@ public class MarketConfig {
      * If we receive a live action plan older than this value, it will be discarded.
      * Plan action plans are not discarded due to age.
      */
-    @Value("${maxLiveActionPlanAgeSeconds}")
+    @Value("${maxLiveActionPlanAgeSeconds:600}")
     private long maxLiveActionPlanAgeSeconds;
 
     @Bean

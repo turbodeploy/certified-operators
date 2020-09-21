@@ -67,7 +67,7 @@ public class TopologyProcessorDiagnosticsConfig {
     /**
      * The anonymized flag.
      */
-    @Value("${anonymized}")
+    @Value("${anonymized:true}")
     private boolean anonymized;
 
     @Autowired

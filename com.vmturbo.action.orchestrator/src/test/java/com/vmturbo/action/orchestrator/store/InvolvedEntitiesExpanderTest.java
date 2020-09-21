@@ -57,7 +57,7 @@ public class InvolvedEntitiesExpanderTest {
     private static final long BUSINESS_TRANS_OID = 2L;
     private static final long SERVICE_OID = 3L;
     private static final long APP_COMPONENT_OID = 4L;
-    private static final long CONTAINER_OID = 5L;
+    private static final long WORKLOAD_CONTROLLER_OID = 5L;
     private static final long VM_OID = 7L;
 
     private static final List<String> ENTITY_TYPES = Arrays.asList(
@@ -65,7 +65,7 @@ public class InvolvedEntitiesExpanderTest {
             ApiEntityType.BUSINESS_TRANSACTION.apiStr(),
             ApiEntityType.SERVICE.apiStr(),
             ApiEntityType.APPLICATION_COMPONENT.apiStr(),
-            ApiEntityType.CONTAINER.apiStr(),
+            ApiEntityType.WORKLOAD_CONTROLLER.apiStr(),
             ApiEntityType.CONTAINER_POD.apiStr(),
             ApiEntityType.VIRTUAL_MACHINE.apiStr(),
             ApiEntityType.DATABASE_SERVER.apiStr(),
@@ -103,7 +103,7 @@ public class InvolvedEntitiesExpanderTest {
             Collections.emptySet(),
             actualFilter.getEntities());
         Assert.assertEquals("empty list should not be expanded",
-            InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES,
+            InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES,
             actualFilter.getCalculationType());
 
         when(repositoryServiceMole.retrieveTopologyEntities(any()))
@@ -120,14 +120,14 @@ public class InvolvedEntitiesExpanderTest {
             ImmutableSet.of(BUSINESS_APP_OID, BUSINESS_TRANS_OID, SERVICE_OID, VM_OID),
             actualFilter.getEntities());
         Assert.assertEquals("set with a vm should not be expanded",
-            InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES,
+            InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES,
             actualFilter.getCalculationType());
 
         Assert.assertEquals("set with a vm should not be expanded",
             ImmutableSet.of(BUSINESS_APP_OID, BUSINESS_TRANS_OID, SERVICE_OID, VM_OID),
             actualFilter.getEntities());
         Assert.assertEquals("set with a vm should not be expanded",
-            InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES,
+            InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES,
             actualFilter.getCalculationType());
     }
 
@@ -174,7 +174,7 @@ public class InvolvedEntitiesExpanderTest {
                             .addMemberOids(SERVICE_OID)
                             .buildPartial())
                         .putMembersByState(1, MemberList.newBuilder()
-                            .addMemberOids(CONTAINER_OID)
+                            .addMemberOids(WORKLOAD_CONTROLLER_OID)
                             .buildPartial())
                         .buildPartial())
                     .addSupplyChainNodes(SupplyChainNode.newBuilder()
@@ -187,7 +187,7 @@ public class InvolvedEntitiesExpanderTest {
         Assert.assertEquals("when supply chain service returns empty response, return "
                         + "the original input involved entities",
             ImmutableSet.of(BUSINESS_APP_OID, BUSINESS_TRANS_OID, SERVICE_OID, APP_COMPONENT_OID,
-                    CONTAINER_OID),
+                    WORKLOAD_CONTROLLER_OID),
             actualFilter.getEntities());
 
         ArgumentCaptor<GetSupplyChainRequest> argument =
@@ -203,7 +203,7 @@ public class InvolvedEntitiesExpanderTest {
             InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS,
             actualFilter.getCalculationType());
         Assert.assertThat(actualFilter.getEntities(), containsInAnyOrder(BUSINESS_APP_OID,
-                BUSINESS_TRANS_OID, SERVICE_OID, APP_COMPONENT_OID, CONTAINER_OID));
+                BUSINESS_TRANS_OID, SERVICE_OID, APP_COMPONENT_OID, WORKLOAD_CONTROLLER_OID));
     }
 
     @Nonnull

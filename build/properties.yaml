@@ -87,7 +87,7 @@ defaultProperties:
         targetDiscoveryTimeoutSeconds: 120
         targetDiscoveryPollIntervalSeconds: 2
         liveStatsRetrievalWindowSeconds: 60
-        publicVersionString: 7.22.0
+        publicVersionString: 8.0.0
         groupBuildUseCaseFile: groupBuilderUsecases.json
         settingManagersFile: settingManagers.json
         settingStyleFile: settingSpecStyle.json

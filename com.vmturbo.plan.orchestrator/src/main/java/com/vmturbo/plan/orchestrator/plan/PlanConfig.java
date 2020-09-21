@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.ApplicationContext;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
@@ -107,6 +108,9 @@ public class PlanConfig {
     @Autowired
     private GlobalConfig globalConfig;
 
+    @Autowired
+    private ApplicationContext applicationContext;
+
     @Bean
     public PlanDao planDao() {
         return new PlanDaoImpl(dbConfig.dsl(),
@@ -137,6 +141,7 @@ public class PlanConfig {
     @Bean
     public PlanRpcService planService() {
         return new PlanRpcService(planDao(),
+            applicationContext,
             analysisService(),
             planNotificationSender(),
             startAnalysisThreadPool(),
