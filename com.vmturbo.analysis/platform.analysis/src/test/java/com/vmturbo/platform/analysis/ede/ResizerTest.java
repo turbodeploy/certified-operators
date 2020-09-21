@@ -758,6 +758,30 @@ public class ResizerTest {
      * PM CPU capacity = 100, VM buys 70 from it. App buys 70 of VM's VCPU.
      * PM MEM capacity = 100, VM buys 70 from it. App buys 70 of VM's VMEM.
      * VM's VCPU and VMEM have capacities of 80 each.
+     * The capacity increment is 10.
+     * The desired capacity is 90.72 - result of calling calculateDesiredCapacity.
+     * That capacity increase will be limited to 85 because of the capacity upper bound value.
+     * However, we can do 0 increments because one increment will bring us to 90 which is over 85.
+     * */
+    @Test
+    public void testResizeUpRespectsCapacityUpperBoundWithCapacityIncrementChange() {
+        Economy economy = setupTopologyForResizeTest(100, 100,
+            80, 80, 70, 70, 70, 70, 0.65, 0.8,
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
+
+        vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityUpperBound(85));
+
+        vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityIncrement(10));
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(0, actions.size());
+    }
+
+    /**
+     * Setup economy with one PM, one VM and one application.
+     * PM CPU capacity = 100, VM buys 70 from it. App buys 70 of VM's VCPU.
+     * PM MEM capacity = 100, VM buys 70 from it. App buys 70 of VM's VMEM.
+     * VM's VCPU and VMEM have capacities of 80 each.
      * The capacity increment is 1.
      * That capacity upper bound value is 75. If the current capacity is already above
      * the upper bound, then the upper bound does not matter. And we will allow the generation
