@@ -4,6 +4,7 @@ import static junit.framework.Assert.assertNotNull;
 import static junit.framework.TestCase.assertEquals;
 import static junit.framework.TestCase.assertFalse;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Mockito.mock;
@@ -42,9 +43,7 @@ import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
-import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -281,15 +280,13 @@ public class ActionSpecMappingContextFactoryTest {
                         thinTargetCache,
                         costService, supplyChainRpc);
 
-        final VirtualDisksAspectApiDTO virtualDisksAspectApiDTO = new VirtualDisksAspectApiDTO();
         final VirtualDiskApiDTO virtualDiskApiDTO = new VirtualDiskApiDTO();
         final String volumeName = "ejf-f2s-test_OsDisk_1_57c13b26afc846c2a2af75421a48294e";
         virtualDiskApiDTO.setDisplayName(volumeName);
         virtualDiskApiDTO.setUuid(volumeName);
-        virtualDisksAspectApiDTO.setVirtualDisks(Lists.newArrayList(virtualDiskApiDTO));
-        final Map<Long, EntityAspect> virtualDisksAspectApiDTOMap = new HashMap<>();
-        virtualDisksAspectApiDTOMap.put(73385266467456L, virtualDisksAspectApiDTO);
-        when(virtualVolumeAspectMapper.mapVirtualVolumes(anySetOf(Long.class), anyLong())).thenReturn(Optional.of(virtualDisksAspectApiDTOMap));
+        final Map<Long, List<VirtualDiskApiDTO>> virtualDisksAspectApiDTOMap = new HashMap<>();
+        virtualDisksAspectApiDTOMap.put(73385266467456L, Lists.newArrayList(virtualDiskApiDTO));
+        when(virtualVolumeAspectMapper.mapVirtualVolumes(anySetOf(Long.class), anyLong(), anyBoolean())).thenReturn(virtualDisksAspectApiDTOMap);
 
         final ActionSpecMappingContextFactory actionSpecMappingContextFactory = new
             ActionSpecMappingContextFactory(policyService,

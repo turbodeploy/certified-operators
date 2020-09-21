@@ -623,26 +623,18 @@ public class ActionSpecMappingContextFactory {
 
         // retrieve volume aspects for scale volume actions
         if (!scaleVolumeIds.isEmpty()) {
-            final Optional<Map<Long, EntityAspect>> scaleVolumeAspects =
-                    volumeAspectMapper.mapVirtualVolumes(scaleVolumeIds, topologyContextId);
-            scaleVolumeAspects.ifPresent(longEntityAspectMap -> longEntityAspectMap.forEach((id, aspect) -> {
-                List<VirtualDiskApiDTO> virtualDiskApiDTOS = Collections.unmodifiableList(((VirtualDisksAspectApiDTO)aspect).getVirtualDisks());
-                volumesAspectsByEntity.put(id, virtualDiskApiDTOS);
-            }));
+            volumesAspectsByEntity.putAll(
+                    volumeAspectMapper.mapVirtualVolumes(scaleVolumeIds, topologyContextId,
+                            topologyContextId != realtimeTopologyContextId));
         }
 
         // retrieve volume aspects for delete volume actions
-        final Map<Long, List<VirtualDiskApiDTO>> aspectsByEntity = new HashMap<>(volumesAspectsByEntity);
         if (!deleteVolumeIds.isEmpty()) {
-            final Optional<Map<Long, EntityAspect>> unattachedVolumeAspects = volumeAspectMapper
-                    .mapVirtualVolumes(deleteVolumeIds, topologyContextId);
-            unattachedVolumeAspects.ifPresent(longEntityAspectMap -> longEntityAspectMap.forEach((id, aspect) -> {
-                List<VirtualDiskApiDTO> virtualDiskApiDTOS = Collections.unmodifiableList(((VirtualDisksAspectApiDTO)aspect).getVirtualDisks());
-                aspectsByEntity.put(id, virtualDiskApiDTOS);
-            }));
+            volumesAspectsByEntity.putAll(volumeAspectMapper
+                    .mapVirtualVolumes(deleteVolumeIds, topologyContextId, false));
         }
 
-        return aspectsByEntity;
+        return new HashMap<>(volumesAspectsByEntity);
     }
 
     /**
