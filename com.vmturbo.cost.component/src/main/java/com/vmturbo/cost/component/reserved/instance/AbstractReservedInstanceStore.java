@@ -168,7 +168,7 @@ public abstract class AbstractReservedInstanceStore {
                         riBuilder.getReservedInstanceBoughtInfoBuilder()
                                 .getReservedInstanceBoughtCouponsBuilder()
                                 .setNumberOfCouponsUsed(coupons)
-                                .setNumberOfCoupons((int)coupons);
+                                .setNumberOfCoupons(coupons);
                     } else {
                         double coupons = riToUndiscoveredAccountUsage.getOrDefault(riBuilder.getId(),
                                 0d);
