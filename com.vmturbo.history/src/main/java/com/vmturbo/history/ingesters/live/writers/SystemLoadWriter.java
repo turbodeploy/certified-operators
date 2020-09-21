@@ -439,7 +439,7 @@ public class SystemLoadWriter extends TopologyWriterBase {
         for (final long slice : slices.toArray()) {
             transientLoader.insert(createRecord(slice, entity.getOid(), null,
                     slType.name(), StringConstants.USED, commodityKey,
-                    capacity, null, null, RelationType.COMMODITIES));
+                    capacity, used, peak, RelationType.COMMODITIES));
         }
     }
 
