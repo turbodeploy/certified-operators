@@ -63,8 +63,6 @@ public abstract class Trader implements Serializable {
     private boolean templateProvider_ = false;
     // This field specifies whether the trader's debug info is already printed
     private boolean sellersInfoPrinted = false;
-    // This field hold the explanation for unplaced traders.
-    private String unplacedExplanation = "";
     // Identifies the scaling group that this trader belongs to
     private final static String NO_SCALING_GROUP = "";
     private String scalingGroupId_ = NO_SCALING_GROUP;
@@ -532,22 +530,6 @@ public abstract class Trader implements Serializable {
     @Override
     public String toString() {
         return debugInfoNeverUseInCode_;
-    }
-
-    /*
-     * Returns the explanation for unplaced trader.
-     *
-     */
-    public String getUnplacedExplanation() {
-        return unplacedExplanation;
-    }
-
-    /*
-     * Sets the explanation for unplaced trader.
-     *
-     */
-    public void setUnplacedExplanation(@Nonnull String unplacedExplanation) {
-        this.unplacedExplanation = unplacedExplanation;
     }
 
     /**

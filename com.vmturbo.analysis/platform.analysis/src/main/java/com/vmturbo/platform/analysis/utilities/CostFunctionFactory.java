@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -54,8 +53,12 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.CostUnavailableQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InfiniteDependentComputeCommodityQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InfiniteDependentResourcePairQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.InfiniteRangeBasedResourceDependencyQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.InsufficientCapacityQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.InsufficientCommodity;
 import com.vmturbo.platform.analysis.utilities.Quote.LicenseUnavailableQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
@@ -286,7 +289,7 @@ public class CostFunctionFactory {
             double baseQuantity = Math.max(sl.getQuantities()[baseIndex] * dependency.maxRatio_,
                 dependentCommodityLowerBoundCapacity);
             if (baseQuantity < sl.getQuantities()[depIndex]) {
-                return new InfiniteDependentResourcePairQuote(dependency, baseQuantity,
+                return new InfiniteDependentResourcePairQuote(seller, dependency, baseQuantity,
                     sl.getQuantities()[depIndex]);
             }
         }
@@ -305,7 +308,7 @@ public class CostFunctionFactory {
      */
     private static MutableQuote insufficientCommodityWithinMaxCapacityQuote(ShoppingList sl, Trader seller,
                                                Map<CommoditySpecification, CapacityLimitation> commCapacity) {
-        final CommodityQuote quote = new CommodityQuote(seller);
+        final List<InsufficientCommodity> insufficientCommodities = new ArrayList<>();
         // check if the commodities bought comply with capacity limitation on seller
         for (Entry<CommoditySpecification, CapacityLimitation> entry : commCapacity.entrySet()) {
             int index = sl.getBasket().indexOf(entry.getKey());
@@ -318,11 +321,15 @@ public class CostFunctionFactory {
             }
             if (sl.getQuantities()[index] > entry.getValue().getMaxCapacity()) {
                 logMessagesForCapacityLimitValidation(sl, index, entry);
-                quote.addCostToQuote(Double.POSITIVE_INFINITY, entry.getValue().getMaxCapacity(), entry.getKey());
+                insufficientCommodities.add(new InsufficientCommodity(entry.getKey(),
+                        entry.getValue().getMaxCapacity()));
             }
         }
-
-        return quote;
+        if (insufficientCommodities.isEmpty()) {
+            return new CommodityQuote(seller);
+        } else {
+            return new InsufficientCapacityQuote(seller, sl.getBasket().size(), insufficientCommodities);
+        }
     }
 
     /**
@@ -365,7 +372,8 @@ public class CostFunctionFactory {
         Basket basket = sl.getBasket();
         final double[] quantities = sl.getQuantities();
         List<CommoditySold> commsSold = seller.getCommoditiesSold();
-        final CommodityQuote quote = new CommodityQuote(seller);
+        List<InsufficientCommodity> insufficientCommodities = new ArrayList<>();
+
 
         for (int soldIndex = 0; boughtIndex < basket.size();
                         boughtIndex++, soldIndex++) {
@@ -385,11 +393,14 @@ public class CostFunctionFactory {
             if (quantities[boughtIndex] > soldCapacity) {
                 logMessagesForSellerCapacityValidation(sl, seller, quantities[boughtIndex],
                     basketCommSpec, soldCapacity);
-                quote.addCostToQuote(Double.POSITIVE_INFINITY, soldCapacity, basketCommSpec);
+                insufficientCommodities.add(new InsufficientCommodity(basketCommSpec, soldCapacity));
             }
         }
-
-        return quote;
+        if (insufficientCommodities.isEmpty()) {
+            return new CommodityQuote(seller);
+        } else {
+            return new InsufficientCapacityQuote(seller, sl.getBasket().size(), insufficientCommodities);
+        }
     }
 
     /**
@@ -441,8 +452,9 @@ public class CostFunctionFactory {
                         comm1BoughtIndex, comm2BoughtIndex, comm1BoughtQuantity, comm2BoughtQuantity,
                         comm1SoldIndex, comm1SoldCapacity);
         return isValid ? CommodityQuote.zero(seller) :
-            new InfiniteDependentComputeCommodityQuote(comm1BoughtIndex, comm2BoughtIndex,
-                comm1SoldCapacity, comm1BoughtQuantity, comm2BoughtQuantity);
+            new InfiniteDependentComputeCommodityQuote(seller, sl.getBasket().get(comm1BoughtIndex),
+                sl.getBasket().get(comm2BoughtIndex), comm1SoldCapacity, comm1BoughtQuantity,
+                comm2BoughtQuantity);
     }
 
     /**
@@ -490,8 +502,7 @@ public class CostFunctionFactory {
                                                               CostTable costTable,
                                                               final int licenseBaseType) {
         long groupFactor = buyer.getGroupFactor();
-        @Nullable final Context buyerContext = buyer.getBuyer().getSettings()
-                .getContext().orElse(null);
+        final Context buyerContext = buyer.getBuyer().getSettings().getContext().get();
         final int licenseCommBoughtIndex = buyer.getBasket().indexOfBaseType(licenseBaseType);
         if (costTable.getAccountIds().isEmpty()) {
             // empty cost table, return infinity to not place entity on this seller
@@ -517,7 +528,9 @@ public class CostFunctionFactory {
                         seller.getDebugInfoNeverUseInCode(),
                         cbtpResourceBundle.getCostTupleListList());
             }
-            return new CommodityCloudQuote(seller, Double.POSITIVE_INFINITY, null, null);
+            return new CostUnavailableQuote(seller, buyerContext.getRegionId(),
+                    buyerContext.getBalanceAccount().getId(),
+                    buyerContext.getBalanceAccount().getPriceId());
         }
 
         Trader destTP = findMatchingTpForCalculatingCost(economy, seller, buyer);
@@ -738,11 +751,6 @@ public class CostFunctionFactory {
             final @Nonnull CbtpCostDTO cbtpCostDTO,
             final @Nonnull CostTable costTable,
             final int licenseTypeKey) {
-        if (buyerContext == null) {
-            // on prem entities has no context, iterating all ba and region to get cheapest cost
-            return getCheapestTuple(costTable, licenseTypeKey);
-        }
-
         final BalanceAccount balanceAccount = buyerContext.getBalanceAccount();
         final long priceId = balanceAccount.getPriceId();
         final long regionId = buyerContext.getRegionId();
@@ -804,7 +812,7 @@ public class CostFunctionFactory {
         final long groupFactor = sl.getGroupFactor();
         final Optional<Context> optionalContext = sl.getBuyer().getSettings().getContext();
         if (!optionalContext.isPresent()) {
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+            return new CostUnavailableQuote(seller, null, null, null);
         }
         final Context context = optionalContext.get();
         final long regionIdBought = context.getRegionId();
@@ -813,7 +821,7 @@ public class CostFunctionFactory {
             logger.warn("Business account is not found on seller: {}, for shopping list: {}, return " +
                             "infinity compute quote", seller.getDebugInfoNeverUseInCode(),
                     sl.getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+            return new CostUnavailableQuote(seller, regionIdBought, null, null);
         }
         final long accountId = costTable.hasAccountId(balanceAccount.getPriceId()) ?
                 balanceAccount.getPriceId() : balanceAccount.getId();
@@ -822,7 +830,8 @@ public class CostFunctionFactory {
             logger.warn("Business account id {} is not found on seller: {}, for shopping list: {}, "
                             + "return infinity compute quote", accountId,
                     seller.getDebugInfoNeverUseInCode(), sl.getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+            return new CostUnavailableQuote(seller, regionIdBought, balanceAccount.getId(),
+                    balanceAccount.getPriceId());
         }
 
         final int licenseTypeKey;
@@ -840,8 +849,10 @@ public class CostFunctionFactory {
             // quote rather than looking up the cheapest region as we don't want to support inter-region
             // moves.
             logger.debug("Cost for region {} and license key {} not found in seller {}. Returning infinite"
-                    + " cost for this template.", regionIdBought, licenseTypeKey, sl.getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+                    + " cost for this template.", regionIdBought, licenseTypeKey,
+                    sl.getDebugInfoNeverUseInCode());
+            return new CostUnavailableQuote(seller, regionIdBought, balanceAccount.getId(),
+                    balanceAccount.getPriceId());
         }
 
         final Long regionId = costTuple.getRegionId();
@@ -1088,7 +1099,7 @@ public class CostFunctionFactory {
         // TODO: refactor the PriceData to improve performance for region and business account lookup
         Optional<Context> optionalContext = sl.getBuyer().getSettings().getContext();
         if (!optionalContext.isPresent()) {
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+            return new CostUnavailableQuote(seller, null, null, null);
         }
         final Context context = optionalContext.get();
         final long regionId = context.getRegionId();
@@ -1104,7 +1115,7 @@ public class CostFunctionFactory {
         if (cost == Double.MAX_VALUE) {
             logger.warn("No (cheapest) cost found for storage {} in region {}, account {}.",
                     seller.getDebugInfoNeverUseInCode(), regionId, balanceAccount);
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+            return new CostUnavailableQuote(seller, regionId, balanceAccountId, priceId);
         }
         return new CommodityCloudQuote(seller, cost, regionId, chosenAccountId);
     }
@@ -1263,7 +1274,7 @@ public class CostFunctionFactory {
                     if (baseCommIndex != -1) {
                         baseCommQuantity = shoppingList.getQuantity(baseCommIndex);
                     }
-                    return new InfiniteRangeBasedResourceDependencyQuote(baseType,
+                    return new InfiniteRangeBasedResourceDependencyQuote(seller, baseType,
                             dependentType, dependentCapacity, baseCommQuantity, dependentQuantity);
                 }
             }
@@ -1400,52 +1411,4 @@ public class CostFunctionFactory {
         }
     }
 
-    /**
-     * Create a new {@link InfiniteRangeBasedResourceDependencyQuote} which describes an infinite {@link Quote}
-     * due to a range based dependent resource requirement that cannot be met.
-     */
-    public static class InfiniteRangeBasedResourceDependencyQuote extends MutableQuote {
-        private final CommoditySpecification baseCommodityType;
-        private final CommoditySpecification dependentCommodityType;
-        private final double dependentCommodityCapacity;
-        private final double baseCommodityQuantity;
-        private final double dependentCommodityQuantity;
-
-        /**
-         * Create a new {@link InfiniteRangeBasedResourceDependencyQuote}.
-         *
-         * @param baseCommodityType base commodity type.
-         * @param dependentCommodityType dependent commodity type.
-         * @param dependentCommodityCapacity The capacity of the dependent commodity in the dependent pair.
-         * @param baseCommodityQuantity The quantity of the base commodity in the pair.
-         * @param dependentCommodityQuantity The quantity of the dependent commodity in the pair.
-         */
-        public InfiniteRangeBasedResourceDependencyQuote(@Nonnull final CommoditySpecification baseCommodityType,
-                @Nonnull final CommoditySpecification dependentCommodityType,
-                double dependentCommodityCapacity,
-                double baseCommodityQuantity,
-                double dependentCommodityQuantity) {
-            super(null, Double.POSITIVE_INFINITY);
-
-            this.baseCommodityType = Objects.requireNonNull(baseCommodityType);
-            this.dependentCommodityType = Objects.requireNonNull(dependentCommodityType);
-            this.dependentCommodityCapacity = dependentCommodityCapacity;
-            this.baseCommodityQuantity = baseCommodityQuantity;
-            this.dependentCommodityQuantity = dependentCommodityQuantity;
-        }
-
-        @Override
-        public int getRank() {
-            return (int)(Math.abs(dependentCommodityQuantity
-                    - dependentCommodityCapacity) / dependentCommodityQuantity) * MAX_RANK;
-        }
-
-        @Override
-        public String getExplanation(@Nonnull final ShoppingList shoppingList) {
-            return "Dependent commodity " + dependentCommodityType.getDebugInfoNeverUseInCode() + " ("
-                    + dependentCommodityQuantity + ") exceeds ranged capacity (" + dependentCommodityCapacity
-                    + "), with base commodity " + baseCommodityType.getDebugInfoNeverUseInCode()
-                    + " (" + baseCommodityQuantity + ").";
-        }
-    }
 }

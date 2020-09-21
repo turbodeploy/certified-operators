@@ -21,7 +21,6 @@ import com.vmturbo.platform.analysis.actions.ActionCollapse;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Move;
-import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -29,10 +28,11 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
-import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.ActionStats;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
+import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation;
+import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation.CommodityBundle;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
 import com.vmturbo.platform.analysis.utilities.PlacementStats;
@@ -48,6 +48,8 @@ import com.vmturbo.platform.analysis.utilities.StatsWriter;
  *
  */
 public final class Ede {
+
+    private PlacementResults edePlacementResults;
 
     // Constructor
 
@@ -358,9 +360,15 @@ public final class Ede {
                             .forEach((k, v) -> logger
                                             .debug("    " + k.getSimpleName() + " : " + v.size()));
         }
-        addUnplacementsForEmptyReconfigures(economy, actions, placementResults);
-        logUnplacedTraders(placementResults);
-        createUnplacedExplanations(placementResults);
+        // Reconfigures generated within Placement or Bootstrap do not have a quoteTracker.
+        // We can not create quoteTrackers at the moment when reconfigure was created, especially in
+        // the Bootstrap reconfigure case, because PlacementResults is not available. In order to
+        // keep quoteTrackers in PlacementResults for reconfigure traders, at the end of Ede, we
+        // call addQuoteTrackerForEmptyReconfigures.
+        placementResults.createQuoteTrackerForReconfigures(actions);
+        placementResults.populateExplanationForInfinityQuoteTraders();
+        logInfiniteQuoteTraders(placementResults);
+        this.edePlacementResults = placementResults;
         return actions;
     }
 
@@ -464,39 +472,58 @@ public final class Ede {
      *
      * @param placementResults The results describing why traders could not be placed.
      */
-    private void logUnplacedTraders(@NonNull final PlacementResults placementResults) {
-        try {
-            placementResults.getUnplacedTraders().forEach((trader, quoteTrackers) ->
-                logger.info("Unable to place trader " + trader + " due to:\n\t" +
-                    quoteTrackers.stream()
-                        .filter(QuoteTracker::hasQuotesToExplain)
-                        .map(QuoteTracker::explainInterestingSellers)
-                        .collect(Collectors.joining("\n\t"))));
+    private void logInfiniteQuoteTraders(@NonNull final PlacementResults placementResults) {
+        try { // As we will print out log messages in the market component for best explanations
+              // for infinity trader, change this to debug level as it will list all sellers giving
+              // infinity.
+            if (logger.isDebugEnabled()) {
+                placementResults.getInfinityQuoteTraders().forEach((trader, quoteTrackers) ->
+                        logger.debug("Infinity quote trader " + trader + " due to:\n\t"
+                                + quoteTrackers.stream()
+                                        .filter(QuoteTracker::hasQuotesToExplain)
+                                        .map(QuoteTracker::explainAllInfiniteQuotes)
+                                        .flatMap(List::stream)
+                                        .map(ex -> printExplanation(ex))
+                                        .collect(Collectors.toList())));
+            }
         } catch (Exception e) {
             logger.error("Error during unplaced trader logging: ", e);
         }
     }
 
     /**
-     * Create the explanation describing why the trader could not be placed.
+     * A string explanation for a given {@link InfiniteQuoteExplanation}. This method is only for
+     * logging purpose in analytics. {@link InfiniteQuoteExplanation} object is the one sent out
+     * from analysis library.
      *
-     * This is used to show the causes of placement failure.
-     *
-     * @param placementResults The results describing why traders could not be placed.
+     * @param ex The given {@link InfiniteQuoteExplanation}.
+     * @return a readable string.
      */
-    private void createUnplacedExplanations(@NonNull final PlacementResults placementResults) {
-        try {
-            placementResults.getUnplacedTraders().forEach((trader, quoteTrackers) -> {
-                String explanation = quoteTrackers.stream()
-                                .filter(QuoteTracker::hasQuotesToExplain)
-                                .map(QuoteTracker::explainInterestingSellers)
-                                .collect(Collectors.joining("\n\t"));
-                trader.setUnplacedExplanation(explanation);
-            });
+    private String printExplanation(InfiniteQuoteExplanation ex) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("shopping list");
+        if (ex.providerType.isPresent()) {
+            sb.append(" looking for provider type ").append(ex.providerType.get());
         }
-        catch (Exception e) {
-            logger.error("Error during unplaced explanation creation: ", e);
+        if (ex.costUnavailable) {
+            sb.append(" missing cost data");
+            return sb.toString();
         }
+        if (ex.seller.isPresent()) {
+            sb.append(" from seller ").append(ex.seller.get().getDebugInfoNeverUseInCode());
+        }
+        if (!ex.commBundle.isEmpty()) {
+            sb.append(" asking for commodity ");
+        }
+        for (CommodityBundle c : ex.commBundle) {
+            sb.append(" { ").append(c.commSpec.getDebugInfoNeverUseInCode())
+                    .append(" with requested amount ").append(c.requestedAmount);
+            if (c.maxAvailable.isPresent()) {
+                sb.append(" and available amount is ").append(c.maxAvailable.get());
+            }
+            sb.append(" } ");
+        }
+        return sb.toString();
     }
 
     /**
@@ -514,28 +541,12 @@ public final class Ede {
     }
 
     /**
-     * When a shopping list is buying from a market with no sellers, we create a reconfigure with no
-     * explaining commodity. These reconfigures are not very helpful, but they do indicate that the
-     * shopping list could not be placed. When we generate these actions, create unplacement information
-     * for them so that they can be logged or sent along.
+     * Returns the {@link PlacementResults}.
      *
-     * TODO: Hopefully one day we will do something other than generate a reconfigure with no commodity
-     *       and we can get rid of this specialized logic.
-     *
-     * @param placementResults The actions and unplaced VMs that resulted from running analysis.
+     * @return PlacementResults
      */
-    private void addUnplacementsForEmptyReconfigures(@NonNull final Economy economy,
-                                                     @NonNull final List<Action> actions,
-                                                     @NonNull final PlacementResults placementResults) {
-        Map<Trader, List<ShoppingList>> shoppingListsForMarketsWithNoSellers = actions.stream()
-            .filter(action -> action instanceof Reconfigure)
-            .map(action -> (Reconfigure) action)
-            .filter(reconfigure -> economy.getMarket(reconfigure.getTarget()).getActiveSellers().isEmpty())
-            .map(reconfigure -> reconfigure.getTarget())
-            .collect(Collectors.groupingBy(ShoppingList::getBuyer));
-
-        shoppingListsForMarketsWithNoSellers.forEach((trader, shoppingLists) ->
-            placementResults.addResultsForMarketsWithNoSuppliers(
-                trader, shoppingLists, economy));
+    public PlacementResults getPlacementResults() {
+        return this.edePlacementResults;
     }
+
 }

@@ -34,6 +34,7 @@ import com.vmturbo.platform.analysis.utilities.CostFunctionFactory.CapacityLimit
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory.PriceData;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory.RangeBasedResourceDependency;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.CostUnavailableQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
 /**
@@ -102,7 +103,7 @@ public class CostFunctionFactoryTest {
         MutableQuote quote1 = CostFunctionFactory.calculateComputeAndDatabaseCostQuote(computeTier,
                 shoppingList, costTable, licenseAccessCommBaseType);
         // 1. test without context computation
-        assertTrue(quote1 instanceof CommodityQuote);
+        assertTrue(quote1 instanceof CostUnavailableQuote);
         assertTrue(quote1.getSeller().equals(computeTier) && Double.isInfinite(quote1.getQuoteValue()));
         // 2. test with context computation
         BalanceAccount account1 = new BalanceAccount(100, 10000, accountId1, 0);
@@ -219,7 +220,7 @@ public class CostFunctionFactoryTest {
         BalanceAccount account1 = new BalanceAccount(100, 10000, accountId1, 0);
         buyerVm.getSettings().setContext(new com.vmturbo.platform.analysis.economy.Context(
                 regionId11, 0, account1));
-        MutableQuote quote1 = CostFunctionFactory.calculateStorageTierCost(priceDataMap,
+        CommodityQuote quote1 = (CommodityQuote)CostFunctionFactory.calculateStorageTierCost(priceDataMap,
                 commCapacity, new ArrayList<RangeBasedResourceDependency>(), shoppingList, storageTier);
         assertNotNull(quote1);
         assertTrue(quote1.getContext().isPresent());
@@ -241,7 +242,7 @@ public class CostFunctionFactoryTest {
         buyerVm.getSettings().setContext(null);
         MutableQuote quote3 = CostFunctionFactory.calculateStorageTierCost(priceDataMap,
                 commCapacity, new ArrayList<RangeBasedResourceDependency>(), shoppingList, storageTier);
-        assertTrue(quote3 instanceof CommodityQuote);
+        assertTrue(quote3 instanceof CostUnavailableQuote);
         assertTrue(quote3.getSeller().equals(storageTier) && Double.isInfinite(quote3.getQuoteValue()));
 
     }

@@ -2,22 +2,16 @@ package com.vmturbo.platform.analysis.utilities;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.annotation.concurrent.Immutable;
-
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
-import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
+import com.vmturbo.platform.analysis.utilities.InfiniteQuotesOfInterest.IndividualCommodityQuote;
 
 /**
  * A quote tracker tracks when shopping for a trader's shopping lists across various map-reduce operations
@@ -51,6 +45,7 @@ public class QuoteTracker {
     public QuoteTracker(@Nonnull final ShoppingList shoppingList) {
         clear();
         this.shoppingList = Objects.requireNonNull(shoppingList);
+
     }
 
     /**
@@ -161,8 +156,8 @@ public class QuoteTracker {
                 // Add it to the list of quotes we may want to explain later.
                 infiniteQuotesToExplain.add(quote);
             } else if (quote.getRank() < quoteRank) {
-                // This quote has fewer insufficient commodities than some others than any other we have
-                // seen. Those other quotes are no longer worth explaining, but this one is.
+                // This quote with lower rank would be chosen as the explanation. Those other quotes
+                // with higher rank are no longer worth explaining.
                 if (infiniteQuotesToExplain == null) {
                     infiniteQuotesToExplain = new ArrayList<>();
                 }
@@ -171,7 +166,7 @@ public class QuoteTracker {
                 infiniteQuotesToExplain.add(quote);
                 quoteRank = quote.getRank();
             } else {
-                // This quote has more insufficient commodities than some others so it
+                // This quote has higher rank than some others so it
                 // is not worth explaining.
             }
         }
@@ -241,33 +236,20 @@ public class QuoteTracker {
 
     /**
      * Generate an explanation string for ALL infinite {@link Quote}s being tracked
-     * (as opposed to only the "interesting" sellers).
      *
-     * @return An explanation string for ALL infinite {@link Quote}s.
+     * @return a list of InfinityQuoteExplanation for ALL infinite {@link Quote}s.
      */
-    public String explainAllInfiniteQuotes() {
+    public List<InfiniteQuoteExplanation> explainAllInfiniteQuotes() {
         // Only use shopping list IDs because an outer print statement will likely print the
         // buying trader ID.
         if (!hasQuotesToExplain()) {
-            return shoppingListId() + ": Successfully placed";
+            return new ArrayList<>();
         }
-        return shoppingListId() + ": " + infiniteQuotesToExplain.stream()
+        return infiniteQuotesToExplain.stream()
             .map(quote -> quote.getExplanation(shoppingList))
-            .collect(Collectors.joining(", ", "[", "]"));
-    }
-
-    /**
-     * Generate an explanation string for sellers of interest. A seller of interest is the seller
-     * that comes closest to meeting the requested quantities of a given shopping list.
-     *
-     * @return A string explaining the most interest sellers for a shopping list that could not be placed.
-     */
-    public String explainInterestingSellers() {
-        if (!hasQuotesToExplain()) {
-            return shoppingListId() + ": Successfully placed";
-        }
-
-        return shoppingListId() + ": " + new InfiniteQuotesOfInterest(this).explanation();
+            .filter(e -> e.isPresent())
+            .map(e -> e.get())
+            .collect(Collectors.toList());
     }
 
     /**
@@ -304,7 +286,7 @@ public class QuoteTracker {
      */
     public Map<CommoditySpecification, IndividualCommodityQuote> getIndividualCommodityQuotes() {
         InfiniteQuotesOfInterest quoteOfInterest = new InfiniteQuotesOfInterest(this);
-        return quoteOfInterest.individualCommodityQuotes;
+        return quoteOfInterest.getIndividualCommodityQuotes();
     }
 
 
@@ -315,90 +297,7 @@ public class QuoteTracker {
      */
     public List<Quote> getNonCommodityQuotes() {
         InfiniteQuotesOfInterest quoteOfInterest = new InfiniteQuotesOfInterest(this);
-        return quoteOfInterest.nonCommodityQuotes;
+        return quoteOfInterest.getNonCommodityQuotes();
     }
 
-
-    /**
-     * {@link InfiniteQuotesOfInterest}, given a collection of {@link Quote}s for a {@link ShoppingList},
-     * determines which of those {@link Quote}s is most relevant and can be used to explain those
-     * {@link Quote}s.
-     *
-     * Will attempt to explain ALL non-{@link CommodityQuote}s.
-     * For {@link CommodityQuote}s, will find the most relevant {@link Quote} for
-     * each {@link CommoditySpecification} found to be insufficient in any of the quotes.
-     *
-     * For example, if the shopping list wants to buy 1000 units of Commodity "Foo",
-     * and it got two quotes, one with availableQuantity=500, and one with availableQuantity=600,
-     * the one with availableQuantity=600 is more relevant because it is closer to the
-     * requested amount, so only explain that one but not the 500 one because it is not interesting
-     * in light of the 600 quote.
-     */
-    private static class InfiniteQuotesOfInterest {
-        private final List<Quote> nonCommodityQuotes;
-        private final ShoppingList shoppingList;
-        private final Map<CommoditySpecification, IndividualCommodityQuote> individualCommodityQuotes;
-
-        public InfiniteQuotesOfInterest(@Nonnull final QuoteTracker quoteTracker) {
-            nonCommodityQuotes = new ArrayList<>();
-            shoppingList = quoteTracker.getShoppingList();
-            individualCommodityQuotes = new HashMap<>();
-
-            quoteTracker.getInfiniteQuotesToExplain().stream()
-                .forEach(quote -> {
-                if (quote instanceof Quote.CommodityQuote) {
-                    // For each individual commodity, the quote of interest is the one with the most available
-                    // quantity.
-                    final CommodityQuote cq = (CommodityQuote) quote;
-                    cq.getInsufficientCommodities().forEach(insufficientCommodity -> {
-                        final CommoditySpecification commodity = insufficientCommodity.commodity;
-                        final IndividualCommodityQuote interestingQuote = individualCommodityQuotes.get(commodity);
-                        if (interestingQuote == null) {
-                            individualCommodityQuotes.put(commodity, new IndividualCommodityQuote(quote,
-                                insufficientCommodity.availableQuantity));
-                        }
-                        else if (interestingQuote.availableQuantity < insufficientCommodity.availableQuantity) {
-                            // Replace the seller of interest for this commodity
-                            individualCommodityQuotes.put(commodity, new IndividualCommodityQuote(
-                                quote, insufficientCommodity.availableQuantity));
-                        }
-                    });
-                } else {
-                    // Explain all non-commodity quotes.
-                    nonCommodityQuotes.add(quote);
-                }
-            });
-        }
-
-        /**
-         * Generate an explanation string for all quotes of interest.
-         * The order of the quotes in the explanation is not guaranteed.
-         *
-         * @return A String explaining the quotes of interest.
-         */
-        public String explanation() {
-            return Stream.concat(nonCommodityQuotes.stream(),
-                individualCommodityQuotes.values().stream()
-                    .map(commodityQuote -> commodityQuote.quote))
-                .map(quote -> quote.getExplanation(shoppingList))
-                .sorted()
-                .collect(Collectors.joining(", and ", "[", "]"));
-        }
-    }
-
-    /**
-     * A small helper class that pairs a quote with an available quantity for an individual commodity.
-     * Used by {@link InfiniteQuotesOfInterest}.
-     */
-    @Immutable
-    public static class IndividualCommodityQuote {
-        public final Quote quote;
-        public final double availableQuantity;
-
-        public IndividualCommodityQuote(@Nullable final Quote quote,
-                                        final double availableQuantity) {
-            this.quote = Objects.requireNonNull(quote);
-            this.availableQuantity = availableQuantity;
-        }
-    }
 }

@@ -1,15 +1,11 @@
 package com.vmturbo.platform.analysis.ede;
 
-import static com.vmturbo.platform.analysis.ede.Placement.mergeContextSets;
 import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -17,7 +13,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -35,8 +30,6 @@ import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
-import com.vmturbo.platform.analysis.economy.Context;
-import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -890,7 +883,7 @@ public class PlacementTest {
 
             PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, sl1);
             assertArrayEquals(expectedActions, results.getActions().toArray());
-            assertTrue(results.getUnplacedTraders().isEmpty());
+            assertTrue(results.getInfinityQuoteTraders().isEmpty());
         }
 
         @Test
@@ -907,7 +900,7 @@ public class PlacementTest {
 
             PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, sl1);
             assertArrayEquals(expectedActions, results.getActions().toArray());
-            assertTrue(results.getUnplacedTraders().isEmpty());
+            assertTrue(results.getInfinityQuoteTraders().isEmpty());
         }
     }
 } // end PlacementTest class
