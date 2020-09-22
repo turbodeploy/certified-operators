@@ -5,7 +5,7 @@
     <parent>
         <artifactId>xl-sdk-probe-parent</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>8.0.1-SNAPSHOT</version>
+        <version>8.0.100-cloud_volume_scale_action-SNAPSHOT</version>
         <relativePath>../com.vmturbo.mediation.probe.parent/pom.xml</relativePath>
     </parent>
 
