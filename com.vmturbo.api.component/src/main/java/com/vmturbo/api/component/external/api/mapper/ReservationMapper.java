@@ -49,12 +49,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTO.SinglePolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementFailureInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChange;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
@@ -69,6 +67,8 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -246,7 +246,7 @@ public class ReservationMapper {
                                 .map(a -> new ProviderInfo(a.getProviderId(), a.getCommodityBoughtList(), a.hasProviderId()))
                                 .collect(Collectors.toList());
                         return new PlacementInfo(reservationInstance.getEntityId(),
-                                ImmutableList.copyOf(providerInfos), reservationInstance.getFailureInfoList());
+                                ImmutableList.copyOf(providerInfos), reservationInstance.getUnplacedReasonList());
                     }).collect(Collectors.toList());
             final Map<Long, ServiceEntityApiDTO> serviceEntityMap = getServiceEntityMap(placementInfos);
             final List<DemandEntityInfoDTO> demandEntityInfoDTOS = new ArrayList<>();
@@ -410,8 +410,8 @@ public class ReservationMapper {
                     entitiesOid.add(providerInfo.getProviderId());
                 }
             }
-            for (InitialPlacementFailureInfo failureInfo : placementInfo.getFailureInfos()) {
-                entitiesOid.add(failureInfo.getClosestSeller());
+            for (UnplacementReason reason : placementInfo.getUnpalcementReasons()) {
+                entitiesOid.add(reason.getClosestSeller());
             }
         }
 
@@ -461,7 +461,7 @@ public class ReservationMapper {
             @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap)
             throws UnknownObjectException {
         PlacementInfoDTO placementInfoApiDTO = new PlacementInfoDTO();
-        addReservationFailureInfoDTO(placementInfo.failureInfos,
+        addReservationFailureInfoDTO(placementInfo.getUnpalcementReasons(),
                 placementInfoApiDTO,
                 serviceEntityApiDTOMap);
         for (ProviderInfo providerInfo : placementInfo.getProviderInfos()) {
@@ -481,17 +481,17 @@ public class ReservationMapper {
     /**
      * Create failure info for reservations that failed.
      *
-     * @param failureInfos           list of failure infos
+     * @param reasons                 list of unplacement reasons.
      * @param placementInfoApiDTO    {@link PlacementInfoDTO}.
      * @param serviceEntityApiDTOMap a Map which key is oid, value is {@link ServiceEntityApiDTO}.
      */
-    private void addReservationFailureInfoDTO(List<InitialPlacementFailureInfo> failureInfos,
+    private void addReservationFailureInfoDTO(List<UnplacementReason> reasons,
                                               PlacementInfoDTO placementInfoApiDTO,
                                               @Nonnull Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap) {
-        for (InitialPlacementFailureInfo failureInfo : failureInfos) {
+        for (UnplacementReason reason : reasons) {
             Optional<ServiceEntityApiDTO> serviceEntityApiDTO = Optional
                     .ofNullable(serviceEntityApiDTOMap
-                            .get(failureInfo.getClosestSeller()));
+                            .get(reason.getClosestSeller()));
             if (!serviceEntityApiDTO.isPresent()) {
                 return;
             }
@@ -499,15 +499,21 @@ public class ReservationMapper {
             providerBaseApiDTO.setClassName(serviceEntityApiDTO.get().getClassName());
             providerBaseApiDTO.setDisplayName(serviceEntityApiDTO.get().getDisplayName());
             providerBaseApiDTO.setUuid(serviceEntityApiDTO.get().getUuid());
+            if (reason.getFailedResourcesList().isEmpty()) {
+                logger.warn("Unplacement reason resource list is empty for service entity {}",
+                        serviceEntityApiDTO.get().getDisplayName());
+                break;
+            }
+            FailedResources failedResource = reason.getFailedResourcesList().get(0);
             String resource = COMMODITY_TYPE_NAME_MAP.get(
-                    failureInfo.getCommType().getType()) == null
+                    failedResource.getCommType().getType()) == null
                     ? CommodityType.UNKNOWN.name()
-                    : COMMODITY_TYPE_NAME_MAP.get(failureInfo.getCommType().getType());
+                    : COMMODITY_TYPE_NAME_MAP.get(failedResource.getCommType().getType());
             placementInfoApiDTO.getFailureInfos().add(new ReservationFailureInfoDTO(
                     resource,
                     providerBaseApiDTO,
-                    failureInfo.getMaxQuantityAvailable(),
-                    failureInfo.getRequestedQuantity()));
+                    failedResource.getMaxAvailable(),
+                    failedResource.getRequestedAmount()));
         }
     }
 
@@ -602,29 +608,29 @@ public class ReservationMapper {
         // a list of oids which are the providers of entityId.
         private final List<ProviderInfo> providerInfos;
         // failure information when reservation fails.
-        private final List<InitialPlacementFailureInfo> failureInfos;
+        private final List<UnplacementReason> reasons;
 
         /**
          * Constructor.
          *
          * @param entityId         The ID of the template entity.
          * @param providerInfoList The list of provider OIDs.
-         * @param failureInfos information for failed reservations.
+         * @param reasons          The reasons for failed reservations.
          */
         public PlacementInfo(final long entityId,
                              @Nonnull final List<ProviderInfo> providerInfoList,
-                             @Nonnull final List<InitialPlacementFailureInfo> failureInfos) {
+                             @Nonnull final List<UnplacementReason> reasons) {
             this.entityId = entityId;
             this.providerInfos = Collections.unmodifiableList(providerInfoList);
-            this.failureInfos = failureInfos;
+            this.reasons = reasons;
         }
 
         /**
          * Getter method for failureInfos.
          * @return the failureInfos.
          */
-        public List<InitialPlacementFailureInfo> getFailureInfos() {
-            return failureInfos;
+        public List<UnplacementReason> getUnpalcementReasons() {
+            return reasons;
         }
 
         public long getEntityId() {

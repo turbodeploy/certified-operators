@@ -36,7 +36,6 @@ import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTOMoles.DeploymentProfileServiceMole;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementFailureInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChange;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
@@ -53,6 +52,8 @@ import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -311,13 +312,13 @@ public class ReservationMapperTest {
                 .setCount(1)
                 .addReservationInstance(ReservationInstance.newBuilder()
                         .setEntityId(1L)
-                        .addFailureInfo(InitialPlacementFailureInfo
-                                .newBuilder()
+                        .addUnplacedReason(UnplacementReason.newBuilder()
                                 .setClosestSeller(2L)
-                                .setCommType(TopologyDTO.CommodityType
+                                .addFailedResources(FailedResources.newBuilder()
+                                        .setCommType(TopologyDTO.CommodityType
                                         .newBuilder().setType(CommodityType.MEM_PROVISIONED_VALUE))
-                                .setMaxQuantityAvailable(1000)
-                                .setRequestedQuantity(1200))
+                                .setMaxAvailable(1000)
+                                .setRequestedAmount(1200)))
                         .addPlacementInfo(PlacementInfo.newBuilder()
                                 .addCommodityBought(cpuProvisionedCommodityBoughtDTO)
                                 .addCommodityBought(memProvisionedCommodityBoughtDTO)

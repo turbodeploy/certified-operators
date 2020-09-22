@@ -46,7 +46,7 @@ public class ReservationProtoUtil {
                     }
                 }
                 if (clearFailureInfo) {
-                    updatedReservationInstance.clearFailureInfo();
+                    updatedReservationInstance.clearUnplacedReason();
                 }
                 updatedReservationTemplate.addReservationInstance(updatedReservationInstance);
             }

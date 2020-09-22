@@ -4,7 +4,6 @@ package market;
 
 option java_package = "com.vmturbo.common.protobuf.market";
 
-import "plan/ReservationDTO.proto";
 import "topology/TopologyDTO.proto";
 
 message FindInitialPlacementRequest {
@@ -47,7 +46,7 @@ message InitialPlacementSuccess {
 }
 
 message InitialPlacementFailure {
-    repeated .plan.InitialPlacementFailureInfo failure_info = 1;
+    repeated .topology.TopologyEntityDTO.UnplacementReason unplaced_reason = 1;
 }
 
 message FindInitialPlacementResponse {
