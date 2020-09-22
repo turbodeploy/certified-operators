@@ -229,8 +229,8 @@ public class ReservedInstanceCoverageUpdate {
                         undiscoveredAccountCoverageList.stream()
                                 .map(AccountRICoverageUpload::getAccountId)
                                 .collect(toList()));
-                accountRIMappingStore.updateAccountRICoverageMappings(undiscoveredAccountCoverageList);
             }
+            accountRIMappingStore.updateAccountRICoverageMappings(undiscoveredAccountCoverageList);
         } else {
             logger.warn("No per-Account RI Coverage mapping records found in cache for topology {}",
                     topologyId);
