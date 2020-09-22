@@ -48,7 +48,10 @@ import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.RangeBa
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.RatioBasedResourceDependency;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.CostUnavailableQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InfiniteDependentComputeCommodityQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.InsufficientCapacityQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.InsufficientCommodity;
 import com.vmturbo.platform.analysis.utilities.Quote.LicenseUnavailableQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
@@ -161,7 +164,8 @@ public class CostFunctionFactory {
         Basket basket = sl.getBasket();
         final double[] quantities = sl.getQuantities();
         List<CommoditySold> commsSold = seller.getCommoditiesSold();
-        final CommodityQuote quote = new CommodityQuote(seller);
+        List<InsufficientCommodity> insufficientCommodities = new ArrayList<>();
+
 
         for (int soldIndex = 0; boughtIndex < basket.size();
                         boughtIndex++, soldIndex++) {
@@ -181,11 +185,14 @@ public class CostFunctionFactory {
             if (quantities[boughtIndex] > soldCapacity) {
                 logMessagesForSellerCapacityValidation(sl, seller, quantities[boughtIndex],
                     basketCommSpec, soldCapacity);
-                quote.addCostToQuote(Double.POSITIVE_INFINITY, soldCapacity, basketCommSpec);
+                insufficientCommodities.add(new InsufficientCommodity(basketCommSpec, soldCapacity));
             }
         }
-
-        return quote;
+        if (insufficientCommodities.isEmpty()) {
+            return new CommodityQuote(seller);
+        } else {
+            return new InsufficientCapacityQuote(seller, sl.getBasket().size(), insufficientCommodities);
+        }
     }
 
     /**
@@ -237,8 +244,9 @@ public class CostFunctionFactory {
                         comm1BoughtIndex, comm2BoughtIndex, comm1BoughtQuantity, comm2BoughtQuantity,
                         comm1SoldIndex, comm1SoldCapacity);
         return isValid ? CommodityQuote.zero(seller) :
-            new InfiniteDependentComputeCommodityQuote(comm1BoughtIndex, comm2BoughtIndex,
-                comm1SoldCapacity, comm1BoughtQuantity, comm2BoughtQuantity);
+            new InfiniteDependentComputeCommodityQuote(seller, sl.getBasket().get(comm1BoughtIndex),
+                sl.getBasket().get(comm2BoughtIndex), comm1SoldCapacity, comm1BoughtQuantity,
+                comm2BoughtQuantity);
     }
 
     /**
@@ -286,8 +294,7 @@ public class CostFunctionFactory {
                                                               CostTable costTable,
                                                               final int licenseBaseType) {
         long groupFactor = buyer.getGroupFactor();
-        @Nullable final Context buyerContext = buyer.getBuyer().getSettings()
-                .getContext().orElse(null);
+        final Context buyerContext = buyer.getBuyer().getSettings().getContext().get();
         final int licenseCommBoughtIndex = buyer.getBasket().indexOfBaseType(licenseBaseType);
         if (costTable.getAccountIds().isEmpty()) {
             // empty cost table, return infinity to not place entity on this seller
@@ -313,7 +320,9 @@ public class CostFunctionFactory {
                         seller.getDebugInfoNeverUseInCode(),
                         cbtpResourceBundle.getCostTupleListList());
             }
-            return new CommodityCloudQuote(seller, Double.POSITIVE_INFINITY, null, null, null);
+            return new CostUnavailableQuote(seller, buyerContext.getRegionId(),
+                    buyerContext.getBalanceAccount().getId(),
+                    buyerContext.getBalanceAccount().getPriceId());
         }
 
         Trader destTP = findMatchingTpForCalculatingCost(economy, seller, buyer);
@@ -534,11 +543,6 @@ public class CostFunctionFactory {
             final @Nonnull CbtpCostDTO cbtpCostDTO,
             final @Nonnull CostTable costTable,
             final int licenseTypeKey) {
-        if (buyerContext == null) {
-            // on prem entities has no context, iterating all ba and region to get cheapest cost
-            return getCheapestTuple(costTable, licenseTypeKey);
-        }
-
         final BalanceAccount balanceAccount = buyerContext.getBalanceAccount();
         final long priceId = balanceAccount.getPriceId();
         final long regionId = buyerContext.getRegionId();
@@ -600,7 +604,7 @@ public class CostFunctionFactory {
         final long groupFactor = sl.getGroupFactor();
         final Optional<Context> optionalContext = sl.getBuyer().getSettings().getContext();
         if (!optionalContext.isPresent()) {
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+            return new CostUnavailableQuote(seller, null, null, null);
         }
         final Context context = optionalContext.get();
         final long regionIdBought = context.getRegionId();
@@ -609,7 +613,7 @@ public class CostFunctionFactory {
             logger.warn("Business account is not found on seller: {}, for shopping list: {}, return " +
                             "infinity compute quote", seller.getDebugInfoNeverUseInCode(),
                     sl.getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+            return new CostUnavailableQuote(seller, regionIdBought, null, null);
         }
         final long accountId = costTable.hasAccountId(balanceAccount.getPriceId()) ?
                 balanceAccount.getPriceId() : balanceAccount.getId();
@@ -618,7 +622,8 @@ public class CostFunctionFactory {
             logger.warn("Business account id {} is not found on seller: {}, for shopping list: {}, "
                             + "return infinity compute quote", accountId,
                     seller.getDebugInfoNeverUseInCode(), sl.getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+            return new CostUnavailableQuote(seller, regionIdBought, balanceAccount.getId(),
+                    balanceAccount.getPriceId());
         }
 
         final int licenseTypeKey;
@@ -636,8 +641,10 @@ public class CostFunctionFactory {
             // quote rather than looking up the cheapest region as we don't want to support inter-region
             // moves.
             logger.debug("Cost for region {} and license key {} not found in seller {}. Returning infinite"
-                    + " cost for this template.", regionIdBought, licenseTypeKey, sl.getDebugInfoNeverUseInCode());
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+                    + " cost for this template.", regionIdBought, licenseTypeKey,
+                    sl.getDebugInfoNeverUseInCode());
+            return new CostUnavailableQuote(seller, regionIdBought, balanceAccount.getId(),
+                    balanceAccount.getPriceId());
         }
 
         final Long regionId = costTuple.getRegionId();

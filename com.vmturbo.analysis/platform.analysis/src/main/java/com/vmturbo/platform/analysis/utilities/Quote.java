@@ -2,14 +2,17 @@ package com.vmturbo.platform.analysis.utilities;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
+
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,6 +27,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CoverageEntry;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.CapacityLimitation;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.RatioBasedResourceDependency;
+import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation.CommodityBundle;
 
 /**
  * A {@link Quote} is the output of running a {@link com.vmturbo.platform.analysis.pricefunction.QuoteFunction}
@@ -223,6 +227,10 @@ public abstract class Quote {
      *
      * All finite quotes should have a rank of zero. This number should never exceed {@link Quote#MAX_RANK}.
      *
+     * An infinite quote coming from commodities would be more informative than an infinite quote
+     * coming from non commodity reasons. Thus the rank is typically lower in the commodity related
+     * infinite quote.
+     *
      * @return The rank of the quote. Prefer quotes with lower ranks to quotes with higher ranks.
      */
     public abstract int getRank();
@@ -238,7 +246,7 @@ public abstract class Quote {
      *
      * @return An explanation for the quote.
      */
-    public abstract String getExplanation(@Nonnull final ShoppingList shoppingList);
+    public abstract Optional<InfiniteQuoteExplanation> getExplanation(@Nonnull ShoppingList shoppingList);
 
     /**
      * A {@link MutableQuote} is a {@link Quote} that allows mutation of its
@@ -400,6 +408,29 @@ public abstract class Quote {
         public @Nonnull List<CommodityContext> getCommodityContexts() {
             return commodityContexts == null ? Collections.emptyList() : commodityContexts;
         }
+
+        @Override
+        public int getRank() {
+            // Typically CommodityCloudQuote does not have an infinite quote. If it does, find
+            // whether the infinity comes from commodities. Otherwise, assign it with a high rank
+            // to lower the priority for use it as the explanation.
+            return !getInsufficientCommodities().isEmpty() ? getInsufficientCommodities().size()
+                    : MAX_RANK;
+        }
+
+        @Override
+        public Optional<InfiniteQuoteExplanation> getExplanation(@Nonnull final ShoppingList shoppingList) {
+            if (!getInsufficientCommodities().isEmpty()) {
+                return super.getExplanation(shoppingList);
+            } else if (Double.isInfinite(getQuoteValue())) {
+                // There is not much information available when the infinite quote value is not
+                // commodity related.
+                return Optional.of(new InfiniteQuoteExplanation(false, new HashSet<>(),
+                        Optional.empty(), Optional.of((getSeller().getType()))));
+            } else { // No insufficient commodity and quote is finite, no need to explain
+                return Optional.empty();
+            }
+        }
     }
 
     /**
@@ -418,8 +449,10 @@ public abstract class Quote {
         }
 
         @Override
-        public String getExplanation(@Nonnull ShoppingList shoppingList) {
-            return "no quote generated";
+        public Optional<InfiniteQuoteExplanation> getExplanation(@Nonnull ShoppingList shoppingList) {
+            // InitialInfiniteQuote is created initially. It is unlikely to be used as an explanation.
+            return Optional.of(new InfiniteQuoteExplanation(false, new HashSet<>(), Optional.empty(),
+                    Optional.empty()));
         }
     }
 
@@ -484,14 +517,19 @@ public abstract class Quote {
          * {@inheritDoc}
          */
         @Override
-        public String getExplanation(@Nonnull final ShoppingList shoppingList) {
+        public Optional<InfiniteQuoteExplanation> getExplanation(@Nonnull final ShoppingList shoppingList) {
             if (getInsufficientCommodityCount() > 0) {
-                return getInsufficientCommodities().stream()
-                    .map(commodity -> insufficientCommodityString(commodity, shoppingList))
-                    .collect(Collectors.joining(", and ")) +
-                    (getSeller() == null ? "" :  " on seller " + getSeller());
+                Set<CommodityBundle> commodities = new HashSet<>();
+                getInsufficientCommodities().stream().forEach(c -> {
+                    int index = shoppingList.getBasket().indexOf(c.commodity);
+                    commodities.add(new CommodityBundle(c.commodity, index == -1 ? 0
+                            : shoppingList.getQuantity(index), Optional.of(c.availableQuantity)));
+                });
+                return Optional.of(new InfiniteQuoteExplanation(false, commodities,
+                        getSeller() == null ? Optional.empty() : Optional.of(getSeller()),
+                        getSeller() == null ? Optional.empty() : Optional.of(getSeller().getType())));
             } else {
-                return "Unexplained infinite quote";
+                return Optional.empty();
             }
         }
 
@@ -588,24 +626,63 @@ public abstract class Quote {
             return quoteValues[0];
         }
 
+    }
+
+    /**
+     * A {@link InsufficientCapacityQuote} is generated when the capacity is enough.
+     */
+    public static class InsufficientCapacityQuote extends MutableQuote {
         /**
-         * Get an explanation string for a particular insufficient commodity.
-         *
-         * @param insufficientCommodity The {@link InsufficientCommodity} whose values should be explained.
-         * @param shoppingList The {@link ShoppingList} associated with this quote.
-         * @return A string explaining the insufficient commodity with respect to the {@link ShoppingList}.
+         * The commodity specification which does not have enough capacity.
          */
-        private String insufficientCommodityString(@Nonnull final InsufficientCommodity insufficientCommodity,
-                                                   @Nonnull final ShoppingList shoppingList) {
-            final CommoditySpecification commodity = insufficientCommodity.commodity;
-            if (seller == null) {
-                return "no available seller for commodity " + commodity.getDebugInfoNeverUseInCode();
+        private final List<InsufficientCommodity> insufficientCapacityCommodities;
+        /**
+         * The number of commodities asked by the shopping list.
+         */
+        private final int slCommoditySize;
+
+        /**
+         * Constructor.
+         * @param seller the seller associated with quote.
+         * @param slCommoditySize the number of commodities asked by the shopping list.
+         * @param insufficientCapacityCommodities the list of commodities that are insufficient.
+         */
+        public InsufficientCapacityQuote(@Nullable Trader seller, final int slCommoditySize,
+                @Nonnull final List<InsufficientCommodity> insufficientCapacityCommodities) {
+            super(seller, Double.POSITIVE_INFINITY);
+            this.slCommoditySize = slCommoditySize;
+            this.insufficientCapacityCommodities = insufficientCapacityCommodities;
+        }
+
+        // Typically the insufficient capacity on the cloud seller should have low priority when
+        // comparing with other type of quote such as InfiniteDependentResourcePairQuote. Because
+        // storage tiers with higher capacity typically has the dependency constraint, and we should
+        // try to explain the unplaced sl with tiers having higher capacity.
+        @Override
+        public int getRank() {
+            // we try to maintain the rank at a relative high level, close to MAX_RANK, at the same
+            // time the more insufficient comm, the higher rank, thus the less possible to choose
+            // it as the best explanation.
+            return MAX_RANK - (slCommoditySize - insufficientCapacityCommodities.size());
+        }
+
+        @Override
+        public Optional<InfiniteQuoteExplanation> getExplanation(@Nonnull final ShoppingList shoppingList) {
+            if (insufficientCapacityCommodities.size() > 0) {
+                Set<CommodityBundle> commodities = new HashSet<>();
+                insufficientCapacityCommodities.stream().forEach(c -> {
+                    int index = shoppingList.getBasket().indexOf(c.commodity);
+                    commodities.add(new CommodityBundle(c.commodity, index == -1 ? 0
+                            : shoppingList.getQuantity(index), Optional.of(c.availableQuantity)));
+                });
+                return Optional.of(new InfiniteQuoteExplanation(false, commodities,
+                        getSeller() == null ? Optional.empty() : Optional.of(getSeller()),
+                        getSeller() == null ? Optional.empty() : Optional.of(getSeller().getType())));
             } else {
-                return commodity.getDebugInfoNeverUseInCode() + " ("
-                    + shoppingList.getQuantities()[shoppingList.getBasket().indexOf(commodity)] + "/"
-                    + insufficientCommodity.availableQuantity + ")";
+                return Optional.empty();
             }
         }
+
     }
 
     /**
@@ -628,15 +705,20 @@ public abstract class Quote {
             this.licenseCommodity = licenseCommodity;
         }
 
+        // The LicenseUnavailableQuote is due to a missing price in the seller, thus assign it with
+        // a same rank as CostUnavailableQuote.
         @Override
         public int getRank() {
             return MAX_RANK;
         }
 
         @Override
-        public String getExplanation(@Nonnull final ShoppingList shoppingList) {
-            return "License " + licenseCommodity.getDebugInfoNeverUseInCode() + " unavailable";
+        public Optional<InfiniteQuoteExplanation> getExplanation(@Nonnull final ShoppingList shoppingList) {
+            return Optional.of(new InfiniteQuoteExplanation(false,
+                    Sets.newHashSet(new CommodityBundle(licenseCommodity, 1, Optional.empty())),
+                    Optional.empty(), Optional.of(getSeller().getType())));
         }
+
     }
 
     /**
@@ -650,14 +732,16 @@ public abstract class Quote {
         /**
          * Create a new {@link InfiniteBelowMinAboveMaxCapacityLimitationQuote}.
          *
+         * @param seller The seller associated with this quote.
          * @param commoditySpecification commodity.
          * @param capacityLimitation capacityLimitation for the commodity.
          * @param commodityQuantity commodity quantity.
          */
-        public InfiniteBelowMinAboveMaxCapacityLimitationQuote(@Nonnull final CommoditySpecification commoditySpecification,
+        public InfiniteBelowMinAboveMaxCapacityLimitationQuote(@Nonnull final Trader seller,
+                                                               @Nonnull final CommoditySpecification commoditySpecification,
                                                                @Nonnull final CapacityLimitation capacityLimitation,
                                                                final double commodityQuantity) {
-            super(null, Double.POSITIVE_INFINITY);
+            super(seller, Double.POSITIVE_INFINITY);
             this.commoditySpecification = Objects.requireNonNull(commoditySpecification);
             this.capacityLimitation = Objects.requireNonNull(capacityLimitation);
             this.commodityQuantity = commodityQuantity;
@@ -676,10 +760,11 @@ public abstract class Quote {
         }
 
         @Override
-        public String getExplanation(@Nonnull final ShoppingList shoppingList) {
-            return "Commodity " + commoditySpecification.getDebugInfoNeverUseInCode() + " with quantity "
-                    + commodityQuantity + " can't meet capacity limitation, where min is " + capacityLimitation.getMinCapacity()
-                    + ", and max is " + capacityLimitation.getMaxCapacity();
+        public Optional<InfiniteQuoteExplanation> getExplanation(@Nonnull final ShoppingList shoppingList) {
+            return Optional.of(new InfiniteQuoteExplanation(false,
+                    Sets.newHashSet(new CommodityBundle(commoditySpecification,
+                            commodityQuantity, Optional.of(capacityLimitation.getMaxCapacity()))), Optional.empty(),
+                    Optional.of(getSeller().getType())));
         }
     }
 
@@ -695,15 +780,16 @@ public abstract class Quote {
         /**
          * Create a new {@link InfiniteRatioBasedResourceDependencyQuote}.
          *
+         * @param seller the seller associated with this quote.
          * @param dependentResourcePair The {@link RatioBasedResourceDependency} whose requirement cannot be met.
          * @param baseCommodityQuantity The quantity of the base commodity in the dependent pair.
          * @param dependentCommodityQuantity The quantity of the dependent commodity in the pair.
          */
-        public InfiniteRatioBasedResourceDependencyQuote(@Nonnull final RatioBasedResourceDependency dependentResourcePair,
+        public InfiniteRatioBasedResourceDependencyQuote(@Nonnull final Trader seller,
+                                                         @Nonnull final RatioBasedResourceDependency dependentResourcePair,
                                                          final double baseCommodityQuantity,
                                                          final double dependentCommodityQuantity) {
-            super(null, Double.POSITIVE_INFINITY);
-
+            super(seller, Double.POSITIVE_INFINITY);
             this.dependentResourcePair = Objects.requireNonNull(dependentResourcePair);
             this.baseCommodityQuantity = baseCommodityQuantity;
             this.dependentCommodityQuantity = dependentCommodityQuantity;
@@ -711,21 +797,21 @@ public abstract class Quote {
 
         @Override
         public int getRank() {
-            // (diff / quantity) * MAX_RANK, where diff is the distance of dependentCommodityQuantity
-            // from the restricted value by constraint. With larger diff, rank is higher.
+            // diff / quantity * MAX_RANK, where diff is the distance of dependentCommodityQuantity
+            // from the restricted value by constraint. With smaller diff, rank is lower.
             final double restrictedDependentQuantity = dependentResourcePair.getMaxRatio() * baseCommodityQuantity;
             return (int)(Math.abs(dependentCommodityQuantity
-                    - restrictedDependentQuantity) / dependentCommodityQuantity) * MAX_RANK;
+                    - restrictedDependentQuantity) / dependentCommodityQuantity * MAX_RANK);
         }
 
         @Override
-        public String getExplanation(@Nonnull final ShoppingList shoppingList) {
-            return "Dependent commodity "
-                + dependentResourcePair.getDependentCommodity().getDebugInfoNeverUseInCode() + " ("
-                + dependentCommodityQuantity + ") exceeds base commodity "
-                + dependentResourcePair.getBaseCommodity().getDebugInfoNeverUseInCode() + " ("
-                + baseCommodityQuantity + ") [maxRatio=" + dependentResourcePair.getMaxRatio() + "]";
+        public Optional<InfiniteQuoteExplanation> getExplanation(@Nonnull final ShoppingList shoppingList) {
+            return Optional.of(new InfiniteQuoteExplanation(false,
+                    Sets.newHashSet(new CommodityBundle(dependentResourcePair.getDependentCommodity(),
+                            dependentCommodityQuantity,  Optional.empty())), Optional.empty(),
+                    Optional.of(getSeller().getType())));
         }
+
     }
 
     /**
@@ -742,18 +828,20 @@ public abstract class Quote {
         /**
          * Create a new {@link InfiniteRangeBasedResourceDependencyQuote}.
          *
+         * @param seller The seller associated with this quote.
          * @param baseCommodityType base commodity type.
          * @param dependentCommodityType dependent commodity type.
          * @param dependentCommodityCapacity The capacity of the dependent commodity in the dependent pair.
          * @param baseCommodityQuantity The quantity of the base commodity in the pair.
          * @param dependentCommodityQuantity The quantity of the dependent commodity in the pair.
          */
-        public InfiniteRangeBasedResourceDependencyQuote(@Nonnull final CommoditySpecification baseCommodityType,
-                                                            @Nonnull final CommoditySpecification dependentCommodityType,
-                                                            @Nullable Double dependentCommodityCapacity,
-                                                            @Nullable Double baseCommodityQuantity,
-                                                            @Nullable Double dependentCommodityQuantity) {
-            super(null, Double.POSITIVE_INFINITY);
+        public InfiniteRangeBasedResourceDependencyQuote(@Nonnull final Trader seller,
+                                                         @Nonnull final CommoditySpecification baseCommodityType,
+                                                         @Nonnull final CommoditySpecification dependentCommodityType,
+                                                         @Nullable Double dependentCommodityCapacity,
+                                                         @Nullable Double baseCommodityQuantity,
+                                                         @Nullable Double dependentCommodityQuantity) {
+            super(seller, Double.POSITIVE_INFINITY);
 
             this.baseCommodityType = Objects.requireNonNull(baseCommodityType);
             this.dependentCommodityType = Objects.requireNonNull(dependentCommodityType);
@@ -771,11 +859,11 @@ public abstract class Quote {
         }
 
         @Override
-        public String getExplanation(@Nonnull final ShoppingList shoppingList) {
-            return "Dependent commodity " + dependentCommodityType.getDebugInfoNeverUseInCode() + " ("
-                    + dependentCommodityQuantity + ") exceeds ranged capacity (" + dependentCommodityCapacity
-                    + "), with base commodity " + baseCommodityType.getDebugInfoNeverUseInCode()
-                    + " (" + baseCommodityQuantity + ").";
+        public Optional<InfiniteQuoteExplanation> getExplanation(@Nonnull final ShoppingList shoppingList) {
+            return Optional.of(new InfiniteQuoteExplanation(false,
+                    Sets.newHashSet(new CommodityBundle(dependentCommodityType,
+                            dependentCommodityQuantity,  Optional.of(dependentCommodityCapacity))), Optional.empty(),
+                    Optional.of(getSeller().getType())));
         }
     }
 
@@ -784,8 +872,8 @@ public abstract class Quote {
      * due to a dependent resource requirement that cannot be met.
      */
     public static class InfiniteDependentComputeCommodityQuote extends MutableQuote {
-        private final int comm1BoughtIndex;
-        private final int comm2BoughtIndex;
+        private final CommoditySpecification comm1Type;
+        private final CommoditySpecification comm2Type;
 
         private final double comm1SoldCapacity;
         private final double comm1BoughtQuantity;
@@ -795,21 +883,23 @@ public abstract class Quote {
          * Create a new {@link InfiniteDependentComputeCommodityQuote} which describes an infinite {@link Quote}
          * due to a dependent resource requirement that cannot be met.
          *
-         * @param comm1BoughtIndex The index of the first commodity bought in the dependent pair.
-         * @param comm2BoughtIndex The index of the second commodity bought in the dependent pair.
+         * @param seller The seller associated with this quote.
+         * @param comm1Type The commodity specification of the first commodity bought in the dependent pair.
+         * @param comm2Type The commodity specification of the second commodity bought in the dependent pair.
          * @param comm1SoldCapacity The sold capacity of the first commodity.
          * @param comm1BoughtQuantity The quantity of the first commodity bought.
          * @param comm2BoughtQuantity The quantity of the second commodity bought.
          */
-        public InfiniteDependentComputeCommodityQuote(final int comm1BoughtIndex,
-                                                      final int comm2BoughtIndex,
+        public InfiniteDependentComputeCommodityQuote(final Trader seller,
+                                                      final CommoditySpecification comm1Type,
+                                                      final CommoditySpecification comm2Type,
                                                       final double comm1SoldCapacity,
                                                       final double comm1BoughtQuantity,
                                                       final double comm2BoughtQuantity) {
-            super(null, Double.POSITIVE_INFINITY);
+            super(seller, Double.POSITIVE_INFINITY);
 
-            this.comm1BoughtIndex = comm1BoughtIndex;
-            this.comm2BoughtIndex = comm2BoughtIndex;
+            this.comm1Type = comm1Type;
+            this.comm2Type = comm2Type;
             this.comm1SoldCapacity = comm1SoldCapacity;
             this.comm1BoughtQuantity = comm1BoughtQuantity;
             this.comm2BoughtQuantity = comm2BoughtQuantity;
@@ -817,32 +907,120 @@ public abstract class Quote {
 
         @Override
         public int getRank() {
-            return MAX_RANK;
+            return (int)(Math.abs(comm1BoughtQuantity + comm2BoughtQuantity - comm1SoldCapacity)
+                    / comm1SoldCapacity * Quote.MAX_RANK);
         }
 
         @Override
-        public String getExplanation(@Nonnull final ShoppingList shoppingList) {
-            return "Dependent compute commodities " + specNameFor(shoppingList, comm1BoughtIndex) + " and "
-                + specNameFor(shoppingList, comm2BoughtIndex) + " sum (" + comm1BoughtQuantity + " + "
-                + comm2BoughtQuantity + " = " + (comm1BoughtQuantity + comm2BoughtQuantity)
-                + ") exceeds capacity " + comm1SoldCapacity;
+        public Optional<InfiniteQuoteExplanation> getExplanation(@Nonnull final ShoppingList shoppingList) {
+            Set<CommodityBundle> commBundles = new HashSet<>();
+            commBundles.add(new CommodityBundle(comm1Type, comm1BoughtQuantity, Optional.empty()));
+            commBundles.add(new CommodityBundle(comm2Type, comm2BoughtQuantity, Optional.empty()));
+            return Optional.of(new InfiniteQuoteExplanation(false, commBundles, Optional.empty(),
+                    Optional.of(getSeller().getType())));
         }
 
         /**
-         * Get the debug info of the commodity specification for a given index.
+         * Returns the first commodity's specification in the dependency constraint.
          *
-         * @param shoppingList The shopping list whose basket the specification should be retrieved from.
-         * @param commoditySpecificationIndex The index of the specification to retrieve.
-         * @return The {@link CommoditySpecification} at the given index. If the index is less than
-         *         zero, returns null.
+         * @return first commodity's specification
          */
-        @Nullable
-        private String specNameFor(@Nonnull final ShoppingList shoppingList,
-                                                   final int commoditySpecificationIndex) {
-            return commoditySpecificationIndex >= 0 ?
-                shoppingList.getBasket().get(commoditySpecificationIndex)
-                    .getDebugInfoNeverUseInCode() :
-                null;
+        public CommoditySpecification getComm1Specification() {
+            return comm1Type;
+        }
+
+        /**
+         * Returns the second commodity's specification in the dependency constraint.
+         *
+         * @return second commodity's specification
+         */
+        public CommoditySpecification getComm2Specification() {
+            return comm2Type;
+        }
+
+        /**
+         * Returns the first commodity's requested amount.
+         *
+         * @return first commodity's requested amount
+         */
+        public double getComm1Quantity() {
+            return comm1BoughtQuantity;
+        }
+
+        /**
+         * Returns the second commodity's requested amount.
+         *
+         * @return second commodity's requested amount
+         */
+        public double getComm2Quantity() {
+            return comm2BoughtQuantity;
+        }
+    }
+
+    /**
+     * A {@link Quote} object with infinity quote value. The infinity is usually due to price missing.
+     *
+     */
+    public static class CostUnavailableQuote extends MutableQuote {
+
+        private Long regionId;
+        private Long baId;
+        private Long priceId;
+
+        /**
+         * Constructor.
+         *
+         * @param seller The seller associated with quote.
+         * @param regionId The region id where cost is unavailable.
+         * @param baId The business account id where cost is unavailable.
+         * @param priceId The price id where cost is unavailable.
+         */
+        public CostUnavailableQuote(final Trader seller, final Long regionId,
+                                    final Long baId, final Long priceId) {
+            super(seller, Double.POSITIVE_INFINITY, 0, 0);
+            this.regionId = regionId;
+            this.baId = baId;
+            this.priceId = priceId;
+        }
+
+        // The CostUnavailableQuote has a high rank, thus it is the last option to be used as
+        // an explanation.
+        @Override
+        public int getRank() {
+            return MAX_RANK;
+        }
+
+        /**
+         * Returns the region id where cost is not present.
+         *
+         * @return The region id.
+         */
+        public Long getRegionId() {
+           return regionId;
+        }
+
+        /**
+         * Returns the business account id where cost is not present.
+         *
+         * @return The business account id.
+         */
+        public Long getBusinessAccountId() {
+            return baId;
+        }
+
+        /**
+         * Returns the price id where cost is not present.
+         *
+         * @return The price id.
+         */
+        public Long getPriceId() {
+            return priceId;
+        }
+
+        @Override
+        public Optional<InfiniteQuoteExplanation> getExplanation(ShoppingList shoppingList) {
+            return Optional.of(new InfiniteQuoteExplanation(true, new HashSet<>(), Optional.empty(),
+                    Optional.of(getSeller().getType())));
         }
     }
 

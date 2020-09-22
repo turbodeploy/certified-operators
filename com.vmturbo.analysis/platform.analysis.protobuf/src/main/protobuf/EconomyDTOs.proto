@@ -213,7 +213,7 @@ message TraderTO {
     optional bool preferentialPlacement = 14 [default = false];
 
     // This field specifies the cause for the trader to be unplaced
-    optional string unplacedExplanation = 15;
+    optional string unplacedExplanation = 15 [deprecated = true];
 
     // Associated scaling group, if any
     optional string scalingGroupId = 16;

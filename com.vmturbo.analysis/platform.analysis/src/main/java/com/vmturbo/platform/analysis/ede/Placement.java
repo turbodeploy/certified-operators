@@ -1,8 +1,10 @@
 package com.vmturbo.platform.analysis.ede;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map.Entry;
@@ -39,6 +41,7 @@ import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
 import com.vmturbo.platform.analysis.utilities.Quote;
 import com.vmturbo.platform.analysis.utilities.QuoteCache;
+import com.vmturbo.platform.analysis.utilities.QuoteTracker;
 
 /**
  * Contains static methods related to optimizing the placement of {@link Trader}s in an
@@ -257,10 +260,8 @@ public class Placement {
             return PlacementResults.empty();
         }
         if (economy.getMarket(shoppingList).getActiveSellers().isEmpty()) {
-            final PlacementResults results = PlacementResults.forSingleAction(
-                new Reconfigure(economy, shoppingList).take().setImportance(Double.POSITIVE_INFINITY));
-            // To prevent regeneration of duplicate reconfigure actions
-            shoppingList.setMovable(false);
+            PlacementResults results = PlacementResults.empty();
+            createReconfigureForEmptySeller(economy, shoppingList, results);
             return results;
         }
 
@@ -334,6 +335,20 @@ public class Placement {
                 cheapestSeller, minimizer.getBestQuote().getContext(),
                 minimizer.getBestQuote().getCommodityContexts());
             placementResults.addAction(move.take().setImportance(savings));
+            // if the shoppinglist was unplaced before, now with a move action, it should be placed.
+            Collection<QuoteTracker> trackers = placementResults.getInfinityQuoteTraders().get(buyer);
+            Set<QuoteTracker> trackersToBeRemove = new HashSet<>();
+            if (trackers != null && !trackers.isEmpty()) {
+                for (QuoteTracker tracker : trackers) {
+                    if (tracker.getShoppingList().equals(shoppingList)) {
+                        trackersToBeRemove.add(tracker);
+                    }
+                }
+                trackers.removeAll(trackersToBeRemove);
+                if (trackers.isEmpty()) {
+                    placementResults.getInfinityQuoteTraders().remove(buyer);
+                }
+            }
             if (economy.getSettings().isUseExpenseMetricForTermination()) {
                 Market myMarket = economy.getMarket(shoppingList);
                 double placementSavings = myMarket.getPlacementSavings() + savings;
@@ -348,6 +363,11 @@ public class Placement {
                         + " Basket " + shoppingList.getBasket());
                 }
             }
+        }
+        // add buyers that has infinity as the best quote to unplacedTraders of placementResults
+        if (Double.isInfinite(minimizer.getBestQuote().getQuoteValue())) {
+            placementResults.addInfinityQuoteTraders(shoppingList.getBuyer(),
+                Arrays.asList(minimizer.getQuoteTracker()));
         }
         return placementResults;
     }
@@ -446,11 +466,7 @@ public class Placement {
                     // Since the shopping list can be in multiple entries in this loop,
                     // we need to check whether a Reconfigure was already generated for
                     // this list.
-                    placementResults.addAction(new Reconfigure(economy, sl).take()
-                        .setImportance(Double.POSITIVE_INFINITY));
-                    // Set movable to false to prevent generating further reconfigures
-                    // for this shopping list
-                    sl.setMovable(false);
+                    createReconfigureForEmptySeller(economy, sl, placementResults);
                 }
             }
             if (generatedReconfigure) {
@@ -459,16 +475,43 @@ public class Placement {
 
             CliqueMinimizer minimizer = computeBestQuote(economy, buyingTrader);
             // If the best suppliers are not current ones, move shopping lists to best places
-            placementResults.addActions(checkAndGenerateCompoundMoveActions(economy,
-                buyingTrader, minimizer));
+            List<Action> generatedActions = checkAndGenerateCompoundMoveActions(economy,
+                    buyingTrader, minimizer);
+            placementResults.addActions(generatedActions);
+            // remove buying trader from unplacedTrader map as it now has placement actions.
+            if (!generatedActions.isEmpty()) {
+                placementResults.getInfinityQuoteTraders().remove(buyingTrader);
+            }
 
-            // Add explanations for unplaced traders.
-            if (minimizer != null && Double.isInfinite(minimizer.getBestTotalQuote())) {
-                placementResults.addUnplacedTraders(buyingTrader,
-                    minimizer.getInfiniteQuoteTrackers().values());
+            if (minimizer == null) {
+                economy.moveableSlByMarket(buyingTrader).forEach(e -> {
+                    createReconfigureForEmptySeller(economy, e.getKey(), placementResults);
+                });
+                continue;
+            } else if (Double.isInfinite(minimizer.getBestTotalQuote())) {
+                // Add trader with best quote infinity to unplacedTraders of placementResults
+                placementResults.addInfinityQuoteTraders(buyingTrader, minimizer
+                        .getInfiniteQuoteTrackers().values().stream().collect(Collectors.toList()));
             }
         }
         return placementResults;
+    }
+
+    /**
+     * Generate reconfigure actions for a shopping list that can not find any active sellers.
+     *
+     * @param economy The economy.
+     * @param sl The shopping list looking for placement.
+     * @param results {@link PlacementResults}.
+     */
+    public static void createReconfigureForEmptySeller(@NonNull Economy economy,
+                                                       @NonNull ShoppingList sl,
+                                                       @NonNull PlacementResults results) {
+        Reconfigure reconfigure = new Reconfigure(economy, sl).take();
+        results.addAction(reconfigure.setImportance(Double.POSITIVE_INFINITY));
+        // Set movable to false to prevent generating further reconfigures
+        // for this shopping list
+        sl.setMovable(false);
     }
 
     /**
