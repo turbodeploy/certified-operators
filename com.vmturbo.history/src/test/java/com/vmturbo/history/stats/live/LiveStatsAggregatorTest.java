@@ -144,11 +144,12 @@ public class LiveStatsAggregatorTest {
     @Test
     public void testRecords() throws InterruptedException, VmtDbException {
         setupTopologyAndTestPendingBoughtCommodities();
-        // totoal records inserted
+        // totol records inserted
         // 4 PM attribute + 3 PM cpu sold + 2 PM flow sold = 9
         // 3 VM attribute + 2 VM cpu bought + 2 VM flow bought = 7
         // 2 entities * 3 commodities each = 6 market stats records
-        assertEquals(22, (long)dbMock.getTables().stream()
+        // 3 count metrics for non-occurring entity types = 3 market stats records
+        assertEquals(25, (long)dbMock.getTables().stream()
                 .map(dbMock::getRecords)
                 .collect(Collectors.summingInt(Collection::size)));
         // "Produces" attribute records, recording # of sold commodities

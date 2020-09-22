@@ -34,6 +34,7 @@ import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Select;
@@ -41,6 +42,7 @@ import org.jooq.Table;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.PropertyValueFilter;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
@@ -57,29 +59,29 @@ public interface StatsQueryFactory {
     /**
      * Indicate an aggregation style for this query; defined in legacy.
      */
-    enum AGGREGATE {NO_AGG, AVG_ALL, AVG_MIN_MAX}
+    enum AGGREGATE { NO_AGG, AVG_ALL, AVG_MIN_MAX }
 
     /**
      * Create a Jooq conditional clause to filter on entity type if it is present.
      *
      * @param entityType entity types need to filter on.
-     * @param table the DB table from which these stats will be collected
-     * @return an {@link Optional} containing the Jooq condition to filter on entity type.
-     *         an empty {@link Optional} if the table does not contain an entity type field.
+     * @param table      the DB table from which these stats will be collected
+     * @return an {@link Optional} containing the Jooq condition to filter on entity type. an empty
+     * {@link Optional} if the table does not contain an entity type field.
      */
-    Optional<Condition> entityTypeCond(@Nonnull final Set<String> entityType,
-                                       @Nonnull final Table<?> table);
+    Optional<Condition> entityTypeCond(@Nonnull Set<String> entityType,
+            @Nonnull Table<?> table);
 
     /**
      * Create a Jooq conditional clause to filter on environment type if it is present.
      *
      * @param environmentType environment type need to filter on.
-     * @param table the DB table from which these stats will be collected
-     * @return an {@link Optional} containing the Jooq condition to filter on environment type.
-     *         an empty {@link Optional} if the table does not contain an environment type field.
+     * @param table           the DB table from which these stats will be collected
+     * @return an {@link Optional} containing the Jooq condition to filter on environment type. an
+     * empty {@link Optional} if the table does not contain an environment type field.
      */
-    Optional<Condition> environmentTypeCond(@Nonnull final EnvironmentType environmentType,
-                                            @Nonnull final Table<?> table);
+    Optional<Condition> environmentTypeCond(@Nonnull EnvironmentType environmentType,
+            @Nonnull Table<?> table);
 
     /**
      * Formulate a query string for commodities of a given entity.
@@ -97,32 +99,56 @@ public interface StatsQueryFactory {
      * CLUSTER has no Hourly and Latest tables.
      */
     @Nonnull
-    Optional<Select<?>> createStatsQuery(@Nonnull final List<String> entities,
-                                         @Nonnull final Table<?> table,
-                                         @Nonnull final List<CommodityRequest> commodityRequests,
-                                         @Nonnull final TimeRange timeRange,
-                                         @Nonnull final AGGREGATE aggregate);
+    Optional<Select<?>> createStatsQuery(@Nonnull List<String> entities,
+            @Nonnull Table<?> table,
+            @Nonnull List<CommodityRequest> commodityRequests,
+            @Nonnull TimeRange timeRange,
+            @Nonnull AGGREGATE aggregate);
 
     /**
      * Create a Jooq conditional clause to include only the desired commodity names.
      *
-     * If commodityNames is empty, return an empty {@link Optional}
-     * indicating there should be no selection condition on the commodity name. In other words,
-     * all commodities will be returned.
+     * <p>If commodityNames is empty, return an empty {@link Optional}
+     * indicating there should be no selection condition on the commodity name. In other words, all
+     * commodities will be returned.</p>
      *
-     * @param commodityRequests a list of commodity names to include in the result set, and optionally
-     *                          a filter to apply to the commodity row, e.g. "relation==bought";
-     *                          if there are more than commodity requests, then the filters
-     *                          are 'or'ed together; an empty list implies no commodity names
-     *                          filter condition at all, i.e. all commodities will be returned
-     * @param table the DB table from which these stats will be collected
+     * @param commodityRequests a list of commodity names to include in the result set, and
+     *                          optionally a filter to apply to the commodity row, e.g.
+     *                          "relation==bought"; if there are more than commodity requests, then
+     *                          the filters are 'or'ed together; an empty list implies no commodity
+     *                          names filter condition at all, i.e. all commodities will be
+     *                          returned
+     * @param table             the DB table from which these stats will be collected
      * @return an Optional containing a Jooq conditional to only include the desired commodities
-     * with associated filters (if any) 'and'ed in; Optional.empty() if no commodity selection is desired
+     * with associated filters (if any) 'and'ed in; Optional.empty() if no commodity selection is
+     * desired
      */
     @Nonnull
     Optional<Condition> createCommodityRequestsCond(
-            @Nonnull final List<CommodityRequest> commodityRequests,
-            @Nonnull final Table<?> table);
+            @Nonnull List<CommodityRequest> commodityRequests,
+            @Nonnull Table<?> table);
+
+    /**
+     * Creates a jOOQ conditional clause to exclude any count commodity record that is not
+     * explicitly requested and whose value is zero.
+     *
+     * <p>{@link LiveStatsAggregator} causes zero-valued records to be written for count
+     * commodities when the related entity type is wholly missing from the topology, but if the
+     * request doesn't explicitly ask for a given count commodity, we don't want to send back any
+     * such zero records.
+     * </p>
+     *
+     * <p>This scenario only arises when no commodity types are identified in the request, since
+     * otherwise, {@link #createCommodityRequestsCond(List, Table)} will ensure that only explicitly
+     * requested commodity types are included.</p>
+     *
+     * @param statsFilter the filter specified in the request
+     * @param table       the table being queried
+     * @return a conditional to exclude zero records, if needed.
+     */
+    @Nonnull
+    Optional<Condition> createExcludeZeroCountRecordsCond(
+            @Nonnull StatsFilter statsFilter, @Nonnull Table<?> table);
 
     /**
      * The default implementation of {@link StatsQueryFactory} to use in production.
@@ -136,9 +162,16 @@ public interface StatsQueryFactory {
             this.historydbIO = Objects.requireNonNull(historydbIO);
         }
 
+        /**
+         * Create a jOOQ filter that limits retrieval to the given entity types.
+         *
+         * @param entityType entity types need to filter on.
+         * @param table      the DB table from which these stats will be collected
+         * @return condition object
+         */
         @Override
         public Optional<Condition> entityTypeCond(@Nonnull final Set<String> entityType,
-                                                  @Nonnull final Table<?> table) {
+                @Nonnull final Table<?> table) {
             // Only the market stats tables will have an entity type field,
             // but the query factory is used with potentially any stats table.
             // Therefore we need an explicit check for the presence of the field.
@@ -163,10 +196,10 @@ public interface StatsQueryFactory {
         @Override
         @Nonnull
         public Optional<Select<?>> createStatsQuery(@Nonnull final List<String> entities,
-                                                    @Nonnull final Table<?> table,
-                                                    @Nonnull final List<CommodityRequest> commodityRequests,
-                                                    @Nonnull final TimeRange timeRange,
-                                                    @Nonnull final AGGREGATE aggregate) {
+                @Nonnull final Table<?> table,
+                @Nonnull final List<CommodityRequest> commodityRequests,
+                @Nonnull final TimeRange timeRange,
+                @Nonnull final AGGREGATE aggregate) {
             // check there is a table for this entityType and tFrame; and it has a SNAPSHOT_TIME column
             if (table == null || table.field(SNAPSHOT_TIME) == null) {
                 return Optional.empty();
@@ -181,8 +214,8 @@ public interface StatsQueryFactory {
             if (timeRangeCondition != null) {
                 if (timeRange.getLatestPriceIndexTimeStamp().isPresent()) {
                     timeRangeCondition = timeRangeCondition
-                        .or(getTimestampField(table, SNAPSHOT_TIME).eq(timeRange.getLatestPriceIndexTimeStamp().get())
-                            .and(getStringField(table, PROPERTY_TYPE).equal(PRICE_INDEX)));
+                            .or(getTimestampField(table, SNAPSHOT_TIME).eq(timeRange.getLatestPriceIndexTimeStamp().get())
+                                    .and(getStringField(table, PROPERTY_TYPE).equal(PRICE_INDEX)));
                 }
                 logger.debug("table {}, timeRangeCondition: {}", table.getName(), timeRangeCondition);
                 whereConditions.add(timeRangeCondition);
@@ -271,13 +304,13 @@ public interface StatsQueryFactory {
                 Condition commodityTest = DSL.trueCondition();
                 if (commodityRequest.hasCommodityName()) {
                     commodityTest =
-                        commodityTest.and(
-                            JooqUtils.getStringField(table, PROPERTY_TYPE).eq(commodityRequest.getCommodityName()));
+                            commodityTest.and(
+                                    JooqUtils.getStringField(table, PROPERTY_TYPE).eq(commodityRequest.getCommodityName()));
                 }
                 if (commodityRequest.hasRelatedEntityType()
                         && commodityRequest.getRelatedEntityType() != null) {
                     Optional<Condition> entityTypeCond =
-                    entityTypeCond(Collections.singleton(commodityRequest.getRelatedEntityType()), table);
+                            entityTypeCond(Collections.singleton(commodityRequest.getRelatedEntityType()), table);
                     if (entityTypeCond.isPresent()) {
                         commodityTest = commodityTest.and(entityTypeCond.get());
                     }
@@ -297,16 +330,16 @@ public interface StatsQueryFactory {
                             // We only record the environment type in the database for the aggregate
                             // market stats tables.
                             Optional<Condition> envTypeCond =
-                                EnvironmentTypeUtil.fromApiString(propertyValueFilter.getValue())
-                                    .flatMap(envType -> environmentTypeCond(envType, table));
+                                    EnvironmentTypeUtil.fromApiString(propertyValueFilter.getValue())
+                                            .flatMap(envType -> environmentTypeCond(envType, table));
                             if (envTypeCond.isPresent()) {
                                 commodityTest = commodityTest.and(envTypeCond.get());
                             } else {
                                 // For "regular" tables we rely on the API component to only
                                 // target the entities in the proper environment type.
-                                logger.debug("Ignoring environment type filter (value: {}) for " +
-                                    "non-market table {}",
-                                    propertyValueFilter.getValue(), table.getName());
+                                logger.debug("Ignoring environment type filter (value: {}) for "
+                                                + "non-market table {}",
+                                        propertyValueFilter.getValue(), table.getName());
                             }
                             break;
                         default:
@@ -315,10 +348,10 @@ public interface StatsQueryFactory {
                             if (propField != null) {
                                 JooqUtils.checkFieldType(propField.getType(), String.class);
                                 commodityTest = commodityTest.and(
-                                    ((Field<String>)propField).eq(propertyValueFilter.getValue()));
+                                        ((Field<String>)propField).eq(propertyValueFilter.getValue()));
                             } else {
                                 logger.warn("Unhandled stat property filter: {}",
-                                    propertyValueFilter.getProperty());
+                                        propertyValueFilter.getProperty());
                             }
                     }
                 }
@@ -328,6 +361,22 @@ public interface StatsQueryFactory {
                         : commodityTests.or(commodityTest);
             }
             return Optional.of(commodityTests);
+        }
+
+        @NotNull
+        @Override
+        public Optional<Condition> createExcludeZeroCountRecordsCond(
+                @NotNull final StatsFilter statsFilter, @Nonnull final Table<?> table) {
+            if (statsFilter.getCommodityRequestsCount() == 0) {
+                Condition cond = DSL.not(
+                        JooqUtils.getStringField(table, PROPERTY_TYPE)
+                                .in(HistoryStatsUtils.countSEsMetrics.values())
+                                .and(JooqUtils.getDoubleField(table, AVG_VALUE).eq(0.0)));
+                return Optional.of(cond);
+            } else {
+                return Optional.empty();
+            }
+
         }
     }
 }

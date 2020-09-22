@@ -28,13 +28,13 @@ import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Table.Cell;
 
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import it.unimi.dsi.fastutil.objects.Object2DoubleMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
 import org.jooq.Table;
-
-import gnu.trove.map.TIntObjectMap;
-import gnu.trove.map.TObjectDoubleMap;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -47,7 +47,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkInserter;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
@@ -300,10 +299,8 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
     }
 
     /**
-     * Call this after all relevant entities in the topology have been recorded via calls
-     * to .
+     * Call this after all relevant entities in the topology have been recorded via calls to.
      *
-     * @throws VmtDbException       If there is an error interacting with the database.
      * @throws InterruptedException if interrupted
      */
     @Override
@@ -318,7 +315,6 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
      *
      * <p>Note: not batched.</p>
      *
-     * @throws VmtDbException       if there's a DB error writing the market_stats_latest table.
      * @throws InterruptedException if interrupted
      */
     @VisibleForTesting
@@ -359,8 +355,8 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
             final int intCommodityType = commoditySoldDTO.getCommodityType().getType();
             // do not persist commodity if it is not active, but we want to persist some special
             // inactive commodities like Swapping and Ballooning
-            if (!commoditySoldDTO.getActive() &&
-                    !INACTIVE_COMMODITIES_TO_PERSIST.contains(intCommodityType)) {
+            if (!commoditySoldDTO.getActive()
+                    && !INACTIVE_COMMODITIES_TO_PERSIST.contains(intCommodityType)) {
                 logger.debug("Skipping inactive sold commodity type {}", intCommodityType);
                 continue;
             }
@@ -452,15 +448,15 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
             }
         }
         formInsertOrUpdateQueries(entityId,
-                                  providerId,
-                                  commodityKey,
-                                  capacity,
-                                  commodityTypeId,
-                                  tableBuilder.build().cellSet());
+                providerId,
+                commodityKey,
+                capacity,
+                commodityTypeId,
+                tableBuilder.build().cellSet());
     }
 
-    private void formInsertOrUpdateQueries(@Nonnull long entityId, @Nullable Long providerId,
-            @Nullable String commodityKey, double capacity, @Nonnull int commodityTypeId,
+    private void formInsertOrUpdateQueries(long entityId, @Nullable Long providerId,
+            @Nullable String commodityKey, double capacity, int commodityTypeId,
             @Nonnull Collection<Cell<HistoryUtilizationType, Integer, BigDecimal>> cells)
             throws InterruptedException {
         final Long providerIdValue = providerId == null ? DEFAULT_VALUE_PROVIDER_ID : providerId;
@@ -508,8 +504,8 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
             @Nonnull final Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought,
             @Nonnull final Map<Long, TopologyEntityDTO> entityByOid) throws InterruptedException {
         for (CommoditiesBoughtFromProvider commodityBoughtGrouping : entityDTO.getCommoditiesBoughtFromProvidersList()) {
-            Long providerId = commodityBoughtGrouping.hasProviderId() ?
-                    commodityBoughtGrouping.getProviderId() : null;
+            Long providerId = commodityBoughtGrouping.hasProviderId()
+                    ? commodityBoughtGrouping.getProviderId() : null;
             DelayedCommodityBoughtWriter queueCommoditiesBlock = new DelayedCommodityBoughtWriter(
                     topologyInfo.getCreationTime(),
                     entityDTO, providerId, commodityBoughtGrouping,
@@ -674,8 +670,8 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
             final String commKey = commodityBoughtDTO.getCommodityType().getKey();
             // do not persist commodity if it is not active, but we want to persist some special
             // inactive commodities like Swapping and Ballooning
-            if (!commodityBoughtDTO.getActive() &&
-                    !INACTIVE_COMMODITIES_TO_PERSIST.contains(commType)) {
+            if (!commodityBoughtDTO.getActive()
+                    && !INACTIVE_COMMODITIES_TO_PERSIST.contains(commType)) {
                 logger.debug("Skipping inactive bought commodity type {}", commType);
                 continue;
             }
@@ -691,7 +687,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
             }
             double capacity = 0;
             if (providerId != null) {
-                TIntObjectMap<TObjectDoubleMap<String>> soldCapacities;
+                Int2ObjectMap<Object2DoubleMap<String>> soldCapacities;
                 if (commoditiesBought.hasVolumeId()) {
                     // first try to get capacity from volume
                     soldCapacities = capacityCache.getEntityCapacities(commoditiesBought.getVolumeId());
@@ -708,7 +704,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
                             mixedCaseCommodityName, entityDTO.getOid(), providerId);
                     continue;
                 }
-                capacity = soldCapacities.get(commType).get(commKey);
+                capacity = soldCapacities.get(commType).getDouble(commKey);
             }
 
             // all "used" subtype entries should have a capacity
