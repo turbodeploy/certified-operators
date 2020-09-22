@@ -221,7 +221,6 @@ public class QuoteTest {
         assertEquals(memSpec, bundle.commSpec);
         assertEquals(dependentCommodityQuantity, bundle.requestedAmount, 0);
         assertFalse(bundle.maxAvailable.isPresent());
-
     }
 
     /**

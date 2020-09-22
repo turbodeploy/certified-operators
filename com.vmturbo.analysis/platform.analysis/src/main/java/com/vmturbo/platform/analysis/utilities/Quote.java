@@ -763,7 +763,7 @@ public abstract class Quote {
         public Optional<InfiniteQuoteExplanation> getExplanation(@Nonnull final ShoppingList shoppingList) {
             return Optional.of(new InfiniteQuoteExplanation(false,
                     Sets.newHashSet(new CommodityBundle(commoditySpecification,
-                            commodityQuantity, Optional.of(capacityLimitation.getMaxCapacity()))), Optional.empty(),
+                            commodityQuantity, Optional.empty())), Optional.empty(),
                     Optional.of(getSeller().getType())));
         }
     }
@@ -862,7 +862,7 @@ public abstract class Quote {
         public Optional<InfiniteQuoteExplanation> getExplanation(@Nonnull final ShoppingList shoppingList) {
             return Optional.of(new InfiniteQuoteExplanation(false,
                     Sets.newHashSet(new CommodityBundle(dependentCommodityType,
-                            dependentCommodityQuantity,  Optional.of(dependentCommodityCapacity))), Optional.empty(),
+                            dependentCommodityQuantity, Optional.empty())), Optional.empty(),
                     Optional.of(getSeller().getType())));
         }
     }
