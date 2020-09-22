@@ -146,7 +146,7 @@ public class EntityAccessScope implements OidFilter {
             return AllOidsSet.ALL_OIDS_SET;
         }
         if (CollectionUtils.isEmpty(entityTypes)) {
-            return OidSet.EMPTY_OID_SET;
+            return accessibleOids();
         }
         OidSet oids = OidSet.EMPTY_OID_SET;
         for (String entityType : entityTypes) {

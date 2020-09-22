@@ -10,6 +10,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -323,6 +324,26 @@ public class StatsQueryScopeExpanderTest {
 
         assertThat(expandedScope.getGlobalScope(), is(Optional.empty()));
         assertThat(expandedScope.getExpandedOids(), is(Collections.singleton(1L)));
+    }
+
+    /**
+     * Test to check that the scope for an observer role gets expanded properly.
+     */
+    @Test
+    public void testExpandEmptyRelatedTypesForObserver() {
+        ApiId scope = mock(ApiId.class);
+        final StatApiInputDTO inputStat = new StatApiInputDTO();
+        EntityAccessScope accessScope = new EntityAccessScope(null, null,
+            new ArrayOidSet(Arrays.asList(7L)), null);
+
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        when(userSessionContext.isUserObserver()).thenReturn(true);
+        when(scope.oid()).thenReturn(7L);
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(scope.getScopeOids(userSessionContext, Collections.singletonList(inputStat))).thenReturn(Collections.singleton(7L));
+
+        StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.singletonList(inputStat));
+        assertThat(expandedScope.getExpandedOids(), is(Collections.singleton(7L)));
     }
 
     @Test
