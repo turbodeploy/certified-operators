@@ -1047,7 +1047,6 @@ public class ActionInterpreter {
                                     "Resize commodity can't be converted to topology commodity format! "
                                             + commodityContext.getSpecification()));
             final float factor = calculateFactorForStorageAmount(topologyCommodityType.getType(), actionTargetEntity.getType());
-            logger.info("ROOP in action was {}", factor);
             resizeInfoList.add(ResizeInfo.newBuilder()
                     .setCommodityType(topologyCommodityType)
                     .setOldCapacity(commodityContext.getOldCapacity() * factor)
