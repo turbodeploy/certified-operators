@@ -12,7 +12,6 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,18 +20,18 @@ import org.jooq.DSLContext;
 import org.jooq.Query;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
+import org.jooq.impl.TableImpl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
-import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyDemandCluster;
 
-public class ComputeTierDemandStatsStore implements DiagsRestorable<Void> {
+public class ComputeTierDemandStatsStore implements
+        TableDiagsRestorable<Void, ComputeTierTypeHourlyByWeekRecord> {
 
     private static final String computeTierDemandFile = "computeTierDemand_dump";
 
@@ -215,24 +214,13 @@ public class ComputeTierDemandStatsStore implements DiagsRestorable<Void> {
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
-        // TODO to be implemented as part of OM-58627
+    public DSLContext getDSLContext() {
+        return dslContext;
     }
 
     @Override
-    public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
-        dslContext.transaction(transactionContext -> {
-            final DSLContext transaction = DSL.using(transactionContext);
-            Stream<ComputeTierTypeHourlyByWeekRecord> latestRecords = transaction.selectFrom(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK).stream();
-            latestRecords.forEach(s -> {
-                try {
-                    appender.appendString(s.formatJSON());
-                } catch (DiagnosticsException e) {
-                    logger.error("Exception encountered while appending compute tier weekly by hour records" +
-                            " to the diags dump", e);
-                }
-            });
-        });
+    public TableImpl<ComputeTierTypeHourlyByWeekRecord> getTable() {
+        return COMPUTE_TIER_TYPE_HOURLY_BY_WEEK;
     }
 
     @Nonnull

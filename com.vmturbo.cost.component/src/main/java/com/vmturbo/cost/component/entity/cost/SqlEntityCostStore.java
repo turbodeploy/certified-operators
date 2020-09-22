@@ -22,10 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
@@ -49,6 +47,7 @@ import org.jooq.Table;
 import org.jooq.TableField;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
+import org.jooq.impl.TableImpl;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
@@ -61,12 +60,10 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
-import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityCostByDayRecord;
 import com.vmturbo.cost.component.db.tables.records.EntityCostByHourRecord;
@@ -584,32 +581,23 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     /**
      * Helper class for dumping latest entity cost db records to exported topology.
      */
-    private static final class LatestEntityCostsDiagsHelper implements DiagsRestorable<Void> {
+    private static final class LatestEntityCostsDiagsHelper implements
+            TableDiagsRestorable<Void, EntityCostRecord> {
 
         private final DSLContext dsl;
 
         LatestEntityCostsDiagsHelper(@Nonnull final DSLContext dsl) {
             this.dsl = dsl;
         }
-        @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
 
+        @Override
+        public DSLContext getDSLContext() {
+            return dsl;
         }
 
         @Override
-        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
-            dsl.transaction(transactionContext -> {
-                final DSLContext transaction = DSL.using(transactionContext);
-                Stream<EntityCostRecord> latestRecords = transaction.selectFrom(ENTITY_COST).stream();
-                latestRecords.forEach(s -> {
-                    try {
-                        appender.appendString(s.formatJSON());
-                    } catch (DiagnosticsException e) {
-                        logger.error("Error encountered while appending latest entity costs to the" +
-                                " diags dump", e);
-                    }
-                });
-            });
+        public TableImpl<EntityCostRecord> getTable() {
+            return ENTITY_COST;
         }
 
         @Nonnull
@@ -622,7 +610,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     /**
      * Helper class for dumping daily entity cost db records to exported topology.
      */
-    private static final class EntityCostsByDayDiagsHelper implements DiagsRestorable<Void> {
+    private static final class EntityCostsByDayDiagsHelper implements TableDiagsRestorable<Void, EntityCostByDayRecord> {
         private static final String entityCostByDayDumpFile = "entityCostByDay_dump";
 
         private final DSLContext dsl;
@@ -630,25 +618,15 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
         EntityCostsByDayDiagsHelper(@Nonnull final DSLContext dsl) {
             this.dsl = dsl;
         }
-        @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
 
+        @Override
+        public DSLContext getDSLContext() {
+            return dsl;
         }
 
         @Override
-        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
-            dsl.transaction(transactionContext -> {
-                final DSLContext transaction = DSL.using(transactionContext);
-                Stream<EntityCostByDayRecord> hourlyRecords = transaction.selectFrom(Tables.ENTITY_COST_BY_DAY).stream();
-                hourlyRecords.forEach(s -> {
-                    try {
-                        appender.appendString(s.formatJSON());
-                    } catch (DiagnosticsException e) {
-                        logger.error("Error encountered while appending entity costs by day to the" +
-                                " diags dump", e);
-                    }
-                });
-            });
+        public TableImpl<EntityCostByDayRecord> getTable() {
+            return Tables.ENTITY_COST_BY_DAY;
         }
 
         @Nonnull
@@ -661,7 +639,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     /**
      * Helper class for dumping hourly entity cost db records to exported topology.
      */
-    private static final class EntityCostsByHourDiagsHelper implements DiagsRestorable<Void> {
+    private static final class EntityCostsByHourDiagsHelper implements TableDiagsRestorable<Void, EntityCostByHourRecord> {
         private static final String entityCostByDayDumpFile = "entityCostByHour_dump";
 
         private final DSLContext dsl;
@@ -669,25 +647,15 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
         EntityCostsByHourDiagsHelper(@Nonnull final DSLContext dsl) {
             this.dsl = dsl;
         }
-        @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
 
+        @Override
+        public DSLContext getDSLContext() {
+            return dsl;
         }
 
         @Override
-        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
-            dsl.transaction(transactionContext -> {
-                final DSLContext transaction = DSL.using(transactionContext);
-                Stream<EntityCostByHourRecord> hourlyRecords = transaction.selectFrom(Tables.ENTITY_COST_BY_HOUR).stream();
-                hourlyRecords.forEach(s -> {
-                    try {
-                        appender.appendString(s.formatJSON());
-                    } catch (DiagnosticsException e) {
-                        logger.error("Error encountered while appending entity costs by hour to the" +
-                                " diags dump", e);
-                    }
-                });
-            });
+        public TableImpl<EntityCostByHourRecord> getTable() {
+            return Tables.ENTITY_COST_BY_HOUR;
         }
 
         @Nonnull
@@ -700,7 +668,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     /**
      * Helper class for dumping monthly entity cost db records to exported topology.
      */
-    private static final class EntityCostsByMonthDiagsHelper implements DiagsRestorable<Void> {
+    private static final class EntityCostsByMonthDiagsHelper implements TableDiagsRestorable<Void, EntityCostByMonthRecord> {
         private static final String entityCostByDayDumpFile = "entityCostByMonth_dump";
 
         private final DSLContext dsl;
@@ -710,24 +678,13 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
-            // TODO to be implemented as part of OM-58627
+        public DSLContext getDSLContext() {
+            return dsl;
         }
 
         @Override
-        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
-            dsl.transaction(transactionContext -> {
-                final DSLContext transaction = DSL.using(transactionContext);
-                Stream<EntityCostByMonthRecord> dailyRecords = transaction.selectFrom(Tables.ENTITY_COST_BY_MONTH).stream();
-                dailyRecords.forEach(s -> {
-                    try {
-                        appender.appendString(s.formatJSON());
-                    } catch (DiagnosticsException e) {
-                        logger.error("Error encountered while appending entity costs by month to the" +
-                                " diags dump", e);
-                    }
-                });
-            });
+        public TableImpl<EntityCostByMonthRecord> getTable() {
+            return Tables.ENTITY_COST_BY_MONTH;
         }
 
         @Nonnull

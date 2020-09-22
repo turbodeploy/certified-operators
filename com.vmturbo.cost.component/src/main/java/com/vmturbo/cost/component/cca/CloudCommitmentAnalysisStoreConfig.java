@@ -11,14 +11,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
-import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriter;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriterImpl;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecResolver;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
-import com.vmturbo.cost.component.entity.scope.CloudScopeStore;
 import com.vmturbo.cost.component.entity.scope.SQLCloudScopeStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
@@ -69,7 +67,7 @@ public class CloudCommitmentAnalysisStoreConfig {
      * @return An instance of the ComputeTierAllocationStore.
      */
     @Bean
-    public ComputeTierAllocationStore computeTierAllocationStore() {
+    public SQLComputeTierAllocationStore computeTierAllocationStore() {
         return new SQLComputeTierAllocationStore(dbConfig.dsl(), topologyProcessorListenerConfig.liveTopologyInfoTracker(),
                 recordUpdateBatchSize,
                 recordCommitBatchSize);
@@ -96,7 +94,7 @@ public class CloudCommitmentAnalysisStoreConfig {
      * @return An instance of the CloudScopeStore.
      */
     @Bean
-    public CloudScopeStore cloudScopeStore() {
+    public SQLCloudScopeStore cloudScopeStore() {
         return new SQLCloudScopeStore(dbConfig.dsl(),
                 cloudScopeCleanupScheduler(),
                 Duration.ofSeconds(cloudScopeCleanupPeriodSeconds),

@@ -10,15 +10,17 @@ import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
-import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.cost.component.TableDiagsRestorable;
+import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 
 /**
  * An interface for a SQL-based stores for reserved isntances.
+ *
  */
 public interface ReservedInstanceBoughtStore extends ReservedInstanceCostStore,
-    DiagsRestorable<Void> {
+        TableDiagsRestorable<Void, ReservedInstanceBoughtRecord> {
 
     /**
      * Get all {@link ReservedInstanceBought} from reserved instance table.

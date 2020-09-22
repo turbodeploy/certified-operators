@@ -12,10 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 
@@ -25,14 +23,12 @@ import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.Table;
-import org.jooq.impl.DSL;
+import org.jooq.impl.TableImpl;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
-import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
+import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceCoverageByDayRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceCoverageByHourRecord;
@@ -158,7 +154,8 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping monthly RI coverage db records to exported topology.
      */
-    private static final class ReservedInstancesCoverageByMonthDiagsHelper implements DiagsRestorable<Void> {
+    private static final class ReservedInstancesCoverageByMonthDiagsHelper implements
+            TableDiagsRestorable<Void, ReservedInstanceCoverageByMonthRecord> {
         private static final String reservedInstanceCoverageByMonthDumpFile = "reservedInstanceCoverageByMonth_dump";
 
         private final DSLContext dsl;
@@ -168,24 +165,13 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
-
+        public DSLContext getDSLContext() {
+            return dsl;
         }
 
         @Override
-        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
-            dsl.transaction(transactionContext -> {
-                final DSLContext transaction = DSL.using(transactionContext);
-                Stream<ReservedInstanceCoverageByMonthRecord> monthlyRecords = transaction.selectFrom(Tables.RESERVED_INSTANCE_COVERAGE_BY_MONTH).stream();
-                monthlyRecords.forEach(s -> {
-                    try {
-                        appender.appendString(s.formatJSON());
-                    } catch (DiagnosticsException e) {
-                        logger.error("Exception encountered while appending RI coverage by month records" +
-                                " to the diags dump", e);
-                    }
-                });
-            });
+        public TableImpl<ReservedInstanceCoverageByMonthRecord> getTable() {
+            return Tables.RESERVED_INSTANCE_COVERAGE_BY_MONTH;
         }
 
         @Nonnull
@@ -198,7 +184,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping daily RI coverage db records to exported topology.
      */
-    private static final class ReservedInstancesCoverageByDayDiagsHelper implements DiagsRestorable<Void> {
+    private static final class ReservedInstancesCoverageByDayDiagsHelper implements TableDiagsRestorable<Void, ReservedInstanceCoverageByDayRecord> {
         private static final String reservedInstanceCoverageByDayDumpFile = "reservedInstanceCoverageByDay_dump";
 
         private final DSLContext dsl;
@@ -208,24 +194,13 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
-            // TODO to be implemented as part of OM-58627
+        public DSLContext getDSLContext() {
+            return dsl;
         }
 
         @Override
-        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
-            dsl.transaction(transactionContext -> {
-                final DSLContext transaction = DSL.using(transactionContext);
-                Stream<ReservedInstanceCoverageByDayRecord> dailyRecords = transaction.selectFrom(Tables.RESERVED_INSTANCE_COVERAGE_BY_DAY).stream();
-                dailyRecords.forEach(s -> {
-                    try {
-                        appender.appendString(s.formatJSON());
-                    } catch (DiagnosticsException e) {
-                        logger.error("Exception encountered while appending RI coverage by day records" +
-                                " to the diags dump", e);
-                    }
-                });
-            });
+        public TableImpl<ReservedInstanceCoverageByDayRecord> getTable() {
+            return Tables.RESERVED_INSTANCE_COVERAGE_BY_DAY;
         }
 
         @Nonnull
@@ -238,7 +213,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping hourly RI coverage db records to exported topology.
      */
-    private static final class ReservedInstancesCoverageByHourDiagsHelper implements DiagsRestorable<Void> {
+    private static final class ReservedInstancesCoverageByHourDiagsHelper implements TableDiagsRestorable<Void, ReservedInstanceCoverageByHourRecord> {
         private static final String reservedInstanceCoverageByHourDumpFile = "reservedInstanceCoverageByHour_dump";
 
         private final DSLContext dsl;
@@ -248,24 +223,13 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
-            // TODO to be implemented as part of OM-58627
+        public DSLContext getDSLContext() {
+            return dsl;
         }
 
         @Override
-        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
-            dsl.transaction(transactionContext -> {
-                final DSLContext transaction = DSL.using(transactionContext);
-                Stream<ReservedInstanceCoverageByHourRecord> hourlyRecords = transaction.selectFrom(Tables.RESERVED_INSTANCE_COVERAGE_BY_HOUR).stream();
-                hourlyRecords.forEach(s -> {
-                    try {
-                        appender.appendString(s.formatJSON());
-                    } catch (DiagnosticsException e) {
-                        logger.error("Exception encountered while appending RI coverage by hour records" +
-                                " to the diags dump", e);
-                    }
-                });
-            });
+        public TableImpl<ReservedInstanceCoverageByHourRecord> getTable() {
+            return Tables.RESERVED_INSTANCE_COVERAGE_BY_HOUR;
         }
 
         @Nonnull
@@ -278,7 +242,7 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
     /**
      * Helper class for dumping latest RI coverage db records to exported topology.
      */
-    private static final class LatestReservedInstanceCoverageDiagsHelper implements DiagsRestorable<Void> {
+    private static final class LatestReservedInstanceCoverageDiagsHelper implements TableDiagsRestorable<Void, ReservedInstanceCoverageLatestRecord> {
         private static final String latestReservedInstanceCoverageDumpFile = "latestReservedInstanceCoverage_dump";
 
         private final DSLContext dsl;
@@ -288,24 +252,13 @@ public class ReservedInstanceCoverageStore implements MultiStoreDiagnosable {
         }
 
         @Override
-        public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
-            // TODO to be implemented as part of OM-58627
+        public DSLContext getDSLContext() {
+            return dsl;
         }
 
         @Override
-        public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
-            dsl.transaction(transactionContext -> {
-                final DSLContext transaction = DSL.using(transactionContext);
-                Stream<ReservedInstanceCoverageLatestRecord> latestRecords = transaction.selectFrom(Tables.RESERVED_INSTANCE_COVERAGE_LATEST).stream();
-                latestRecords.forEach(s -> {
-                    try {
-                        appender.appendString(s.formatJSON());
-                    } catch (DiagnosticsException e) {
-                        logger.error("Exception encountered while appending latest RI coverage records" +
-                                " to the diags dump", e);
-                    }
-                });
-            });
+        public TableImpl<ReservedInstanceCoverageLatestRecord> getTable() {
+            return Tables.RESERVED_INSTANCE_COVERAGE_LATEST;
         }
 
         @Nonnull
