@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.stats.Stats;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
@@ -227,11 +228,17 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                 List<Stats.StatSnapshot.StatRecord> records = snapshot.getStatRecordsList();
                 if (CollectionUtils.isNotEmpty(records)) {
                     // Each snapshot should have a single StatRecord
-                    Stats.StatSnapshot.StatRecord.StatValue usedValue = records.get(0).getUsed();
-                    if (usedValue != null) {
-                        // Compare the used -> max value to our commodity threshold
-                        if (usedValue.getMax() > commodityThreshold) {
-                            activeDays++;
+                    StatRecord record = records.get(0);
+                    if (record != null ) {
+                        // Retrieve the used and capacity so we can calculate the percentage used
+                        Stats.StatSnapshot.StatRecord.StatValue usedValue = record.getUsed();
+                        Stats.StatSnapshot.StatRecord.StatValue capacity = record.getCapacity();
+                        if (usedValue != null && capacity != null && capacity.getMax() != 0) {
+                            // Compare the used -> max value, as a percentage of the capacity, to our commodity threshold
+                            double usedPercentage = (usedValue.getMax() / capacity.getMax()) * 100.0;
+                            if (usedPercentage >= commodityThreshold) {
+                                activeDays++;
+                            }
                         }
                     }
                 }
