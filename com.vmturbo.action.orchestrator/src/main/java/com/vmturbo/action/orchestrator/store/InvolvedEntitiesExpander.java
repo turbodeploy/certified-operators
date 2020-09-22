@@ -6,33 +6,30 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
-import com.google.common.collect.Streams;
+
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
+import com.vmturbo.action.orchestrator.topology.ActionRealtimeTopology;
+import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
-import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
+import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
+import com.vmturbo.topology.graph.supplychain.TraversalRulesLibrary;
 
 /**
  * Determine when expansion is needed. Also determines how to expand.
@@ -52,47 +49,46 @@ public class InvolvedEntitiesExpander {
      *                                             ----------------------------------/
      * </pre>
      */
-    public static final List<String> PROPAGATED_ARM_ENTITY_TYPES = Arrays.asList(
-        ApiEntityType.APPLICATION_COMPONENT.apiStr(),
-        ApiEntityType.WORKLOAD_CONTROLLER.apiStr(),
-        ApiEntityType.CONTAINER_POD.apiStr(),
-        ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-        ApiEntityType.DATABASE_SERVER.apiStr(),
-        ApiEntityType.VIRTUAL_VOLUME.apiStr(),
-        ApiEntityType.STORAGE.apiStr(),
-        ApiEntityType.PHYSICAL_MACHINE.apiStr());
+    public static final List<Integer> PROPAGATED_ARM_ENTITY_TYPES = Arrays.asList(
+        ApiEntityType.APPLICATION_COMPONENT.typeNumber(),
+        ApiEntityType.WORKLOAD_CONTROLLER.typeNumber(),
+        ApiEntityType.CONTAINER_POD.typeNumber(),
+        ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+        ApiEntityType.DATABASE_SERVER.typeNumber(),
+        ApiEntityType.VIRTUAL_VOLUME.typeNumber(),
+        ApiEntityType.STORAGE.typeNumber(),
+        ApiEntityType.PHYSICAL_MACHINE.typeNumber());
 
-    private static final Set<String> ENTITY_TYPES_BELOW_ARM = ImmutableSet.<String>builder()
+    private static final Set<Integer> ENTITY_TYPES_BELOW_ARM = ImmutableSet.<Integer>builder()
         .addAll(PROPAGATED_ARM_ENTITY_TYPES)
-        .add(ApiEntityType.BUSINESS_APPLICATION.apiStr())
-        .add(ApiEntityType.BUSINESS_TRANSACTION.apiStr())
-        .add(ApiEntityType.SERVICE.apiStr())
+        .add(ApiEntityType.BUSINESS_APPLICATION.typeNumber())
+        .add(ApiEntityType.BUSINESS_TRANSACTION.typeNumber())
+        .add(ApiEntityType.SERVICE.typeNumber())
         .build();
 
     private static final Set<Integer> ARM_ENTITY_TYPE = ImmutableSet.of(
-        EntityType.BUSINESS_APPLICATION.getValue(),
-        EntityType.BUSINESS_TRANSACTION.getValue(),
-        EntityType.SERVICE.getValue());
+        ApiEntityType.BUSINESS_APPLICATION.typeNumber(),
+        ApiEntityType.BUSINESS_TRANSACTION.typeNumber(),
+        ApiEntityType.SERVICE.typeNumber());
 
-    private final Map<Integer, Set<Long>> expandedEntitiesPerARMEntityType = new HashMap<>();
+    private final Map<Integer, LongSet> expandedEntitiesPerARMEntityType = new HashMap<>();
 
     private static Logger logger = LogManager.getLogger();
 
-    private final RepositoryServiceBlockingStub repositoryService;
+    private final ActionTopologyStore actionTopologyStore;
 
-    private final SupplyChainServiceBlockingStub supplyChainService;
+    private final SupplyChainCalculator supplyChainCalculator;
 
     /**
      * Creates an instance that uses the provided services for calculating expansion.
      *
-     * @param repositoryService service used to determine if expansion is needed.
-     * @param supplyChainService service used to determine the oids after expansion.
+     * @param actionTopologyStore Retrieve small topology cache.
+     * @param supplyChainCalculator Calculate the supply chain.
      */
-    public InvolvedEntitiesExpander(
-            @Nonnull final RepositoryServiceBlockingStub repositoryService,
-            @Nonnull final SupplyChainServiceBlockingStub supplyChainService) {
-        this.repositoryService = repositoryService;
-        this.supplyChainService = supplyChainService;
+    public InvolvedEntitiesExpander(@Nonnull final ActionTopologyStore actionTopologyStore,
+            @Nonnull final SupplyChainCalculator supplyChainCalculator) {
+        this.actionTopologyStore = actionTopologyStore;
+        this.supplyChainCalculator = supplyChainCalculator;
     }
 
     /**
@@ -127,10 +123,13 @@ public class InvolvedEntitiesExpander {
      */
     public InvolvedEntitiesFilter expandInvolvedEntitiesFilter(
             @Nonnull final Collection<Long> involvedEntities) {
-        if (areAllARMEntities(involvedEntities)) {
-            return new InvolvedEntitiesFilter(
-                expandARMEntities(involvedEntities),
-                InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS);
+        Optional<ActionRealtimeTopology> topology = actionTopologyStore.getSourceTopology();
+        if (topology.isPresent()) {
+            TopologyGraph<ActionGraphEntity> graph = topology.get().entityGraph();
+            if (areAllARMEntities(involvedEntities, graph)) {
+                return new InvolvedEntitiesFilter(expandARMEntities(involvedEntities, graph),
+                        InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS);
+            }
         }
         return new InvolvedEntitiesFilter(
             new HashSet<>(involvedEntities),
@@ -142,33 +141,22 @@ public class InvolvedEntitiesExpander {
      * contains ARM entities, then the involved entities will need to be expanded.
      *
      * @param involvedEntities the entities to search if we need expansion.
+     * @param graph The topology graph to use to look up the entities.
      * @return true if we need expansion.
      */
-    private boolean areAllARMEntities(@Nonnull final Collection<Long> involvedEntities) {
+    private boolean areAllARMEntities(@Nonnull final Collection<Long> involvedEntities,
+                                      TopologyGraph<ActionGraphEntity> graph) {
         if (involvedEntities.isEmpty()) {
             return false;
         }
 
-        // isPresent indicates not all arm, so we need to invert the result from isPresent
-        return !Streams.stream(
-            // get the entities from the repository
-            repositoryService.retrieveTopologyEntities(
-                RetrieveTopologyEntitiesRequest.newBuilder()
-                    .addAllEntityOids(involvedEntities)
-                    .setReturnType(Type.MINIMAL)
-                    .build()))
-            // entities are returned in batches
-            // so flatten the batches into a single stream
-            .flatMap(partialEntityBatch -> partialEntityBatch.getEntitiesList().stream())
-            // double check it's minimal
-            .filter(PartialEntity::hasMinimal)
-            // extract the minimal entity from the partial entity
-            .map(PartialEntity::getMinimal)
-            // get the type from the minimal entity
-            .map(MinimalEntity::getEntityType)
-            // look for any entity type that is not arm (BApp/BTxn/Service)
-            // anyMatch short circuits
-            .anyMatch(entityType -> !ARM_ENTITY_TYPE.contains(entityType));
+        return involvedEntities.stream()
+                .map(graph::getEntity)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .map(ActionGraphEntity::getEntityType)
+                // Make sure all entities are ARM.
+                .allMatch(ARM_ENTITY_TYPE::contains);
     }
 
     /**
@@ -176,17 +164,17 @@ public class InvolvedEntitiesExpander {
      */
     public void expandAllARMEntities() {
         expandedEntitiesPerARMEntityType.clear();
-        ARM_ENTITY_TYPE.forEach(armEntityType -> {
-            Set<Long> armEntities = RepositoryDTOUtil.topologyEntityStream(
-                    repositoryService.retrieveTopologyEntities(
-                            RetrieveTopologyEntitiesRequest.newBuilder()
-                                    .addEntityType(armEntityType)
-                                    .setReturnType(Type.MINIMAL)
-                                    .build()))
-                    .map(partialEntity -> partialEntity.getMinimal().getOid())
-                    .collect(Collectors.toSet());
-            expandedEntitiesPerARMEntityType.put(armEntityType, expandARMEntities(armEntities));
-        });
+        Optional<ActionRealtimeTopology> topology = actionTopologyStore.getSourceTopology();
+        if (topology.isPresent()) {
+            TopologyGraph<ActionGraphEntity> graph = topology.get().entityGraph();
+            ARM_ENTITY_TYPE.forEach(armEntityType -> {
+                final Set<Long> entitiesOfType = graph.entitiesOfType(armEntityType)
+                        .map(ActionGraphEntity::getOid)
+                        .collect(Collectors.toSet());
+                expandedEntitiesPerARMEntityType.put(armEntityType,
+                        expandARMEntities(entitiesOfType, graph));
+            });
+        }
     }
 
     /**
@@ -194,40 +182,25 @@ public class InvolvedEntitiesExpander {
      * like move VM from PM1 to PM2 when a business app uses the VM.
      *
      * @param involvedEntities the entities to expand.
+     * @param graph The topology graph to use to expand entities.
      * @return the expanded entities.
      */
     @Nonnull
-    private Set<Long> expandARMEntities(Collection<Long> involvedEntities) {
-        GetSupplyChainRequest supplyChainRequest = GetSupplyChainRequest.newBuilder()
-            .setScope(SupplyChainScope.newBuilder()
-                .addAllStartingEntityOid(involvedEntities)
-                .addAllEntityTypesToInclude(ENTITY_TYPES_BELOW_ARM)
-                .build())
-            .build();
-        GetSupplyChainResponse supplyChainResponse = supplyChainService.getSupplyChain(supplyChainRequest);
-
-        // When supplyChainService is unable to fill in the supply chain, the response will not
-        // contain a supply chain. We do not want to stop the request from processing, but we need
-        // logging so that we can track when this happens.
-        if (!supplyChainResponse.hasSupplyChain()) {
-            logger.error("Unable to expand the entities using request: " + supplyChainRequest.toString());
-            return Sets.newHashSet(involvedEntities);
+    private LongSet expandARMEntities(Collection<Long> involvedEntities, TopologyGraph<ActionGraphEntity> graph) {
+        final LongOpenHashSet retSet = new LongOpenHashSet();
+        Map<Integer, SupplyChainNode> supplyChain = supplyChainCalculator.getSupplyChainNodes(graph, involvedEntities,
+                e -> true, new TraversalRulesLibrary<>());
+        if (supplyChain.isEmpty()) {
+            logger.warn("Unable to expand supply chain of {} entities.", involvedEntities.size());
+            return new LongOpenHashSet(involvedEntities);
         }
-
-        // extract the oids from the supply chain response
-        return supplyChainResponse.getSupplyChain().getSupplyChainNodesList().stream()
-            // supply chain nodes are organized into maps of states to members of that state
-            .map(SupplyChainNode::getMembersByStateMap)
-            // we are not interested in the states, so we ignore the key of the map
-            .map(Map::values)
-            // we have a stream of List of member lists, so we flatten to stream of member list
-            .flatMap(Collection::stream)
-            // extract the oids from each member list
-            .map(MemberList::getMemberOidsList)
-            // we have a stream of List of longs, collapse it to a single stream of longs
-            .flatMap(List::stream)
-            // make it a set to get rid of duplicates
-            .collect(Collectors.toSet());
+        supplyChain.forEach((type, node) -> {
+            if (ENTITY_TYPES_BELOW_ARM.contains(type)) {
+                retSet.addAll(RepositoryDTOUtil.getAllMemberOids(node));
+            }
+        });
+        retSet.trim();
+        return retSet;
     }
 
     /**
