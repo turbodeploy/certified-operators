@@ -1,6 +1,7 @@
 package com.vmturbo.market.runner;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -28,6 +29,7 @@ import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotif
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
@@ -38,8 +40,10 @@ import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
+import com.vmturbo.market.topology.conversions.CommodityConverter;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.topology.processor.api.util.TopologyProcessingGate;
 import com.vmturbo.topology.processor.api.util.TopologyProcessingGate.Ticket;
@@ -279,6 +283,17 @@ public class MarketRunner {
                     // Send notification of Analysis SUCCESS
                     sendAnalysisStatus(analysis, AnalysisState.SUCCEEDED.ordinal());
 
+                    // log the projected entity with unplacement reasons
+                    logger.info("==== Start logging projected entity DTO with placement failure ====");
+                    analysis.getProjectedTopology().get().forEach(p -> {
+                       if (!p.getEntity().getUnplacedReasonList().isEmpty()) {
+                           logger.info("Entity oid {}, displayName {} has unplacement reasons: {}",
+                                   p.getEntity().getOid(), p.getEntity().getDisplayName(),
+                                   printReason(p.getEntity().getUnplacedReasonList()));
+                           logger.info("Protobuf in failure is {}", p.getEntity().getUnplacedReasonList());
+                       }
+                    });
+                    logger.info("==== End logging projected entity DTO with placement failure ====");
                     // Send projected topology before recommended actions, because some recommended
                     // actions will have OIDs that are only present in the projected topology, and we
                     // want to minimize the risk of the projected topology being unavailable.
@@ -330,6 +345,41 @@ public class MarketRunner {
         } finally {
             analysisMap.remove(analysis.getContextId());
         }
+    }
+
+    /**
+     * Print {@link UnplacementReason}.
+     *
+     * @param unplacedReasonList A list of {@link UnplacementReason}.
+     * @return A string constructed based on {@link UnplacementReason}.
+     */
+    private String printReason(@Nonnull List<UnplacementReason> unplacedReasonList) {
+        StringBuilder sb = new StringBuilder();
+        for (UnplacementReason reason : unplacedReasonList) {
+            sb.append(" {");
+            if (reason.getCostNotFound()) {
+                sb.append(" cost is not found");
+            } else if (!reason.getFailedResourcesList().isEmpty()) {
+                reason.getFailedResourcesList().forEach( f -> {
+                    sb.append(" needs resource ").append(CommodityConverter
+                            .commodityDebugInfo(f.getCommType()))
+                            .append(" which has a requested amount of ")
+                            .append(f.getRequestedAmount());
+                    if (f.hasMaxAvailable()) {
+                        sb.append(" but the max available is ").append(f.getMaxAvailable());
+                    }
+                });
+            }
+            if (reason.hasClosestSeller()) {
+                sb.append(" from closest entity ").append(reason.getClosestSeller());
+            }
+            if (reason.hasProviderType()) {
+                sb.append(" when looking for supplier type ").append(EntityType.forNumber(
+                        reason.getProviderType()));
+            }
+            sb.append(" }");
+        }
+        return sb.toString();
     }
 
     /**

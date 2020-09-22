@@ -89,6 +89,7 @@ import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
@@ -444,8 +445,9 @@ public class TopologyEntitiesHandlerTest {
                 .setReplayProvisionsForRealTime(replayProvisionsForRealTime)
                 .build();
         final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo, Collections.emptyList());
+        Ede ede = new Ede();
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,
-                        analysisConfig, analysis, topology);
+                        analysisConfig, analysis, topology, ede);
 
         // All deactivate actions should be set in analysis' replay actions.
         List<Long> deactivatedActionsTarget = results.getActionsList().stream()
@@ -832,10 +834,12 @@ public class TopologyEntitiesHandlerTest {
                         .setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM)
                         .setReplayProvisionsForRealTime(replayProvisionsForRealTime).build();
         // Call analysis
+
         final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, REALTIME_TOPOLOGY_INFO,
             Collections.emptyList());
+        Ede ede = new Ede();
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
-                        REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology);
+                        REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology, ede);
         logger.info(results.getActionsList());
 
         // Asserts
@@ -950,8 +954,9 @@ public class TopologyEntitiesHandlerTest {
             // Call analysis
             final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, REALTIME_TOPOLOGY_INFO,
                 Collections.emptyList());
+            Ede ede = new Ede();
             AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
-                            REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology);
+                            REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology, ede);
             logger.info(results.getActionsList());
 
             // Asserts
@@ -1097,8 +1102,9 @@ public class TopologyEntitiesHandlerTest {
                 .build();
         final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo,
             Collections.emptyList());
+        Ede ede = new Ede();
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,
-                analysisConfig, analysis, topology);
+                analysisConfig, analysis, topology, ede);
         return results;
     }
 

@@ -15,7 +15,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -46,12 +45,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
-import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
-import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -61,6 +57,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -91,8 +89,10 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
+import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
+import com.vmturbo.market.topology.conversions.CommodityConverter;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
@@ -102,10 +102,12 @@ import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
@@ -113,6 +115,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
+import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -344,6 +347,7 @@ public class Analysis {
         DataMetricTimer processResultTime = null;
         Map<Long, TopologyEntityDTO> fakeEntityDTOs = Collections.emptyMap();
         AnalysisResults results = null;
+        Map<Long, List<UnplacementReason.Builder>> unplacedReasonMap = new HashMap<>();
         final Set<Long> oidsToRemove = new HashSet<>();
 
         // Don't generate actions associated with entities with these oids
@@ -456,8 +460,12 @@ public class Analysis {
                                     .filter(t -> reservationEntityOids.contains(t.getOid())).collect(Collectors.toSet()));
                         }
                     }
+                    Ede ede = new Ede();
                     results = TopologyEntitiesHandler.performAnalysis(traderTOs,
-                            topologyInfo, config, this, topology);
+                            topologyInfo, config, this, topology, ede);
+                    Map<Trader, List<InfiniteQuoteExplanation>> infiniteQuoteTraderMap = ede
+                            .getPlacementResults().getExplanations();
+                    unplacedReasonMap = generateUnplacedReason(infiniteQuoteTraderMap, converter);
                     if (config.isEnableSMA()) {
                         // Cloud VM OID to a set of provider OIDs: i.e. compute tier OIDs that the VM can fit in.
                         Map<Long, Set<Long>> cloudVmOidToProvidersOIDsMap = new HashMap<>();
@@ -567,18 +575,6 @@ public class Analysis {
                                 }
                             });
 
-                            // TODO: Remove in MCP phase 2. Once we provide the explanation for
-                            // the VM not being placed to the repository component, it can
-                            // use it to know that a VM is unplaced.
-                            if (isMigrateToCloud) {
-                                // Ensure entities that fail to migrate are considered unplaced,
-                                // and don't return any actions for them.
-                                Pair<List<TraderTO>, Set<Long>> unplacedResult =
-                                    unplaceFailedCloudMigrations(projectedTraderDTO);
-                                projectedTraderDTO = unplacedResult.first;
-                                suppressActionsForOids.addAll(unplacedResult.second);
-                            }
-
                             // results can be null if M2Analysis is not run
                             final PriceIndexMessage priceIndexMessage = results != null ?
                                     results.getPriceIndexMsg() : PriceIndexMessage.getDefaultInstance();
@@ -588,6 +584,13 @@ public class Analysis {
                                     priceIndexMessage,
                                     reservedCapacityAnalysis,
                                     wastedFilesAnalysis);
+
+                            // unplace projected entities in plan if an entity has a reconfigure action
+                            if (topologyInfo.hasPlanInfo()) {
+                                unplaceProjectedEntityWithReason(projectedEntities, unplacedReasonMap);
+                                attachUnplacementReasons(unplacedReasonMap, projectedEntities);
+                            }
+
                             final Set<Long> wastedStorageActionsVolumeIds = wastedFileActions.stream()
                                 .map(Action::getInfo).map(ActionInfo::getDelete).map(Delete::getTarget)
                                 .map(ActionEntity::getId).collect(Collectors.toSet());
@@ -793,13 +796,129 @@ public class Analysis {
         return updatedCommodityTypes.contains(commodityType);
     }
 
+    /**
+     * Detach the suppliers from {@link CommoditiesBoughtFromProvider} if there is an unplacement
+     * reason associated with it.
+     *
+     * @param projectedEntities A map of oid to {@link ProjectedTopologyEntity}s.
+     * @param reasonMap A map of entity oid to a list of {@link UnplacementReason.Builder}s.
+     */
+    private void unplaceProjectedEntityWithReason(@Nonnull Map<Long, ProjectedTopologyEntity> projectedEntities,
+            @Nonnull Map<Long, List<UnplacementReason.Builder>> reasonMap) {
+        for (Map.Entry<Long, List<UnplacementReason.Builder>> entry: reasonMap.entrySet()) {
+            ProjectedTopologyEntity projEntity = projectedEntities.get(entry.getKey());
+            List<CommoditiesBoughtFromProvider> updatedCommBoughtProviders = new ArrayList<>();
+            Set<Integer> providerTypeWithReason = entry.getValue().stream()
+                    .filter(r -> r.hasProviderType()).map(r -> r.getProviderType())
+                    .collect(Collectors.toSet());
+            if (providerTypeWithReason.isEmpty() && !entry.getValue().isEmpty()) {
+                // When the UnplacementReason does not have a provider type. It can be caused by
+                // reconfigure actions. Try to unplace the entire projected entity.
+                projEntity.getEntity().getCommoditiesBoughtFromProvidersList().forEach(c -> {
+                    updatedCommBoughtProviders.add(c.toBuilder().clearProviderId().build());
+                });
+            } else {
+                // Iterate each CommoditiesBoughtFromProvider, clear provider for whose provider
+                // type are the same as the provider type within unplacementReason.
+                for (CommoditiesBoughtFromProvider commBoughtProvider : projEntity.getEntity()
+                        .getCommoditiesBoughtFromProvidersList()) {
+                    if (commBoughtProvider.hasProviderEntityType() && providerTypeWithReason
+                            .contains(commBoughtProvider.getProviderEntityType())) {
+                        updatedCommBoughtProviders.add(commBoughtProvider.toBuilder()
+                                .clearProviderId().build());
+                    } else { // Keep provider of those whose provider type is not the same.
+                        updatedCommBoughtProviders.add(commBoughtProvider);
+                    }
+                }
+            }
+            TopologyEntityDTO entityDTO = projEntity.getEntity().toBuilder()
+                    .clearCommoditiesBoughtFromProviders()
+                    .addAllCommoditiesBoughtFromProviders(updatedCommBoughtProviders)
+                    .build();
+            projectedEntities.put(projEntity.getEntity().getOid(), projEntity.toBuilder()
+                    .setEntity(entityDTO).build());
+        }
+    }
+
     private void saveAnalysisDiags(final Collection<TraderTO> traderTOs,
                                    final List<CommoditySpecification> commSpecsToAdjustOverhead) {
         AnalysisDiagnosticsCollectorFactory factory = new DefaultAnalysisDiagnosticsCollectorFactory();
         factory.newDiagsCollector(topologyInfo, AnalysisMode.M2).ifPresent(diagsCollector -> {
-            diagsCollector.saveAnalysis(traderTOs, topologyInfo, config,
-                commSpecsToAdjustOverhead);
+            diagsCollector.saveAnalysis(traderTOs, topologyInfo, config, commSpecsToAdjustOverhead);
         });
+    }
+
+    /**
+     * Populate {@link UnplacementReason.Builder}s based on {@link InfiniteQuoteExplanation}s.
+     *
+     * @param infiniteQuoteTraderMap A map of trader to its list of {@link InfiniteQuoteExplanation}s.
+     * @param converter The topology converter.
+     * @return a map of entity oid to a list of {@link UnplacementReason.Builder}s.
+     */
+    private Map<Long, List<UnplacementReason.Builder>> generateUnplacedReason(
+            final Map<Trader, List<InfiniteQuoteExplanation>> infiniteQuoteTraderMap,
+            final TopologyConverter converter) {
+        Map<Long, List<UnplacementReason.Builder>> unplacementReasonMap = new HashMap<>();
+        for (Entry<Trader, List<InfiniteQuoteExplanation>> entry : infiniteQuoteTraderMap.entrySet()) {
+            List<InfiniteQuoteExplanation> explanations = entry.getValue();
+            List<UnplacementReason.Builder> reasonList = new ArrayList<>();
+            for (InfiniteQuoteExplanation explanation : explanations) {
+                UnplacementReason.Builder reason = UnplacementReason.newBuilder()
+                        .setCostNotFound(explanation.costUnavailable);
+                if (explanation.providerType.isPresent()) {
+                    reason.setProviderType(explanation.providerType.get());
+                }
+                if (explanation.seller.isPresent()) {
+                    long sellerOid = explanation.seller.get().getOid();
+                    // the seller could be a market tier object so we need to find the
+                    // topologyEntityDto asssociated with that market tier.
+                    MarketTier marketTier = converter.getCloudTc()
+                            .getMarketTier(explanation.seller.get().getOid());
+                    if (marketTier != null) {
+                        sellerOid = marketTier.getTier().getOid();
+                    }
+                    reason.setClosestSeller(sellerOid);
+                }
+                for (InfiniteQuoteExplanation.CommodityBundle bundle : explanation.commBundle) {
+                    CommodityConverter commConverter = converter.getCommodityConverter();
+                    Optional<TopologyDTO.CommodityType> commType = commConverter
+                            .marketToTopologyCommodity(CommoditySpecificationTO.newBuilder()
+                            .setBaseType(bundle.commSpec.getBaseType())
+                            .setType(bundle.commSpec.getType())
+                            .build());
+                    if (commType.isPresent()) {
+                        FailedResources.Builder failedResources = FailedResources.newBuilder()
+                                .setCommType(commType.get())
+                                .setRequestedAmount(bundle.requestedAmount);
+                        if (bundle.maxAvailable.isPresent()) {
+                            failedResources.setMaxAvailable(bundle.maxAvailable.get());
+                        }
+                        reason.addFailedResources(failedResources.build());
+                    }
+                }
+                reasonList.add(reason);
+            }
+            unplacementReasonMap.put(entry.getKey().getOid(), reasonList);
+        }
+        return unplacementReasonMap;
+    }
+
+    /**
+     * Populate {@link UnplacementReason} for the {@link ProjectedTopologyEntity}.
+     *
+     * @param unplacedReasonMap A map of entity oid to a list of {@link UnplacementReason.Builder}.
+     * @param projectedEntities A map of entity oid to {@link ProjectedTopologyEntity}.
+     */
+    private void attachUnplacementReasons(Map<Long, List<UnplacementReason.Builder>> unplacedReasonMap,
+            Map<Long, ProjectedTopologyEntity> projectedEntities) {
+        for (Map.Entry<Long, List<UnplacementReason.Builder>> e : unplacedReasonMap.entrySet()) {
+            ProjectedTopologyEntity projEntity = projectedEntities.get(e.getKey());
+            if (projEntity != null) {
+                ProjectedTopologyEntity.Builder builder = projEntity.toBuilder();
+                e.getValue().forEach( r -> builder.getEntityBuilder().addUnplacedReason(r));
+                projectedEntities.put(projEntity.getEntity().getOid(), builder.build());
+            }
+        }
     }
 
     private void saveSMADiags(final SMAInput smaInput) {
@@ -807,40 +926,6 @@ public class Analysis {
         factory.newDiagsCollector(topologyInfo, AnalysisMode.SMA).ifPresent(diagsCollector -> {
             diagsCollector.saveSMAInput(smaInput, topologyInfo);
         });
-    }
-
-    /**
-     * Check for traders that have an unplaced explanation and remove the current
-     * suppliers of their shopping lists, so they will be considered unplaced by
-     * the repository, rather than "still placed" in their starting situation.
-     *
-     * @param projectedTraderDTOs the list of projected traders to check.
-     * @return The set of oids of unplaced traders.
-     */
-    @Nonnull
-    static Pair<List<TraderTO>, Set<Long>>
-    unplaceFailedCloudMigrations(@Nonnull final List<TraderTO> projectedTraderDTOs) {
-        List<TraderTO> updatedProjectedTraderDTOs = new ArrayList<>();
-        Set<Long> unplacedTraderOids = new HashSet<>();
-
-        for (TraderTO trader : projectedTraderDTOs) {
-            if (StringUtils.isNotEmpty(trader.getUnplacedExplanation())) {
-                List<ShoppingListTO> newShoppingLists = new ArrayList<>();
-                for (ShoppingListTO shoppingList : trader.getShoppingListsList()) {
-                    newShoppingLists.add(shoppingList.toBuilder().clearSupplier().build());
-                }
-
-                unplacedTraderOids.add(trader.getOid());
-                updatedProjectedTraderDTOs.add(trader.toBuilder()
-                    .clearShoppingLists()
-                    .addAllShoppingLists(newShoppingLists)
-                    .build());
-            } else {
-                updatedProjectedTraderDTOs.add(trader);
-            }
-        }
-
-        return new Pair<>(updatedProjectedTraderDTOs, unplacedTraderOids);
     }
 
     /*
