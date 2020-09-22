@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1597085998836,
+  "iteration": 1600435993718,
   "links": [],
   "panels": [
     {
@@ -316,6 +316,6 @@
     ]
   },
   "timezone": "",
-  "title": "Virtual Machine Scaling (aka Rightsizing) Recommendations",
+  "title": "On-Prem Virtual Machine Rightsizing Recommendations",
   "uid": "vm_rightsizing_actions"
 }
