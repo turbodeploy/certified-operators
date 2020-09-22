@@ -44,6 +44,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -234,14 +235,22 @@ public class CloudMigrationPlanHelper {
      * @param changes Migration changes specified by user.
      * @return Output graph, mostly same as input, except non-migrating workloads/volumes removed.
      * @throws PipelineStageException Thrown on stage execution issue.
+     * @throws CloudMigrationStageException Thrown when a cloud migration plan the destination does not
+     * have a valid cloudType, or when an intra-plan migration in attempted in such plans
      */
     public TopologyGraph<TopologyEntity> executeStage(
             @Nonnull final TopologyPipelineContext context,
             @Nonnull final TopologyGraph<TopologyEntity> inputGraph,
             @Nullable final PlanScope planScope,
-            @Nonnull final List<ScenarioChange> changes) throws PipelineStageException {
+            @Nonnull final List<ScenarioChange> changes) throws PipelineStageException, CloudMigrationStageException {
         if (!isApplicable(context, planScope)) {
             return inputGraph;
+        }
+        final Set<Long> sourceEntities = context.getSourceEntities();
+        if (isIntraCloudMigration(inputGraph, sourceEntities, context.getDestinationEntities())) {
+            final long planOid = context.getTopologyInfo().getTopologyContextId();
+            logger.error("Illegal intra-cloud migration plan {} stopped.", planOid);
+            throw CloudMigrationStageException.intraCloudMigrationException(planOid);
         }
         TopologyMigration migrationChange = changes
                 .stream()
@@ -258,7 +267,7 @@ public class CloudMigrationPlanHelper {
                         migrationChange.getDestinationEntityType() == DestinationEntityType.VIRTUAL_MACHINE
                                 ? EntityType.VIRTUAL_MACHINE.getNumber()
                                 : EntityType.DATABASE_SERVER.getNumber(),
-                        context.getSourceEntities());
+                        sourceEntities);
         // Set the migration destination.
         boolean isDestinationAws = isDestinationAws(context, inputGraph);
         // Prepare source entities for migration.
@@ -273,7 +282,7 @@ public class CloudMigrationPlanHelper {
         if (migrationChange.getDestinationEntityType()
             .equals(TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)) {
             context.addSettingPolicyEditor(new CloudMigrationSettingsPolicyEditor(
-                context.getSourceEntities()));
+                sourceEntities));
         }
         // Certain stitching operations need to be skipped to for HyperV VMs.
         context.setPostStitchingOperationsToSkip(ImmutableSet.of(
@@ -295,6 +304,68 @@ public class CloudMigrationPlanHelper {
             return false;
         }
         return TopologyDTOUtil.isCloudMigrationPlan(context.getTopologyInfo());
+    }
+
+    /**
+     * Determines whether the planned cloud migration is attempting to move one or more entities
+     * to a location within the cloud provider that already hosts it.
+     *
+     * @param topologyGraph The {@link TopologyGraph} constructed representing the projected topology
+     * @param sourceOids OIDs of the migrating entities
+     * @param destinationOids OIDs of the destination region(s)
+     * @return Whether an intra-cloud migration is planned
+     * @throws CloudMigrationStageException If the destination region(s) have no corresponding cloud provider
+     */
+    public final boolean isIntraCloudMigration(
+            @Nonnull final TopologyGraph topologyGraph,
+            @Nonnull final Set<Long> sourceOids,
+            @Nonnull final Set<Long> destinationOids) throws CloudMigrationStageException {
+        CloudType destinationCloudType = CloudType.UNKNOWN;
+        final Set<TopologyEntity> regions = (Set<TopologyEntity>)topologyGraph.getEntities(destinationOids)
+                .collect(Collectors.toSet());
+        for (TopologyEntity destinationRegion : regions) {
+            Optional<TopologyEntity> cloudProviderOptional = destinationRegion.getOwner();
+            if (!cloudProviderOptional.isPresent()) {
+                continue;
+            }
+            final Optional<CloudType> cloudTypeOptional = CloudType.getByName(
+                    cloudProviderOptional.get().getDisplayName());
+            if (cloudTypeOptional.isPresent()) {
+                destinationCloudType = cloudTypeOptional.get();
+                break;
+            }
+        }
+        if (CloudType.UNKNOWN.equals(destinationCloudType)) {
+            throw CloudMigrationStageException.unknownDestinationCloudType();
+        }
+
+        final Set<TopologyEntity> sources = (Set<TopologyEntity>)topologyGraph.getEntities(sourceOids)
+                .collect(Collectors.toSet());
+        for (TopologyEntity entity : sources) {
+            if (EnvironmentType.ON_PREM.equals(entity.getEnvironmentType())) {
+                continue;
+            }
+            // Get cloud type via owner - owner will be Business Account
+            final Optional<TopologyEntity> businessAccountOptional = entity.getOwner();
+            if (!businessAccountOptional.isPresent()) {
+                continue;
+            }
+            // Business Account owner is CSP
+            final List<TopologyEntity> csps = businessAccountOptional.get().getAggregators();
+            CloudType sourceCloudType = CloudType.UNKNOWN;
+            for (TopologyEntity csp : csps) {
+                final Optional<CloudType> cloudTypeOptional = CloudType.getByName(csp.getDisplayName());
+                if (cloudTypeOptional.isPresent()) {
+                    sourceCloudType = cloudTypeOptional.get();
+                    break;
+                }
+            }
+            if (destinationCloudType.equals(sourceCloudType)) {
+                logger.error("{} ({}) is already hosted by {}.", entity.getDisplayName(), entity.getOid(), sourceCloudType.toString());
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1507,6 +1578,41 @@ public class CloudMigrationPlanHelper {
             return settings.stream().anyMatch(
                 setting -> setting.getSettingSpecName()
                     .equals(EntitySettingSpecs.ExcludedTemplates.getSettingName()));
+        }
+    }
+
+    /**
+     * Extends {@link PipelineStageException}.
+     */
+    public static class CloudMigrationStageException extends PipelineStageException {
+        /**
+         * Construct a new exception.
+         * @param error The error message.
+         */
+        public CloudMigrationStageException(@Nonnull final String error) {
+            super(error);
+        }
+
+        /**
+         * Construct a new CloudMigrationStageException.
+         *
+         * @return A new CloudMigrationStageException when a cloud migration destination region has
+         * an unknown destination cloudType
+         */
+        public static CloudMigrationStageException unknownDestinationCloudType() {
+            return new CloudMigrationStageException(
+                    "Cloud migration plan encountered with unknown destination cloudType.");
+        }
+
+        /**
+         * Construct a new CloudMigrationStageException.
+         *
+         * @param planOid The OID of the plan
+         * @return A new CloudMigrationStageException when an intra-cloud migration is attempted
+         */
+        public static CloudMigrationStageException intraCloudMigrationException(final long planOid) {
+            return new CloudMigrationStageException("Plan: " + planOid + " has been stopped. Intra-cloud migration plans cannot be performed. "
+                    + "Ensure that no migrating entities are already hosted by the destination cloud service provider and try again.");
         }
     }
 }

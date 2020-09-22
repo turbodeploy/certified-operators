@@ -13,10 +13,10 @@ public class TopologyEditorException extends RuntimeException {
     }
 
     public static TopologyEditorException notFoundEntityException(final long oid) {
-        return new TopologyEditorException("Can not found entity " + oid + " in topology.");
+        return new TopologyEditorException("Can not find entity " + oid + " in topology.");
     }
 
     public static TopologyEditorException notFoundTemplateException(@Nonnull final Set<Long> oids) {
-        return new TopologyEditorException("Can not found templates: " + oids);
+        return new TopologyEditorException("Can not find templates: " + oids);
     }
 }
