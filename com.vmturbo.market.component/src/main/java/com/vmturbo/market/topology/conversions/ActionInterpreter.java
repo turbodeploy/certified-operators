@@ -5,6 +5,7 @@ import static com.vmturbo.trax.Trax.trax;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -27,6 +28,7 @@ import javax.annotation.concurrent.Immutable;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import com.google.protobuf.AbstractMessage;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -1303,7 +1305,7 @@ public class ActionInterpreter {
                 // show Performance/Efficiency actions instead of Compliance.
                 if (complianceExplanationOverride != null
                         && complianceExplanationOverride.apply(moveTO)) {
-                    changeProviderExplanation = changeExplanationFromTracker(moveTO, savings)
+                    changeProviderExplanation = changeExplanationFromTracker(moveTO, savings, projectedTopology)
                             .orElse(ChangeProviderExplanation.newBuilder().setEfficiency(
                                     ChangeProviderExplanation.Efficiency.getDefaultInstance()));
                 }
@@ -1341,7 +1343,7 @@ public class ActionInterpreter {
                     break;
                 }
                 // For cloud entities we create either an efficiency or congestion change explanation
-                Optional<ChangeProviderExplanation.Builder> explanationFromTracker = changeExplanationFromTracker(moveTO, savings);
+                Optional<ChangeProviderExplanation.Builder> explanationFromTracker = changeExplanationFromTracker(moveTO, savings, projectedTopology);
                 ChangeProviderExplanation.Builder explanationFromM2 = ChangeProviderExplanation.newBuilder().setCongestion(
                         ChangeProviderExplanation.Congestion.newBuilder()
                         .addAllCongestedCommodities(moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
@@ -1381,7 +1383,7 @@ public class ActionInterpreter {
             case PERFORMANCE:
                 // For cloud entities we explain create either an efficiency or congestion change
                 // explanation
-                changeProviderExplanation = changeExplanationFromTracker(moveTO, savings)
+                changeProviderExplanation = changeExplanationFromTracker(moveTO, savings, projectedTopology)
                     .orElse(ChangeProviderExplanation.newBuilder()
                         .setPerformance(ChangeProviderExplanation.Performance.getDefaultInstance()));
                 break;
@@ -1397,7 +1399,8 @@ public class ActionInterpreter {
 
     @Nonnull
     private Optional<ChangeProviderExplanation.Builder> changeExplanationFromTracker(
-            @Nonnull final MoveTO moveTO, @Nonnull final CalculatedSavings savings) {
+            @Nonnull final MoveTO moveTO, @Nonnull final CalculatedSavings savings,
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
         final long actionTargetId = slInfo.getCollapsedBuyerId().orElse(slInfo.getBuyerId());
         long sellerId = slInfo.getSellerId();
@@ -1407,7 +1410,7 @@ public class ActionInterpreter {
                         //If this SE is cloud and has RI change.
                 .orElseGet(() -> getRIIncreaseExplanation(actionTargetId, moveTO)
                         //If this SE has underutilized commodities pre-stored.
-                        .orElseGet(() -> getUndertilizedExplanationFromTracker(actionTargetId, sellerId)
+                        .orElseGet(() -> getUnderUtilizedExplanationFromTracker(actionTargetId, sellerId, projectedTopology)
                                 //Get from savings
                                 .orElseGet(() -> getExplanationFromSaving(savings)
                                         //Default move explanation
@@ -1430,16 +1433,52 @@ public class ActionInterpreter {
         return Optional.empty();
     }
 
-    private Optional<ChangeProviderExplanation.Builder> getUndertilizedExplanationFromTracker(long actionTargetId, long sellerId) {
+    private Optional<ChangeProviderExplanation.Builder> getUnderUtilizedExplanationFromTracker(
+            long actionTargetId,
+            long sellerId,
+            final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         Set<CommodityType> underutilizedCommodityTypes = commoditiesResizeTracker.getUnderutilizedCommodityTypes(actionTargetId, sellerId);
-        if (!underutilizedCommodityTypes.isEmpty()) {
+
+        // Get projected commoditySold for entity indexed by underutilizedCommodityTypes.
+        final Map<CommodityType, CommoditySoldDTO> projectedCommoditySoldMap = projectedTopology.containsKey(actionTargetId) ?
+                projectedTopology.get(actionTargetId).getEntity()
+                        .getCommoditySoldListList().stream()
+                        .filter(commoditySoldDTO -> underutilizedCommodityTypes.contains( commoditySoldDTO.getCommodityType()))
+                        .collect(Collectors.toMap(CommoditySoldDTO::getCommodityType, Function.identity()))
+                : Collections.emptyMap();
+
+        // Get original commoditySold for entity indexed by underutilizedCommodityTypes.
+        final Map<CommodityType, CommoditySoldDTO> originalCommoditySoldMap = originalTopology.containsKey(actionTargetId) ?
+                originalTopology.get(actionTargetId)
+                        .getCommoditySoldListList().stream()
+                        .filter(commoditySoldDTO -> underutilizedCommodityTypes.contains( commoditySoldDTO.getCommodityType()))
+                        .collect(Collectors.toMap(CommoditySoldDTO::getCommodityType, Function.identity()))
+                : Collections.emptyMap();
+
+        // Commodities with actual lower projected capacity values.
+        Set<CommodityType> commodityTypesWithLowerProjectedUtilization = underutilizedCommodityTypes.stream()
+                .filter(underutilizedCommodityType -> {
+                    if (projectedCommoditySoldMap.containsKey(underutilizedCommodityType) &&
+                            originalCommoditySoldMap.containsKey(underutilizedCommodityType) &&
+                            projectedCommoditySoldMap.get(underutilizedCommodityType).hasCapacity() &&
+                            originalCommoditySoldMap.get(underutilizedCommodityType).hasCapacity()) {
+                        return projectedCommoditySoldMap.get(underutilizedCommodityType).getCapacity() <
+                                originalCommoditySoldMap.get(underutilizedCommodityType).getCapacity();
+                    } else {
+                        // Do not filter commodity if not found in topology sold list.
+                        logger.debug("{} commodity type was not found in {}", underutilizedCommodityType,
+                                originalTopology.get(actionTargetId));
+                        return true;
+                    }
+                }).collect(Collectors.toSet());
+        if (!commodityTypesWithLowerProjectedUtilization.isEmpty()) {
             Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder()
-                    .addAllUnderUtilizedCommodities(commTypes2ReasonCommodities(underutilizedCommodityTypes));
-            logger.debug("CongestedCommodities from tracker for buyer:{}, seller: {} : [{}]",
+                    .addAllUnderUtilizedCommodities(commTypes2ReasonCommodities(commodityTypesWithLowerProjectedUtilization));
+            logger.debug("Underutilized Commodities from tracker for buyer:{}, seller: {} : [{}]",
                     actionTargetId, sellerId,
-                    underutilizedCommodityTypes.stream().map(type -> type.toString()).collect(Collectors.joining()));
+                    commodityTypesWithLowerProjectedUtilization.stream().map(AbstractMessage::toString).collect(Collectors.joining()));
             return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
-                                efficiencyBuilder));
+                    efficiencyBuilder));
         }
         return Optional.empty();
     }

@@ -1,8 +1,11 @@
 package com.vmturbo.market.topology.conversions;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE;
 import static com.vmturbo.trax.Trax.trax;
 import static junit.framework.TestCase.assertTrue;
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -10,6 +13,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -27,12 +31,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
@@ -72,7 +78,7 @@ public class InterpretCloudExplanationTest {
     private static final CommodityType VCPU = CommodityType.newBuilder().setType(
         CommodityDTO.CommodityType.VCPU_VALUE).build();
     private static final CommodityType VMEM = CommodityType.newBuilder().setType(
-        CommodityDTO.CommodityType.VMEM_VALUE).build();
+        VMEM_VALUE).build();
     // Tier excluder
     private final TierExcluder tierExcluder = mock(TierExcluder.class);
     private final Map<Long, ProjectedTopologyEntity> projectedTopology = Maps.newHashMap();
@@ -212,6 +218,56 @@ public class InterpretCloudExplanationTest {
         assertTrue(!efficiency.getUnderUtilizedCommoditiesList().isEmpty());
         assertFalse(efficiency.getIsRiCoverageIncreased());
         assertFalse(efficiency.getIsWastedCost());
+    }
+
+    /**
+     * This test checks if the number of commodities in an action explanation is based on the fact that
+     * actual capacity value is smaller (or underutilized) in projectedTopology compared to originalTopology.
+     */
+    @Test
+    public void testInterpretEfficiencyWithOnlyFewerUnderUtilizedCommodity() {
+        Set<CommodityType> underUtilizedCommodities = ImmutableSet.of(VMEM, VCPU);
+        when(commoditiesResizeTracker.getCongestedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
+        when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(underUtilizedCommodities);
+        when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(Optional.empty());
+        CommoditySoldDTO cpuSoldCommodity = CommoditySoldDTO.newBuilder()
+                .setCapacity(10L)
+                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE)
+                        .build()).build();
+        Builder vmemSoldCommodity = CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder().setType(VMEM_VALUE));
+        TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
+                .setOid(VM1_OID)
+                .setEntityType(EntityType.DATABASE_VALUE)
+                .addCommoditySoldList(vmemSoldCommodity.setCapacity(100L)
+                        .build())
+                .addCommoditySoldList(cpuSoldCommodity)
+                .build();
+        Map<Long, ProjectedTopologyEntity> projectedTopologyMap = new HashMap<>();
+        Map<Long, TopologyEntityDTO> originalTopologyMap = new HashMap<>();
+        originalTopologyMap.put(VM1_OID, topologyEntityDTO);
+        topologyEntityDTO = TopologyEntityDTO.newBuilder()
+                .setOid(VM1_OID)
+                .setEntityType(EntityType.DATABASE_VALUE)
+                .addCommoditySoldList(vmemSoldCommodity.setCapacity(10L) // smaller VMEM capacity.
+                        .build())
+                .addCommoditySoldList(cpuSoldCommodity) // identical VCPU capacity.
+                .build();
+        ProjectedTopologyEntity projectedTopology = ProjectedTopologyEntity.newBuilder()
+                .setEntity(topologyEntityDTO)
+                .build();
+
+        projectedTopologyMap.put(VM1_OID, projectedTopology);
+        ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
+                cloudTc, originalTopologyMap, oidToTraderTOMap, commoditiesResizeTracker, riCoverageCalculator, tierExcluder,
+                CommodityIndex.newFactory()::newIndex, null));
+
+        doReturn(Optional.of(interpretedMoveAction)).when(ai).interpretMoveAction(move.getMove(), projectedTopologyMap, originalCloudTopology);
+        List<Action> actions = ai.interpretAction(move, projectedTopologyMap, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        assertThat(actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency()
+                .getUnderUtilizedCommoditiesList().size(), is(1));
+        assertThat(actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency()
+                .getUnderUtilizedCommoditiesList().iterator().next().getCommodityType().getType(), is(VMEM_VALUE));
     }
 
     /**
