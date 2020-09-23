@@ -214,7 +214,7 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
         // get all volumes ids in the plan scope, using supply chain fetcher
         // get all VMs ids in the plan scope, using supply chain fetcher
         Set<Long> volumeIds = getRelatedEntities(scopes, Collections.singletonList(volumeEntityType))
-            .get(volumeEntityType);
+            .getOrDefault(volumeEntityType, ImmutableSet.of());
         return fetchNumEntitiesByTierStats(volumeIds, projectedTopology, contextId,
             StringConstants.NUM_VIRTUAL_DISKS, StringConstants.TIER,
                 ENTITY_TYPE_TO_GET_TIER_FUNCTION.get(volumeEntityType),
