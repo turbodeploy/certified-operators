@@ -16,7 +16,7 @@
   "editable": false,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1596571940870,
+  "iteration": 1600436048145,
   "links": [],
   "panels": [
     {
@@ -656,6 +656,10 @@
         "useTags": false
       }
     ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
   },
   "timepicker": {
     "refresh_intervals": [

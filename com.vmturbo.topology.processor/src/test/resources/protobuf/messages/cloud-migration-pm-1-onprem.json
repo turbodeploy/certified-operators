@@ -269,6 +269,7 @@
   "commoditiesBoughtFromProviders": [{
     "providerId": "73490062265697",
     "providerEntityType": 2,
+    "movable": true,
     "commodityBought": [{
       "commodityType": {
         "type": 64

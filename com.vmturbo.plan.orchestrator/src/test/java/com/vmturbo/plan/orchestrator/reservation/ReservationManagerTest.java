@@ -40,7 +40,6 @@ import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementFailureInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
@@ -54,6 +53,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -191,7 +191,7 @@ public class ReservationManagerTest {
                             .setTemplateId(234L)
                             .addReservationInstance(ReservationInstance.newBuilder()
                                     .addPlacementInfo(PlacementInfo.newBuilder())
-                                    .addFailureInfo(InitialPlacementFailureInfo
+                                    .addUnplacedReason(UnplacementReason
                                             .getDefaultInstance()))))
             .build();
 
@@ -545,7 +545,7 @@ public class ReservationManagerTest {
                     .getReservationTemplate(0)
                     .getReservationInstance(1).getEntityId();
             InitialPlacementFailure initialPlacementFailure = InitialPlacementFailure.newBuilder()
-                    .addFailureInfo(InitialPlacementFailureInfo.newBuilder()).build();
+                    .addUnplacedReason(UnplacementReason.newBuilder()).build();
             for (ReservationTemplate reservationTemplate : updateReservation.getReservationTemplateCollection().getReservationTemplateList()) {
                 for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
                     if (reservationInstance.getEntityId() == failedBuyerId) {
@@ -577,11 +577,11 @@ public class ReservationManagerTest {
                             .findFirst().get();
             assertEquals(10000L, failedReservation.getId());
             assertEquals(failedBuyerId, failedReservation.getReservationTemplateCollection()
-                    .getReservationTemplate(0).getReservationInstanceList().stream().filter(a -> a.getFailureInfoList().size() == 4)
+                    .getReservationTemplate(0).getReservationInstanceList().stream().filter(a -> a.getUnplacedReasonList().size() == 4)
                     .findFirst().get().getEntityId());
-            assertEquals(initialPlacementFailure.getFailureInfo(0), failedReservation.getReservationTemplateCollection()
-                    .getReservationTemplate(0).getReservationInstanceList().stream().filter(a -> a.getFailureInfoList().size() == 4)
-                    .map(a -> a.getFailureInfo(0)).findFirst().get());
+            assertEquals(initialPlacementFailure.getUnplacedReason(0), failedReservation.getReservationTemplateCollection()
+                    .getReservationTemplate(0).getReservationInstanceList().stream().filter(a -> a.getUnplacedReasonList().size() == 4)
+                    .map(a -> a.getUnplacedReason(0)).findFirst().get());
             // assert the provider is updated
         } catch (Exception e) {
             e.printStackTrace();

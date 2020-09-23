@@ -6,6 +6,7 @@ import static com.vmturbo.extractor.models.ModelDefinitions.SEARCH_MODEL;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,13 +39,9 @@ import com.vmturbo.extractor.models.Table.TableWriter;
 import com.vmturbo.extractor.patchers.CommoditiesPatcher;
 import com.vmturbo.extractor.patchers.GroupAggregatedCommoditiesPatcher;
 import com.vmturbo.extractor.patchers.GroupMemberFieldPatcher;
-import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsNotOnGroupingPatcher;
 import com.vmturbo.extractor.patchers.GroupPrimitiveFieldsOnGroupingPatcher;
-import com.vmturbo.extractor.patchers.GroupRelatedActionsPatcher;
 import com.vmturbo.extractor.patchers.GroupRelatedEntitiesPatcher;
-import com.vmturbo.extractor.patchers.PrimitiveFieldsNotOnTEDPatcher;
 import com.vmturbo.extractor.patchers.PrimitiveFieldsOnTEDPatcher;
-import com.vmturbo.extractor.patchers.RelatedActionsPatcher;
 import com.vmturbo.extractor.patchers.RelatedEntitiesPatcher;
 import com.vmturbo.extractor.patchers.RelatedGroupsPatcher;
 import com.vmturbo.extractor.topology.DataProvider;
@@ -86,8 +83,6 @@ public class SearchEntityWriter extends TopologyWriterBase {
      */
     private static final List<EntityRecordPatcher<DataProvider>> ENTITY_PATCHERS_FOR_FIELDS_NOT_ON_TED =
             ImmutableList.of(
-                    new PrimitiveFieldsNotOnTEDPatcher(),
-                    new RelatedActionsPatcher(),
                     new RelatedEntitiesPatcher(),
                     new RelatedGroupsPatcher()
                     // todo: add cost and more
@@ -108,8 +103,6 @@ public class SearchEntityWriter extends TopologyWriterBase {
      */
     private static final List<EntityRecordPatcher<DataProvider>> GROUP_PATCHERS_FOR_FIELDS_NOT_ON_GROUPING =
             ImmutableList.of(
-                    new GroupRelatedActionsPatcher(),
-                    new GroupPrimitiveFieldsNotOnGroupingPatcher(),
                     new GroupMemberFieldPatcher(),
                     new GroupRelatedEntitiesPatcher(),
                     new GroupAggregatedCommoditiesPatcher()
@@ -180,21 +173,23 @@ public class SearchEntityWriter extends TopologyWriterBase {
         final AtomicInteger counter = new AtomicInteger();
         try (DSLContext dsl = dbEndpoint.dslContext();
              TableWriter entitiesReplacer = SEARCH_ENTITY_TABLE.open(getEntityReplacerSink(dsl))) {
-            // write entities
-            partialRecordInfos.forEach(recordInfo -> {
+            // patch entities
+            logger.info("Starting stage: Patch entities");
+            timer.start("Patch entities");
+            partialRecordInfos.parallelStream().forEach(recordInfo -> {
                 // add all other info which are not available on TopologyEntityDTO (TED)
                 ENTITY_PATCHERS_FOR_FIELDS_NOT_ON_TED.forEach(patcher ->
                         patcher.patch(recordInfo, dataProvider));
                 recordInfo.finalizeAttrs();
-                // insert into db
-                try (Record r = entitiesReplacer.open(recordInfo.record)) {
-                    // exiting try causes record to be written
-                }
             });
+            timer.stop();
             counter.addAndGet(partialRecordInfos.size());
 
-            // write groups
-            dataProvider.getAllGroups().forEach(group -> {
+            // patch groups
+            List<Record> groupRecords = Collections.synchronizedList(new ObjectArrayList<>());
+            logger.info("Starting stage: Patch groups");
+            timer.start("Patch groups");
+            dataProvider.getAllGroups().parallel().forEach(group -> {
                 if (!SearchMetadataUtils.hasMetadata(group.getDefinition().getType())) {
                     // do not ingest if no metadata defined for the group
                     logger.trace("Skipping group {} of type {} due to lack of metadata definition",
@@ -212,18 +207,22 @@ public class SearchEntityWriter extends TopologyWriterBase {
                 // patch other fields whose values come from other sources
                 GROUP_PATCHERS_FOR_FIELDS_NOT_ON_GROUPING.forEach(patcher ->
                         patcher.patch(partialRecordInfo, dataProvider));
-                // set attrs to record if not empty
-                if (!attrs.isEmpty()) {
-                    try {
-                        groupRecord.set(ATTRS, new JsonString(mapper.writeValueAsString(attrs)));
-                    } catch (JsonProcessingException e) {
-                        logger.error("Failed to record group attributes for group {}", group.getId());
-                    }
-                }
-                // insert into db
-                entitiesReplacer.accept(groupRecord);
+                partialRecordInfo.finalizeAttrs();
+                groupRecords.add(groupRecord);
                 counter.incrementAndGet();
             });
+            timer.stop();
+
+            // insert entities into db
+            logger.info("Starting stage: Write entities");
+            timer.start("Write entities");
+            partialRecordInfos.forEach(recordInfo -> entitiesReplacer.accept(recordInfo.record));
+            timer.stop();
+            // insert groups into db
+            logger.info("Starting stage: Write groups");
+            timer.start("Write groups");
+            groupRecords.forEach(entitiesReplacer::accept);
+            timer.stop();
         }
         return counter.get();
     }
@@ -290,7 +289,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
                 try {
                     record.set(ATTRS, new JsonString(mapper.writeValueAsString(attrs)));
                 } catch (JsonProcessingException e) {
-                    logger.error("Failed to record jsonb attributes for entity {}", oid, e);
+                    logger.error("Failed to record jsonb attributes for {}", oid, e);
                 }
             }
         }

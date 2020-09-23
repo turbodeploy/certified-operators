@@ -20,8 +20,9 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementFailure;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementSuccess;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceImplBase;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementFailureInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
@@ -64,13 +65,13 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
                 InitialPlacementFailure.Builder failureBuilder = InitialPlacementFailure.newBuilder();
                 for (FailureInfo info: triplet.getValue().getFailureInfoList()) {
                     CommodityType commodityType = info.getCommodityType();
-                    InitialPlacementFailureInfo failureInfo = InitialPlacementFailureInfo.newBuilder()
-                            .setCommType(commodityType)
+                    UnplacementReason reason = UnplacementReason.newBuilder()
+                            .addFailedResources(FailedResources.newBuilder().setCommType(commodityType)
+                                    .setRequestedAmount(info.getRequestedAmount())
+                                    .setMaxAvailable(info.getMaxQuantity()).build())
                             .setClosestSeller(info.getClosestSellerOid())
-                            .setMaxQuantityAvailable(info.getMaxQuantity())
-                            .setRequestedQuantity(info.getRequestedAmount())
                             .build();
-                    failureBuilder.addFailureInfo(failureInfo);
+                    failureBuilder.addUnplacedReason(reason);
                 }
                 builder.setInitialPlacementFailure(failureBuilder);
             }

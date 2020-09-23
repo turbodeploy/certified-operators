@@ -62,7 +62,7 @@ public class DslRecordSink implements Consumer<Record> {
     private final ExecutorService pool;
     protected final Table table;
     private final WriterConfig config;
-    private RecordWriter recordWriter;
+    private volatile RecordWriter recordWriter;
 
     /**
      * Create a new record sink.
@@ -99,13 +99,19 @@ public class DslRecordSink implements Consumer<Record> {
     @Override
     public void accept(final Record record) {
         if (record == null) {
-            if (recordWriter != null) {
-                recordWriter.close(false);
+            synchronized (this) {
+                if (recordWriter != null) {
+                    recordWriter.close(false);
+                }
             }
         } else {
             try {
                 if (recordWriter == null) {
-                    this.recordWriter = createRecordWriter();
+                    synchronized (this) {
+                        if (recordWriter == null) {
+                            this.recordWriter = createRecordWriter();
+                        }
+                    }
                 } else if (recordWriter.isClosed()) {
                     throw new IllegalStateException("Attempt to write to closed record writer");
                 }

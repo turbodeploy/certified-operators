@@ -51,6 +51,8 @@ import com.vmturbo.api.dto.searchquery.TextConditionApiDTO;
 import com.vmturbo.api.dto.searchquery.WhereApiDTO;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
 import com.vmturbo.common.api.mappers.EnumMapper;
+import com.vmturbo.extractor.schema.tables.SearchEntity;
+import com.vmturbo.extractor.schema.tables.SearchEntityAction;
 import com.vmturbo.search.mappers.EntitySeverityMapper;
 import com.vmturbo.search.mappers.EntityStateMapper;
 import com.vmturbo.search.mappers.EntityTypeMapper;
@@ -171,10 +173,11 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
      */
     private int fetchTotalRecordCount() {
         //TODO Performance improvement for total counts
-        return getReadOnlyDSLContext()
-                .fetchCount(
-                        DSL.selectFrom(getSearchTable()).where(buildWhereClauses())
-                );
+        return getReadOnlyDSLContext().fetchCount(
+                DSL.select().from(SEARCH_ENTITY_TABLE)
+                        .leftJoin(SEARCH_ENTITY_ACTION_TABLE)
+                        .on(SearchEntity.SEARCH_ENTITY.OID.eq(SearchEntityAction.SEARCH_ENTITY_ACTION.OID))
+                        .where(buildWhereClauses()));
     }
 
     @Override
@@ -208,7 +211,7 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
 
         //User defined sorts provided
         fields.addAll(orderBys.stream()
-                .map(orderby -> buildSelectFieldFromOrderBy(orderby.getField()))
+                .map(orderby -> buildSelectFieldForApiField(orderby.getField()))
                 .collect(Collectors.toList()));
         return fields;
     }
@@ -278,7 +281,9 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
             throws SearchQueryFailedException {
         SelectSeekStepN baseQuery = getReadOnlyDSLContext()
                 .select(buildSelectFields())
-                .from(getSearchTable())
+                .from(SEARCH_ENTITY_TABLE)
+                .leftJoin(SEARCH_ENTITY_ACTION_TABLE)
+                .on(SearchEntity.SEARCH_ENTITY.OID.eq(SearchEntityAction.SEARCH_ENTITY_ACTION.OID))
                 .where(buildWhereClauses())
                 .orderBy(buildOrderByFields());
 
@@ -372,9 +377,10 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
         for (int i = 0; i < sortedOnColumnArray.size(); i++) {
             SortedOnColumn sortedOnColumn = sortedOnColumnArray.get(i);
             String value  = cursorValues.get(i);
-            Type dataType = sortedOnColumn.getSearchMetadataMapping().getApiDatatype();
+            SearchMetadataMapping mapping = sortedOnColumn.getSearchMetadataMapping();
             seekValues[i] = cursorValueIsNull(value)
-                    ? getDefaultFieldValueWhenNull(dataType) : getDataSpecificValue(value, dataType);
+                    ? getDefaultValueWhenNullForOrderByField(mapping)
+                    : getDataSpecificValue(value, mapping.getApiDatatype());
 
         }
         return seekValues;
@@ -382,11 +388,17 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
 
     /**
      * Returns default value to use for sorting when value are null.
-     * @param dataType data type
+     *
+     * @param mapping metadata for the field
      * @return default value for dataType
      */
-    private Object getDefaultFieldValueWhenNull(Type dataType) {
-        switch (dataType) {
+    protected Object getDefaultValueWhenNullForOrderByField(@Nonnull SearchMetadataMapping mapping) {
+        // if there is legit default value defined for the field, just use it
+        if (FIELD_DEFAULT_VALUE.containsKey(mapping)) {
+            return FIELD_DEFAULT_VALUE.get(mapping);
+        }
+        // otherwise get default value based on type
+        switch (mapping.getApiDatatype()) {
             case NUMBER:
                 return -Double.MAX_VALUE;
             case INTEGER:
@@ -571,7 +583,7 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
         }
         final List<Condition> conditions = new LinkedList<>();
         for (ConditionApiDTO condition: whereEntity.getConditions()) {
-            Field field = this.buildFieldForApiField(condition.getField());
+            Field field = buildFieldForApiField(condition.getField());
 
             if (condition instanceof TextConditionApiDTO) {
                 conditions.add(parseCondition((TextConditionApiDTO)condition, field));
@@ -753,27 +765,16 @@ public abstract class AbstractSearchQuery extends AbstractQuery {
      * Get {@link Field} configuration for entityField from mappings.
      *
      * @param apiField {@link FieldApiDTO} to parse into select query {@link Field}
-     * @return Field configuration based on {@link FieldApiDTO}
-     */
-    @VisibleForTesting
-    Field<?> buildSelectFieldFromOrderBy(FieldApiDTO apiField) {
-        return buildFieldForApiField(apiField, true);
-    }
-
-    /**
-     * Get {@link Field} configuration for entityField from mappings.
-     *
-     * @param apiField {@link FieldApiDTO} to parse into select query {@link Field}
      * @param sortOrder {@link SortOrder} sortOrder request on field
      * @return Field configuration based on {@link FieldApiDTO}
      */
     @VisibleForTesting
     SortField<?> buildAndTrackOrderByFields(final FieldApiDTO apiField, final SortOrder sortOrder) {
         SearchMetadataMapping columnMetadata = getMetadataMapping().get(apiField);
-        Field<?> field = buildFieldForApiField(apiField, false);
+        Field<?> field = buildFieldForApiField(apiField);
 
         //We use default values to get correct sorting when values null
-        field = coalesce(field, inline(getDefaultFieldValueWhenNull(columnMetadata.getApiDatatype())));
+        field = coalesce(field, inline(getDefaultValueWhenNullForOrderByField(columnMetadata)));
 
         SortOrder cursorConsideredSortOrder = getSortOrderBasedOnCursor(sortOrder);
         trackSortedOnFields(columnMetadata, field, cursorConsideredSortOrder);

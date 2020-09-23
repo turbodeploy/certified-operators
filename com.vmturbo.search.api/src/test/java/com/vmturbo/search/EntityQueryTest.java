@@ -54,6 +54,7 @@ import com.vmturbo.api.dto.searchquery.NumberFieldValueApiDTO;
 import com.vmturbo.api.dto.searchquery.OrderByApiDTO;
 import com.vmturbo.api.dto.searchquery.PaginationApiDTO;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
+import com.vmturbo.api.dto.searchquery.RelatedActionFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.RelatedEntityFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.SelectEntityApiDTO;
@@ -95,7 +96,7 @@ public class EntityQueryTest {
     }
 
     private EntityQuery entityQuery(final EntityQueryApiDTO entityQueryApiDTO) {
-        return new EntityQuery(entityQueryApiDTO, dSLContextSpy, 100, 100);
+        return spy(new EntityQuery(entityQueryApiDTO, dSLContextSpy, 100, 100));
     }
 
     /**
@@ -166,7 +167,7 @@ public class EntityQueryTest {
         Set<Field> fields = query.buildNonCommonFields();
 
         //THEN
-        Field primiField = query.buildFieldForApiField(primitiveEntityField, true);
+        Field primiField = query.buildSelectFieldForApiField(primitiveEntityField);
         assertTrue("Duplicates should have been filtered out", fields.size() == 1);
         assertTrue("Field created from FieldApiDTO", fields.contains(primiField));
     }
@@ -241,7 +242,7 @@ public class EntityQueryTest {
 
         //THEN
         assertFalse(fields.isEmpty());
-        Field comField = query.buildFieldForApiField(commodityField, true);
+        Field comField = query.buildSelectFieldForApiField(commodityField);
         assertTrue(fields.contains(comField));
     }
 
@@ -264,7 +265,7 @@ public class EntityQueryTest {
 
         //THEN
         assertFalse(fields.isEmpty());
-        Field relField = query.buildFieldForApiField(relatedEntityField, true);
+        Field relField = query.buildSelectFieldForApiField(relatedEntityField);
         assertTrue(fields.contains(relField));
     }
 
@@ -294,10 +295,10 @@ public class EntityQueryTest {
         EntityQuery query = entityQuery(request);
 
         //Jooq Fields for building results
-        final Field oidField = query.buildFieldForApiField(primitiveOid, true);
-        final Field primitive = query.buildFieldForApiField(primitiveTextField, true);
-        final Field commodity = query.buildFieldForApiField(commodityNumericField, true);
-        final Field relateEntity = query.buildFieldForApiField(relatedEntityMultiTextField, true);
+        final Field oidField = query.buildSelectFieldForApiField(primitiveOid);
+        final Field primitive = query.buildSelectFieldForApiField(primitiveTextField);
+        final Field commodity = query.buildSelectFieldForApiField(commodityNumericField);
+        final Field relateEntity = query.buildSelectFieldForApiField(relatedEntityMultiTextField);
         //Values for jooq results
         final Long oidValue = 123L;
         final String primitiveTextValue = "primitiveTextValue";
@@ -391,7 +392,7 @@ public class EntityQueryTest {
         //THEN
         assertTrue(conditions.size() == 2);
         // Case-insensitive regex search
-        String expectedCondition = "\"extractor\".\"search_entity\".\"severity\" = 'CRITICAL'";
+        String expectedCondition = "\"extractor\".\"search_entity_action\".\"severity\" = 'CRITICAL'";
         assertTrue(containsCondition(conditions, expectedCondition));
     }
 
@@ -573,7 +574,7 @@ public class EntityQueryTest {
         FieldApiDTO fieldApiDto = CommodityFieldApiDTO.used(CommodityType.CPU);
 
         final EntityQueryApiDTO request = basicRequestForEntityType(EntityType.PhysicalMachine);
-        EntityQuery querySpy = spy(entityQuery(request));
+        EntityQuery querySpy = entityQuery(request);
         querySpy.metadataMapping = mock(Map.class);
 
         doReturn(columnMetadata).when(querySpy.metadataMapping).get(any());
@@ -683,10 +684,14 @@ public class EntityQueryTest {
 
         FieldApiDTO integerFieldApiDTO = RelatedEntityFieldApiDTO.entityCount(EntityType.VirtualMachine);
         FieldApiDTO doubleFieldApiDTO = CommodityFieldApiDTO.weightedHistoricalUtilization(CommodityType.MEM);
+        FieldApiDTO severityFieldApiDTO = PrimitiveFieldApiDTO.severity();
         OrderByApiDTO orderByIntegerField = OrderByApiDTO.asc(integerFieldApiDTO);
         OrderByApiDTO orderByDoubleField = OrderByApiDTO.desc(doubleFieldApiDTO);
+        OrderByApiDTO orderBySeverityField = OrderByApiDTO.desc(severityFieldApiDTO);
+        OrderByApiDTO orderByActionCountField = OrderByApiDTO.desc(RelatedActionFieldApiDTO.actionCount());
 
-        PaginationApiDTO pagination = PaginationApiDTO.orderBy(orderByIntegerField, orderByDoubleField).build();
+        PaginationApiDTO pagination = PaginationApiDTO.orderBy(orderByIntegerField,
+                orderByDoubleField, orderBySeverityField, orderByActionCountField).build();
         final EntityQueryApiDTO request = EntityQueryApiDTO.queryEntity(selectEntity, pagination);
 
         EntityQuery query = entityQuery(request);
@@ -695,17 +700,25 @@ public class EntityQueryTest {
         LinkedHashSet<SortField<?>> sortFields = query.buildOrderByFields();
 
         //THEN
-        assertTrue(sortFields.size() == 3);
+        assertEquals(5, sortFields.size());
         final String integerSort = "coalesce(\n" + "  cast(attrs->>'num_vms' as bigint), \n"
                 + "  -2147483648\n" + ") asc nulls first";
         final String doubleSort = "coalesce(\n"
                 + "  cast(attrs->>'mem_hist_utilization' as double), \n"
                 + "  -1.7976931348623157E308\n" + ") desc nulls last";
+        final String severitySort = "coalesce(\n"
+                + "  \"extractor\".\"search_entity_action\".\"severity\", \n" + "  'NORMAL'\n"
+                + ") desc nulls last";
+        final String actionCountSort = "coalesce(\n"
+                + "  \"extractor\".\"search_entity_action\".\"num_actions\", \n" + "  0\n"
+                + ") desc nulls last";
         final String defaultOidField = "coalesce(\n"
                 + "  \"extractor\".\"search_entity\".\"oid\", \n" + "  -2147483648\n"
                 + ") asc nulls first";
         assertTrue(containsSort(sortFields, integerSort));
         assertTrue(containsSort(sortFields, doubleSort));
+        assertTrue(containsSort(sortFields, severitySort));
+        assertTrue(containsSort(sortFields, actionCountSort));
         assertTrue(containsSort(sortFields, defaultOidField));
     }
 
@@ -921,10 +934,10 @@ public class EntityQueryTest {
         EntityQuery query = entityQuery(request);
 
         //Jooq Fields for building results
-        final Field oidField = query.buildFieldForApiField(primitiveOid, true);
-        final Field nameField = query.buildFieldForApiField(primitiveName, true);
-        final Field commodityField = query.buildFieldForApiField(commodityDoubleField, true);
-        final Field relatedEntityField = query.buildFieldForApiField(relatedEntityFieldApiDTOMultiText, true);
+        final Field oidField = query.buildSelectFieldForApiField(primitiveOid);
+        final Field nameField = query.buildSelectFieldForApiField(primitiveName);
+        final Field commodityField = query.buildSelectFieldForApiField(commodityDoubleField);
+        final Field relatedEntityField = query.buildSelectFieldForApiField(relatedEntityFieldApiDTOMultiText);
         //Values for jooq results
         final Long oidValue = 123L;
         final String nameValue = "walter";
@@ -1022,7 +1035,8 @@ public class EntityQueryTest {
         OrderByApiDTO orderByPrimitiveName = OrderByApiDTO.desc(primitiveName);
 
         final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VirtualMachine)
-                .fields(primitiveOid, primitiveName)
+                .fields(primitiveOid, primitiveName, PrimitiveFieldApiDTO.severity(),
+                        RelatedActionFieldApiDTO.actionCount())
                 .build();
 
         PaginationApiDTO pagination = PaginationApiDTO.orderBy(orderByRelatedEntity,
@@ -1031,7 +1045,7 @@ public class EntityQueryTest {
                 .limit(1).build();
 
         EntityQueryApiDTO request = EntityQueryApiDTO.queryEntity(selectEntity, pagination);
-        EntityQuery querySpy = spy(entityQuery(request));
+        EntityQuery querySpy = entityQuery(request);
 
         doReturn(mock(Result.class)).when(dSLContextSpy).fetch(any(Select.class));
         doReturn(4).when(dSLContextSpy).fetchCount(any(Select.class));
@@ -1041,18 +1055,25 @@ public class EntityQueryTest {
         Select<Record> paginatedQuery = querySpy.buildCompleteQuery();
 
         //THEN
-        String expectedQuery = "select \n"
+        String expectedQuery = "select \n" + "  coalesce(\n"
+                + "    \"extractor\".\"search_entity_action\".\"severity\", \n" + "    'NORMAL'\n"
+                + "  ) as \"severity\", \n"
                 + "  \"extractor\".\"search_entity\".\"oid\" as \"oid\", \n"
                 + "  \"extractor\".\"search_entity\".\"name\" as \"name\", \n"
                 + "  cast(attrs->>'related_diskarray' as varchar) as \"related_diskarray\", \n"
+                + "  coalesce(\n" + "    \"extractor\".\"search_entity_action\".\"num_actions\", \n"
+                + "    0\n" + "  ) as \"num_actions\", \n"
                 + "  cast(attrs->>'vmem_capacity' as double precision) as \"vmem_capacity\", \n"
                 + "  \"extractor\".\"search_entity\".\"type\" as \"type\"\n"
-                + "from \"extractor\".\"search_entity\"\n" + "where (\n"
-                + "  \"extractor\".\"search_entity\".\"type\" = 'VIRTUAL_MACHINE'\n" + "  and (\n"
-                + "    coalesce(\n" + "      cast(attrs->>'related_diskarray' as varchar), \n"
-                + "      ''\n" + "    ) > '[\"vsphere-dc20-DC01\"]'\n" + "    or (\n"
-                + "      coalesce(\n" + "        cast(attrs->>'related_diskarray' as varchar), \n"
-                + "        ''\n" + "      ) = '[\"vsphere-dc20-DC01\"]'\n" + "      and coalesce(\n"
+                + "from \"extractor\".\"search_entity\"\n"
+                + "  left outer join \"extractor\".\"search_entity_action\"\n"
+                + "    on \"extractor\".\"search_entity\".\"oid\" = \"extractor\".\"search_entity_action\".\"oid\"\n"
+                + "where (\n" + "  \"extractor\".\"search_entity\".\"type\" = 'VIRTUAL_MACHINE'\n"
+                + "  and (\n" + "    coalesce(\n"
+                + "      cast(attrs->>'related_diskarray' as varchar), \n" + "      ''\n"
+                + "    ) > '[\"vsphere-dc20-DC01\"]'\n" + "    or (\n" + "      coalesce(\n"
+                + "        cast(attrs->>'related_diskarray' as varchar), \n" + "        ''\n"
+                + "      ) = '[\"vsphere-dc20-DC01\"]'\n" + "      and coalesce(\n"
                 + "        cast(attrs->>'vmem_capacity' as double precision), \n"
                 + "        -1.7976931348623157E308\n" + "      ) < 34.555\n" + "    )\n"
                 + "    or (\n" + "      coalesce(\n"
@@ -1095,11 +1116,13 @@ public class EntityQueryTest {
 
         final FieldApiDTO primitiveOid = PrimitiveFieldApiDTO.oid();
         final FieldApiDTO commodityDoubleField = CommodityFieldApiDTO.capacity(CommodityType.VMEM);
+        final FieldApiDTO severityField = PrimitiveFieldApiDTO.severity();
+        final FieldApiDTO actionCountField = RelatedActionFieldApiDTO.actionCount();
 
         OrderByApiDTO orderByCommodity = OrderByApiDTO.asc(commodityDoubleField);
 
         final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VirtualMachine)
-                .fields(primitiveOid, commodityDoubleField)
+                .fields(primitiveOid, commodityDoubleField, severityField, actionCountField)
                 .build();
 
         PaginationApiDTO pagination = PaginationApiDTO.orderBy(orderByCommodity)
@@ -1107,7 +1130,7 @@ public class EntityQueryTest {
                 .limit(1).build();
 
         EntityQueryApiDTO request = EntityQueryApiDTO.queryEntity(selectEntity, pagination);
-        EntityQuery querySpy = spy(entityQuery(request));
+        EntityQuery querySpy = entityQuery(request);
 
         doReturn(mock(Result.class)).when(dSLContextSpy).fetch(any(Select.class));
         doReturn(4).when(dSLContextSpy).fetchCount(any(Select.class));
@@ -1118,12 +1141,19 @@ public class EntityQueryTest {
 
         //THEN
         String expectedQuery = "select \n"
+                + "  coalesce(\n"
+                + "    \"extractor\".\"search_entity_action\".\"severity\", \n" + "    'NORMAL'\n"
+                + "  ) as \"severity\", \n"
                 + "  \"extractor\".\"search_entity\".\"oid\" as \"oid\", \n"
                 + "  \"extractor\".\"search_entity\".\"name\" as \"name\", \n"
                 + "  cast(attrs->>'vmem_capacity' as double precision) as \"vmem_capacity\", \n"
+                + "  coalesce(\n" + "    \"extractor\".\"search_entity_action\".\"num_actions\", \n"
+                + "    0\n" + "  ) as \"num_actions\", \n"
                 + "  \"extractor\".\"search_entity\".\"type\" as \"type\"\n"
-                + "from \"extractor\".\"search_entity\"\n" + "where (\n"
-                + "  \"extractor\".\"search_entity\".\"type\" = 'VIRTUAL_MACHINE'\n"
+                + "from \"extractor\".\"search_entity\"\n"
+                + "  left outer join \"extractor\".\"search_entity_action\"\n"
+                + "    on \"extractor\".\"search_entity\".\"oid\" = \"extractor\".\"search_entity_action\".\"oid\"\n"
+                + "where (\n" + "  \"extractor\".\"search_entity\".\"type\" = 'VIRTUAL_MACHINE'\n"
                 + "  and (coalesce(\n" + "    cast(attrs->>'vmem_capacity' as double precision), \n"
                 + "    -1.7976931348623157E308\n" + "  ), coalesce(\n"
                 + "    \"extractor\".\"search_entity\".\"oid\", \n" + "    -2147483648\n"
@@ -1318,7 +1348,4 @@ public class EntityQueryTest {
 
         assertTrue(responseEntity.getHeaders().get("X-Total-Record-Count").get(0).equals(String.valueOf(totalRecordCount)));
     }
-
-
-
 }

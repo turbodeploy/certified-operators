@@ -453,9 +453,8 @@ public class CommodityConverter {
         return isOfType && commodityType.hasKey();
     }
 
-    @VisibleForTesting
     @Nonnull
-    Optional<CommodityType> marketToTopologyCommodity(
+    public Optional<CommodityType> marketToTopologyCommodity(
             @Nonnull final CommodityDTOs.CommoditySpecificationTO marketCommodity) {
         return commodityTypeAllocator.marketToTopologyCommodity(marketCommodity);
     }

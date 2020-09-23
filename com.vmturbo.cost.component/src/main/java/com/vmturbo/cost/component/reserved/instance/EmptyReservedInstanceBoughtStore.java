@@ -6,15 +6,15 @@ import java.util.List;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.jooq.DSLContext;
+import org.jooq.impl.TableImpl;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceCostStat;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostFilter;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
@@ -77,22 +77,6 @@ public class EmptyReservedInstanceBoughtStore implements ReservedInstanceBoughtS
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
-        // no-op
-    }
-
-    @Override
-    public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
-        // no-op
-    }
-
-    @Nonnull
-    @Override
-    public String getFileName() {
-        return DIAG_FILE_NAME;
-    }
-
-    @Override
     public ReservedInstanceCostStat getReservedInstanceAggregatedCosts(
             @Nonnull final ReservedInstanceCostFilter filter) {
 
@@ -119,5 +103,31 @@ public class EmptyReservedInstanceBoughtStore implements ReservedInstanceBoughtS
             @Nonnull final DSLContext context,
             @Nonnull final Collection<Long> reservedInstanceIds) {
         return Collections.emptyMap();
+    }
+
+    @Override
+    public DSLContext getDSLContext() {
+        return null;
+    }
+
+    @Override
+    public TableImpl<ReservedInstanceBoughtRecord> getTable() {
+        return null;
+    }
+
+    @Override
+    public void restoreDiags(@Nonnull List<String> collectedDiags, Void context) {
+        //do nothing
+    }
+
+    @Override
+    public void collectDiags(@Nonnull DiagnosticsAppender appender) {
+        //do nothing
+    }
+
+    @Nonnull
+    @Override
+    public String getFileName() {
+        return DIAG_FILE_NAME;
     }
 }

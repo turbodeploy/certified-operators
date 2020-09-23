@@ -300,16 +300,18 @@ public class LiveStatsReaderTest {
             // Something to distinguish it from the regular stats filter.
             .addCommodityRequests(
                 CommodityRequest.newBuilder()
-                    .setCommodityName("foo")
-                    .setRelatedEntityType(StringConstants.VIRTUAL_MACHINE))
-            .build();
+                        .setCommodityName("foo")
+                        .setRelatedEntityType(StringConstants.VIRTUAL_MACHINE))
+                .build();
         when(computedPropertiesProcessorFactory.getProcessor(any(), any()))
                 .thenReturn(computedPropertiesProcessor);
         when(computedPropertiesProcessor.getAugmentedFilter()).thenReturn(statsFilterWithCounts);
 
         final Condition condition = mock(Condition.class);
         when(statsQueryFactory.createCommodityRequestsCond(any(), any()))
-            .thenReturn(Optional.of(condition));
+                .thenReturn(Optional.of(condition));
+        when(statsQueryFactory.createExcludeZeroCountRecordsCond(any(), any()))
+                .thenReturn(Optional.empty());
         when(statsQueryFactory.entityTypeCond(any(), any())).thenReturn(Optional.empty());
         when(statsQueryFactory.environmentTypeCond(any(), any())).thenReturn(Optional.empty());
 
@@ -318,7 +320,7 @@ public class LiveStatsReaderTest {
 
         final Record processedRecord = mock(Record.class);
         when(computedPropertiesProcessor.processResults(result, TIMESTAMP))
-            .thenReturn(Collections.singletonList(processedRecord));
+                .thenReturn(Collections.singletonList(processedRecord));
 
         final DSLContext jooqBuilderSpy = spy(DSL.using(SQLDialect.MARIADB));
         when(mockHistorydbIO.JooqBuilder()).thenReturn(jooqBuilderSpy);

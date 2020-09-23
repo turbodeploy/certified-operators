@@ -42,7 +42,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]StatsHistoryRpcService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]live[/\\]ComputedPropertiesProcessor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]live[/\\]LiveStatsAggregator.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]live[/\\]StatsQueryFactory.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]live[/\\]TimeRange.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]priceindex[/\\]TopologyPriceIndices.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]history[/\\]stats[/\\]projected[/\\]BoughtCommoditiesInfo.java" />

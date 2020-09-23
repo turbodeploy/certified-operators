@@ -611,7 +611,7 @@ public class TopologyConverter {
     }
 
     // Read only version
-    protected final Map<Long, ShoppingListInfo> getShoppingListOidToInfos() {
+    public final Map<Long, ShoppingListInfo> getShoppingListOidToInfos() {
         return Collections.unmodifiableMap(shoppingListOidToInfos);
     }
 

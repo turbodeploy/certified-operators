@@ -117,6 +117,7 @@ import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicator
 import com.vmturbo.topology.processor.topology.RequestAndLimitCommodityThresholdsInjector;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
+import com.vmturbo.topology.processor.topology.TopologyEditorException;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 import com.vmturbo.topology.processor.topology.pipeline.CachedTopology.CachedTopologyResult;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PassthroughStage;
@@ -630,7 +631,8 @@ public class Stages {
 
         @NotNull
         @Override
-        public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) throws PipelineStageException {
+        public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input)
+                throws PipelineStageException {
             // Topology editing should use a group resolver distinct from the rest of the pipeline.
             // This is so that pre-edit group membership lookups don't get cached in the "main"
             // group resolver, preventing post-edit group membership lookups from seeing members
@@ -640,6 +642,8 @@ public class Stages {
             try {
                 topologyEditor.editTopology(input, changes, getContext(), groupResolver);
             } catch (GroupResolutionException e) {
+                throw new PipelineStageException(e);
+            } catch (TopologyEditorException e) {
                 throw new PipelineStageException(e);
             }
             // TODO (roman, Oct 23 2018): Add some information about the number/type of

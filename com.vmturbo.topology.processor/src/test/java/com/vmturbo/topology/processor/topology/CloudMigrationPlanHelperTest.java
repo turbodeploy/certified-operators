@@ -5,6 +5,7 @@ import static com.vmturbo.topology.processor.topology.CloudMigrationPlanHelper.C
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.loadTopologyBuilderDTO;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.loadTopologyInfo;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.junit.Before;
@@ -43,6 +45,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -55,6 +59,7 @@ import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.topology.CloudMigrationPlanHelper.CloudMigrationSettingsPolicyEditor;
+import com.vmturbo.topology.processor.topology.CloudMigrationPlanHelper.CloudMigrationStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 /**
@@ -99,6 +104,16 @@ public class CloudMigrationPlanHelperTest {
     private TopologyEntityDTO.Builder vm1Aws;
 
     /**
+     * On-prem source Host PM DTO data read from file.
+     */
+    private TopologyEntityDTO.Builder host1OnPrem;
+
+    /**
+     * On-prem source Storage DTO data read from file.
+     */
+    private TopologyEntityDTO.Builder storage1OnPrem;
+
+    /**
      * Allocation plan topology info read from file.
      */
     private TopologyInfo allocationTopologyInfo;
@@ -108,7 +123,6 @@ public class CloudMigrationPlanHelperTest {
      */
     private TopologyInfo consumptionTopologyInfo;
 
-    private static final long EXISTING_SETTING_POLICY_GROUP_OID = 100;
     private static final Set<Long> DISCOVERED_EXCLUDED_TIER_OIDS = Sets.newHashSet(101L, 102L, 103L);
     private static final Set<Long> EXISTING_CLOUD_VM_OIDS = Sets.newHashSet(1L, 2L, 3L);
     private static final Set<Long> MIGRATING_VM_OIDS = Sets.newHashSet(4L, 5L, 6L);
@@ -133,6 +147,8 @@ public class CloudMigrationPlanHelperTest {
         consumptionTopologyInfo = loadTopologyInfo("cloud-migration-topo-info-consumption.json");
         vm1Azure = loadTopologyBuilderDTO("cloud-migration-vm-1-azure.json");
         vm1Aws = loadTopologyBuilderDTO("cloud-migration-vm-1-aws.json");
+        host1OnPrem = loadTopologyBuilderDTO("cloud-migration-pm-1-onprem.json");
+        storage1OnPrem = loadTopologyBuilderDTO("cloud-migration-storage-1-onprem.json");
 
         IdentityGenerator.initPrefix(1L);
     }
@@ -185,6 +201,96 @@ public class CloudMigrationPlanHelperTest {
          * Whether commBoughtGrouping is movable or not. If not, movable assert check is ignored.
          */
         @Nullable Boolean movable = null;
+    }
+
+    /**
+     * Confirms that intra-cloud migrations are prevented, and that legal cloud-to-cloud migrations
+     * are supported.
+     *
+     * @throws CloudMigrationStageException Thrown if a cloud migration plan the destination does
+     * not have a valid cloudType, or when an intra-plan migration in attempted in such plans
+     */
+    @Test
+    public void testPreventionOfIntraCloudMigrations() throws CloudMigrationStageException {
+        final long regionId = 1L;
+        final long azureServiceProviderId = 2L;
+        final long awsServiceProviderId = 3L;
+        final long awsVmId = 4L;
+        final long awsBusinessAccountId = 5L;
+        final long azureBusinessAccountId = 6L;
+        final long vmId = 7L;
+
+        final TopologyEntity.Builder azureBusinessAccount = TopologyEntityUtils.topologyEntity(azureBusinessAccountId, 0, 0, "BUSINESS_ACCOUNT", EntityType.BUSINESS_ACCOUNT);
+        azureBusinessAccount.getEntityBuilder().addAllConnectedEntityList(Lists.newArrayList(
+                ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(vmId)
+                        .setConnectionType(ConnectionType.OWNS_CONNECTION)
+                        .build(),
+                ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(azureServiceProviderId)
+                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                        .build()));
+
+        final TopologyEntity.Builder azureServiceProviderEntity =  TopologyEntityUtils.topologyEntity(azureServiceProviderId, 0, 0, "Azure", EntityType.SERVICE_PROVIDER);
+        azureServiceProviderEntity.getEntityBuilder()
+                .addConnectedEntityList(
+                        ConnectedEntity.newBuilder()
+                                .setConnectedEntityId(regionId)
+                                .setConnectionType(ConnectionType.OWNS_CONNECTION)
+                                .build());
+
+        final TopologyEntity.Builder azureVmEntity = TopologyEntityUtils
+                .topologyEntity(vmId, 0, 0, "VM", EntityType.VIRTUAL_MACHINE);
+        final TopologyEntity.Builder regionEntity = TopologyEntityUtils
+                .topologyEntity(regionId, 0, 0, "REGION", EntityType.REGION);
+
+        regionEntity.getEntityBuilder().addConnectedEntityList(
+                ConnectedEntity.newBuilder()
+                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                        .build());
+
+        final TopologyEntity.Builder awsVmEntity = TopologyEntityUtils
+                .topologyEntity(awsVmId, 0, 0, "AWS_VM", EntityType.VIRTUAL_MACHINE);
+        final TopologyEntity.Builder awsBusinessAccount = TopologyEntityUtils.topologyEntity(
+                awsBusinessAccountId, 0, 0, "BUSINESS_ACCOUNT", EntityType.BUSINESS_ACCOUNT);
+        final TopologyEntity.Builder awsServiceProvider = TopologyEntityUtils.topologyEntity(
+                awsServiceProviderId, 0, 0, "Aws", EntityType.SERVICE_PROVIDER);
+
+        awsServiceProvider.getEntityBuilder().addConnectedEntityList(
+                ConnectedEntity.newBuilder()
+                        .setConnectionType(ConnectionType.OWNS_CONNECTION)
+                        .setConnectedEntityId(awsBusinessAccountId).build());
+
+        awsBusinessAccount.getEntityBuilder().addAllConnectedEntityList(Lists.newArrayList(
+                ConnectedEntity.newBuilder()
+                        .setConnectionType(ConnectionType.OWNS_CONNECTION)
+                        .setConnectedEntityId(awsVmId).build(),
+                ConnectedEntity.newBuilder()
+                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                        .setConnectedEntityId(awsServiceProviderId).build()));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(
+                azureVmEntity,
+                awsVmEntity,
+                regionEntity,
+                azureBusinessAccount,
+                azureServiceProviderEntity,
+                awsBusinessAccount,
+                awsServiceProvider);
+
+        final boolean isAzureToAzureIntraCloudMigration = cloudMigrationPlanHelper.isIntraCloudMigration(
+                graph,
+                Sets.newHashSet(vmId),
+                Sets.newHashSet(regionId));
+
+        assertTrue(isAzureToAzureIntraCloudMigration);
+
+        final boolean isAwsToAzureIntraCloudMigration = cloudMigrationPlanHelper.isIntraCloudMigration(
+                graph,
+                Sets.newHashSet(awsVmId),
+                Sets.newHashSet(regionId));
+
+        assertFalse(isAwsToAzureIntraCloudMigration);
     }
 
     /**
@@ -543,6 +649,50 @@ public class CloudMigrationPlanHelperTest {
         // Only the active entity's oid should be returned
 
         assertTrue(activeOids.equals(Collections.singleton(activeVmOid)));
+    }
+
+    /**
+     * Verifies that movable and scalable flags for onPrem hosts and storage providers are set
+     * to false, so that we don't see actions for those in MCP plan output.
+     */
+    @Test
+    public void onPremHostAndStorageNonMovable() {
+        assertNotNull(host1OnPrem);
+        assertFalse(host1OnPrem.getCommoditiesBoughtFromProvidersList().isEmpty());
+        assertNotNull(storage1OnPrem);
+        assertFalse(storage1OnPrem.getCommoditiesBoughtFromProvidersList().isEmpty());
+        assertNotNull(allocationTopologyInfo);
+
+        long storageProviderOfHost = 73490062265697L;
+        verifyMovableScalable(host1OnPrem, storageProviderOfHost, true);
+        long diskArrayProviderOfStorage = 73433887031971L;
+        verifyMovableScalable(storage1OnPrem, diskArrayProviderOfStorage, true);
+
+        cloudMigrationPlanHelper.prepareBoughtCommodities(host1OnPrem, allocationTopologyInfo,
+                Collections.emptyMap(), true, false);
+        cloudMigrationPlanHelper.prepareBoughtCommodities(storage1OnPrem, allocationTopologyInfo,
+                Collections.emptyMap(), true, false);
+
+        verifyMovableScalable(host1OnPrem, storageProviderOfHost, false);
+        verifyMovableScalable(storage1OnPrem, diskArrayProviderOfStorage, false);
+    }
+
+    /**
+     * Convenience method to check status of commBoughtGrouping movable and scalable flags.
+     *
+     * @param dtoBuilder Entity (host/storage) for which setting needs to be checked.
+     * @param providerId Provider that host/storage is buying from.
+     * @param expectedValue Value to check.
+     */
+    private void verifyMovableScalable(@Nonnull final TopologyEntityDTO.Builder dtoBuilder,
+            long providerId, boolean expectedValue) {
+        Optional<CommoditiesBoughtFromProvider> commBoughtGrouping =
+                dtoBuilder.getCommoditiesBoughtFromProvidersList().stream()
+                        .filter(commBought -> commBought.getProviderId() == providerId)
+                        .findAny();
+        assertTrue(commBoughtGrouping.isPresent());
+        assertEquals(commBoughtGrouping.get().getMovable(), expectedValue);
+        assertEquals(commBoughtGrouping.get().getScalable(), expectedValue);
     }
 }
 

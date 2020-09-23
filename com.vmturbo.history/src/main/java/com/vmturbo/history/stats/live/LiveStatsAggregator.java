@@ -1,12 +1,11 @@
 package com.vmturbo.history.stats.live;
 
-import static gnu.trove.impl.Constants.DEFAULT_CAPACITY;
-import static gnu.trove.impl.Constants.DEFAULT_LOAD_FACTOR;
-
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -20,15 +19,15 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Table;
 
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2DoubleMap;
+import it.unimi.dsi.fastutil.objects.Object2DoubleOpenHashMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import gnu.trove.map.TIntObjectMap;
-import gnu.trove.map.TLongObjectMap;
-import gnu.trove.map.TObjectDoubleMap;
-import gnu.trove.map.hash.TIntObjectHashMap;
-import gnu.trove.map.hash.TLongObjectHashMap;
-import gnu.trove.map.hash.TObjectDoubleHashMap;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -76,7 +75,8 @@ public class LiveStatsAggregator {
     /**
      * {@link MarketStatsAccumulator}s by base entity type and environment type.
      */
-    private Table<String, EnvironmentType, MarketStatsAccumulator> accumulatorsByEntityAndEnvType = HashBasedTable.create();
+    private Table<String, EnvironmentType, MarketStatsAccumulator> accumulatorsByEntityAndEnvType
+            = HashBasedTable.create();
     /**
      * Map from numerical entity type to {@link EntityType}.
      */
@@ -103,13 +103,41 @@ public class LiveStatsAggregator {
      * @param loaders              bulk loader factory
      */
     public LiveStatsAggregator(@Nonnull final HistorydbIO historydbIO,
-                               @Nonnull final TopologyInfo topologyInfo,
-                               @Nonnull Set<String> commoditiesToExclude,
-                               @Nonnull SimpleBulkLoaderFactory loaders) {
-        this.historydbIO = historydbIO;
-        this.topologyInfo = topologyInfo;
-        this.commoditiesToExclude = commoditiesToExclude;
-        this.loaders = loaders;
+            @Nonnull final TopologyInfo topologyInfo,
+            @Nonnull Set<String> commoditiesToExclude,
+            @Nonnull SimpleBulkLoaderFactory loaders) {
+        this.historydbIO = Objects.requireNonNull(historydbIO);
+        this.topologyInfo = Objects.requireNonNull(topologyInfo);
+        this.commoditiesToExclude = Objects.requireNonNull(commoditiesToExclude);
+        this.loaders = Objects.requireNonNull(loaders);
+        createAccumulators();
+    }
+
+    /**
+     * Preallocate accumulators for all entity type/environment pairs.
+     *
+     * <p>This will result in a small number of additional records in the database for entities
+     * that never appear in a topology, but it fixes a bug (OM-62025) wherein if an entity type
+     * disappared from a topology, its market-wide stats would effectively be frozen at their most
+     * recent values in rollup tables.</p>
+     */
+    private void createAccumulators() {
+        EntityType.allEntityTypes().stream()
+                .filter(EntityType::persistsStats)
+                .forEach(this::createAccumulatorsForType);
+    }
+
+    private void createAccumulatorsForType(EntityType entityType) {
+        Arrays.stream(EnvironmentType.values())
+                .forEach(env -> createAccumulatorForTypeAndEnv(entityType, env));
+    }
+
+    private void createAccumulatorForTypeAndEnv(final EntityType entityType, final EnvironmentType env) {
+        final String entityTypeName = entityType.getName();
+        final MarketStatsAccumulator accumulator =
+                MarketStatsAccumulator.create(topologyInfo, entityTypeName, env,
+                        historydbIO, commoditiesToExclude, loaders, longCommodityKeys);
+        accumulatorsByEntityAndEnvType.put(entityTypeName, env, accumulator);
     }
 
     /**
@@ -164,22 +192,14 @@ public class LiveStatsAggregator {
         // The market_stats_last entries MUST NOT alias DataCenter with PhysicalMachine.
         // This is why we require "baseEntityType".
         final Optional<String> baseEntityTypeOptional = baseEntityTypes.computeIfAbsent(sdkEntityType,
-            historydbIO::getBaseEntityType);
+                historydbIO::getBaseEntityType);
         if (!baseEntityTypeOptional.isPresent()) {
             return;
         }
         final String baseEntityType = baseEntityTypeOptional.get();
 
-        MarketStatsAccumulator marketStatsAccumulator =
-            accumulatorsByEntityAndEnvType.get(baseEntityType, entityDTO.getEnvironmentType());
-        if (marketStatsAccumulator == null) {
-            marketStatsAccumulator = MarketStatsAccumulator.create(topologyInfo, baseEntityType,
-                    entityDTO.getEnvironmentType(), historydbIO, commoditiesToExclude, loaders,
-                    longCommodityKeys);
-            accumulatorsByEntityAndEnvType.put(baseEntityType, entityDTO.getEnvironmentType(), marketStatsAccumulator);
-        }
-
-        marketStatsAccumulator.recordEntity(entityDTO, capacityCache, delayedCommoditiesBought, entityByOid);
+        accumulatorsByEntityAndEnvType.get(baseEntityType, entityDTO.getEnvironmentType())
+                .recordEntity(entityDTO, capacityCache, delayedCommoditiesBought, entityByOid);
     }
 
     /**
@@ -221,8 +241,8 @@ public class LiveStatsAggregator {
      */
     public void logShortenedCommodityKeys() {
         if (!longCommodityKeys.isEmpty()) {
-            logger.error("Following commodity keys needed to be shortened when persisted; " +
-                    "data access anomalies may result: {}", longCommodityKeys);
+            logger.error("Following commodity keys needed to be shortened when persisted; "
+                    + "data access anomalies may result: {}", longCommodityKeys);
         }
     }
 
@@ -258,15 +278,15 @@ public class LiveStatsAggregator {
         // we're using trove collections to reduce memory footprint. They avoid boxing primitives.
         // overall map can use default size and load factor, and since OIDs cannot be negative, we
         // use a negative value for no-entry
-        TLongObjectMap<TIntObjectMap<TObjectDoubleMap<String>>> capacities
-            = new TLongObjectHashMap<>(DEFAULT_CAPACITY, DEFAULT_LOAD_FACTOR, -1L);
+        Long2ObjectMap<Int2ObjectMap<Object2DoubleMap<String>>> capacities
+                = new Long2ObjectOpenHashMap<>();
 
         // Reusable capacity maps. The assumption is that there may be multiple providers selling
         // commodities with exactly the same set of capacities. For example hosts in the same cluster,
         // VMs deployed from the same template etc. To reduce overall memory footprint we use shared
         // capacity structures among entities whose structures end up identical.
-        private Map<TIntObjectMap<TObjectDoubleMap<String>>, TIntObjectMap<TObjectDoubleMap<String>>>
-            reusableCapacityMaps = new HashMap<>();
+        private Map<Int2ObjectMap<Object2DoubleMap<String>>, Int2ObjectMap<Object2DoubleMap<String>>>
+                reusableCapacityMaps = new HashMap<>();
 
         /**
          * Cache capacities for all commodities sold by the given entity.
@@ -284,9 +304,9 @@ public class LiveStatsAggregator {
                     cacheCapacity(oid, type, key, capacity);
                 });
                 // check whether we have an identical capacities map for any prior entities
-                TIntObjectMap<TObjectDoubleMap<String>> entityCapacities = capacities.get(oid);
-                TIntObjectMap<TObjectDoubleMap<String>> reusableEntityCapacities
-                    = reusableCapacityMaps.get(entityCapacities);
+                Int2ObjectMap<Object2DoubleMap<String>> entityCapacities = capacities.get(oid);
+                Int2ObjectMap<Object2DoubleMap<String>> reusableEntityCapacities
+                        = reusableCapacityMaps.get(entityCapacities);
                 if (reusableEntityCapacities != null) {
                     // yes, replace ours with the shared instance
                     capacities.put(oid, reusableEntityCapacities);
@@ -306,12 +326,12 @@ public class LiveStatsAggregator {
          * @param capacity seller's capacity
          */
         public void cacheCapacity(long oid, int type, @Nullable String key, double capacity) {
-            TIntObjectMap<TObjectDoubleMap<String>> commTypeMap = ensureCommTypeMap(oid, 1);
-            TObjectDoubleMap<String> commKeyMap = commTypeMap.get(type);
+            Int2ObjectMap<Object2DoubleMap<String>> commTypeMap = ensureCommTypeMap(oid, 1);
+            Object2DoubleMap<String> commKeyMap = commTypeMap.get(type);
             if (commKeyMap == null) {
                 // we mostly only ever need one entry and no growth, and we'll use -1.0 to mean
                 // no entry
-                commKeyMap = new TObjectDoubleHashMap<>(1, 1f, -1.0);
+                commKeyMap = new Object2DoubleOpenHashMap<>(1);
                 commTypeMap.put(type, commKeyMap);
             }
             // protobuf default for a string field is "", so we'll use that here too
@@ -345,7 +365,7 @@ public class LiveStatsAggregator {
          * @param providerId entity OID
          * @return that entity's cached sold capacities, or null if none
          */
-        public TIntObjectMap<TObjectDoubleMap<String>> getEntityCapacities(long providerId) {
+        public Int2ObjectMap<Object2DoubleMap<String>> getEntityCapacities(long providerId) {
             return capacities.get(providerId);
         }
 
@@ -359,19 +379,19 @@ public class LiveStatsAggregator {
          * @param size # of commodity types sold by the entity
          * @return the new or previously existing entry
          */
-        private TIntObjectMap<TObjectDoubleMap<String>> ensureCommTypeMap(long oid, int size) {
-            TIntObjectMap<TObjectDoubleMap<String>> entry = capacities.get(oid);
+        private Int2ObjectMap<Object2DoubleMap<String>> ensureCommTypeMap(long oid, int size) {
+            Int2ObjectMap<Object2DoubleMap<String>> entry = capacities.get(oid);
             if (entry == null) {
                 // all commodity types are positive, so use a negative value for no entry
-                entry = new TIntObjectHashMap<>(size, 1f, -1);
+                entry = new Int2ObjectOpenHashMap<>(size);
                 capacities.put(oid, entry);
             }
             return entry;
         }
 
         @VisibleForTesting
-        Collection<TIntObjectMap<TObjectDoubleMap<String>>> getAllEntityCapacities() {
-            return capacities.valueCollection();
+        Collection<Int2ObjectMap<Object2DoubleMap<String>>> getAllEntityCapacities() {
+            return capacities.values();
         }
     }
 }

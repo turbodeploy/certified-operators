@@ -50,9 +50,9 @@ import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
+import com.vmturbo.platform.analysis.utilities.InfiniteQuotesOfInterest.IndividualCommodityQuote;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
-import com.vmturbo.platform.analysis.utilities.QuoteTracker.IndividualCommodityQuote;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -399,7 +399,7 @@ public class InitialPlacementFinder {
 
             logger.info("Start processing reservation {} result", reservationId);
             // process failed placement and pass information to caller
-            if (!placementResults.getUnplacedTraders().isEmpty()) {
+            if (!placementResults.getInfinityQuoteTraders().isEmpty()) {
                 reservationResult = buildReservationFailureInfo(
                         placementResults, cachedEconomy, commTypeToSpecMap, reservationTraders);
             }
@@ -501,7 +501,8 @@ public class InitialPlacementFinder {
         Set<Long> reservationTraderOids = reservationTraders.stream().map(TraderTO::getOid).collect(Collectors.toSet());
         // iterate unplaced trader and its quote tracker collection to figure out the commodity that exceeds
         // the availability as well as its closest seller that can provide max quantity for that commodity
-        for (Map.Entry<Trader, Collection<QuoteTracker>> entry : result.getUnplacedTraders().entrySet()) {
+        // TODO: use the unplacementReason protobuf once OM-61233 is done
+        for (Map.Entry<Trader, Collection<QuoteTracker>> entry : result.getInfinityQuoteTraders().entrySet()) {
             long unplacedTraderOid = entry.getKey().getOid();
             // make sure the unplaced trader is indeed from reservation request
             if (!entry.getKey().isOidSet() || !reservationTraderOids.contains(unplacedTraderOid)) {

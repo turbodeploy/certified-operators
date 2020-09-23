@@ -22,7 +22,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -41,6 +40,7 @@ import org.jooq.Result;
 import org.jooq.SelectJoinStep;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
+import org.jooq.impl.TableImpl;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -48,8 +48,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceDerivedCost;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
-import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
@@ -91,24 +89,13 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
 
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
-        // TODO to be implemented as part of OM-58627
+    public DSLContext getDSLContext() {
+        return getDsl();
     }
 
     @Override
-    public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
-        getDsl().transaction(transactionContext -> {
-            final DSLContext transaction = DSL.using(transactionContext);
-            Stream<ReservedInstanceBoughtRecord> latestRecords = transaction.selectFrom(RESERVED_INSTANCE_BOUGHT).stream();
-            latestRecords.forEach(s -> {
-                try {
-                    appender.appendString(s.formatJSON());
-                } catch (DiagnosticsException e) {
-                    logger.error("Exception encountered while appending reserved instance bought records"
-                            + " to the diags dump", e);
-                }
-            });
-        });
+    public TableImpl<ReservedInstanceBoughtRecord> getTable() {
+        return RESERVED_INSTANCE_BOUGHT;
     }
 
     @Nonnull

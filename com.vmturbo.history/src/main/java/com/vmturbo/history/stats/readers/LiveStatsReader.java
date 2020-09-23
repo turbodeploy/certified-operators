@@ -452,6 +452,12 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                                 .getAugmentedFilter().getCommodityRequestsList(), table);
         commodityRequestsCond.ifPresent(whereConditions::add);
 
+        // add conditions to exclude zero-valued count metrics if no commodities are
+        // explicitly requested
+        final Optional<Condition> excludeZeroCountRecords =
+                statsQueryFactory.createExcludeZeroCountRecordsCond(statsFilter, table);
+        excludeZeroCountRecords.ifPresent(whereConditions::add);
+
         // if a related entity type provided, add a where clause to restrict to that entityType
         final Optional<Condition> entityTypeCond = statsQueryFactory.entityTypeCond(
                 Sets.newHashSet(globalFilter.getRelatedEntityTypeList()), table);

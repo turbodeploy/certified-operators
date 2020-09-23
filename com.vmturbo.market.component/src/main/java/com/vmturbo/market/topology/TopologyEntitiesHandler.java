@@ -205,13 +205,15 @@ public class TopologyEntitiesHandler {
      * @param analysisConfig has information about this round of analysis
      * @param analysis containing reference for replay actions.
      * @param topology the corresponding topology
+     * @param ede the economy engine
      * @return The list of actions for the TOs.
      */
     public static AnalysisResults performAnalysis(Collection<TraderTO> traderTOs,
                                                   @Nonnull final TopologyDTO.TopologyInfo topologyInfo,
                                                   final AnalysisConfig analysisConfig,
                                                   final Analysis analysis,
-                                                  final Topology topology) {
+                                                  final Topology topology,
+                                                  @Nonnull final Ede ede) {
         try (TracingScope scope = Tracing.trace("perform_analysis")) {
             final long start = System.nanoTime();
             final DataMetricTimer buildTimer = ECONOMY_BUILD.startTimer();
@@ -223,7 +225,6 @@ public class TopologyEntitiesHandler {
             // compute startPriceIndex
             final PriceStatement startPriceStatement = new PriceStatement();
             startPriceStatement.computePriceIndex(economy);
-            final Ede ede = new Ede();
             buildTimer.observe();
 
             final boolean isRealtime = topologyInfo.getTopologyType() == TopologyType.REALTIME;

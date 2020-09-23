@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -16,8 +17,10 @@ import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 import com.google.common.collect.Tables;
 
+import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.api.enums.EntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
 import com.vmturbo.extractor.search.EnumUtils.GroupTypeUtils;
 import com.vmturbo.extractor.search.EnumUtils.SearchEntityTypeUtils;
@@ -199,5 +202,50 @@ public class SearchMetadataUtils {
     public static Set<Integer> getCommodityTypesToScrape(int entityType) {
         return COMMODITY_TYPES_TO_SCRAPE_BY_ENTITY_TYPE.getOrDefault(entityType,
                 Collections.emptySet());
+    }
+
+    /**
+     * Set of entity types to compute supply chain for.
+     */
+    private static final Set<Integer> ENTITY_TYPES_TO_COMPUTE_SUPPLY_CHAIN;
+
+    static {
+        final Set<Integer> set = new HashSet<>();
+        for (SearchEntityMetadata searchEntityMetadata : SearchEntityMetadata.values()) {
+            if (searchEntityMetadata.getMetadataMappingMap().entrySet().stream()
+                    .anyMatch(entry -> entry.getKey().getFieldType() == FieldType.RELATED_ENTITY)) {
+                set.add(SearchEntityTypeUtils.apiToProto(searchEntityMetadata.getEntityType())
+                        .getNumber());
+            }
+        }
+
+        // if the group has related entities (like related vm count for cluster), we also need to
+        // calculate supply chain for the direct member type of the group (pm for cluster)
+        for (SearchGroupMetadata searchGroupMetadata : SearchGroupMetadata.values()) {
+            Set<Entry<FieldApiDTO, SearchMetadataMapping>> entries =
+                    searchGroupMetadata.getMetadataMappingMap().entrySet();
+            if (entries.stream().anyMatch(entry -> entry.getKey().getFieldType() == FieldType.RELATED_ENTITY)) {
+                Set<Integer> groupMemberTypes = entries.stream()
+                        .filter(e -> e.getKey().getFieldType() == FieldType.MEMBER)
+                        .map(e -> e.getValue().getMemberType())
+                        .filter(Objects::nonNull)
+                        .map(type -> SearchEntityTypeUtils.apiToProto(type).getNumber())
+                        .collect(Collectors.toSet());
+                set.addAll(groupMemberTypes);
+            }
+        }
+        ENTITY_TYPES_TO_COMPUTE_SUPPLY_CHAIN = Collections.unmodifiableSet(set);
+    }
+
+    /**
+     * Whether or not it requires supply chain calculation for the given entity type, based on
+     * the definition in search metadata.
+     *
+     * @param entityType type of the entity
+     * @return true if supply chain should be calculated, otherwise false
+     */
+    public static boolean shouldComputeSupplyChain(int entityType) {
+        return ENTITY_TYPES_TO_COMPUTE_SUPPLY_CHAIN.contains(entityType)
+                || ApiEntityType.PROTO_ENTITY_TYPES_TO_EXPAND.containsKey(entityType);
     }
 }

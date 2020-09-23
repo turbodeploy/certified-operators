@@ -335,7 +335,7 @@ public class CloudTopologyConverter {
      * @return {@link MarketTier} which corresponds to the traderTO oid
      */
     @Nullable
-    MarketTier getMarketTier(long traderToOid) {
+    public MarketTier getMarketTier(long traderToOid) {
         return traderTOOidToMarketTier.get(traderToOid);
     }
 

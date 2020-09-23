@@ -107,8 +107,7 @@ public class TopologyEditor {
     public void editTopology(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
                                          @Nonnull final List<ScenarioChange> changes,
                                          @Nonnull final TopologyPipelineContext context,
-                                         @Nonnull final GroupResolver groupResolver)
-            throws GroupResolutionException {
+                                         @Nonnull final GroupResolver groupResolver) throws GroupResolutionException {
         final TopologyInfo topologyInfo = context.getTopologyInfo();
         // Set shopTogether to false for all entities if it's not a alleviate pressure plan,
         // so SNM is not performed by default.
@@ -185,23 +184,24 @@ public class TopologyEditor {
                 }
             } else if (change.hasTopologyMigration()) {
                 // also consider on-prem migration use case
-                TopologyMigration topologyMigration = change.getTopologyMigration();
-                Integer migratingEntityType = topologyMigration.getDestinationEntityType()
+                final TopologyMigration topologyMigration = change.getTopologyMigration();
+                final Integer migratingEntityType = topologyMigration.getDestinationEntityType()
                         == TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE
                         ? EntityType.VIRTUAL_MACHINE_VALUE
                         : EntityType.DATABASE_SERVER_VALUE;
 
-                Set<Long> entitiesToMigrate = expandAndFlattenReferences(
+                final Set<Long> entitiesToMigrate = expandAndFlattenReferences(
                         topologyMigration.getSourceList(), migratingEntityType, groupIdToGroupMap,
                         groupResolver, topologyGraph);
                 context.setSourceEntities(entitiesToMigrate);
 
-                Set<Long> migratingToRegions = expandAndFlattenReferences(
+                final Set<Long> migratingToRegions = expandAndFlattenReferences(
                         topologyMigration.getDestinationList(),
                         migratingEntityType,
                         groupIdToGroupMap,
                         groupResolver,
                         topologyGraph);
+
                 context.setDestinationEntities(migratingToRegions);
             } else if (change.hasTopologyRemoval()) {
                 final TopologyRemoval removal = change.getTopologyRemoval();
