@@ -213,7 +213,6 @@ public class QueryInfoFactoryTest {
         long belowARMEntityId = 1L;
         long notBelowARMEntityId = 2L;
 
-        when(involvedEntitiesExpander.isARMEntityType(EntityType.SERVICE_VALUE)).thenReturn(true);
         when(involvedEntitiesExpander.isBelowARMEntityType(belowARMEntityId,
                 Collections.singleton(EntityType.SERVICE_VALUE))).thenReturn(true);
         when(involvedEntitiesExpander.isBelowARMEntityType(notBelowARMEntityId,

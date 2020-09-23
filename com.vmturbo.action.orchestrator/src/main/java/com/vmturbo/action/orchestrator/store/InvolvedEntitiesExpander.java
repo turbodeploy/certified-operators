@@ -1,18 +1,18 @@
 package com.vmturbo.action.orchestrator.store;
 
-import java.util.Arrays;
+import static com.vmturbo.common.protobuf.action.ARMEntityUtil.ARM_ENTITY_TYPE;
+import static com.vmturbo.common.protobuf.action.ARMEntityUtil.ENTITY_TYPES_BELOW_ARM;
+import static com.vmturbo.common.protobuf.action.ARMEntityUtil.isARMEntityType;
+
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.ImmutableSet;
 
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
@@ -26,7 +26,6 @@ import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 import com.vmturbo.topology.graph.supplychain.TraversalRulesLibrary;
@@ -35,41 +34,6 @@ import com.vmturbo.topology.graph.supplychain.TraversalRulesLibrary;
  * Determine when expansion is needed. Also determines how to expand.
  */
 public class InvolvedEntitiesExpander {
-
-    /**
-     * These are the entities that need to be retrieved underneath BusinessApp, BusinessTxn, and
-     * Service.
-     * <pre>
-     * BApp -> BTxn -> Service -> AppComp -> Node
-     *                                       VirtualMachine  --> VDC ----> Host  --------
-     *                       DatabaseServer   \    \   \             ^                \
-     *                                          \    \   \___________/                v
-     *                                           \    -----> Volume   ------------->  Storage
-     *                                            \                                   ^
-     *                                             ----------------------------------/
-     * </pre>
-     */
-    public static final List<Integer> PROPAGATED_ARM_ENTITY_TYPES = Arrays.asList(
-        ApiEntityType.APPLICATION_COMPONENT.typeNumber(),
-        ApiEntityType.WORKLOAD_CONTROLLER.typeNumber(),
-        ApiEntityType.CONTAINER_POD.typeNumber(),
-        ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
-        ApiEntityType.DATABASE_SERVER.typeNumber(),
-        ApiEntityType.VIRTUAL_VOLUME.typeNumber(),
-        ApiEntityType.STORAGE.typeNumber(),
-        ApiEntityType.PHYSICAL_MACHINE.typeNumber());
-
-    private static final Set<Integer> ENTITY_TYPES_BELOW_ARM = ImmutableSet.<Integer>builder()
-        .addAll(PROPAGATED_ARM_ENTITY_TYPES)
-        .add(ApiEntityType.BUSINESS_APPLICATION.typeNumber())
-        .add(ApiEntityType.BUSINESS_TRANSACTION.typeNumber())
-        .add(ApiEntityType.SERVICE.typeNumber())
-        .build();
-
-    private static final Set<Integer> ARM_ENTITY_TYPE = ImmutableSet.of(
-        ApiEntityType.BUSINESS_APPLICATION.typeNumber(),
-        ApiEntityType.BUSINESS_TRANSACTION.typeNumber(),
-        ApiEntityType.SERVICE.typeNumber());
 
     private final Map<Integer, LongSet> expandedEntitiesPerARMEntityType = new HashMap<>();
 
@@ -101,16 +65,6 @@ public class InvolvedEntitiesExpander {
     public boolean isBelowARMEntityType(long involvedEntityId, Set<Integer> desiredEntityTypes) {
         return desiredEntityTypes.stream().anyMatch(entityType -> isARMEntityType(entityType)
                 && expandedEntitiesPerARMEntityType.get(entityType).contains(involvedEntityId));
-    }
-
-    /**
-     * Check if the given entity type is an ARM entity type.
-     *
-     * @param entityType the entity type.
-     * @return true if this is an ARM entity type.
-     */
-    public boolean isARMEntityType(int entityType) {
-        return ARM_ENTITY_TYPE.contains(entityType);
     }
 
     /**

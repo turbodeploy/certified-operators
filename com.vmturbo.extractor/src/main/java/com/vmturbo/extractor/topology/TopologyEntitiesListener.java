@@ -22,8 +22,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -70,28 +68,24 @@ public class TopologyEntitiesListener implements EntitiesListener {
     private final Logger logger = LogManager.getLogger();
 
     private final List<Supplier<? extends ITopologyWriter>> writerFactories;
-    private final GroupServiceBlockingStub groupService;
-    private final ActionsServiceBlockingStub actionService;
     private final WriterConfig config;
     private final AtomicBoolean busy = new AtomicBoolean(false);
+    private final DataProvider dataProvider;
 
     /**
      * Create a new instance.
      *
      * @param writerFactories factories to create required writers
      * @param writerConfig    common config parameters for writers
-     * @param groupService    group service endpoint
-     * @param actionService   action service endpoint
+     * @param dataProvider    providing data for ingestion
      */
     public TopologyEntitiesListener(
             @Nonnull final List<Supplier<? extends ITopologyWriter>> writerFactories,
             @Nonnull final WriterConfig writerConfig,
-            @Nonnull final GroupServiceBlockingStub groupService,
-            @Nonnull final ActionsServiceBlockingStub actionService) {
+            @Nonnull final DataProvider dataProvider) {
         this.writerFactories = writerFactories;
         this.config = writerConfig;
-        this.groupService = groupService;
-        this.actionService = actionService;
+        this.dataProvider = dataProvider;
     }
 
     /**
@@ -158,7 +152,6 @@ public class TopologyEntitiesListener implements EntitiesListener {
         }
 
         private long writeTopology() throws IOException, UnsupportedDialectException, SQLException, InterruptedException {
-            // fetch cluster membership
             List<ITopologyWriter> writers = new ArrayList<>();
             writerFactories.stream()
                     .map(Supplier::get)
@@ -175,7 +168,6 @@ public class TopologyEntitiesListener implements EntitiesListener {
             }
             long entityCount = 0L;
             try {
-                final DataProvider dataProvider = new DataProvider();
                 while (entityIterator.hasNext()) {
                     timer.start("Chunk Retrieval");
                     final Collection<DataSegment> chunk = entityIterator.nextChunk();
@@ -189,18 +181,26 @@ public class TopologyEntitiesListener implements EntitiesListener {
                                 consumer.getLeft().accept(dataSegment.getEntity());
                             }
                         }
+                        timer.stop();
                     }
                 }
 
                 // fetch all data from other components for use in finish stage
-                dataProvider.fetchData(timer, graphBuilder.build(), groupService, actionService,
-                        topologyContextId);
+                if (!writers.isEmpty()) {
+                    final boolean requireSupplyChainForAllEntities = writers.stream()
+                            .anyMatch(ITopologyWriter::requireSupplyChainForAllEntities);
+                    dataProvider.fetchData(timer, graphBuilder.build(),
+                            requireSupplyChainForAllEntities);
+                }
 
                 for (final ITopologyWriter writer : writers) {
-                    timer.start(getFinishPhaseLabel(writer));
+                    AsyncTimer asyncTimer = timer.async(getFinishPhaseLabel(writer));
                     writer.finish(dataProvider);
-                    timer.stop();
+                    asyncTimer.close();
                 }
+
+                // clean unneeded data while keeping useful data for actions ingestion
+                dataProvider.clean();
             } catch (CommunicationException | TimeoutException e) {
                 logger.error("Error occurred while receiving topology " + topologyId
                         + " for context " + topologyContextId, e);

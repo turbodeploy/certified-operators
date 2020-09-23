@@ -99,7 +99,7 @@ public class SearchQueryService implements ISearchQueryService {
     @Nonnull
     public List<SearchCountRecordApiDTO> countEntities(@Nonnull EntityCountRequestApiDTO input)
             throws Exception {
-        return apiQueryEngine.countEntites(input);
+        return apiQueryEngine.countEntities(input);
     }
 
 
