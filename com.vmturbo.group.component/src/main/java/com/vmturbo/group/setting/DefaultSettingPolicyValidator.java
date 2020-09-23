@@ -197,27 +197,28 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
             for (Long scheduleId : schedulesUsed) {
                 ScheduleProto.Schedule schedule = scheduleMap.get(scheduleId);
                 if (schedule == null) {
-                    errors.add("The schedule with id" + scheduleId + "that has been associated to policy does"
-                        + " not exist.");
+                    errors.add("The schedule with id" + scheduleId + " that has been associated "
+                        + "to policy does not exist.");
                 } else {
                     try {
                         schedule =
                             ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
                                 schedule.toBuilder(), clock.millis());
                     } catch (ParseException ex) {
-                        errors.add("The schedule " + schedule.getDisplayName() + "that has been associated to policy "
-                            + "and cannot be parsed.");
+                        errors.add("The schedule " + schedule.getDisplayName() + " that has been "
+                            + "associated to policy and cannot be parsed.");
                     }
                     if (!schedule.hasNextOccurrence()) {
-                        errors.add("The schedule " + schedule.getDisplayName() + "that has been associated to policy "
-                            + "does not have any future occurrences and cannot be used in the policy.");
+                            errors.add("The schedule " + schedule.getDisplayName() + " that has been "
+                            + "associated to policy does not have any future occurrences and "
+                            + "cannot be used.");
                     }
                 }
             }
         }
 
         if (!errors.isEmpty()) {
-            throw new InvalidItemException("Invalid setting policy: " + settingPolicyInfo.getName()
+            throw new InvalidItemException("Invalid Policy Setting: " + settingPolicyInfo.getName()
                     + System.lineSeparator() + StringUtils.join(errors, System.lineSeparator()));
         }
     }
