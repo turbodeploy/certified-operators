@@ -15,10 +15,13 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
@@ -374,6 +377,27 @@ public class TopologyEntity implements TopologyGraphSearchableEntity<TopologyEnt
         return hasDiscoveryOrigin() ?
             Optional.of(entityBuilder.getOrigin().getDiscoveryOrigin()) :
             Optional.empty();
+    }
+
+    /**
+     * Get the Stream of 'used' bought commodities with the specific type from consumers.
+     *
+     * @param type commodity type.
+     * @return list of used values.
+     */
+    public Stream<Double> getCommoditiesUsedByConsumers(CommodityType type) {
+        return getConsumers().stream()
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                // The "shopping lists"
+                .map(TopologyEntityDTO.Builder::getCommoditiesBoughtFromProvidersList)
+                .flatMap(List::stream)
+                // Those buying from the seller
+                .filter(commsBought -> commsBought.getProviderId() == getOid())
+                .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
+                .flatMap(List::stream) // All the commodities bought
+                .filter(commBought -> type.equals(commBought.getCommodityType()))
+                .filter(CommodityBoughtDTO::hasUsed)
+                .map(CommodityBoughtDTO::getUsed);
     }
 
     @Override

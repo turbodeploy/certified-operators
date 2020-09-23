@@ -1,17 +1,14 @@
 package com.vmturbo.stitching.poststitching;
 
-import java.util.List;
 import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -81,22 +78,11 @@ public class ComputedUsedValuePostStitchingOperation implements PostStitchingOpe
      * @return the computed used value
      */
     private double usedValue(CommoditySoldDTO.Builder commSold, TopologyEntity seller) {
-        double used = seller.getConsumers().stream()
-            .map(TopologyEntity::getTopologyEntityDtoBuilder)
-            // The "shopping lists"
-            .map(TopologyEntityDTO.Builder::getCommoditiesBoughtFromProvidersList)
-            .flatMap(List::stream)
-            // Those buying from the seller
-            .filter(commsBought -> commsBought.getProviderId() == seller.getOid())
-            .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
-            .flatMap(List::stream) // All the commodities bought
-            .filter(commBought ->
-                commSold.getCommodityType().equals(commBought.getCommodityType()))
-            .map(CommodityBoughtDTO::getUsed)
-            .mapToDouble(Double::doubleValue)
-            .sum();
-        logger.debug("Setting used value of commodity sold {} of {} to {}",
-                        commodityType, seller.getDisplayName(), used);
+        Stream<Double> usedCommoditiesByConsumers
+                = seller.getCommoditiesUsedByConsumers(commSold.getCommodityType());
+        double used = usedCommoditiesByConsumers.mapToDouble(Double::doubleValue).sum();
+        logger.debug("Setting used value of commodity sold {} of {}, oid = {} to {}",
+                commodityType, seller.getDisplayName(), seller.getOid(), used);
         return used;
     }
 

@@ -1,16 +1,16 @@
 package com.vmturbo.stitching.poststitching;
 
-import java.util.List;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -68,10 +68,10 @@ public class ComputedQxVcpuUsedValuePostStitchingOperation implements PostStitch
                             .getCommoditySoldListBuilderList().stream()
                                     .filter(this::isQxVcpuCommodity)
                                     .forEach(commSold -> {
-                                            Optional<Double> usedValue = avgUsedValue(commSold,
+                                            OptionalDouble usedValue = avgUsedValue(commSold,
                                             entityToUpdate);
                                             if (usedValue.isPresent()) {
-                                                commSold.setUsed(usedValue.get());
+                                                commSold.setUsed(usedValue.getAsDouble());
                                                 if (logger.isDebugEnabled()) {
                                                     logger.debug("Setting used value of commodity " +
                                                             "sold {} of {} to {}",
@@ -109,30 +109,11 @@ public class ComputedQxVcpuUsedValuePostStitchingOperation implements PostStitch
      * @param seller an entity that sells the commodity.
      * @return the computed average used value.
      */
-    private Optional<Double> avgUsedValue(@Nonnull final CommoditySoldDTO.Builder commSold,
+    private OptionalDouble avgUsedValue(@Nonnull final CommoditySoldDTO.Builder commSold,
                                 @Nonnull final TopologyEntity seller) {
-        // get all used value from its consumers' commodity bought which has same type as commSold.
-        final List<Double> commodityBoughtQxVcpuUsedValues = seller.getConsumers().stream()
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                .flatMap(entityDtoBuilder ->
-                        entityDtoBuilder.getCommoditiesBoughtFromProvidersList().stream())
-                .filter(commodityBoughtFromProvider ->
-                        commodityBoughtFromProvider.getProviderId() == seller.getOid())
-                .flatMap(commodityBoughtFromProvider ->
-                        commodityBoughtFromProvider.getCommodityBoughtList().stream())
-                .filter(commodityBought ->
-                        commSold.getCommodityType().equals(commodityBought.getCommodityType()))
-                .map(CommodityBoughtDTO::getUsed)
-                .collect(Collectors.toList());
-        // get the total commodity bought used value.
-        final double totalUsed = commodityBoughtQxVcpuUsedValues.stream()
+        return seller.getCommoditiesUsedByConsumers(commSold.getCommodityType())
                 .mapToDouble(Double::doubleValue)
-                .sum();
-        // the total count of QxVcpu commodity bought.
-        final long commodityBoughtQxVcpuCount = commodityBoughtQxVcpuUsedValues.size();
-        // if there is no consumer bought for this commodity, just return 0.
-        return commodityBoughtQxVcpuCount == 0 ? Optional.empty()
-            : Optional.of(totalUsed / commodityBoughtQxVcpuCount);
+                .average();
     }
 
     private Optional<Double> peakValue(@Nonnull final CommoditySoldDTO.Builder commSold,

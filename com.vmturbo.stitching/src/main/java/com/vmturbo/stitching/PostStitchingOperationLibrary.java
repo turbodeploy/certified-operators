@@ -46,6 +46,7 @@ import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperat
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.LogicalPoolStorageProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.StorageEntityStorageProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.UseHypervisorVmemForResizingPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.VMemUsedVMPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.VirtualDatacenterCpuAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.WastedFilesPostStitchingOperation;
 
@@ -355,7 +356,9 @@ public class PostStitchingOperationLibrary {
             new ProtectSharedStorageWastedFilesPostStitchingOperation(),
             new WastedFilesPostStitchingOperation(),
             new PropagatePowerStatePostStitchingOperation(),
-            new GuestLoadAppPostStitchingOperation(), new PmStateChangePostStitchingOperation()
+            new GuestLoadAppPostStitchingOperation(),
+            new PmStateChangePostStitchingOperation(),
+            new VMemUsedVMPostStitchingOperation()
         );
     }
 
