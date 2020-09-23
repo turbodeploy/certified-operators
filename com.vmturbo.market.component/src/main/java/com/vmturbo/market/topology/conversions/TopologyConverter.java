@@ -1019,7 +1019,7 @@ public class TopologyConverter {
                     .ifPresent(commoditiesBoughtFromProviderBuilder::setProviderEntityType);
         }
         slInfo.getResourceId().ifPresent(commoditiesBoughtFromProviderBuilder::setVolumeId);
-        if (!commoditiesBoughtFromProviderBuilder.hasVolumeId()
+        if (isCloudMigration && !commoditiesBoughtFromProviderBuilder.hasVolumeId()
                 && slInfo.getCollapsedBuyerId() != null) {
             commoditiesBoughtFromProviderBuilder.setVolumeId(slInfo.getCollapsedBuyerId());
         }
@@ -2666,28 +2666,28 @@ public class TopologyConverter {
                     && commBoughtGrouping.getProviderEntityType() != EntityType.AVAILABILITY_ZONE_VALUE) {
                 TopologyEntityDTO entityForSL = topologyEntity;
                 CommoditiesBoughtFromProvider commBoughtGroupingForSL = commBoughtGrouping;
-                final Integer providerTypeAfterCollapsing =
-                        CollapsedTraderHelper.getProviderTypeAfterCollapsing(topologyEntity.getEntityType(),
-                                commBoughtGrouping.getProviderEntityType());
-                // From RBC 39682, commBoughtGrouping from VM -> Volume is being replaced with
-                // the one from Volume -> StorageTier if there is one present.
-                if (providerTypeAfterCollapsing != null) {
-                    Long directProviderId = commBoughtGrouping.getProviderId();
-                    if (entityOidToDto.get(directProviderId) == null) {
-                        logger.error("Provider {} for entity {} not found", directProviderId, topologyEntity.getOid());
-                        continue;
-                    }
-                    TopologyEntityDTO directProvider = entityOidToDto.get(directProviderId);
-                    commBoughtGroupingForSL = directProvider.getCommoditiesBoughtFromProvidersList().stream()
-                            .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
-                            .filter(commBought -> commBought.getProviderEntityType() == providerTypeAfterCollapsing)
-                            .findAny().orElse(null);
-                    if (commBoughtGroupingForSL == null) {
-                        logger.error("Couldn't find commBoughtGrouping with provider type {} for collapsed entity {}",
-                                providerTypeAfterCollapsing, directProviderId);
-                        continue;
-                    }
-                    if (isCloudMigration) {
+                if (isCloudMigration) {
+                    final Integer providerTypeAfterCollapsing =
+                            CollapsedTraderHelper.getProviderTypeAfterCollapsing(topologyEntity.getEntityType(),
+                                    commBoughtGrouping.getProviderEntityType());
+                    // From RBC 39682, commBoughtGrouping from VM -> Volume is being replaced with
+                    // the one from Volume -> StorageTier if there is one present.
+                    if (providerTypeAfterCollapsing != null) {
+                        Long directProviderId = commBoughtGrouping.getProviderId();
+                        if (entityOidToDto.get(directProviderId) == null) {
+                            logger.error("Provider {} for entity {} not found", directProviderId, topologyEntity.getOid());
+                            continue;
+                        }
+                        TopologyEntityDTO directProvider = entityOidToDto.get(directProviderId);
+                        commBoughtGroupingForSL = directProvider.getCommoditiesBoughtFromProvidersList().stream()
+                                .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
+                                .filter(commBought -> commBought.getProviderEntityType() == providerTypeAfterCollapsing)
+                                .findAny().orElse(null);
+                        if (commBoughtGroupingForSL == null) {
+                            logger.error("Couldn't find commBoughtGrouping with provider type {} for collapsed entity {}",
+                                    providerTypeAfterCollapsing, directProviderId);
+                            continue;
+                        }
                         // Volume may not be movable for real-time, but for plans, make it
                         // movable if commBoughtGrouping b/w VM -> Volume is set so.
                         // TODO: We should not need this after we support real-time volume actions.
@@ -2696,8 +2696,8 @@ public class TopologyConverter {
                         cbgBuilder.setMovable(commBoughtGrouping.hasMovable()
                                 && commBoughtGrouping.getMovable());
                         commBoughtGroupingForSL = cbgBuilder.build();
+                        entityForSL = directProvider;
                     }
-                    entityForSL = directProvider;
                 }
                 Pair<Long, Class> providerId;
                 if (scalingGroupUsage.isPresent() && commBoughtGroupingForSL.getProviderEntityType()

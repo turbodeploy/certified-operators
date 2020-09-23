@@ -82,6 +82,7 @@ public class CloudTopologyConverter {
     private final CloudCostData<TopologyEntityDTO> cloudCostData;
     private Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid = new HashMap<>();
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
+    private final boolean isCloudMigration;
 
     /**
      * @param topology the topologyEntityDTOs which came into market-component
@@ -123,6 +124,7 @@ public class CloudTopologyConverter {
          this.cloudCostData = cloudCostData;
          converterMap = Collections.unmodifiableMap(createConverterMap());
          this.cloudTopology = cloudTopology;
+         this.isCloudMigration = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
      }
 
     /**
@@ -440,7 +442,7 @@ public class CloudTopologyConverter {
         // returns the storageTier providers for the volumes that the VM resides on. For example,
         // given that VM1 consumes from vol1, and vol1 consumes from storageTier1, with input VM1 and
         // EntityType.STORAGE_TIER_VALUE, this method will return storageTier1 TopologyEntityDTO.
-        if (collapsedEntityType != null) {
+        if (isCloudMigration && collapsedEntityType != null) {
             return entity.getCommoditiesBoughtFromProvidersList().stream()
                     .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
                     .filter(commBought -> commBought.getProviderEntityType() == collapsedEntityType)

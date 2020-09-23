@@ -1956,7 +1956,13 @@ public class TopologyConverterToMarketTest {
                 messageFromJsonFile("protobuf/messages/cloud-vm.json"),
                 messageFromJsonFile("protobuf/messages/cloud-storageTier.json"))
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-        final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+                .setTopologyType(TopologyType.PLAN)
+                .setPlanInfo(PlanTopologyInfo.newBuilder()
+                        .setPlanType(PlanProjectType.CLOUD_MIGRATION.name())
+                        .build())
+                .build();
+        final TopologyConverter topologyConverter = new TopologyConverter(topologyInfo, false,
                 MarketAnalysisUtils.QUOTE_FACTOR,
                 MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable,
@@ -1980,7 +1986,7 @@ public class TopologyConverterToMarketTest {
         assertNotNull(commodityBoughtTO);
         // TODO: Enable after protobuf changes are also in.
         // assertEquals(1506, commodityBoughtTO.getOldRequestedQuantity(), 0.01f);
-        assertEquals(1506 * 0.01f, commodityBoughtTO.getQuantity(), 0.01f);
+        assertEquals(1506, commodityBoughtTO.getQuantity(), 0.01f);
         // Test ShoppingListInfo
         assertEquals(1, topologyConverter.getShoppingListOidToInfos().size());
         ShoppingListInfo shoppingListInfo = topologyConverter.getShoppingListOidToInfos().values().iterator().next();
