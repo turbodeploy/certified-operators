@@ -101,7 +101,29 @@
   "commoditiesBoughtFromProviders": [{
     "providerId": "73433887031971",
     "providerEntityType": 11,
+    "movable": true,
     "commodityBought": [{
+      "commodityType": {
+        "type": 22
+      },
+      "used": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
       "commodityType": {
         "type": 60,
         "key": "DiskArray-5cf6e809-7d9d85ad-7a3f-001cc46d09d2"
