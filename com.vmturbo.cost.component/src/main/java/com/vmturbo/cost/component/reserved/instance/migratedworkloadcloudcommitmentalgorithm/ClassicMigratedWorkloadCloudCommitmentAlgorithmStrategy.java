@@ -661,8 +661,8 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                 // Set the on-demand license price
                 OSType osType = costRecord.getOsType();
                 Optional<Double> onDemandLicenseCost = Optional.empty();
-                if (osType == OSType.LINUX) {
-                    // Linux Defaults to 0
+                if (osType == OSType.LINUX || cloudType == CloudType.AZURE) {
+                    // Linux Defaults to 0 and Azure only covers compute, not license, so do not add the on-demand license
                     onDemandLicenseCost = Optional.of(0d);
                 } else if (osType == OSType.WINDOWS || osType == OSType.WINDOWS_BYOL) {
                     // Windows has an implicit license cost, load it from the computeTierPriceList
@@ -675,47 +675,6 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                     return Optional.empty();
                 }
                 costRecord.setOnDemandLicencePrice(onDemandLicenseCost.get());
-            }
-        }
-
-        // If the cloud type is Azure then we want to get the RI license cost
-        if (cloudType == CloudType.AZURE) {
-
-            // Get reserved instance license price
-            TypeSpecificInfo typeSpecificInfo = placement.getComputeTier().getTypeSpecificInfo();
-            if (typeSpecificInfo != null) {
-                ComputeTierInfo computeTierInfo = typeSpecificInfo.getComputeTier();
-                if (computeTierInfo != null) {
-                    // See if the compute tier is burstable
-                    boolean isBurstable = computeTierInfo.getBurstableCPU();
-
-                    // Get the number of cores for our compute tier
-                    int numberOfCores = computeTierInfo.getNumCores();
-
-                    // Find the price list entries for this OS (and whether or not it is a burstable template)
-                    List<LicensePriceEntry> licensePriceEntries = priceTable.getReservedLicensePricesList().stream()
-                            .filter(l -> l.getOsType() == costRecord.getOsType() && l.getBurstableCPU() == isBurstable)
-                            .collect(Collectors.toList());
-
-                    // We should have one match
-                    if (CollectionUtils.isNotEmpty(licensePriceEntries)) {
-                        // Find the minimum LicensePrice that supports the number of cores in the compute tier
-                        Optional<LicensePrice> licensePrice = licensePriceEntries.get(0).getLicensePricesList().stream()
-                                .filter(lp -> lp.getNumberOfCores() >= numberOfCores)
-                                .min(Comparator.comparingInt(LicensePrice::getNumberOfCores));
-
-                        // Set the reserved instance license cost
-                        licensePrice.ifPresent(lp -> {
-                            Price price = lp.getPrice();
-                            if (price != null) {
-                                CurrencyAmount currencyAmount = price.getPriceAmount();
-                                if (currencyAmount != null) {
-                                    costRecord.setReservedInstanceLicensePrice(currencyAmount.getAmount());
-                                }
-                            }
-                        });
-                    }
-                }
             }
         }
 
