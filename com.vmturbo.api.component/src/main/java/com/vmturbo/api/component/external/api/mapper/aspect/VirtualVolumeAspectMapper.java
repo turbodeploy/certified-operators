@@ -554,6 +554,9 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             volume.hasEnvironmentType() ? EnvironmentTypeMapper.fromXLToApi(volume.getEnvironmentType()) : EnvironmentType.UNKNOWN;
         virtualDiskApiDTO.setEnvironmentType(volumeEnvironmentType);
 
+        final boolean isCloudVolume = isCloudEntity(volume);
+        final String storageAmountUnit = isCloudVolume ? CLOUD_STORAGE_AMOUNT_UNIT : CommodityTypeUnits.STORAGE_AMOUNT.getUnits();
+
         List<StatApiDTO> statDTOs = Lists.newArrayList();
         // Add projected stats
         double afterActionStorageAmountUsed = 0d;
@@ -562,7 +565,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         for (CommodityBoughtDTO commodity : afterActionCommList) {
             switch (commodity.getCommodityType().getType()) {
                 case CommodityType.STORAGE_AMOUNT_VALUE:
-                    afterActionStorageAmountUsed = commodity.getUsed();
+                    afterActionStorageAmountUsed =  isCloudVolume ? commodity.getUsed() / Units.KIBI : commodity.getUsed();
                     break;
                 case CommodityType.STORAGE_ACCESS_VALUE:
                     afterActionStorageAccessUsed = commodity.getUsed();
@@ -574,8 +577,8 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         }
 
         statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
-                CLOUD_STORAGE_AMOUNT_UNIT, (float)afterActionStorageAmountUsed,
-                (float)(getCommodityCapacity(volume, CommodityType.STORAGE_AMOUNT) / Units.KIBI),
+                storageAmountUnit, (float)afterActionStorageAmountUsed,
+            (float)(getCommodityCapacity(volume, CommodityType.STORAGE_AMOUNT) / Units.KIBI),
                 null, volume.getDisplayName(), null, false));
         statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
                 CommodityTypeUnits.STORAGE_ACCESS.getUnits(), (float)afterActionStorageAccessUsed,
@@ -590,16 +593,8 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         for (CommodityBoughtDTO commodity : beforeActionCommList) {
             switch (commodity.getCommodityType().getType()) {
                 case CommodityType.STORAGE_AMOUNT_VALUE:
-                    final String storageAmountUnit;
-                    final float storageAmountUsed;
                     // Unit of storage amount in source topology is in MB.
-                    if (isCloudEntity(volume)) {
-                        storageAmountUnit = CLOUD_STORAGE_AMOUNT_UNIT;
-                        storageAmountUsed = (float)(commodity.getUsed() / Units.KIBI);
-                    } else {
-                        storageAmountUnit = CommodityTypeUnits.STORAGE_AMOUNT.getUnits();
-                        storageAmountUsed = (float)commodity.getUsed();
-                    }
+                    final float storageAmountUsed = isCloudVolume ? (float)(commodity.getUsed() / Units.KIBI) : (float)commodity.getUsed();
                     statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
                         storageAmountUnit, storageAmountUsed, storageAmountUsed,
                         null, volume.getDisplayName(), null, true));
