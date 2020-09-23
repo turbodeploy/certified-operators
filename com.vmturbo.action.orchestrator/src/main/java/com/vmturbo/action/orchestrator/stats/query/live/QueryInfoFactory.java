@@ -16,6 +16,7 @@ import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander.InvolvedEntitiesFilter;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.common.protobuf.action.ARMEntityUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ActionGroupFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter;
@@ -62,7 +63,7 @@ public class QueryInfoFactory {
                 && query.getQuery().getScopeFilter().hasGlobal()
                 && !query.getQuery().getScopeFilter().getGlobal().getEntityTypeList().isEmpty()) {
             return query.getQuery().getScopeFilter().getGlobal().getEntityTypeList().stream()
-                    .allMatch(involvedEntitiesExpander::isARMEntityType);
+                    .allMatch(ARMEntityUtil::isARMEntityType);
         }
         return false;
     }
@@ -151,7 +152,7 @@ public class QueryInfoFactory {
                 final Predicate<ActionEntity> entityTypePredicate;
                 if (desiredEntityTypes.isEmpty()) {
                     entityTypePredicate = entity -> true;
-                } else if (desiredEntityTypes.stream().anyMatch(involvedEntitiesExpander::isARMEntityType)) {
+                } else if (desiredEntityTypes.stream().anyMatch(ARMEntityUtil::isARMEntityType)) {
                     // If the scope is a global temp group of ARM entity, the predicate should be
                     // true for entities that should be propagated to ARM entity types.
                     entityTypePredicate = actionEntity ->

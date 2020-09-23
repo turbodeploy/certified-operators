@@ -3,6 +3,7 @@ package com.vmturbo.common.protobuf.topology;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -174,10 +175,7 @@ public enum  ApiEntityType {
             ApiEntityType.CONTAINER_POD,
             ApiEntityType.DATABASE,
             ApiEntityType.DATABASE_SERVER,
-            ApiEntityType.DATABASE_SERVER_TIER,
-            ApiEntityType.DATABASE_TIER,
             ApiEntityType.LOAD_BALANCER,
-            ApiEntityType.STORAGE,
             ApiEntityType.VIRTUAL_APPLICATION,
             ApiEntityType.VIRTUAL_MACHINE,
             ApiEntityType.VIRTUAL_VOLUME);
@@ -197,6 +195,17 @@ public enum  ApiEntityType {
                     ApiEntityType.BUSINESS_ACCOUNT, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
                     ApiEntityType.AVAILABILITY_ZONE, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
                     ApiEntityType.VIRTUAL_DATACENTER, Collections.singleton(ApiEntityType.VIRTUAL_MACHINE));
+
+    /**
+     * The proto number version of {@link #ENTITY_TYPES_TO_EXPAND}.
+     */
+    public static final Map<Integer, Set<Integer>> PROTO_ENTITY_TYPES_TO_EXPAND =
+            ENTITY_TYPES_TO_EXPAND.entrySet().stream()
+                    .collect(Collectors.collectingAndThen(
+                            Collectors.toMap(entry -> entry.getKey().typeNumber(),
+                                    entry -> entry.getValue().stream()
+                                            .map(ApiEntityType::typeNumber)
+                                            .collect(Collectors.toSet())), ImmutableMap::copyOf));
 
     private final String apiStr;
 

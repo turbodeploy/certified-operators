@@ -1,5 +1,9 @@
 package com.vmturbo.action.orchestrator.store;
 
+import static com.vmturbo.common.protobuf.action.ARMEntityUtil.ARM_ENTITY_TYPE;
+import static com.vmturbo.common.protobuf.action.ARMEntityUtil.ENTITY_TYPES_BELOW_ARM;
+import static com.vmturbo.common.protobuf.action.ARMEntityUtil.isARMEntityType;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -36,41 +40,6 @@ import com.vmturbo.topology.graph.supplychain.TraversalRulesLibrary;
  */
 public class InvolvedEntitiesExpander {
 
-    /**
-     * These are the entities that need to be retrieved underneath BusinessApp, BusinessTxn, and
-     * Service.
-     * <pre>
-     * BApp -> BTxn -> Service -> AppComp -> Node
-     *                                       VirtualMachine  --> VDC ----> Host  --------
-     *                       DatabaseServer   \    \   \             ^                \
-     *                                          \    \   \___________/                v
-     *                                           \    -----> Volume   ------------->  Storage
-     *                                            \                                   ^
-     *                                             ----------------------------------/
-     * </pre>
-     */
-    public static final List<Integer> PROPAGATED_ARM_ENTITY_TYPES = Arrays.asList(
-        ApiEntityType.APPLICATION_COMPONENT.typeNumber(),
-        ApiEntityType.WORKLOAD_CONTROLLER.typeNumber(),
-        ApiEntityType.CONTAINER_POD.typeNumber(),
-        ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
-        ApiEntityType.DATABASE_SERVER.typeNumber(),
-        ApiEntityType.VIRTUAL_VOLUME.typeNumber(),
-        ApiEntityType.STORAGE.typeNumber(),
-        ApiEntityType.PHYSICAL_MACHINE.typeNumber());
-
-    private static final Set<Integer> ENTITY_TYPES_BELOW_ARM = ImmutableSet.<Integer>builder()
-        .addAll(PROPAGATED_ARM_ENTITY_TYPES)
-        .add(ApiEntityType.BUSINESS_APPLICATION.typeNumber())
-        .add(ApiEntityType.BUSINESS_TRANSACTION.typeNumber())
-        .add(ApiEntityType.SERVICE.typeNumber())
-        .build();
-
-    private static final Set<Integer> ARM_ENTITY_TYPE = ImmutableSet.of(
-        ApiEntityType.BUSINESS_APPLICATION.typeNumber(),
-        ApiEntityType.BUSINESS_TRANSACTION.typeNumber(),
-        ApiEntityType.SERVICE.typeNumber());
-
     private final Map<Integer, LongSet> expandedEntitiesPerARMEntityType = new HashMap<>();
 
     private static Logger logger = LogManager.getLogger();
@@ -101,16 +70,6 @@ public class InvolvedEntitiesExpander {
     public boolean isBelowARMEntityType(long involvedEntityId, Set<Integer> desiredEntityTypes) {
         return desiredEntityTypes.stream().anyMatch(entityType -> isARMEntityType(entityType)
                 && expandedEntitiesPerARMEntityType.get(entityType).contains(involvedEntityId));
-    }
-
-    /**
-     * Check if the given entity type is an ARM entity type.
-     *
-     * @param entityType the entity type.
-     * @return true if this is an ARM entity type.
-     */
-    public boolean isARMEntityType(int entityType) {
-        return ARM_ENTITY_TYPE.contains(entityType);
     }
 
     /**

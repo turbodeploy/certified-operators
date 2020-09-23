@@ -97,7 +97,7 @@ public class ApiQueryEngine implements IApiQueryEngine {
     }
 
     @Override
-    public List<SearchCountRecordApiDTO> countEntites(
+    public List<SearchCountRecordApiDTO> countEntities(
             final EntityCountRequestApiDTO request) throws Exception {
         if (!enableSearchApi) {
             throw new UnsupportedOperationException("Search API is not yet enabled!");

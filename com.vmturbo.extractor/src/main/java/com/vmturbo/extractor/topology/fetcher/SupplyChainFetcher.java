@@ -6,15 +6,18 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
@@ -28,7 +31,15 @@ import com.vmturbo.topology.graph.supplychain.TraversalRulesLibrary;
  */
 public class SupplyChainFetcher extends DataFetcher<Map<Long, Map<Integer, Set<Long>>>> {
 
+    private static final TraversalRulesLibrary<SupplyChainEntity> ruleChain = new TraversalRulesLibrary<>();
+
+    private static final Predicate<SupplyChainEntity> entityPredicate = e -> true;
+
+    private static final SupplyChainCalculator calc = new SupplyChainCalculator();
+
     private final TopologyGraph<SupplyChainEntity> graph;
+
+    private final boolean requireSupplyChainForAllEntities;
 
     /**
      * Create a new instance.
@@ -36,12 +47,15 @@ public class SupplyChainFetcher extends DataFetcher<Map<Long, Map<Integer, Set<L
      * @param graph    topology graph
      * @param timer    timer
      * @param consumer fn to handle computed supply chain data
+     * @param requireSupplyChainForAllEntities whether or not to calculate supply chain for all entities
      */
     public SupplyChainFetcher(@Nonnull TopologyGraph<SupplyChainEntity> graph,
             @Nonnull MultiStageTimer timer,
-            @Nonnull Consumer<Map<Long, Map<Integer, Set<Long>>>> consumer) {
+            @Nonnull Consumer<Map<Long, Map<Integer, Set<Long>>>> consumer,
+            boolean requireSupplyChainForAllEntities) {
         super(timer, consumer);
         this.graph = graph;
+        this.requireSupplyChainForAllEntities = requireSupplyChainForAllEntities;
     }
 
     @Override
@@ -56,17 +70,19 @@ public class SupplyChainFetcher extends DataFetcher<Map<Long, Map<Integer, Set<L
         final Map<Long, Map<Integer, Set<Long>>> syncEntityToRelated =
                 Collections.synchronizedMap(entityToRelated);
 
-        SupplyChainCalculator calc = new SupplyChainCalculator();
-        final TraversalRulesLibrary<SupplyChainEntity> ruleChain = new TraversalRulesLibrary<>();
-        graph.entities().parallel().forEach(e -> {
-            final Map<Integer, SupplyChainNode> related = calc.getSupplyChainNodes(
-                    graph, Collections.singletonList(e.getOid()), _e -> true, ruleChain);
+        graph.entities().parallel()
+                .filter(e -> requireSupplyChainForAllEntities
+                        || SearchMetadataUtils.shouldComputeSupplyChain(e.getEntityType()))
+                .forEach(e -> {
+            final Map<Integer, SupplyChainNode> related = calc.getSupplyChainNodes(graph,
+                    Collections.singletonList(e.getOid()), entityPredicate, ruleChain);
             final Map<Integer, Set<Long>> relatedEntitiesByType = related.entrySet().stream()
                     .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue()
                             .getMembersByStateMap().values().stream()
                             .map(MemberList::getMemberOidsList)
                             .flatMap(Collection::stream)
-                            .collect(Collectors.toSet())));
+                            .mapToLong(Long::longValue)
+                            .collect(LongOpenHashSet::new, LongOpenHashSet::add, LongOpenHashSet::addAll)));
             syncEntityToRelated.put(e.getOid(), relatedEntitiesByType);
         });
         return entityToRelated;

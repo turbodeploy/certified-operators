@@ -4,7 +4,11 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
 
 /**
  * Abstract class to fetch different aspects of entity/group data from other components.
@@ -12,6 +16,8 @@ import com.vmturbo.components.common.utils.MultiStageTimer;
  * @param <R> type of the data to fetch.
  */
 public abstract class DataFetcher<R> {
+
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     /**
      * Consumer which will consume the fetched data.
@@ -48,10 +54,13 @@ public abstract class DataFetcher<R> {
      * Fetch data and then consume it.
      */
     public void fetchAndConsume() {
-        timer.start(getName());
+        final String stageName = getName();
+        final AsyncTimer asyncTimer = timer.async(stageName);
+        logger.info("Starting stage: " + stageName);
         R data = fetch();
+        logger.info("Finished stage: " + stageName);
         consumer.accept(data);
-        timer.stop();
+        asyncTimer.close();
     }
 
     /**
