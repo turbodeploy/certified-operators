@@ -11,9 +11,13 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.Lists;
 
@@ -23,6 +27,9 @@ import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.auth.api.authentication.AuthenticationException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
@@ -41,14 +48,24 @@ import com.vmturbo.kvstore.MapKeyValueStore;
  * Integration test for {@link SsoUtil}.
  */
 @Ignore("only work when connection to vmturbo.com network.")
+@RunWith(Parameterized.class)
 public class SsoUtilIntegrationTest {
 
     private static final String PROVIDER_URI = "ldap://dell1.corp.vmturbo.com";
-    private static final String USER_NAME = "provide your own AD user name in corp.vmturbo.com domain";
-    private static final String PASSWORD = "provide your own AD password";
+    /**
+     * Username here should be specified WITHOUT domain. In the same time it DOES NOT MEAN that we
+     * will not test username domain formats. Please, look at
+     * com.vmturbo.auth.component.store.sso.SsoUtilIntegrationTest#data() method. It is taking value
+     * provided here and builds tree cases to be checked in all tests:
+     * 1. corp\USER_NAME_WITHOUT_DOMAIN
+     * 2. USER_NAME_WITHOUT_DOMAIN@corp.vmturbo.com
+     * 3. USER_NAME_WITHOUT_DOMAIN
+     */
+    private static final String USER_NAME_WITHOUT_DOMAIN = System.getProperty("username");
+    private static final String PASSWORD = System.getProperty("password");
     private static final String WRONG_PASSWORD = "WRONGPASS";
     private static final String GROUP_NAME = "VPNusers";
-    private static final String GROUP_NAME_ADDITION = "VMTurboDev";
+    private static final String GROUP_NAME_ADDITION = "Dev";
 
     private static final String ADMIN_GROUP = "admin group";
     private static SsoUtil ssoUtil;
@@ -66,6 +83,29 @@ public class SsoUtilIntegrationTest {
     public GrpcTestServer mockServer = GrpcTestServer.newServer(groupService);
 
     private GroupServiceBlockingStub groupServiceClient;
+
+    private final String username;
+
+    /**
+     * Constructor for parameters test.
+     *
+     * @param username group name
+     */
+    public SsoUtilIntegrationTest(@Nonnull String username) {
+        this.username = username;
+    }
+
+    /**
+     * Collection of data that will be used as a parameters for the test.
+     *
+     * @return parameters that will be used for test execution.
+     */
+    @Parameters
+    public static Collection<Object[]> data() {
+        return Arrays.asList(new Object[][] {{"corp\\" + USER_NAME_WITHOUT_DOMAIN},
+                        {USER_NAME_WITHOUT_DOMAIN},
+                        {USER_NAME_WITHOUT_DOMAIN + "@corp.vmturbo.com"}});
+    }
 
     /**
      * Before test.
@@ -97,8 +137,8 @@ public class SsoUtilIntegrationTest {
     public void testAuthenticateUserInGroup() {
         SecurityGroupDTO securityGroup = new SecurityGroupDTO(ADMIN_GROUP, "", ADMINISTRATOR);
         ssoUtil.putSecurityGroup(GROUP_NAME, securityGroup);
-        assertNotNull(ssoUtil.authenticateUserInGroup(USER_NAME, PASSWORD,
-                Collections.singleton(PROVIDER_URI), false));
+        assertNotNull(ssoUtil.authenticateUserInGroup(username, PASSWORD,
+                        Collections.singleton(PROVIDER_URI), false));
     }
 
     /**
@@ -107,14 +147,14 @@ public class SsoUtilIntegrationTest {
     @Test
     public void testAuthenticateUserInMultiGroupReturnMultipleGroups() {
         SecurityGroupDTO securityGroup =
-                new SecurityGroupDTO(ADMIN_GROUP, "", OBSERVER, Lists.newArrayList(1L));
+                        new SecurityGroupDTO(ADMIN_GROUP, "", OBSERVER, Lists.newArrayList(1L));
         SecurityGroupDTO securityGroup1 =
-                new SecurityGroupDTO(ADMIN_GROUP, "", OBSERVER, Lists.newArrayList(2L));
+                        new SecurityGroupDTO(ADMIN_GROUP, "", OBSERVER, Lists.newArrayList(2L));
         ssoUtil.putSecurityGroup(GROUP_NAME, securityGroup);
         ssoUtil.putSecurityGroup(GROUP_NAME_ADDITION, securityGroup1);
         final List<SecurityGroupDTO> securityGroupDTOList =
-                ssoUtil.authenticateUserInGroup(USER_NAME, PASSWORD,
-                        Collections.singleton(PROVIDER_URI), true);
+                        ssoUtil.authenticateUserInGroup(username, PASSWORD,
+                                        Collections.singleton(PROVIDER_URI), true);
         assertNotNull(securityGroupDTOList);
         assertEquals(2, securityGroupDTOList.size());
         assertThat(securityGroupDTOList, hasItem(securityGroup));
@@ -128,14 +168,14 @@ public class SsoUtilIntegrationTest {
     @Test
     public void testAuthenticateUserInMultiDiffPrivilegeGroups() {
         SecurityGroupDTO securityGroup =
-                new SecurityGroupDTO(ADMIN_GROUP, "", OBSERVER, Lists.newArrayList(1L));
+                        new SecurityGroupDTO(ADMIN_GROUP, "", OBSERVER, Lists.newArrayList(1L));
         SecurityGroupDTO securityGroup1 =
-                new SecurityGroupDTO(ADMIN_GROUP, "", ADVISOR, Lists.newArrayList(2L));
+                        new SecurityGroupDTO(ADMIN_GROUP, "", ADVISOR, Lists.newArrayList(2L));
         ssoUtil.putSecurityGroup(GROUP_NAME, securityGroup);
         ssoUtil.putSecurityGroup(GROUP_NAME_ADDITION, securityGroup1);
         final List<SecurityGroupDTO> securityGroupDTOList =
-                ssoUtil.authenticateUserInGroup(USER_NAME, PASSWORD,
-                        Collections.singleton(PROVIDER_URI), true);
+                        ssoUtil.authenticateUserInGroup(username, PASSWORD,
+                                        Collections.singleton(PROVIDER_URI), true);
         assertNotNull(securityGroupDTOList);
         assertEquals(2, securityGroupDTOList.size());
         assertEquals(securityGroupDTOList.get(0), securityGroup);
@@ -147,8 +187,8 @@ public class SsoUtilIntegrationTest {
     @Test
     public void testAuthenticateUserInGroupNegative() {
         final List<SecurityGroupDTO> securityGroupDTOS =
-                ssoUtil.authenticateUserInGroup(USER_NAME, PASSWORD,
-                        Collections.singleton(PROVIDER_URI), false);
+                        ssoUtil.authenticateUserInGroup(username, PASSWORD,
+                                        Collections.singleton(PROVIDER_URI), false);
         assertEquals(0, securityGroupDTOS.size());
     }
 
@@ -158,7 +198,7 @@ public class SsoUtilIntegrationTest {
     @Test
     public void testAuthenticateUser() {
         SecurityGroupDTO securityGroup = new SecurityGroupDTO(ADMIN_GROUP, "", ADMINISTRATOR);
-        ssoUtil.authenticateADUser(USER_NAME, PASSWORD);
+        ssoUtil.authenticateADUser(username, PASSWORD);
     }
 
     /**
@@ -168,11 +208,12 @@ public class SsoUtilIntegrationTest {
     @Test(expected = SecurityException.class)
     public void testAuthenticateUserNegative() {
         SecurityGroupDTO securityGroup = new SecurityGroupDTO(ADMIN_GROUP, "", ADMINISTRATOR);
-        ssoUtil.authenticateADUser(USER_NAME, WRONG_PASSWORD);
+        ssoUtil.authenticateADUser(username, WRONG_PASSWORD);
     }
 
     /**
      * AD integration test, verify authentication passed with multi AD group enabled.
+     *
      * @throws AuthenticationException when authentication failed.
      */
     @Test
@@ -182,16 +223,16 @@ public class SsoUtilIntegrationTest {
         ssoUtil.setDomainName("corp.vmturbo.com");
         ssoUtil.setLoginProviderURI(PROVIDER_URI);
         SecurityGroupDTO securityGroup = new SecurityGroupDTO(ADMIN_GROUP, "", OBSERVER,
-                com.google.common.collect.Lists.newArrayList(1L));
+                        com.google.common.collect.Lists.newArrayList(1L));
         SecurityGroupDTO securityGroup1 = new SecurityGroupDTO(ADMIN_GROUP, "", OBSERVER,
-                com.google.common.collect.Lists.newArrayList(2L));
+                        com.google.common.collect.Lists.newArrayList(2L));
         ssoUtil.putSecurityGroup(GROUP_NAME, securityGroup);
         ssoUtil.putSecurityGroup(GROUP_NAME_ADDITION, securityGroup1);
         AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, null,
-                new UserPolicy(LoginPolicy.AD_ONLY), ssoUtil, true);
+                        new UserPolicy(LoginPolicy.AD_ONLY), ssoUtil, true);
 
         final JWTAuthorizationToken authenticate =
-                store.authenticate(USER_NAME, PASSWORD, "10.10.10.1");
+                        store.authenticate(username, PASSWORD, "10.10.10.1");
         Assert.assertNotNull(authenticate);
     }
 }
