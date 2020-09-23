@@ -208,6 +208,14 @@ public class CloudMigrationPlanHelper {
             PHYSICAL_MACHINE);
 
     /**
+     * These providers need to be marked as non-movable and non-scalable for MCP plan, so that
+     * we don't create shopping lists for these and we don't see any actions for them.
+     */
+    private static final Set<EntityType> NON_MOVABLE_PROVIDER_TYPES = ImmutableSet.of(
+            PHYSICAL_MACHINE,
+            STORAGE);
+
+    /**
      * IOPS to Storage ratios: used for adjusting storage amount based on IOPS.
      */
     private IopsToStorageRatios iopsToStorageRatios;
@@ -874,6 +882,7 @@ public class CloudMigrationPlanHelper {
                                   @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
                                   boolean isDestinationAws,
                                   boolean isConsumer) {
+        EntityType entityType = EntityType.forNumber(dtoBuilder.getEntityType());
         List<CommoditiesBoughtFromProvider> newCommoditiesByProvider = new ArrayList<>();
         // Go over grouping of comm bought along with their providers.
         for (CommoditiesBoughtFromProvider commBoughtGrouping
@@ -896,7 +905,12 @@ public class CloudMigrationPlanHelper {
                     && commBoughtGrouping.getMovable();
             boolean isScalable = commBoughtGrouping.hasScalable()
                     && commBoughtGrouping.getScalable();
-            if (!isMovable || !isScalable) {
+            if (!isConsumer && NON_MOVABLE_PROVIDER_TYPES.contains(entityType)) {
+                // We don't want host and storage shopping lists to be movable.
+                newCommBoughtGrouping
+                        .setMovable(false)
+                        .setScalable(false);
+            } else if (!isMovable || !isScalable) {
                 newCommBoughtGrouping
                         .setMovable(true)
                         .setScalable(true);
