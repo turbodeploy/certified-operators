@@ -1,4 +1,4 @@
-package com.vmturbo.common.protobuf.severity;
+package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.Collection;
 
@@ -28,10 +28,4 @@ public interface SeverityMap {
     @Nonnull
     Severity calculateSeverity(@Nonnull Collection<Long> entityOids);
 
-    /**
-     * Size of the severity map.
-     *
-     * @return number of severities (entities) in the map
-     */
-    int size();
 }

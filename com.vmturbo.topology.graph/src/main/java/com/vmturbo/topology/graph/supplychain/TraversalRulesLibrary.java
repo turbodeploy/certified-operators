@@ -2,14 +2,12 @@ package com.vmturbo.topology.graph.supplychain;
 
 import java.util.List;
 import java.util.Queue;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
@@ -397,26 +395,20 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
     }
 
     /**
-     * Tier-specific rule: do not traverse to regions or availability zones.
+     * Tier-specific rule: when not in seed, do not traverse to regions
+     * or availability zones.
      *
      * @param <E> The type of {@link TopologyGraphEntity} in the graph.
      */
     private static class TierRule<E extends TopologyGraphEntity<E>>
             extends DefaultTraversalRule<E> {
-
-        /**
-         * All cloud tiers.
-         */
-        private static final Set<Integer> TIER_VALUES = ImmutableSet.of(
-                EntityType.STORAGE_TIER_VALUE,
-                EntityType.COMPUTE_TIER_VALUE,
-                EntityType.DATABASE_SERVER_TIER_VALUE,
-                EntityType.DATABASE_TIER_VALUE
-        );
-
         @Override
         public boolean isApplicable(@Nonnull E entity, @Nonnull TraversalMode traversalMode) {
-            return TIER_VALUES.contains(entity.getEntityType());
+            return (entity.getEntityType() == EntityType.STORAGE_TIER_VALUE
+                                || entity.getEntityType() == EntityType.COMPUTE_TIER_VALUE
+                                || entity.getEntityType() == EntityType.DATABASE_SERVER_TIER_VALUE
+                                || entity.getEntityType() == EntityType.DATABASE_TIER_VALUE)
+                        && traversalMode != TraversalMode.START;
         }
 
         @Override
@@ -426,8 +418,9 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
             if (edgeTraversalDescription == EdgeTraversalDescription.FROM_AGGREGATED_TO_AGGREGATOR) {
                 return e -> e.getEntityType() != EntityType.REGION_VALUE
                             && e.getEntityType() != EntityType.AVAILABILITY_ZONE_VALUE;
+            } else {
+                return e -> true;
             }
-            return e -> false;
         }
     }
 

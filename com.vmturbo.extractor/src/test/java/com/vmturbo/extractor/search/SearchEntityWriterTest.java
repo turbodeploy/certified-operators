@@ -6,6 +6,7 @@ import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID_AS_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_STATE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_TYPE_ENUM;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENVIRONMENT_TYPE_ENUM;
+import static com.vmturbo.extractor.models.ModelDefinitions.NUM_ACTIONS;
 import static com.vmturbo.extractor.util.RecordTestUtil.captureSink;
 import static com.vmturbo.extractor.util.TopologyTestUtil.mkEntity;
 import static com.vmturbo.extractor.util.TopologyTestUtil.mkGroup;
@@ -35,9 +36,8 @@ import java.util.stream.Stream;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.junit.Before;
 import org.junit.Test;
@@ -77,14 +77,12 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 @ContextConfiguration(classes = {ExtractorDbConfig.class, ExtractorDbBaseConfig.class})
 public class SearchEntityWriterTest {
 
-    private static final Logger logger = LogManager.getLogger();
-
     @Autowired
     private ExtractorDbConfig dbConfig;
 
     private SearchEntityWriter writer;
     private final TopologyInfo info = TopologyTestUtil.mkRealtimeTopologyInfo(1L);
-    private final MultiStageTimer timer = new MultiStageTimer(logger);
+    private final MultiStageTimer timer = mock(MultiStageTimer.class);
     private final DataProvider dataProvider = mock(DataProvider.class);
     private List<Record> entitiesReplacerCapture;
     private static final ObjectMapper mapper = new ObjectMapper();
@@ -113,6 +111,14 @@ public class SearchEntityWriterTest {
     private static final Grouping g1 = mkGroup(GroupType.COMPUTE_HOST_CLUSTER,
             Collections.singletonList(pm.getOid()));
 
+    private static final Map<Long, Integer> ACTION_COUNT_MAP = new ImmutableMap.Builder<Long, Integer>()
+            .put(vm.getOid(), 3)
+            .put(pm.getOid(), 8)
+            .put(dc.getOid(), 0)
+            .put(g1.getId(), 10)
+            .build();
+
+
     /**
      * Set up for tests.
      *
@@ -134,6 +140,8 @@ public class SearchEntityWriterTest {
                 .getRelatedEntityNames(vm.getOid(), DATACENTER);
         doReturn(Collections.singletonList(dc.getDisplayName())).when(dataProvider)
                 .getRelatedEntityNames(pm.getOid(), DATACENTER);
+        ACTION_COUNT_MAP.forEach((oid, count) ->
+                doReturn(count).when(dataProvider).getActionCount(oid));
     }
 
     /**
@@ -191,12 +199,9 @@ public class SearchEntityWriterTest {
      * @throws SQLException                if there's a DB problem
      * @throws UnsupportedDialectException if the DB endpoint is misconfigured
      * @throws InterruptedException        if interrupted
-     * @throws IOException                 if there's a problem setting up for processing
      */
     @Test
-    public void testInsertGroups() throws SQLException, UnsupportedDialectException,
-            InterruptedException, IOException {
-        writer.startTopology(info, ExtractorTestUtil.config, timer);
+    public void testInsertGroups() throws SQLException, UnsupportedDialectException, InterruptedException {
         doReturn(Stream.of(g1)).when(dataProvider).getAllGroups();
 
         int n = writer.finish(dataProvider);
@@ -210,6 +215,7 @@ public class SearchEntityWriterTest {
         assertThat(record.get(ENTITY_NAME), is(g1.getDefinition().getDisplayName()));
         assertThat(record.get(ENTITY_TYPE_ENUM), is(
                 GroupTypeUtils.protoToDb(g1.getDefinition().getType())));
+        assertThat(record.get(NUM_ACTIONS), is(ACTION_COUNT_MAP.get(g1.getId())));
     }
 
     private void verifyCommonFields(Record record, TopologyEntityDTO entity) {
@@ -221,5 +227,7 @@ public class SearchEntityWriterTest {
                 EnvironmentTypeUtils.protoToDb(entity.getEnvironmentType())));
         assertThat(record.get(ENTITY_STATE_ENUM), is(
                 EntityStateUtils.protoToDb(entity.getEntityState())));
+        // action
+        assertThat(record.get(NUM_ACTIONS), is(ACTION_COUNT_MAP.get(entity.getOid())));
     }
 }

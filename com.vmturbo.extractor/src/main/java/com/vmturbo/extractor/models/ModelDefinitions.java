@@ -116,12 +116,7 @@ public class ModelDefinitions {
     /** SEARCH_ENTITY_TABLE. */
     public static final Table SEARCH_ENTITY_TABLE = Table.named("search_entity")
             .withColumns(ENTITY_OID_AS_OID, ENTITY_TYPE_ENUM, ENTITY_NAME, ENVIRONMENT_TYPE_ENUM,
-                    ENTITY_STATE_ENUM, ATTRS)
-            .build();
-
-    /** SEARCH_ENTITY_ACTION_TABLE. */
-    public static final Table SEARCH_ENTITY_ACTION_TABLE = Table.named("search_entity_action")
-            .withColumns(ENTITY_OID_AS_OID, NUM_ACTIONS, SEVERITY_ENUM)
+                    ENTITY_STATE_ENUM, SEVERITY_ENUM, NUM_ACTIONS, ATTRS)
             .build();
 
     /** SEARCH_MODEL. */

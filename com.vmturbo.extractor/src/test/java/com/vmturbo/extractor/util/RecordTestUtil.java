@@ -15,7 +15,6 @@ import static org.mockito.Mockito.doAnswer;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -75,7 +74,7 @@ public class RecordTestUtil {
      * @return array into which records will be recorded as they are sent to the sink
      */
     public static List<Record> captureSink(Consumer<Record> sink, boolean alsoCallRealMethod) {
-        List<Record> records = Collections.synchronizedList(new ArrayList<>());
+        List<Record> records = new ArrayList<>();
         doAnswer(inv -> {
             final Record r = inv.getArgumentAt(0, Record.class);
             if (r != null) {

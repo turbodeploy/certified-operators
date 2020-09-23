@@ -1,15 +1,15 @@
 package com.vmturbo.extractor.action;
 
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Clock;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -18,32 +18,36 @@ import com.google.common.collect.ImmutableList;
 
 import io.grpc.StatusRuntimeException;
 
-import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 
 import com.vmturbo.action.orchestrator.api.ActionsListener;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.TypeInfoCase;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
-import com.vmturbo.common.protobuf.severity.SeverityMap;
-import com.vmturbo.common.protobuf.severity.SeverityUtil;
 import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
-import com.vmturbo.extractor.topology.DataProvider;
-import com.vmturbo.extractor.topology.SupplyChainEntity;
+import com.vmturbo.extractor.RecordHashManager.SnapshotManager;
+import com.vmturbo.extractor.models.ActionModel;
+import com.vmturbo.extractor.models.Column;
+import com.vmturbo.extractor.models.DslRecordSink;
+import com.vmturbo.extractor.models.DslUpdateRecordSink;
+import com.vmturbo.extractor.models.DslUpsertRecordSink;
+import com.vmturbo.extractor.models.Table.Record;
+import com.vmturbo.extractor.models.Table.TableWriter;
+import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
+import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.topology.graph.TopologyGraph;
 
 /**
  * The {@link ActionWriter} is responsible for listening for action updates from the action
@@ -53,16 +57,50 @@ import com.vmturbo.topology.graph.TopologyGraph;
 public class ActionWriter implements ActionsListener {
     private static final Logger logger = LogManager.getLogger();
 
+    private static final List<Column<?>> UPSERT_CONFLICTS = ImmutableList.of(
+            ActionModel.ActionSpec.SPEC_OID, ActionModel.ActionSpec.HASH);
+    private static final List<Column<?>> UPSERT_UPDATES =
+            Collections.singletonList(ActionModel.ActionSpec.LAST_SEEN);
+
+    private static final List<Column<?>> UPDATE_INCLUDES = ImmutableList.of(
+            ActionModel.ActionSpec.HASH, ActionModel.ActionSpec.LAST_SEEN);
+    private static final List<Column<?>> UPDATE_MATCHES = ImmutableList.of(
+            ActionModel.ActionSpec.HASH);
+    private static final List<Column<?>> UPDATE_UPDATES = ImmutableList.of(
+            ActionModel.ActionSpec.LAST_SEEN);
+
     /**
      * System clock.
      */
     private final Clock clock;
 
+    /**
+     * Threadpool for asynchronous writes to the database.
+     */
+    private final ExecutorService pool;
+
     private final ActionsServiceBlockingStub actionService;
 
-    private final EntitySeverityServiceStub severityService;
+    /**
+     * Endpoint to connect to the database.
+     */
+    private final DbEndpoint dbEndpoint;
 
-    private final DataProvider dataProvider;
+    /**
+     * Shared database writing configuration (e.g. how long to wait for transactions to complete).
+     */
+    private final WriterConfig writerConfig;
+
+    /**
+     * Converts action orchestrator actions to database {@link Record}s.
+     */
+    private final ActionConverter actionConverter;
+
+    /**
+     * Responsible for assigning hashes to action specs to reduce unnecessary writes to the
+     * database.
+     */
+    private final ActionHashManager actionHashManager;
 
     private final long realtimeContextId;
 
@@ -73,45 +111,38 @@ public class ActionWriter implements ActionsListener {
      */
     private final long actionWritingIntervalMillis;
 
-    private final boolean enableReportingActionIngestion;
-
-    private final boolean enableSearchActionIngestion;
-
-    private final Supplier<ReportingActionWriter> reportingActionWriterSupplier;
-
-    private final Supplier<SearchActionWriter> searchActionWriterSupplier;
+    private final boolean enableIngestion;
 
     /**
      * The last time we wrote actions for each action plan type. It's necessary to split up by
      * type, because otherwise a BuyRI action plan will prevent a follow-up Market action plan
      * from being processed.
      */
-    private final Map<ActionPlanInfo.TypeInfoCase, Long> lastActionWrite = new EnumMap<>(TypeInfoCase.class);
+    private final Map<ActionPlanInfo.TypeInfoCase, Long> lastActionWrite =
+            new EnumMap<>(TypeInfoCase.class);
 
     ActionWriter(@Nonnull final Clock clock,
+            @Nonnull final ExecutorService pool,
             @Nonnull final ActionsServiceBlockingStub actionService,
-            @Nonnull final EntitySeverityServiceStub severityService,
-            @Nonnull final DataProvider dataProvider,
-            final long actionWritingIntervalMillis,
-            final boolean enableReportingActionIngestion,
-            final boolean enableSearchActionIngestion,
-            final long realtimeContextId,
-            final Supplier<ReportingActionWriter> reportingActionWriterSupplier,
-            final Supplier<SearchActionWriter> searchActionWriterSupplier) {
+            @Nonnull final DbEndpoint dbEndpoint,
+            @Nonnull final WriterConfig writerConfig,
+            @Nonnull final ActionConverter actionConverter,
+            @Nonnull final ActionHashManager actionHashManager,
+            final long actionWritingInterval,
+            final TimeUnit actionWritingIntervalUnit,
+            final boolean enableIngestion,
+            final long realtimeContextId) {
         this.clock = clock;
+        this.pool = pool;
         this.actionService = actionService;
-        this.severityService = severityService;
-        this.actionWritingIntervalMillis = actionWritingIntervalMillis;
+        this.dbEndpoint = dbEndpoint;
+        this.writerConfig = writerConfig;
+        this.actionConverter = actionConverter;
+        this.actionHashManager = actionHashManager;
+        this.actionWritingIntervalMillis = actionWritingIntervalUnit.toMillis(actionWritingInterval);
         this.realtimeContextId = realtimeContextId;
-        this.enableReportingActionIngestion = enableReportingActionIngestion;
-        this.enableSearchActionIngestion = enableSearchActionIngestion;
-        this.dataProvider = dataProvider;
-        this.searchActionWriterSupplier = searchActionWriterSupplier;
-        this.reportingActionWriterSupplier = reportingActionWriterSupplier;
-        logger.info("Initialized action writer. Reporting action ingestion {}, "
-                        + "search action ingestion {}",
-                enableReportingActionIngestion ? "enabled" : "disable",
-                enableSearchActionIngestion ? "enabled" : "disable");
+        this.enableIngestion = enableIngestion;
+        logger.info("Initialized action writer. Ingestion {}", enableIngestion ? "enabled" : "disable");
     }
 
     @Override
@@ -122,157 +153,144 @@ public class ActionWriter implements ActionsListener {
             return;
         }
 
+        if (!enableIngestion) {
+            logger.debug("Ingestion disabled, skipping action plan for context {}", contextId);
+            return;
+        }
+
+        TypeInfoCase actionPlanType = actionsUpdated.getActionPlanInfo().getTypeInfoCase();
+        long lastWriteForType = lastActionWrite.computeIfAbsent(actionPlanType, k -> 0L);
+        final long now = clock.millis();
+        final long nextUpdateTime = lastWriteForType + actionWritingIntervalMillis;
+        if (nextUpdateTime <= now) {
+            try {
+                writeActions();
+                lastActionWrite.put(actionPlanType, now);
+                logger.info("Successfully wrote actions metrics. Next update in {} minutes",
+                        TimeUnit.MILLISECONDS.toMinutes(now + actionWritingIntervalMillis - clock.millis()));
+            } catch (StatusRuntimeException e) {
+                Metrics.PROCESSING_ERRORS_CNT.labels("grpc_" + e.getStatus().getCode()).increment();
+                logger.error("Failed to retrieve actions.", e);
+            } catch (UnsupportedDialectException e) {
+                Metrics.PROCESSING_ERRORS_CNT.labels("dialect").increment();
+                // This shouldn't happen.
+                logger.error("Failed to write action data due to invalid dialect.", e);
+            } catch (SQLException e) {
+                Metrics.PROCESSING_ERRORS_CNT.labels("sql_" + e.getErrorCode()).increment();
+                logger.error("Failed to write action data due to SQL error.", e);
+            } catch (InterruptedException e) {
+                Metrics.PROCESSING_ERRORS_CNT.labels("interrupted").increment();
+                Thread.currentThread().interrupt();
+                logger.error("Interrupted while waiting for action data to write.", e);
+            }
+        } else {
+            logger.info("Not writing action metrics for another {} minutes.",
+                TimeUnit.MILLISECONDS.toMinutes(nextUpdateTime - now));
+        }
+    }
+
+    @VisibleForTesting
+    void writeActions()
+            throws UnsupportedDialectException, InterruptedException, SQLException {
         final MultiStageTimer timer = new MultiStageTimer(logger);
         final AsyncTimer elapsedTimer = timer.async("Total Elapsed");
         timer.stop();
 
-        final TypeInfoCase actionPlanType = actionsUpdated.getActionPlanInfo().getTypeInfoCase();
-        final List<IActionWriter> writers = createActionWriters(actionPlanType);
-        if (writers.isEmpty()) {
-            // no need to write
-            return;
-        }
-
-        timer.start("Retrieve actions");
-        final int totalActionsCount = fetchActions(writers);
-        timer.stop();
-        timer.start("Retrieve severities");
-        fetchSeverities(contextId, writers);
-        timer.stop();
-        for (IActionWriter writer : writers) {
-            try {
-                writer.write(lastActionWrite, actionPlanType, timer);
-            } catch (UnsupportedDialectException e) {
-                Metrics.PROCESSING_ERRORS_CNT.labels("dialect").increment();
-                // This shouldn't happen.
-                logger.error("{} failed to write action data due to invalid dialect.",
-                        writer.getClass().getSimpleName(), e);
-            } catch (SQLException e) {
-                Metrics.PROCESSING_ERRORS_CNT.labels("sql_" + e.getErrorCode()).increment();
-                logger.error("{} failed to write action data due to SQL error.",
-                        writer.getClass().getSimpleName(), e);
-            } catch (InterruptedException e) {
-                Metrics.PROCESSING_ERRORS_CNT.labels("interrupted").increment();
-                Thread.currentThread().interrupt();
-                logger.error("{} interrupted while waiting for action data to write.",
-                        writer.getClass().getSimpleName(), e);
-            }
-        }
-
-        elapsedTimer.close();
-        timer.visit((stageName, stopped, totalDurationMs) -> {
-            if (stopped) {
-                Metrics.PROCESSING_HISTOGRAM.labels(stageName)
-                        .observe((double)TimeUnit.MILLISECONDS.toSeconds(totalDurationMs));
-            }
-        });
-        timer.info(FormattedString.format("Processed {} actions", totalActionsCount), Detail.STAGE_SUMMARY);
-    }
-
-    /**
-     * Create action writers for this cycle based on the given action plan type.
-     *
-     * @param actionPlanType type of the action plan
-     * @return list of action writers to write actions for this cycle
-     */
-    private List<IActionWriter> createActionWriters(TypeInfoCase actionPlanType) {
-        final ImmutableList.Builder<IActionWriter> builder = ImmutableList.builder();
-        if (isEnableSearchActionIngestion()) {
-            // there are two notifications in short time (buyRI & market), we should avoid fetching
-            // twice in short time, currently we only fetch when it's MARKET type. maybe we need a
-            // minimal fetching interval like 10 minutes for search, no matter which type.
-            if (actionPlanType == TypeInfoCase.MARKET) {
-                builder.add(searchActionWriterSupplier.get());
-            }
-        }
-
-        if (isEnableReportingActionIngestion()) {
-            // check if we need to ingest actions for reporting this time
-            long lastWriteForType = lastActionWrite.computeIfAbsent(actionPlanType, k -> 0L);
-            final long now = clock.millis();
-            final long nextUpdateTime = lastWriteForType + actionWritingIntervalMillis;
-            if (nextUpdateTime <= now) {
-                builder.add(reportingActionWriterSupplier.get());
-            } else {
-                logger.info("Not writing reporting action metrics for another {} minutes.",
-                        TimeUnit.MILLISECONDS.toMinutes(nextUpdateTime - now));
-            }
-        }
-        return builder.build();
-    }
-
-    @VisibleForTesting
-    public boolean isEnableReportingActionIngestion() {
-        return enableReportingActionIngestion;
-    }
-
-    @VisibleForTesting
-    public boolean isEnableSearchActionIngestion() {
-        return enableSearchActionIngestion;
-    }
-
-    @VisibleForTesting
-    int fetchActions(@Nonnull List<IActionWriter> actionConsumers) {
-        final MutableInt totalActionsCount = new MutableInt(0);
+        final Map<Long, Record> actionSpecRecords = new HashMap<>();
+        final Map<Long, Record> actionRecords = new HashMap<>();
+        timer.start("retrieval");
         FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
                 .setTopologyContextId(realtimeContextId)
                 // stream all actions
                 .setPaginationParams(PaginationParameters.newBuilder().setEnforceLimit(false))
                 .build();
         logger.debug("Retrieving actions for context {}", realtimeContextId);
-        try {
-            actionService.getAllActions(actionRequest).forEachRemaining(response -> {
-                List<ActionOrchestratorAction> actionsList =
-                        response.getActionChunk().getActionsList();
-                actionsList.forEach(aoAction -> {
-                    if (aoAction.hasActionSpec()) {
-                        actionConsumers.forEach(actionConsumer -> actionConsumer.accept(aoAction));
+        actionService.getAllActions(actionRequest).forEachRemaining(response -> {
+            response.getActionChunk().getActionsList().forEach(aoAction -> {
+                if (aoAction.hasActionSpec()) {
+                    final ActionSpec actionSpec = aoAction.getActionSpec();
+                    Record actionSpecRecord = actionConverter.makeActionSpecRecord(actionSpec);
+                    if (actionSpecRecord != null) {
+                        Record actionRecord = actionConverter.makeActionRecord(actionSpec,
+                                actionSpecRecord);
+                        final long specId = actionSpecRecord.get(ActionModel.ActionSpec.SPEC_OID);
+                        actionSpecRecords.put(specId, actionSpecRecord);
+                        actionRecords.put(specId, actionRecord);
                     }
-                });
-                totalActionsCount.add(actionsList.size());
+                }
             });
-            logger.info("Retrieved {} actions from action orchestrator", totalActionsCount);
-        } catch (StatusRuntimeException e) {
-            Metrics.PROCESSING_ERRORS_CNT.labels("grpc_" + e.getStatus().getCode()).increment();
-            logger.error("Failed to retrieve actions.", e);
+        });
+        timer.stop();
+        logger.debug("Retrieved and mapped {} action specs and {} action records",
+                actionSpecRecords.size(), actionRecords.size());
+
+        // Done fetching, time to start retching.
+        timer.start("processing");
+        final long millis = clock.millis();
+        final Timestamp timestamp = new Timestamp(millis);
+        try (DSLContext dsl = dbEndpoint.dslContext();
+             TableWriter actionSpecUpserter = ActionModel.ActionSpec.TABLE.open(
+                getActionSpecUpsertSink(dsl, UPSERT_CONFLICTS, UPSERT_UPDATES));
+             TableWriter actionSpecUpdater = ActionModel.ActionSpec.TABLE.open(
+                getActionSpecUpdaterSink(dsl, UPDATE_INCLUDES, UPDATE_MATCHES, UPDATE_UPDATES));
+             TableWriter actionInserter = ActionModel.ActionMetric.TABLE.open(
+                     getActionInserterSink(dsl));
+             SnapshotManager snapshotManager = actionHashManager.open(millis)) {
+            actionSpecRecords.forEach((specId, record) -> {
+                final Long newHash = snapshotManager.updateRecordHash(record);
+                if (newHash != null) {
+                    try (Record r = actionSpecUpserter.open(record)) {
+                        r.set(ActionModel.ActionSpec.HASH, newHash);
+                        snapshotManager.setRecordTimes(r);
+                    }
+                }
+            });
+
+            logger.debug("Finished writing {} action spec records", actionSpecRecords.size());
+
+            actionRecords.forEach((specId, record) -> {
+                try (Record r = actionInserter.open(record)) {
+                    r.set(ActionModel.ActionMetric.TIME, timestamp);
+                    r.set(ActionModel.ActionMetric.ACTION_SPEC_HASH,
+                            actionHashManager.getEntityHash(specId));
+                }
+            });
+
+            logger.debug("Finished writing {} action records", actionRecords.size());
+
+            snapshotManager.processChanges(actionSpecUpdater);
         }
-        return totalActionsCount.intValue();
+
+        timer.stop();
+
+        elapsedTimer.close();
+        timer.visit((stageName, stopped, totalDurationMs) -> {
+            if (stopped) {
+                Metrics.PROCESSING_HISTOGRAM.labels(stageName)
+                    .observe((double)TimeUnit.MILLISECONDS.toSeconds(totalDurationMs));
+            }
+        });
+        timer.info(FormattedString.format("Processed {} action specs and {} actions",
+                actionSpecRecords.size(), actionRecords.size()), Detail.STAGE_SUMMARY);
     }
 
-    /**
-     * Fetch severities for the given topologyContextId.
-     *
-     * @param topologyContextId id of the topology context
-     * @param severityConsumers consumers of the severity
-     */
-    void fetchSeverities(long topologyContextId, List<IActionWriter> severityConsumers) {
-        TopologyGraph<SupplyChainEntity> topologyGraph = dataProvider.getTopologyGraph();
-        if (topologyGraph == null) {
-            logger.error("Topology graph is not ready, skipping fetching severities for this cycle");
-            return;
-        }
-        final List<Long> allEntities = topologyGraph.entities()
-                .map(SupplyChainEntity::getOid)
-                .collect(Collectors.toList());
-        try {
-            SeverityMap severityMap = SeverityUtil.calculateSeverities(topologyContextId,
-                    allEntities, severityService).get();
-            logger.info("Retrieved {} severities from action orchestrator", severityMap.size());
-            severityConsumers.forEach(consumer -> consumer.acceptSeverity(severityMap));
-        } catch (InterruptedException | ExecutionException | StatusRuntimeException e) {
-            logger.error("Error fetching severities for {}", topologyContextId, e);
-        }
+    @Nonnull
+    DslRecordSink getActionInserterSink(final DSLContext dsl) {
+        return new DslRecordSink(dsl, ActionModel.ActionMetric.TABLE, writerConfig, pool);
     }
 
-    /**
-     * Interface for writing actions and severities.
-     */
-    interface IActionWriter extends Consumer<ActionOrchestratorAction> {
-        default void acceptSeverity(SeverityMap severityMap) {}
+    @Nonnull
+    DslUpdateRecordSink getActionSpecUpdaterSink(final DSLContext dsl, final List<Column<?>> updateIncludes,
+            final List<Column<?>> updateMatches, final List<Column<?>> updateUpdates) {
+        return new DslUpdateRecordSink(dsl, ActionModel.ActionSpec.TABLE, writerConfig, pool,
+                "update", updateIncludes, updateMatches, updateUpdates);
+    }
 
-        void write(Map<ActionPlanInfo.TypeInfoCase, Long> lastActionWrite,
-                TypeInfoCase actionPlanType, MultiStageTimer timer)
-                throws UnsupportedDialectException, InterruptedException, SQLException;
+    @Nonnull
+    DslUpsertRecordSink getActionSpecUpsertSink(final DSLContext dsl,
+            List<Column<?>> upsertConflicts, List<Column<?>> upsertUpdates) {
+        return new DslUpsertRecordSink(dsl, ActionModel.ActionSpec.TABLE, writerConfig, pool, "upsert",
+                upsertConflicts, upsertUpdates);
     }
 
     /**

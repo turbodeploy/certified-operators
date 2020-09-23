@@ -20,6 +20,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.extractor.ExtractorDbConfig;
@@ -111,7 +113,8 @@ public class TopologyListenerConfig {
                         .addAll(writerFactories())
                         .build();
         final TopologyEntitiesListener topologyEntitiesListener = new TopologyEntitiesListener(
-                writerFactories, writerConfig(), dataProvider());
+                writerFactories, writerConfig(), groupServiceBlockingStub(),
+                actionServiceBlockingStub());
         topologyProcessor().addLiveTopologyListener(topologyEntitiesListener);
         return topologyEntitiesListener;
     }
@@ -182,6 +185,16 @@ public class TopologyListenerConfig {
     }
 
     /**
+     * Create a group service endpoint.
+     *
+     * @return service endpoint
+     */
+    @Bean
+    public ActionsServiceBlockingStub actionServiceBlockingStub() {
+        return ActionsServiceGrpc.newBlockingStub(actionClientConfig.actionOrchestratorChannel());
+    }
+
+    /**
      * Create list of factories for writers that will participate in topology processing.
      *
      * @return writer factories
@@ -240,16 +253,6 @@ public class TopologyListenerConfig {
     public ExecutorService pool() {
         final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("extractor-%d").build();
         return Executors.newCachedThreadPool(threadFactory);
-    }
-
-    /**
-     * The data provider which contains latest topology, supply chain, etc.
-     *
-     * @return {@link DataProvider}
-     */
-    @Bean
-    public DataProvider dataProvider() {
-        return new DataProvider(groupServiceBlockingStub());
     }
 }
 

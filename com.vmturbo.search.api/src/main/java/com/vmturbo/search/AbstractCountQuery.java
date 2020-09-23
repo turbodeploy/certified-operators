@@ -53,16 +53,15 @@ public abstract class AbstractCountQuery extends AbstractQuery {
         // We select the same fields that we want to group by so that we can have meaningful results,
         // that is to say labels along with the counts.
         final Set<Field> groupByFields = buildSelectFields();
-        Select<Record> query = getReadOnlyDSLContext()
+        Select<Record> query = this.getReadOnlyDSLContext()
             .select(groupByFields)
             .select(DSL.count())
-            // no need to join search_entity_action table for now as no action data involved
-            .from(SEARCH_ENTITY_TABLE)
+            .from(getSearchTable())
             .where(buildWhereClause())
             .groupBy(groupByFields);
 
         //Decouple fetch from query chain for testing purposes
-        Result<Record> records = getReadOnlyDSLContext().fetch(query);
+        Result<Record> records = this.getReadOnlyDSLContext().fetch(query);
         logger.debug("COUNT_RECORDS: \n" + records.formatCSV());
         List<SearchCountRecordApiDTO> results = records.map(countRecordMapper());
         return results;

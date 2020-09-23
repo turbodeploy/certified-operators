@@ -52,6 +52,10 @@ public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>
         this.type = src.getEntityType();
     }
 
+    public int getType() {
+        return type;
+    }
+
     /**
      * Create a new instance for a given {@link TopologyEntityDTO} entity.
      *

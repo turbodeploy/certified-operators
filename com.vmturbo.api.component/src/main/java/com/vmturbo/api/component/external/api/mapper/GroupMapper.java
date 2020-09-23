@@ -45,6 +45,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.FutureObserver;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator.SeverityMapImpl;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ObjectsPage;
@@ -65,7 +66,6 @@ import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
-import com.vmturbo.common.protobuf.severity.SeverityMap;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
@@ -92,7 +92,6 @@ import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.severity.SeverityMapper;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -1681,7 +1680,7 @@ public class GroupMapper {
                 severityMap = Objects.requireNonNull(severityMapFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS));
             } catch (ExecutionException | TimeoutException e) {
                 errors.put("Failed to get severity information. Error: " + e.getMessage(), e);
-                severityMap = SeverityMapper.empty();
+                severityMap = SeverityMapImpl.empty();
             }
 
             // Wait for the group costs.
@@ -1814,7 +1813,7 @@ public class GroupMapper {
                 severityMap = severityMapFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
             } catch (ExecutionException | TimeoutException e) {
                 logger.error("Failed to get severities from Action Orchestrator. Defaulting to NORMAL.", e);
-                severityMap = SeverityMapper.empty();
+                severityMap = SeverityMapImpl.empty();
             }
             List<GroupAndMembers> groupAndMembers = getGroupAndMembers();
             final Map<Long, Integer> groupsSeverities = new HashMap<>(groupAndMembers.size());

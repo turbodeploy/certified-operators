@@ -24,8 +24,8 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.topology.graph.TestGraphEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 
@@ -1762,65 +1762,38 @@ public class SupplyChainCalculatorTest {
     }
 
     /**
-     * We should not traverse tier -> region relations, and scoping on a region should not bring in
-     * other regions.
+     * We should not traverse tier -> region relations.
      */
     @Test
     public void testTierRule() {
         /*
          *  Topology:
-         *   VM1          VM2
-         *   | \         / |
-         *   |  REG1  REG2 |
-         *   |   \     /   |
-         *   |    \   /    |
-         *     COMPUTE_TIER
+         *  VM
+         *   | \
+         *   |  REG1   REG2
+         *   |  /      /
+         *   | /      /
+         *   COMPUTE_TIER
+         *
+         *   scoping on VM will not bring REG2
          */
-        final long vm1Id = 1L;
-        final long vm2Id = 2L;
-        final long computeTierId = 3L;
-        final long region1Id = 4L;
-        final long region2Id = 5L;
-        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
-                TestGraphEntity.newBuilder(vm1Id, ApiEntityType.VIRTUAL_MACHINE)
-                        .addProviderId(computeTierId)
-                        .addConnectedEntity(region1Id, ConnectionType.AGGREGATED_BY_CONNECTION),
-                TestGraphEntity.newBuilder(vm2Id, ApiEntityType.VIRTUAL_MACHINE)
-                        .addProviderId(computeTierId)
-                        .addConnectedEntity(region2Id, ConnectionType.AGGREGATED_BY_CONNECTION),
-                TestGraphEntity.newBuilder(computeTierId, ApiEntityType.COMPUTE_TIER)
-                        .addConnectedEntity(region1Id, ConnectionType.AGGREGATED_BY_CONNECTION)
-                        .addConnectedEntity(region2Id, ConnectionType.AGGREGATED_BY_CONNECTION),
-                TestGraphEntity.newBuilder(region1Id, ApiEntityType.REGION),
-                TestGraphEntity.newBuilder(region2Id, ApiEntityType.REGION));
-
-        // scoping on VM1 will not bring REG2 or VM2
-        final Map<Integer, SupplyChainNode> supplyChainVm1 = getSupplyChain(graph, vm1Id);
-        assertThat(getAllNodeIds(supplyChainVm1.get(ApiEntityType.REGION.typeNumber())),
-                containsInAnyOrder(region1Id));
-        assertThat(getAllNodeIds(supplyChainVm1.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())),
-                containsInAnyOrder(vm1Id));
-
-        // scoping on VM2 will not bring REG1 or VM1
-        final Map<Integer, SupplyChainNode> supplyChainVm2 = getSupplyChain(graph, vm2Id);
-        assertThat(getAllNodeIds(supplyChainVm2.get(ApiEntityType.REGION.typeNumber())),
-                containsInAnyOrder(region2Id));
-        assertThat(getAllNodeIds(supplyChainVm2.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())),
-                containsInAnyOrder(vm2Id));
-
-        // scoping on REG1 will not bring REG2 or VM2
-        final Map<Integer, SupplyChainNode> supplyChainRegion1 = getSupplyChain(graph, region1Id);
-        assertThat(getAllNodeIds(supplyChainRegion1.get(ApiEntityType.REGION.typeNumber())),
-                containsInAnyOrder(region1Id));
-        assertThat(getAllNodeIds(supplyChainRegion1.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())),
-                containsInAnyOrder(vm1Id));
-
-        // scoping on REG2 will not bring REG1 or VM1
-        final Map<Integer, SupplyChainNode> supplyChainRegion2 = getSupplyChain(graph, region2Id);
-        assertThat(getAllNodeIds(supplyChainRegion2.get(ApiEntityType.REGION.typeNumber())),
-                containsInAnyOrder(region2Id));
-        assertThat(getAllNodeIds(supplyChainRegion2.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())),
-                containsInAnyOrder(vm2Id));
+        final long vmId = 1L;
+        final long computeTierId = 2L;
+        final long region1Id = 3L;
+        final long region2Id = 4L;
+        final TopologyGraph<TestGraphEntity> graph =
+                TestGraphEntity.newGraph(
+                        TestGraphEntity.newBuilder(vmId, ApiEntityType.VIRTUAL_MACHINE)
+                                .addProviderId(computeTierId)
+                                .addConnectedEntity(region1Id, ConnectionType.AGGREGATED_BY_CONNECTION),
+                        TestGraphEntity.newBuilder(computeTierId, ApiEntityType.COMPUTE_TIER)
+                                .addConnectedEntity(region1Id, ConnectionType.AGGREGATED_BY_CONNECTION)
+                                .addConnectedEntity(region2Id, ConnectionType.AGGREGATED_BY_CONNECTION),
+                        TestGraphEntity.newBuilder(region1Id, ApiEntityType.REGION),
+                        TestGraphEntity.newBuilder(region2Id, ApiEntityType.REGION));
+        final SupplyChainNode regionNode = getSupplyChain(graph, vmId)
+                                                .get(ApiEntityType.REGION.typeNumber());
+        assertThat(getAllNodeIds(regionNode), containsInAnyOrder(region1Id));
     }
 
     /**

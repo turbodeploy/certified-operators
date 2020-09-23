@@ -1,7 +1,10 @@
 package com.vmturbo.extractor.action;
 
+import static com.vmturbo.extractor.util.RecordTestUtil.captureSink;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -13,16 +16,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Supplier;
+import java.util.concurrent.TimeUnit;
 
 import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 
 import org.jooq.DSLContext;
 import org.junit.Before;
@@ -43,20 +45,19 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse.Actio
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesChunk;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesChunk.Builder;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.RecordHashManager.SnapshotManager;
+import com.vmturbo.extractor.models.ActionModel;
+import com.vmturbo.extractor.models.ActionModel.ActionMetric;
+import com.vmturbo.extractor.models.DslRecordSink;
+import com.vmturbo.extractor.models.DslUpdateRecordSink;
+import com.vmturbo.extractor.models.DslUpsertRecordSink;
+import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.schema.ExtractorDbBaseConfig;
-import com.vmturbo.extractor.topology.DataProvider;
+import com.vmturbo.extractor.schema.enums.ActionState;
 import com.vmturbo.extractor.topology.ImmutableWriterConfig;
 import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.sql.utils.DbEndpoint;
@@ -86,32 +87,27 @@ public class ActionWriterTest {
             .insertTimeoutSeconds(10)
             .build();
 
-    private ExecutorService pool = mock(ExecutorService.class);
-
     private MutableFixedClock clock = new MutableFixedClock(1_000_000);
+
+    private ActionConverter actionConverter = mock(ActionConverter.class);
 
     private ActionHashManager actionHashManager = mock(ActionHashManager.class);
 
     private ActionsServiceMole actionsBackend = spy(ActionsServiceMole.class);
 
-    private EntitySeverityService severityService = new EntitySeverityService();
-
-    private ActionConverter actionConverter = mock(ActionConverter.class);
-
-    private DataProvider dataProvider = mock(DataProvider.class);
-
     /**
      * Test GRPC server.
      */
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsBackend, severityService);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsBackend);
 
-    private ReportingActionWriter reportingActionWriter = mock(ReportingActionWriter.class);
-    private SearchActionWriter searchActionWriter = mock(SearchActionWriter.class);
-    private Supplier<ReportingActionWriter> reportingActionWriterSupplier = mock(Supplier.class);
-    private Supplier<SearchActionWriter> searchActionWriterSupplier = mock(Supplier.class);
+    private ExecutorService executorService = mock(ExecutorService.class);
 
     private ActionWriter actionWriter;
+
+    private List<Record> actionSpecUpsertCapture;
+    private List<Record> actionSpecUpdateCapture;
+    private List<Record> actionInsertCapture;
 
     /**
      * Common setup code before each test.
@@ -122,21 +118,27 @@ public class ActionWriterTest {
     public void setup() throws Exception {
         final DbEndpoint endpoint = spy(dbConfig.ingesterEndpoint());
         doReturn(mock(DSLContext.class)).when(endpoint).dslContext();
-        doReturn(new ReportingActionWriter(clock, pool, endpoint, writerConfig, actionConverter,
-                actionHashManager, ACTION_WRITING_INTERVAL_MS)).when(reportingActionWriterSupplier).get();
-        doReturn(new SearchActionWriter(dataProvider, endpoint, writerConfig, pool))
-                .when(searchActionWriterSupplier).get();
+        DslRecordSink entitiesUpserterSink = mock(DslUpsertRecordSink.class);
+        this.actionSpecUpsertCapture = captureSink(entitiesUpserterSink, false);
+        DslRecordSink entitiesUpdaterSink = mock(DslUpdateRecordSink.class);
+        this.actionSpecUpdateCapture = captureSink(entitiesUpdaterSink, false);
+        DslRecordSink metricInserterSink = mock(DslRecordSink.class);
+        this.actionInsertCapture = captureSink(metricInserterSink, false);
 
-        actionWriter = spy(new ActionWriter(clock,
+        actionWriter = spy(new ActionWriter(clock, executorService,
                 ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                EntitySeverityServiceGrpc.newStub(grpcServer.getChannel()),
-                dataProvider,
-                ACTION_WRITING_INTERVAL_MS,
+                endpoint,
+                writerConfig,
+                actionConverter,
+                actionHashManager,
+                ACTION_WRITING_INTERVAL_MS, TimeUnit.MILLISECONDS,
                 true,
-                false,
-                REALTIME_CONTEXT,
-                reportingActionWriterSupplier,
-                searchActionWriterSupplier));
+                REALTIME_CONTEXT));
+        doReturn(entitiesUpserterSink).when(actionWriter).getActionSpecUpsertSink(
+                any(DSLContext.class), any(), any());
+        doReturn(entitiesUpdaterSink).when(actionWriter).getActionSpecUpdaterSink(
+                any(DSLContext.class), any(), any(), any());
+        doReturn(metricInserterSink).when(actionWriter).getActionInserterSink(any(DSLContext.class));
 
         when(actionsBackend.getAllActions(any())).thenReturn(Collections.singletonList(
             FilteredActionResponse.newBuilder()
@@ -144,9 +146,52 @@ public class ActionWriterTest {
                     .addActions(ActionOrchestratorAction.newBuilder()
                         .setActionSpec(ACTION)))
                 .build()));
-        severityService.setSeveritySupplier(Collections::emptyList);
-        doAnswer(inv -> null).when(dataProvider).getTopologyGraph();
-        when(actionHashManager.open(clock.millis())).thenReturn(mock(SnapshotManager.class));
+    }
+
+    /**
+     * Test the typical action writing cycle.
+     */
+    @Test
+    public void testWriteActions() {
+        final long specOid = 999;
+        Record actionSpecRecord = new Record(ActionModel.ActionSpec.TABLE);
+        actionSpecRecord.set(ActionModel.ActionSpec.SPEC_OID, specOid);
+
+        Record actionRecord = new Record(ActionMetric.TABLE);
+        actionRecord.set(ActionMetric.STATE, ActionState.IN_PROGRESS);
+        actionRecord.set(ActionMetric.ACTION_SPEC_OID, specOid);
+        actionRecord.set(ActionMetric.ACTION_OID, 888L);
+        actionRecord.set(ActionMetric.USER, "me");
+
+        when(actionConverter.makeActionSpecRecord(ACTION)).thenReturn(actionSpecRecord);
+        when(actionConverter.makeActionRecord(ACTION, actionSpecRecord)).thenReturn(actionRecord);
+
+        SnapshotManager snapshotManager = mock(SnapshotManager.class);
+        long hash = 1728;
+        when(snapshotManager.updateRecordHash(actionSpecRecord)).thenReturn(hash);
+        when(actionHashManager.getEntityHash(specOid)).thenReturn(hash);
+
+        doAnswer(invocation -> {
+            Record record = invocation.getArgumentAt(0, Record.class);
+            record.set(ActionModel.ActionSpec.FIRST_SEEN, new Timestamp(clock.millis() - 100_000));
+            record.set(ActionModel.ActionSpec.LAST_SEEN, new Timestamp(clock.millis()));
+            return null;
+        }).when(snapshotManager).setRecordTimes(actionSpecRecord);
+        when(actionHashManager.open(clock.millis())).thenReturn(snapshotManager);
+
+        actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
+
+        assertThat(actionSpecUpsertCapture.get(0).asMap(), is(actionSpecRecord.asMap()));
+        assertThat(actionSpecUpdateCapture, is(empty()));
+        assertThat(actionInsertCapture.get(0).asMap(), is(actionRecord.asMap()));
+
+        // Verify the hash is being set.
+        assertThat(actionSpecUpsertCapture.get(0).get(ActionModel.ActionSpec.HASH), is(hash));
+        assertThat(actionInsertCapture.get(0).get(ActionMetric.ACTION_SPEC_HASH), is(hash));
+
+        verify(snapshotManager).updateRecordHash(actionSpecRecord);
+        verify(snapshotManager).setRecordTimes(actionSpecUpsertCapture.get(0));
+        verify(snapshotManager).processChanges(any());
     }
 
     /**
@@ -158,8 +203,7 @@ public class ActionWriterTest {
     public void testIgnorePlanContext() throws Exception {
         actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT + 100));
 
-        verify(actionWriter, never()).fetchActions(any());
-        verify(actionWriter, never()).fetchSeverities(anyLong(), any());
+        verify(actionWriter, never()).writeActions();
     }
 
     /**
@@ -168,19 +212,18 @@ public class ActionWriterTest {
      * @throws Exception To satisfy compiler.
      */
     @Test
-    public void testSkipUpdateForReporting() throws Exception {
+    public void testSkipUpdate() throws Exception {
         doAnswer(invocation -> {
             return null;
-        }).when(actionWriter).fetchActions(any());
-        SnapshotManager snapshotManager = mock(SnapshotManager.class);
-        when(actionHashManager.open(anyLong())).thenReturn(snapshotManager);
+        }).when(actionWriter).writeActions();
 
         actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
-        verify(actionWriter, times(1)).fetchActions(any());
+
+        verify(actionWriter, times(1)).writeActions();
 
         actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
         // Still written just once.
-        verify(actionWriter, times(1)).fetchActions(any());
+        verify(actionWriter, times(1)).writeActions();
 
         // A buy RI plan should still get processed.
         actionWriter.onActionsUpdated(ActionsUpdated.newBuilder()
@@ -188,19 +231,19 @@ public class ActionWriterTest {
                         .setBuyRi(BuyRIActionPlanInfo.newBuilder()
                                 .setTopologyContextId(REALTIME_CONTEXT)))
                 .build());
-        verify(actionWriter, times(2)).fetchActions(any());
+        verify(actionWriter, times(2)).writeActions();
 
         clock.addTime(ACTION_WRITING_INTERVAL_MS - 1, ChronoUnit.MILLIS);
 
         actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
 
-        verify(actionWriter, times(2)).fetchActions(any());
+        verify(actionWriter, times(2)).writeActions();
 
         clock.addTime(1, ChronoUnit.MILLIS);
 
         actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
 
-        verify(actionWriter, times(3)).fetchActions(any());
+        verify(actionWriter, times(3)).writeActions();
     }
 
     /**
@@ -221,7 +264,7 @@ public class ActionWriterTest {
      */
     @Test
     public void testUnsupportedDialectException() throws Exception {
-        doThrow(new UnsupportedDialectException("bad!")).when(reportingActionWriter).write(any(), any(), any());
+        doThrow(new UnsupportedDialectException("bad!")).when(actionWriter).writeActions();
         actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
     }
 
@@ -232,7 +275,7 @@ public class ActionWriterTest {
      */
     @Test
     public void testSQLException() throws Exception {
-        doThrow(new SQLException("bad!", "SQL:FOO", 123)).when(reportingActionWriter).write(any(), any(), any());
+        doThrow(new SQLException("bad!", "SQL:FOO", 123)).when(actionWriter).writeActions();
         actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
     }
 
@@ -243,20 +286,18 @@ public class ActionWriterTest {
      */
     @Test
     public void testDisableIngestion() throws Exception {
-        ActionWriter actionWriter = spy(new ActionWriter(clock,
+        ActionWriter actionWriter = spy(new ActionWriter(clock, executorService,
                 ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                EntitySeverityServiceGrpc.newStub(grpcServer.getChannel()),
-                dataProvider,
-                ACTION_WRITING_INTERVAL_MS,
+                mock(DbEndpoint.class),
+                writerConfig,
+                actionConverter,
+                actionHashManager,
+                ACTION_WRITING_INTERVAL_MS, TimeUnit.MILLISECONDS,
                 false,
-                false,
-                REALTIME_CONTEXT,
-                reportingActionWriterSupplier,
-                searchActionWriterSupplier));
+                REALTIME_CONTEXT));
         actionWriter.onActionsUpdated(actionsUpdated(REALTIME_CONTEXT));
 
-        verify(actionWriter, never()).fetchActions(any());
-        verify(actionWriter, never()).fetchSeverities(anyLong(), any());
+        verify(actionWriter, never()).writeActions();
     }
 
     private ActionsUpdated actionsUpdated(final long context) {
@@ -267,33 +308,5 @@ public class ActionWriterTest {
                         .setTopologyId(1)
                         .setTopologyContextId(context))))
             .build();
-    }
-
-    /**
-     * Service implementation for retrieving entity severities.
-     */
-    private static class EntitySeverityService extends EntitySeverityServiceImplBase {
-
-        private Supplier<List<EntitySeverity>> severitySupplier;
-
-        @Override
-        public void getEntitySeverities(MultiEntityRequest request,
-                StreamObserver<EntitySeveritiesResponse> responseObserver) {
-            Objects.requireNonNull(severitySupplier);
-            Builder chunks = EntitySeveritiesChunk.newBuilder();
-            severitySupplier.get().forEach(chunks::addEntitySeverity);
-            responseObserver.onNext(EntitySeveritiesResponse.newBuilder().setEntitySeverity(chunks).build());
-            responseObserver.onCompleted();
-        }
-
-        /**
-         * This lambda should be given an implementation in any tests that call
-         * actionOrchestratorImpl#getEntitySeverities.
-         *
-         * @param severitySupplier supplier of severity
-         */
-        public void setSeveritySupplier(Supplier<List<EntitySeverity>> severitySupplier) {
-            this.severitySupplier = severitySupplier;
-        }
     }
 }

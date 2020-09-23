@@ -104,16 +104,6 @@ public class CloudMigrationPlanHelperTest {
     private TopologyEntityDTO.Builder vm1Aws;
 
     /**
-     * On-prem source Host PM DTO data read from file.
-     */
-    private TopologyEntityDTO.Builder host1OnPrem;
-
-    /**
-     * On-prem source Storage DTO data read from file.
-     */
-    private TopologyEntityDTO.Builder storage1OnPrem;
-
-    /**
      * Allocation plan topology info read from file.
      */
     private TopologyInfo allocationTopologyInfo;
@@ -123,6 +113,7 @@ public class CloudMigrationPlanHelperTest {
      */
     private TopologyInfo consumptionTopologyInfo;
 
+    private static final long EXISTING_SETTING_POLICY_GROUP_OID = 100;
     private static final Set<Long> DISCOVERED_EXCLUDED_TIER_OIDS = Sets.newHashSet(101L, 102L, 103L);
     private static final Set<Long> EXISTING_CLOUD_VM_OIDS = Sets.newHashSet(1L, 2L, 3L);
     private static final Set<Long> MIGRATING_VM_OIDS = Sets.newHashSet(4L, 5L, 6L);
@@ -147,8 +138,6 @@ public class CloudMigrationPlanHelperTest {
         consumptionTopologyInfo = loadTopologyInfo("cloud-migration-topo-info-consumption.json");
         vm1Azure = loadTopologyBuilderDTO("cloud-migration-vm-1-azure.json");
         vm1Aws = loadTopologyBuilderDTO("cloud-migration-vm-1-aws.json");
-        host1OnPrem = loadTopologyBuilderDTO("cloud-migration-pm-1-onprem.json");
-        storage1OnPrem = loadTopologyBuilderDTO("cloud-migration-storage-1-onprem.json");
 
         IdentityGenerator.initPrefix(1L);
     }
@@ -649,50 +638,6 @@ public class CloudMigrationPlanHelperTest {
         // Only the active entity's oid should be returned
 
         assertTrue(activeOids.equals(Collections.singleton(activeVmOid)));
-    }
-
-    /**
-     * Verifies that movable and scalable flags for onPrem hosts and storage providers are set
-     * to false, so that we don't see actions for those in MCP plan output.
-     */
-    @Test
-    public void onPremHostAndStorageNonMovable() {
-        assertNotNull(host1OnPrem);
-        assertFalse(host1OnPrem.getCommoditiesBoughtFromProvidersList().isEmpty());
-        assertNotNull(storage1OnPrem);
-        assertFalse(storage1OnPrem.getCommoditiesBoughtFromProvidersList().isEmpty());
-        assertNotNull(allocationTopologyInfo);
-
-        long storageProviderOfHost = 73490062265697L;
-        verifyMovableScalable(host1OnPrem, storageProviderOfHost, true);
-        long diskArrayProviderOfStorage = 73433887031971L;
-        verifyMovableScalable(storage1OnPrem, diskArrayProviderOfStorage, true);
-
-        cloudMigrationPlanHelper.prepareBoughtCommodities(host1OnPrem, allocationTopologyInfo,
-                Collections.emptyMap(), true, false);
-        cloudMigrationPlanHelper.prepareBoughtCommodities(storage1OnPrem, allocationTopologyInfo,
-                Collections.emptyMap(), true, false);
-
-        verifyMovableScalable(host1OnPrem, storageProviderOfHost, false);
-        verifyMovableScalable(storage1OnPrem, diskArrayProviderOfStorage, false);
-    }
-
-    /**
-     * Convenience method to check status of commBoughtGrouping movable and scalable flags.
-     *
-     * @param dtoBuilder Entity (host/storage) for which setting needs to be checked.
-     * @param providerId Provider that host/storage is buying from.
-     * @param expectedValue Value to check.
-     */
-    private void verifyMovableScalable(@Nonnull final TopologyEntityDTO.Builder dtoBuilder,
-            long providerId, boolean expectedValue) {
-        Optional<CommoditiesBoughtFromProvider> commBoughtGrouping =
-                dtoBuilder.getCommoditiesBoughtFromProvidersList().stream()
-                        .filter(commBought -> commBought.getProviderId() == providerId)
-                        .findAny();
-        assertTrue(commBoughtGrouping.isPresent());
-        assertEquals(commBoughtGrouping.get().getMovable(), expectedValue);
-        assertEquals(commBoughtGrouping.get().getScalable(), expectedValue);
     }
 }
 

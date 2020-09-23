@@ -15,6 +15,9 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongList;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
@@ -28,6 +31,8 @@ import com.vmturbo.extractor.topology.fetcher.GroupFetcher.GroupData;
  * Fetch all necessary groups and memberships from group component.
  */
 public class GroupFetcher extends DataFetcher<GroupData> {
+
+    private static final Logger logger = LogManager.getLogger();
 
     private final GroupServiceBlockingStub groupService;
 

@@ -1,14 +1,7 @@
 package com.vmturbo.common.protobuf.topology;
 
-import static org.hamcrest.core.IsNot.not;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 
-import java.util.Set;
-
-import com.google.common.collect.ImmutableSet;
-
-import org.hamcrest.collection.IsIterableContainingInAnyOrder;
 import org.junit.Test;
 
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
@@ -61,28 +54,5 @@ public class ApiEntityTypeTest {
     @Test
     public void testFromSdkTypeToEntityTypeStringWithUnsupportedValue() {
         assertEquals(ApiEntityType.UNKNOWN.apiStr(), ApiEntityType.fromSdkTypeToEntityTypeString(-1));
-    }
-
-    /**
-     * Set of entity types that should not be expanded.
-     */
-    private static final Set<ApiEntityType> ENTITY_TYPES_NOT_TO_EXPAND = ImmutableSet.of(
-            ApiEntityType.VIRTUAL_MACHINE,
-            ApiEntityType.PHYSICAL_MACHINE,
-            ApiEntityType.STORAGE,
-            ApiEntityType.CONTAINER,
-            ApiEntityType.COMPUTE_TIER,
-            ApiEntityType.STORAGE_TIER,
-            ApiEntityType.DATABASE_TIER,
-            ApiEntityType.DATABASE_SERVER_TIER
-    );
-
-    /**
-     * Test in case that someone modify {@link ApiEntityType#ENTITY_TYPES_TO_EXPAND} by mistake.
-     */
-    @Test
-    public void testEntityTypesThatShouldNotBeExpanded() {
-        assertThat(ApiEntityType.ENTITY_TYPES_TO_EXPAND.keySet(),
-                not(IsIterableContainingInAnyOrder.containsInAnyOrder(ENTITY_TYPES_NOT_TO_EXPAND.toArray())));
     }
 }

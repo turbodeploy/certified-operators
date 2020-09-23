@@ -70,7 +70,7 @@ public class GroupCountQueryTest {
 
         //Jooq Fields for building results
         final Field groupTypeField = SearchEntity.SEARCH_ENTITY.TYPE;
-        final Field groupOriginField = countQuery.buildSelectFieldForApiField(PrimitiveFieldApiDTO.origin());
+        final Field groupOriginField = countQuery.buildFieldForApiField(PrimitiveFieldApiDTO.origin(), true);
         final Field countField = DSL.count();
         //Values for jooq results
         final EntityType groupTypeValue = EntityType.COMPUTE_CLUSTER;

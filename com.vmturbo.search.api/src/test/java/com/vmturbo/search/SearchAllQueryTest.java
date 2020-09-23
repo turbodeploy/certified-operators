@@ -136,9 +136,9 @@ public class SearchAllQueryTest {
         final FieldApiDTO primitiveType = AbstractQuery.PRIMITIVE_TYPE;
         final FieldApiDTO primitiveName = PrimitiveFieldApiDTO.name();
 
-        final Field oidField = searchAllQuery.buildFieldForApiField(primitiveOid);
-        final Field typefield = searchAllQuery.buildFieldForApiField(primitiveType);
-        final Field nameField = searchAllQuery.buildFieldForApiField(primitiveName);
+        final Field oidField = searchAllQuery.buildFieldForApiField(primitiveOid, true);
+        final Field typefield = searchAllQuery.buildFieldForApiField(primitiveType, true);
+        final Field nameField = searchAllQuery.buildFieldForApiField(primitiveName, true);
 
         final Long oidValue1 = 123L;
         final com.vmturbo.extractor.schema.enums.EntityType primitiveTypeValue1 = com.vmturbo.extractor.schema.enums.EntityType.PHYSICAL_MACHINE;
