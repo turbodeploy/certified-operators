@@ -45,6 +45,7 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.plan.orchestrator.db.tables.pojos.ClusterToHeadroomTemplateId;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Template;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateRecord;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
@@ -603,11 +604,21 @@ public class TemplatesDaoImpl implements TemplatesDao {
     }
 
     /**
+     * Export cluster_to_headroom_template_id table as JSON, for internal use when collecting diags.
+     *
+     * @return JSON string
+     */
+    private String exportClusterToHeadroomTemplateIdAsJson() {
+        return GSON.toJson(
+            dsl.selectFrom(CLUSTER_TO_HEADROOM_TEMPLATE_ID).fetch().into(ClusterToHeadroomTemplateId.class));
+    }
+
+    /**
      * {@inheritDoc}
      *
      * This method retrieves all templates and serializes them as JSON strings.
+     * The last JSON string is not a template but the map of cluster ids to template ids.
      *
-     * @return a list of serialized templates
      * @throws DiagnosticsException on exceptions occurred
      */
     @Override
@@ -619,6 +630,9 @@ public class TemplatesDaoImpl implements TemplatesDao {
         for (TemplateDTO.Template template: templates) {
             appender.appendString(GSON.toJson(template, TemplateDTO.Template.class));
         }
+
+        logger.info("Collecting diagnostics for cluster_to_headroom_template_id table.");
+        appender.appendString(exportClusterToHeadroomTemplateIdAsJson());
     }
 
     /**
@@ -646,7 +660,6 @@ public class TemplatesDaoImpl implements TemplatesDao {
                 " preexisting templates: " +
                 preexistingTemplates.stream().map(template -> template.getTemplateInfo().getName())
                     .collect(Collectors.toList());
-            errors.add(clearingMessage);
             logger.warn(clearingMessage);
 
             final int deleted = deleteAllTemplates();
@@ -661,8 +674,8 @@ public class TemplatesDaoImpl implements TemplatesDao {
             }
         }
 
-        logger.info("Restoring {} serialized templates", collectedDiags.size());
-        final long count = collectedDiags.stream().map(serialized -> {
+        logger.info("Restoring {} serialized templates", collectedDiags.size() - 1);
+        final long count = collectedDiags.stream().limit(collectedDiags.size() - 1).map(serialized -> {
             try {
                 return GSON.fromJson(serialized, TemplateDTO.Template.class);
             } catch (JsonParseException e) {
@@ -675,6 +688,14 @@ public class TemplatesDaoImpl implements TemplatesDao {
             return !optional.isPresent();
         }).count();
         logger.info("Successfully added {} templates to database", count);
+
+        logger.info("Restoring cluster_to_headroom_template_id table");
+        dsl.deleteFrom(CLUSTER_TO_HEADROOM_TEMPLATE_ID).execute();
+        final List<ClusterToHeadroomTemplateId> list = GSON.fromJson(
+            collectedDiags.get(collectedDiags.size() - 1),
+            new TypeToken<List<ClusterToHeadroomTemplateId>>(){}.getType());
+        list.forEach(record -> setOrUpdateHeadroomTemplateForCluster(record.getGroupId(), record.getTemplateId()));
+        logger.info("Successfully added {} records to database", list.size());
 
         if (!errors.isEmpty()) {
             throw new DiagnosticsException(errors);

@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.gson.reflect.TypeToken;
 
 import org.jooq.DSLContext;
 import org.junit.ClassRule;
@@ -33,6 +34,7 @@ import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.db.Plan;
+import com.vmturbo.plan.orchestrator.db.tables.pojos.ClusterToHeadroomTemplateId;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
 import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
@@ -249,6 +251,7 @@ public class TemplatesDaoImplTest {
             templatesDao.createTemplate(TemplateInfo.newBuilder().setName("foo").build());
         final Template bar =
             templatesDao.createTemplate(TemplateInfo.newBuilder().setName("bar").build());
+        templatesDao.setOrUpdateHeadroomTemplateForCluster(1, foo.getId());
         final List<Template> expected = Arrays.asList(foo, bar);
 
 
@@ -258,12 +261,18 @@ public class TemplatesDaoImplTest {
         Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
 
         System.out.println(diags.getAllValues());
-        assertEquals(2, diags.getAllValues().size());
+        assertEquals(3, diags.getAllValues().size());
 
-        assertTrue(diags.getAllValues().stream()
+        assertTrue(diags.getAllValues().stream().limit(2)
             .map(string -> TemplatesDaoImpl.GSON.fromJson(string, Template.class))
             .allMatch(expected::contains));
 
+        List<ClusterToHeadroomTemplateId> records = TemplatesDaoImpl.GSON.fromJson(
+            diags.getAllValues().get(2),
+            new TypeToken<List<ClusterToHeadroomTemplateId>>(){}.getType());
+        assertEquals(1, records.size());
+        assertEquals(1, records.get(0).getGroupId().longValue());
+        assertEquals(foo.getId(), records.get(0).getTemplateId().longValue());
     }
 
     @Test
@@ -274,22 +283,17 @@ public class TemplatesDaoImplTest {
 
         final List<String> serialized = Arrays.asList(
             "{\"id\":\"1997522616832\",\"templateInfo\":{\"name\":\"bar\"},\"type\":\"USER\"}",
-            "{\"id\":\"1997522614816\",\"templateInfo\":{\"name\":\"foo\"},\"type\":\"USER\"}"
+            "{\"id\":\"1997522614816\",\"templateInfo\":{\"name\":\"foo\"},\"type\":\"USER\"}",
+            "[{\"groupId\":\"1\",\"templateId\":\"1997522614816\"}]"
         );
 
-        try {
-            templatesDao.restoreDiags(serialized, null);
-            fail();
-        } catch (DiagnosticsException e) {
-            assertTrue(e.hasErrors());
-            assertEquals(1, e.getErrors().size());
-            assertTrue(e.getErrors().get(0).contains("preexisting templates"));
-        }
+        templatesDao.restoreDiags(serialized, null);
 
         assertFalse(templatesDao.getTemplate(preexisting.getId()).isPresent());
         assertTrue(templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance()).stream()
             .map(template -> TemplatesDaoImpl.GSON.toJson(template, Template.class))
             .allMatch(serialized::contains));
+        assertEquals(1997522614816L, templatesDao.getClusterHeadroomTemplateForGroup(1L).get().getId());
     }
 
     /**
