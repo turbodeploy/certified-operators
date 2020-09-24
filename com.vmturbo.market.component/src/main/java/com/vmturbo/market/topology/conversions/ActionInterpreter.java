@@ -1,6 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
-import static com.vmturbo.common.protobuf.CostProtoUtil.calculateFactorForStorageAmount;
+import static com.vmturbo.common.protobuf.CostProtoUtil.calculateFactorForCommodityValues;
 import static com.vmturbo.trax.Trax.trax;
 
 import java.util.ArrayList;
@@ -1048,7 +1048,7 @@ public class ActionInterpreter {
                             .orElseThrow(() -> new IllegalArgumentException(
                                     "Resize commodity can't be converted to topology commodity format! "
                                             + commodityContext.getSpecification()));
-            final float factor = calculateFactorForStorageAmount(topologyCommodityType.getType(), actionTargetEntity.getType());
+            final float factor = calculateFactorForCommodityValues(topologyCommodityType.getType(), actionTargetEntity.getType());
             resizeInfoList.add(ResizeInfo.newBuilder()
                     .setCommodityType(topologyCommodityType)
                     .setOldCapacity(commodityContext.getOldCapacity() * factor)
