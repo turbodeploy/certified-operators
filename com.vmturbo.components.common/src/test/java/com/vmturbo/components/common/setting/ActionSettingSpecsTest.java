@@ -17,6 +17,7 @@ public class ActionSettingSpecsTest {
     private static final String APPROVAL_SETTING_NAME_PREFIX = "approval";
     private static final String ON_GENERATION_SETTING_NAME_PREFIX = "onGen";
     private static final String AFTER_EXECUTION_SETTING_NAME_PREFIX = "afterExec";
+    private static final String UNKNOWN_SETTING = "UnknownSetting";
 
     /**
      * Each action mode setting in {@link EntitySettingSpecs} should have a generated setting.
@@ -91,6 +92,14 @@ public class ActionSettingSpecsTest {
         Assert.assertFalse(
             ActionSettingSpecs.isExternalApprovalOrAuditSetting(expectedNotFoundSetting));
         Assert.assertFalse(ActionSettingSpecs.isActionModeSubSetting(expectedNotFoundSetting));
+    }
+
+    /**
+     * Unknown setting name should not cause an exception. Null should be returned instead.
+     */
+    @Test
+    public void testUnknownSettingSpec() {
+        Assert.assertEquals(null, ActionSettingSpecs.getSettingSpec(UNKNOWN_SETTING));
     }
 
     private void checkSettingSpec(String settingName,
