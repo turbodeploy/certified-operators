@@ -1067,8 +1067,14 @@ public class TopologyConverter {
         if (supplierEntityType != null) {
             commoditiesBoughtFromProviderBuilder.setProviderEntityType(supplierEntityType);
         } else {
-            slInfo.getSellerEntityType()
-                    .ifPresent(commoditiesBoughtFromProviderBuilder::setProviderEntityType);
+            final TopologyEntityDTO supplierEntity = entityOidToDto.get(supplier);
+            if (supplierEntity != null) {
+                commoditiesBoughtFromProviderBuilder
+                        .setProviderEntityType(supplierEntity.getEntityType());
+            } else {
+                slInfo.getSellerEntityType()
+                        .ifPresent(commoditiesBoughtFromProviderBuilder::setProviderEntityType);
+            }
         }
         slInfo.getResourceId().ifPresent(commoditiesBoughtFromProviderBuilder::setVolumeId);
         return commoditiesBoughtFromProviderBuilder.build();
