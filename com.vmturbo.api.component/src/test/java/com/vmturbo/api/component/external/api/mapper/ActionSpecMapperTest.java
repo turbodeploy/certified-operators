@@ -1058,7 +1058,7 @@ public class ActionSpecMapperTest {
                 .thenReturn(projectedResponse);
 
         // act
-        Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = mapper.createCloudResizeActionDetailsDTO(Collections.singleton(targetId), null);
+        Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = mapper.createCloudResizeActionDetailsDTO(Collections.singleton(targetId), REAL_TIME_TOPOLOGY_CONTEXT_ID);
         CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = dtoMap.get(targetId);
         // check
         assertNotNull(cloudResizeActionDetailsApiDTO);
