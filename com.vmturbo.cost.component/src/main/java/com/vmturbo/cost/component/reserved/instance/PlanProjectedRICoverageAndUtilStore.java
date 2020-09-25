@@ -13,11 +13,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.logging.log4j.LogManager;
@@ -76,6 +76,8 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
 
     private final ReservedInstanceSpecStore reservedInstanceSpecStore;
 
+    private final AccountRIMappingStore accountRIMappingStore;
+
     private final int chunkSize;
 
     private final Object newLock = new Object();
@@ -112,10 +114,10 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
     }
 
     public PlanProjectedRICoverageAndUtilStore(@Nonnull final DSLContext context,
-                                    @Nonnull final RepositoryServiceBlockingStub repositoryServiceBlockingStub,
-                                    @Nonnull final PlanReservedInstanceServiceBlockingStub planReservedInstanceService,
-                                    @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore,
-                                    final int chunkSize) {
+                                               @Nonnull final RepositoryServiceBlockingStub repositoryServiceBlockingStub,
+                                               @Nonnull final PlanReservedInstanceServiceBlockingStub planReservedInstanceService,
+                                               @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore,
+                                               final AccountRIMappingStore accountRIMappingStore, final int chunkSize) {
         this.context = context;
         this.repositoryServiceBlockingStub = Objects.requireNonNull(repositoryServiceBlockingStub);
         this.planReservedInstanceService = planReservedInstanceService;
@@ -124,6 +126,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
         this.planProjectedReservedInstanceCoverageDiagsHelper = new PlanProjectedReservedInstanceCoverageDiagsHelper(context);
         this.planProjectedReservedInstanceUtilizationDiagsHelper = new PlanProjectedReservedInstanceUtilizationDiagsHelper(context);
         this.planProjectedRIToEntityMappingDiagsHelper = new PlanProjectedRIToEntityMappingDiagsHelper(context);
+        this.accountRIMappingStore = accountRIMappingStore;
     }
 
     /**
@@ -354,7 +357,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
                                                   @Nonnull final List<EntityReservedInstanceCoverage> entityRICoverage,
                                                   @Nonnull final List<ReservedInstanceBought> recommendedRis) {
         long contextId = topoInfo.getTopologyContextId();
-        Map<Long, Double> riUsedCouponMap= new HashMap<>();
+        Map<Long, Double> riUsedCouponMap = new HashMap<>();
         final Map<Long, Double> riRecommendedCouponMap = Maps.newHashMap();
         entityRICoverage.forEach(e -> {
             e.getCouponsCoveredByRiMap().forEach((riId, currentUsed) -> {
@@ -384,9 +387,18 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener, 
         final Map<Long, Long> riSpecIdToRegionMap = reservedInstanceSpecs.stream()
                 .collect(Collectors.toMap(ReservedInstanceSpec::getId,
                         riSpec -> riSpec.getReservedInstanceSpecInfo().getRegionId()));
+        final Map<Long, Double> undiscoveredAccountRIUsage =
+                accountRIMappingStore.getUndiscoveredAccountUsageForRI();
+        logger.debug(" Retrieved {} undiscovered mappings:", undiscoveredAccountRIUsage);
         List<PlanProjectedReservedInstanceUtilizationRecord> records = new ArrayList<>();
         allPlanRis.forEach(riBought -> {
             final long riId = riBought.getId();
+            final double undiscoveredAccountUsage = undiscoveredAccountRIUsage.getOrDefault(riId, 0d);
+            // Add undiscovered account usages to the selected plan RIs
+            riUsedCouponMap.merge(riId, undiscoveredAccountUsage, Double::sum);
+            riRecommendedCouponMap.merge(riId, undiscoveredAccountUsage, Double::sum);
+            logger.debug("Initialized riUsedCouponMap and  riRecommendedCouponMap RI {} with {} coupons",
+                    riId, undiscoveredAccountUsage);
             final ReservedInstanceBoughtInfo riBoughtInfo = riBought.getReservedInstanceBoughtInfo();
             final long riSpecId = riBoughtInfo.getReservedInstanceSpec();
             final double riTotalCoupons = riBoughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons();

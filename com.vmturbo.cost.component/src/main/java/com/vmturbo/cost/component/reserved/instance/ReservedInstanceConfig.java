@@ -218,6 +218,7 @@ public class ReservedInstanceConfig {
                 supplyChainRpcServiceConfig.supplyChainRpcService(),
                 reservedInstanceBoughtStore(),
                 buyReservedInstanceStore(),
+                accountRIMappingStore(),
                 costComponentGlobalConfig.clock());
     }
 
@@ -311,6 +312,7 @@ public class ReservedInstanceConfig {
                                                    planReservedInstanceService(),
                                                    reservedInstanceSpecConfig
                                                            .reservedInstanceSpecStore(),
+                                                   accountRIMappingStore(),
                                                    persistEntityCostChunkSize);
         repositoryClientConfig.repository().addListener(planProjectedRICoverageAndUtilStore);
         return planProjectedRICoverageAndUtilStore;

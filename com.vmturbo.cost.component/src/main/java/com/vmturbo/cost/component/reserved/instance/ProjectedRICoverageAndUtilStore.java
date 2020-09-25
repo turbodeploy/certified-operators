@@ -65,6 +65,8 @@ public class ProjectedRICoverageAndUtilStore {
 
     private final BuyReservedInstanceStore buyReservedInstanceStore;
 
+    private final AccountRIMappingStore accountRIMappingStore;
+
     private final Clock clock;
 
     // This should be the same as realtimeTopologyContextId.
@@ -80,20 +82,23 @@ public class ProjectedRICoverageAndUtilStore {
      * @param supplyChainServiceBlockingStub
      *     The supply chain service blocking stub to pass to the scope processing
      * @param reservedInstanceBoughtStore The {@link ReservedInstanceBoughtStore}, used to resolve
-     *                                    references to RI utilization
+ *                                    references to RI utilization
+     * @param buyReservedInstanceStore the Buy RI store.
+     * @param accountRIMappingStore the account RI mapping store.
      * @param clock A time source used to define projected stats timestamps
      */
     public ProjectedRICoverageAndUtilStore(
-                    @Nonnull RepositoryClient repositoryClient,
-                    @Nonnull SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
-                    @Nonnull ReservedInstanceBoughtStore reservedInstanceBoughtStore,
-                    @Nonnull BuyReservedInstanceStore buyReservedInstanceStore,
-                    @Nonnull Clock clock) {
+            @Nonnull RepositoryClient repositoryClient,
+            @Nonnull SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
+            @Nonnull ReservedInstanceBoughtStore reservedInstanceBoughtStore,
+            @Nonnull BuyReservedInstanceStore buyReservedInstanceStore,
+            @Nonnull AccountRIMappingStore accountRIMappingStore, @Nonnull Clock clock) {
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.supplyChainServiceBlockingStub =
                         Objects.requireNonNull(supplyChainServiceBlockingStub);
         this.reservedInstanceBoughtStore = Objects.requireNonNull(reservedInstanceBoughtStore);
         this.buyReservedInstanceStore = Objects.requireNonNull(buyReservedInstanceStore);
+        this.accountRIMappingStore = Objects.requireNonNull(accountRIMappingStore);
         this.clock = Objects.requireNonNull(clock);
     }
 
@@ -315,7 +320,7 @@ public class ProjectedRICoverageAndUtilStore {
         }
 
         synchronized (lockObject) {
-            final double riInventoryCoverageUtilization =
+            double riInventoryCoverageUtilization =
                     riBoughtIdsInScope.isEmpty() ? 0.0 :
                             projectedEntitiesRICoverage.values()
                                     .stream()
@@ -325,12 +330,21 @@ public class ProjectedRICoverageAndUtilStore {
                                     .filter(riEntry -> riBoughtIdsInScope.contains(riEntry.getKey()))
                                     .mapToDouble(Entry::getValue)
                                     .sum();
+            final Map<Long, Double> undiscoveredAccountRIUsage =
+                    accountRIMappingStore.getUndiscoveredAccountUsageForRI();
+            logger.debug(" Retrieved {} undiscovered mappings:", undiscoveredAccountRIUsage);
+            riInventoryCoverageUtilization += undiscoveredAccountRIUsage.isEmpty() ? 0.0
+                    : undiscoveredAccountRIUsage.entrySet().stream()
+                            .filter(e -> riBoughtIdsInScope.contains(e.getKey()))
+                            .mapToDouble(Entry::getValue)
+                            .sum();
+
 
             // Look through the EntityReservedInstanceCoverage::getCouponsCoveredByBuyRiMap, containing
             // RI coverage from buy RI instance from BuyRIImpactAnalysis
-            final double buyRICoverageUtilization =
-                    buyRIIdsInScope.isEmpty() ? 0.0 :
-                            projectedEntitiesRICoverage.values()
+            double buyRICoverageUtilization =
+                    buyRIIdsInScope.isEmpty() ? 0.0
+                            : projectedEntitiesRICoverage.values()
                                     .stream()
                                     .map(EntityReservedInstanceCoverage::getCouponsCoveredByBuyRiMap)
                                     .map(Map::entrySet)
@@ -338,6 +352,11 @@ public class ProjectedRICoverageAndUtilStore {
                                     .filter(riEntry -> buyRIIdsInScope.contains(riEntry.getKey()))
                                     .mapToDouble(Entry::getValue)
                                     .sum();
+            buyRICoverageUtilization += undiscoveredAccountRIUsage.isEmpty() ? 0.0
+                    : undiscoveredAccountRIUsage.entrySet().stream()
+                            .filter(e -> buyRIIdsInScope.contains(e.getKey()))
+                            .mapToDouble(Entry::getValue)
+                            .sum();
 
             final double totalCoverageUtilization = riInventoryCoverageUtilization + buyRICoverageUtilization;
 

@@ -71,6 +71,8 @@ public class ProjectedRICoverageAndUtilStoreTest {
     private ProjectedRICoverageAndUtilStore store;
     private final ReservedInstanceBoughtStore reservedInstanceBoughtStore =
             mock(ReservedInstanceBoughtStore.class);
+    private final AccountRIMappingStore accountRIMappingStore =
+            mock(AccountRIMappingStore.class);
     private final BuyReservedInstanceStore buyReservedInstanceStore =
             mock(BuyReservedInstanceStore.class);
     private final Clock clock = Clock.systemUTC();
@@ -142,7 +144,7 @@ public class ProjectedRICoverageAndUtilStoreTest {
                 supplyChainService,
                 reservedInstanceBoughtStore,
                 buyReservedInstanceStore,
-                clock));
+                accountRIMappingStore, clock));
     }
 
     /**
