@@ -45,6 +45,8 @@ import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
@@ -260,25 +262,6 @@ public class TopologyConverter {
                 commoditiesResizeTracker,
                 projectedRICoverageCalculator, tierExcluder, commodityIndex,
                 getExplanationOverride()));
-    }
-
-    /**
-     * Returns a function that decides if Compliance risk needs to be overridden in
-     * ActionInterpreter. For cloud migration, we override Optimized plan actions with VM moves.
-     *
-     * @return Function that decides if Compliance risk explanation is to be overridden.
-     */
-    private Function<MoveTO, Boolean> getExplanationOverride() {
-        return moveTO -> {
-            if (!isCloudResizeEnabled) {
-                return false;
-            }
-            final MarketTier marketTier = cloudTc.getMarketTier(moveTO.getDestination());
-            if (marketTier == null) {
-                return false;
-            }
-            return marketTier.getTier().getEntityType() == EntityType.COMPUTE_TIER_VALUE;
-        };
     }
 
     /**
@@ -2997,15 +2980,6 @@ public class TopologyConverter {
         if (addShoppingListToSMA && marketMode == MarketMode.SMAOnly) {
             economyShoppingListBuilder.setMovable(false);
         }
-
-        // TODO: Not doing this for now as protobuf changes not yet in.
-        // Set cloud volume shoppingList to be in Savings mode.
-        /*
-        if (entityType == EntityType.VIRTUAL_VOLUME_VALUE) {
-            economyShoppingListBuilder.setDemandScalable(true);
-        }
-         */
-
         return economyShoppingListBuilder.build();
     }
 
@@ -3910,5 +3884,131 @@ public class TopologyConverter {
                             + "cost notification.", analysis.getContextId(), analysis.getTopologyId(),
                     waitEndTime - waitStartTime);
         }
+    }
+
+    /**
+     * Returns a function that decides if Compliance risk needs to be overridden in
+     * ActionInterpreter. For cloud migration, we override Optimized plan actions with VM/Vol moves.
+     * For volumes, a change provider explanation is provided in the return based on whether there
+     * is a change to a higher tier or not. If no tier such tier change, we check for a disk size
+     * increase, if so, risk is marked as Performance. Default risk is Efficiency.
+     *
+     * @return BiFunction that decides if Compliance risk explanation is to be overridden.
+     * For compute tier, we want to override (so flag is true), but we don't actually calculate
+     * the override explanation, that is calculated by ActionInterpreter.
+     * For storage tier, if it is one of the 'higher' tiers like IO1/IO2/Ultra, then it is a
+     * Performance risk. Else, if there is a disk size increase compared to pre-action, then it is
+     * Performance, else it is an Efficiency (default option).
+     */
+    @VisibleForTesting
+    BiFunction<MoveTO, Map<Long, ProjectedTopologyEntity>,
+            Pair<Boolean, ChangeProviderExplanation>> getExplanationOverride() {
+        return (moveTO, projectedTopology) -> {
+            if (!isCloudResizeEnabled) {
+                return new Pair<>(false, null);
+            }
+            final MarketTier marketTier = cloudTc.getMarketTier(moveTO.getDestination());
+            if (marketTier == null) {
+                return new Pair<>(false, null);
+            }
+            if (marketTier.getTier().getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+                return new Pair<>(true, null);
+            }
+            if (marketTier.getTier().getEntityType() != EntityType.STORAGE_TIER_VALUE) {
+                return new Pair<>(false, null);
+            }
+            final ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO
+                    .getShoppingListToMove());
+            if (slInfo == null) {
+                return new Pair<>(false, null);
+            }
+            long buyerVmId = slInfo.getBuyerId();
+            final String tierName = marketTier.getTier().getDisplayName();
+            ChangeProviderExplanation explanation = null;
+            // Using IOPS as the reason that we have congestion (performance risk).
+            final ReasonCommodity iopsReasonCommodity = ReasonCommodity.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(
+                            CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE).build())
+                    .build();
+            if ("IO1".equals(tierName)
+                    || "IO2".equals(tierName)
+                    || "MANAGED_ULTRA_SSD".equals(tierName)) {
+                // If moving to any of these higher tiers, then it is performance.
+                explanation = ChangeProviderExplanation.newBuilder()
+                        .setCongestion(ChangeProviderExplanation.Congestion.newBuilder()
+                                .addCongestedCommodities(iopsReasonCommodity)).build();
+                logger.trace("MCP Performance risk (VM: {}, tier: {}), moveTO: {}.",
+                        buyerVmId, tierName, moveTO);
+            } else {
+                explanation = checkVolumeDiskSizeIncrease(slInfo, buyerVmId, tierName,
+                        iopsReasonCommodity, projectedTopology);
+            }
+            if (explanation == null) {
+                // If not performance, it is efficiency
+                explanation = ChangeProviderExplanation.newBuilder()
+                        .setEfficiency(ChangeProviderExplanation.Efficiency.getDefaultInstance())
+                        .build();
+                logger.trace("MCP Efficiency risk (VM: {}, tier: {}).", buyerVmId, tierName);
+            }
+            return new Pair<>(true, explanation);
+        };
+    }
+
+    /**
+     * Checks if there is a volume disk size increase for cloud migration (Optimized plan) actions.
+     * If disk size increase, then a Performance explanation is returned.
+     *
+     * @param slInfo VM shopping list info.
+     * @param buyerVmId VM that volume is a part of.
+     * @param tierName New storage tier name.
+     * @param iopsReasonCommodity Reason (Iops) to use for the Performance risk.
+     * @param projectedTopology Projected topology containing the after-action disk size.
+     * @return Performance risk change provider explanation if disk increase, or null.
+     */
+    @Nullable
+    private ChangeProviderExplanation checkVolumeDiskSizeIncrease(
+            @Nonnull final ShoppingListInfo slInfo, long buyerVmId, @Nonnull final String tierName,
+            @Nonnull final ReasonCommodity iopsReasonCommodity,
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+        // For onPrem -> cloud, we have volumeId in resourceId field, for cloud -> cloud, it is
+        // available in the collapsedBuyerId field instead.
+        final Long volumeId = slInfo.getResourceId().isPresent() ? slInfo.getResourceId().get()
+                : slInfo.getCollapsedBuyerId();
+        if (volumeId == null) {
+            logger.trace("MCP Performance risk (VM: {}, tier: {}) No volume id available.",
+                    buyerVmId, tierName);
+            return null;
+        }
+        ProjectedTopologyEntity projectedVolume = projectedTopology.get(volumeId);
+        if (projectedVolume == null || projectedVolume.getEntity().getEntityType()
+                != EntityType.VIRTUAL_VOLUME_VALUE) {
+            logger.trace("MCP Performance risk (VM: {}, tier: {}) No projected volume {}.",
+                    buyerVmId, tierName, volumeId);
+            return null;
+        }
+        // Get disk size before plan.
+        double diskSizeBeforeMb = slInfo.commodities.stream()
+                .filter(commBought -> commBought.getCommodityType().getType()
+                        == CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE)
+                .map(CommodityBoughtDTO::getUsed)
+                .findFirst()
+                .orElse(0d);
+
+        // Get disk size after from projected volume.
+        double diskSizeAfterMb = projectedVolume.getEntity().getCommoditySoldListList().stream()
+                .filter(commSold -> commSold.getCommodityType().getType()
+                        == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                .map(CommoditySoldDTO::getCapacity)
+                .findAny()
+                .orElse(0d);
+
+        logger.trace("MCP Performance risk (VM: {}, tier: {}) Vol: {}, disk size {} -> {} MB.",
+                buyerVmId, tierName, volumeId, diskSizeBeforeMb, diskSizeAfterMb);
+        if (diskSizeAfterMb > diskSizeBeforeMb) {
+            return ChangeProviderExplanation.newBuilder()
+                    .setCongestion(ChangeProviderExplanation.Congestion.newBuilder()
+                            .addCongestedCommodities(iopsReasonCommodity)).build();
+        }
+        return null;
     }
 }

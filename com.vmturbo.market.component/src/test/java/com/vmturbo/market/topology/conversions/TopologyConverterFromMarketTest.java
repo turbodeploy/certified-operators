@@ -9,6 +9,7 @@ import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.longThat;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -28,6 +30,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -42,8 +47,11 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.ChangeProviderExplanationTypeCase;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -52,6 +60,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
@@ -68,6 +77,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Compute
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -87,6 +97,9 @@ import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.Consisten
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.mediation.hybrid.cloud.common.OsType;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Compliance;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
@@ -195,18 +208,29 @@ public class TopologyConverterFromMarketTest {
      * @param commodityIndexFactory Commodity index factory
      */
     private void constructTopologyConverter(final CommodityIndexFactory commodityIndexFactory) {
+        constructTopologyConverter(commodityIndexFactory, REALTIME_TOPOLOGY_INFO);
+    }
+
+    /**
+     * Creates converter with specified topologyInfo.
+     *
+     * @param commodityIndexFactory The factory.
+     * @param topologyInfo Real-time or plan topologyInfo.
+     */
+    private void constructTopologyConverter(final CommodityIndexFactory commodityIndexFactory,
+            final TopologyInfo topologyInfo) {
         converter = Mockito.spy(new TopologyConverter(
-            REALTIME_TOPOLOGY_INFO,
-            false,
-            MarketAnalysisUtils.QUOTE_FACTOR,
-            MarketMode.M2Only,
-            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-            marketPriceTable,
-            mockCommodityConverter,
-            mockCCD,
-            commodityIndexFactory,
-            tierExcluderFactory,
-            consistentScalingHelperFactory, cloudTopology));
+                topologyInfo,
+                false,
+                MarketAnalysisUtils.QUOTE_FACTOR,
+                MarketMode.M2Only,
+                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable,
+                mockCommodityConverter,
+                mockCCD,
+                commodityIndexFactory,
+                tierExcluderFactory,
+                consistentScalingHelperFactory, cloudTopology));
     }
 
     /**
@@ -2257,5 +2281,151 @@ public class TopologyConverterFromMarketTest {
                         .setOid(VOLUME_ID).setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                         .build();
         assertFalse(converter.skipShoppingListCreation(nonEphemeralVolume));
+    }
+
+    /**
+     * Verify compliance explanation override function works as expected.
+     */
+    @Test
+    public void getExplanationOverride() throws Exception {
+        long slOid = 1009;
+        long sourceId = 73629179255014L;
+        long destinationId = 144013120451328L;
+        long vmBuyerId = 2001L;
+        long computeTierId = 1001L;
+        long storageTierId = 1002L;
+        long volumeId = 73629179255255L;
+        double diskUsedBeforeMb = 10240d;
+        double diskUsedAfterMb = 20480d;
+        final String io1Tier = "IO1";
+        final String gp2Tier = "GP2";
+
+        final MoveTO moveTO = MoveTO.newBuilder()
+                .setShoppingListToMove(slOid)
+                .setSource(sourceId)
+                .setDestination(destinationId)
+                .setMoveExplanation(MoveExplanation.newBuilder()
+                .setCompliance(Compliance.newBuilder().addMissingCommodities(355).build()))
+                .build();
+        final Map<Long, ProjectedTopologyEntity> projectedTopology = new HashMap<>();
+        final ProjectedTopologyEntity projectedVolume = ProjectedTopologyEntity.newBuilder()
+                .setEntity(TopologyEntityDTO.newBuilder()
+                        .setOid(volumeId)
+                        .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                                        .build())
+                                .setCapacity(diskUsedAfterMb)
+                                .build())
+                        .build())
+                .build();
+        projectedTopology.put(volumeId, projectedVolume);
+
+        constructTopologyConverter(CommodityIndex.newFactory(), TopologyInfo.newBuilder()
+                .setTopologyType(TopologyType.PLAN)
+                .setPlanInfo(PlanTopologyInfo.newBuilder()
+                        .setPlanType(PlanProjectType.CLOUD_MIGRATION.name())
+                        .setPlanSubType(StringConstants.CLOUD_MIGRATION_PLAN__CONSUMPTION)
+                        .build())
+                .build());
+        converter.setCloudTc(Mockito.mock(CloudTopologyConverter.class));
+
+        // 1. Check compute tier, we should return true, without any explanation value.
+        final TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder()
+                .setOid(computeTierId)
+                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                .build();
+
+        MarketTier marketTier = mock(MarketTier.class);
+        when(marketTier.getTier())
+                .thenReturn(computeTier);
+        when(converter.getCloudTc().getMarketTier(destinationId))
+                .thenReturn(marketTier);
+        verifyOverrideExplanation(moveTO, projectedTopology, null);
+
+        // 2. Verify that we detect a higher tier (e.g IO1), so a Performance risk.
+        final TopologyEntityDTO.Builder storageTierBuilder = TopologyEntityDTO.newBuilder()
+                .setOid(storageTierId)
+                .setDisplayName(io1Tier)
+                .setEntityType(EntityType.STORAGE_TIER_VALUE);
+        when(marketTier.getTier())
+                .thenReturn(storageTierBuilder.build());
+        final List<CommodityBoughtDTO> commBoughtList = new ArrayList<>();
+        commBoughtList.add(CommodityBoughtDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE)
+                        .build())
+                .setUsed(diskUsedBeforeMb)
+                .build());
+        ShoppingListInfo slInfo = new ShoppingListInfo(slOid, vmBuyerId, storageTierId,
+                volumeId, null, EntityType.STORAGE_TIER_VALUE, commBoughtList);
+        final Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
+        shoppingListMap.put(slOid, slInfo);
+        final Field slInfoField = TopologyConverter.class
+                .getDeclaredField("shoppingListOidToInfos");
+        slInfoField.setAccessible(true);
+        slInfoField.set(converter, shoppingListMap);
+        verifyOverrideExplanation(moveTO, projectedTopology,
+                ChangeProviderExplanationTypeCase.CONGESTION);
+
+        // 3. Same tier, but a disk size increase, so a Performance risk. Here ShoppingListInfo has
+        // the resourceId set to volumeId, with collapsedBuyerId as null, for onPrem -> cloud case.
+        storageTierBuilder.setDisplayName(gp2Tier);
+        when(marketTier.getTier())
+                .thenReturn(storageTierBuilder.build());
+        verifyOverrideExplanation(moveTO, projectedTopology,
+                ChangeProviderExplanationTypeCase.CONGESTION);
+
+        // 4. For cloud -> cloud case, we don't have resourceId, instead the collapsedBuyerId is
+        // the volumeId, so make sure we are picking that up.
+        slInfo = new ShoppingListInfo(slOid, vmBuyerId, storageTierId,
+                null, volumeId, EntityType.STORAGE_TIER_VALUE, commBoughtList);
+        shoppingListMap.put(slOid, slInfo);
+        verifyOverrideExplanation(moveTO, projectedTopology,
+                ChangeProviderExplanationTypeCase.CONGESTION);
+    }
+
+    /**
+     * Runs explanation override method and verifies the return values.
+     *
+     * @param moveTO MoveTO containing buyer info.
+     * @param projectedTopology Projected topology having volume info.
+     * @param expectedExplanationType Expected return value, can be null.
+     */
+    private void verifyOverrideExplanation(@Nonnull final MoveTO moveTO,
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
+            @Nullable final ChangeProviderExplanationTypeCase expectedExplanationType) {
+        final Pair<Boolean, ChangeProviderExplanation> overrideAndExplanation
+                = converter.getExplanationOverride().apply(moveTO, projectedTopology);
+        assertNotNull(overrideAndExplanation);
+        assertTrue(overrideAndExplanation.first);
+        if (expectedExplanationType == null) {
+            assertNull(overrideAndExplanation.second);
+        } else {
+            assertEquals(overrideAndExplanation.second.getChangeProviderExplanationTypeCase(),
+                    expectedExplanationType);
+        }
+    }
+
+    /**
+     * Convenience method that makes a shoppingListTO with storage amount quantity set.
+     *
+     * @param slOid Id of shoppingListTO.
+     * @param diskSize Storage amount quantity to use.
+     * @return Instance of ShoppingListTO.
+     */
+    @Nonnull
+    private ShoppingListTO makeShoppingListTO(long slOid, float diskSize) {
+        return ShoppingListTO.newBuilder()
+                .setOid(slOid)
+                .addCommoditiesBought(CommodityBoughtTO.newBuilder()
+                        .setSpecification(CommoditySpecificationTO.newBuilder()
+                                .setType(1)
+                                .setBaseType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                                .build())
+                        .setQuantity(diskSize)
+                        .build())
+                .build();
     }
 }
