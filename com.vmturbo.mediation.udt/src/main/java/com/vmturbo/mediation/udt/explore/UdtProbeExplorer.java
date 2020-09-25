@@ -4,13 +4,21 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition;
 import com.vmturbo.mediation.udt.explore.collectors.AutomatedDefinitionCollector;
@@ -26,15 +34,20 @@ import com.vmturbo.mediation.udt.inventory.UdtEntity;
  */
 public class UdtProbeExplorer {
 
+    private static final Logger LOGGER = LogManager.getLogger();
+
     private final DataProvider dataProvider;
+    private final ExecutorService executor;
 
     /**
      * Constructor.
      *
      * @param dataProvider -  a provider of models from Group and Repository components.
+     * @param executor     -  executor service.
      */
-    public UdtProbeExplorer(@Nonnull DataProvider dataProvider) {
+    public UdtProbeExplorer(@Nonnull DataProvider dataProvider, @Nonnull ExecutorService executor) {
         this.dataProvider = dataProvider;
+        this.executor = executor;
     }
 
     /**
@@ -73,9 +86,30 @@ public class UdtProbeExplorer {
 
     @Nonnull
     private Set<UdtEntity> collectEntities(@Nonnull Set<UdtCollector> collectors) {
-        return collectors.stream()
-                .map(collector -> (Set<UdtEntity>)collector.collectEntities(dataProvider))
-                .flatMap(Collection::stream)
+        final Collection<CompletableFuture<Set<UdtEntity>>> futures = collectors.stream()
+                .map(this::createFutureTask)
                 .collect(Collectors.toSet());
+        return CompletableFuture
+                .allOf(futures.toArray(new CompletableFuture<?>[0]))
+                .thenApply(v -> futures.stream()
+                        .map(this::getFutureCollectorResult)
+                        .flatMap(Function.identity())
+                        .collect(Collectors.toSet()))
+                .join();
+    }
+
+    @Nonnull
+    private CompletableFuture<Set<UdtEntity>> createFutureTask(@Nonnull UdtCollector<?> collector) {
+        return CompletableFuture.supplyAsync(() -> collector.collectEntities(dataProvider), executor);
+    }
+
+    @Nonnull
+    private Stream<UdtEntity> getFutureCollectorResult(@Nonnull CompletableFuture<Set<UdtEntity>> future) {
+        try {
+            return future.get().stream();
+        } catch (InterruptedException | ExecutionException e) {
+            LOGGER.warn("Error while collecting entities: {}", e);
+        }
+        return Stream.empty();
     }
 }

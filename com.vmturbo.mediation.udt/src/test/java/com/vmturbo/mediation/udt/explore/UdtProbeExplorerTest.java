@@ -2,6 +2,7 @@ package com.vmturbo.mediation.udt.explore;
 
 import java.util.Collections;
 import java.util.Set;
+import java.util.concurrent.Executors;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -32,7 +33,7 @@ public class UdtProbeExplorerTest {
     @Test
     public void testCreateCollector() {
         DataProvider dataProvider = Mockito.mock(DataProvider.class);
-        UdtProbeExplorer explorer = new UdtProbeExplorer(dataProvider);
+        UdtProbeExplorer explorer = new UdtProbeExplorer(dataProvider, Executors.newSingleThreadExecutor());
         TopologyDataDefinition tddManual = TopologyDataDefinition.newBuilder()
                 .setManualEntityDefinition(ManualEntityDefinition.newBuilder().buildPartial())
                 .build();
@@ -78,7 +79,7 @@ public class UdtProbeExplorerTest {
         Mockito.when(dataProvider.getTopologyDataDefinitions())
                 .thenReturn(Collections.singletonMap(udtId, tddManual));
 
-        UdtProbeExplorer explorer = new UdtProbeExplorer(dataProvider);
+        UdtProbeExplorer explorer = new UdtProbeExplorer(dataProvider, Executors.newSingleThreadExecutor());
         Set<UdtEntity> entities = explorer.exploreDataDefinition();
 
         Assert.assertFalse(entities.isEmpty());
