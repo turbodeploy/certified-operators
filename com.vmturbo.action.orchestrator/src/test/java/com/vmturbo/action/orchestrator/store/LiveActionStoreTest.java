@@ -124,6 +124,7 @@ public class LiveActionStoreTest {
     private final long controller1 = 31;
     private final long containerSpec1 = 41;
     private final long containerSpec2 = 42;
+    private final long pod1 = 51;
 
     private final long hostA = 0xA;
     private final long hostB = 0xB;
@@ -257,6 +258,12 @@ public class LiveActionStoreTest {
             targetId, sourceId, sourceType, destinationId, destinationType).toBuilder();
     }
 
+    private static ActionDTO.Action.Builder provision(long targetId,
+                                                      int entityType) {
+        return ActionOrchestratorTestUtils.createProvisionRecommendation(IdentityGenerator.next(),
+                targetId, entityType).toBuilder();
+    }
+
     public void setEntitiesOIDs() {
         when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getEntityFromOid(eq(vm1)))
@@ -301,6 +308,9 @@ public class LiveActionStoreTest {
         when(snapshot.getEntityFromOid(eq(container4)))
                 .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(container4,
                         EntityType.CONTAINER.getNumber()));
+        when(snapshot.getEntityFromOid(eq(pod1)))
+                .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(pod1,
+                        EntityType.CONTAINER_POD.getNumber()));
     }
 
     /**
@@ -629,12 +639,16 @@ public class LiveActionStoreTest {
 
     /**
      * Tests that if the action store receives an action, and it finds out that the action was
-     * already successfully executed, it will drop it.
+     * already successfully executed, it will drop it, unless it is a repeatable action.
+     *
+     * @throws Exception any exception
      */
     @Test
-    public void testClearReadyActionThatArleadySucceded() throws Exception {
+    public void testClearReadyActionThatAlreadySucceded() throws Exception {
         ActionDTO.Action.Builder successMove =
             move(vm3, hostA, vmType, hostB, vmType);
+        ActionDTO.Action.Builder successProvision = provision(pod1,
+                EntityType.CONTAINER_POD_VALUE);
 
         ActionPlan firstPlan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
@@ -644,6 +658,7 @@ public class LiveActionStoreTest {
                         .setTopologyId(topologyId))))
             .setId(firstPlanId)
             .addAction(successMove)
+            .addAction(successProvision)
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
@@ -652,6 +667,7 @@ public class LiveActionStoreTest {
 
         actionStore.populateRecommendedActions(firstPlan);
         when(actionStore.getAction(successMove.getId()).get().getState()).thenReturn(ActionState.SUCCEEDED);
+        when(actionStore.getAction(successProvision.getId()).get().getState()).thenReturn(ActionState.SUCCEEDED);
 
         ActionPlan secondPlan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
@@ -660,11 +676,17 @@ public class LiveActionStoreTest {
                         .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                         .setTopologyId(topologyId))))
             .addAction(successMove)
+            .addAction(successProvision)
             .setId(secondPlanId)
             .build();
         actionStore.populateRecommendedActions(secondPlan);
 
-        assertEquals(0, actionStore.size());
+        assertEquals(1, actionStore.size());
+        assertThat(actionStore.getActionViews().getAll()
+                        .map(ActionView::getRecommendation)
+                        .map(ActionDTO.Action::getInfo)
+                        .collect(Collectors.toList()),
+                containsInAnyOrder(successProvision.getInfo()));
     }
 
     @Test
@@ -767,12 +789,17 @@ public class LiveActionStoreTest {
             containsInAnyOrder(firstMove.getId(), secondMove.getId()));
     }
 
-
+    /**
+     * Tests that if the action store receives an action, and it finds out that the action was
+     * already successfully executed within the past hour, it will drop it, unless it is a
+     * repeatable action.
+     */
     @Test
     public void testPopulateRecommendedActionsRemoveExecutedActions() throws Exception {
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
         ActionDTO.Action.Builder secondMove = move(vm2, hostB, vmType, hostC, vmType);
         ActionDTO.Action.Builder thirdMove = move(vm3, hostC, vmType, hostA, vmType);
+        ActionDTO.Action.Builder provision = provision(pod1, EntityType.CONTAINER_POD_VALUE);
 
         ActionPlan plan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
@@ -784,6 +811,7 @@ public class LiveActionStoreTest {
             .addAction(firstMove)
             .addAction(secondMove)
             .addAction(thirdMove)
+            .addAction(provision)
             .build();
 
         final EntitiesAndSettingsSnapshot snapshot =
@@ -793,17 +821,20 @@ public class LiveActionStoreTest {
 
         final long secondOid = actionIdentityService.getOidsForObjects(
                 Collections.singletonList(secondMove.getInfo())).iterator().next();
-        final Action filteredActionSpy =
-                spy(new Action(secondMove.build(), 1L, actionModeCalculator, secondOid));
-        when(filteredActionSpy.getState()).thenReturn(ActionState.SUCCEEDED);
+        final long provisionOid = actionIdentityService.getOidsForObjects(
+                Collections.singletonList(provision.getInfo())).iterator().next();
+        final List<Action> filteredActions = Arrays.asList(
+                spy(new Action(secondMove.build(), 1L, actionModeCalculator, secondOid)),
+                spy(new Action(provision.build(), 1L, actionModeCalculator, provisionOid)));
+        filteredActions.forEach(action -> when(action.getState()).thenReturn(ActionState.SUCCEEDED));
         when(actionHistoryDao.getActionHistoryByDate(any(), any()))
-            .thenReturn(Collections.singletonList(filteredActionSpy));
+                .thenReturn(new ArrayList<>(filteredActions));
         actionStore.populateRecommendedActions(plan);
-        assertEquals(2, actionStore.size());
+        assertEquals(3, actionStore.size());
         assertThat(actionStore.getActionViews().getAll()
                 .map(spec -> spec.getRecommendation().getInfo())
                 .collect(Collectors.toList()),
-            containsInAnyOrder(firstMove.getInfo(), thirdMove.getInfo()));
+            containsInAnyOrder(firstMove.getInfo(), thirdMove.getInfo(), provision.getInfo()));
     }
 
     @Test
