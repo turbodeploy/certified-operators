@@ -65,6 +65,7 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action moveRecommendation;
     private ActionDTO.Action scaleRecommendation;
     private ActionDTO.Action cloudVolumeScaleProviderChangeRecommendation;
+    private ActionDTO.Action cloudDBScaleProviderChangeRecommendation;
     private ActionDTO.Action cloudVolumeScaleCommodityChangeRecommendation;
     private ActionDTO.Action scaleTypeRecommendation;
     private ActionDTO.Action resizeRecommendation;
@@ -133,6 +134,12 @@ public class ActionDescriptionBuilderTest {
     private static final String ST_DESTINATION_DISPLAY_NAME = "storage_destination_test";
     private static final Long VV_ID = 66L;
     private static final String VV_DISPLAY_NAME = "volume_display_name";
+    private static final Long DB_SOURCE_ID = 45L;
+    private static final String DB_SOURCE_DISPLAY_NAME = "db_source_test";
+    private static final Long DB_DESTINATION_ID = 56L;
+    private static final String DB_DESTINATION_DISPLAY_NAME = "db_destination_test";
+    private static final Long DB_ID = 77L;
+    private static final String DB_DISPLAY_NAME = "db_display_name";
     private static final Long COMPUTE_TIER_SOURCE_ID = 100L;
     private static final String COMPUTE_TIER_SOURCE_DISPLAY_NAME = "tier_t1";
     private static final Long COMPUTE_TIER_DESTINATION_ID = 200L;
@@ -308,7 +315,11 @@ public class ActionDescriptionBuilderTest {
                 makeRec(makeMoveInfo(VM1_ID, PM_SOURCE_ID, EntityType.PHYSICAL_MACHINE.getNumber(),
                     PM_DESTINATION_ID, EntityType.PHYSICAL_MACHINE.getNumber()),
                             SupportLevel.SUPPORTED).build();
-
+        cloudDBScaleProviderChangeRecommendation =
+                makeRec(addResizeCommodityToAction(
+                        makeScaleInfoWithProviderChangeOnly(DB_ID, DB_SOURCE_ID,
+                                EntityType.DATABASE_TIER.getNumber(), DB_DESTINATION_ID,
+                                EntityType.DATABASE_TIER.getNumber())), SupportLevel.SUPPORTED).build();
         cloudVolumeScaleProviderChangeRecommendation =
                 makeRec(makeScaleInfoWithProviderChangeOnly(VV_ID, ST_SOURCE_ID,
                         EntityType.STORAGE_TIER.getNumber(), ST_DESTINATION_ID,
@@ -816,6 +827,18 @@ public class ActionDescriptionBuilderTest {
                 .build());
     }
 
+
+    private ActionInfo.Builder addResizeCommodityToAction(ActionInfo.Builder action) {
+        Scale currenScaleRecommendation = action.getScale();
+        final ResizeInfo resizeCommodityChangeBuilder = ResizeInfo.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE))
+                .setOldCapacity(100)
+                .setNewCapacity(200).build();
+        return action.setScale(currenScaleRecommendation.toBuilder()
+                .addCommodityResizes(resizeCommodityChangeBuilder).build());
+    }
+
     private ActionInfo.Builder makeCloudVolumeScaleInfoWithCommodityChangeOnly(long targetId) {
         final ResizeInfo.Builder commodityChangeBuilder = ResizeInfo.newBuilder()
                 .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE))
@@ -951,6 +974,29 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudVolumeScaleProviderChangeRecommendation);
         Assert.assertEquals("Scale Volume vm1_test from storage_source_test to storage_destination_test", description);
+    }
+
+    @Test
+    public void testBuildCloudVolumeScaleActionWithProviderChangeDescriptionDB() throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(DB_ID)))
+                .thenReturn((createEntity(DB_ID,
+                        EntityType.DATABASE.getNumber(),
+                        DB_DISPLAY_NAME)));
+
+        when(entitySettingsCache.getEntityFromOid(eq(DB_SOURCE_ID)))
+                .thenReturn((createEntity(DB_SOURCE_ID,
+                        EntityType.DATABASE_TIER.getNumber(),
+                        DB_SOURCE_DISPLAY_NAME)));
+
+        when(entitySettingsCache.getEntityFromOid(eq(DB_DESTINATION_ID)))
+                .thenReturn((createEntity(DB_DESTINATION_ID,
+                        EntityType.DATABASE_TIER.getNumber(),
+                        DB_DESTINATION_DISPLAY_NAME)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, cloudDBScaleProviderChangeRecommendation);
+        Assert.assertEquals("Scale Database db_display_name from db_source_test to db_destination_test, "
+                + "Disk size up from 100.0 MB to 200.0 MB", description);
     }
 
     /**
