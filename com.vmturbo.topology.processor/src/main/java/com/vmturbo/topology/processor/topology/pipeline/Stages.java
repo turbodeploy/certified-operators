@@ -109,6 +109,7 @@ import com.vmturbo.topology.processor.topology.DemandOverriddenCommodityEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
 import com.vmturbo.topology.processor.topology.EphemeralEntityEditor;
+import com.vmturbo.topology.processor.topology.EphemeralEntityEditor.EditSummary;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
@@ -1655,8 +1656,34 @@ public class Stages {
         @Override
         @Nonnull
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
-            ephemeralEntityEditor.applyEdits(graph);
-            return Status.success();
+            final EditSummary editSummary = ephemeralEntityEditor.applyEdits(graph);
+
+            final StringBuilder statusBuilder = new StringBuilder();
+            if (editSummary.getCommoditiesAdjusted() > 0) {
+                statusBuilder.append("Adjusted ")
+                    .append(editSummary.getCommoditiesAdjusted())
+                    .append(" commodities.\n");
+            }
+            if (editSummary.getCommoditiesWithInsufficientData() > 0) {
+                statusBuilder.append("Disabled resize on ")
+                    .append(editSummary.getCommoditiesWithInsufficientData())
+                    .append(" commodities because of insufficient data.\n");
+            }
+            if (editSummary.getInconsistentScalingGroups() > 0) {
+                statusBuilder.append("Disabled resize on ")
+                    .append(editSummary.getInconsistentScalingGroups())
+                    .append(" consistent scaling groups (of ")
+                    .append(editSummary.getTotalScalingGroups())
+                    .append(" total) due to inconsistent capacities.");
+            }
+
+            // We want to warn when there are inconsistent scaling groups. Ideally we want to
+            // actually still be able to scale but today we don't know how to.
+            if (editSummary.getInconsistentScalingGroups() > 0) {
+                return TopologyPipeline.Status.withWarnings(statusBuilder.toString());
+            } else {
+                return TopologyPipeline.Status.success(statusBuilder.toString());
+            }
         }
     }
 

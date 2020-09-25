@@ -82,6 +82,7 @@ import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfi
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader.UploadException;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.EphemeralEntityEditor;
+import com.vmturbo.topology.processor.topology.EphemeralEntityEditor.EditSummary;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
@@ -685,6 +686,7 @@ public class StagesTest {
             new EphemeralEntityHistoryStage(ephemeralEntityEditor);
         @SuppressWarnings("unchecked")
         final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
+        when(ephemeralEntityEditor.applyEdits(eq(topologyGraph))).thenReturn(new EditSummary());
 
         eeHistoryStage.passthrough(topologyGraph);
         verify(ephemeralEntityEditor).applyEdits(topologyGraph);
