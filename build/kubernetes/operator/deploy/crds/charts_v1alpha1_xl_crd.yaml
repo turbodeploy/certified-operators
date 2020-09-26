@@ -109,6 +109,9 @@ spec:
                 debug:
                   description: Global debug
                   type: boolean
+                storageAnnotations:
+                  description: Global pvc annotations list
+                  type: object
                 storageClassName:
                   description: StorageClassName to be used for all persistent volume claims
                   type: string
