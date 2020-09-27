@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
 import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
+import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;
 import com.vmturbo.cost.component.reserved.instance.PlanReservedInstanceStore;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector.PlanGarbageCollector;
 import com.vmturbo.sql.utils.DbException;
@@ -29,6 +30,8 @@ public class CostPlanGarbageCollector implements PlanGarbageCollector {
 
     private final EntityCostStore sqlEntityCostStore;
 
+    private final BuyReservedInstanceStore buyReservedInstanceStore;
+
     /**
      * Constructor.
      *
@@ -36,15 +39,18 @@ public class CostPlanGarbageCollector implements PlanGarbageCollector {
      * @param planProjectedEntityCostStore Used to access projected entity costs.
      * @param planReservedInstanceStore Used to access projected RI data.
      * @param entityCostStore Used to access cost snapshots used in plans.
+     * @param buyReservedInstanceStore Used to access the recommended RIs in plans.
      */
     public CostPlanGarbageCollector(@Nonnull final ActionContextRIBuyStore actionContextRIBuyStore,
                                     @Nonnull final PlanProjectedEntityCostStore planProjectedEntityCostStore,
                                     @Nonnull final PlanReservedInstanceStore planReservedInstanceStore,
-                                    @Nonnull final EntityCostStore entityCostStore) {
+                                    @Nonnull final EntityCostStore entityCostStore,
+                                    @Nonnull final BuyReservedInstanceStore buyReservedInstanceStore) {
         this.actionContextRIBuyStore = actionContextRIBuyStore;
         this.planProjectedEntityCostStore = planProjectedEntityCostStore;
         this.planReservedInstanceStore = planReservedInstanceStore;
         this.sqlEntityCostStore = entityCostStore;
+        this.buyReservedInstanceStore = buyReservedInstanceStore;
     }
 
     @Nonnull
@@ -83,6 +89,12 @@ public class CostPlanGarbageCollector implements PlanGarbageCollector {
         } catch (RuntimeException e) {
             logger.error("Unknown error encountered while deleting snapshot costs for plan "
                          + planId, e);
+        }
+
+        try {
+            buyReservedInstanceStore.deleteBuyReservedInstances(planId);
+        } catch (RuntimeException e) {
+            logger.error("Failed to delete buy reserved instance cost for plan " + planId, e);
         }
     }
 }

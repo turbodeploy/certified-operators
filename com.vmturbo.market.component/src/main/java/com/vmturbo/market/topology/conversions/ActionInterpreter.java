@@ -14,6 +14,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -120,7 +121,8 @@ public class ActionInterpreter {
      * Whether compliance action explanation needs to be overridden with perf/efficiency, needed
      * in certain cases like cloud migration.
      */
-    private final Function<MoveTO, Boolean> complianceExplanationOverride;
+    private final BiFunction<MoveTO, Map<Long, ProjectedTopologyEntity>,
+            Pair<Boolean, ChangeProviderExplanation>> complianceExplanationOverride;
 
     /**
      * Comparator used to sort the resizeInfo list so StorageAmount resizeInfo comes first,
@@ -146,7 +148,8 @@ public class ActionInterpreter {
                       @Nonnull final ProjectedRICoverageCalculator projectedRICoverageCalculator,
                       @Nonnull final TierExcluder tierExcluder,
                       @Nonnull final Supplier<CommodityIndex> commodityIndexSupplier,
-                      @Nullable final Function<MoveTO, Boolean> explanationFunction) {
+                      @Nullable final BiFunction<MoveTO, Map<Long, ProjectedTopologyEntity>,
+                              Pair<Boolean, ChangeProviderExplanation>> explanationFunction) {
         this.commodityConverter = commodityConverter;
         this.shoppingListOidToInfos = shoppingListOidToInfos;
         this.cloudTc = cloudTc;
@@ -1300,13 +1303,23 @@ public class ActionInterpreter {
         switch (moveExplanation.getExplanationTypeCase()) {
             case COMPLIANCE:
                 changeProviderExplanation = null;
-                // For Optimized Migration Plan VM moves only (not for Volume moves), we want to
+                // For Optimized Migration Plan VM/Volume moves, we want to
                 // show Performance/Efficiency actions instead of Compliance.
-                if (complianceExplanationOverride != null
-                        && complianceExplanationOverride.apply(moveTO)) {
-                    changeProviderExplanation = changeExplanationFromTracker(moveTO, savings)
-                            .orElse(ChangeProviderExplanation.newBuilder().setEfficiency(
-                                    ChangeProviderExplanation.Efficiency.getDefaultInstance()));
+                if (complianceExplanationOverride != null) {
+                    final Pair<Boolean, ChangeProviderExplanation> overrideAndExplanation =
+                            complianceExplanationOverride.apply(moveTO, projectedTopology);
+                    if (overrideAndExplanation.first) {
+                        // Need to override, see if there is an explanation available, e.g for vol.
+                        if (overrideAndExplanation.second != null) {
+                            changeProviderExplanation = ChangeProviderExplanation
+                                    .newBuilder(overrideAndExplanation.second);
+                        } else {
+                            // No existing override explanation, get one from tracker, e.g for VMs.
+                            changeProviderExplanation = changeExplanationFromTracker(moveTO, savings)
+                                    .orElse(ChangeProviderExplanation.newBuilder().setEfficiency(
+                                            ChangeProviderExplanation.Efficiency.getDefaultInstance()));
+                        }
+                    }
                 }
                 if (changeProviderExplanation == null) {
                     Compliance.Builder compliance =

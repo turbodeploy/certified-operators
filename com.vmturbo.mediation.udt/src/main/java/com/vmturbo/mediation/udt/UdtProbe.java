@@ -8,6 +8,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
@@ -15,6 +19,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.ManagedChannel;
 
@@ -28,6 +33,7 @@ import com.vmturbo.components.common.BaseVmtComponent.ContextConfigurationExcept
 import com.vmturbo.mediation.udt.config.ConnectionConfiguration;
 import com.vmturbo.mediation.udt.config.ConnectionProperties;
 import com.vmturbo.mediation.udt.config.PropertyReader;
+import com.vmturbo.mediation.udt.config.UdtProbeConfiguration;
 import com.vmturbo.mediation.udt.explore.Connection;
 import com.vmturbo.mediation.udt.explore.DataProvider;
 import com.vmturbo.mediation.udt.explore.DataRequests;
@@ -45,6 +51,7 @@ import com.vmturbo.platform.sdk.probe.IDiscoveryProbe;
 import com.vmturbo.platform.sdk.probe.IProbeContext;
 import com.vmturbo.platform.sdk.probe.ISupplyChainAwareProbe;
 import com.vmturbo.platform.sdk.probe.ProbeConfiguration;
+import com.vmturbo.platform.sdk.probe.properties.IPropertyProvider;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
@@ -56,10 +63,24 @@ public class UdtProbe implements IDiscoveryProbe<UdtProbeAccount>, ISupplyChainA
     private static final Logger LOGGER = LogManager.getLogger();
 
     /**
+     * This is the maximum number of threads which the Probe can create for executing tasks
+     * in the discovery cycle of a controller.
+     */
+    private static final int MAX_THREADS_ALLOWED = 10;
+
+    /**
+     * We need a minimum number of threads (assuming the user does not set a specific
+     * pool size). This is needed as Kubernetes lies about the number available cores
+     * and causes use to size thread pools too small.
+     */
+    private static final int MIN_REQUIRED_THREADS_NEEDED = 4;
+
+    /**
      * Used as a 'VENDOR' value in EntityDTO.
      */
     public static final String UDT_PROBE_TAG = "UDT";
     private Connection connection;
+    private IPropertyProvider propertyProvider;
 
     /**
      * Creates a {@link Connection} instance, which contains gRpc channels to the
@@ -95,6 +116,7 @@ public class UdtProbe implements IDiscoveryProbe<UdtProbeAccount>, ISupplyChainA
 
     @Override
     public void initialize(@Nonnull IProbeContext probeContext, @Nullable ProbeConfiguration probeConfiguration) {
+        propertyProvider = probeContext.getPropertyProvider();
         final AnnotationConfigWebApplicationContext context = new AnnotationConfigWebApplicationContext();
         final PropertyReader propertyReader = new PropertyReader(context);
         try {
@@ -135,12 +157,15 @@ public class UdtProbe implements IDiscoveryProbe<UdtProbeAccount>, ISupplyChainA
     @Override
     public DiscoveryResponse discoverTarget(@Nonnull UdtProbeAccount account) {
         LOGGER.info("{} discovery started.", account.getTargetName());
+        ExecutorService executor = null;
         try {
             if (isNull(connection)) {
                 throw new Exception("Probe Connection is NULL.");
             }
             final long startTime = System.currentTimeMillis();
-            final Set<UdtEntity> entities = new UdtProbeExplorer(buildDataProvider(connection)).exploreDataDefinition();
+            final UdtProbeConfiguration probeConfiguration = new UdtProbeConfiguration(propertyProvider);
+            executor = buildPool(probeConfiguration.getPoolSize());
+            final Set<UdtEntity> entities = new UdtProbeExplorer(buildDataProvider(connection), executor).exploreDataDefinition();
             final DiscoveryResponse response = new UdtProbeConverter(entities).createDiscoveryResponse();
             LOGGER.info("Discovery info:\n{}", getDiscoveryInfo(entities, startTime));
             LOGGER.info("{} discovery finished.", account.getTargetName());
@@ -154,6 +179,10 @@ public class UdtProbe implements IDiscoveryProbe<UdtProbeAccount>, ISupplyChainA
         } catch (Exception e) {
             LOGGER.error("{} discovery error.", account.getTargetName(), e);
             return SDKUtil.createDiscoveryError(e.getMessage());
+        } finally {
+            if (executor != null) {
+                executor.shutdown();
+            }
         }
     }
 
@@ -194,5 +223,29 @@ public class UdtProbe implements IDiscoveryProbe<UdtProbeAccount>, ISupplyChainA
         if (connection != null) {
             connection.release();
         }
+    }
+
+    private static ExecutorService buildPool(int poolSize) {
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("UDT-%d").build();
+        int coreThreadPoolSize = (poolSize == -1) ? Runtime.getRuntime().availableProcessors() : poolSize;
+        coreThreadPoolSize = Math.min(coreThreadPoolSize, MAX_THREADS_ALLOWED);
+        if (poolSize == -1) {
+            // for defaults, make sure we get enough threads.
+            // Kubernetes lies and tells the JVM we only have a single core.
+            coreThreadPoolSize = Math.max(coreThreadPoolSize, MIN_REQUIRED_THREADS_NEEDED);
+        }
+        final ThreadPoolExecutor pool = new ThreadPoolExecutor(coreThreadPoolSize,
+                // no more than this many threads
+                coreThreadPoolSize,
+                // keep threads around for 15 seconds after they are done
+                15L, TimeUnit.SECONDS,
+                // queue tasks (unbounded) if no threads available.
+                new LinkedBlockingQueue<>(), threadFactory
+        );
+        // This will allow the MAX_THREAD_POOL_SIZE core pool threads to time out
+        // and be destroyed when they are have not been used for 30 seconds.
+        pool.allowCoreThreadTimeOut(true);
+        LOGGER.info("Created discovery thread pool of size {}", coreThreadPoolSize);
+        return pool;
     }
 }

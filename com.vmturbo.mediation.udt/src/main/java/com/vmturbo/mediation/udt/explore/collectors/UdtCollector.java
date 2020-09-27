@@ -38,4 +38,5 @@ public abstract class UdtCollector<T> {
      */
     @Nonnull
     public abstract Set<UdtEntity> collectEntities(@Nonnull DataProvider dataProvider);
+
 }

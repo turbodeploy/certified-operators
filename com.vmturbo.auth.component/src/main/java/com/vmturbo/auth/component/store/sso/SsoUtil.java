@@ -22,10 +22,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 import javax.naming.CommunicationException;
 import javax.naming.Context;
 import javax.naming.NamingEnumeration;
@@ -36,14 +38,16 @@ import javax.naming.directory.DirContext;
 import javax.naming.directory.InitialDirContext;
 import javax.naming.directory.SearchControls;
 import javax.naming.directory.SearchResult;
+import javax.naming.ldap.LdapName;
+import javax.naming.ldap.Rdn;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
 
 import org.apache.commons.collections4.map.CaseInsensitiveMap;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -67,7 +71,7 @@ public class SsoUtil {
      * {@link CaseInsensitiveMap} is used there to support both case insensitive group name matching.
      */
     private static final Map<String, Integer> LEAST_PRIVILEGE_MAP =
-            new CaseInsensitiveMap(ImmutableMap.<String, Integer>builder()
+            new CaseInsensitiveMap<>(ImmutableMap.<String, Integer>builder()
                     .put(ADMINISTRATOR, 100)
                     .put(SITE_ADMIN, 90)
                     .put(AUTOMATOR, 80)
@@ -78,6 +82,11 @@ public class SsoUtil {
                     .put(SHARED_OBSERVER, 30)
                     .put(OPERATIONAL_OBSERVER, 20)
                     .build());
+    private static final String FULL_USERNAME_FORMAT = "%s@%s";
+    private static final Pattern BACKSLASH_SPLITTER = Pattern.compile("\\\\");
+    private static final Pattern AT_SPLITTER = Pattern.compile("@");
+    private static final String CANONICAL_NAME = "cn";
+
     /**
      * The logger.
      */
@@ -105,12 +114,16 @@ public class SsoUtil {
     /**
      * The AD or SAML groups. The {@code <Group name, SecurityGroupDTO>} mapping. Group name is case insensitive.
      */
-    private final Map<String, SecurityGroupDTO> ssoGroups_ = Collections.synchronizedMap(new CaseInsensitiveMap<>());
+    @GuardedBy("usersGroupsLock")
+    private final Map<String, SecurityGroupDTO> ssoGroups_ = new CaseInsensitiveMap<>();
 
     /**
      * The AD or SAML users that were derived from groups.
      */
-    private final Set<String> ssoGroupUsers_ = Collections.synchronizedSet(new HashSet<>());
+    @GuardedBy("usersGroupsLock")
+    private final Set<String> ssoGroupUsers_ = new HashSet<>();
+
+    private final Object usersGroupsLock = new Object();
 
     /**
      * Sets the domain name as well as the AD search base.
@@ -156,8 +169,10 @@ public class SsoUtil {
     public synchronized void reset() {
         domainName_ = null;
         loginProviderURI_ = null;
-        ssoGroups_.clear();
-        ssoGroupUsers_.clear();
+        synchronized (usersGroupsLock) {
+            ssoGroups_.clear();
+            ssoGroupUsers_.clear();
+        }
     }
 
     /**
@@ -240,38 +255,45 @@ public class SsoUtil {
     }
 
     /**
-     * Returns UPN.
+     * Returns user distinguished name or {@code null} in case user with this name is not found.
      *
-     * @param userName     The user name in the form of domain\\user.
+     * @param pureUsername The user name without domain name, i.e. username might be specified
+     * in three ways:
+     * <ul>
+     *     <li> username;
+     *     <li> username@domain;
+     *     <li> domain\\username;
+     * </ul>
+     * pureUsername will contain value from item 1 always.
      * @param userPassword The password.
-     * @return The UPN or {@code null} in case of an error.
+     * @param ldapServers LDAP server URIs to which we will connect
+     * @return The distinguished name of the found user or {@code null} in case of an error.
      */
-    private @Nullable String getUpn(@Nonnull String userName, String userPassword) {
-        @Nonnull Collection<String> ldapServers = findLDAPServersInWindowsDomain();
-        if (adSearchBase_.length() == 0) {
+    @Nullable
+    private String getUserDn(@Nonnull String pureUsername, @Nonnull String userPassword,
+                    @Nonnull Iterable<String> ldapServers) {
+        if (adSearchBase_.isEmpty()) {
             logger.error("AD SearchBase is empty");
             return null;
         }
-        DirContext ctx = null;
+        final String searchFilter =
+                        String.format("(&(objectClass=person)(SamAccountName=%s))", pureUsername);
+        final SearchControls sCtrl = new SearchControls();
+        sCtrl.setSearchScope(SearchControls.SUBTREE_SCOPE);
         for (String ldapServer : ldapServers) {
-            Hashtable<String, String> props = composeLDAPConnProps(ldapServer,
-                                                                   userName.split("\\\\")[1] + "@" +
-                                                                   domainName_,
-                                                                   userPassword);
-            String searchFilter =
-                    "(&(objectClass=person)(SamAccountName=" + userName.split("\\\\")[1] + "))";
-            String returnAttrs[] = {"userPrincipalName"};
-            SearchControls sCtrl = new SearchControls();
-            sCtrl.setSearchScope(SearchControls.SUBTREE_SCOPE);
-            sCtrl.setReturningAttributes(returnAttrs);
+            final Hashtable<String, String> props =
+                            composeLDAPConnProps(ldapServer, createFullUsername(pureUsername),
+                                            userPassword);
+            DirContext ctx = null;
             try {
                 ctx = new InitialDirContext(props);
-                NamingEnumeration<SearchResult> answer = ctx.search(adSearchBase_,
+                final NamingEnumeration<SearchResult> answer = ctx.search(adSearchBase_,
                                                                     searchFilter, sCtrl);
                 while (answer.hasMoreElements()) {
-                    SearchResult sr = answer.next();
-                    if (sr.getAttributes().size() > 0) {
-                        return sr.getAttributes().get(returnAttrs[0]).toString().split(" ")[1];
+                    final SearchResult sr = answer.next();
+                    final String dn = sr.getNameInNamespace();
+                    if (StringUtils.isNotBlank(dn)) {
+                        return dn;
                     }
                 }
             } catch (NamingException namEx) {
@@ -291,7 +313,9 @@ public class SsoUtil {
      * @return {@code true} iff the new group was added.
      */
     public boolean putSecurityGroup(final @Nonnull String groupName, final @Nonnull SecurityGroupDTO securityGroup) {
-        return null != ssoGroups_.put(groupName, securityGroup);
+        synchronized (usersGroupsLock) {
+            return null != ssoGroups_.put(groupName, securityGroup);
+        }
     }
 
     /**
@@ -301,7 +325,9 @@ public class SsoUtil {
      * @return {@code true} iff the group existed before this call.
      */
     public boolean deleteSecurityGroup(final @Nonnull String groupName) {
-        return null != ssoGroups_.remove(groupName);
+        synchronized (usersGroupsLock) {
+            return null != ssoGroups_.remove(groupName);
+        }
     }
 
     /**
@@ -326,89 +352,81 @@ public class SsoUtil {
      * @param groupName claimed group name
      * @return security group, if found
      */
-    public @Nonnull Optional<SecurityGroupDTO> authorizeSAMLUserInGroup(final @Nonnull String userName,
-                                                                        final @Nonnull String groupName) {
-        boolean foundGroup = ssoGroups_
-                .keySet()
-                .stream()
-                .anyMatch(name -> name.equals(groupName.toLowerCase()));
-        if (foundGroup) {
-            if (!ssoGroupUsers_.contains(userName)) {
-                ssoGroupUsers_.add(userName);
-            }
-            SecurityGroupDTO group = ssoGroups_.get(groupName);
-            return Optional.ofNullable(group);
-         }
-         return Optional.empty();
+    @Nonnull
+    public Optional<SecurityGroupDTO> authorizeSAMLUserInGroup(final @Nonnull String userName,
+                    final @Nullable String groupName) {
+        synchronized (usersGroupsLock) {
+            final Set<SecurityGroupDTO> matchedGroups =
+                            findMatchedGroups(Collections.singleton(groupName));
+            return matchedGroups.stream().findAny().map(g -> {
+                ensureUser(userName);
+                return g;
+            });
+        }
     }
-
 
     /**
      * Try to authenticate the user as a member of the AD group.
      *
-     * @param userName     Name of the user.
+     * @param userName Name of the user.
      * @param userPassword Password user presented.
-     * @param ldapServers  A list of LDAP servers to query.  Assumed to be non-empty.
+     * @param ldapServers A list of LDAP servers to query.  Assumed to be
+     *                 non-empty.
      * @param multipleGroupSupport support multiple group
      * @return The security group, or {@code null} if failed.
      */
-    public @Nullable
-    List<SecurityGroupDTO> authenticateUserInGroup(final @Nonnull String userName,
-            final @Nonnull String userPassword, final @Nonnull Collection<String> ldapServers,
-            final boolean multipleGroupSupport) {
-        String upn;
-
-        if (userName.contains("\\")) {
-            upn = getUpn(userName, userPassword);
-            if (upn == null) {
-                logger.error("LoginManager::authenticateUserInGroup - upn is null");
-                return null;
-            }
-        } else if (!userName.contains("@")) {
-            upn = userName + "@" + domainName_;
-        } else {
-            upn = userName;
-        }
-
-        if (adSearchBase_.length() == 0) {
-            logger.error("AD SearchBase is empty");
-            return null;
-        }
-
-        DirContext ctx = null;
-        final Set<SecurityGroupDTO> matchedGroups = Sets.newHashSet();
+    @Nullable
+    public List<SecurityGroupDTO> authenticateUserInGroup(final @Nonnull String userName,
+                    final @Nonnull String userPassword,
+                    final @Nonnull Collection<String> ldapServers,
+                    final boolean multipleGroupSupport) {
+        final String pureUsername = getPureUsername(userName);
+        final String fullUsername = createFullUsername(pureUsername);
+        final String dn = getUserDn(pureUsername, userPassword, ldapServers);
+        /*
+          In cae multiple groups support is enabled, then recursive filter will be used, otherwise
+          only groups which have user DN as direct member will be returned.
+          The filter below is a recursive filter, which is searching for LDAP objects which have
+          member attribute pointing to the specified DN.
+          https://ldapwiki.com/wiki/Active%20Directory%20User%20Related%20Searches#section-Active+Directory+User+Related+Searches-AllGroupsAUserIsAMemberOfIncludingNestedGroups
+         */
+        final String recursiveFilter = multipleGroupSupport ? ":1.2.840.113556.1.4.1941" : "";
+        final String searchFilter = String.format("(member%s:=%s)", recursiveFilter, dn);
+        final SearchControls sCtrl = new SearchControls();
+        sCtrl.setSearchScope(SearchControls.SUBTREE_SCOPE);
+        final Set<SecurityGroupDTO> matchedGroups = new HashSet<>();
         for (String ldapServer : ldapServers) {
-            Hashtable<String, String> props = composeLDAPConnProps(ldapServer, upn, userPassword);
-            String searchFilter = "(&(objectClass=person)(userPrincipalName=" + upn + "))";
-            String returnAttrs[] = {"memberOf"};
-            SearchControls sCtrl = new SearchControls();
-            sCtrl.setSearchScope(SearchControls.SUBTREE_SCOPE);
-            sCtrl.setReturningAttributes(returnAttrs);
+            final Hashtable<String, String> props =
+                            composeLDAPConnProps(ldapServer, fullUsername, userPassword);
+            DirContext ctx = null;
             try {
                 ctx = new InitialDirContext(props);
-                NamingEnumeration<SearchResult> answer =
-                        ctx.search(adSearchBase_, searchFilter, sCtrl);
-                // Loop through the results and check every single value in attribute "memberOf"
+                final NamingEnumeration<SearchResult> answer =
+                                ctx.search(adSearchBase_, searchFilter, sCtrl);
+
                 while (answer.hasMoreElements()) {
-                    SearchResult sr = answer.next();
-                    Attribute memberOf = sr.getAttributes().get(returnAttrs[0]);
-                    if (memberOf == null) {
+                    final SearchResult sr = answer.next();
+                    final String groupDn = sr.getNameInNamespace();
+                    if (StringUtils.isBlank(groupDn)) {
                         continue;
                     }
-                    String memberOfAttrValue = memberOf.toString().toLowerCase();
-                    for (String groupName : ssoGroups_.keySet().toArray(new String[0])) {
-                        String adGroupNotChanged = groupName;
-                        // Prepend CN= to the groupName if the user only specified the name of
-                        // the group
-                        if (!groupName.startsWith("CN=")) {
-                            groupName = "CN=" + groupName;
-                        }
-                        if (memberOfAttrValue.contains(groupName.toLowerCase())) {
+                    final String ldapObjectName = new LdapName(groupDn).getRdns().stream()
+                                    .filter(rdn -> CANONICAL_NAME.equalsIgnoreCase(rdn.getType()))
+                                    // Stream#reduce call is important, because we want to get
+                                    // last CN item from all existing. Last item should contain
+                                    // canonical name of the LDAP object. Reduce is helping to find
+                                    // the last record
+                                    .map(Rdn::getValue).reduce((f, l) -> l).map(String::valueOf)
+                                    .orElse(null);
+
+                    synchronized (usersGroupsLock) {
+                        final Collection<SecurityGroupDTO> foundGroups =
+                                        findMatchedGroups(Collections.singleton(ldapObjectName));
+                        if (!foundGroups.isEmpty()) {
                             if (multipleGroupSupport) {
-                                matchedGroups.add(ssoGroups_.get(adGroupNotChanged));
-                            } else if (!ssoGroupUsers_.contains(userName)) {
-                                ssoGroupUsers_.add(userName);
-                                return ImmutableList.of(ssoGroups_.get(adGroupNotChanged));
+                                matchedGroups.addAll(foundGroups);
+                            } else if (!ensureUser(userName)) {
+                                return Collections.singletonList(foundGroups.iterator().next());
                             }
                         }
                     }
@@ -423,7 +441,26 @@ public class SsoUtil {
        return sortGroupWithLeastPrivilege(matchedGroups);
     }
 
+    @Nonnull
+    private String createFullUsername(@Nonnull String username) {
+        if (username.contains("@")) {
+            return username;
+        }
+        return String.format(FULL_USERNAME_FORMAT, username, domainName_);
+    }
 
+    @Nonnull
+    private static String getPureUsername(@Nonnull String username) {
+        return split(split(username, BACKSLASH_SPLITTER, 1), AT_SPLITTER, 0);
+    }
+
+    @Nonnull
+    private static String split(@Nonnull String username, @Nonnull Pattern splitter, int item) {
+        if (splitter.matcher(username).find()) {
+            return splitter.split(username)[item];
+        }
+        return username;
+    }
 
     /**
      * Authenticates the AD user.
@@ -549,21 +586,39 @@ public class SsoUtil {
      */
     @Nonnull
     public Optional<SecurityGroupDTO> authorizeSAMLUserInGroups(@Nonnull final String userName,
-            @Nonnull final List<String> assignedGroups) {
+            @Nonnull final Iterable<String> assignedGroups) {
         // find the matches groups
-        final Set<SecurityGroupDTO> matchedGroup = ssoGroups_.keySet()
-                .stream()
-                .filter(group -> assignedGroups.stream()
-                        .anyMatch(assignedGroup -> assignedGroup.equalsIgnoreCase(group)))
-                .map(group -> ssoGroups_.get(group))
-                .collect(Collectors.toSet());
-        final Optional<SecurityGroupDTO> foundGroup = sortGroupWithLeastPrivilege(matchedGroup).stream()
-                .findFirst(); // this is the least privilege group
-        foundGroup.ifPresent(g -> {
-            if (!ssoGroupUsers_.contains(userName)) {
-                ssoGroupUsers_.add(userName);
+        synchronized (usersGroupsLock) {
+            final Set<SecurityGroupDTO> matchedGroup = findMatchedGroups(assignedGroups);
+            // this is the least privilege group
+            final Optional<SecurityGroupDTO> leastPrivilegedGroup =
+                            sortGroupWithLeastPrivilege(matchedGroup).stream()
+                                            .findFirst();
+            leastPrivilegedGroup.ifPresent(g -> ensureUser(userName));
+            return leastPrivilegedGroup;
+        }
+    }
+
+    @GuardedBy("usersGroupsLock")
+    private boolean ensureUser(@Nonnull String userName) {
+        final boolean newUser = !ssoGroupUsers_.contains(userName);
+        if (newUser) {
+            ssoGroupUsers_.add(userName);
+        }
+        return newUser;
+    }
+
+    @Nonnull
+    @GuardedBy("usersGroupsLock")
+    private Set<SecurityGroupDTO> findMatchedGroups(@Nonnull Iterable<String> assignedGroups) {
+        // find the matches groups
+        final Set<SecurityGroupDTO> matchedGroups = new HashSet<>();
+        for (String assignedGroup : assignedGroups) {
+            final SecurityGroupDTO group = ssoGroups_.get(assignedGroup);
+            if (group != null) {
+                matchedGroups.add(group);
             }
-        });
-        return foundGroup;
+        }
+        return matchedGroups;
     }
 }

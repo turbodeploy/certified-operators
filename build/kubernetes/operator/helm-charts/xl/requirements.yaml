@@ -127,7 +127,7 @@ dependencies:
 # Monitoring dependencies
   - name: prometheus
     repository: file://../base/prometheus
-    version: 9.5.0
+    version: 11.10.0
     condition: prometheus.enabled
   - name: prometheus-mysql-exporter
     repository: file://../base/prometheus-mysql-exporter

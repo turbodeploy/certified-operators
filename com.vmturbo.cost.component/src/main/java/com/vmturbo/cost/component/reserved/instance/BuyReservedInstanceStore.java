@@ -202,7 +202,7 @@ public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore,
      *
      * @param topologyContextId this id identifies the topology.
      */
-    private void deleteBuyReservedInstances(final long topologyContextId) {
+    public void deleteBuyReservedInstances(final long topologyContextId) {
         dsl.deleteFrom(BUY_RESERVED_INSTANCE).where(BUY_RESERVED_INSTANCE.TOPOLOGY_CONTEXT_ID
                 .eq(topologyContextId)).execute();
     }
