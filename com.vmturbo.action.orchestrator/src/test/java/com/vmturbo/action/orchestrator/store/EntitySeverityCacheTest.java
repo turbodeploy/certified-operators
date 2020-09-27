@@ -247,7 +247,6 @@ public class EntitySeverityCacheTest {
      * Note that risk propagation around the container block is as follows and there's no
      * propagation between ContainerSpec and WorkloadController; they essentially have the same
      * set of actions.
-     *
      *  Container <-------- ContainerSpec
      *      ^                      X
      *      |                      X
