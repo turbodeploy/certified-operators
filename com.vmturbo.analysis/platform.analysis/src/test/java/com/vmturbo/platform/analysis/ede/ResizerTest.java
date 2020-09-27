@@ -260,8 +260,12 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         final double cpuUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
+        final double cpuPeakOnCommSoldBeforeResize = pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getPeakQuantity();
         final double memUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
+        final double memPeakOnCommSoldBeforeResize = pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getPeakQuantity();
         // setting historicalQnty on the VM.
         for (CommoditySold cs : vm.getCommoditiesSold()) {
             cs.setHistoricalQuantity(cs.getQuantity());
@@ -286,12 +290,20 @@ public class ResizerTest {
         double cpuUsedOnCommSoldAfterResize =
                         pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
+        double cpuPeakOnCommSoldAfterResize =
+                pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getPeakQuantity();
         // when the usage on the underlying provider is lower than the newCap, we should not increase the usage
         assertEquals(cpuUsedOnCommSoldBeforeResize, cpuUsedOnCommSoldAfterResize, 0);
+        assertEquals(cpuPeakOnCommSoldBeforeResize, cpuPeakOnCommSoldAfterResize, 0);
         double memUsedOnCommSoldAfterResize =
                         pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
+        double memPeakOnCommSoldAfterResize =
+                pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getPeakQuantity();
         assertTrue(memUsedOnCommSoldBeforeResize > memUsedOnCommSoldAfterResize);
+        assertTrue(memPeakOnCommSoldBeforeResize > memPeakOnCommSoldAfterResize);
     }
 
     /**
@@ -312,8 +324,12 @@ public class ResizerTest {
                 RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         final double cpuUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                 .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
+        final double cpuPeakOnCommSoldBeforeResize = pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getPeakQuantity();
         final double memUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                 .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
+        final double memPeakOnCommSoldBeforeResize = pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getPeakQuantity();
         economy.getSettings().setResizeDependentCommodities(false);
         TestUtils.setupHistoryBasedResizeDependencyMap(economy);
         // setting historicalQnty on the VM.
@@ -341,11 +357,19 @@ public class ResizerTest {
         double cpuUsedOnCommSoldAfterResize =
                 pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
+        double cpuPeakOnCommSoldAfterResize =
+                pm.getCommoditiesSold()
+                        .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getPeakQuantity();
         assertEquals(cpuUsedOnCommSoldBeforeResize, cpuUsedOnCommSoldAfterResize, 0);
+        assertEquals(cpuPeakOnCommSoldBeforeResize, cpuPeakOnCommSoldAfterResize, 0);
         double memUsedOnCommSoldAfterResize =
                 pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
+        double memPeakOnCommSoldAfterResize =
+                pm.getCommoditiesSold()
+                        .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getPeakQuantity();
         assertEquals(memUsedOnCommSoldBeforeResize, memUsedOnCommSoldAfterResize, 0);
+        assertEquals(memPeakOnCommSoldBeforeResize, memPeakOnCommSoldAfterResize, 0);
     }
 
     /**
@@ -366,8 +390,12 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         final double cpuUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
+        final double cpuPeakOnCommSoldBeforeResize = pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getPeakQuantity();
         final double memUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
+        final double memPeakOnCommSoldBeforeResize = pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getPeakQuantity();
 
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
@@ -389,11 +417,19 @@ public class ResizerTest {
         double cpuUsedOnCommSoldAfterResize =
                         pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
+        double cpuPeakOnCommSoldAfterResize =
+                pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getPeakQuantity();
         assertTrue(cpuUsedOnCommSoldBeforeResize < cpuUsedOnCommSoldAfterResize);
+        assertTrue(cpuPeakOnCommSoldBeforeResize < cpuPeakOnCommSoldAfterResize);
         double memUsedOnCommSoldAfterResize =
                         pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
+        double memPeakOnCommSoldAfterResize =
+                pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getPeakQuantity();
         assertTrue(memUsedOnCommSoldBeforeResize < memUsedOnCommSoldAfterResize);
+        assertTrue(memPeakOnCommSoldBeforeResize < memPeakOnCommSoldAfterResize);
     }
 
     /**

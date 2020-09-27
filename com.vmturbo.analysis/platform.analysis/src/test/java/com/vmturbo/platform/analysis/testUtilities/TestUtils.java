@@ -363,7 +363,8 @@ public class TestUtils {
         Basket basket = new Basket(basketCommodities);
         ShoppingList sl = economy.addBasketBought(buyer, basket);
         for (int i = 0; i < basketCommodities.size(); i++){
-            sl.setQuantity(sl.getBasket().indexOf(basketCommodities.get(i)), commQuantities[i]);
+            sl.setQuantity(sl.getBasket().indexOf(basketCommodities.get(i)), commQuantities[i])
+            .setPeakQuantity(sl.getBasket().indexOf(basketCommodities.get(i)), commQuantities[i]);
         }
         sl.setMovable(true);
         if(seller != null){
@@ -373,7 +374,9 @@ public class TestUtils {
                         .indexOf(basketCommodities.get(i));
                 if (soldIndex >= 0) {
                     double sellerQuantity = seller.getCommoditiesSold().get(soldIndex).getQuantity();
-                    seller.getCommoditiesSold().get(soldIndex).setQuantity(sellerQuantity + commQuantities[i]);
+                    double sellerPeakQuantity = seller.getCommoditiesSold().get(soldIndex).getPeakQuantity();
+                    seller.getCommoditiesSold().get(soldIndex).setQuantity(sellerQuantity + commQuantities[i])
+                    .setPeakQuantity(sellerPeakQuantity + commQuantities[i]);
                 }
 
             }
