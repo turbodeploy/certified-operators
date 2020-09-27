@@ -29,6 +29,7 @@ import org.springframework.util.CollectionUtils;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.mediation.connector.intersight.IntersightConnection;
 import com.vmturbo.mediation.connector.intersight.IntersightDefaultQueryParameters;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.AccountValue;
@@ -110,11 +111,18 @@ public class IntersightTargetSyncService implements Runnable {
     private void syncTargets() throws IOException, CommunicationException, ApiException,
             InterruptedException {
         // For looking up the probe below to add targets which requires the probe id
-        final Map<String, ProbeInfo> probesByType = topologyProcessor.getAllProbes().stream()
-                .collect(Collectors.toMap(ProbeInfo::getType, Function.identity(), (p1, p2) -> p1));
+        final Set<ProbeInfo> probeInfos = topologyProcessor.getAllProbes();
+        final Map<String, ProbeInfo> probesByType = probeInfos.stream().collect(Collectors.toMap(
+                ProbeInfo::getType, Function.identity(), (p1, p2) -> p1));
+        final Map<Long, ProbeInfo> probesById = probeInfos.stream().collect(Collectors.toMap(
+                ProbeInfo::getId, Function.identity(), (p1, p2) -> p1));
         final Set<TargetInfo> targets = topologyProcessor.getAllTargets().stream()
-                .filter(t -> !t.isHidden()).collect(Collectors.toSet());
-        logger.debug("Existing targets ");
+                .filter(t -> !t.isHidden()).filter(t -> !t.isReadOnly())
+                .filter(t -> !Objects.equals(ProbeCategory.CLOUD_NATIVE.getCategory(),
+                        Optional.ofNullable(t.getProbeId()).map(probesById::get)
+                                .map(ProbeInfo::getCategory).orElse(null)))
+                .collect(Collectors.toSet());
+        logger.debug("Existing targets that are not hidden, nor read-only, nor cloud native");
         dumpTargetInfo(targets);
         final Set<TargetInfo> staleTargets = new HashSet<>(targets);
         final Map<Long, List<TargetInfo>> targetsByProbeId = targets.stream()
