@@ -408,6 +408,14 @@ public class IntersightTargetSyncService implements Runnable {
                 return SDKProbeType.VMAX;
             case EMCVPLEX:
                 return SDKProbeType.VPLEX;
+            case EMCXTREMIO:
+                return SDKProbeType.XTREMIO;
+            case DELLCOMPELLENT:
+                return SDKProbeType.COMPELLENT;
+            case HPE3PAR:
+                return SDKProbeType.HPE_3PAR;
+            case REDHATVIRTUALIZATIONMANAGER:
+                return SDKProbeType.RHV;
             case MICROSOFTSQLSERVER:
                 return SDKProbeType.MSSQL;
             case MICROSOFTAZUREENTERPRISEAGREEMENT:
