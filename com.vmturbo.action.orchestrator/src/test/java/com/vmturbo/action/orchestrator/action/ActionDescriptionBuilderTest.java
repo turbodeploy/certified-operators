@@ -1696,17 +1696,4 @@ public class ActionDescriptionBuilderTest {
                         && description.contains("VMem Limit"));
         assertTrue(description.endsWith("Workload Controller controller1_test"));
     }
-
-    /**
-     * Test getHumanReadableSize.
-     */
-    @Test
-    public void testGetHumanReadableSize() {
-        assertEquals("1023 Bytes", ActionDescriptionBuilder.getHumanReadableSize(1023L));
-        assertEquals("1.8 KB", ActionDescriptionBuilder.getHumanReadableSize(1800L));
-        assertEquals("6.7 MB", ActionDescriptionBuilder.getHumanReadableSize(7000000L));
-        assertEquals("372.5 GB", ActionDescriptionBuilder.getHumanReadableSize(400000000000L));
-        assertEquals("1.4 TB", ActionDescriptionBuilder.getHumanReadableSize(1500000000000L));
-        assertEquals("8.0 EB", ActionDescriptionBuilder.getHumanReadableSize(Long.MAX_VALUE));
-    }
 }

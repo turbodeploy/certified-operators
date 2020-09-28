@@ -795,7 +795,7 @@ public class ActionDescriptionBuilder {
         // with 1 significant figure in decimal, eg. 100.2 MB, 11.0 GB, etc.
         if (commodityTypeToDefaultUnits.containsKey(commodityType)) {
             long capacityInBytes = (long)(capacity * commodityTypeToDefaultUnits.get(commodityType) / Units.BYTE);
-            return getHumanReadableSize(capacityInBytes);
+            return StringUtil.getHumanReadableSize(capacityInBytes);
         } else if (entityType == EntityType.CONTAINER_VALUE
                 || entityType == EntityType.WORKLOAD_CONTROLLER_VALUE
                 || entityType == EntityType.CONTAINER_SPEC_VALUE) {
@@ -809,19 +809,4 @@ public class ActionDescriptionBuilder {
         }
     }
 
-    @VisibleForTesting
-    static String getHumanReadableSize(long capacityInBytes) {
-        // Reference:
-        // https://stackoverflow.com/questions/3758606/how-to-convert-byte-size-into-human-readable-format-in-java
-        if (capacityInBytes < 1024) {
-            return capacityInBytes + " Bytes";
-        }
-        long value = capacityInBytes;
-        CharacterIterator ci = new StringCharacterIterator("KMGTPE");
-        for (int i = 40; i >= 0 && capacityInBytes > 0xfffccccccccccccL >> i; i -= 10) {
-            value >>= 10;
-            ci.next();
-        }
-        return String.format("%.1f %cB", value / 1024.0, ci.current());
-    }
 }
