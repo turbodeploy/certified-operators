@@ -220,6 +220,40 @@ public class EntitySeverityCacheTest {
      *     Major ^    Minor      /
      *            \_____________/
      * </pre>
+     * Service is supported by containers and pods which are also aggregated to Namespace:
+     * <pre>
+     *
+     *                                +------------------------------+
+     *                                |                              |
+     *                                |             -> VM1           |
+     *                                |            /                 |
+     *                                |        (Minor)               |
+     * Service6 ---> App6a1 -> Container6a1 --> Pod6a ----------------------------------+
+     *           \  (Minor)       (Minor)         ^                  |                  |
+     *           \                                |      (Major)     |                  |
+     *           \-> App6a2 -> Container6a2 ------+-----> Spec62 -----------------+     |
+     *           \                                          ^        |            |     |
+     *           \                                          |        V            V     V
+     *           \-> App6b1 -> Container6b1 ------+--------------> Spec61 -> WorkloadController6 -> NamespaceFoo
+     *           \                                |         |      (Minor)   (Minor) ^  (Major)
+     *           \                                V         |                        |
+     *           \-> App6b2 -> Container6b2 --> Pod6b -------------------------------+
+     *                                 |       (Major)      |
+     *                                 |          \         |
+     *                                 |          \-> VM5   |
+     *                                 |                    |
+     *                                 +--------------------+
+     * </pre>
+     * Note that risk propagation around the container block is as follows and there's no
+     * propagation between ContainerSpec and WorkloadController; they essentially have the same
+     * set of actions.
+     *  Container <-------- ContainerSpec
+     *      ^                      X
+     *      |                      X
+     * ContainerPod ----> WorkloadController
+     *                             |
+     *                             V
+     *                         Namespace
      */
     @Test
     public void testSeverityBreakdownAndSeverityCounts() {
@@ -334,6 +368,59 @@ public class EntitySeverityCacheTest {
                 Severity.MINOR, 2,
                 Severity.MAJOR, 2,
                 Severity.NORMAL, 6));
+
+        // Service on containers
+        //
+        // Service6 ----> App6a1 -> Container6a1 -----> Pod6a ---> VM1 ----> PM1
+        //           \    Minor        Minor       \    Minor     Minor \   Minor
+        //           \                              \-> Spec61           \-> Storage1
+        //           \                                  Minor                 Major
+        //           \--> App6a2 -> Container6a2 -----> Pod6a ---> VM1 ----> PM1
+        //           \                             \    Minor     Minor \   Minor
+        //           \                              \-> Spec62           \-> Storage1
+        //           \                                  Major                 Major
+        //           \--> App6b1 -> Container6b1 -----> Pod6b ---> VM5 ------> Storage4
+        //           \                             \    Major           \       Major
+        //           \                             \                     \---> PM4
+        //           \                             \                      \   Minor
+        //           \                             \                       \-> Vol5
+        //           \                             \
+        //           \                             \--> Spec61
+        //           \                                  Minor
+        //           \--> App6b2 -> Container6b2 -----> Pod6b ---> VM5 ------> Storage4
+        //                                         \    Major           \       Major
+        //                                         \                     \---> PM4
+        //                                         \                      \   Minor
+        //                                         \                       \-> Vol5
+        //                                         \
+        //                                         \--> Spec62
+        //                                              Major
+        //
+        checkSeverityBreakdown(severityBreakdownScenario.service6Oid,
+                ImmutableMap.of(
+                        Severity.MAJOR, 8,
+                        Severity.MINOR, 12,
+                        Severity.NORMAL, 10));
+
+        // Namespace of containers
+        //
+        // NamespaceFoo ----> WorkloadController6 -------> Pod6a ---> VM1 -----> PM1
+        //                           Major         \       Minor     Minor  \   Minor
+        //                                          \                        \-> Storage1
+        //                                           \                           Major
+        //                                            \--> Pod6b ---> VM5 -------> Storage4
+        //                                                 Major            \       Major
+        //                                                                   \---> PM4
+        //                                                                    \   Minor
+        //                                                                     \-> Vol5
+        //
+        // Note: Namespace has "includeSelf" true; in the future it will have actions.
+        //
+        checkSeverityBreakdown(severityBreakdownScenario.namespaceFooOid,
+                ImmutableMap.of(
+                        Severity.MAJOR, 4,
+                        Severity.MINOR, 4,
+                        Severity.NORMAL, 3));
     }
 
     /**
@@ -419,10 +506,23 @@ public class EntitySeverityCacheTest {
         public final long virtualMachine3Oid = 3003L;
         public final long virtualMachine4Oid = 3004L;
         public final long virtualMachine5Oid = 3005L;
-        public final long missingId = 9999L;
+        public final long container6a1Oid = 3401L;
+        public final long container6a2Oid = 3402L;
+        public final long container6b1Oid = 3403L;
+        public final long container6b2Oid = 3404L;
+        public final long containerPod6aOid = 3501L;
+        public final long containerPod6bOid = 3502L;
+        public final long containerSpec61Oid = 3601L;
+        public final long containerSpec62Oid = 3602L;
+        public final long workloadController6Oid = 3701L;
+        public final long namespaceFooOid = 3801L;
         public final long application1Oid = 4001L;
         public final long application2Oid = 4002L;
         public final long application5Oid = 4005L;
+        public final long application6a1Oid = 4601L;
+        public final long application6a2Oid = 4602L;
+        public final long application6b1Oid = 4603L;
+        public final long application6b2Oid = 4604L;
         public final long database1Oid = 5001L;
         public final long database4Oid = 5004L;
         public final long service1Oid = 6001L;
@@ -430,6 +530,7 @@ public class EntitySeverityCacheTest {
         public final long service3Oid = 6003L;
         public final long service4Oid = 6004L;
         public final long service5Oid = 6005L;
+        public final long service6Oid = 6006L;
         public final long businessTx1Oid = 7001L;
         public final long businessTx2Oid = 7002L;
         public final long businessTx3Oid = 7003L;
@@ -437,6 +538,7 @@ public class EntitySeverityCacheTest {
         public final long businessApp2Oid = 8002L;
         public final long virtualVolume4Oid = 9004L;
         public final long virtualVolume5Oid = 9005L;
+        public final long missingId = 9999L;
 
         /**
          * Sets up actionStore, and repositoryServiceMole with the scenario.
@@ -447,6 +549,13 @@ public class EntitySeverityCacheTest {
         private SeverityBreakdownScenario(ActionStore actionStore,
                 ActionTopologyStore actionTopologyStore) {
             List<ActionView> actions = Arrays.asList(
+                actionView(executableMove(6, application6a1Oid, 1, 2, 1, Severity.MINOR)),
+                actionView(executableMove(6, container6a1Oid, 1, 2, 1, Severity.MINOR)),
+                actionView(executableMove(6, containerPod6aOid, 1, 2, 1, Severity.MINOR)),
+                actionView(executableMove(6, containerPod6bOid, 1, 2, 1, Severity.MAJOR)),
+                actionView(executableMove(6, containerSpec61Oid, 1, 2, 1, Severity.MINOR)),
+                actionView(executableMove(6, containerSpec62Oid, 1, 2, 1, Severity.MAJOR)),
+                actionView(executableMove(6, workloadController6Oid, 1, 2, 1, Severity.MAJOR)),
                 actionView(executableMove(0, virtualMachine1Oid, 1, 2, 1, Severity.MINOR)),
                 actionView(executableMove(3, physicalMachine1Oid, 1, 4, 1, Severity.MINOR)),
                 actionView(executableMove(5, storage1Oid, 1, 6, 1, Severity.MAJOR)),
@@ -478,10 +587,28 @@ public class EntitySeverityCacheTest {
             makeEntity(EntityType.SERVICE, service3Oid, graphCreator, application2Oid);
             makeEntity(EntityType.SERVICE, service4Oid, graphCreator, application1Oid, application2Oid);
             makeEntity(EntityType.SERVICE, service5Oid, graphCreator, application5Oid);
+            makeEntity(EntityType.SERVICE, service6Oid, graphCreator, application6a1Oid,
+                    application6a2Oid, application6b1Oid, application6b2Oid);
 
             makeEntity(EntityType.APPLICATION_COMPONENT, application1Oid, graphCreator, virtualMachine1Oid);
             makeEntity(EntityType.APPLICATION_COMPONENT, application2Oid, graphCreator, virtualMachine3Oid);
             makeEntity(EntityType.APPLICATION_COMPONENT, application5Oid, graphCreator, virtualMachine5Oid, database4Oid);
+            makeEntity(EntityType.APPLICATION_COMPONENT, application6a1Oid, graphCreator, container6a1Oid);
+            makeEntity(EntityType.APPLICATION_COMPONENT, application6a2Oid, graphCreator, container6a2Oid);
+            makeEntity(EntityType.APPLICATION_COMPONENT, application6b1Oid, graphCreator, container6b1Oid);
+            makeEntity(EntityType.APPLICATION_COMPONENT, application6b2Oid, graphCreator, container6b2Oid);
+
+            makeEntity(EntityType.CONTAINER, container6a1Oid, graphCreator, containerPod6aOid, containerSpec61Oid);
+            makeEntity(EntityType.CONTAINER, container6a2Oid, graphCreator, containerPod6aOid, containerSpec62Oid);
+            makeEntity(EntityType.CONTAINER, container6b1Oid, graphCreator, containerPod6bOid, containerSpec61Oid);
+            makeEntity(EntityType.CONTAINER, container6b2Oid, graphCreator, containerPod6bOid, containerSpec62Oid);
+
+            makeEntity(EntityType.CONTAINER_POD, containerPod6aOid, graphCreator, virtualMachine1Oid, workloadController6Oid);
+            makeEntity(EntityType.CONTAINER_POD, containerPod6bOid, graphCreator, virtualMachine5Oid, workloadController6Oid);
+            makeEntity(EntityType.CONTAINER_SPEC, containerSpec61Oid, graphCreator, workloadController6Oid);
+            makeEntity(EntityType.CONTAINER_SPEC, containerSpec62Oid, graphCreator, workloadController6Oid);
+            makeEntity(EntityType.WORKLOAD_CONTROLLER, workloadController6Oid, graphCreator, namespaceFooOid);
+            makeEntity(EntityType.NAMESPACE, namespaceFooOid, graphCreator);
 
             makeEntity(EntityType.DATABASE, database1Oid, graphCreator, virtualMachine2Oid);
             makeEntity(EntityType.DATABASE, database4Oid, graphCreator, virtualMachine4Oid);

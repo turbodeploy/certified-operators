@@ -63,7 +63,9 @@ import com.vmturbo.topology.graph.TopologyGraph;
  */
 @ThreadSafe
 public class EntitySeverityCache {
-
+    /**
+     * We calculate risk in the order of this list. As a result, any dependant risks like producers or consumers must come earlier in the list than the entity type that depends on them. For example, we must calculate PHYSICAL_MACHINE before VIRTUAL_MACHINE because VIRTUAL_MACHINE depends on its producers.
+     */
     private static final List<TraversalConfig> RETRIEVAL_ORDER =
         ImmutableList.<TraversalConfig>builder()
             // entityType, includeSelf, persist, traverseProducers
@@ -80,14 +82,34 @@ public class EntitySeverityCache {
             // There is always a link between VM->VDC->PM and VM->PM
             // Virtual Machine must process after STORAGE, PHYSICAL_MACHINE, and VIRTUAL_VOLUME
             // because those results are used in the Virtual Machine's calculation.
-            .add(new TraversalConfig(EntityType.VIRTUAL_MACHINE, true, false, true,
+            .add(new TraversalConfig(EntityType.VIRTUAL_MACHINE, true, false, true, false,
                 // VIRTUAL_VOLUME producer is not available in the producers list from the repository.
                 // It's in the connected to list. All other entity types have the needed producers
                 // in the api producers list.
                 ImmutableSet.of(EntityType.VIRTUAL_VOLUME)))
-            .add(new TraversalConfig(EntityType.WORKLOAD_CONTROLLER, true, false, false))
-            // database/app could be hosted on container
+            //
+            // Traversal across the Container "square" is as follows:
+            //
+            //  Container <-------- ContainerSpec
+            //      ^                      X
+            //      |                      X
+            // ContainerPod ----> WorkloadController
+            //                             |
+            //                             V
+            //                         Namespace
+            //
+            // Notes:
+            // 1. No traversal/accumulation between ContainerSpec and WorkloadController; they
+            //    essentially have the same actions: the WorkloadController's actions are the
+            //    aggregates of the ContainerSpec's.
+            // 2. ContainerPod -> WorkloadController -> Namespace is traversing the consumers
+            //    relationship. This way we get desired accumulation towards the Namespace.
+            //
             .add(new TraversalConfig(EntityType.CONTAINER_POD, true, false, true))
+            .add(new TraversalConfig(EntityType.WORKLOAD_CONTROLLER, true, false, false, true))
+            .add(new TraversalConfig(EntityType.NAMESPACE, true, true, false, true))
+            .add(new TraversalConfig(EntityType.CONTAINER_SPEC, true, false, false))
+            .add(new TraversalConfig(EntityType.CONTAINER, true, false, true))
             .add(new TraversalConfig(EntityType.DATABASE_SERVER, true, false, true))
             // A database can be an instance running on a database server
             .add(new TraversalConfig(EntityType.DATABASE, true, false, true))
@@ -273,6 +295,12 @@ public class EntitySeverityCache {
                     }
                 }
 
+                if (traversalConfig.traverseConsumers) {
+                    for (ActionGraphEntity provider : entity.getConsumers()) {
+                        severityBreakdown.combine(temporarySeverities.get(provider.getOid()));
+                    }
+                }
+
                 if (!traversalConfig.connectedEntities.isEmpty()) {
                     for (ActionGraphEntity connectedEntity : entity.getOutboundAssociatedEntities()) {
                         if (traversalConfig.connectedEntities.contains(EntityType.forNumber(connectedEntity.getEntityType()))) {
@@ -316,6 +344,7 @@ public class EntitySeverityCache {
         public final boolean includeSelf;
         public final boolean persist;
         public final boolean traverseProducers;
+        public final boolean traverseConsumers;
         public final Set<EntityType> connectedEntities;
 
         /**
@@ -332,6 +361,9 @@ public class EntitySeverityCache {
          *                {@link com.vmturbo.action.orchestrator.rpc.EntitySeverityRpcService}.
          * @param traverseProducers true if we should accumulate the severity breakdowns from the
          *                          producers of the entity.
+         * @param traverseConsumers true if we should accumulate the severity breakdowns from the
+         *                          consumers of the entity. This allows accumulation for entities
+         *                          such as namespace and cluster.
          * @param connectedEntities The types of the connected entities we should accumulate
          *                          severity breakdowns from. Sometimes the relationship we need
          *                          for gather severity breakdowns is not available in the
@@ -344,20 +376,32 @@ public class EntitySeverityCache {
             final boolean includeSelf,
             final boolean persist,
             final boolean traverseProducers,
+            final boolean traverseConsumers,
             @Nonnull Set<EntityType> connectedEntities) {
             this.entityType = entityType;
             this.includeSelf = includeSelf;
             this.persist = persist;
             this.traverseProducers = traverseProducers;
+            this.traverseConsumers = traverseConsumers;
             this.connectedEntities = connectedEntities;
         }
 
         private TraversalConfig(
-            final EntityType entityType,
-            final boolean includeSelf,
-            final boolean persist,
-            final boolean traverseProducers) {
-            this(entityType, includeSelf, persist, traverseProducers, Collections.emptySet());
+                final EntityType entityType,
+                final boolean includeSelf,
+                final boolean persist,
+                final boolean traverseProducers,
+                final boolean traverseConsumers) {
+            this(entityType, includeSelf, persist, traverseProducers, traverseConsumers,
+                    Collections.emptySet());
+        }
+
+        private TraversalConfig(
+                final EntityType entityType,
+                final boolean includeSelf,
+                final boolean persist,
+                final boolean traverseProducers) {
+            this(entityType, includeSelf, persist, traverseProducers, false);
         }
     }
 
