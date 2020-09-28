@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -323,6 +324,14 @@ public class ActionsService implements IActionsService {
             EntityActionPaginationRequest paginationRequest)
         throws Exception {
 
+        final Function<String, String> invalidScopeMessage =
+            (uuid) -> "Failed to map uuid " + uuid + " to Api ID.";
+        final Function<String, String> internalFailureMessage =
+            (scopes) -> "Exception getting actions by scope for scopes [" + scopes + "]";
+
+        if (actionScopesApiInputDTO.getActionInput() == null) {
+            throw new IllegalArgumentException("Null ActionApiInputDTO is not allowed");
+        }
         if (nestedDefaultPaginationRequest == null) {
             logger.error("Nested default pagination request for actions did not initialize properly");
             return paginationRequest.allResultsResponse(Collections.emptyList());
@@ -339,11 +348,11 @@ public class ActionsService implements IActionsService {
                     try {
                         return uuidMapper.fromUuid(uuid);
                     } catch (Exception e) {
-                        logger.error("Failed to map uuid {} to Api ID.", uuid, e);
-                        return null;
+                        final String message = invalidScopeMessage.apply(uuid);
+                        logger.error(message, e);
+                        throw new IllegalArgumentException(message, e);
                     }
                 })
-                .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
             // relatedType indicates that scope should be expanded and per-entity actions returned
             // rather than aggregated.
@@ -396,13 +405,16 @@ public class ActionsService implements IActionsService {
                                 (x) -> new HashSet<>()).add(scope);
                         }
                         return dto;
+                    } catch (OperationFailedException e) {
+                        final String message = invalidScopeMessage.apply(dto.getUuid());
+                        logger.error(message, e);
+                        throw new IllegalArgumentException(message, e);
                     } catch (Exception e) {
-                        logger.error("Exception getting actions by scope for scope {}. Error: {}",
-                                dto.getUuid(), e.getLocalizedMessage());
-                        return null;
+                        final String message = internalFailureMessage.apply(dto.getUuid());
+                        logger.error(message, e);
+                        throw new RuntimeException(message, e);
                     }
                 })
-                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
             final Map<Long, List<ActionApiDTO>> actionsByScope = new HashMap<>();
@@ -415,23 +427,30 @@ public class ActionsService implements IActionsService {
                         actionsByScope.putAll(contextResult);
                     }
                 } catch (Exception e) {
-                    logger.error("Exception getting actions by scope for scopes {} in context {}",
-                        scopesForContext, contextId, e);
+                    final String message = internalFailureMessage.apply(scopesForContext.stream()
+                        .map(ApiId::uuid)
+                        .collect(Collectors.joining(", "))) + " in context " + contextId;
+                    logger.error(message, e);
+                    throw new RuntimeException(message, e);
                 }
             });
 
            final List<EntityActionsApiDTO> dtosWithAllActions =  dtosWithPartialActions.stream()
                .map(dto -> {
-                   final Long oid = Long.valueOf(dto.getUuid());
-                   if (actionsByScope.containsKey(oid)) {
-                       dto.setActions(actionsByScope.get(oid));
+                   try {
+                       // uuidMapper is necessary to handle special-case uuids e.g. Market
+                       final long oid = uuidMapper.fromUuid(dto.getUuid()).oid();
+                       if (actionsByScope.containsKey(oid)) {
+                           dto.setActions(actionsByScope.get(oid));
+                       }
+                       return dto;
+                   } catch (OperationFailedException e) {
+                       final String message = invalidScopeMessage.apply(dto.getUuid());
+                       logger.error(message, e);
+                       throw new IllegalArgumentException(message, e);
                    }
-                   if (dto.getActions() == null) {
-                       return null;
-                   }
-                   return dto;
-               }).filter(Objects::nonNull)
-               .collect(Collectors.toList());
+
+               }).collect(Collectors.toList());
             if (limit + skipCount >= totalCount) {
                 return paginationRequest.finalPageResponse(dtosWithAllActions, totalCount);
             } else {

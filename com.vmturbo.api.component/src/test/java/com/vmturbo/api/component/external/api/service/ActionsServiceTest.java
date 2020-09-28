@@ -60,6 +60,7 @@ import com.vmturbo.api.dto.action.ScopeUuidsApiInputDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.pagination.EntityActionPaginationRequest;
 import com.vmturbo.api.pagination.EntityActionPaginationRequest.EntityActionPaginationResponse;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -357,14 +358,14 @@ public class ActionsServiceTest {
         when(scope4.getTopologyContextId()).thenReturn(876L);
         when(scope4.getDisplayName()).thenReturn("def");
 
-        // discard uuid which can't be mapped to a scope
-        final String uuid5 = "567";
+        final ActionPaginationResponse mockResponse = mock(ActionPaginationResponse.class);
+        when(marketsService.getActionsByMarketUuid(any(), any(), any())).thenReturn(mockResponse);
 
         final EntityActionPaginationRequest paginationRequest = new EntityActionPaginationRequest(cursor, null, true, null);
         final ActionScopesApiInputDTO inputDto = new ActionScopesApiInputDTO();
 
-        // start out with five uuids in the input DTO
-        inputDto.setScopes(ImmutableList.of(uuid1, uuid2, uuid3, uuid4, uuid5));
+        // start out with 4 uuids in the input DTO
+        inputDto.setScopes(ImmutableList.of(uuid1, uuid2, uuid3, uuid4));
         final EntityActionPaginationResponse result =
             actionsServiceUnderTest.getActionsByUuidsQuery(inputDto, paginationRequest);
 
