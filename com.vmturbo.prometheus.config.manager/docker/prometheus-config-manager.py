@@ -13,7 +13,7 @@ import requests
 import sys
 import time
 import yaml
-import uuid
+import consul
 
 if len(sys.argv) < 2:
     print(datetime.now(), "ERROR: Insufficient arguments! Usage: ", sys.argv[0],
@@ -29,6 +29,8 @@ telemetry_labels_url = "http://auth:8080/LicenseManagerService/getLicenses"
 # part (which is currently empty) isn't taken into account. A better way would be to pass the
 # URL as an argument to this script and container.
 prometheus_reload_url = "http://prometheus-server:9090/-/reload"
+consul_hostname = "consul"
+consul_port = "8500"
 
 while True:
     # Read Prometheus configuration coming from Kubernetes through a config map.
@@ -44,16 +46,12 @@ while True:
         customer_domain = prometheus_old_config['global']['external_labels']['customer_domain']
         customer_id = prometheus_old_config['global']['external_labels']['customer_id']
         instance_id = prometheus_old_config['global']['external_labels']['instance_id']
-        if instance_id == "00000000-0000-0000-0000-000000000000":
-            instance_id = str(uuid.uuid4())
     except (yaml.YAMLError, OSError, KeyError) as error:
         print(datetime.now(), "WARNING: Can't get old values. Using defaults. Cause:", error)
         old_remote_writers = []
         customer_domain = "unlicensed"
         customer_id = "000000"
         instance_id = "00000000-0000-0000-0000-000000000000"
-    finally:
-        prometheus_new_config['global']['external_labels']['instance_id'] = instance_id
 
     try:
         try:
@@ -110,6 +108,16 @@ while True:
         finally:
             prometheus_new_config['global']['external_labels']['customer_domain'] = customer_domain
             prometheus_new_config['global']['external_labels']['customer_id'] = customer_id
+
+        try:
+            # Ask consul for the instance_id saved there by clustermgr.
+            consul_client = consul.Consul(host=consul_hostname, port=consul_port)
+            instance_id = consul_client.kv.get('instanceID')[1]['Value'].decode('utf-8')
+        except (requests.RequestException, OSError, ValueError, consul.ConsulException) as error:
+            print(datetime.now(),
+                  "WARNING: Can't get instance ID from consul. Using old value. Cause:", error)
+        finally:
+            prometheus_new_config['global']['external_labels']['instance_id'] = instance_id
     finally:
         # Write the modified configuration where Prometheus can pick it up.
         yaml.safe_dump(prometheus_new_config, open(output_config_path, "w"))
