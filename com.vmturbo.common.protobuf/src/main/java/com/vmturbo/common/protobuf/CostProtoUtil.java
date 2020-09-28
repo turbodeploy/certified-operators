@@ -164,7 +164,7 @@ public class CostProtoUtil {
      * @return factor for dividing/ multiplication.
      */
 
-    public static float calculateFactorForStorageAmount(final int commodityType, final int actionTargetEntityType) {
+    public static float calculateFactorForCommodityValues(final int commodityType, final int actionTargetEntityType) {
         return (commodityType == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE
                 && (actionTargetEntityType == EntityType.DATABASE_VALUE
                 || actionTargetEntityType == EntityType.VIRTUAL_VOLUME_VALUE)) ? Units.KBYTE : 1.0f;

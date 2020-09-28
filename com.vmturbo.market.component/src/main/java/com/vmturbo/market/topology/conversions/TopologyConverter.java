@@ -1,6 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
-import static com.vmturbo.common.protobuf.CostProtoUtil.calculateFactorForStorageAmount;
+import static com.vmturbo.common.protobuf.CostProtoUtil.calculateFactorForCommodityValues;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -191,7 +191,6 @@ public class TopologyConverter {
                 put(EntityType.DATABASE_VALUE,
                         ImmutableSet.of(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE));
             }};
-
 
     private static final double MINIMUM_ACHIEVABLE_IOPS_PERCENTAGE = 0.05;
 
@@ -1981,7 +1980,7 @@ public class TopologyConverter {
                 CommoditySoldTO.Builder::setPeakQuantity)
                 .stream().map(CommoditySoldTO.Builder::build).collect(Collectors.toList());
         return mergedCommodities.stream()
-                    .map(commoditySoldTO -> commSoldTOtoCommSoldDTO(traderTO.getOid(), commoditySoldTO,
+                    .map(commoditySoldTO -> commSoldTOtoCommSoldDTO(traderTO, commoditySoldTO,
                         timeSlotsByCommType))
                     .filter(Optional::isPresent)
                     .map(Optional::get)
@@ -3525,7 +3524,7 @@ public class TopologyConverter {
                             .orElse(null);
                     float oldCapacity = (volumeSold == null) ? 0f : (float)volumeSold.getCapacity();
                     // Convert cloud volume StorageAmount quantity from MB to GB
-                    float factor = calculateFactorForStorageAmount(commodityType, buyerEntityType);
+                    float factor = calculateFactorForCommodityValues(commodityType, buyerEntityType);
                     quantity /= factor;
                     peakQuantity /= factor;
                     oldCapacity /= factor;
@@ -3676,17 +3675,18 @@ public class TopologyConverter {
      * Note that if the original CommoditySoldDTO has a 'scaleFactor', then
      * we reverse the scaling that had been done on the way in to the market.
      *
-     * @param traderOid The ID of the trader selling the commodity.
+     * @param traderTO The TraderTO of the trader selling the commodity.
      * @param commSoldTO the market CommdditySoldTO to convert
      * @param timeSlotsByCommType Timeslot values arranged by {@link CommodityBoughtTO}
      * @return a {@link CommoditySoldDTO} equivalent to the original.
      */
     @Nonnull
     private Optional<TopologyDTO.CommoditySoldDTO> commSoldTOtoCommSoldDTO(
-            final long traderOid,
+            final TraderTO traderTO,
             @Nonnull final CommoditySoldTO commSoldTO,
             @Nonnull Map<CommodityType, List<Double>> timeSlotsByCommType) {
 
+        final long traderOid = traderTO.getOid();
         float peak = commSoldTO.getPeakQuantity();
         if (peak < 0) {
             conversionErrorCounts.recordError(ErrorCategory.PEAK_NEGATIVE,
@@ -3728,7 +3728,7 @@ public class TopologyConverter {
                 .setMaxQuantity((float)reverseScaleComm(commSoldTO.getMaxQuantity(),
                         originalCommoditySold, CommoditySoldDTO::getScalingFactor))
                 .build();
-        double capacity = getCapacityForCommodity(adjustedCommSoldTO, marketTier, commType, traderOid);
+        double capacity = updateCommoditySoldCapacity(traderTO, commType, marketTier, adjustedCommSoldTO);
         CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder()
             .setCapacity(capacity)
             .setUsed(adjustedCommSoldTO.getQuantity())
@@ -3778,6 +3778,49 @@ public class TopologyConverter {
         }
 
         return Optional.of(commoditySoldBuilder.build());
+    }
+
+    /**
+     * This method allows us to use assignedCapacityForBuyer if available. Right now this is only allowed for
+     * entities and commodities combos in {@link #OLD_CAPACITY_REQUIRED_ENTITIES_TO_COMMODITIES}.
+     *
+     * @param traderTO           {@link TraderTO} whose commoditiesSold are to be converted into DTOs.
+     * @param commType           commodity type.
+     * @param marketTier         the primary market tier.
+     * @param adjustedCommSoldTO commodity sold.
+     * @return double capacity value.
+     */
+    private double updateCommoditySoldCapacity(final @Nonnull TraderTO traderTO,
+                                               final @Nonnull CommodityType commType,
+                                               final @Nonnull MarketTier marketTier,
+                                               final @Nonnull CommoditySoldTO adjustedCommSoldTO) {
+        // Filter based on if the current CommodityType and entityType matches.
+        final int entityType = traderTO.getType();
+        if (OLD_CAPACITY_REQUIRED_ENTITIES_TO_COMMODITIES.containsKey(entityType) &&
+                OLD_CAPACITY_REQUIRED_ENTITIES_TO_COMMODITIES.get(traderTO.getType()).contains(commType.getType())) {
+
+            // Sorted list of commodityBoughtTOs with matching commType.
+            List<CommodityBoughtTO> commodityBoughtTOs =
+                    traderTO.getShoppingListsList()
+                            .stream().map(shoppingListTO -> {
+                        Optional<CommodityBoughtTO> commBoughtOpt = shoppingListTO.getCommoditiesBoughtList().stream()
+                                .filter(commBought -> commBought.getSpecification().hasBaseType()
+                                        && commBought.getSpecification().getBaseType() == commType.getType()
+                                        && commBought.hasAssignedCapacityForBuyer()).findFirst();
+                        return commBoughtOpt.orElse(null);
+                    }).filter(Objects::nonNull)
+                            .sorted((o1, o2) -> Float.compare(o1.getAssignedCapacityForBuyer(), o2.getAssignedCapacityForBuyer()))
+                            .collect(Collectors.toList());
+
+            // If the list of commodityBoughtTOs is not empty, Return the smallest assignedCapacityForBuyer as capacity.
+            if (!commodityBoughtTOs.isEmpty()) {
+                CommodityBoughtTO commodityBoughtTO = commodityBoughtTOs.iterator().next();
+                return commodityBoughtTO.getAssignedCapacityForBuyer() *
+                        calculateFactorForCommodityValues(commType.getType(), entityType);
+            }
+        }
+        // If assignedCapacityForBuyer is not available, get capacity from commSoldTO.
+        return getCapacityForCommodity(adjustedCommSoldTO, marketTier, commType, traderTO.getOid());
     }
 
     /**
