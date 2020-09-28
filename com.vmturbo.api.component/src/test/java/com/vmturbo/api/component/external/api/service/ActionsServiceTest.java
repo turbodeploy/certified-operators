@@ -60,6 +60,7 @@ import com.vmturbo.api.dto.action.ScopeUuidsApiInputDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.pagination.EntityActionPaginationRequest;
 import com.vmturbo.api.pagination.EntityActionPaginationRequest.EntityActionPaginationResponse;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -325,8 +326,10 @@ public class ActionsServiceTest {
     public void testGetActionsByUuidsQuery() throws Exception {
 
         // when no uuids are provided, return an empty response.
+        final ActionScopesApiInputDTO inputDto = new ActionScopesApiInputDTO();
+        inputDto.setActionInput(new ActionApiInputDTO());
         final EntityActionPaginationResponse responseShouldBeEmpty =
-            actionsServiceUnderTest.getActionsByUuidsQuery(new ActionScopesApiInputDTO(),
+            actionsServiceUnderTest.getActionsByUuidsQuery(inputDto,
                 new EntityActionPaginationRequest(null, null, true, null));
         assertEquals(0, responseShouldBeEmpty.getRawResults().size());
 
@@ -357,14 +360,13 @@ public class ActionsServiceTest {
         when(scope4.getTopologyContextId()).thenReturn(876L);
         when(scope4.getDisplayName()).thenReturn("def");
 
-        // discard uuid which can't be mapped to a scope
-        final String uuid5 = "567";
+        final ActionPaginationResponse mockResponse = mock(ActionPaginationResponse.class);
+        when(marketsService.getActionsByMarketUuid(any(), any(), any())).thenReturn(mockResponse);
 
         final EntityActionPaginationRequest paginationRequest = new EntityActionPaginationRequest(cursor, null, true, null);
-        final ActionScopesApiInputDTO inputDto = new ActionScopesApiInputDTO();
 
-        // start out with five uuids in the input DTO
-        inputDto.setScopes(ImmutableList.of(uuid1, uuid2, uuid3, uuid4, uuid5));
+        // start out with 4 uuids in the input DTO
+        inputDto.setScopes(ImmutableList.of(uuid1, uuid2, uuid3, uuid4));
         final EntityActionPaginationResponse result =
             actionsServiceUnderTest.getActionsByUuidsQuery(inputDto, paginationRequest);
 
@@ -375,9 +377,10 @@ public class ActionsServiceTest {
         verify(actionSearchUtil).getActionsByScopes(eq(Collections.singleton(scope3)), any(), eq(987L));
         verify(actionSearchUtil).getActionsByScopes(eq(Collections.singleton(scope4)), any(), eq(876L));
 
-        // only one scope is represented in the result, because that was the only scope for which there were actions.
-        assertEquals(1, result.getRawResults().size());
-        assertEquals(uuid3, result.getRawResults().get(0).getUuid());
-        assertEquals(2, result.getRawResults().get(0).getActions().size());
+        assertEquals(3, result.getRawResults().size());
+        assertEquals(2, result.getRawResults().stream()
+            .filter(a -> uuid3.equals(a.getUuid()))
+            .mapToLong(a -> a.getActions().size())
+            .sum());
     }
 }
