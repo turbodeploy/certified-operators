@@ -340,43 +340,77 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
         for (Map.Entry<Long, EntityCost> entry : originalEntityCosts.entrySet()) {
             final long entityId = entry.getKey();
             final EntityCost entityCost = entry.getValue();
-            Double onDemandRate = null;
+            Double computeRate = null;
+            Double licenseRate = null;
             boolean hasRiDiscount = false;
             for (ComponentCost cc : entityCost.getComponentCostList()) {
-                if (!cc.hasCostSource() || !cc.hasCategory()
-                        || cc.getCategory() != CostCategory.ON_DEMAND_COMPUTE) {
+                if (!cc.hasCategory() || !cc.hasCostSource()) {
                     continue;
                 }
                 if (cc.getCostSource() == CostSource.RI_INVENTORY_DISCOUNT) {
                     hasRiDiscount = true;
                 }
-                if (cc.getCostSource() == CostSource.ON_DEMAND_RATE) {
-                    onDemandRate = cc.getAmount().getAmount();
+                if (cc.getCategory() == CostCategory.ON_DEMAND_COMPUTE
+                        && cc.getCostSource() == CostSource.ON_DEMAND_RATE) {
+                    computeRate = cc.getAmount().getAmount();
+                } else if (cc.getCategory() == CostCategory.ON_DEMAND_LICENSE
+                        && cc.getCostSource() == CostSource.ON_DEMAND_RATE) {
+                    licenseRate = cc.getAmount().getAmount();
                 }
             }
-            if (hasRiDiscount || onDemandRate == null) {
+            // Skip if RI discount is already there or no new rates (compute/license) to update.
+            if (hasRiDiscount || (computeRate == null && licenseRate == null)) {
                 continue;
             }
             final EntityReservedInstanceCoverage riCoverage = coverageMap.get(entityId);
             int totalCoupons = riCoverage.getEntityCouponCapacity();
             double usedCoupons = planProjectedRICoverageAndUtilStore.getAggregatedEntityRICoverage(
                     Collections.singletonList(riCoverage)).values().iterator().next();
+            if (totalCoupons == 0 && usedCoupons > 0d) {
+                // In case totalCoupons is 0, but we have a valid usedCoupon count, set total.
+                totalCoupons = (int)usedCoupons;
+            }
             usedCouponsToUpdate.put(entityId, usedCoupons);
-            double riDiscount = -1 * onDemandRate * (usedCoupons / totalCoupons);
-            final EntityCost newEntityCost = EntityCost.newBuilder(entityCost)
-                    .addComponentCost(ComponentCost.newBuilder()
-                            .setAmount(CurrencyAmount.newBuilder()
-                                    .setCurrency(entityCost.getTotalAmount().getCurrency())
-                                    .setAmount(riDiscount).build())
-                            .setCategory(CostCategory.ON_DEMAND_COMPUTE)
-                            .setCostSource(CostSource.RI_INVENTORY_DISCOUNT)
-                            .build())
-                    .setTotalAmount(CurrencyAmount.newBuilder()
-                            .setCurrency(entityCost.getTotalAmount().getCurrency())
-                            .setAmount(entityCost.getTotalAmount().getAmount() + riDiscount)
-                            .build())
-                    .build();
-            entityCostsToUpdate.put(entityId, newEntityCost);
+            final EntityCost.Builder newCostBuilder = EntityCost.newBuilder(entityCost);
+            if (computeRate != null) {
+                updateRiDiscountedCost(CostCategory.ON_DEMAND_COMPUTE, totalCoupons, usedCoupons,
+                        newCostBuilder, computeRate);
+            }
+            if (licenseRate != null) {
+                updateRiDiscountedCost(CostCategory.ON_DEMAND_LICENSE, totalCoupons, usedCoupons,
+                        newCostBuilder, licenseRate);
+            }
+            entityCostsToUpdate.put(entityId, newCostBuilder.build());
         }
+    }
+
+    /**
+     * Updates entity cost after taking RI discount into account, to be updated back
+     * to the entity costs table.
+     *
+     * @param costCategory Type of cost (compute or license).
+     * @param totalCoupons Total coupon capacity.
+     * @param usedCoupons Number of used coupons.
+     * @param costBuilder Cost builder to update.
+     * @param onDemandRate Compute or license rate on which discount needs to be applied.
+     */
+    private void updateRiDiscountedCost(CostCategory costCategory, int totalCoupons,
+            double usedCoupons, @Nonnull final EntityCost.Builder costBuilder, double onDemandRate) {
+        double riDiscount = totalCoupons == 0 ? 0d
+                : -1 * onDemandRate * (usedCoupons / totalCoupons);
+        costBuilder.addComponentCost(ComponentCost.newBuilder()
+                .setAmount(CurrencyAmount.newBuilder()
+                        .setCurrency(costBuilder.getTotalAmount().getCurrency())
+                        .setAmount(riDiscount).build())
+                .setCategory(costCategory)
+                .setCostSource(CostSource.RI_INVENTORY_DISCOUNT)
+                .build())
+                // Because we added a discount (negative cost), we need to reduce the total by that
+                // amount, so the negative discount is being added to the total below.
+                .setTotalAmount(CurrencyAmount.newBuilder()
+                        .setCurrency(costBuilder.getTotalAmount().getCurrency())
+                        .setAmount(costBuilder.getTotalAmount().getAmount() + riDiscount)
+                        .build())
+                .build();
     }
 }
