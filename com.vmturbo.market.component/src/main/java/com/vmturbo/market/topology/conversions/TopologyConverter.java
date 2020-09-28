@@ -1264,15 +1264,18 @@ public class TopologyConverter {
 
         TopologyEntityDTO entityDTO = entityDTOBuilder.build();
         topologyEntityDTOs.add(entityDTO);
+        // when source volume is on-prem volume with volumeId
         topologyEntityDTOs.addAll(createResources(entityDTO));
-        topologyEntityDTOs.addAll(createCollapsedTopologyEntityDTOs(collapsedShoppingLists,
+        // when source volume is cloud volume with collapsedBuyerId
+        topologyEntityDTOs.addAll(createCollapsedTopologyEntityDTOs(entityDTO, collapsedShoppingLists,
             reservedCapacityAnalysis));
         return topologyEntityDTOs;
     }
 
     private List<TopologyEntityDTO> createCollapsedTopologyEntityDTOs(
-        final List<ShoppingListTO> collapsedShoppingList,
-        final ReservedCapacityAnalysis reservedCapacityAnalysis) {
+            final TopologyEntityDTO projectedEntityForConsumerOfCollapsedEntity,
+            final List<ShoppingListTO> collapsedShoppingList,
+            final ReservedCapacityAnalysis reservedCapacityAnalysis) {
         final List<TopologyEntityDTO> result = new ArrayList<>();
         for (final ShoppingListTO shoppingListTO : collapsedShoppingList) {
             final Optional<Long> collapsedEntityId = Optional.ofNullable(shoppingListOidToInfos
@@ -1295,10 +1298,9 @@ public class TopologyConverter {
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .collect(Collectors.toList());
-                projectedEntity.addCommoditiesBoughtFromProviders(
-                    createCommoditiesBoughtFromProvider(shoppingListTO, boughtCommodityDTOS,
-                        collapsedEntityDTO.getOid()));
-
+                CommoditiesBoughtFromProvider commBoughtGrouping = createCommoditiesBoughtFromProvider(
+                        shoppingListTO, boughtCommodityDTOS, collapsedEntityDTO.getOid());
+                projectedEntity.addCommoditiesBoughtFromProviders(commBoughtGrouping);
                 final List<CommoditySoldDTO> soldDTOS =
                     createCommoditySoldFromCommBoughtTO(collapsedEntityDTO,
                         shoppingListTO.getCommoditiesBoughtList());
@@ -1308,8 +1310,12 @@ public class TopologyConverter {
                 if (collapsedEntityDTO.hasOrigin()) {
                     projectedEntity.setOrigin(collapsedEntityDTO.getOrigin());
                 }
-                createConnectedAzOrRegion(collapsedEntityDTO)
+                // Connect collapsed entity with the AZ/Region of its consumer's AZ/Region.
+                // i.e. For cloud volumes, connect projected cloud volumes with the same AZ/Region
+                // as the projected VM that the volumes are attached to.
+                createConnectedAzOrRegion(projectedEntityForConsumerOfCollapsedEntity)
                     .ifPresent(projectedEntity::addConnectedEntityList);
+                addMissingStorageAccessForLiftAndShiftPlan(commBoughtGrouping, projectedEntity);
                 result.add(projectedEntity.build());
             }
         }
@@ -1722,19 +1728,7 @@ public class TopologyConverter {
                                 volume.addCommoditySoldList(commSoldBuilder);
                             }
                         }
-                        boolean storageAccessCommodityPresent = commBoughtGrouping.getCommodityBoughtList().stream()
-                                .anyMatch(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE);
-                        if (!storageAccessCommodityPresent) {
-                            // storage access commodity is not in the commodity list for the Lift&Shift
-                            // plan because it is disabled and not sent to the market. In this case,
-                            // we add the storage access commodity sold for the volume here. We don't
-                            // need the storage access usage value to determine the IOPS capacity for
-                            // GP2 and Azure Managed Premium.
-                            CommoditySoldDTO.Builder commSoldBuilder = CommoditySoldDTO.newBuilder()
-                                    .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE));
-                            setStorageAmountSoldCapacityForVolume(commSoldBuilder, commBoughtGrouping);
-                            volume.addCommoditySoldList(commSoldBuilder);
-                        }
+                        addMissingStorageAccessForLiftAndShiftPlan(commBoughtGrouping, volume);
                     }
 
                     copyStaticAttributes(originalVolume, volume);
@@ -1744,6 +1738,26 @@ public class TopologyConverter {
             }
         }
         return resources;
+    }
+
+    private void addMissingStorageAccessForLiftAndShiftPlan(CommoditiesBoughtFromProvider commBoughtGrouping,
+                                                            TopologyEntityDTO.Builder volume) {
+        if (commBoughtGrouping.getProviderEntityType() != EntityType.STORAGE_TIER_VALUE) {
+            return;
+        }
+        boolean storageAccessCommodityPresent = commBoughtGrouping.getCommodityBoughtList().stream()
+                .anyMatch(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE);
+        if (!storageAccessCommodityPresent) {
+            // storage access commodity is not in the commodity list for the Lift&Shift
+            // plan because it is disabled and not sent to the market. In this case,
+            // we add the storage access commodity sold for the volume here. We don't
+            // need the storage access usage value to determine the IOPS capacity for
+            // GP2 and Azure Managed Premium.
+            CommoditySoldDTO.Builder commSoldBuilder = CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE));
+            setStorageAmountSoldCapacityForVolume(commSoldBuilder, commBoughtGrouping);
+            volume.addCommoditySoldList(commSoldBuilder);
+        }
     }
 
     private Optional<ConnectedEntity> createConnectedAzOrRegion(
@@ -3128,7 +3142,6 @@ public class TopologyConverter {
             // Turn off movable for cloud scaling group members that are not group leaders.
             isMovable &= addGroupFactor && consistentScalingHelper.getGroupFactor(entityForSL) > 0;
         }
-
         final EconomyDTOs.ShoppingListTO.Builder economyShoppingListBuilder = EconomyDTOs.ShoppingListTO
                 .newBuilder()
                 .setOid(id)

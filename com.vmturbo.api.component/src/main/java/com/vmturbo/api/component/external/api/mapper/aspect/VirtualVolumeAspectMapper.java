@@ -498,13 +498,15 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             List<CommoditiesBoughtFromProvider> virtualDiskCommBoughtLists =
                     vm.getCommoditiesBoughtFromProvidersList().stream()
                             .filter(commList -> commList.getProviderEntityType() == EntityType.STORAGE_VALUE
-                                    || commList.getProviderEntityType() == EntityType.STORAGE_TIER_VALUE)
+                                    || commList.getProviderEntityType() == EntityType.STORAGE_TIER_VALUE
+                                    || commList.getProviderEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
                             .collect(Collectors.toList());
 
 
             List<VirtualDiskApiDTO> virtualDiskList = new ArrayList<>();
             for (CommoditiesBoughtFromProvider commList : virtualDiskCommBoughtLists) {
-                long volId = commList.getVolumeId();
+                // get volumeId for on-prem, and get providerId for cloud.
+                long volId = commList.hasVolumeId() ? commList.getVolumeId() : commList.getProviderId();
                 Collection<StatApiDTO> costStats = volIdToCostStatsMap.get(volId);
                 Map<Long, List<CommodityBoughtDTO>> volIdToCommListMap = beforePlanVolIdToCommListMap.get(vm.getOid());
                 List<CommodityBoughtDTO> sourceCommList = volIdToCommListMap != null ? volIdToCommListMap.get(volId) : null;
