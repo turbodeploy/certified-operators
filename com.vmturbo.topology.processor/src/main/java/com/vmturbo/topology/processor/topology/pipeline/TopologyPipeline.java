@@ -95,7 +95,8 @@ public class TopologyPipeline<I, O> extends
     protected TracingScope startPipelineTrace() {
         return Tracing.trace(getContext().getTopologyTypeName() + " Broadcast", TracingManager.alwaysOnTracer()).tag("context_id",
                 getContext().getTopologyInfo().getTopologyContextId()).tag("topology_id",
-                getContext().getTopologyInfo().getTopologyContextId());
+                getContext().getTopologyInfo().getTopologyContextId())
+            .baggageItem(Tracing.DISABLE_DB_TRACES_BAGGAGE_KEY, "");
     }
 
     protected TracingScope startStageTrace(String stageName) {

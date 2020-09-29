@@ -16,11 +16,11 @@ import javax.annotation.Nonnull;
 
 import com.google.protobuf.AbstractMessage;
 
-import io.opentracing.contrib.kafka.TracingKafkaProducer;
 import io.prometheus.client.Counter;
 import io.prometheus.client.Gauge;
 
 import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.errors.RetriableException;
@@ -34,7 +34,7 @@ import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.ConfigurableBackoffStrategy;
 import com.vmturbo.components.api.RetriableOperation.ConfigurableBackoffStrategy.BackoffType;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
-import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.TracingKafkaProducerInterceptor;
 
 /**
  * Creates kafka-based message senders.
@@ -74,7 +74,7 @@ public class KafkaMessageProducer implements AutoCloseable, IMessageSenderFactor
             .labelNames("topic")
             .register();
 
-    private final TracingKafkaProducer<String, byte[]> producer;
+    private final KafkaProducer<String, byte[]> producer;
     private final Logger logger = LogManager.getLogger(getClass());
     private final AtomicLong msgCounter = new AtomicLong(0);
     private final String namespacePrefix;
@@ -137,8 +137,9 @@ public class KafkaMessageProducer implements AutoCloseable, IMessageSenderFactor
         props.put("buffer.memory", maxRequestSizeBytes);
         props.put("key.serializer", StringSerializer.class.getName());
         props.put("value.serializer", ByteArraySerializer.class.getName());
+        props.put(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG, TracingKafkaProducerInterceptor.class.getName());
 
-        producer = new TracingKafkaProducer<>(new KafkaProducer<>(props), Tracing.tracer());
+        producer = new KafkaProducer<>(props);
         // if we are using a total retry window greater than the kafka retry window, log it, since it
         // means we may expect to see some manual retries occurring.
         if ((totalSendRetrySecs * 1000) > deliveryTimeoutMs) {

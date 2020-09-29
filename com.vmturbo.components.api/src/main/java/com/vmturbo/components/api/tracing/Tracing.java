@@ -27,6 +27,18 @@ public class Tracing {
     private Tracing() {}
 
     /**
+     * If this key exists in a span context's baggage, indicates that we should disable
+     * traces for database interactions.
+     */
+    public static final String DISABLE_DB_TRACES_BAGGAGE_KEY = "disable_db";
+
+    /**
+     * If this key exists in a span context's baggage, indicates that we should disable
+     * traces for kafka interactions.
+     */
+    public static final String DISABLE_KAFKA_TRACES_BAGGAGE_KEY = "disable_kafka";
+
+    /**
      * Get the {@link Tracer} to use for all tracing operations.
      */
     @Nonnull
@@ -94,6 +106,26 @@ public class Tracing {
         }
 
         /**
+         * Add a baggage item to the span context for the span in this scope.
+         * For more details on baggage items see
+         * https://opentracing.io/docs/overview/tags-logs-baggage/#baggage-items
+         * <p/>
+         * Note that setting a null value for a key will clear that key from
+         * the baggage.
+         *
+         * @param key The key for the baggage item.
+         * @param value The value for the baggage item.
+         * @return {@link this} for method chaining.
+         */
+        public TracingScope baggageItem(@Nonnull final String key, @Nullable final String value) {
+            if (!closed) {
+                span.setBaggageItem(key, value);
+            }
+
+            return this;
+        }
+
+        /**
          * Get the {@link SpanContext} associated with the contained span.
          *
          * @return the {@link SpanContext} associated with the contained span.
@@ -158,6 +190,28 @@ public class Tracing {
         public OptScope tag(@Nonnull final String key, @Nullable final Number value) {
             return tag(key, value == null ? "" : value.toString());
         }
+    }
+
+    /**
+     * Enable/disable OpenTracing traces for kafka for the current Tracing span.
+     *
+     * @param enabled Whether to enable or disable tracing.
+     */
+    public static void setKafkaTracingEnabled(final boolean enabled) {
+        activeSpan().ifPresent(span ->
+            span.setBaggageItem(Tracing.DISABLE_KAFKA_TRACES_BAGGAGE_KEY, enabled ? null : ""));
+    }
+
+    /**
+     * Check whether kafka tracing is enabled for the current active span. If
+     * there is no current active span, returns false.
+     *
+     * @return whether kafka tracing is enabled for the current active span.
+     */
+    public static boolean isKafkaTracingEnabled() {
+        return activeSpan()
+            .map(span -> span.getBaggageItem(Tracing.DISABLE_KAFKA_TRACES_BAGGAGE_KEY) == null)
+            .orElse(false);
     }
 
     /**
