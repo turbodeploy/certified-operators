@@ -157,17 +157,13 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
                     .setUnknownEntityCount(request.getEntityIdsCount())
                     .build());
         } else {
-            final Map<Optional<Severity>, Long> severities = optionalCache.get().getSeverityCounts(
+            final Map<Severity, Long> severities = optionalCache.get().getSeverityCounts(
                 request.getEntityIdsList());
             final SeverityCountsResponse.Builder builder = SeverityCountsResponse.newBuilder();
             severities.forEach((severity, count) -> {
-                if (severity.isPresent()) {
-                    builder.addCounts(SeverityCount.newBuilder()
+                builder.addCounts(SeverityCount.newBuilder()
                         .setEntityCount(count)
-                        .setSeverity(severity.get()));
-                } else {
-                    builder.setUnknownEntityCount(count);
-                }
+                        .setSeverity(severity));
             });
             responseObserver.onNext(builder.build());
         }
@@ -193,9 +189,10 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
                 : Optional.empty();
         severityOptional.ifPresent(entitySeverityBuilder::setSeverity);
 
-        final Optional<EntitySeverityCache.SeverityCount> severityCountOptional = optionalCache.flatMap(entitySeverityCache -> entitySeverityCache.getSeverityBreakdown(oid));
+        final Optional<Map<Severity, Long>> severityCountOptional = optionalCache
+                .map(entitySeverityCache -> entitySeverityCache.getSeverityBreakdown(oid));
         if (severityCountOptional.isPresent()) {
-            for (Map.Entry<Severity, Integer> entry : severityCountOptional.get().getSeverityCounts()) {
+            for (Map.Entry<Severity, Long> entry : severityCountOptional.get().entrySet()) {
                 entitySeverityBuilder.putSeverityBreakdown(entry.getKey().getNumber(), entry.getValue());
             }
         }

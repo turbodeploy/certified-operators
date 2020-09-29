@@ -16,9 +16,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
+import com.vmturbo.action.orchestrator.api.EntitySeverityClientCache;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
+import com.vmturbo.common.protobuf.action.EntitySeverityNotificationOuterClass.EntitySeverityNotification;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
@@ -46,6 +48,11 @@ public class ActionOrchestratorClientConfig {
      * Kafka topic for sending action audit events.
      */
     public static final String ACTION_AUDIT_TOPIC = "external-action-audit-events";
+
+    /**
+     * Topic for severity update broadcasts.
+     */
+    public static final String SEVERITY_TOPIC = "entity-severities";
 
     @Autowired
     private BaseKafkaConsumerConfig baseKafkaConsumerConfig;
@@ -97,6 +104,44 @@ public class ActionOrchestratorClientConfig {
     public IMessageReceiver<ActionApprovalRequests> createActionApprovalRequestListener() {
         return baseKafkaConsumerConfig.kafkaConsumer().messageReceiver(
                 ACTION_APPROVAL_REQUEST_TOPIC, ActionApprovalRequests::parseFrom);
+    }
+
+    /**
+     * Asynchronous message receiver for entity severity updates.
+     *
+     * @return The {@link IMessageReceiver}.
+     */
+    @Bean
+    @Lazy
+    public IMessageReceiver<EntitySeverityNotification> entitySeverityNotificationMessageReceiver() {
+        return baseKafkaConsumerConfig.kafkaConsumer().messageReceiver(
+                SEVERITY_TOPIC, EntitySeverityNotification::parseFrom);
+    }
+
+    /**
+     * Receiver for notifications.
+     *
+     * @return {@link EntitySeverityNotificationReceiver}.
+     */
+    @Bean
+    @Lazy
+    public EntitySeverityNotificationReceiver entitySeverityNotificationReceiver() {
+        return new EntitySeverityNotificationReceiver(entitySeverityNotificationMessageReceiver(),
+                actionOrchestratorClientThreadPool(), kafkaReceiverTimeoutSeconds);
+    }
+
+    /**
+     * An {@link EntitySeverityClientCache}, which clients can use to look up severities locally
+     * instead of over gRPC.
+     *
+     * @return The {@link EntitySeverityClientCache}.
+     */
+    @Bean
+    @Lazy
+    public EntitySeverityClientCache entitySeverityClientCache() {
+        EntitySeverityClientCache clientCache = new EntitySeverityClientCache();
+        entitySeverityNotificationReceiver().addListener(clientCache);
+        return clientCache;
     }
 
     /**

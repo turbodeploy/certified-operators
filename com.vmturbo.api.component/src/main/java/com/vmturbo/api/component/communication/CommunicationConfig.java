@@ -293,6 +293,7 @@ public class CommunicationConfig {
             searchServiceStub(),
             serviceEntityMapper(),
             businessAccountMapper(),
+            mapperConfig.paginationMapper(),
             realtimeTopologyContextId);
     }
 

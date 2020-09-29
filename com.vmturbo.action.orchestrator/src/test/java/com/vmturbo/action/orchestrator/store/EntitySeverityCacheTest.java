@@ -30,7 +30,7 @@ import org.mockito.stubbing.Answer;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
-import com.vmturbo.action.orchestrator.store.EntitySeverityCache.OrderOidBySeverity;
+import com.vmturbo.action.orchestrator.api.EntitySeverityNotificationSender;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache.SeverityCount;
 import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
@@ -67,11 +67,12 @@ public class EntitySeverityCacheTest {
     private static final long ACTION_PLAN_ID = 9876;
 
     private ActionTopologyStore actionTopologyStore = mock(ActionTopologyStore.class);
+    private EntitySeverityNotificationSender notificationSender = mock(EntitySeverityNotificationSender.class);
 
     @Before
     public void setup() {
         IdentityGenerator.initPrefix(0);
-        entitySeverityCache = new EntitySeverityCache(actionTopologyStore, true);
+        entitySeverityCache = new EntitySeverityCache(actionTopologyStore, notificationSender, true);
 
         ActionRealtimeTopology actionRealtimeTopology = mock(ActionRealtimeTopology.class);
         when(actionRealtimeTopology.entityGraph())
@@ -103,7 +104,7 @@ public class EntitySeverityCacheTest {
         when(actionStore.getActionViews()).thenReturn(actionViews);
 
         entitySeverityCache.refresh(actionStore);
-        assertEquals(Optional.empty(), entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID));
+        assertEquals(Optional.of(Severity.NORMAL), entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID));
     }
 
     @Test
@@ -269,14 +270,14 @@ public class EntitySeverityCacheTest {
             severityBreakdownScenario.storage1Oid,
             severityBreakdownScenario.missingId),
             ImmutableMap.of(
-                Optional.of(Severity.MINOR), 2L,
-                Optional.of(Severity.MAJOR), 1L,
-                Optional.empty(), 1L));
+                Severity.MINOR, 2L,
+                Severity.MAJOR, 1L,
+                Severity.NORMAL, 1L));
 
-        // Missing entity should have no breaking.
-        Assert.assertFalse(
-            entitySeverityCache.getSeverityBreakdown(severityBreakdownScenario.missingId)
-                .isPresent());
+        // The cache does not distinguish between entities that do not exist and entities that
+        // simply do not have actions/breakdowns.
+        Assert.assertEquals(Collections.singletonMap(Severity.NORMAL, 1L),
+                entitySeverityCache.getSeverityBreakdown(severityBreakdownScenario.missingId));
 
         // BusinessApp1 -> BTx -> Srv -> App -> VM1 -> PM1 -> Storage1
         //                                      Minor  Minor    Major
@@ -287,23 +288,23 @@ public class EntitySeverityCacheTest {
         // BusinessApp1
         checkBothSupplyChainSeverityCountAndBreakdown(severityBreakdownScenario.businessApp1Oid,
             ImmutableMap.of(
-                Severity.MINOR, 2,
-                Severity.MAJOR, 1,
-                Severity.NORMAL, 1));
+                Severity.MINOR, 2L,
+                Severity.MAJOR, 1L,
+                Severity.NORMAL, 1L));
 
         // BusinessTx1
         checkBothSupplyChainSeverityCountAndBreakdown(severityBreakdownScenario.businessTx1Oid,
             ImmutableMap.of(
-                Severity.MINOR, 2,
-                Severity.MAJOR, 1,
-                Severity.NORMAL, 1));
+                Severity.MINOR, 2L,
+                Severity.MAJOR, 1L,
+                Severity.NORMAL, 1L));
 
         // Service1
         checkBothSupplyChainSeverityCountAndBreakdown(severityBreakdownScenario.service1Oid,
             ImmutableMap.of(
-                Severity.MINOR, 2,
-                Severity.MAJOR, 1,
-                Severity.NORMAL, 1));
+                Severity.MINOR, 2L,
+                Severity.MAJOR, 1L,
+                Severity.NORMAL, 1L));
 
         // BusinessApp2 -> BTx -> Srv -> DB -> VM2 -> PM2 -> Storage2
         //                            Critical               Major
@@ -316,23 +317,23 @@ public class EntitySeverityCacheTest {
         // BusinessApp2
         checkBothSupplyChainSeverityCountAndBreakdown(severityBreakdownScenario.businessApp2Oid,
             ImmutableMap.of(
-                Severity.CRITICAL, 1,
-                Severity.MAJOR, 1,
-                Severity.NORMAL, 2));
+                Severity.CRITICAL, 1L,
+                Severity.MAJOR, 1L,
+                Severity.NORMAL, 2L));
 
         // BusinessTx2
         checkBothSupplyChainSeverityCountAndBreakdown(severityBreakdownScenario.businessTx2Oid,
             ImmutableMap.of(
-                Severity.CRITICAL, 1,
-                Severity.MAJOR, 1,
-                Severity.NORMAL, 2));
+                Severity.CRITICAL, 1L,
+                Severity.MAJOR, 1L,
+                Severity.NORMAL, 2L));
 
         // Service2
         checkBothSupplyChainSeverityCountAndBreakdown(severityBreakdownScenario.service2Oid,
             ImmutableMap.of(
-                Severity.CRITICAL, 1,
-                Severity.MAJOR, 1,
-                Severity.NORMAL, 2));
+                Severity.CRITICAL, 1L,
+                Severity.MAJOR, 1L,
+                Severity.NORMAL, 2L));
 
         // BusinessTxn ends up using same host:
         //      --> Service1 --> App1 --> VM1 ---------------\
@@ -344,9 +345,9 @@ public class EntitySeverityCacheTest {
         // The same goes for Storage1.
         checkSeverityBreakdown(severityBreakdownScenario.businessTx3Oid,
             ImmutableMap.of(
-                Severity.MINOR, 3,
-                Severity.MAJOR, 2,
-                Severity.NORMAL, 3));
+                Severity.MINOR, 3L,
+                Severity.MAJOR, 2L,
+                Severity.NORMAL, 3L));
 
         // Service can have multiple App/DB:
         // Service4 ----> App1 -> VM1----
@@ -359,15 +360,15 @@ public class EntitySeverityCacheTest {
         // The same goes for Storage1.
         checkSeverityBreakdown(severityBreakdownScenario.service4Oid,
             ImmutableMap.of(
-                Severity.MINOR, 3,
-                Severity.MAJOR, 2,
-                Severity.NORMAL, 3));
+                Severity.MINOR, 3L,
+                Severity.MAJOR, 2L,
+                Severity.NORMAL, 3L));
 
         checkSeverityBreakdown(severityBreakdownScenario.service5Oid,
             ImmutableMap.of(
-                Severity.MINOR, 2,
-                Severity.MAJOR, 2,
-                Severity.NORMAL, 6));
+                Severity.MINOR, 2L,
+                Severity.MAJOR, 2L,
+                Severity.NORMAL, 6L));
 
         // Service on containers
         //
@@ -398,9 +399,9 @@ public class EntitySeverityCacheTest {
         //
         checkSeverityBreakdown(severityBreakdownScenario.service6Oid,
                 ImmutableMap.of(
-                        Severity.MAJOR, 8,
-                        Severity.MINOR, 12,
-                        Severity.NORMAL, 10));
+                        Severity.MAJOR, 8L,
+                        Severity.MINOR, 12L,
+                        Severity.NORMAL, 10L));
 
         // Namespace of containers
         //
@@ -418,9 +419,9 @@ public class EntitySeverityCacheTest {
         //
         checkSeverityBreakdown(severityBreakdownScenario.namespaceFooOid,
                 ImmutableMap.of(
-                        Severity.MAJOR, 4,
-                        Severity.MINOR, 4,
-                        Severity.NORMAL, 3));
+                        Severity.MAJOR, 4L,
+                        Severity.MINOR, 4L,
+                        Severity.NORMAL, 3L));
     }
 
     /**
@@ -430,7 +431,7 @@ public class EntitySeverityCacheTest {
     @Test
     public void testSeverityBreakdownDisabled() {
         entitySeverityCache = new EntitySeverityCache(
-                actionTopologyStore, false);
+                actionTopologyStore, notificationSender, false);
 
         SeverityBreakdownScenario severityBreakdownScenario = new SeverityBreakdownScenario(
             actionStore, actionTopologyStore);
@@ -439,32 +440,32 @@ public class EntitySeverityCacheTest {
         entitySeverityCache.refresh(actionStore);
 
         // severity breakdowns are disabled, so there input that returns a breakdown in the above
-        // test should return empty map here.
-        Map<Optional<Severity>, Long> actualMap =
+        // test should return normal severities.
+        Map<Severity, Long> actualMap =
             entitySeverityCache.getSeverityCounts(
                 Collections.singletonList(severityBreakdownScenario.service4Oid));
         Assert.assertEquals(1, actualMap.size());
-        Assert.assertEquals(Long.valueOf(1L), actualMap.get(Optional.empty()));
-        Assert.assertEquals(Optional.empty(),
+        Assert.assertEquals(Collections.singletonMap(Severity.NORMAL, 1L), actualMap);
+        Assert.assertEquals(Collections.singletonMap(Severity.NORMAL, 1L),
             entitySeverityCache.getSeverityBreakdown(severityBreakdownScenario.service4Oid));
     }
 
     private void checkBothSupplyChainSeverityCountAndBreakdown(
         long oid,
-        Map<Severity, Integer> expectedSeveritiesAndCounts) {
+        Map<Severity, Long> expectedSeveritiesAndCounts) {
         checkSeverityBreakdown(oid, expectedSeveritiesAndCounts);
 
         checkSupplyChainSeverityCount(
             Arrays.asList(oid),
             expectedSeveritiesAndCounts.entrySet().stream().collect(Collectors.toMap(
-                entry -> Optional.of(entry.getKey()),
+                entry -> entry.getKey(),
                 entry -> entry.getValue().longValue())));
     }
 
     private void checkSupplyChainSeverityCount(
         @Nonnull List<Long> oidToSearchFor,
-        @Nonnull Map<Optional<Severity>, Long> expectedSeveritiesAndCounts) {
-        Map<Optional<Severity>, Long> actualSeverityCounts =
+        @Nonnull Map<Severity, Long> expectedSeveritiesAndCounts) {
+        Map<Severity, Long> actualSeverityCounts =
             entitySeverityCache.getSeverityCounts(oidToSearchFor);
         assertEquals(expectedSeveritiesAndCounts.size(), actualSeverityCounts.size());
         expectedSeveritiesAndCounts.forEach((expectedSeverity, expectedCount) -> {
@@ -474,17 +475,16 @@ public class EntitySeverityCacheTest {
 
     private void checkSeverityBreakdown(
         long oid,
-        Map<Severity, Integer> expectedSeveritiesAndCounts) {
-        Optional<SeverityCount> actualBreakdownOptional =
+        Map<Severity, Long> expectedSeveritiesAndCounts) {
+        Map<Severity, Long> actualBreakdown =
             entitySeverityCache.getSeverityBreakdown(oid);
-        Assert.assertTrue(actualBreakdownOptional.isPresent());
-        SeverityCount actualBreakdown = actualBreakdownOptional.get();
+        Assert.assertFalse(actualBreakdown.isEmpty());
 
-        assertEquals(expectedSeveritiesAndCounts.size(), actualBreakdown.getSeverityCounts().size());
+        assertEquals(expectedSeveritiesAndCounts.size(), actualBreakdown.size());
         expectedSeveritiesAndCounts.forEach((expectedSeverity, expectedCount) -> {
             assertEquals("expected: " + expectedSeveritiesAndCounts
-                + " actual: " + actualBreakdownOptional,
-                expectedCount, actualBreakdown.getCountOfSeverity(expectedSeverity));
+                + " actual: " + actualBreakdown,
+                expectedCount, actualBreakdown.get(expectedSeverity));
         });
     }
 
@@ -678,97 +678,6 @@ public class EntitySeverityCacheTest {
         }
     }
 
-    /**
-     * The comparator should result in the below ascending order.
-     * 1. An entity without severity and without severity breakdown
-     * 2. An entity with severity but without severity breakdown
-     * 3. An entity with severity but with empty severity breakdown map
-     * 4. An entity with lowest severity break down
-     * 5. An entity with same proportion, but a higher count of that severity
-     * 6. An entity with the same highest severity, but the proportion is higher
-     * 7. An entity with a higher severity in the breakdown.
-     * 8. An entity with an even higher severity in the breakdown but the entity does not have a
-     *    a severity (edge case).
-     */
-    @Test
-    public void testBreakdownOrderBy() {
-        long id = 0;
-        EntitySeverityCache mockedEntitySeverityCache = spy(entitySeverityCache);
-        // both not found
-        long bothNotFound = id++;
-        when(mockedEntitySeverityCache.getSeverity(bothNotFound)).thenReturn(Optional.empty());
-        when(mockedEntitySeverityCache.getSeverityBreakdown(bothNotFound)).thenReturn(Optional.empty());
-        // only has entity level severity
-        long onlyHasEntityLevelSeverity = id++;
-        when(mockedEntitySeverityCache.getSeverity(onlyHasEntityLevelSeverity)).thenReturn(Optional.of(Severity.MAJOR));
-        when(mockedEntitySeverityCache.getSeverityBreakdown(onlyHasEntityLevelSeverity)).thenReturn(Optional.empty());
-        // only has entity level severity, and empty severity breakdown
-        long emptyBreakdown = id++;
-        when(mockedEntitySeverityCache.getSeverity(emptyBreakdown)).thenReturn(Optional.of(Severity.MAJOR));
-        when(mockedEntitySeverityCache.getSeverityBreakdown(emptyBreakdown)).thenReturn(Optional.of(new SeverityCount()));
-        // has entity level severity, and lowest severity
-        long lowestSeverityBreakdown = id++;
-        when(mockedEntitySeverityCache.getSeverity(lowestSeverityBreakdown)).thenReturn(Optional.of(Severity.MAJOR));
-        when(mockedEntitySeverityCache.getSeverityBreakdown(lowestSeverityBreakdown)).thenReturn(Optional.of(makeSeverityCount(
-            ImmutableMap.of(Severity.MINOR, 2,
-                Severity.NORMAL, 2)
-        )));
-        // exact same severity as previous should be tied
-        long exactSameSeverity = 99L;
-        when(mockedEntitySeverityCache.getSeverity(exactSameSeverity)).thenReturn(Optional.of(Severity.MAJOR));
-        when(mockedEntitySeverityCache.getSeverityBreakdown(exactSameSeverity)).thenReturn(Optional.of(makeSeverityCount(
-            ImmutableMap.of(Severity.MINOR, 2,
-                Severity.NORMAL, 2)
-        )));
-        // same proportion but higher count
-        long sameProportionHigherCount = id++;
-        when(mockedEntitySeverityCache.getSeverity(sameProportionHigherCount)).thenReturn(Optional.of(Severity.MAJOR));
-        when(mockedEntitySeverityCache.getSeverityBreakdown(sameProportionHigherCount)).thenReturn(Optional.of(makeSeverityCount(
-            ImmutableMap.of(Severity.MINOR, 4,
-                Severity.NORMAL, 4)
-        )));
-        // higher proportion
-        long higherProportion = id++;
-        when(mockedEntitySeverityCache.getSeverity(higherProportion)).thenReturn(Optional.of(Severity.MAJOR));
-        when(mockedEntitySeverityCache.getSeverityBreakdown(higherProportion)).thenReturn(Optional.of(makeSeverityCount(
-            ImmutableMap.of(Severity.MINOR, 3,
-                Severity.NORMAL, 2)
-        )));
-        // higher severity
-        long higherSeverity = id++;
-        when(mockedEntitySeverityCache.getSeverity(higherSeverity)).thenReturn(Optional.of(Severity.MAJOR));
-        when(mockedEntitySeverityCache.getSeverityBreakdown(higherSeverity)).thenReturn(Optional.of(makeSeverityCount(
-            ImmutableMap.of(Severity.MINOR, 2,
-                Severity.NORMAL, 2,
-                Severity.MAJOR, 2)
-        )));
-        // even higher severity, but no entity level severity
-        long evenHigherSeverityButNoEntitySeverity = id++;
-        when(mockedEntitySeverityCache.getSeverity(evenHigherSeverityButNoEntitySeverity)).thenReturn(Optional.empty());
-        when(mockedEntitySeverityCache.getSeverityBreakdown(evenHigherSeverityButNoEntitySeverity)).thenReturn(Optional.of(makeSeverityCount(
-            ImmutableMap.of(Severity.MINOR, 2,
-                Severity.NORMAL, 2,
-                Severity.CRITICAL, 2)
-        )));
-
-        List<Long> ascendingOrder = new ArrayList<>();
-        for (long i = 0; i < id; i++) {
-            ascendingOrder.add(i);
-        }
-        List<Long> descendingOrder = new ArrayList<>(ascendingOrder);
-        Collections.reverse(descendingOrder);
-        List<Long> randomOrder = new ArrayList<>(ascendingOrder);
-        Collections.shuffle(randomOrder);
-
-        Comparator<Long> desc = new OrderOidBySeverity(mockedEntitySeverityCache).reversed();
-        Assert.assertEquals(0, desc.compare(lowestSeverityBreakdown, exactSameSeverity));
-
-        checkSortedByComparator(ascendingOrder, desc, descendingOrder);
-        checkSortedByComparator(randomOrder, desc, descendingOrder);
-        Comparator<Long> asc = new OrderOidBySeverity(mockedEntitySeverityCache);
-        checkSortedByComparator(descendingOrder, asc, ascendingOrder);
-        checkSortedByComparator(randomOrder, asc, ascendingOrder);
-    }
 
     private SeverityCount makeSeverityCount(Map<Severity, Integer> severityBreakdown) {
         SeverityCount severityCount = new SeverityCount();
