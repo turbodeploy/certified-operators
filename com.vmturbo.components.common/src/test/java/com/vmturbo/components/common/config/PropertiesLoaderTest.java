@@ -88,7 +88,7 @@ public class PropertiesLoaderTest {
 
 
     /**
-     * Test reading secret file for ArangoDB credential.
+     * Test reading secret file for Repository credential.
      * Secrets are:
      * password: A1a-9Y9tLPAX2NXOJYb9
      * username: v-kubernetes-coke-plan--3AvWqRZs
@@ -97,13 +97,13 @@ public class PropertiesLoaderTest {
      * @throws ContextConfigurationException if there is a semantic error in the configuration file
      */
     @Test
-    public void testPropertiesYamlReaderSuccessWithArangoSecret() throws ContextConfigurationException {
+    public void testPropertiesYamlReaderSuccessWithRepositorySecret() throws ContextConfigurationException {
         // act
         final PropertySource<?> propertiesSource = PropertiesLoader.fetchConfigurationProperties(
                 "repository", GOOD_AUTH_TEST_YAML_FILE_PATH, GOOD_TEST_SECRET_FILE_PATH);
         // assert
-        assertThat(propertiesSource.getProperty("arangoDBUsername"), equalTo("v-kubernetes-coke-plan--3AvWqRZs"));
-        assertThat(propertiesSource.getProperty("arangoDBPassword"), equalTo("A1a-9Y9tLPAX2NXOJYb9"));
+        assertThat(propertiesSource.getProperty("repositoryDbUsername"), equalTo("v-kubernetes-coke-plan--3AvWqRZs"));
+        assertThat(propertiesSource.getProperty("repositoryDbPassword"), equalTo("A1a-9Y9tLPAX2NXOJYb9"));
     }
 
     /**

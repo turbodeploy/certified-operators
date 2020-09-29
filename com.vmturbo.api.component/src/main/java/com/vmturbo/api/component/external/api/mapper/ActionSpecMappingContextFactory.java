@@ -472,14 +472,15 @@ public class ActionSpecMappingContextFactory {
     private Map<Long, ApiPartialEntity> getDatacentersByEntity(@Nonnull final Set<Long> entityOids,
                                                                final long topologyContextId) {
         final GetMultiSupplyChainsRequest.Builder requestBuilder =
-            GetMultiSupplyChainsRequest.newBuilder();
+            GetMultiSupplyChainsRequest.newBuilder()
+                .setContextId(topologyContextId);
         // For each OID in the set of entities, get Datacenters in its supply chain
         entityOids.forEach(oid -> {
             requestBuilder.addSeeds(SupplyChainSeed.newBuilder()
                 .setSeedOid(oid)
                 .setScope(SupplyChainScope.newBuilder()
                     .addStartingEntityOid(oid)
-                    .addEntityTypesToInclude(ApiEntityType.DATACENTER.apiStr())));
+                    .addEntityTypesToInclude(ApiEntityType.DATACENTER.typeNumber())));
         });
         final Map<Long, Long> dcOidMap = Maps.newHashMap();
         supplyChainServiceClient.getMultiSupplyChains(requestBuilder.build())

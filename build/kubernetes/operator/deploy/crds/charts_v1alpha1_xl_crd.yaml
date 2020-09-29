@@ -3662,6 +3662,9 @@ spec:
                     showGuestLoad:
                       description: Show GuestLoad entities
                       type: boolean
+                    useSqlForPlans:
+                      description: Store plan data in MySQL instead of ArangoDB.
+                      type: boolean
                   type: object
               type: object
           type: object

@@ -438,7 +438,9 @@ public class UuidMapper implements RepositoryListener {
 
                     if (StringConstants.GROUP_TYPES.contains(se.getClassName())) {
                         Optional<GroupAndMembers> groupAndMembers = groupMemberRetriever.getGroupsWithMembers(GetGroupsRequest.newBuilder()
-                                .addScopes(se.getScopeObjectOid())
+                                .setGroupFilter(GroupFilter.newBuilder()
+                                    .addId(se.getScopeObjectOid())
+                                    .build())
                                 .build()).stream().findFirst();
                         groupAndMembers.ifPresent(andMembers -> repositoryApi.entitiesRequest(
                                 Sets.newHashSet(andMembers.entities()))

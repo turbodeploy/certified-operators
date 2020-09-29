@@ -17,7 +17,7 @@ import net.jpountz.lz4.LZ4FastDecompressor;
  */
 public class CompressedProtobuf<T extends AbstractMessage, B extends AbstractMessage.Builder> {
 
-    private final byte[] compressedEntityBytes;
+    private final byte[] compressedBytes;
 
     private final int uncompressedLength;
 
@@ -28,7 +28,19 @@ public class CompressedProtobuf<T extends AbstractMessage, B extends AbstractMes
         final int maxCompressedLength = compressor.maxCompressedLength(uncompressedLength);
         final byte[] compressionBuffer = buffer.getBuffer(maxCompressedLength);
         final int compressedLength = compressor.compress(uncompressedBytes, compressionBuffer);
-        this.compressedEntityBytes = Arrays.copyOf(compressionBuffer, compressedLength);
+        this.compressedBytes = Arrays.copyOf(compressionBuffer, compressedLength);
+    }
+
+    /**
+     * Create a new instance, if you already have a byte array and the uncompressed length
+     * obtained from a previous use of an LZ4 compressor.
+     *
+     * @param compressedBytes The compressed bytes.
+     * @param uncompressedLength The uncompressed length.
+     */
+    public CompressedProtobuf(final byte[] compressedBytes, final int uncompressedLength) {
+        this.compressedBytes = compressedBytes;
+        this.uncompressedLength = uncompressedLength;
     }
 
     /**
@@ -65,8 +77,15 @@ public class CompressedProtobuf<T extends AbstractMessage, B extends AbstractMes
     public void decompressInto(B bldr) throws InvalidProtocolBufferException {
         // Use the fastest available java instance to avoid using off-heap memory.
         final LZ4FastDecompressor decompressor = LZ4Factory.fastestJavaInstance().fastDecompressor();
-        bldr.mergeFrom(decompressor.decompress(compressedEntityBytes, uncompressedLength));
+        bldr.mergeFrom(decompressor.decompress(compressedBytes, uncompressedLength));
     }
 
+    public int getUncompressedLength() {
+        return uncompressedLength;
+    }
+
+    public byte[] getCompressedBytes() {
+        return compressedBytes;
+    }
 
 }

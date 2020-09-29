@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
@@ -142,19 +143,19 @@ public class ScenarioScopeAccessChecker {
 
             // We compare only VMs, DBs and DBSs entity types because they are the main focus for Plan results
             response.getSupplyChainNodesList().stream()
-                    .filter(node -> node.getEntityType().equals(StringConstants.VIRTUAL_MACHINE)
-                            || node.getEntityType().equals(StringConstants.DATABASE)
-                            || node.getEntityType().equals(StringConstants.DATABASE_SERVER))
+                    .filter(node -> node.getEntityType() == ApiEntityType.VIRTUAL_MACHINE.typeNumber()
+                            || node.getEntityType() == ApiEntityType.DATABASE.typeNumber()
+                            || node.getEntityType() == ApiEntityType.DATABASE_SERVER.typeNumber())
                     .forEach(node -> {
-                        node.getMembersByStateMap().values().stream()
-                                .forEach(memberList -> memberList.getMemberOidsList().stream()
-                                        .filter(accessScope::contains)
-                                        .forEach(memberOid -> {
-                                            scopeEntriesToAdd.add(PlanScopeEntry.newBuilder()
-                                                    .setScopeObjectOid(memberOid)
-                                                    .setClassName(node.getEntityType())
-                                                    .build());
-                                        }));
+                        node.getMembersByStateMap().values()
+                            .forEach(memberList -> memberList.getMemberOidsList().stream()
+                                .filter(accessScope::contains)
+                                .forEach(memberOid -> {
+                                    scopeEntriesToAdd.add(PlanScopeEntry.newBuilder()
+                                        .setScopeObjectOid(memberOid)
+                                        .setClassName(ApiEntityType.fromType(node.getEntityType()).apiStr())
+                                        .build());
+                                }));
                     });
 
             // Update the Plan scope to allow only what the User can access to

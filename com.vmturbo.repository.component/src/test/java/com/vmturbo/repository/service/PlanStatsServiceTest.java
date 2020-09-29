@@ -134,7 +134,7 @@ public class PlanStatsServiceTest {
 
         final TopologyProtobufReader protobufReader = mock(TopologyProtobufReader.class);
         when(protobufReader.hasNext()).thenReturn(true).thenReturn(false);
-        when(protobufReader.nextChunk()).thenReturn(Lists.newArrayList(originalEntity, entityAddedByScenario));
+        when(protobufReader.next()).thenReturn(Lists.newArrayList(originalEntity, entityAddedByScenario));
 
         final StatEpoch statEpoch = StatEpoch.PLAN_SOURCE;
         final EntityStats.Builder statsBuilder = EntityStats.newBuilder()
@@ -230,7 +230,7 @@ public class PlanStatsServiceTest {
 
         final TopologyProtobufReader protobufReader = mock(TopologyProtobufReader.class);
         when(protobufReader.hasNext()).thenReturn(true).thenReturn(false);
-        when(protobufReader.nextChunk()).thenReturn(Arrays.asList(topologyEntityDTO, unplacedVmDTO));
+        when(protobufReader.next()).thenReturn(Arrays.asList(topologyEntityDTO, unplacedVmDTO));
 
         final StatEpoch statEpoch = StatEpoch.PLAN_PROJECTED;
         final EntityStats.Builder statsBuilder = EntityStats.newBuilder()
@@ -343,12 +343,12 @@ public class PlanStatsServiceTest {
         // Create two mock protobuf readers, one for each source and projected topologies
         final TopologyProtobufReader sourceProtobufReader = mock(TopologyProtobufReader.class);
         when(sourceProtobufReader.hasNext()).thenReturn(true).thenReturn(false);
-        when(sourceProtobufReader.nextChunk())
+        when(sourceProtobufReader.next())
             .thenReturn(Lists.newArrayList(sourceTopologyEntityDTO, commonTopologyEntityDTO));
 
         final TopologyProtobufReader projectedProtobufReader = mock(TopologyProtobufReader.class);
         when(projectedProtobufReader.hasNext()).thenReturn(true).thenReturn(false);
-        when(projectedProtobufReader.nextChunk())
+        when(projectedProtobufReader.next())
             .thenReturn(Lists.newArrayList(commonTopologyEntityDTO, projectedTopologyEntityDTO));
 
         final long sourceTopologyId = 4567;
@@ -467,7 +467,7 @@ public class PlanStatsServiceTest {
 
         final TopologyProtobufReader projectedProtobufReader = mock(TopologyProtobufReader.class);
         when(projectedProtobufReader.hasNext()).thenReturn(true).thenReturn(false);
-        when(projectedProtobufReader.nextChunk())
+        when(projectedProtobufReader.next())
                 .thenReturn(Lists.newArrayList(commonTopologyEntityDTO));
         final Predicate<TopologyEntityDTO> noFilterPredicate = (entity) -> true;
         final StatsFilter statsFilter = StatsFilter.newBuilder()
@@ -518,7 +518,7 @@ public class PlanStatsServiceTest {
 
         final TopologyProtobufReader projectedProtobufReader = mock(TopologyProtobufReader.class);
         when(projectedProtobufReader.hasNext()).thenReturn(true).thenReturn(false);
-        when(projectedProtobufReader.nextChunk())
+        when(projectedProtobufReader.next())
                 .thenReturn(Lists.newArrayList(commonTopologyEntityDTO));
         final Predicate<TopologyEntityDTO> noFilterPredicate = (entity) -> true;
         final StatsFilter statsFilter = StatsFilter.newBuilder()
