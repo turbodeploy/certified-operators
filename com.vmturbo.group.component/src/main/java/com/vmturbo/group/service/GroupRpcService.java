@@ -964,7 +964,7 @@ public class GroupRpcService extends GroupServiceImplBase {
 
                 memberOids.addAll(searchResponse.getEntitiesList());
             } catch (StatusRuntimeException e) {
-                logger.error("Error resolving filter {}. Error: {}. Some members may be missing.",
+                logger.debug("Error resolving filter {}. Error: {}. Some members may be missing.",
                     entityFilter, e.getMessage());
             }
         }
