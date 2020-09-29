@@ -47,7 +47,10 @@ import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
 import com.vmturbo.repository.listener.RepositoryPlanGarbageCollector;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
+import com.vmturbo.repository.plan.db.MySQLPlanEntityStore;
+import com.vmturbo.repository.plan.db.RepositoryDBConfig;
 import com.vmturbo.repository.service.GraphDBService;
+import com.vmturbo.repository.service.PartialEntityConverter;
 import com.vmturbo.repository.service.SupplyChainService;
 import com.vmturbo.repository.topology.GlobalSupplyChainManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
@@ -55,6 +58,7 @@ import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
+import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 
 /**
  * Spring configuration for repository component.
@@ -115,6 +119,25 @@ public class RepositoryComponentConfig {
     @Value("${collectionWaitForSync:true}")
     private boolean collectionWaitForSync;
 
+    /**
+     * If true, use SQL backend for plan data storage.
+     */
+    @Value("${useSqlForPlans:true}")
+    private boolean useSqlForPLans;
+
+    /**
+     * When inserting plan data we insert this many rows in one call.
+     */
+    @Value("${plan.sqlInsertionChunkSize:5000}")
+    private int sqlInsertionChunkSize;
+
+    /**
+     * When deleting plan data we delete this many rows in one call.
+     */
+    @Value("${plan.sqlDeletionChunkSize:10000}")
+    private int sqlDeletionChunkSize;
+
+
     @Autowired
     private RepositoryProperties repositoryProperties;
 
@@ -123,6 +146,9 @@ public class RepositoryComponentConfig {
 
     @Autowired
     private PlanOrchestratorClientConfig planOrchestratorClientConfig;
+
+    @Autowired
+    private RepositoryDBConfig repositoryDBConfig;
 
     private final SetOnce<ArangoDB> arangoDB = new SetOnce<>();
 
@@ -189,13 +215,37 @@ public class RepositoryComponentConfig {
     }
 
     /**
+     * Stores and allows queries on information about entities in plans.
+     *
+     * @return The {@link MySQLPlanEntityStore}.
+     */
+    @Bean
+    public MySQLPlanEntityStore mySQLPlanEntityStore() {
+        return new MySQLPlanEntityStore(repositoryDBConfig.dsl(), partialEntityConverter(),
+            new SupplyChainCalculator(), sqlInsertionChunkSize, sqlDeletionChunkSize);
+    }
+
+    /**
+     * Converter for entities into {@link com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity}
+     * format for gRPC outputs.
+     *
+     * @return The {@link PartialEntityConverter}.
+     */
+    @Bean
+    public PartialEntityConverter partialEntityConverter() {
+        return new PartialEntityConverter(liveTopologyStore());
+    }
+
+
+    /**
      * Listener for plan deletion.
      *
      * @return The listener.
      */
     @Bean
     public PlanGarbageDetector repositoryPlanGarbageDetector() {
-        final RepositoryPlanGarbageCollector collector = new RepositoryPlanGarbageCollector(topologyManager());
+        final RepositoryPlanGarbageCollector collector =
+            new RepositoryPlanGarbageCollector(topologyManager(), mySQLPlanEntityStore());
         return planOrchestratorClientConfig.newPlanGarbageDetector(collector);
     }
 
@@ -214,7 +264,7 @@ public class RepositoryComponentConfig {
                 new ScheduledThreadPoolExecutor(1), liveTopologyStore(),
                 repositoryRealtimeTopologyDropDelaySecs, numberOfExpectedRealtimeSourceDB,
                 numberOfExpectedRealtimeProjectedDB, collectionReplicaCount, globalSupplyChainManager(),
-                arangoDBExecutor());
+                arangoDBExecutor(), mySQLPlanEntityStore(), useSqlForPLans);
     }
 
     /**

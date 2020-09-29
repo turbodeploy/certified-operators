@@ -473,12 +473,12 @@ public class ServiceEntityMapper {
                 .setSeedOid(oid)
                 .setScope(SupplyChainScope.newBuilder()
                     .addStartingEntityOid(oid)
-                    .addEntityTypesToInclude(ApiEntityType.VIRTUAL_MACHINE.apiStr())));
+                    .addEntityTypesToInclude(ApiEntityType.VIRTUAL_MACHINE.typeNumber())));
         });
         supplyChainBlockingStub.getMultiSupplyChains(builder.build()).forEachRemaining(response -> {
             result.put(response.getSeedOid(),
                 response.getSupplyChain().getSupplyChainNodesList().stream()
-                    .filter(node -> node.getEntityType().equals(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
+                    .filter(node -> node.getEntityType() == ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                     .map(RepositoryDTOUtil::getMemberCount)
                     .findFirst().orElse(0));
         });

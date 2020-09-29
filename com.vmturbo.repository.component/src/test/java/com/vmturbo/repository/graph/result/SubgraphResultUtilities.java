@@ -6,10 +6,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultVertex;
 
 public class SubgraphResultUtilities {
@@ -142,7 +141,13 @@ public class SubgraphResultUtilities {
                 consumer);
     }
 
-    public static Map<String, SupplyChainNode> nodeMapFor(@Nonnull final SupplyChainSubgraph subgraph) {
+    /**
+     * Arrange the subgrath into a map by node type.
+     *
+     * @param subgraph The {@link SupplyChainSubgraph}.
+     * @return Map of entity type to {@link SupplyChainNode}.
+     */
+    public static Map<Integer, SupplyChainNode> nodeMapFor(@Nonnull final SupplyChainSubgraph subgraph) {
         return subgraph.toSupplyChainNodes().stream()
             .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
     }
