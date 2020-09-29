@@ -1,12 +1,14 @@
 package com.vmturbo.platform.analysis.ede;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,18 +20,22 @@ import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
+import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 
 public class ActionClassifier {
 
     static final Logger logger = LogManager.getLogger(ActionClassifier.class);
 
-    final private @NonNull Economy simulationEconomy_;
+    // The current economy
+    private final @NonNull Economy economy_;
+    // The cloned economy
+    private final @NonNull Economy simulationEconomy_;
     private int executable_ = 0;
     // List of Traders whose actions should be forced to executable = true.
     private Set<Trader> forceEnable_ = new HashSet<>();
@@ -39,6 +45,7 @@ public class ActionClassifier {
     }
 
     public ActionClassifier(@NonNull Economy economy) throws IOException, ClassNotFoundException {
+        this.economy_ = economy;
         simulationEconomy_ = economy.simulationClone();
     }
 
@@ -61,6 +68,9 @@ public class ActionClassifier {
 
         // Step 3 - determine if move actions are executable or not
         classifyAndMarkMoves(actions);
+
+        // Step 4 - determine if provision actions are executable or not
+        markProvisions(actions);
 
         if (!economy.getExceptionTraders().isEmpty()) {
             logger.error("There were {} entities with exceptions during analysis",
@@ -89,8 +99,14 @@ public class ActionClassifier {
     private void markSuspensionsInAtomicSegments(final List<Action> actions) {
         if (!forceEnable_.isEmpty()) {
             actions.stream()
-                .filter(a -> a instanceof Deactivate && forceEnable_.contains(a.getActionTarget()))
-                .forEach(a -> a.setExecutable(true));
+                    .filter(Deactivate.class::isInstance)
+                    .filter(a -> forceEnable_.contains(a.getActionTarget())
+                            // If this is a daemon, it is being suspended due to its supplier
+                            // suspending (which makes it an orphan), so we do not want to force these to executable.
+                            && !a.getActionTarget().getSettings().isDaemon())
+                    // We are at the bottom of the chain, so suspensions associated with
+                    // this trader should be executable.
+                    .forEach(a -> a.setExecutable(true));
         }
     }
 
@@ -106,6 +122,10 @@ public class ActionClassifier {
         int nonExecutableMove = 0;
         int executableResize = 0;
         int nonExecutableResize = 0;
+        int executableProvision = 0;
+        int nonExecutableProvision = 0;
+        int executableSuspension = 0;
+        int nonExecutableSuspension = 0;
 
         for (Action a : actions) {
             if (a.isExecutable()) {
@@ -127,10 +147,27 @@ public class ActionClassifier {
                     nonExecutableResize++;
                 }
             }
+            if (a instanceof ProvisionBase) {
+                if (a.isExecutable()) {
+                    executableProvision++;
+                } else {
+                    nonExecutableProvision++;
+                }
+            }
+            if (a instanceof Deactivate) {
+                if (a.isExecutable()) {
+                    executableSuspension++;
+                } else {
+                    nonExecutableSuspension++;
+                }
+            }
         }
-        logger.info("Classifier: " + executable + " " + nonExecutable + " " +
-                        + executableMove + " " + nonExecutableMove + " " +
-                        + executableResize + " " + nonExecutableResize);
+        logger.info("Classifier:"
+                + " Total: " + executable + " " + nonExecutable
+                + " Move: " + executableMove + " " + nonExecutableMove
+                + " Resize: " + executableResize + " " + nonExecutableResize
+                + " Provision: " + executableProvision + " " + nonExecutableProvision
+                + " Suspension: " + executableSuspension + " " + nonExecutableSuspension);
         executable_ = executable;
     }
 
@@ -155,33 +192,8 @@ public class ActionClassifier {
                     // Trader at the bottom to the list of traders whose actions must be forced
                     // to executable.
                     s.setExecutable(false);
-                    List<Trader> tradersToCheck = new ArrayList<>();
-                    tradersToCheck.add(suspensionCandidate);
-                    while (!tradersToCheck.isEmpty()) {
-                        Trader trader = tradersToCheck.remove(0);
-                        if (!checked.add(trader)) {
-                            // Already processed from this trader down, so skip it
-                            continue;
-                        }
-                        if (trader.getSettings().isProviderMustClone()) {
-                            for (Map.Entry<ShoppingList, Market> entry :
-                                    s.getEconomy().getMarketsAsBuyer(trader).entrySet()) {
-                                @Nullable Trader provider = entry.getKey().getSupplier();
-                                // If provider has already been checked, no need to check it again.
-                                if (provider != null && !checked.contains(provider)) {
-                                    tradersToCheck.add(provider);
-                                }
-                            }
-                        } else if (!trader.getSettings().isDaemon()) {
-                            // We are at the bottom of the chain, so suspensions associated with
-                            // this trader should be executable. If this is a daemon, it is being
-                            // suspended due to its supplier suspending (which makes it an orphan),
-                            // so we do not want to force these to executable.
-                            forceEnable_.add(trader);
-                        }
-                    }
+                    forceEnable_.addAll(findBottomOfAtomicSegment(checked, suspensionCandidate));
                 }
-
                 // Check for customers on simulation target and mark not executable if any are present.
                 Trader simSuspensionCandidate = lookupTraderInSimulationEconomy(suspensionCandidate);
                 if (simSuspensionCandidate != null &&
@@ -232,6 +244,145 @@ public class ActionClassifier {
                 printLogMessageInDebugForExecutableFlag(a, ex);
             }
         });
+    }
+
+    /**
+     * Find the bottom trader on the providerMustClone chain.
+     *
+     * @param checked traders that have already been visited
+     * @param trader  the starting trader
+     * @return the bottom trader
+     */
+    private Set<Trader> findBottomOfAtomicSegment(@NonNull Set<Trader> checked,
+                                                  @NonNull final Trader trader) {
+        Set<Trader> bottomTraders = new HashSet<>();
+        Queue<Trader> toCheck = new ArrayDeque<>();
+        toCheck.add(trader);
+        while (!toCheck.isEmpty()) {
+            Trader current = toCheck.remove();
+            if (!checked.add(current)) {
+                // Already processed from this trader down, so skip it
+                continue;
+            }
+            if (!current.getSettings().isProviderMustClone()) {
+                // We found the bottom
+                bottomTraders.add(current);
+                continue;
+            }
+            // Add the providers to check list
+            economy_.getMarketsAsBuyer(current).keySet().stream()
+                    .map(ShoppingList::getSupplier)
+                    .filter(Objects::nonNull)
+                    .filter(provider -> !checked.contains(provider))
+                    .forEach(toCheck::add);
+        }
+        return bottomTraders;
+    }
+
+    /**
+     * Mark provision actions.
+     *
+     * <p>If any provision action has the clone sitting on the bottom of the
+     * providerMustClone chain, and either of the following two conditions are met,
+     * then mark this action as non-executable:
+     * - The clone has a supplier that itself is cloned. For example, during SLO driven scaling,
+     *   market may place a cloned pod (which sits on the bottom of the providerMustClone chain) on
+     *   a cloned node. When pod provision is automated, but the node provision is not, we need to
+     *   mark the pod provision non-executable to avoid accumulation of pending pods in the cluster.
+     *   Even if the node provision is automated, that action usually takes much longer than pod
+     *   provision (i.e., may even span multiple market analysis cycle). During that period, it is
+     *   still desirable to mark those pod provisions as non-executable.
+     * - The clone causes an existing supplier to have an infinite quote on the simulation economy
+     *
+     * @param actions the list of actions to be classified
+     */
+    private void markProvisions(@NonNull List<Action> actions) {
+        Set<Trader> checked = new HashSet<>();
+        // A set holding bottom traders on the providerMustClone chain
+        Set<Trader> bottomTradersToClone = new HashSet<>();
+        actions.stream()
+                .filter(ProvisionBase.class::isInstance)
+                .map(ProvisionBase.class::cast)
+                .map(ProvisionBase::getProvisionedSeller)
+                .filter(Objects::nonNull)
+                .filter(clone -> clone.getSettings().isProviderMustClone())
+                .forEach(clone -> bottomTradersToClone
+                        .addAll(findBottomOfAtomicSegment(checked, clone)));
+        // Mark the provision actions whose provisioned sellers are bottom traders
+        actions.stream()
+                .filter(ProvisionBase.class::isInstance)
+                .map(ProvisionBase.class::cast)
+                .filter(clone -> bottomTradersToClone.contains(clone.getProvisionedSeller()))
+                .forEach(this::markProvision);
+    }
+
+    /**
+     * Mark a provision action.
+     *
+     * <p>Mark a provision as non-executable if:
+     * - The clone has a supplier that itself is cloned, or
+     * - The clone causes an existing supplier to have an infinite quote on the simulation economy
+     *
+     * @param provision the provision action to be classified
+     */
+    private void markProvision(@NonNull ProvisionBase provision) {
+        final Trader clonedTrader = provision.getProvisionedSeller();
+        final Set<ShoppingList> shoppingListsWithSupplier =
+                economy_.getMarketsAsBuyer(clonedTrader).keySet().stream()
+                        .filter(sl -> sl.getSupplier() != null).collect(Collectors.toSet());
+        if (shoppingListsWithSupplier.isEmpty()) {
+            // None of the shopping lists has a supplier, this shouldn't happen, guard just in case.
+            logger.warn("Provisioned trader {} does not have a supplier. "
+                    + "Disable the provision.", clonedTrader);
+            provision.setExecutable(false);
+            return;
+        }
+        // We only check shopping list with supplier for now.
+        // TODO: Currently, the cloned SL may not always have a supplier. This can happen when the
+        //  cloned SL of a container pod requests for quota commodity which should be provided by
+        //  namespace entities, but currently namespace entities do not participate in market
+        //  placement. This will be addressed in OM-63075.
+        if (shoppingListsWithSupplier.stream()
+                .map(ShoppingList::getSupplier).anyMatch(Trader::isClone)) {
+            // At least one supplier is a clone
+            logger.info("Provisioned trader {} is hosted on provisioned supplier. "
+                    + "Disable the provision.", clonedTrader);
+            provision.setExecutable(false);
+            return;
+        }
+        // All shopping lists are placed on existing supplier
+        for (ShoppingList shoppingList : shoppingListsWithSupplier) {
+            final Trader supplier = shoppingList.getSupplier();
+            // Find the copy of the supplier in the simulation economy
+            final Trader supplierCopy = lookupTraderInSimulationEconomy(supplier);
+            if (supplierCopy == null) {
+                logger.warn("Provisioned trader {}'s supplier {} does not have a copy in"
+                        + " simulation economy.", clonedTrader, supplier);
+                continue;
+            }
+            final double[] quote = EdeCommon.quote(simulationEconomy_, shoppingList,
+                    supplierCopy, Double.POSITIVE_INFINITY, false).getQuoteValues();
+            if (quote[0] >= Double.POSITIVE_INFINITY) {
+                // If the clone causes infinite quote on an existing supplier, then disable it
+                logger.info("Provisioned trader {} on supplier {} causes infinite quote. "
+                        + "Disable the provision.", clonedTrader, supplier);
+                provision.setExecutable(false);
+                return;
+            }
+            // Simulate the effect of the clone on the supplierCopy. For simplicity and
+            // performance concerns, we are not actually creating a clone of the provisioned
+            // trader and shopping list in the simulation economy, we just update the sold
+            // quantity on the supplierCopy.
+            Move.updateQuantities(simulationEconomy_, shoppingList, supplierCopy,
+                    UpdatingFunctionFactory.ADD_COMM);
+            if (logger.isTraceEnabled()) {
+                logger.info("Provisioned trader [{} modelled after {}]'s shopping list {}"
+                                + " can be placed on supplier {}.",
+                        clonedTrader, provision.getModelSeller(),
+                        shoppingList.getBasket().toDebugString(), supplier);
+            }
+        }
+        logger.debug("Provision of trader {} is executable", clonedTrader);
     }
 
     /**

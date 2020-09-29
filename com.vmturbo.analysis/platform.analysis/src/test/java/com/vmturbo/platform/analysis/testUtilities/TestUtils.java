@@ -29,6 +29,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction.Cache;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs;
@@ -77,6 +78,10 @@ public class TestUtils {
      * The service type.
      */
     public static final int SERVICE_TYPE = 15;
+    /**
+     * The container pod type.
+     */
+    public static final int CONTAINER_POD_TYPE = 16;
 
     public static final double FLOATING_POINT_DELTA = 1e-7;
     public static final double FLOATING_POINT_DELTA2 = 1e-15;
@@ -117,6 +122,10 @@ public class TestUtils {
     public static final CommoditySpecification HEAP = createNewCommSpec();
     public static final CommoditySpecification COST_COMMODITY = createNewCommSpec();
     public static final CommoditySpecification IOPS = createNewCommSpec();
+    /**
+     * Construct the commodity specification for VCPU Request commodity.
+     */
+    public static final CommoditySpecification VCPU_REQUEST = createNewCommSpec();
     /**
      * Construct the commodity specification for Transaction commodity.
      */
@@ -177,16 +186,23 @@ public class TestUtils {
         trader.getSettings().setCloneable(isCloneable);
         trader.getSettings().setGuaranteedBuyer(isGuaranteedBuyer);
         trader.getSettings().setCanAcceptNewCustomers(true);
-        setUpdatingFunctionForTrader(trader);
+        setUpdatingAndPriceFunctionForTrader(trader);
         return trader;
     }
 
-    private static void setUpdatingFunctionForTrader(Trader trader) {
+    private static void setUpdatingAndPriceFunctionForTrader(Trader trader) {
         trader.getBasketSold().forEach(commSpec -> {
             CommoditySold commSold = trader.getCommoditySold(commSpec);
             if (commSpec.equals(TRANSACTION)) {
-                commSold.getSettings().setUpdatingFunction(UpdatingFunctionFactory
-                        .STANDARD_DISTRIBUTION);
+                commSold.getSettings()
+                        .setUpdatingFunction(UpdatingFunctionFactory.STANDARD_DISTRIBUTION)
+                        .setPriceFunction(Cache.createFiniteStandardWeightedPriceFunction(1.0));
+                return;
+            }
+            if (commSpec.equals(VCPU_REQUEST)) {
+                commSold.getSettings()
+                        .setPriceFunction(Cache.createStepPriceFunction(
+                                1, 0.0001f, Float.POSITIVE_INFINITY));
             }
             if (commSpec.equals(Q16_VCPU)) {
                 commSold.getSettings().setUpdatingFunction(UpdatingFunctionFactory
