@@ -208,10 +208,12 @@ public class MapperConfig {
                 new UuidMapper(communicationConfig.getRealtimeTopologyContextId(),
                         magicScopeGateway(), communicationConfig.repositoryApi(),
                         communicationConfig.topologyProcessor(),
-                        communicationConfig.planRpcService(), communicationConfig.groupRpcService(),
-                        communicationConfig.groupExpander(), communicationConfig.thinTargetCache(),
+                        communicationConfig.planRpcService(),
+                        communicationConfig.groupMemberRetriever(), communicationConfig.thinTargetCache(),
                         cloudTypeMapper());
         repositoryClientConfig.repository().addListener(uuidMapper);
+        communicationConfig.groupExpander().setUuidMapper(uuidMapper);
+        communicationConfig.supplyChainFetcher().setUuidMapper(uuidMapper);
         return uuidMapper;
     }
 
