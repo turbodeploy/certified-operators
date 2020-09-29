@@ -26,10 +26,14 @@ import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
  */
 public class AtMostNPolicyApplication extends PlacementPolicyApplication<AtMostNPolicy> {
 
+    private final int invertedIndexMinimalScanThreshold;
+
     protected AtMostNPolicyApplication(final GroupResolver groupResolver,
             final TopologyGraph<TopologyEntity> topologyGraph,
-            final TopologyInvertedIndexFactory invertedIndexFactory) {
+            final TopologyInvertedIndexFactory invertedIndexFactory,
+            final int invertedIndexMinimalScanThreshold) {
         super(groupResolver, topologyGraph, invertedIndexFactory);
+        this.invertedIndexMinimalScanThreshold = invertedIndexMinimalScanThreshold;
     }
 
     /**
@@ -38,15 +42,35 @@ public class AtMostNPolicyApplication extends PlacementPolicyApplication<AtMostN
     @Override
     protected Map<PlacementPolicy, PolicyApplicationException> applyInternal(@Nonnull final List<AtMostNPolicy> policies) {
         final Map<PlacementPolicy, PolicyApplicationException> errors = new HashMap<>();
+        final Map<Long, Set<Long>> consumersByPolicyId = new HashMap<>();
+        // We create all the commodities bought for all the policies in the end (after all the
+        // sold commodities for all the policies are created). This is because
+        // these bought commodities will show up on the entity but are not present in the inverted
+        // index. And if the same entity appears in a subsequent policy then we will look for sellers
+        // selling the bought commodity in the index and find nothing.
+        createAllCommSold(policies, errors, consumersByPolicyId);
+        createAllCommBought(policies, errors, consumersByPolicyId);
+        return errors;
+    }
+
+    /**
+     * Create all the commodities sold for all the policies.
+     * @param policies all the AtMostN policies
+     * @param errors place to store any errors
+     * @param consumersByPolicyId map to store the consumers for each policy
+     */
+    private void createAllCommSold(@Nonnull final List<AtMostNPolicy> policies,
+                                   @Nonnull final Map<PlacementPolicy, PolicyApplicationException> errors,
+                                   @Nonnull final Map<Long, Set<Long>> consumersByPolicyId) {
         // Build up an inverted index for the provider types targetted by these policies.
         // We use this inverted index to find which providers we can put segmentation commodities
         // onto (to avoid putting segmentation commodities on ALL providers outside the target
         // provider group).
         final Set<ApiEntityType> providerTypes = policies.stream()
-                .flatMap(policy -> GroupProtoUtil.getEntityTypes(policy.getProviderPolicyEntities().getGroup()).stream())
-                .collect(Collectors.toSet());
+            .flatMap(policy -> GroupProtoUtil.getEntityTypes(policy.getProviderPolicyEntities().getGroup()).stream())
+            .collect(Collectors.toSet());
         final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> invertedIndex =
-                invertedIndexFactory.typeInvertedIndex(topologyGraph, providerTypes);
+            invertedIndexFactory.typeInvertedIndex(topologyGraph, providerTypes, invertedIndexMinimalScanThreshold);
         policies.forEach(policy -> {
             try {
                 logger.debug("Applying AtMostN policy with capacity of {}.", policy.getDetails().getCapacity());
@@ -61,6 +85,7 @@ public class AtMostNPolicyApplication extends PlacementPolicyApplication<AtMostN
                     policy.getProviderPolicyEntities().getAdditionalEntities());
                 final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph).getEntitiesOfType(consumerEntityType),
                     policy.getConsumerPolicyEntities().getAdditionalEntities());
+                consumersByPolicyId.put(policy.getPolicyDefinition().getId(), consumers);
 
                 if (consumers.isEmpty()) {
                     // Early exit to avoid any shenanigans with empty sets implying "all" entities.
@@ -77,13 +102,37 @@ public class AtMostNPolicyApplication extends PlacementPolicyApplication<AtMostN
                 // Other providers are still valid destinations, with no limit on the capacity.
                 addCommoditySoldToComplementaryProviders(consumers, providers, providerEntityType.typeNumber(),
                     invertedIndex, commoditySold(policy));
-                addCommodityBought(consumers, providerEntityType.typeNumber(), commodityBought(policy));
             } catch (GroupResolutionException e) {
                 errors.put(policy, new PolicyApplicationException(e));
-            } catch (PolicyApplicationException e2) {
-                errors.put(policy, e2);
+            } catch (IllegalArgumentException e) {
+                errors.put(policy, new PolicyApplicationException(e));
             }
         });
-        return errors;
+    }
+
+    /**
+     * Create all the commodities bought for all the policies.
+     * @param policies all the AtMostN policies
+     * @param errors plave to store any errors
+     * @param consumersByPolicyId read the consumers for the policy from this map. We do this to
+     *                            avoid making another RPC call.
+     */
+    private void createAllCommBought(@Nonnull final List<AtMostNPolicy> policies,
+                                     @Nonnull final Map<PlacementPolicy, PolicyApplicationException> errors,
+                                     @Nonnull final Map<Long, Set<Long>> consumersByPolicyId) {
+        policies.forEach(policy -> {
+            try {
+                Set<Long> consumers = consumersByPolicyId.get(policy.getPolicyDefinition().getId());
+                if (consumers != null && !consumers.isEmpty()) {
+                    final Grouping providerGroup = policy.getProviderPolicyEntities().getGroup();
+                    GroupProtoUtil.checkEntityTypeForPolicy(providerGroup);
+                    final ApiEntityType providerEntityType = GroupProtoUtil.getEntityTypes(providerGroup).iterator().next();
+                    addCommodityBought(consumers, providerEntityType.typeNumber(),
+                        commodityBought(policy));
+                }
+            } catch (PolicyApplicationException e) {
+                errors.put(policy, e);
+            }
+        });
     }
 }

@@ -27,11 +27,16 @@ import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
  * Applies a collection of {@link BindToComplementaryGroupPolicy}s. No bulk optimizations.
  */
 public class BindToComplementaryGroupPolicyApplication extends PlacementPolicyApplication<BindToComplementaryGroupPolicy> {
+
+    private int invertedIndexMinimalScanThreshold;
+
     protected BindToComplementaryGroupPolicyApplication(
             final GroupResolver groupResolver,
             final TopologyGraph<TopologyEntity> topologyGraph,
-            TopologyInvertedIndexFactory invertedIndexFactory) {
+            final TopologyInvertedIndexFactory invertedIndexFactory,
+            final int invertedIndexMinimalScanThreshold) {
         super(groupResolver, topologyGraph, invertedIndexFactory);
+        this.invertedIndexMinimalScanThreshold = invertedIndexMinimalScanThreshold;
     }
 
     /**
@@ -40,6 +45,28 @@ public class BindToComplementaryGroupPolicyApplication extends PlacementPolicyAp
     @Override
     protected Map<PlacementPolicy, PolicyApplicationException> applyInternal(
             @Nonnull final List<BindToComplementaryGroupPolicy> policies) {
+        final Map<PlacementPolicy, PolicyApplicationException> errors = new HashMap<>();
+        final Map<Long, Set<Long>> consumersByPolicyId = new HashMap<>();
+        // We create all the commodities bought for all the policies in the end (after all the
+        // sold commodities for all the policies are created). This is because
+        // these bought commodities will show up on the entity but are not present in the inverted
+        // index. And if the same entity appears in a subsequent policy then we will look for sellers
+        // selling the bought commodity in the index and find nothing.
+        createAllCommSold(policies, errors, consumersByPolicyId);
+        createAllCommBought(policies, errors, consumersByPolicyId);
+
+        return errors;
+    }
+
+    /**
+     * Create all the commodities sold for all the policies.
+     * @param policies all the BindToComplementaryGroup policies
+     * @param errors place to store any errors
+     * @param consumersByPolicyId map to store the consumers for each policy
+     */
+    private void createAllCommSold(@Nonnull final List<BindToComplementaryGroupPolicy> policies,
+                                   @Nonnull final Map<PlacementPolicy, PolicyApplicationException> errors,
+                                   @Nonnull final Map<Long, Set<Long>> consumersByPolicyId) {
         // Build up an inverted index for the provider types targetted by these policies.
         // We use this inverted index to find which providers we can put segmentation commodities
         // onto (to avoid putting segmentation commodities on ALL providers outside the target
@@ -48,9 +75,7 @@ public class BindToComplementaryGroupPolicyApplication extends PlacementPolicyAp
             .flatMap(policy -> GroupProtoUtil.getEntityTypes(policy.getProviderPolicyEntities().getGroup()).stream())
             .collect(Collectors.toSet());
         final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> invertedIndex =
-                invertedIndexFactory.typeInvertedIndex(topologyGraph, providerTypes);
-
-        final Map<PlacementPolicy, PolicyApplicationException> errors = new HashMap<>();
+            invertedIndexFactory.typeInvertedIndex(topologyGraph, providerTypes, invertedIndexMinimalScanThreshold);
         policies.forEach(policy -> {
             try {
                 logger.debug("Applying bindToComplementaryGroup policy.");
@@ -61,7 +86,7 @@ public class BindToComplementaryGroupPolicyApplication extends PlacementPolicyAp
                 final ApiEntityType providerEntityType = GroupProtoUtil.getEntityTypes(providerGroup).iterator().next();
                 final ApiEntityType consumerEntityType = GroupProtoUtil.getEntityTypes(consumerGroup).iterator().next();
                 final Set<Long> providers = Sets.union(groupResolver.resolve(providerGroup, topologyGraph)
-                        .getEntitiesOfType(providerEntityType), policy.getProviderPolicyEntities().getAdditionalEntities());
+                    .getEntitiesOfType(providerEntityType), policy.getProviderPolicyEntities().getAdditionalEntities());
                 Set<Long> consumers = groupResolver.resolve(consumerGroup, topologyGraph).getEntitiesOfType(consumerEntityType);
                 consumers = consumers.stream().filter(id -> {
                     Optional<TopologyEntity> entity = topologyGraph.getEntity(id);
@@ -71,6 +96,7 @@ public class BindToComplementaryGroupPolicyApplication extends PlacementPolicyAp
                     return true;
                 }).collect(Collectors.toSet());
                 consumers.addAll(policy.getConsumerPolicyEntities().getAdditionalEntities());
+                consumersByPolicyId.put(policy.getPolicyDefinition().getId(), consumers);
                 if (consumers.isEmpty()) {
                     // If there are no consumers to bind, there's nothing more to do.
                     return;
@@ -91,15 +117,38 @@ public class BindToComplementaryGroupPolicyApplication extends PlacementPolicyAp
 
                 // Add the commodity to the appropriate entities
                 addCommoditySoldToComplementaryProviders(consumers, allBlockedProviders,
-                        providerEntityType.typeNumber(), invertedIndex, commoditySold(policy));
-                addCommodityBought(consumers, providerEntityType.typeNumber(),
-                        commodityBought(policy));
+                    providerEntityType.typeNumber(), invertedIndex, commoditySold(policy));
             } catch (GroupResolutionException e) {
                 errors.put(policy, new PolicyApplicationException(e));
-            } catch (PolicyApplicationException e2) {
-                errors.put(policy, e2);
+            } catch (IllegalArgumentException e) {
+                errors.put(policy, new PolicyApplicationException(e));
             }
         });
-        return errors;
+    }
+
+    /**
+     * Create all the commodities bought for all the policies.
+     * @param policies all the BindToComplementaryGroup policies
+     * @param errors place to store any errors
+     * @param consumersByPolicyId read the consumers for the policy from this map. We do this to
+     *                            avoid making another RPC call.
+     */
+    private void createAllCommBought(@Nonnull final List<BindToComplementaryGroupPolicy> policies,
+                                     @Nonnull final Map<PlacementPolicy, PolicyApplicationException> errors,
+                                     @Nonnull final Map<Long, Set<Long>> consumersByPolicyId) {
+        policies.forEach(policy -> {
+            try {
+                Set<Long> consumers = consumersByPolicyId.get(policy.getPolicyDefinition().getId());
+                if (consumers != null && !consumers.isEmpty()) {
+                    final Grouping providerGroup = policy.getProviderPolicyEntities().getGroup();
+                    GroupProtoUtil.checkEntityTypeForPolicy(providerGroup);
+                    final ApiEntityType providerEntityType = GroupProtoUtil.getEntityTypes(providerGroup).iterator().next();
+                    addCommodityBought(consumers, providerEntityType.typeNumber(),
+                        commodityBought(policy));
+                }
+            } catch (PolicyApplicationException e) {
+                errors.put(policy, e);
+            }
+        });
     }
 }
