@@ -11,7 +11,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -19,7 +18,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -64,7 +62,6 @@ import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestRe
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
-import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
@@ -97,11 +94,7 @@ import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesChunk;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
@@ -115,8 +108,6 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
-import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
@@ -131,6 +122,7 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -138,9 +130,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformati
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
@@ -675,25 +666,8 @@ public class SearchServiceTest {
                 supplyChainTestUtils.createServiceEntityApiDTO(1L, targetId1));
         final SearchPaginationRequest paginationRequest =
                 new SearchPaginationRequest("0", 10, true, SearchOrderBy.SEVERITY.name());
-        when(searchServiceSpy.searchEntityOids(any())).thenReturn(SearchEntityOidsResponse.newBuilder()
-                .addEntities(1L)
-                .addEntities(2L)
-                .addEntities(3L)
-                .addEntities(4L)
-                .build());
-        when(entitySeverityServiceSpy.getEntitySeverities(any())).thenReturn(
-            Arrays.asList(
-                EntitySeveritiesResponse.newBuilder()
-                    .setEntitySeverity(EntitySeveritiesChunk.newBuilder()
-                        .addEntitySeverity(EntitySeverity.newBuilder()
-                            .setEntityId(1L)
-                            .setSeverity(Severity.CRITICAL))).build(),
-                EntitySeveritiesResponse.newBuilder()
-                    .setPaginationResponse(PaginationResponse.newBuilder()).build()));
-
-        MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(serviceEntities);
-        when(repositoryApi.entitiesRequest(any()))
-            .thenReturn(req);
+        RepositoryApi.PaginatedSearchRequest searchReq = ApiTestUtils.mockPaginatedSearchRequest(paginationRequest, serviceEntities);
+        when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(searchReq);
 
         SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request, paginationRequest,
                 null);
@@ -1341,34 +1315,6 @@ public class SearchServiceTest {
                 }
             }
         }
-    }
-
-    /**
-     * Expected pagination response X-Total-Record-Count list size returned from getCandidateEntitiesForSearch().
-     *
-     * @throws Exception If any part of the operation failed.
-     */
-    @Test
-    public void testGetServiceEntityPaginatedWithSeverity() throws Exception {
-        //GIVEN
-        Set<Long> uuids = ImmutableSet.of(ENTITY_ID_1, ENTITY_ID_2, ENTITY_ID_3, ENTITY_ID_4);
-        doReturn(uuids).when(searchService).getCandidateEntitiesForSearch(any(), any(), any(), any());
-        SearchPaginationRequest searchPaginationRequestnew = new SearchPaginationRequest("", 20, true, null);
-
-        doReturn(ImmutableList.builder().build()).when(entitySeverityServiceSpy).getEntitySeverities(any());
-        doReturn((mock(MultiEntityRequest.class))).when(repositoryApi).entitiesRequest(any());
-
-        //WHEN
-        SearchPaginationResponse response = searchService.getServiceEntityPaginatedWithSeverity(new GroupApiDTO(),
-                null,
-                searchPaginationRequestnew,
-                uuids, SearchEntityOidsRequest.newBuilder().build(), null);
-
-        //THEN
-        assertNotNull(response);
-        assertTrue(response.getRestResponse().getHeaders().containsKey("X-Total-Record-Count"));
-        assertTrue(response.getRestResponse().getHeaders().get("X-Total-Record-Count")
-                .get(0).equals(String.valueOf(uuids.size())));
     }
 
     private void testCriteriaLoadOptions(@Nonnull String entityType, @Nonnull String criteriaKey) {
