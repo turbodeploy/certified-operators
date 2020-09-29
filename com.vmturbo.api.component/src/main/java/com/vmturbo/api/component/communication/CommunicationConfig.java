@@ -542,9 +542,18 @@ public class CommunicationConfig {
     }
 
     @Bean
+    public GroupMemberRetriever groupMemberRetriever() {
+        return new GroupMemberRetriever(groupRpcService());
+    }
+
+    /**
+     * Expands groups.
+     *
+     * @return The {@link GroupExpander}.
+     */
+    @Bean
     public GroupExpander groupExpander() {
-        return new GroupExpander(groupRpcService(),
-                new GroupMemberRetriever(groupRpcService()));
+        return new GroupExpander(groupRpcService(), groupMemberRetriever());
     }
 
     @Bean

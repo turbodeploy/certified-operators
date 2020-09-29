@@ -11,7 +11,6 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -33,6 +32,12 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 import org.junit.Before;
@@ -41,17 +46,11 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedEntityInfo;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.IAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
@@ -92,6 +91,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainStatsResponse;
@@ -103,11 +104,11 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -163,6 +164,7 @@ public class SupplyChainFetcherFactoryTest {
             mock(EntityAspectMapper.class),
             CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             7);
+        supplyChainFetcherFactory.setUuidMapper(uuidMapper);
     }
 
     /**
@@ -420,7 +422,7 @@ public class SupplyChainFetcherFactoryTest {
 
     private void setUpForCostTest(long entityId, EnvironmentType entityEnvType,
             float costComponent1, float costComponent2)
-            throws InterruptedException, ConversionException {
+            throws InterruptedException, ConversionException, OperationFailedException {
         final ImmutableList<String> searchUuids = ImmutableList.of(String.valueOf(entityId));
         final String vmName = "vm1";
         final Set<String> searchUuidSet = Sets.newHashSet(searchUuids);
@@ -873,6 +875,18 @@ public class SupplyChainFetcherFactoryTest {
                 result.getSeMap().get(PM).getInstances().get("5").getSeverity());
     }
 
+    private ApiId mockApiId(long id, ApiEntityType entityType) {
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(id);
+        when(apiId.uuid()).thenReturn(Long.toString(id));
+        when(apiId.isEntity()).thenReturn(true);
+        CachedEntityInfo c = mock(CachedEntityInfo.class);
+        when(c.getEntityType()).thenReturn(entityType);
+        when(apiId.getCachedEntityInfo()).thenReturn(Optional.of(c));
+        when(uuidMapper.fromOid(apiId.oid())).thenReturn(apiId);
+        return apiId;
+    }
+
     /**
      * Tests expanding scopes of entities like region and zones.
      * 0: is a region (expansion needed) which has
@@ -886,71 +900,50 @@ public class SupplyChainFetcherFactoryTest {
      * 2: is a VM (no expansion needed)
      * 10: is a VDC (expansion needed)
      *   VM with oid 11
-     * 12: is a Business Application (expansion needed but should get filtered out)
-     *   Service with oid 13
+     * @throws  OperationFailedException If there is an error.
      */
     @Test
-    public void testExpandGroupingServiceEntities() {
-        MinimalEntity regionMinimalEntity = MinimalEntity.newBuilder()
-            .setOid(0L)
-            .setEntityType(ApiEntityType.REGION.typeNumber())
-            .build();
-        MinimalEntity zoneMinimalEntity = MinimalEntity.newBuilder()
-            .setOid(1L)
-            .setEntityType(ApiEntityType.AVAILABILITY_ZONE.typeNumber())
-            .build();
-        MinimalEntity vdcMinimalEntity = MinimalEntity.newBuilder()
-            .setOid(10L)
-            .setEntityType(ApiEntityType.VIRTUAL_DATACENTER.typeNumber())
-            .build();
-        MinimalEntity bAppMinimalEntity = MinimalEntity.newBuilder()
-            .setOid(12L)
-            .setEntityType(ApiEntityType.BUSINESS_APPLICATION.typeNumber())
-            .build();
+    public void testExpandGroupingServiceEntities() throws OperationFailedException {
+        mockApiId(0L, ApiEntityType.REGION);
+        mockApiId(1L, ApiEntityType.AVAILABILITY_ZONE);
+        mockApiId(10L, ApiEntityType.VIRTUAL_DATACENTER);
+        mockApiId(2, ApiEntityType.VIRTUAL_MACHINE);
 
-        SearchRequest searchRequest = mock(SearchRequest.class);
-        when(searchRequest.getMinimalEntities()).thenReturn(Stream.of(
-            regionMinimalEntity, zoneMinimalEntity, vdcMinimalEntity, bAppMinimalEntity));
-
-        when(repositoryApiBackend.newSearchRequest(any()))
-            .thenReturn(searchRequest);
-
-        when(groupExpander.getGroupWithMembers(any())).thenReturn(Optional.empty());
-        when(groupExpander.expandUuids(Sets.newHashSet("0"))).thenReturn(Sets.newHashSet(0L));
-        when(groupExpander.expandUuids(Sets.newHashSet("1"))).thenReturn(Sets.newHashSet(1L));
-        when(groupExpander.expandUuids(Sets.newHashSet("2"))).thenReturn(Sets.newHashSet(2L));
-        when(groupExpander.expandUuids(Sets.newHashSet("10"))).thenReturn(Sets.newHashSet(10L));
-        when(groupExpander.expandUuids(Sets.newHashSet("12"))).thenReturn(Sets.newHashSet(12L));
-
-        Map<Long, GetSupplyChainResponse> responseMap = ImmutableMap.of(
-            0L, GetSupplyChainResponse.newBuilder()
-                .setSupplyChain(SupplyChain.newBuilder()
+        Map<Long, SupplyChain> responseMap = ImmutableMap.of(
+            0L, SupplyChain.newBuilder()
                     .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_MACHINE, 0, 3L))
                     .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.DATABASE, 0, 4L))
                     .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_VOLUME, 0, 5L))
-                    .build())
-                .build(),
-            1L, GetSupplyChainResponse.newBuilder()
-                .setSupplyChain(SupplyChain.newBuilder()
+                    .build(),
+            1L, SupplyChain.newBuilder()
                     .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_MACHINE, 0, 6L))
                     .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.DATABASE, 0, 7L))
                     .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_VOLUME, 0, 8L))
-                    .build())
-                .build(),
-            10L, GetSupplyChainResponse.newBuilder()
-                .setSupplyChain(SupplyChain.newBuilder()
+                    .build(),
+            10L, SupplyChain.newBuilder()
                     .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_MACHINE, 0, 11L))
-                    .build())
-                .build(),
-            12L, GetSupplyChainResponse.newBuilder()
-                .setSupplyChain(SupplyChain.newBuilder()
+                    .build(),
+            12L, SupplyChain.newBuilder()
                     .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.SERVICE, 0, 13L))
-                    .build())
-                .build());
-        when(supplyChainServiceBackend.getSupplyChain(any())).thenAnswer(invocationOnMock ->
-            responseMap.get(invocationOnMock.getArgumentAt(0, GetSupplyChainRequest.class).getScope().getStartingEntityOid(0)));
+                    .build());
+        when(supplyChainServiceBackend.getMultiSupplyChains(any())).thenAnswer(invocationOnMock -> {
+            GetMultiSupplyChainsRequest req = invocationOnMock.getArgumentAt(0, GetMultiSupplyChainsRequest.class);
+            return req.getSeedsList().stream()
+                .map(seed -> {
+                    // We can just concatenate the nodes without merging.
+                    List<SupplyChainNode> allNodes = seed.getScope().getStartingEntityOidList().stream()
+                        .flatMap(oid -> responseMap.get(oid).getSupplyChainNodesList().stream())
+                        .collect(Collectors.toList());
+                    return GetMultiSupplyChainsResponse.newBuilder()
+                            .setSeedOid(seed.getSeedOid())
+                            .setSupplyChain(SupplyChain.newBuilder()
+                                    .addAllSupplyChainNodes(allNodes))
+                            .build();
+                })
+                .collect(Collectors.toList());
+        });
 
-        Set<Long> actual = supplyChainFetcherFactory.expandAggregatedEntities(Arrays.asList(0L, 1L, 2L, 10L, 12L));
+        Set<Long> actual = supplyChainFetcherFactory.expandAggregatedEntities(Sets.newHashSet(0L, 1L, 2L, 10L));
         Assert.assertEquals(new HashSet<>(Arrays.asList(2L, 3L, 4L, 5L, 6L, 7L, 8L, 11L)), actual);
     }
 
