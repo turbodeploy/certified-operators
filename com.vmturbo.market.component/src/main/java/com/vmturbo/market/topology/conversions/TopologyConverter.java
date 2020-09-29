@@ -738,8 +738,16 @@ public class TopologyConverter {
             // Convert market tier traderTO builders to traderTOs
             marketTierTraderTOBuilders.stream()
                     .map(t -> t.addAllCliques(pmBasedBicliquer.getBcIDs(String.valueOf(t.getOid()))))
-                    .map(t -> t.addAllCommoditiesSold(commodityConverter.bcCommoditiesSold(t.getOid())))
-                    .forEach(t -> oidToOriginalTraderTOMap.put(t.getOid(), t.build()));
+                    .forEach(t -> {
+                        final MarketTier marketTier = cloudTc.getMarketTier(t.getOid());
+                        if (marketTier != null
+                            && marketTier.getTier().getEntityType()
+                            != EntityType.STORAGE_TIER_VALUE) {
+                            t.addAllCommoditiesSold(
+                                commodityConverter.bcCommoditiesSold(t.getOid()));
+                        }
+                        oidToOriginalTraderTOMap.put(t.getOid(), t.build());
+                    });
             // Iterate over all scaling groups and compute top usage
             calculateScalingGroupUsageData(entityOidToDto);
             entityOidToDto.values().stream()
@@ -3064,7 +3072,7 @@ public class TopologyConverter {
             if (!shopTogether) {
                 // NOTE: Skip biClique creation for migration case where the shoptogether is true
                 // for migrating entities.
-                createBcCommodityBoughtForCloudEntity(providerOid, entityForSLOid).forEach(values::add);
+                values.addAll(createBcCommodityBoughtForCloudEntity(providerOid, entityForSLOid));
             }
             // Create DC comm bought
             if (!isCloudMigration) {
@@ -3361,25 +3369,25 @@ public class TopologyConverter {
     @Nonnull
     private Set<CommodityDTOs.CommodityBoughtTO> createBcCommodityBoughtForCloudEntity(
             long providerOid, long buyerOid) {
-        MarketTier marketTier = cloudTc.getMarketTier(providerOid);
-        int providerEntityType = marketTier.getTier().getEntityType();
-        TopologyEntityDTO cloudBuyer = entityOidToDto.get(buyerOid);
-        Set<String> bcKeys = new HashSet<>();
-        if (providerEntityType == EntityType.COMPUTE_TIER_VALUE) {
-            Set<Long> connectedStorageMarketTierOids =
+        final MarketTier marketTier = cloudTc.getMarketTier(providerOid);
+        final Set<String> bcKeys = new HashSet<>();
+        if (marketTier != null) {
+            int providerEntityType = marketTier.getTier().getEntityType();
+            TopologyEntityDTO cloudBuyer = entityOidToDto.get(buyerOid);
+            if (providerEntityType == EntityType.COMPUTE_TIER_VALUE) {
+                Set<Long> connectedStorageMarketTierOids =
                     cloudTc.getMarketTierProviderOidOfType(cloudBuyer, EntityType.STORAGE_TIER_VALUE);
-            connectedStorageMarketTierOids.stream().filter(Objects::nonNull)
+                connectedStorageMarketTierOids.stream().filter(Objects::nonNull)
                     .map(stOid -> dsBasedBicliquer.getBcKey(
-                            String.valueOf(providerOid), String.valueOf(stOid)))
+                        String.valueOf(providerOid), String.valueOf(stOid)))
                     .filter(Objects::nonNull)
                     .forEach(bcKeys::add);
-        } else if (providerEntityType == EntityType.STORAGE_TIER_VALUE) {
-            Optional.ofNullable(dsBasedBicliquer.getBcKeys(String.valueOf(providerOid)))
-                    .ifPresent(keys -> keys.stream().filter(Objects::nonNull)
-                    .forEach(bcKeys::add));
+            }
         }
-        return bcKeys.stream().map(this::bcCommodityBought)
-                .filter(Objects::nonNull).collect(Collectors.toCollection(HashSet::new));
+        return bcKeys.stream()
+            .filter(Objects::nonNull)
+            .map(this::bcCommodityBought)
+            .collect(Collectors.toCollection(HashSet::new));
     }
 
     /**

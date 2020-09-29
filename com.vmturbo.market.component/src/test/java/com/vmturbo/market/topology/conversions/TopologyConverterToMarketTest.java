@@ -2013,21 +2013,45 @@ public class TopologyConverterToMarketTest {
                 marketPriceTable,
                 ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
+        final long computeTierOid = 111111L;
+        final TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder()
+            .setOid(computeTierOid)
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                .setConnectedEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setConnectedEntityId(73363299852962L)
+                .setConnectionType(ConnectionType.NORMAL_CONNECTION)
+                .build())
+            .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+            .build();
+        topologyDTOs.put(computeTierOid, computeTier);
         Set<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
-        assertEquals(2, traderTOs.size());
+        assertEquals(3, traderTOs.size());
         // One of the trader is for StorageTier.
-        Optional<TraderTO> storageTierTraderTO = traderTOs.stream().filter(t -> t.getType() == EntityType.STORAGE_TIER_VALUE).findAny();
+        Optional<TraderTO> storageTierTraderTO = traderTOs.stream()
+            .filter(t -> t.getType() == EntityType.STORAGE_TIER_VALUE)
+            .findAny();
         assertTrue(storageTierTraderTO.isPresent());
-        // The other trader is for VirtualMachine.
-        TraderTO entityTraderTO = traderTOs.stream().filter(t -> t.getType() != EntityType.STORAGE_TIER_VALUE).findAny().orElse(null);
-        assertNotNull(entityTraderTO);
-        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, entityTraderTO.getType());
+        // Check biclique commodity is NOT sold by Storage Tier
+        Assert.assertFalse(storageTierTraderTO.get().getCommoditiesSoldList().stream()
+            .anyMatch(commoditySold -> commoditySold.getSpecification()
+                .getBaseType() == CommodityDTO.CommodityType.BICLIQUE_VALUE));
+
+        TraderTO vmTraderTO =
+            traderTOs.stream()
+                .filter(t -> t.getType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .findAny()
+                .orElse(null);
+        assertNotNull(vmTraderTO);
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, vmTraderTO.getType());
 
         // Test the shoppingList within the VM trader which represents cloud volume.
-        ShoppingListTO volumeSL = entityTraderTO.getShoppingListsCount() > 0 ? entityTraderTO.getShoppingLists(0) : null;
+        final ShoppingListTO volumeSL = vmTraderTO.getShoppingListsCount() > 0
+            ? vmTraderTO.getShoppingLists(0) : null;
         assertNotNull(volumeSL);
         // shoppingList provider is storageTier
         assertEquals(storageTierTraderTO.get().getOid(), volumeSL.getSupplier());
+        // Check that no biclique commodity is bought by volume shopping list
+        Assert.assertEquals(1, volumeSL.getCommoditiesBoughtCount());
         CommodityBoughtTO commodityBoughtTO = volumeSL.getCommoditiesBoughtCount() > 0 ? volumeSL.getCommoditiesBought(0) : null;
         assertNotNull(commodityBoughtTO);
         assertEquals(1506, commodityBoughtTO.getAssignedCapacityForBuyer(), 0.01f);
@@ -2040,6 +2064,17 @@ public class TopologyConverterToMarketTest {
         assertTrue(shoppingListInfo.getCollapsedBuyerId().isPresent());
         // Test collapsedBuyerId
         assertEquals(73442089143125L, shoppingListInfo.getCollapsedBuyerId().get().longValue());
+
+        // Check biclique commodity IS sold by Compute Tier
+        final TraderTO computeTierTraderTO =
+            traderTOs.stream()
+                .filter(t -> t.getType() == EntityType.COMPUTE_TIER_VALUE)
+                .findAny()
+                .orElse(null);
+        Assert.assertNotNull(computeTierTraderTO);
+        Assert.assertTrue(computeTierTraderTO.getCommoditiesSoldList().stream()
+            .anyMatch(commoditySold -> commoditySold.getSpecification()
+            .getBaseType() == CommodityDTO.CommodityType.BICLIQUE_VALUE));
     }
 
     /**
