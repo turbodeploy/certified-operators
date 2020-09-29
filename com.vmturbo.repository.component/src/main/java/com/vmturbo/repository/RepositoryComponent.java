@@ -250,7 +250,8 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Bean
     public LiveTopologyPaginator liveTopologyPaginator() {
         return new LiveTopologyPaginator(repositorySearchPaginationDefaultLimit,
-            repositorySearchPaginationMaxLimit);
+            repositorySearchPaginationMaxLimit,
+            actionOrchestratorClientConfig.entitySeverityClientCache());
     }
 
     @Bean
