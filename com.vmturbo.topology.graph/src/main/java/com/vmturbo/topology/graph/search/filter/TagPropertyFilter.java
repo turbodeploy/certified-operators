@@ -1,5 +1,7 @@
 package com.vmturbo.topology.graph.search.filter;
 
+import java.util.IdentityHashMap;
+import java.util.Set;
 import java.util.function.LongPredicate;
 import java.util.stream.Stream;
 
@@ -7,6 +9,7 @@ import javax.annotation.Nonnull;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -40,22 +43,41 @@ public class TagPropertyFilter<E extends TopologyGraphSearchableEntity<E>> exten
     @Override
     public Stream<E> apply(@Nonnull Stream<E> entities, @Nonnull TopologyGraph<E> graph) {
         final Long2ObjectMap<E> entitiesById = new Long2ObjectOpenHashMap<>();
-        entities.forEach(e -> entitiesById.put(e.getOid(), e));
-        if (entitiesById.isEmpty()) {
+        // Each entity may have its own tag index, or there may be a global optimized tag index.
+        // Store the distinct tag indices using identity comparisons, and then check all of them
+        // for matching entities.
+        final IdentityHashMap<TagIndex, Boolean> tagIndices = new IdentityHashMap<>(1);
+        entities.forEach(e -> {
+            entitiesById.put(e.getOid(), e);
+            SearchableProps searchableProps = e.getSearchableProps(SearchableProps.class);
+            if (searchableProps != null) {
+                tagIndices.put(searchableProps.getTagIndex(), true);
+            }
+        });
+        if (entitiesById.isEmpty() || tagIndices.keySet().isEmpty()) {
             return Stream.empty();
         } else {
-            E firstEntity = entitiesById.values().iterator().next();
-            SearchableProps searchableProps = firstEntity.getSearchableProps(SearchableProps.class);
-            if (searchableProps == null) {
-                // This shouldn't happen, because all SearchableProps implementations implement
-                // the base interface.
-                logger.warn("Unable to find searchable props for entity {}", firstEntity);
-                return Stream.empty();
-            }
-            final TagIndex tagIndex = searchableProps.getTagIndex();
-            final LongSet matchedEntities = tagIndex.getMatchingEntities(mapFilter, entitiesById::containsKey);
+            final LongSet matchedEntities = getMatchedEntities(tagIndices.keySet(), entitiesById::containsKey);
             return entitiesById.values().stream()
-                    .filter(e -> mapFilter.getPositiveMatch() == matchedEntities.contains(e.getOid()));
+                .filter(e -> mapFilter.getPositiveMatch() == matchedEntities.contains(e.getOid()));
         }
+    }
+
+    @Nonnull
+    private LongSet getMatchedEntities(Set<TagIndex> indices, LongPredicate idPredicate) {
+        // Take the returned set of the first index, and add on to it. This optimization is
+        // mostly for when we have a shared tag index (e.g. in the repository) and want to avoid
+        // allocating an extra set and copying all results into it.
+        LongSet allMatched = null;
+        for (final TagIndex index : indices) {
+            final LongSet indexMatchedEntities = index.getMatchingEntities(mapFilter, idPredicate);
+            if (allMatched == null) {
+                allMatched = indexMatchedEntities;
+            } else {
+                allMatched.addAll(indexMatchedEntities);
+            }
+        }
+        // Should not be null, but just in case.
+        return allMatched == null ? new LongOpenHashSet() : allMatched;
     }
 }
