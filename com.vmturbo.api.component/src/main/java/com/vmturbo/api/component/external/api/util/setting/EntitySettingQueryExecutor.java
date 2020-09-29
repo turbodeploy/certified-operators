@@ -149,7 +149,7 @@ public class EntitySettingQueryExecutor {
                 scope.getScopeTypes().get() : Collections.emptySet();
         final Set<Long> oids;
         if (scope.isGroup()) {
-            oids = groupExpander.expandOids(Collections.singleton(scope));
+            oids = groupExpander.expandOids(Collections.singleton(scope.oid()));
         } else {
             oids = Collections.singleton(scope.oid());
         }

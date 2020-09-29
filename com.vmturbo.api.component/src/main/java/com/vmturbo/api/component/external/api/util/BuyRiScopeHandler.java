@@ -4,7 +4,6 @@ import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.BUY_RI;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -90,49 +89,40 @@ public class BuyRiScopeHandler {
     /**
      * Extract entities related to Buy RI actions (regions, accounts) from selected scope.
      *
-     * @param scopeIds Selected scopes.
+     * @param scopeId Selected scope.
      * @return Set of Buy RI related entities OIDs.
      */
-    public Set<Long> extractBuyRiEntities(@Nonnull final Set<ApiId> scopeIds) {
-        Set<Long> response = new HashSet<>();
-        scopeIds.stream().flatMap(scopeId -> {
-            // Global scope
-            if (scopeId == null || scopeId.isRealtimeMarket() || scopeId.isPlan()) {
-                return Stream.empty();
+    public Set<Long> extractBuyRiEntities(@Nullable final ApiId scopeId) {
+        // Global scope
+        if (scopeId == null || scopeId.isRealtimeMarket() || scopeId.isPlan()) {
+            return Collections.emptySet();
+        }
+
+        // Entity scope (single Region / Service Providers)
+        if (scopeId.isEntity() && scopeId.getScopeTypes().isPresent()) {
+            if (GROUP_OF_REGIONS.equals(scopeId.getScopeTypes().orElse(null)) ||
+                            GROUP_OF_SERVICE_PROVIDERS.equals(scopeId.getScopeTypes().orElse(null))) {
+                return ImmutableSet.of(scopeId.oid());
             }
+            return Collections.emptySet();
+        }
 
-            // Entity scope (single Region / Service Providers)
-            if (scopeId.isEntity() && scopeId.getScopeTypes().isPresent()) {
-                if (GROUP_OF_REGIONS.equals(scopeId.getScopeTypes().orElse(null))
-                        || GROUP_OF_SERVICE_PROVIDERS.equals(scopeId.getScopeTypes().orElse(null))) {
-                    return Stream.of(scopeId.oid());
-                }
-                return Stream.empty();
+        // Group scope (Billing Family, group of Regions or group of Billing Family)
+        if (scopeId.isGroup() && scopeId.getCachedGroupInfo().isPresent()) {
+            final UuidMapper.CachedGroupInfo groupInfo = scopeId.getCachedGroupInfo().get();
+
+            // Group of regions or Service Providers
+            if (GROUP_OF_REGIONS.equals(groupInfo.getEntityTypes())
+                    // Billing Family
+                    || groupInfo.getGroupType() == GroupType.BILLING_FAMILY
+                    // Group of Billing Family
+                    || GROUP_OF_BILLING_FAMILY.equals(groupInfo.getNestedGroupTypes())
+                    || GROUP_OF_SERVICE_PROVIDERS.equals(groupInfo.getEntityTypes())) {
+                return groupInfo.getEntityIds();
             }
+        }
 
-            // Group scope (Billing Family, group of Regions or group of Billing Family)
-            if (scopeId.isGroup() && scopeId.getCachedGroupInfo().isPresent()) {
-                final UuidMapper.CachedGroupInfo groupInfo = scopeId.getCachedGroupInfo().get();
-
-                // Group of regions or Service Providers
-                if (isGroupRelatedToBuyRi(groupInfo)) {
-                    return groupInfo.getEntityIds().stream();
-                }
-            }
-
-            return Stream.empty();
-        })
-        .forEach(response::add);
-        return response;
-    }
-
-    private boolean isGroupRelatedToBuyRi(UuidMapper.CachedGroupInfo groupInfo) {
-        return GROUP_OF_REGIONS.equals(groupInfo.getEntityTypes())
-                // Billing Family
-                || groupInfo.getGroupType() == GroupType.BILLING_FAMILY
-                // Group of Billing Family
-                || GROUP_OF_BILLING_FAMILY.equals(groupInfo.getNestedGroupTypes())
-                || GROUP_OF_SERVICE_PROVIDERS.equals(groupInfo.getEntityTypes());
+        return Collections.emptySet();
     }
 
     /**
@@ -147,30 +137,7 @@ public class BuyRiScopeHandler {
      */
     @Nonnull
     public Set<Long> extractBuyRiEntities(@Nonnull final ApiId inputScope, @Nonnull final Set<Integer> entityTypes) {
-        return extractBuyRiEntities(Collections.singleton(inputScope), entityTypes);
-    }
-
-    /**
-     * See {@link BuyRiScopeHandler#extractBuyRiEntities(Set)}. Just for one scope.
-     *
-     * @param inputScope The input scope.
-     * @return See {@link BuyRiScopeHandler#extractBuyRiEntities(Set)}.
-     */
-    @Nonnull
-    public Set<Long> extractBuyRiEntities(@Nonnull final ApiId inputScope) {
-        return extractBuyRiEntities(Collections.singleton(inputScope));
-    }
-
-    /**
-     * See {@link BuyRiScopeHandler#extractBuyRiEntities(ApiId, Set)}. Just for multiple scopes.
-     *
-     * @param inputScopes The {@link ApiId}s in the input scope.
-     * @param entityTypes Set of entity types.
-     * @return Set of Buy RI related entities OIDs.
-     */
-    @Nonnull
-    public Set<Long> extractBuyRiEntities(@Nonnull final Set<ApiId> inputScopes, @Nonnull final Set<Integer> entityTypes) {
-        return shouldIncludeBuyRiEntities(entityTypes) ? extractBuyRiEntities(inputScopes) : Collections.emptySet();
+        return shouldIncludeBuyRiEntities(entityTypes) ? extractBuyRiEntities(inputScope) : Collections.emptySet();
     }
 
     /**

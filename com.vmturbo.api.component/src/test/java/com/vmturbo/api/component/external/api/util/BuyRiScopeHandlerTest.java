@@ -292,6 +292,18 @@ public class BuyRiScopeHandlerTest {
     }
 
     /**
+     * Test {@link BuyRiScopeHandler#extractBuyRiEntities(ApiId)} method without scope scope.
+     */
+    @Test
+    public void testExtractBuyRiEntitiesForNull() {
+        // Act
+        final Set<Long> result = buyRiScopeHandler.extractBuyRiEntities(null);
+
+        // Assert
+        assertThat(result, is(Collections.emptySet()));
+    }
+
+    /**
      * Test {@link BuyRiScopeHandler#extractBuyRiEntities(ApiId, Set)} method without scope scope.
      */
     @Test

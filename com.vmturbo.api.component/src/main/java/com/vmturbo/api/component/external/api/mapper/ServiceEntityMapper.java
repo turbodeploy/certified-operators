@@ -403,7 +403,7 @@ public class ServiceEntityMapper {
      */
     @Nonnull
     public Map<Long, ServiceEntityApiDTO> entitiesWithAspects(
-            @Nonnull final Collection<TopologyEntityDTO> entities,
+            @Nonnull final List<TopologyEntityDTO> entities,
             @Nonnull EntityAspectMapper aspectMapper, @Nullable Collection<String> requestedAspects)
             throws ConversionException, InterruptedException {
 

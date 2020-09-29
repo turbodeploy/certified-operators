@@ -293,7 +293,6 @@ public class CommunicationConfig {
             searchServiceStub(),
             serviceEntityMapper(),
             businessAccountMapper(),
-            mapperConfig.paginationMapper(),
             realtimeTopologyContextId);
     }
 
@@ -543,18 +542,9 @@ public class CommunicationConfig {
     }
 
     @Bean
-    public GroupMemberRetriever groupMemberRetriever() {
-        return new GroupMemberRetriever(groupRpcService());
-    }
-
-    /**
-     * Expands groups.
-     *
-     * @return The {@link GroupExpander}.
-     */
-    @Bean
     public GroupExpander groupExpander() {
-        return new GroupExpander(groupRpcService(), groupMemberRetriever());
+        return new GroupExpander(groupRpcService(),
+                new GroupMemberRetriever(groupRpcService()));
     }
 
     @Bean

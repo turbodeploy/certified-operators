@@ -280,7 +280,8 @@ public class StatsQueryScopeExpander {
                 expandedOidsInScope = immediateOidsInScope;
             }
         } else {
-            expandedOidsInScope = supplyChainFetcherFactory.expandAggregatedEntities(immediateOidsInScope);
+            expandedOidsInScope = supplyChainFetcherFactory.expandAggregatedEntities(
+                immediateOidsInScope);
         }
 
         if (!scope.isPlan()) {

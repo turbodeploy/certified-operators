@@ -19,6 +19,8 @@ import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.identity.IdentityService;
 
 /**
@@ -57,6 +59,9 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final UserSessionContext userSessionContext;
 
+    private final SupplyChainServiceBlockingStub supplyChainService;
+    private final RepositoryServiceBlockingStub repositoryService;
+
     private final InvolvedEntitiesExpander involvedEntitiesExpander;
 
     private final LicenseCheckClient licenseCheckClient;
@@ -67,8 +72,6 @@ public class ActionStoreFactory implements IActionStoreFactory {
     private final IdentityService<ActionInfo> actionIdentityService;
     private final ActionAuditSender externalAuditEventSender;
     private final ActionTopologyStore actionTopologyStore;
-
-    private final EntitySeverityCache entitySeverityCache;
 
     private final boolean riskPropagationEnabled;
     private final int queryTimeWindowForLastExecutedActionsMins;
@@ -92,12 +95,13 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.atomicActionFactory = Objects.requireNonNull(builder.atomicActionFactory);
         this.clock = Objects.requireNonNull(builder.clock);
         this.userSessionContext = Objects.requireNonNull(builder.userSessionContext);
+        this.supplyChainService = Objects.requireNonNull(builder.supplyChainService);
+        this.repositoryService = Objects.requireNonNull(builder.repositoryService);
         this.licenseCheckClient = Objects.requireNonNull(builder.licenseCheckClient);
         this.acceptedActionsStore = Objects.requireNonNull(builder.acceptedActionsDAO);
         this.rejectedActionsStore = Objects.requireNonNull(builder.rejectedActionsDAO);
         this.actionIdentityService = Objects.requireNonNull(builder.actionIdentityService);
         this.involvedEntitiesExpander = Objects.requireNonNull(builder.involvedEntitiesExpander);
-        this.entitySeverityCache = Objects.requireNonNull(builder.entitySeverityCache);
         this.externalAuditEventSender = Objects.requireNonNull(builder.actionAuditSender);
         this.riskPropagationEnabled =  builder.riskPropagationEnabled;
         this.queryTimeWindowForLastExecutedActionsMins = builder.queryTimeWindowForLastExecutedActionsMins;
@@ -112,12 +116,13 @@ public class ActionStoreFactory implements IActionStoreFactory {
     @Override
     public ActionStore newStore(final long topologyContextId) {
         if (topologyContextId == realtimeTopologyContextId) {
-            return new LiveActionStore(actionFactory, topologyContextId,
+            return new LiveActionStore(actionFactory, topologyContextId, actionTopologyStore,
                     actionTargetSelector, probeCapabilityCache, entitySettingsCache,
                     actionHistoryDao, actionsStatistician, actionTranslator, atomicActionFactory,
                     clock, userSessionContext, licenseCheckClient, acceptedActionsStore,
                     rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
-                    externalAuditEventSender, entitySeverityCache, queryTimeWindowForLastExecutedActionsMins);
+                    externalAuditEventSender, riskPropagationEnabled,
+                    queryTimeWindowForLastExecutedActionsMins);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId,
                 entitySettingsCache, actionTranslator, realtimeTopologyContextId, actionTargetSelector,
@@ -157,6 +162,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
         private AtomicActionFactory atomicActionFactory;
         private Clock clock;
         private UserSessionContext userSessionContext;
+        private SupplyChainServiceBlockingStub supplyChainService;
+        private RepositoryServiceBlockingStub repositoryService;
         private ActionTopologyStore actionTopologyStore;
         private LicenseCheckClient licenseCheckClient;
         private AcceptedActionsDAO acceptedActionsDAO;
@@ -164,7 +171,6 @@ public class ActionStoreFactory implements IActionStoreFactory {
         private IdentityService<ActionInfo> actionIdentityService;
         private InvolvedEntitiesExpander involvedEntitiesExpander;
         private ActionAuditSender actionAuditSender;
-        private EntitySeverityCache entitySeverityCache;
         private boolean riskPropagationEnabled;
         private int queryTimeWindowForLastExecutedActionsMins = -1;
 
@@ -249,17 +255,6 @@ public class ActionStoreFactory implements IActionStoreFactory {
         }
 
         /**
-         * Set the {@link EntitySeverityCache}.
-         *
-         * @param entitySeverityCache The {@link EntitySeverityCache}.
-         * @return The builder for method chaining.
-         */
-        public Builder withSeverityCache(@Nonnull EntitySeverityCache entitySeverityCache) {
-            this.entitySeverityCache = entitySeverityCache;
-            return this;
-        }
-
-        /**
          * Sets the probeCapabilityCache on this builder.
          *
          * @param probeCapabilityCache the probeCapabilityCache.
@@ -322,6 +317,28 @@ public class ActionStoreFactory implements IActionStoreFactory {
          */
         public Builder withUserSessionContext(@Nonnull UserSessionContext userSessionContext) {
             this.userSessionContext = userSessionContext;
+            return this;
+        }
+
+        /**
+         * Sets the supplyChainService on this builder.
+         *
+         * @param supplyChainService the supplyChainService.
+         * @return the same builder with the supplyChainService set.
+         */
+        public Builder withSupplyChainService(@Nonnull SupplyChainServiceBlockingStub supplyChainService) {
+            this.supplyChainService = supplyChainService;
+            return this;
+        }
+
+        /**
+         * Sets the repositoryService on this builder.
+         *
+         * @param repositoryService the repositoryService.
+         * @return the same builder with the repositoryService set.
+         */
+        public Builder withRepositoryService(@Nonnull RepositoryServiceBlockingStub repositoryService) {
+            this.repositoryService = repositoryService;
             return this;
         }
 
