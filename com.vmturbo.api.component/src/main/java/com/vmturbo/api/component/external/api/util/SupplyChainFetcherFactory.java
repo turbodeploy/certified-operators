@@ -346,7 +346,7 @@ public class SupplyChainFetcherFactory {
                         .setScope(SupplyChainScope.newBuilder()
                             .addAllStartingEntityOid(oidsToExpand));
                 // Only want the types we are looking to expand to.
-                typesToExpandTo.forEach(t -> seedBldr.getScopeBuilder().addEntityTypesToInclude(t.apiStr()));
+                typesToExpandTo.forEach(t -> seedBldr.getScopeBuilder().addEntityTypesToInclude(t.typeNumber()));
                 supplyChainSeeds.add(seedBldr.build());
             }
         }
@@ -596,7 +596,7 @@ public class SupplyChainFetcherFactory {
 
         protected final Set<String> seedUuids = Sets.newHashSet();
 
-        protected final Set<String> entityTypes = Sets.newHashSet();
+        protected final Set<ApiEntityType> entityTypes = Sets.newHashSet();
 
         protected final Set<EntityState> entityStates = Sets.newHashSet();
 
@@ -686,10 +686,9 @@ public class SupplyChainFetcherFactory {
                             // The "Workload" type is UI-only, and represents a collection of
                             // entity types that count as a workload in our system. Expand the
                             // magic type into the real types it represents.
-                            return ApiEntityType.WORKLOAD_ENTITY_TYPES.stream()
-                                .map(ApiEntityType::apiStr);
+                            return ApiEntityType.WORKLOAD_ENTITY_TYPES.stream();
                         } else {
-                            return Stream.of(type);
+                            return Stream.of(ApiEntityType.fromString(type));
                         }
                     })
                     .forEach(this.entityTypes::add);
@@ -774,7 +773,7 @@ public class SupplyChainFetcherFactory {
 
         protected final Set<String> seedUuids;
 
-        private final Set<String> entityTypes;
+        private final Set<ApiEntityType> entityTypes;
 
         private final Set<EntityState> entityStates;
 
@@ -791,7 +790,7 @@ public class SupplyChainFetcherFactory {
         private SupplychainFetcher(final long realtimeTopologyContextId,
                                    final long topologyContextId,
                                    @Nullable final Set<String> seedUuids,
-                                   @Nullable final Set<String> entityTypes,
+                                   @Nullable final Set<ApiEntityType> entityTypes,
                                    @Nullable final Set<EntityState> entityStates,
                                    @Nonnull final Optional<EnvironmentTypeEnum.EnvironmentType> environmentType,
                                    @Nonnull SupplyChainServiceBlockingStub supplyChainRpcService,
@@ -852,7 +851,9 @@ public class SupplyChainFetcherFactory {
 
             // If entityTypes is specified, include that in the request
             if (CollectionUtils.isNotEmpty(entityTypes)) {
-                scopeBuilder.addAllEntityTypesToInclude(entityTypes);
+                entityTypes.forEach(type -> {
+                    scopeBuilder.addEntityTypesToInclude(type.typeNumber());
+                });
             }
 
             if (CollectionUtils.isNotEmpty(entityStates)) {
@@ -912,12 +913,8 @@ public class SupplyChainFetcherFactory {
                     // supply chain API. In the long term there should be a better API to retrieve this
                     // (e.g. some sort of "entity counts" API for grouped severities,
                     //       and/or options on the /search API for aspects)
-                    if (CollectionUtils.size(entityTypes) > 0) {
-                        final List<String> groupTypes = GroupProtoUtil
-                            .getEntityTypes(group)
-                            .stream()
-                            .map(ApiEntityType::apiStr)
-                            .collect(Collectors.toList());
+                    if (CollectionUtils.isNotEmpty(entityTypes)) {
+                        final Set<ApiEntityType> groupTypes = GroupProtoUtil.getEntityTypes(group);
 
                         if (groupTypes.containsAll(entityTypes)) {
                             if (groupWithMembers.get().entities().isEmpty()) {
@@ -927,10 +924,9 @@ public class SupplyChainFetcherFactory {
                             final Map<ApiEntityType, Set<Long>> typeToMembers =
                                 groupExpander.expandUuidToTypeToEntitiesMap(group.getId());
 
-                            return entityTypes
-                                .stream()
+                            return entityTypes.stream()
                                 .map(type -> createSupplyChainNode(type,
-                                    typeToMembers.get(ApiEntityType.fromString(type)),
+                                    typeToMembers.get(type),
                                     group, null, null))
                                 .filter(Optional::isPresent)
                                 .map(Optional::get)
@@ -1007,8 +1003,8 @@ public class SupplyChainFetcherFactory {
         private List<SupplyChainNode> createSupplyChainForResourceGroup(
             GroupAndMembers groupAndMembers) {
             final Set<Long> entities = new HashSet<>(groupAndMembers.entities());
-            final Map<ApiEntityType, Set<String>> connectionsProvider = new HashMap<>();
-            final Map<ApiEntityType, Set<String>> connectionsConsumer = new HashMap<>();
+            final Map<ApiEntityType, Set<ApiEntityType>> connectionsProvider = new HashMap<>();
+            final Map<ApiEntityType, Set<ApiEntityType>> connectionsConsumer = new HashMap<>();
             final Map<ApiEntityType, Set<Long>> entitiesMap = new HashMap<>();
             final boolean limitedTypes = CollectionUtils.isNotEmpty(entityTypes);
 
@@ -1017,7 +1013,7 @@ public class SupplyChainFetcherFactory {
                     final ApiEntityType firstEntityType =
                         ApiEntityType.fromType(entity.getEntityType());
                     final boolean entityInScope =
-                        !limitedTypes || entityTypes.contains(firstEntityType.apiStr());
+                        !limitedTypes || entityTypes.contains(firstEntityType);
 
                     if (entityInScope) {
                         entitiesMap.computeIfAbsent(ApiEntityType.fromType(entity.getEntityType()),
@@ -1043,7 +1039,7 @@ public class SupplyChainFetcherFactory {
                     providers
                         .forEach(p -> {
                             // If the type is not part of requested entity continue
-                            if (limitedTypes && !entityTypes.contains(p.second.apiStr())) {
+                            if (limitedTypes && !entityTypes.contains(p.second)) {
                                 return;
                             }
 
@@ -1063,17 +1059,17 @@ public class SupplyChainFetcherFactory {
                                 final ApiEntityType providerType = p.second;
                                 connectionsProvider
                                     .computeIfAbsent(consumerType, t -> new HashSet<>())
-                                    .add(providerType.apiStr());
+                                    .add(providerType);
                                 connectionsConsumer
                                     .computeIfAbsent(providerType, t -> new HashSet<>())
-                                    .add(consumerType.apiStr());
+                                    .add(consumerType);
                             }
                         });
                 });
 
             return entitiesMap.entrySet()
                 .stream()
-                .map(e -> createSupplyChainNode(e.getKey().apiStr(), e.getValue(),
+                .map(e -> createSupplyChainNode(e.getKey(), e.getValue(),
                     groupAndMembers.group(), connectionsProvider.get(e.getKey()),
                     connectionsConsumer.get(e.getKey())))
                 .filter(Optional::isPresent)
@@ -1081,11 +1077,11 @@ public class SupplyChainFetcherFactory {
                 .collect(Collectors.toList());
         }
 
-        private Optional<SupplyChainNode> createSupplyChainNode(String type,
+        private Optional<SupplyChainNode> createSupplyChainNode(ApiEntityType type,
                                                                 Set<Long> entities,
                                                                 final Grouping group,
-                                                                final Set<String> providerSet,
-                                                                final Set<String> consumerSet
+                                                                final Set<ApiEntityType> providerSet,
+                                                                final Set<ApiEntityType> consumerSet
         ) {
             if (CollectionUtils.isEmpty(entities)) {
                 return Optional.empty();
@@ -1115,18 +1111,22 @@ public class SupplyChainFetcherFactory {
                 filteredMembers = entities;
             }
             final SupplyChainNode.Builder nodeBuilder = SupplyChainNode.newBuilder()
-                .setEntityType(type)
+                .setEntityType(type.typeNumber())
                 .putMembersByState(EntityState.POWERED_ON_VALUE,
                     MemberList.newBuilder()
                         .addAllMemberOids(filteredMembers)
                         .build());
 
             if (providerSet != null) {
-                nodeBuilder.addAllConnectedProviderTypes(providerSet);
+                providerSet.forEach(t -> {
+                    nodeBuilder.addConnectedProviderTypes(t.typeNumber());
+                });
             }
 
             if (consumerSet != null) {
-                nodeBuilder.addAllConnectedConsumerTypes(consumerSet);
+                consumerSet.forEach(t -> {
+                    nodeBuilder.addConnectedConsumerTypes(t.typeNumber());
+                });
             }
 
             return Optional.of(nodeBuilder.build());
@@ -1161,7 +1161,7 @@ public class SupplyChainFetcherFactory {
         private SupplychainNodeFetcher(final long realtimeTopologyContextId,
                                        final long topologyContextId,
                                        @Nullable final Set<String> seedUuids,
-                                       @Nullable final Set<String> entityTypes,
+                                       @Nullable final Set<ApiEntityType> entityTypes,
                                        @Nullable final Set<EntityState> entityStates,
                                        @Nonnull final Optional<EnvironmentType> environmentType,
                                        @Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,
@@ -1177,7 +1177,7 @@ public class SupplyChainFetcherFactory {
         public Map<String, SupplyChainNode> processSupplyChain(
                 @Nonnull final List<SupplyChainNode> supplyChainNodes) {
             return supplyChainNodes.stream()
-                .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
+                .collect(Collectors.toMap(t -> ApiEntityType.fromType(t.getEntityType()).apiStr(), Function.identity()));
         }
     }
 
@@ -1214,7 +1214,7 @@ public class SupplyChainFetcherFactory {
         private SupplychainApiDTOFetcher(final long realtimeTopologyContextId,
                                         final long topologyContextId,
                                          @Nullable final Set<String> seedUuids,
-                                         @Nullable final Set<String> entityTypes,
+                                         @Nullable final Set<ApiEntityType> entityTypes,
                                          @Nullable final Set<EntityState> entityStates,
                                          @Nonnull final Optional<EnvironmentType> environmentType,
                                          @Nullable final EntityDetailType entityDetailType,
@@ -1406,7 +1406,7 @@ public class SupplyChainFetcherFactory {
             StreamSupport.stream(response.spliterator(), false)
                 .forEach(chunk -> {
                     if (chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY) {
-                        chunk.getEntitySeverity().getEntitySeverityList().stream().forEach(entitySeverity -> {
+                        chunk.getEntitySeverity().getEntitySeverityList().forEach(entitySeverity -> {
                             // If no severity is provided by the AO, default to normal
                             Severity effectiveSeverity = entitySeverity.hasSeverity()
                                 ? entitySeverity.getSeverity()
@@ -1448,11 +1448,15 @@ public class SupplyChainFetcherFactory {
             logger.debug("Compiling results for {}", node.getEntityType());
 
             // This is thread-safe because we're doing it in a synchronized method.
-            resultApiDTO.getSeMap().computeIfAbsent(node.getEntityType(), entityType -> {
+            resultApiDTO.getSeMap().computeIfAbsent(ApiEntityType.fromType(node.getEntityType()).apiStr(), entityType -> {
                 // first SupplychainEntryDTO for this entity type; create one and just store the values
                 final SupplychainEntryDTO supplyChainEntry = new SupplychainEntryDTO();
-                supplyChainEntry.setConnectedConsumerTypes(new HashSet<>(node.getConnectedConsumerTypesList()));
-                supplyChainEntry.setConnectedProviderTypes(new HashSet<>(node.getConnectedProviderTypesList()));
+                supplyChainEntry.setConnectedConsumerTypes(node.getConnectedConsumerTypesList().stream()
+                    .map(ApiEntityType::fromSdkTypeToEntityTypeString)
+                    .collect(Collectors.toSet()));
+                supplyChainEntry.setConnectedProviderTypes(node.getConnectedProviderTypesList().stream()
+                    .map(ApiEntityType::fromSdkTypeToEntityTypeString)
+                    .collect(Collectors.toSet()));
                 supplyChainEntry.setDepth(node.getSupplyChainDepth());
                 supplyChainEntry.setInstances(serviceEntityApiDTOS);
 

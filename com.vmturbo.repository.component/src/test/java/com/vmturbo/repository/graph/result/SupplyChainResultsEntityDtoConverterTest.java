@@ -1,6 +1,5 @@
 package com.vmturbo.repository.graph.result;
 
-
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -10,20 +9,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Multimap;
+
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.runners.MockitoJUnitRunner;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Multimap;
-
 import reactor.core.publisher.Flux;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -102,17 +102,17 @@ public class SupplyChainResultsEntityDtoConverterTest {
 
         assertThat(supplyChain.get("DataCenter").getConnectedProviderTypesList(), Matchers.empty());
         assertThat(supplyChain.get("DataCenter").getConnectedConsumerTypesList(),
-                containsInAnyOrder("PhysicalMachine"));
+                containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
 
         assertThat(supplyChain.get("PhysicalMachine").getConnectedProviderTypesList(),
-                containsInAnyOrder("DataCenter"));
+                containsInAnyOrder(ApiEntityType.DATACENTER.typeNumber()));
         assertThat(supplyChain.get("PhysicalMachine").getConnectedConsumerTypesList(),
-                containsInAnyOrder("VirtualMachine"));
+                containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
 
         assertThat(supplyChain.get("VirtualMachine").getConnectedProviderTypesList(),
-                containsInAnyOrder("PhysicalMachine", "Storage"));
+                containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.typeNumber(), ApiEntityType.STORAGE.typeNumber()));
         assertThat(supplyChain.get("VirtualMachine").getConnectedConsumerTypesList(),
-                containsInAnyOrder("Application"));
+                containsInAnyOrder(ApiEntityType.APPLICATION.typeNumber()));
 
         assertThat(supplyChain.get("Network").getConnectedProviderTypesList(), Matchers.empty());
         assertThat(supplyChain.get("Network").getConnectedConsumerTypesList(), Matchers.empty());

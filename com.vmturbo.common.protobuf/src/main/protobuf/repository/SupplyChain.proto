@@ -11,6 +11,9 @@ import "action/ActionDTO.proto";
 
 // The response to a supply chain request consists of a series of supply chain nodes
 // that express graph of connections in the supply chain.
+//
+// All changes to this message must be backwards compatible. This message is persisted in the
+// database for plans.
 message SupplyChainNode {
 
     // A list of node members of a particular state.
@@ -20,18 +23,18 @@ message SupplyChainNode {
 
     // The entity type in this node of the supply chain. A node in
     // the chain may contain only one type of entity.
-    optional string entity_type = 1;
+    optional int32 entity_type = 1;
 
     // The depth of this node.
     optional int32 supply_chain_depth = 2;
 
     // list of entity types that provide resources to the the entity types
     // at this node in the supply chain.
-    repeated string connected_provider_types = 3;
+    repeated int32 connected_provider_types = 3;
 
     // list of entity types that consume resources from the entity types
     // at this node in the supply chain.
-    repeated string connected_consumer_types = 4;
+    repeated int32 connected_consumer_types = 4;
 
     // A map from entity state -> members of that state.
     map<int32, MemberList> members_by_state = 6;
@@ -122,7 +125,7 @@ message SupplyChainScope {
     // The list of entity types to include in the resultant supplychain. If this
     // list is empty, then default filtering is done and SupplyChainNodes pertaining
     // to entity types normally displayed in the supply chain are included.
-    repeated string entity_types_to_include = 3;
+    repeated int32 entity_types_to_include = 3;
 
 
     // Only include entities in a particular environment type in the supply chain.

@@ -48,6 +48,7 @@ import com.vmturbo.repository.graph.operator.TopologyGraphCreator;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.ProjectedRealtimeTopology.ProjectedTopologyBuilder;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
+import com.vmturbo.repository.plan.db.MySQLPlanEntityStore;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufHandler;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufWriter;
@@ -93,6 +94,8 @@ public class TopologyLifecycleManager implements DiagsRestorable<Void> {
 
     private final long realtimeTopologyContextId;
 
+    private final MySQLPlanEntityStore mySQLPlanEntityStore;
+
     // optional scheduled executor to perform delayed database drops
     private final ScheduledExecutorService scheduler;
 
@@ -114,6 +117,8 @@ public class TopologyLifecycleManager implements DiagsRestorable<Void> {
 
     private final GraphDBExecutor graphDbExecutor;
 
+    private final boolean useSqlForPlans;
+
     /**
      * Topology collection name prefix used to construct collection name with the name suffix when
      * collecting diags.
@@ -131,11 +136,13 @@ public class TopologyLifecycleManager implements DiagsRestorable<Void> {
                                     final int numberOfExpectedRealtimeProjectedDB,
                                     final int collectionReplicaCount,
                                     @Nonnull final GlobalSupplyChainManager globalSupplyChainManager,
-                                    @Nonnull final GraphDBExecutor graphDBExecutor) {
+                                    @Nonnull final GraphDBExecutor graphDBExecutor,
+                                    @Nonnull final MySQLPlanEntityStore mySQLPlanEntityStore,
+                                    final boolean useSqlForPlans) {
         this(graphDatabaseDriverBuilder, graphDefinition, topologyProtobufsManager, realtimeTopologyContextId,
             scheduler, liveTopologyStore, realtimeTopologyDropDelaySecs, numberOfExpectedRealtimeSourceDB,
             numberOfExpectedRealtimeProjectedDB, collectionReplicaCount, globalSupplyChainManager,
-                graphDBExecutor, true);
+                graphDBExecutor, true, mySQLPlanEntityStore, useSqlForPlans);
     }
 
     @VisibleForTesting
@@ -151,7 +158,9 @@ public class TopologyLifecycleManager implements DiagsRestorable<Void> {
             final int collectionReplicaCount,
             @Nonnull final GlobalSupplyChainManager globalSupplyChainManager,
             @Nonnull final GraphDBExecutor graphDbExecutor,
-            final boolean loadExisting) {
+            final boolean loadExisting,
+            @Nonnull final MySQLPlanEntityStore mySQLPlanEntityStore,
+             final boolean useSqlForPlans) {
         this.graphDatabaseDriverBuilder = graphDatabaseDriverBuilder;
         this.graphDefinition = graphDefinition;
         this.topologyProtobufsManager = topologyProtobufsManager;
@@ -164,6 +173,8 @@ public class TopologyLifecycleManager implements DiagsRestorable<Void> {
         this.collectionReplicaCount = collectionReplicaCount;
         this.globalSupplyChainManager = Objects.requireNonNull(globalSupplyChainManager);
         this.graphDbExecutor = Objects.requireNonNull(graphDbExecutor);
+        this.mySQLPlanEntityStore = mySQLPlanEntityStore;
+        this.useSqlForPlans = useSqlForPlans;
 
         if (realtimeTopologyDropDelaySecs <= 0) {
             LOGGER.info("realtimeTopologyDropDelaySecs is set to {} -- disabling delayed drop behavior.", realtimeTopologyDropDelaySecs);
@@ -371,6 +382,8 @@ public class TopologyLifecycleManager implements DiagsRestorable<Void> {
                                                                        @Nonnull final TopologyInfo topologyInfo) {
         if (topologyID.getContextId() == realtimeTopologyContextId) {
             return new InMemorySourceTopologyCreator(liveTopologyStore.newRealtimeSourceTopology(topologyInfo));
+        } else if (useSqlForPlans) {
+            return mySQLPlanEntityStore.newSourceTopologyCreator(topologyInfo);
         } else {
             return new ArangoSourceTopologyCreator(
                 topologyID,
@@ -392,6 +405,8 @@ public class TopologyLifecycleManager implements DiagsRestorable<Void> {
         if (topologyID.getContextId() == realtimeTopologyContextId) {
             return new InMemoryProjectedTopologyCreator(
                 liveTopologyStore.newProjectedTopology(topologyID.getTopologyId(), originalTopologyInfo));
+        } else if (useSqlForPlans) {
+            return mySQLPlanEntityStore.newProjectedTopologyCreator(topologyID.getTopologyId(), originalTopologyInfo);
         } else {
             return new ArangoProjectedTopologyCreator(
                 topologyID,

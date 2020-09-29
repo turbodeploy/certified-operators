@@ -526,11 +526,10 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      */
     private static GetMultiSupplyChainsRequest createMultiSupplyChainRequest(
             Set<Long> businessAccountIds) {
-        final Set<String> expandedEntityTypesForBusinessAccounts =
-                ApiEntityType.ENTITY_TYPES_TO_EXPAND.get(ApiEntityType.BUSINESS_ACCOUNT)
-                        .stream()
-                        .map(ApiEntityType::apiStr)
-                        .collect(Collectors.toSet());
+        final Set<Integer> expandedEntityTypesForBusinessAccounts =
+            ApiEntityType.ENTITY_TYPES_TO_EXPAND.get(ApiEntityType.BUSINESS_ACCOUNT).stream()
+                .map(ApiEntityType::typeNumber)
+                .collect(Collectors.toSet());
         final GetMultiSupplyChainsRequest.Builder scRequestBuilder =
                 GetMultiSupplyChainsRequest.newBuilder();
         for (Long accountId : businessAccountIds) {

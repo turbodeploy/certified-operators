@@ -2505,7 +2505,7 @@ public class ActionSpecMapperTest {
 
     private SupplyChainNode makeSupplyChainNode(long oid) {
         return SupplyChainNode.newBuilder()
-            .setEntityType(ApiEntityType.DATACENTER.apiStr())
+            .setEntityType(ApiEntityType.DATACENTER.typeNumber())
             .putMembersByState(EntityState.ACTIVE.ordinal(),
                 MemberList.newBuilder().addMemberOids(oid).build())
             .build();

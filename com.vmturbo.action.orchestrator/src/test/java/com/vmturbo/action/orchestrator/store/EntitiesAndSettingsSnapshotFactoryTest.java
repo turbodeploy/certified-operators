@@ -42,12 +42,12 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRespons
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.repository.api.TopologyAvailabilityTracker;
 import com.vmturbo.repository.api.TopologyAvailabilityTracker.QueuedTopologyRequest;
@@ -239,7 +239,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                         .setSeedOid(businessAccountId)
                         .setSupplyChain(SupplyChain.newBuilder()
                                 .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                                        .setEntityType(EntityType.APPLICATION_COMPONENT.name())
+                                        .setEntityType(ApiEntityType.APPLICATION_COMPONENT.typeNumber())
                                         .putMembersByState(EntityState.POWERED_ON.getNumber(),
                                                 MemberList.newBuilder()
                                                         .addMemberOids(appServerId)
