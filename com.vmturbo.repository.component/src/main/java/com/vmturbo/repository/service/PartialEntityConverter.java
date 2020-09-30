@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
@@ -217,13 +218,17 @@ public class PartialEntityConverter {
      * @return The converted {@link PartialEntity}.
      */
     @Nonnull
-    public PartialEntity createPartialEntity(@Nonnull final TopologyEntityDTO topoEntity,
+    public PartialEntity createPartialEntity(@Nonnull final TopologyEntityDTOOrBuilder topoEntity,
                                              @Nonnull final PartialEntity.Type type) {
         PartialEntity.Builder partialEntityBldr = PartialEntity.newBuilder();
         switch (type) {
             case FULL:
                 // The full topology entity.
-                partialEntityBldr.setFullEntity(topoEntity);
+                if (topoEntity instanceof TopologyEntityDTO) {
+                    partialEntityBldr.setFullEntity((TopologyEntityDTO)topoEntity);
+                } else if (topoEntity instanceof TopologyEntityDTO.Builder) {
+                    partialEntityBldr.setFullEntity((TopologyEntityDTO.Builder)topoEntity);
+                }
                 break;
             case MINIMAL:
                 // Minimal information to identify and display the entity.

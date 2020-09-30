@@ -41,6 +41,7 @@ import com.google.common.collect.Maps;
 
 import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -2564,6 +2565,20 @@ public class ActionSpecMapper {
     private Map<Long, Cost.EntityReservedInstanceCoverage> getEntityRiCoverageMap(
             Long topologyContextId,
             EntityFilter entityFilter) {
+        if (topologyContextId == null) {
+            logger.error("Topology Context ID is null for entityFilter " + entityFilter);
+            return Collections.emptyMap();
+        }
+
+        //Check if the topology is real time.
+        boolean isRealTimeTopology = topologyContextId == realtimeTopologyContextId ? true : false;
+
+        // If real time, fetch projected RI coverage from the cost component.
+        if (isRealTimeTopology) {
+            return fetchEntityRiCoverageMap(topologyContextId, entityFilter);
+        }
+
+        // If not real time, rely on the cache.
         boolean containsTopologyContextEntry = topologyContextIdToEntityFilterToEntityRiCoverage.containsKey(topologyContextId);
         if (containsTopologyContextEntry
                 && topologyContextIdToEntityFilterToEntityRiCoverage.get(topologyContextId).containsKey(entityFilter)) {

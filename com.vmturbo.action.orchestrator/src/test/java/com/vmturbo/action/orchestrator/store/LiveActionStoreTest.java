@@ -3,8 +3,8 @@ package com.vmturbo.action.orchestrator.store;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -47,18 +47,18 @@ import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mockito;
+import org.mockito.internal.matchers.apachecommons.ReflectionEquals;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
-import org.mockito.internal.matchers.apachecommons.ReflectionEquals;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
+import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.audit.ActionAuditSender;
@@ -208,6 +208,7 @@ public class LiveActionStoreTest {
     private final RejectedActionsDAO rejectedActionsStore = mock(RejectedActionsDAO.class);
 
     private ActionTopologyStore actionTopologyStore = new ActionTopologyStore();
+    private EntitySeverityCache entitySeverityCache = mock(EntitySeverityCache.class);
 
     final AtomicActionSpecsCache atomicActionSpecsCache = Mockito.spy(new AtomicActionSpecsCache());
     final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
@@ -228,13 +229,12 @@ public class LiveActionStoreTest {
                 new IdentityServiceImpl(idDataStore, new ActionInfoModelCreator(),
                         Clock.systemUTC(), 1000);
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID,
-                actionTopologyStore,
                 targetSelector,
                 probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
                 actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
                 actionIdentityService, involvedEntitiesExpander,
-                Mockito.mock(ActionAuditSender.class), true, 60);
+                Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60);
 
         when(targetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -409,12 +409,11 @@ public class LiveActionStoreTest {
         // methods in the original action, not in the spy.
         final ActionStore actionStore =
                 new LiveActionStore(new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
-                        actionTopologyStore,
                         targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                         actionsStatistician, actionTranslator, atomicActionFactory, clock,
                         userSessionContext, licenseCheckClient, acceptedActionsStore,
                         rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
-                        Mockito.mock(ActionAuditSender.class), true, 60);
+                        Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 
@@ -462,12 +461,11 @@ public class LiveActionStoreTest {
 
         final ActionStore actionStore =
                 new LiveActionStore(new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
-                        actionTopologyStore,
                         targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                         actionsStatistician, actionTranslator, atomicActionFactory, clock,
                         userSessionContext, licenseCheckClient, acceptedActionsStore,
                         rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
-                        listener, true, 60);
+                        listener, entitySeverityCache, 60);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 

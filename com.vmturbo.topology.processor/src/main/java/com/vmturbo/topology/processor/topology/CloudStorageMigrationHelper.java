@@ -7,6 +7,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -195,6 +197,34 @@ public class CloudStorageMigrationHelper {
     }
 
     /**
+     * Get the optimal storage size for Azure storage.
+     * Azure charges storage amount by storage provisioned. So if storage amount falls withing a
+     * range of values, it will be charged the same cost.
+     * From 4GB to 1TB, possible storage amounts provisioned doubles starting at 4GB.
+     * i.e. 4, 8, 16, 32, 64, 128, 256, 1024
+     * Starting a 1TB, storage provisioned amount goes up in increments of 1TB (1024GB).
+     * See documentation at https://azure.microsoft.com/en-us/pricing/details/managed-disks/
+     *
+     * @param diskSizeInGB the required disk size in GB.
+     * @return the optimal disk size in GB
+     */
+    @VisibleForTesting
+    static float getAzureOptimalDiskSizeGB(final float diskSizeInGB) {
+        if (diskSizeInGB <= 1024) {
+            int optimalSize = 4;
+            while (diskSizeInGB > optimalSize) {
+                optimalSize *= 2;
+            }
+            return optimalSize;
+        }
+        int optimalSize = 2048;
+        while (diskSizeInGB > optimalSize) {
+            optimalSize += 1024;
+        }
+        return optimalSize;
+    }
+
+    /**
      * Assign storage provisioned "used" value to storage amount bought.
      * This method is used for List&Shift only.
      *
@@ -307,6 +337,12 @@ public class CloudStorageMigrationHelper {
                         commBoughtGroupingForSL.getProviderId());
             }
         }
+
+        if (!isDestinationAws) {
+            // Azure
+            diskSizeInGB = getAzureOptimalDiskSizeGB(diskSizeInGB);
+        }
+
         float diskSizeInMB = (float)(diskSizeInGB * Units.KIBI);
         return storageAmountCommodity.toBuilder()
                 .setUsed(diskSizeInMB)

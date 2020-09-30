@@ -66,8 +66,8 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -204,7 +204,7 @@ public class CompoundMoveTest {
 
     private SupplyChainNode makeSupplyChainNode(long oid) {
         return SupplyChainNode.newBuilder()
-            .setEntityType(ApiEntityType.DATACENTER.apiStr())
+            .setEntityType(ApiEntityType.DATACENTER.typeNumber())
             .putMembersByState(EntityState.ACTIVE.ordinal(),
                 MemberList.newBuilder().addMemberOids(oid).build())
             .build();

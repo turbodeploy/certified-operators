@@ -5,11 +5,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -31,6 +29,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.api.EntitySeverityClientCache;
+import com.vmturbo.action.orchestrator.api.EntitySeverityNotificationSender;
 import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
 import com.vmturbo.action.orchestrator.topology.ActionRealtimeTopology;
 import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
@@ -39,7 +39,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.EntitySeverityNotificationOuterClass.EntitySeverityNotification.EntitiesWithSeverity;
+import com.vmturbo.common.protobuf.action.EntitySeverityNotificationOuterClass.EntitySeverityNotification.SeverityBreakdown;
+import com.vmturbo.common.protobuf.action.EntitySeverityNotificationOuterClass.EntitySeverityNotification.SeverityBreakdown.SingleSeverityCount;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
 
@@ -122,27 +126,29 @@ public class EntitySeverityCache {
 
     private final Logger logger = LogManager.getLogger();
 
-    private final Map<Long, Severity> severities = Collections.synchronizedMap(new HashMap<>());
-    private final Map<Long, SeverityCount> entitySeverityBreakdowns =
-        Collections.synchronizedMap(new HashMap<>());
-
+    private final EntitySeverityNotificationSender entitySeverityNotificationSender;
     private final SeverityComparator severityComparator = new SeverityComparator();
     private final ActionTopologyStore actionTopologyStore;
     private final boolean isCalculatingBreakdowns;
+
+    private final EntitySeverityClientCache entitySeverityClientCache = new EntitySeverityClientCache();
 
     /**
      * Constructs the EntitySeverityCache that uses grpc to calculation risk propagation.
      *
      * @param actionTopologyStore Used to look up action-related information.
+     * @param entitySeverityNotificationSender Used so broadcast notifications about severity changes.
      * @param isCalculatingBreakdowns true for instances that calculate severity breakdowns. When
      *                                false, {@link #getSeverityBreakdown(long)} be empty and
      *                                {@link #getSeverityCounts(List)} will not consider severity
      *                                breakdowns.
      */
     public EntitySeverityCache(@Nonnull final ActionTopologyStore actionTopologyStore,
+                               @Nonnull EntitySeverityNotificationSender entitySeverityNotificationSender,
                                final boolean isCalculatingBreakdowns) {
         this.actionTopologyStore = actionTopologyStore;
         this.isCalculatingBreakdowns = isCalculatingBreakdowns;
+        this.entitySeverityNotificationSender = entitySeverityNotificationSender;
         logger.debug("Property isCalculatingBreakdowns is set to " + isCalculatingBreakdowns);
     }
 
@@ -153,17 +159,47 @@ public class EntitySeverityCache {
      * @param actionStore the action store to use for the refresh
      */
     public void refresh(@Nonnull final ActionStore actionStore) {
-        final Long2ObjectMap<Severity> newSeverities = new Long2ObjectOpenHashMap<>(severities.size());
+        final Long2ObjectMap<Severity> newSeverities = new Long2ObjectOpenHashMap<>(entitySeverityClientCache.numSeverities());
         visibleActionViews(actionStore)
             .forEach(actionView -> handleActionSeverity(actionView, newSeverities));
         final Long2ObjectMap<SeverityCount> newSeverityBreakdowns =
                 calculateSeverityBreakdowns(newSeverities);
-        synchronized (severities) {
-            severities.clear();
-            severities.putAll(newSeverities);
-            entitySeverityBreakdowns.clear();
-            entitySeverityBreakdowns.putAll(newSeverityBreakdowns);
+
+        Map<Severity, EntitiesWithSeverity> entitiesBySeverity = arrangeBySeverity(newSeverities);
+        Long2ObjectMap<SeverityBreakdown> breakdownNotification = new Long2ObjectOpenHashMap<>(newSeverityBreakdowns.size());
+        for (Long2ObjectMap.Entry<SeverityCount> entry : newSeverityBreakdowns.long2ObjectEntrySet()) {
+            SeverityBreakdown.Builder bldr = SeverityBreakdown.newBuilder();
+            entry.getValue().getSeverityCounts().forEach(e -> {
+                bldr.addCounts(SingleSeverityCount.newBuilder()
+                        .setSeverity(e.getKey())
+                        .setCount(e.getValue()));
+            });
+            breakdownNotification.put(entry.getLongKey(), bldr.build());
         }
+
+        entitySeverityClientCache.entitySeveritiesRefresh(entitiesBySeverity.values(), breakdownNotification);
+
+        try {
+            entitySeverityNotificationSender.sendSeverityRefresh(entitiesBySeverity.values(), breakdownNotification);
+        } catch (CommunicationException e) {
+            logger.error("Failed to send entity severity refresh.", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.error("Interrupted while sending severity refresh.", e);
+        }
+    }
+
+    private Map<Severity, EntitiesWithSeverity> arrangeBySeverity(Map<Long, Severity> severities) {
+        Map<Severity, EntitiesWithSeverity.Builder> m = new EnumMap<>(Severity.class);
+        severities.forEach((id, severity) -> {
+            // No point sending "normal" entities because that's the default.
+            if (severity != Severity.NORMAL) {
+                m.computeIfAbsent(severity,
+                        k -> EntitiesWithSeverity.newBuilder().setSeverity(severity)).addOids(id);
+            }
+        });
+        return m.entrySet().stream()
+            .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().build()));
     }
 
     /**
@@ -182,14 +218,30 @@ public class EntitySeverityCache {
                     .filter(actionView -> matchingSeverityEntity(severityEntity, actionView))
                     .map(ActionView::getActionSeverity)
                     .max(severityComparator)
-                    .ifPresent(severity -> severities.put(severityEntity, severity));
+                    .ifPresent(severity -> {
+                        Collection<EntitiesWithSeverity> update = Collections.singletonList(
+                            EntitiesWithSeverity.newBuilder()
+                                .setSeverity(severity)
+                                .addOids(severityEntity)
+                                .build());
+
+                        entitySeverityClientCache.entitySeveritiesUpdate(update, Collections.emptyMap());
+
+                        try {
+                            entitySeverityNotificationSender.sendSeverityUpdate(update);
+                        } catch (CommunicationException e) {
+                            logger.error("Failed to send entity severity update.", e);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            logger.error("Interrupted while sending severity update.", e);
+                        }
+                    });
         } catch (UnsupportedActionException e) {
             logger.error("Unable to refresh severity cache for action {}", action, e);
         }
     }
 
     /**
-     * A lock on {@link #severities} must be held when calling this method.
      * <ol>
      * <li>calculate the break downs of the entities in the order from the bottom of the topology (Storage and VM) to the top (BApp)</li>
      * <li>for each entity look take the break downs of the producers and combine them</li>
@@ -242,7 +294,7 @@ public class EntitySeverityCache {
     @Nonnull
     public Long2ObjectMap<SeverityCount> calculateSeverityBreakdowns(Long2ObjectMap<Severity> entitySeverities) {
         final Long2ObjectMap<SeverityCount> retMap =
-                new Long2ObjectOpenHashMap<>(entitySeverityBreakdowns.size());
+                new Long2ObjectOpenHashMap<>(entitySeverityClientCache.numBreakdowns());
         if (isCalculatingBreakdowns) {
             StopWatch stopWatch = new StopWatch();
             stopWatch.start();
@@ -485,7 +537,7 @@ public class EntitySeverityCache {
      */
     @Nonnull
     public Optional<Severity> getSeverity(long entityOid) {
-        return Optional.ofNullable(severities.get(entityOid));
+        return Optional.of(entitySeverityClientCache.getEntitySeverity(entityOid));
     }
 
     /**
@@ -496,8 +548,8 @@ public class EntitySeverityCache {
      *         the entity is unknown.
      */
     @Nonnull
-    public Optional<SeverityCount> getSeverityBreakdown(long entityOid) {
-        return Optional.ofNullable(entitySeverityBreakdowns.get(entityOid));
+    public Map<Severity, Long> getSeverityBreakdown(long entityOid) {
+        return entitySeverityClientCache.getSeverityCounts(Collections.singletonList(entityOid));
     }
 
     /**
@@ -523,26 +575,8 @@ public class EntitySeverityCache {
      *         An entity whose severity is not known by the cache will be mapped to empty.
      */
     @Nonnull
-    public Map<Optional<Severity>, Long> getSeverityCounts(@Nonnull final List<Long> entityOids) {
-        Map<Optional<Severity>, Long> accumulatedCounts = new HashMap<>();
-        synchronized (severities) {
-            for (Long oid : entityOids) {
-                SeverityCount countForOid = entitySeverityBreakdowns.get(oid);
-                if (countForOid != null) {
-                    for (Entry<Severity, Integer> entry : countForOid.getSeverityCounts()) {
-                        Optional<Severity> key = Optional.of(entry.getKey());
-                        long previous = accumulatedCounts.getOrDefault(key, 0L);
-                        accumulatedCounts.put(key, previous + entry.getValue());
-                    }
-                } else {
-                    Optional<Severity> key = Optional.ofNullable(severities.get(oid));
-                    long previous = accumulatedCounts.getOrDefault(key, 0L);
-                    accumulatedCounts.put(key, previous + 1);
-                }
-            }
-
-            return accumulatedCounts;
-        }
+    public Map<Severity, Long> getSeverityCounts(@Nonnull final List<Long> entityOids) {
+        return entitySeverityClientCache.getSeverityCounts(entityOids);
     }
 
     /**
@@ -554,15 +588,9 @@ public class EntitySeverityCache {
      * @param ascending whether to sort in ascending order
      * @return sorted entity oids
      */
-    public List<Long> sortEntityOids(
-        @Nonnull final Collection<Long> entityOids,
-        final boolean ascending) {
-        synchronized (severities) {
-            OrderOidBySeverity orderOidBySeverity = new OrderOidBySeverity(this);
-            return entityOids.stream()
-                .sorted(ascending ? orderOidBySeverity : orderOidBySeverity.reversed())
-                .collect(Collectors.toList());
-        }
+    public List<Long> sortEntityOids(@Nonnull final Collection<Long> entityOids,
+            final boolean ascending) {
+        return entitySeverityClientCache.sortBySeverity(entityOids, ascending);
     }
 
     /**
@@ -638,129 +666,6 @@ public class EntitySeverityCache {
         @Override
         public int compare(Severity s1, Severity s2) {
             return (s1 == null ? 0 : s1.getNumber()) - (s2 == null ? 0 : s2.getNumber());
-        }
-    }
-
-    /**
-     * The compartor that orderds oids, by considering their severity breakdown and entity level
-     * severity according to the following rules.
-     * 1. An entity without severity and without severity breakdown
-     * 2. An entity with severity but without severity breakdown
-     * 3. An entity with severity but with empty severity breakdown map
-     * 4. An entity with lowest severity break down
-     * 5. An entity with same proportion, but a higher count of that severity
-     * 6. An entity with the same highest severity, but the proportion is higher
-     * 7. An entity with a higher severity in the breakdown.
-     * 8. An entity with an even higher severity in the breakdown but the entity does not have a
-     *    a severity (edge case).
-     */
-    @VisibleForTesting
-    static final class OrderOidBySeverity implements Comparator<Long> {
-
-        private final EntitySeverityCache entitySeverityCache;
-
-        @VisibleForTesting
-        OrderOidBySeverity(EntitySeverityCache entitySeverityCache) {
-            this.entitySeverityCache = entitySeverityCache;
-        }
-
-        @Override
-        public int compare(final @Nullable Long oid1, final @Nullable Long oid2) {
-            if (oid1 == null && oid2 == null) {
-                return 0;
-            }
-            if (oid1 == null) {
-                return -1;
-            }
-            if (oid2 == null) {
-                return 1;
-            }
-
-            int severityBreakdownComparison = compareSeverityBreakdown(oid1, oid2);
-            if (severityBreakdownComparison != 0) {
-                return severityBreakdownComparison;
-            }
-
-            return compareDirectSeverity(oid1, oid2);
-        }
-
-        private int compareSeverityBreakdown(long oid1,
-                                             long oid2) {
-            SeverityCount breakdown1 = entitySeverityCache.getSeverityBreakdown(oid1)
-                .orElse(null);
-            SeverityCount breakdown2 = entitySeverityCache.getSeverityBreakdown(oid2)
-                .orElse(null);
-
-            if (breakdown1 == breakdown2) {
-                return 0;
-            }
-            if (breakdown1 == null) {
-                return -1;
-            }
-            if (breakdown2 == null) {
-                return 1;
-            }
-
-            long breakdownTotal1 = calculateTotalSeverities(breakdown1);
-            long breakdownTotal2 = calculateTotalSeverities(breakdown2);
-
-            // Iterate from CRITICAL (highest priority) to UNKNOWN (lowest priority)
-            for (int i = Severity.values().length - 1; i >= 0; i--) {
-                Severity severity = Severity.values()[i];
-                int severityCountComparison = compareSameSeverity(
-                    breakdown1.getCountOfSeverity(severity),
-                    breakdown2.getCountOfSeverity(severity),
-                    breakdownTotal1,
-                    breakdownTotal2
-                );
-                if (severityCountComparison != 0) {
-                    return severityCountComparison;
-                }
-            }
-
-            return 0;
-        }
-
-        private static long calculateTotalSeverities(@Nonnull SeverityCount breakdown) {
-            return breakdown.getSeverityCounts().stream()
-                .map(Entry::getValue)
-                .filter(Objects::nonNull)
-                .mapToLong(Integer::longValue).sum();
-        }
-
-        private static int compareSameSeverity(@Nullable Integer severityCount1,
-                                               @Nullable Integer severityCount2,
-                                               long breakdownTotal1,
-                                               long breakdownTotal2) {
-            if (severityCount1 == null) {
-                severityCount1 = 0;
-            }
-            if (severityCount2 == null) {
-                severityCount2 = 0;
-            }
-            // do not divided by 0
-            if (breakdownTotal1 == 0) {
-                breakdownTotal1 = 1;
-            }
-            if (breakdownTotal2 == 0) {
-                breakdownTotal2 = 1;
-            }
-
-            int proportionalComparison = Double.compare(
-                severityCount1.doubleValue() / (double)breakdownTotal1,
-                severityCount2.doubleValue() / (double)breakdownTotal2
-            );
-            if (proportionalComparison != 0) {
-                return proportionalComparison;
-            }
-
-            return Long.compare(severityCount1, severityCount2);
-        }
-
-        private int compareDirectSeverity(final long oid1, final long oid2) {
-            return Integer.compare(
-                entitySeverityCache.getSeverity(oid1).orElse(Severity.NORMAL).getNumber(),
-                entitySeverityCache.getSeverity(oid2).orElse(Severity.NORMAL).getNumber());
         }
     }
 }

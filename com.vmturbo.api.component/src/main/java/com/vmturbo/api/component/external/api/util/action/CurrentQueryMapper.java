@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.util.action;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -22,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -59,12 +61,13 @@ class CurrentQueryMapper {
                        @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                        @Nonnull final UserSessionContext userSessionContext,
                        @Nonnull final RepositoryApi repositoryApi,
-                       @Nonnull final BuyRiScopeHandler buyRiScopeHandler) {
+                       @Nonnull final BuyRiScopeHandler buyRiScopeHandler,
+                       @Nonnull final UuidMapper uuidMapper) {
         this(new ActionGroupFilterExtractor(actionSpecMapper, buyRiScopeHandler),
             new GroupByExtractor(),
             new ScopeFilterExtractor(userSessionContext,
-                new EntityScopeFactory(groupExpander, supplyChainFetcherFactory, repositoryApi),
-                    buyRiScopeHandler));
+                new EntityScopeFactory(groupExpander, supplyChainFetcherFactory, repositoryApi, buyRiScopeHandler, uuidMapper),
+                uuidMapper));
     }
 
     @VisibleForTesting
@@ -162,18 +165,90 @@ class CurrentQueryMapper {
      */
     @VisibleForTesting
     static class EntityScopeFactory {
+
+        private final BuyRiScopeHandler buyRiScopeHandler;
+
         private final GroupExpander groupExpander;
 
         private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
         private final RepositoryApi repositoryApi;
 
+        private final UuidMapper uuidMapper;
+
         EntityScopeFactory(@Nonnull final GroupExpander groupExpander,
                            @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
-                           @Nonnull final RepositoryApi repositoryApi) {
+                           @Nonnull final RepositoryApi repositoryApi,
+                           @Nonnull final BuyRiScopeHandler buyRiScopeHandler,
+                           @Nonnull final UuidMapper uuidMapper) {
             this.groupExpander = groupExpander;
             this.supplyChainFetcherFactory = supplyChainFetcherFactory;
             this.repositoryApi = repositoryApi;
+            this.buyRiScopeHandler = buyRiScopeHandler;
+            this.uuidMapper = uuidMapper;
+        }
+
+        Map<ApiId, Set<Long>> bulkExpandScopes(@Nonnull final Map<ApiId, Set<ApiId>> oidGroupList,
+                @Nonnull final Set<Integer> relatedEntityTypes,
+                @Nonnull final Optional<EnvironmentType> environmentType,
+                @Nonnull final EntityAccessScope userScope) throws OperationFailedException {
+
+            Map<Long, Set<Long>> responseNoAggregatedExpansion = new HashMap<>(oidGroupList.size());
+
+            for (Entry<ApiId, Set<ApiId>> oidGroup : oidGroupList.entrySet()) {
+                Set<ApiId> oids = oidGroup.getValue();
+                final Set<Long> allEntitiesInScope;
+                if (relatedEntityTypes.isEmpty()) {
+                    // Expand groups that are in scope
+                    // And then filter entities by environment type
+                    Set<Long> unFilteredEntities = groupExpander.expandOids(oids);
+                    if (environmentType.isPresent() && environmentType.get() != EnvironmentType.HYBRID) {
+                        // Need to get repos data to get the environment type to allow filtering
+                        List<ApiId> idList = unFilteredEntities.stream()
+                                .map(uuidMapper::fromOid)
+                                .collect(Collectors.toList());
+                        uuidMapper.bulkResolveEntities(idList);
+                        allEntitiesInScope = idList.stream()
+                            .filter(id -> id.getCachedEntityInfo()
+                                .map(e -> e.getEnvironmentType() == environmentType.get()).orElse(false))
+                            .map(ApiId::oid)
+                            .collect(Collectors.toSet());
+                    } else {
+                        allEntitiesInScope = unFilteredEntities;
+                    }
+                } else {
+                    // TODO (roman, Feb 14 2019): The scope object is being expanded to allow
+                    // looking up in-scope entities by type, so we can avoid the supply
+                    // chain query here in the future if userScope is not "global."
+
+                    // We need to get entities related to the scope, so we use the supply chain
+                    // fetcher.
+                    final SupplyChainNodeFetcherBuilder builder =
+                            supplyChainFetcherFactory.newNodeFetcher().entityTypes(
+                                    relatedEntityTypes.stream()
+                                            .map(ApiEntityType::fromType)
+                                            .map(ApiEntityType::apiStr)
+                                            .collect(Collectors.toList()));
+                    oids.stream().map(ApiId::uuid).forEach(builder::addSeedUuid);
+
+                    environmentType.ifPresent(builder::environmentType);
+
+                    allEntitiesInScope = builder.fetch().values().stream().flatMap(node -> node.getMembersByStateMap().values().stream()).flatMap(
+                            memberList -> memberList.getMemberOidsList().stream()).collect(
+                            Collectors.toSet());
+                }
+                allEntitiesInScope.addAll(buyRiScopeHandler.extractBuyRiEntities(oids, relatedEntityTypes));
+                responseNoAggregatedExpansion.put(oidGroup.getKey().oid(), allEntitiesInScope);
+            }
+
+
+            final Map<Long, Set<Long>> withAggregatedExpansion =
+                    supplyChainFetcherFactory.bulkExpandAggregatedEntities(responseNoAggregatedExpansion);
+            final Map<ApiId, Set<Long>> finalResponse = new HashMap<>(withAggregatedExpansion.size());
+            withAggregatedExpansion.forEach((id, vals) -> {
+                finalResponse.put(uuidMapper.fromOid(id), userScope.filter(vals));
+            });
+            return finalResponse;
         }
 
         /**
@@ -191,7 +266,7 @@ class CurrentQueryMapper {
          * @throws OperationFailedException If one of the underlying RPC calls goes wrong.
          */
         @Nonnull
-        EntityScope createEntityScope(@Nonnull final Set<Long> oids,
+        EntityScope createEntityScope(@Nonnull final Set<ApiId> oids,
                   @Nonnull final Set<Integer> relatedEntityTypes,
                   @Nonnull final Optional<EnvironmentType> environmentType,
                   @Nonnull final EntityAccessScope userScope,
@@ -225,7 +300,7 @@ class CurrentQueryMapper {
                             .map(ApiEntityType::apiStr)
                             .collect(Collectors.toList()));
                 oids.stream()
-                    .map(Object::toString)
+                    .map(ApiId::uuid)
                     .forEach(builder::addSeedUuid);
 
                 environmentType.ifPresent(builder::environmentType);
@@ -256,14 +331,14 @@ class CurrentQueryMapper {
 
         private final EntityScopeFactory entityScopeFactory;
 
-        private final BuyRiScopeHandler buyRiScopeHandler;
+        private final UuidMapper uuidMapper;
 
         ScopeFilterExtractor(@Nonnull final UserSessionContext userSessionContext,
                              @Nonnull final EntityScopeFactory entityScopeFactory,
-                             @Nonnull final BuyRiScopeHandler buyRiScopeHandler) {
+                             @Nonnull final UuidMapper uuidMapper) {
             this.userSessionContext = Objects.requireNonNull(userSessionContext);
             this.entityScopeFactory = Objects.requireNonNull(entityScopeFactory);
-            this.buyRiScopeHandler = Objects.requireNonNull(buyRiScopeHandler);
+            this.uuidMapper = Objects.requireNonNull(uuidMapper);
         }
 
         /**
@@ -285,6 +360,7 @@ class CurrentQueryMapper {
 
             final Map<ApiId, ScopeFilter> filtersByScope =
                 new HashMap<>(query.scopes().size());
+            Map<ApiId, Set<ApiId>> normalExpansionScopes = new HashMap<>();
             for (final ApiId scope : query.scopes()) {
                 final ScopeFilter.Builder scopeBuilder = ScopeFilter.newBuilder();
                 if (scope.isRealtimeMarket() || scope.isPlan()) {
@@ -294,14 +370,14 @@ class CurrentQueryMapper {
                         query.getEnvironmentType().ifPresent(globalScopeBuilder::setEnvironmentType);
                         globalScopeBuilder.addAllEntityType(relatedEntityTypes);
                         scopeBuilder.setGlobal(globalScopeBuilder);
+                        filtersByScope.put(scope, scopeBuilder.build());
                     } else {
                         // Take only the entities in the scope.
-                        scopeBuilder.setEntityList(entityScopeFactory.createEntityScope(
-                            Sets.newHashSet(userScope.accessibleOids()),
-                            relatedEntityTypes,
-                            query.getEnvironmentType(),
-                            userScope,
-                            Collections.emptySet()));
+                        Set<ApiId> ids = new HashSet<>(userScope.accessibleOids().size());
+                        for (Long oid : userScope.accessibleOids()) {
+                            ids.add(uuidMapper.fromOid(oid));
+                        }
+                        normalExpansionScopes.put(scope, ids);
                     }
                 } else if (scope.isGlobalTempGroup()) {
                     // this is an optimization because evaluating the entities in the global scope,
@@ -331,19 +407,27 @@ class CurrentQueryMapper {
                     }
 
                     scopeBuilder.setGlobal(globalScope.build());
+                    filtersByScope.put(scope, scopeBuilder.build());
                 } else {
                     // Right now there is no way to specify an entity scope within a plan,
                     // so we leave the context ID unset (default = realtime).
-                    scopeBuilder.setEntityList(entityScopeFactory.createEntityScope(
-                        Collections.singleton(scope.oid()),
-                        relatedEntityTypes,
-                        query.getEnvironmentType(),
-                        userScope,
-                        buyRiScopeHandler.extractBuyRiEntities(scope, relatedEntityTypes)));
+                    normalExpansionScopes.put(scope, Collections.singleton(scope));
                 }
 
-                filtersByScope.put(scope, scopeBuilder.build());
             }
+
+            Map<ApiId, Set<Long>> expandedScopes =
+                entityScopeFactory.bulkExpandScopes(normalExpansionScopes,
+                        relatedEntityTypes, query.getEnvironmentType(), userScope);
+            expandedScopes.forEach((scope, entities) -> {
+                final ScopeFilter.Builder scopeFilterBldr = ScopeFilter.newBuilder()
+                    .setEntityList(EntityScope.newBuilder()
+                        .addAllOids(entities));
+                if (scope.isRealtimeMarket() || scope.isPlan()) {
+                    scopeFilterBldr.setTopologyContextId(scope.oid());
+                }
+                filtersByScope.put(scope, scopeFilterBldr.build());
+            });
             return filtersByScope;
         }
 

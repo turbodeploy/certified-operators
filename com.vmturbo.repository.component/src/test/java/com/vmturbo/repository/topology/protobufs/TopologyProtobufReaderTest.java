@@ -77,7 +77,7 @@ public class TopologyProtobufReaderTest {
         assertEquals(0, reader.sequenceNumber);
         long seq = 0;
         while (reader.hasNext()) {
-            reader.nextChunk();
+            reader.next();
             seq++;
         }
         assertEquals(NUM_CHUNKS, seq);

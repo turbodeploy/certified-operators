@@ -4,15 +4,20 @@ import static com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper.r
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.connectedTopologyEntity;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
+import static com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory.DEFAULT_MINIMAL_SCAN_STOP_THRESHOLD;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -20,6 +25,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import org.junit.Assert;
@@ -33,11 +39,13 @@ import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ReservationOrigin;
 import com.vmturbo.commons.analysis.InvertedIndex;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -103,18 +111,25 @@ public class BindToComplementaryGroupPolicyTest {
                     .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                             .setProviderId(1L)
                             .build()));
+    private static final CommodityType DATA_STORE_COMMODITY = CommodityType.newBuilder().setType(
+        CommodityDTO.CommodityType.DATASTORE_VALUE).setKey("abcd").build();
 
     @Before
     public void setup() {
         final Map<Long, TopologyEntity.Builder> topologyMap = new HashMap<>();
-        topologyMap.put(1L, topologyEntity(1L, EntityType.PHYSICAL_MACHINE));
-        topologyMap.put(2L, topologyEntity(2L, EntityType.PHYSICAL_MACHINE));
-        topologyMap.put(100L, topologyEntity(100L, EntityType.PHYSICAL_MACHINE));
+        topologyMap.put(1L, topologyEntity(1L, 785L, 1601064471L, "PM1", EntityType.PHYSICAL_MACHINE,
+            Arrays.asList(DATA_STORE_COMMODITY)));
+        topologyMap.put(2L, topologyEntity(2L, 785L, 1601064471L, "PM2", EntityType.PHYSICAL_MACHINE,
+            Arrays.asList(DATA_STORE_COMMODITY)));
+        topologyMap.put(100L, topologyEntity(100L, 785L, 1601064471L, "PM100", EntityType.PHYSICAL_MACHINE,
+            Arrays.asList(DATA_STORE_COMMODITY)));
 
         topologyMap.put(3L, topologyEntity(3L, EntityType.STORAGE));
         topologyMap.put(4L, topologyEntity(4L, EntityType.STORAGE));
         topologyMap.put(5L, reservationVM);
-        topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE, 2, 3));
+        topologyMap.put(6L, topologyEntity(6L, 785L, 1601064471L, "VM6", EntityType.VIRTUAL_MACHINE,
+            ImmutableMap.of(2L, Arrays.asList(DATA_STORE_COMMODITY),
+                3L, new ArrayList<>()), new ArrayList<>()));
 
         topologyMap.put(7L, topologyEntity(7L, EntityType.VIRTUAL_MACHINE, 1));
 
@@ -191,7 +206,7 @@ public class BindToComplementaryGroupPolicyTest {
             .map(topologyGraph::getEntity)
             .filter(Optional::isPresent)
             .map(Optional::get));
-        when(invertedIndexFactory.typeInvertedIndex(any(), any())).thenReturn(index);
+        when(invertedIndexFactory.typeInvertedIndex(any(), any(), anyInt())).thenReturn(index);
         return index;
     }
 
@@ -400,9 +415,56 @@ public class BindToComplementaryGroupPolicyTest {
 
     }
 
+    /**
+     * There is one VM - VM6, and 2 hosts - Host 1 and Host 2.
+     * Policy 1 - VM6 cannot be placed on host 2
+     * Policy 2 - VM6 cannot be placed on host 1
+     * Ensure host 1 sells policy 1, does not sell policy 2.
+     * Ensure host 2 sells policy 2, does not sell policy 1.
+     * Ensure that the VM buys both policies.
+     * @throws GroupResolutionException group resolution exception
+     */
+    @Test
+    public void testApplyMultiplePoliciesWithRealInvertedIndex() throws GroupResolutionException {
+        final long policy2Id = POLICY_ID - 1;
+        when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
+            .thenReturn(resolvedGroup(consumerGroup, 6L));
+        when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
+            .thenReturn(resolvedGroup(providerGroup, 2L))
+            .thenReturn(resolvedGroup(providerGroup, 1L));
+        BindToComplementaryGroupPolicy policy1 = new BindToComplementaryGroupPolicy(policy,
+            new PolicyEntities(consumerGroup), new PolicyEntities(providerGroup));
+        BindToComplementaryGroupPolicy policy2 = new BindToComplementaryGroupPolicy(
+            policy.toBuilder().setId(policy2Id).build(),
+            new PolicyEntities(consumerGroup), new PolicyEntities(providerGroup));
+
+        // We apply the policies with real inverted index
+        applyPoliciesWithRealInvertedIndex(Arrays.asList(policy1, policy2));
+
+        assertThat(topologyGraph.getEntity(100L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
+        assertThat(topologyGraph.getEntity(100L).get(), policyMatcher.hasProviderSegment(policy2Id));
+        assertThat(topologyGraph.getEntity(1L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
+        assertThat(topologyGraph.getEntity(1L).get(), not(policyMatcher.hasProviderSegment(policy2Id)));
+        assertThat(topologyGraph.getEntity(2L).get(), policyMatcher.hasProviderSegment(policy2Id));
+        assertThat(topologyGraph.getEntity(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
+
+        assertThat(topologyGraph.getEntity(6L).get(), policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
+        assertThat(topologyGraph.getEntity(6L).get(), policyMatcher.hasConsumerSegment(policy2Id, EntityType.PHYSICAL_MACHINE));
+    }
+
     private void applyPolicy(@Nonnull final BindToComplementaryGroupPolicy policy) {
         BindToComplementaryGroupPolicyApplication application =
-            new BindToComplementaryGroupPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
+            new BindToComplementaryGroupPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory,
+                DEFAULT_MINIMAL_SCAN_STOP_THRESHOLD);
         application.apply(Collections.singletonList(policy));
+    }
+
+    private void applyPoliciesWithRealInvertedIndex(@Nonnull final List<PlacementPolicy> policies) {
+        // We use 1 as the minimalScanThreshold for the inverted index as we want to test the
+        // inverted index as well. With the default of 32, some bugs which are caused because of not updating index
+        // can get masked.
+        BindToComplementaryGroupPolicyApplication application =
+            new BindToComplementaryGroupPolicyApplication(groupResolver, topologyGraph, new TopologyInvertedIndexFactory(), 1);
+        application.apply(policies);
     }
 }

@@ -221,6 +221,14 @@ public class CloudMigrationPlanHelper {
     private IopsToStorageRatios iopsToStorageRatios;
 
     /**
+     * Volume to storage amount map: The volume amount may be adjusted based on IOPS. The adjusted
+     * value is initially set in the commodity of the VM. Keep the updated storage amount value
+     * together with the volume provider ID in this map. It will be used when preparing the
+     * commodities of VM providers as the value also need to be set in the volume entity as well.
+     */
+    private Map<Long, Double> volumeToStorageAmountMap = new HashMap<>();
+
+    /**
      * Constructor called by migration stage.
      *
      * @param groupServiceBlockingStub For group resolution source entities.
@@ -890,7 +898,7 @@ public class CloudMigrationPlanHelper {
 
             // We need to skip some on-prem specific commodities bought to allow cloud migration.
             List<CommodityBoughtDTO> commoditiesToInclude = getUpdatedCommBought(
-                    commBoughtGrouping, topologyInfo, dtoBuilder.getOid(), sourceToProducerToMaxStorageAccess, isDestinationAws, isConsumer);
+                    commBoughtGrouping, topologyInfo, dtoBuilder, sourceToProducerToMaxStorageAccess, isDestinationAws, isConsumer);
             if (commoditiesToInclude.size() == 0) {
                 // Don't keep this group if there are no valid bought commodities from it.
                 continue;
@@ -926,7 +934,7 @@ public class CloudMigrationPlanHelper {
      *
      * @param commBoughtGrouping Grouping to look for commBoughtDTO in.
      * @param topologyInfo Plan topology info.
-     * @param entityOid entity OID
+     * @param dtoBuilder entity builder
      * @param sourceToProducerToMaxStorageAccess a structure mapping entities to max historical
      * StorageAccess bought
      * @param isDestinationAws boolean that indicates if destination is AWS
@@ -938,11 +946,12 @@ public class CloudMigrationPlanHelper {
     private List<CommodityBoughtDTO> getUpdatedCommBought(
             @Nonnull final CommoditiesBoughtFromProvider commBoughtGrouping,
             @Nonnull final TopologyInfo topologyInfo,
-            final long entityOid,
+            final TopologyEntityDTO.Builder dtoBuilder,
             @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
             boolean isDestinationAws,
             boolean isConsumer) {
         List<CommodityBoughtDTO> commoditiesToInclude = new ArrayList<>();
+        Long entityOid = dtoBuilder.getOid();
         boolean isComputeTierCommList = commBoughtGrouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE;
         for (CommodityBoughtDTO dtoBought : commBoughtGrouping.getCommodityBoughtList()) {
             CommodityType commodityType = CommodityType.forNumber(dtoBought
@@ -992,19 +1001,40 @@ public class CloudMigrationPlanHelper {
                     commodityBoughtDTO.setActive(false);
                 }
                 commoditiesToInclude.add(commodityBoughtDTO.build());
-            } else if (isConsumer && commodityType == CommodityType.STORAGE_AMOUNT) {
-                if (TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
-                    // Assign storage provisioned used value for storage amount.
-                    // Also adjust storage amount based on IOPS value if necessary.
-                    final double historicalMaxIOP = getHistoricalMaxIOPSValue(commBoughtGrouping, entityOid,
-                            sourceToProducerToMaxStorageAccess);
-                    commoditiesToInclude.add(CloudStorageMigrationHelper
-                            .adjustStorageAmountForCloudMigration(dtoBought, commBoughtGrouping,
-                                    iopsToStorageRatios, entityOid, historicalMaxIOP, isDestinationAws));
+            } else if (commodityType == CommodityType.STORAGE_AMOUNT) {
+                if (isConsumer) {
+                    if (TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
+                        // Assign storage provisioned used value for storage amount.
+                        // Also adjust storage amount based on IOPS value if necessary.
+                        final double historicalMaxIOP = getHistoricalMaxIOPSValue(commBoughtGrouping, entityOid,
+                                sourceToProducerToMaxStorageAccess);
+                        CommodityBoughtDTO storageAmountCommodity = CloudStorageMigrationHelper
+                                .adjustStorageAmountForCloudMigration(dtoBought, commBoughtGrouping,
+                                        iopsToStorageRatios, entityOid, historicalMaxIOP, isDestinationAws);
+                        volumeToStorageAmountMap.put(commBoughtGrouping.getProviderId(), storageAmountCommodity.getUsed());
+                        commoditiesToInclude.add(storageAmountCommodity);
+                    } else {
+                        // Assign storage provisioned used value for storage amount
+                        commoditiesToInclude.add(CloudStorageMigrationHelper
+                                .updateStorageAmountCommodityBought(dtoBought, commBoughtGrouping, isDestinationAws));
+                    }
                 } else {
-                    // Assign storage provisioned used value for storage amount
-                    commoditiesToInclude.add(CloudStorageMigrationHelper
-                            .updateStorageAmountCommodityBought(dtoBought, commBoughtGrouping, isDestinationAws));
+                    if (TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)
+                            && dtoBuilder.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
+                        // Provider entity of VM commodity is a volume. Set the storage amount the same
+                        // value as the VM commodity bought value.
+                        Double storageAmount = volumeToStorageAmountMap.get(entityOid);
+                        if (storageAmount != null) {
+                            commoditiesToInclude.add(dtoBought.toBuilder()
+                                    .setUsed(storageAmount)
+                                    .setPeak(storageAmount)
+                                    .build());
+                        } else {
+                            commoditiesToInclude.add(dtoBought);
+                        }
+                    } else {
+                        commoditiesToInclude.add(dtoBought);
+                    }
                 }
             } else {
                 commoditiesToInclude.add(dtoBought);

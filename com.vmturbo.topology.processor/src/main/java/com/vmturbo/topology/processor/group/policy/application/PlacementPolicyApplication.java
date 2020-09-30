@@ -261,7 +261,7 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
             .filter(Optional::isPresent)
             .map(Optional::get)
             .flatMap(e -> e.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream())
-            .flatMap(invertedIndex::getSatisfyingSellers)
+            .flatMap(grouping -> invertedIndex.getSatisfyingSellers(grouping))
             // Filter out the providers blocked by the policy.
             .filter(potentialProvider -> !providers.contains(potentialProvider.getOid()))
             // Enforce the provider entity type.

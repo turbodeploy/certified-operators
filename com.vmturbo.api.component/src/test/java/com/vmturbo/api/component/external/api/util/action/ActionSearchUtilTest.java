@@ -113,7 +113,7 @@ public class ActionSearchUtilTest {
         Set<Long> scope = Collections.singleton(BUSINESS_ACCOUNT_ID_1);
         ApiId scopeId = Mockito.mock(ApiId.class);
         when(scopeId.oid()).thenReturn(BUSINESS_ACCOUNT_ID_1);
-        when(groupExpander.expandOids(scope)).thenReturn(scope);
+        when(groupExpander.expandOids(Collections.singleton(scopeId))).thenReturn(scope);
         when(supplyChainFetcherFactory.expandAggregatedEntities(scope)).thenReturn(scope);
         when(serviceProviderExpander.expand(scope)).thenReturn(scope);
 
@@ -136,7 +136,7 @@ public class ActionSearchUtilTest {
     public void testGetActionsByEntityGroup() throws Exception {
         ApiId scopeId = Mockito.mock(ApiId.class);
         when(scopeId.oid()).thenReturn(BILLING_FAMILY_ID);
-        when(groupExpander.expandOids(Collections.singleton(BILLING_FAMILY_ID)))
+        when(groupExpander.expandOids(Collections.singleton(scopeId)))
                 .thenReturn(BUSINESS_ACCOUNTS);
         when(supplyChainFetcherFactory.expandAggregatedEntities(BUSINESS_ACCOUNTS))
                 .thenReturn(BUSINESS_ACCOUNTS);
@@ -161,7 +161,7 @@ public class ActionSearchUtilTest {
     public void testGetActionsByEntityEmptyGroup() throws Exception {
         ApiId scopeId = Mockito.mock(ApiId.class);
         when(scopeId.oid()).thenReturn(RESOURCE_GROUP_ID);
-        when(groupExpander.expandOids(Collections.singleton(RESOURCE_GROUP_ID)))
+        when(groupExpander.expandOids(Collections.singleton(scopeId)))
                 .thenReturn(Collections.emptySet());
 
         ActionApiInputDTO inputDto = Mockito.mock(ActionApiInputDTO.class);
@@ -189,7 +189,7 @@ public class ActionSearchUtilTest {
     public void testGetActionsWithRelatedEntityTypeByEntityEmptyGroup() throws Exception {
         ApiId scopeId = Mockito.mock(ApiId.class);
         when(scopeId.oid()).thenReturn(RESOURCE_GROUP_ID);
-        when(groupExpander.expandOids(Collections.singleton(RESOURCE_GROUP_ID)))
+        when(groupExpander.expandOids(Collections.singleton(scopeId)))
                 .thenReturn(Collections.emptySet());
 
         ActionApiInputDTO inputDto = Mockito.mock(ActionApiInputDTO.class);
@@ -206,7 +206,7 @@ public class ActionSearchUtilTest {
         Set<Long> scope = Collections.singleton(BUSINESS_ACCOUNT_ID_1);
         ApiId scopeId = Mockito.mock(ApiId.class);
         when(scopeId.oid()).thenReturn(BUSINESS_ACCOUNT_ID_1);
-        when(groupExpander.expandOids(scope)).thenReturn(scope);
+        when(groupExpander.expandOids(Collections.singleton(scopeId))).thenReturn(scope);
         when(supplyChainFetcherFactory.expandScope(scope,
                 Collections.singletonList(EntityType.VIRTUAL_MACHINE.name())))
                 .thenReturn(scope);
@@ -247,7 +247,7 @@ public class ActionSearchUtilTest {
         // when scope expansion fails, return null
         assertNull(nullResult);
 
-        when(groupExpander.expandOids(scopeSet)).thenReturn(scopeSet);
+        when(groupExpander.expandOids(Collections.singleton(apiId))).thenReturn(scopeSet);
         when(serviceProviderExpander.expand(scopeSet)).thenReturn(scopeSet);
         when(supplyChainFetcherFactory.expandAggregatedEntities(scopeSet)).thenReturn(scopeSet);
 

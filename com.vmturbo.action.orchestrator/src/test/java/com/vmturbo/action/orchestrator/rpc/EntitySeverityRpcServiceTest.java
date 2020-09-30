@@ -6,11 +6,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyList;
-import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -18,14 +19,15 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-
+import com.vmturbo.action.orchestrator.api.EntitySeverityNotificationSender;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
@@ -43,10 +45,6 @@ import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse.Builder;
-import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
-import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
@@ -61,6 +59,8 @@ public class EntitySeverityRpcServiceTest {
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
 
     private final ActionTopologyStore actionTopologyStore = Mockito.mock(ActionTopologyStore.class);
+
+    private final EntitySeverityNotificationSender notificationSender = mock(EntitySeverityNotificationSender.class);
 
     private final long topologyContextId = 3;
 
@@ -77,8 +77,7 @@ public class EntitySeverityRpcServiceTest {
 
         severityServiceClient = EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
         severityCache = Mockito.spy(new EntitySeverityCache(
-            actionTopologyStore,
-            true));
+            actionTopologyStore, notificationSender, true));
     }
 
     @Test
@@ -172,11 +171,8 @@ public class EntitySeverityRpcServiceTest {
      */
     @Test
     public void testGetEntitySeveritiesWithSeverityBreakdown() throws Exception {
-        EntitySeverityCache.SeverityCount severityCount = new EntitySeverityCache.SeverityCount();
-        severityCount.addSeverity(Severity.CRITICAL);
-        severityCount.addSeverity(Severity.CRITICAL);
-        severityCount.addSeverity(Severity.MAJOR);
-        when(severityCache.getSeverityBreakdown(1234L)).thenReturn(Optional.of(severityCount));
+        Map<Severity, Long> breakdown = ImmutableMap.of(Severity.CRITICAL, 2L, Severity.MAJOR, 1L);
+        when(severityCache.getSeverityBreakdown(1234L)).thenReturn(breakdown);
 
         MultiEntityRequest severityContext = MultiEntityRequest.newBuilder()
             .setTopologyContextId(topologyContextId)
@@ -187,7 +183,7 @@ public class EntitySeverityRpcServiceTest {
         Iterable<EntitySeveritiesResponse> response =
             () -> severityServiceClient.getEntitySeverities(severityContext);
         EntitySeverity severity = processEntitySeverityStream(response).get(0);
-        assertFalse(severity.hasSeverity());
+        assertEquals(Severity.NORMAL, severity.getSeverity());
         assertEquals(1234L, severity.getEntityId());
         assertEquals(2, severity.getSeverityBreakdownMap().size());
         assertEquals(2L, severity.getSeverityBreakdownMap().get(Severity.CRITICAL.getNumber()).longValue());
@@ -201,7 +197,7 @@ public class EntitySeverityRpcServiceTest {
      */
     @Test
     public void testGetEntitySeveritiesWithEmptySeverityBreakdown() throws Exception {
-        when(severityCache.getSeverityBreakdown(1234L)).thenReturn(Optional.empty());
+        when(severityCache.getSeverityBreakdown(1234L)).thenReturn(Collections.emptyMap());
 
         MultiEntityRequest severityContext = MultiEntityRequest.newBuilder()
             .setTopologyContextId(topologyContextId)
@@ -212,7 +208,7 @@ public class EntitySeverityRpcServiceTest {
         Iterable<EntitySeveritiesResponse> response =
             () -> severityServiceClient.getEntitySeverities(severityContext);
         EntitySeverity severity = processEntitySeverityStream(response).get(0);
-        assertFalse(severity.hasSeverity());
+        assertEquals(Severity.NORMAL, severity.getSeverity());
         assertEquals(1234L, severity.getEntityId());
         assertTrue(severity.getSeverityBreakdownMap().isEmpty());
     }
@@ -235,9 +231,9 @@ public class EntitySeverityRpcServiceTest {
     public void testGetSeverityCounts() {
         when(severityCache.getSeverityCounts(anyList())).thenReturn(
             ImmutableMap.of(
-                Optional.of(Severity.MINOR), 1L,
-                Optional.of(Severity.CRITICAL), 1L,
-                Optional.empty(), 1L
+                Severity.MINOR, 1L,
+                Severity.CRITICAL, 1L,
+                Severity.NORMAL, 1L
             ));
 
         MultiEntityRequest severityContext = MultiEntityRequest.newBuilder()
@@ -250,10 +246,11 @@ public class EntitySeverityRpcServiceTest {
         when(actionStorehouse.getSeverityCache(topologyContextId)).thenReturn(Optional.of(severityCache));
         final SeverityCountsResponse response = severityServiceClient.getSeverityCounts(severityContext);
 
-        assertEquals(1, response.getUnknownEntityCount());
-        assertEquals(2, response.getCountsCount());
+        assertEquals(3, response.getCountsCount());
         assertThat(response.getCountsList(), hasItem(
             SeverityCount.newBuilder().setEntityCount(1L).setSeverity(Severity.MINOR).build()));
+        assertThat(response.getCountsList(), hasItem(
+                SeverityCount.newBuilder().setEntityCount(1L).setSeverity(Severity.NORMAL).build()));
         assertThat(response.getCountsList(), hasItem(
             SeverityCount.newBuilder().setEntityCount(1L).setSeverity(Severity.CRITICAL).build()));
     }

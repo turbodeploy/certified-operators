@@ -3,6 +3,8 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -21,6 +23,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
+import io.netty.util.collection.LongObjectHashMap;
+import io.netty.util.collection.LongObjectMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,7 +33,6 @@ import org.springframework.util.CollectionUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroup;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
-import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
@@ -39,10 +42,9 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -55,6 +57,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.repository.api.RepositoryListener;
@@ -85,12 +89,6 @@ public class UuidMapper implements RepositoryListener {
 
     private final long realtimeContextId;
 
-    private final PlanServiceBlockingStub planServiceBlockingStub;
-
-    private final GroupServiceBlockingStub groupServiceBlockingStub;
-
-    private final GroupExpander groupExpander;
-
     private final RepositoryApi repositoryApi;
 
     private final TopologyProcessor topologyProcessor;
@@ -100,6 +98,8 @@ public class UuidMapper implements RepositoryListener {
     private final ThinTargetCache thinTargetCache;
 
     private final CloudTypeMapper cloudTypeMapper;
+
+    private final ApiIdResolver apiIdResolver;
 
     /**
      * We cache the {@link ApiId}s associated with specific OIDs, so that we can save the
@@ -117,19 +117,17 @@ public class UuidMapper implements RepositoryListener {
                       @Nonnull final RepositoryApi repositoryApi,
                       @Nonnull final TopologyProcessor topologyProcessor,
                       @Nonnull final PlanServiceBlockingStub planServiceBlockingStub,
-                      @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
-                      @Nonnull final GroupExpander groupExpander,
+                      @Nonnull final GroupMemberRetriever groupMemberRetriever,
                       @Nonnull final ThinTargetCache thinTargetCache,
                       @Nonnull final CloudTypeMapper cloudTypeMapper) {
         this.realtimeContextId = realtimeContextId;
         this.magicScopeGateway = magicScopeGateway;
         this.repositoryApi = repositoryApi;
         this.topologyProcessor = topologyProcessor;
-        this.planServiceBlockingStub = planServiceBlockingStub;
-        this.groupServiceBlockingStub = groupServiceBlockingStub;
-        this.groupExpander = groupExpander;
         this.thinTargetCache = thinTargetCache;
         this.cloudTypeMapper = cloudTypeMapper;
+        this.apiIdResolver = new ApiIdResolver(thinTargetCache, repositoryApi,
+                groupMemberRetriever, planServiceBlockingStub);
     }
 
     /**
@@ -149,8 +147,7 @@ public class UuidMapper implements RepositoryListener {
         return cachedIds.compute(oid, (k, existing) -> {
             if (existing == null) {
                 Metrics.CACHE_MISS_COUNT.increment();
-                return new ApiId(oid, realtimeContextId, repositoryApi, topologyProcessor,
-                        planServiceBlockingStub, groupServiceBlockingStub, groupExpander,
+                return new ApiId(oid, realtimeContextId, apiIdResolver, repositoryApi, topologyProcessor,
                         thinTargetCache, cloudTypeMapper);
             } else {
                 Metrics.CACHE_HIT_COUNT.increment();
@@ -164,8 +161,7 @@ public class UuidMapper implements RepositoryListener {
         return cachedIds.compute(oid, (k, existing) -> {
             if (existing == null) {
                 Metrics.CACHE_MISS_COUNT.increment();
-                return new ApiId(oid, realtimeContextId, repositoryApi, topologyProcessor,
-                        planServiceBlockingStub, groupServiceBlockingStub, groupExpander,
+                return new ApiId(oid, realtimeContextId, apiIdResolver, repositoryApi, topologyProcessor,
                         thinTargetCache, cloudTypeMapper);
             } else {
                 Metrics.CACHE_HIT_COUNT.increment();
@@ -182,8 +178,8 @@ public class UuidMapper implements RepositoryListener {
     public void onSourceTopologyAvailable(long topologyId, long topologyContextId) {
         // clean cache if received realtime topology
         if (topologyContextId == realtimeContextId) {
-            logger.info("Clear all cached {@link ApiId}'s associated with specific OID when new " +
-                    "topology (topologyId - {}) received ", topologyId);
+            logger.info("Clear all cached {@link ApiId}'s associated with specific OID when new "
+                + "topology (topologyId - {}) received ", topologyId);
             cachedIds.clear();
         }
     }
@@ -200,6 +196,321 @@ public class UuidMapper implements RepositoryListener {
      */
     public static boolean hasLimitedScope(@Nullable final Collection<String> seedUuids) {
         return !CollectionUtils.isEmpty(seedUuids) && !seedUuids.contains(UI_REAL_TIME_MARKET_STR);
+    }
+
+    /**
+     * Resolve whether or not the input set of IDs refer to entities, and load any necessary
+     * cached information. Note - if they are NOT entities,
+     * you still won't know what they are after this call.
+     *
+     * @param values The input IDs.
+     */
+    public void bulkResolveEntities(Collection<ApiId> values) {
+        apiIdResolver.bulkResolveEntities(values);
+    }
+
+
+    /**
+     * Resolve whether or not the input set of IDs refer to groups, and load any necessary
+     * cached information. Note - if they are NOT groups,
+     * you still won't know what they are after this call.
+     *
+     * @param values The input IDs.
+     */
+    public void bulkResolveGroups(Collection<ApiId> values) {
+        apiIdResolver.bulkResolveGroups(values);
+    }
+
+    /**
+     * Utility class for bulk resolution of {@link ApiId}s, intended to minimize RPC calls when
+     * a collection of IDs needs to be expanded/checked.
+     */
+    static class ApiIdResolver {
+
+        private final ThinTargetCache thinTargetCache;
+        private final RepositoryApi repositoryApi;
+        private final GroupMemberRetriever groupMemberRetriever;
+        private final PlanServiceBlockingStub planServiceBlockingStub;
+
+        ApiIdResolver(ThinTargetCache thinTargetCache, RepositoryApi repositoryApi,
+                GroupMemberRetriever groupMemberRetriever,
+                PlanServiceBlockingStub planServiceBlockingStub) {
+            this.thinTargetCache = thinTargetCache;
+            this.repositoryApi = repositoryApi;
+            this.groupMemberRetriever = groupMemberRetriever;
+            this.planServiceBlockingStub = planServiceBlockingStub;
+        }
+
+        /**
+         * Resolve a collection of {@link ApiId}s. Resolve means determine what type of object each
+         * id refers to, and initialize the cached information for that id, using the minimum
+         * number of RPC calls.
+         *
+         * @param apiIds The collection of {@link ApiId}s.
+         */
+        public void bulkResolve(Collection<ApiId> apiIds) {
+            // We can use the thin target cache to avoid RPCs, so even though we are not likely
+            // to see targets this is a very quick check.
+            apiIds = bulkResolveTargets(apiIds);
+            // Entities are quick to resolve because it's an in-memory lookup in the repository.
+            apiIds = bulkResolveEntities(apiIds);
+            apiIds = bulkResolveGroups(apiIds);
+            // Least likely
+            bulkResolvePlans(apiIds);
+        }
+
+        /**
+         * Resolve a collection of {@link ApiId}s if they refer to entities. Resolve means
+         * determine if the id refers to an entity and, if so, initialized the cached entity-related
+         * information for the id.
+         *
+         * @param apiIds The {@link ApiId}s to resolve.
+         * @return A collection of all non-entity {@link ApiId}s in the input.
+         */
+        private Collection<ApiId> bulkResolveEntities(Collection<ApiId> apiIds) {
+            Set<Long> src = Collections.emptySet();
+            Set<Long> projected = Collections.emptySet();
+            final LongObjectMap<ApiId> map = new LongObjectHashMap<>();
+            for (ApiId apiId : apiIds) {
+                if (apiId.needsResolution()) {
+                    map.put(apiId.oid(), apiId);
+                    // Querying projected entities is slower, so we populated "projected" only
+                    // with entities that are unique to the projected topology (i.e. clones).
+                    // Their OIDs are negative.
+                    if (apiId.oid() >= 0) {
+                        if (src.isEmpty()) {
+                            src = new HashSet<>();
+                        }
+                        src.add(apiId.oid());
+                    } else {
+                        if (projected.isEmpty()) {
+                            projected = new HashSet<>();
+                        }
+                        projected.add(apiId.oid());
+                    }
+                }
+            }
+
+            if (map.isEmpty()) {
+                return Collections.emptyList();
+            }
+
+            Stream<MinimalEntity> entities = Stream.empty();
+            try {
+                if (!src.isEmpty()) {
+                    entities = Stream.concat(entities, repositoryApi.entitiesRequest(src)
+                            .getMinimalEntities());
+                }
+                if (!projected.isEmpty()) {
+                    entities = Stream.concat(entities, repositoryApi.entitiesRequest(projected)
+                            .projectedTopology()
+                            .getMinimalEntities());
+                }
+            } catch (StatusRuntimeException e) {
+                logger.error("Failed to look up entities. Error: {}", e.toString());
+                return map.values();
+            }
+
+            entities.forEach(minimalEntity -> {
+                ApiId id = map.remove(minimalEntity.getOid());
+                if (id != null) {
+                    id.setCachedEntityInfo(Optional.of(new CachedEntityInfo(minimalEntity)));
+                }
+            });
+
+            // All the leftovers are not entities.
+            return map.values().stream()
+                .peek(id -> id.setCachedEntityInfo(Optional.empty()))
+                .collect(Collectors.toList());
+        }
+
+        /**
+         * Resolve a collection of {@link ApiId}s if they refer to groups. Resolve means
+         * determine if the id refers to a group and, if so, initialized the cached group-related
+         * information for the id.
+         *
+         * @param apiIds The {@link ApiId}s to resolve.
+         * @return A collection of all non-group {@link ApiId}s in the input.
+         */
+        private Collection<ApiId> bulkResolveGroups(Collection<ApiId> apiIds) {
+            final LongObjectMap<ApiId> map = new LongObjectHashMap<>();
+            for (ApiId apiId : apiIds) {
+                if (apiId.needsResolution()) {
+                    map.put(apiId.oid(), apiId);
+                }
+            }
+
+            if (map.isEmpty()) {
+                return Collections.emptyList();
+            }
+
+            try {
+                final List<GroupAndMembers> groupAndMembers = groupMemberRetriever.getGroupsWithMembers(GetGroupsRequest.newBuilder()
+                        .setGroupFilter(GroupFilter.newBuilder().addAllId(map.keySet()))
+                        .build());
+                if (!groupAndMembers.isEmpty()) {
+                    Set<Long> allMembers = groupAndMembers.stream()
+                            .flatMap(g -> g.entities().stream())
+                            .collect(Collectors.toSet());
+                    Map<Long, MinimalEntity> minimalEntitiesById = repositoryApi.entitiesRequest(
+                            allMembers).getMinimalEntities()
+                        .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
+                    groupAndMembers.forEach(group -> {
+
+                        final Map<ApiEntityType, Set<Long>> entityOidsByType = new HashMap<>(1);
+                        final Set<Long> discoveringTargetIds = new HashSet<>(1);
+                        group.entities()
+                                .stream()
+                                .map(minimalEntitiesById::get)
+                                .filter(Objects::nonNull)
+                                .forEach(memberEntity -> {
+                                    entityOidsByType.computeIfAbsent(ApiEntityType.fromMinimalEntity(memberEntity),
+                                            k -> new HashSet<>()).add(memberEntity.getOid());
+                                    discoveringTargetIds.addAll(memberEntity.getDiscoveringTargetIdsList());
+                                });
+
+                        final EnvironmentType envTypeFromMember = getEnvironmentType(group.entities()
+                                .stream()
+                                .map(minimalEntitiesById::get)
+                                .filter(Objects::nonNull));
+
+                        CachedGroupInfo groupInfo = new CachedGroupInfo(group.group(),
+                                discoveringTargetIds, envTypeFromMember, entityOidsByType);
+                        // We remove it from the map, so by the end of the iteration the map contains
+                        // only ids that are NOT groups.
+                        final ApiId id = map.remove(group.group().getId());
+                        id.setCachedGroupInfo(Optional.of(groupInfo));
+                    });
+                }
+            } catch (StatusRuntimeException e) {
+                logger.error("Failed to retrieve group information: {}", e.toString());
+                // No assumptions about the ids in the map.
+                return map.values();
+            }
+
+            // All the leftovers are not groups.
+            return map.values().stream()
+                    .peek(id -> id.setCachedGroupInfo(Optional.empty()))
+                    .collect(Collectors.toList());
+        }
+
+        /**
+         * Resolve a collection of {@link ApiId}s if they refer to plans. Resolve means
+         * determine if the id refers to a plan and, if so, initialized the cached plan-related
+         * information for the id.
+         *
+         * @param apiIds The {@link ApiId}s to resolve.
+         */
+        private void bulkResolvePlans(Collection<ApiId> apiIds) {
+            for (ApiId apiId : apiIds) {
+                if (!apiId.needsResolution()) {
+                    continue;
+                }
+
+                final OptionalPlanInstance optPlanInstance;
+                try {
+                    optPlanInstance = planServiceBlockingStub.getPlan(
+                            PlanId.newBuilder().setPlanId(apiId.oid()).build());
+                } catch (StatusRuntimeException e) {
+                    logger.error("Failed to look up plan for id: {}. Error: {}", apiId.oid(), e.toString());
+                    continue;
+                }
+
+                if (!optPlanInstance.hasPlanInstance()) {
+                    apiId.setCachedPlanInfo(Optional.empty());
+                    continue;
+                }
+
+                PlanInstance planInstance = optPlanInstance.getPlanInstance();
+                ScenarioInfo scenarioInfo = planInstance.getScenario().getScenarioInfo();
+                if (!scenarioInfo.hasScope()) {
+                    continue;
+                }
+
+                PlanScope planScope = scenarioInfo.getScope();
+                if (planScope.getScopeEntriesCount() == 0) {
+                    continue;
+                }
+
+                // Get all the entities in the Plan Scope
+                Set<MinimalEntity> minimalEntities = Sets.newHashSet();
+                planScope.getScopeEntriesList().stream().forEach(se -> {
+
+                    if (StringConstants.GROUP_TYPES.contains(se.getClassName())) {
+                        Optional<GroupAndMembers> groupAndMembers = groupMemberRetriever.getGroupsWithMembers(GetGroupsRequest.newBuilder()
+                                .setGroupFilter(GroupFilter.newBuilder()
+                                    .addId(se.getScopeObjectOid())
+                                    .build())
+                                .build()).stream().findFirst();
+                        groupAndMembers.ifPresent(andMembers -> repositoryApi.entitiesRequest(
+                                Sets.newHashSet(andMembers.entities()))
+                                .getMinimalEntities()
+                                .forEach(minimalEntities::add));
+                    } else {
+                        repositoryApi.entityRequest(se.getScopeObjectOid()).getMinimalEntity()
+                                .map(minimalEntities::add);
+                    }
+                });
+                // Extract the Environment Type of the entities
+                EnvironmentType planEnvType = getEnvironmentType(minimalEntities.stream());
+
+                final Map<ApiEntityType, Set<Long>> entityOidsByType = minimalEntities.stream()
+                        .collect(Collectors.groupingBy(
+                                ApiEntityType::fromMinimalEntity,
+                                Collectors.mapping(MinimalEntity::getOid,
+                                        Collectors.toSet())));
+
+                // Add all oids from minimalEntities as scope oid list, that includes members
+                // of group, if the plan is scoped to a group (e.g of regions).
+                Set<Long> planScopeIds = Sets.newHashSet();
+                entityOidsByType.values().forEach(planScopeIds::addAll);
+
+                apiId.setCachedPlanInfo(Optional.of(new CachedPlanInfo(planInstance, planEnvType, planScopeIds,
+                        entityOidsByType)));
+            }
+        }
+
+        private Collection<ApiId> bulkResolveTargets(Collection<ApiId> apiIds) {
+            return apiIds.stream()
+                    .filter(ApiId::needsResolution)
+                    .peek(id -> {
+                    final boolean isTarget = thinTargetCache.getTargetInfo(id.oid()).isPresent();
+                    id.setIsTarget(isTarget);
+                })
+                .filter(ApiId::needsResolution)
+                .collect(Collectors.toList());
+        }
+
+        /**
+         * Get the EnvironmentType given a Set of entities.
+         *
+         * @param minimalEntities Set of entities
+         * @return CLOUD if all entities are CLOUD,
+         * ON_PREM if all entities are ON_PREM,
+         * HYBRID if there are some CLOUD and ON_PREM.
+         */
+        private EnvironmentType getEnvironmentType(Stream<MinimalEntity> minimalEntities) {
+            boolean hasCloud = false;
+            boolean hasOnPrem = false;
+            Iterator<MinimalEntity> it = minimalEntities.iterator();
+            while (it.hasNext()) {
+                MinimalEntity me = it.next();
+                hasCloud = me.getEnvironmentType() == EnvironmentType.CLOUD || hasCloud;
+                hasOnPrem = me.getEnvironmentType() == EnvironmentType.ON_PREM || hasOnPrem;
+            }
+
+            EnvironmentType envType = EnvironmentType.UNKNOWN_ENV;
+            if (hasCloud && hasOnPrem) {
+                envType = EnvironmentType.HYBRID;
+            } else if (hasCloud) {
+                envType = EnvironmentType.CLOUD;
+            } else if (hasOnPrem) {
+                envType = EnvironmentType.ON_PREM;
+            }
+
+            return envType;
+        }
+
     }
 
     /**
@@ -407,14 +718,7 @@ public class UuidMapper implements RepositoryListener {
         private final SetOnce<Optional<CachedGroupInfo>> groupInfo = new SetOnce<>();
         private final SetOnce<Optional<CachedEntityInfo>> entityInfo = new SetOnce<>();
         private final SetOnce<Optional<CachedPlanInfo>> planInfo = new SetOnce<>();
-
         private final SetOnce<Boolean> isTarget = new SetOnce<>();
-
-        private final PlanServiceBlockingStub planServiceBlockingStub;
-
-        private final GroupServiceBlockingStub groupServiceBlockingStub;
-
-        private final GroupExpander groupExpander;
 
         private final TopologyProcessor topologyProcessor;
 
@@ -424,24 +728,22 @@ public class UuidMapper implements RepositoryListener {
 
         private final CloudTypeMapper cloudTypeMapper;
 
+        private final ApiIdResolver apiIdResolver;
+
         private static final Supplier<Boolean> FALSE = () -> false;
 
         private ApiId(final long value,
                       final long realtimeContextId,
+                      @Nonnull final ApiIdResolver apiIdResolver,
                       @Nonnull final RepositoryApi repositoryApi,
                       @Nonnull final TopologyProcessor topologyProcessor,
-                      @Nonnull final PlanServiceBlockingStub planServiceBlockingStub,
-                      @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
-                      @Nonnull final GroupExpander groupExpander,
                       @Nonnull final ThinTargetCache thinTargetCache,
                       @Nonnull final CloudTypeMapper cloudTypeMapper) {
             this.oid = value;
             this.realtimeContextId = realtimeContextId;
+            this.apiIdResolver = apiIdResolver;
             this.repositoryApi = Objects.requireNonNull(repositoryApi);
             this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
-            this.planServiceBlockingStub = Objects.requireNonNull(planServiceBlockingStub);
-            this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
-            this.groupExpander = groupExpander;
             this.thinTargetCache = thinTargetCache;
             this.cloudTypeMapper = cloudTypeMapper;
             if (isRealtimeMarket()) {
@@ -669,40 +971,29 @@ public class UuidMapper implements RepositoryListener {
             return oid == realtimeContextId;
         }
 
-        private Optional<CachedEntityInfo> getCachedEntityInfo() {
-            final Optional<CachedEntityInfo> newCachedInfo = entityInfo.ensureSet(() -> {
-                try {
-                    // For all non-negative IDs we only look in the "source" topology.
-                    // For entities the market provisions (e.g. when it recommends adding a host)
-                    // we expect IDs to be negative, and look for them in the projected topology.
-                    //
-                    // Note - this won't work for entities in a plan, because we don't save the plan
-                    // source topology, but the ApiId isn't supposed to be scoped inside a plan anyway.
-                    if (oid >= 0) {
-                        return repositoryApi.entityRequest(oid)
-                            .getMinimalEntity()
-                            .map(CachedEntityInfo::new);
-                    } else {
-                        return repositoryApi.entityRequest(oid)
-                            .projectedTopology()
-                            .getMinimalEntity()
-                            .map(CachedEntityInfo::new);
-                    }
-                } catch (StatusRuntimeException e) {
-                    // Return null to leave the SetOnce value unset - we still don't know!
-                    return null;
-                }
-            });
 
-            final boolean newIsEntity = newCachedInfo != null && newCachedInfo.isPresent();
-            if (newIsEntity) {
+        void setCachedEntityInfo(Optional<CachedEntityInfo> cachedEntityInfo) {
+            entityInfo.trySetValue(cachedEntityInfo);
+            if (cachedEntityInfo.isPresent()) {
                 // If it's an entity, it's not a group or plan.
                 // We do this outside the entityInfo.ensureSet() to avoid possible deadlocks.
                 groupInfo.ensureSet(Optional::empty);
                 planInfo.ensureSet(Optional::empty);
                 isTarget.ensureSet(FALSE);
             }
-            return newCachedInfo == null ? Optional.empty() : newCachedInfo;
+        }
+
+        /**
+         * If this is an entity, get the cached information about the entity.
+         * If this is not an entity, do nothing. This may make an RPC call if the information
+         * about this entity is not present yet.
+         *
+         * @return {@link Optional} containing the {@link CachedEntityInfo}, or an empty optional.
+         */
+        @Nonnull
+        public Optional<CachedEntityInfo> getCachedEntityInfo() {
+            apiIdResolver.bulkResolveEntities(Collections.singleton(this));
+            return entityInfo.getValue().orElse(Optional.empty());
         }
 
         public boolean isEntity() {
@@ -758,179 +1049,76 @@ public class UuidMapper implements RepositoryListener {
             return getCachedGroupInfo().map(CachedGroupInfo::getGroupType);
         }
 
-        public boolean isTarget() {
-            final Boolean newIsTarget = isTarget.ensureSet(() -> {
-                try {
-                    final TargetInfo targetInfo = topologyProcessor.getTarget(oid);
-                    // If we get a target info, it's a target.
-                    return true;
-                } catch (TopologyProcessorException e) {
-                    return false;
-                } catch (CommunicationException e) {
-                    // Return null to leave the SetOnce value unset - we still don't know!
-                    return null;
-                }
-            });
-
-            final boolean retIsTarget = newIsTarget != null && newIsTarget;
-            if (retIsTarget) {
+        void setIsTarget(boolean isTarget) {
+            this.isTarget.trySetValue(isTarget);
+            if (isTarget) {
                 // If it's a target, it's not a group or entity or a plan.
                 // We do this outside the isTarget.ensureSet() to avoid possible deadlocks.
                 groupInfo.ensureSet(Optional::empty);
                 entityInfo.ensureSet(Optional::empty);
                 planInfo.ensureSet(Optional::empty);
             }
-            return retIsTarget;
+        }
+
+        /**
+         * Return true if this id refers to a target.
+         *
+         * @return True if this id refers to a target.
+         */
+        public boolean isTarget() {
+            apiIdResolver.bulkResolveTargets(Collections.singleton(this));
+            return isTarget.getValue().orElse(false);
         }
 
         public boolean isGlobalTempGroup() {
             return getCachedGroupInfo().map(CachedGroupInfo::isGlobalTempGroup).orElse(false);
         }
 
-        @Nonnull
-        public Optional<CachedGroupInfo> getCachedGroupInfo() {
-            Optional<CachedGroupInfo> cachedInfoOpt = groupInfo.ensureSet(() -> {
-                try {
-                    final GetGroupResponse resp = groupServiceBlockingStub.getGroup(GroupID.newBuilder()
-                            .setId(oid)
-                            .build());
-                    if (resp.hasGroup()) {
-                        final Collection<Long> entityOids =
-                            groupExpander.getMembersForGroup(resp.getGroup()).entities();
-                        final Set<MinimalEntity> minimalMembers =
-                            repositoryApi.entitiesRequest(Sets.newHashSet(entityOids)).getMinimalEntities()
-                                .collect(Collectors.toSet());
-                        final Map<ApiEntityType, Set<Long>> entityOidsByType = minimalMembers.stream()
-                                .collect(Collectors.groupingBy(
-                                        ApiEntityType::fromMinimalEntity,
-                                        Collectors.mapping(MinimalEntity::getOid,
-                                                Collectors.toSet())));
-
-                        // Get the set of environment types for the members
-                        Set<EnvironmentType> envTypes = minimalMembers.stream()
-                                .map(MinimalEntity::getEnvironmentType)
-                                .collect(Collectors.toSet());
-
-                        // If all members have the same type, this is the type
-                        // if there is no type for any members, then the type is unknown
-                        // otherwise the type will be hybrid.
-                        final EnvironmentType envTypeFromMember;
-                        /*
-                         A resource group discovered (Azure resource groups) can also have application
-                         entity types as discovered by an application probe. However, We want to treat
-                         this as a cloud environment and not Hybrid.
-                         */
-                        if (resp.getGroup().getDefinition().getType() == GroupType.RESOURCE) {
-                            envTypeFromMember = EnvironmentType.CLOUD;
-                        }  else {
-                            switch (envTypes.size()) {
-                                case 0:
-                                    envTypeFromMember = EnvironmentType.UNKNOWN_ENV;
-                                    break;
-                                case 1:
-                                    envTypeFromMember = envTypes.iterator().next();
-                                    break;
-                                default:
-                                    envTypeFromMember = EnvironmentType.HYBRID;
-                            }
-                        }
-                        final Set<Long> discoveringTargetIds =
-                            minimalMembers.stream()
-                                .flatMap(minEntity -> minEntity.getDiscoveringTargetIdsList().stream())
-                                .collect(Collectors.toSet());
-                        return Optional.of(new CachedGroupInfo(resp.getGroup(), discoveringTargetIds,
-                            envTypeFromMember, entityOidsByType));
-                    } else {
-                        return Optional.empty();
-                    }
-                } catch (StatusRuntimeException e) {
-                    // Return null to leave the SetOnce value unset - we still don't know!
-                    return null;
-                }
-            });
-
-            if (cachedInfoOpt != null && cachedInfoOpt.isPresent()) {
+        void setCachedGroupInfo(Optional<CachedGroupInfo> groupInfo) {
+            this.groupInfo.trySetValue(groupInfo);
+            if (groupInfo.isPresent()) {
                 // If it's a group, it's not a plan or entity.
                 // Do this outside the groupInfo.ensureSet() to avoid deadlocks.
                 entityInfo.ensureSet(Optional::empty);
                 planInfo.ensureSet(Optional::empty);
                 isTarget.ensureSet(FALSE);
             }
-
-            return cachedInfoOpt != null ? cachedInfoOpt : Optional.empty();
         }
 
+        /**
+         * If this entity is a group, get the associated {@link CachedGroupInfo}.
+         * May result in an API call.
+         *
+         * @return The {@link CachedGroupInfo} or optional.
+         */
         @Nonnull
-        public Optional<CachedPlanInfo> getCachedPlanInfo() {
-            Optional<CachedPlanInfo> cachedInfoOpt = planInfo.ensureSet(() -> {
-                try {
-                    OptionalPlanInstance optPlanInstance = planServiceBlockingStub.getPlan(PlanId.newBuilder()
-                            .setPlanId(oid)
-                            .build());
+        public Optional<CachedGroupInfo> getCachedGroupInfo() {
+            apiIdResolver.bulkResolveGroups(Collections.singleton(this));
+            return groupInfo.getValue().orElse(Optional.empty());
+        }
 
-                    if (!optPlanInstance.hasPlanInstance()) {
-                        return Optional.empty();
-                    }
 
-                    PlanInstance planInstance = optPlanInstance.getPlanInstance();
-                    ScenarioInfo scenarioInfo = planInstance.getScenario().getScenarioInfo();
-                    if (!scenarioInfo.hasScope()) {
-                        return Optional.empty();
-                    }
-
-                    PlanScope planScope = scenarioInfo.getScope();
-                    if (planScope.getScopeEntriesCount() == 0) {
-                        return Optional.empty();
-                    }
-
-                    // Get all the entities in the Plan Scope
-                    Set<MinimalEntity> minimalEntities = Sets.newHashSet();
-                    planScope.getScopeEntriesList().stream().forEach(se -> {
-
-                        if (StringConstants.GROUP_TYPES.contains(se.getClassName())) {
-                            final GetGroupResponse resp = groupServiceBlockingStub.getGroup(GroupID
-                                    .newBuilder()
-                                    .setId(se.getScopeObjectOid())
-                                    .build());
-                            if (resp.hasGroup()) {
-                                minimalEntities.addAll(getGroupMembers(resp.getGroup()));
-                            }
-                        } else {
-                            repositoryApi.entityRequest(se.getScopeObjectOid()).getMinimalEntity()
-                                    .map(minimalEntities::add);
-                        }
-                    });
-                    // Extract the Environment Type of the entities
-                    EnvironmentType planEnvType = getEnvironmentType(minimalEntities);
-
-                    final Map<ApiEntityType, Set<Long>> entityOidsByType = minimalEntities.stream()
-                            .collect(Collectors.groupingBy(
-                                    ApiEntityType::fromMinimalEntity,
-                                    Collectors.mapping(MinimalEntity::getOid,
-                                            Collectors.toSet())));
-
-                    // Add all oids from minimalEntities as scope oid list, that includes members
-                    // of group, if the plan is scoped to a group (e.g of regions).
-                    Set<Long> planScopeIds = Sets.newHashSet();
-                    entityOidsByType.values().forEach(planScopeIds::addAll);
-                    return Optional.of(new CachedPlanInfo(planInstance, planEnvType, planScopeIds,
-                            entityOidsByType));
-
-                } catch (StatusRuntimeException e) {
-                    // Return null to leave the SetOnce value unset - we still don't know!
-                    return null;
-                }
-            });
-
-            if (cachedInfoOpt != null && cachedInfoOpt.isPresent()) {
+        void setCachedPlanInfo(Optional<CachedPlanInfo> cachedPlanInfo) {
+            planInfo.trySetValue(cachedPlanInfo);
+            if (cachedPlanInfo.isPresent()) {
                 // If it's a plan, it's not a group or entity.
                 // Do this outside the planInfo.ensureSet() to avoid deadlocks.
                 entityInfo.ensureSet(Optional::empty);
                 groupInfo.ensureSet(Optional::empty);
                 isTarget.ensureSet(FALSE);
             }
+        }
 
-            return cachedInfoOpt != null ? cachedInfoOpt : Optional.empty();
+        /**
+         * If this entity is a plan, get the associated {@link CachedPlanInfo}.
+         * May result in an API call.
+         *
+         * @return The {@link CachedPlanInfo} or optional.
+         */
+        @Nonnull
+        public Optional<CachedPlanInfo> getCachedPlanInfo() {
+            apiIdResolver.bulkResolvePlans(Collections.singleton(this));
+            return planInfo.getValue().orElse(Optional.empty());
         }
 
         public boolean isCloudPlan() {
@@ -941,6 +1129,12 @@ public class UuidMapper implements RepositoryListener {
 
         public boolean isPlan() {
             return getCachedPlanInfo().isPresent();
+        }
+
+        private boolean needsResolution() {
+            return !(isRealtimeMarket() || groupInfo.getValue().isPresent()
+                || entityInfo.getValue().isPresent() || planInfo.getValue().isPresent()
+                || isTarget.getValue().isPresent());
         }
 
         /**
@@ -1057,49 +1251,6 @@ public class UuidMapper implements RepositoryListener {
                 }).collect(Collectors.toSet());
             }
             return Collections.emptySet();
-        }
-
-        /**
-         * Get all the members of a Group as {@link MinimalEntity}.
-         *
-         * @param grouping group
-         * @return {@link Set} of {@link MinimalEntity}
-         */
-        private Set<MinimalEntity> getGroupMembers(Grouping grouping) {
-            final Collection<Long> entityOids =
-                    groupExpander.getMembersForGroup(grouping).entities();
-            final Set<MinimalEntity> minimalMembers =
-                    repositoryApi.entitiesRequest(Sets.newHashSet(entityOids)).getMinimalEntities()
-                            .collect(Collectors.toSet());
-            return minimalMembers;
-        }
-
-        /**
-         * Get the EnvironmentType given a Set of entities.
-         *
-         * @param minimalEntities Set of entities
-         * @return CLOUD if all entities are CLOUD,
-         * ON_PREM if all entities are ON_PREM,
-         * HYBRID if there are some CLOUD and ON_PREM.
-         */
-        private EnvironmentType getEnvironmentType(Set<MinimalEntity> minimalEntities) {
-            boolean hasCloud = false;
-            boolean hasOnPrem = false;
-            for (MinimalEntity me : minimalEntities) {
-                hasCloud = me.getEnvironmentType() == EnvironmentType.CLOUD || hasCloud;
-                hasOnPrem = me.getEnvironmentType() == EnvironmentType.ON_PREM || hasOnPrem;
-            }
-
-            EnvironmentType envType = EnvironmentType.UNKNOWN_ENV;
-            if (hasCloud && hasOnPrem) {
-                envType = EnvironmentType.HYBRID;
-            } else if (hasCloud) {
-                envType = EnvironmentType.CLOUD;
-            } else if (hasOnPrem) {
-                envType = EnvironmentType.ON_PREM;
-            }
-
-            return envType;
         }
     }
 

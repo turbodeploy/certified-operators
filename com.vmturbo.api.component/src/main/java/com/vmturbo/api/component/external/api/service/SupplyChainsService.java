@@ -42,6 +42,7 @@ import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.serviceinterfaces.ISupplyChainsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
@@ -50,14 +51,14 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
-import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainGroupBy;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat.StatGroup;
-import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
@@ -199,8 +200,9 @@ public class SupplyChainsService implements ISupplyChainsService {
      * @param planInstance the PlanInstance to check the scope of.
      * @return The set of unique seed entities based on the plan scope. Will be empty for an
      * unscoped plan.
+     * @throws  OperationFailedException If there is a failure in the mapping of IDs.
      */
-    private Set<Long> getSeedIdsForPlan(PlanInstance planInstance) {
+    private Set<Long> getSeedIdsForPlan(PlanInstance planInstance) throws OperationFailedException {
         // does this plan have a scope?
         if (!isPlanScoped(planInstance)) {
             // nope, no scope

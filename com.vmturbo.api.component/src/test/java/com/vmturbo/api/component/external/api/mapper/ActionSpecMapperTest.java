@@ -1070,7 +1070,7 @@ public class ActionSpecMapperTest {
 
         // act
         Map<Long, CloudResizeActionDetailsApiDTO> dtoMap = mapper
-                .createCloudResizeActionDetailsDTO(Collections.singleton(targetId), Collections.emptySet(), null);
+                .createCloudResizeActionDetailsDTO(Collections.singleton(targetId), Collections.emptySet(), REAL_TIME_TOPOLOGY_CONTEXT_ID);
         CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = dtoMap.get(targetId);
         // check
         assertNotNull(cloudResizeActionDetailsApiDTO);
@@ -2559,7 +2559,7 @@ public class ActionSpecMapperTest {
 
     private SupplyChainNode makeSupplyChainNode(long oid) {
         return SupplyChainNode.newBuilder()
-            .setEntityType(ApiEntityType.DATACENTER.apiStr())
+            .setEntityType(ApiEntityType.DATACENTER.typeNumber())
             .putMembersByState(EntityState.ACTIVE.ordinal(),
                 MemberList.newBuilder().addMemberOids(oid).build())
             .build();

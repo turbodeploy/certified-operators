@@ -365,9 +365,20 @@ public class TopologyEditor {
                 if (entityTypeToMembers.containsKey(apiEntityType)) {
                     migrationEntities.addAll(entityTypeToMembers.get(apiEntityType));
                 }
-                final Set<Long> pms = entityTypeToMembers.get(ApiEntityType.PHYSICAL_MACHINE);
+                // We're dealing with a cluster, get PMs that are part of that cluster.
+                Set<Long> pms = entityTypeToMembers.get(ApiEntityType.PHYSICAL_MACHINE);
+                final Set<Long> dcs = entityTypeToMembers.get(ApiEntityType.DATACENTER);
+                if (CollectionUtils.isNotEmpty(dcs)) {
+                    // If it is a group of DCs, we first need to resolve that and get the PMs
+                    // that are part of those DCs.
+                    if (pms == null) {
+                        pms = new HashSet<>();
+                    }
+                    pms.addAll(getConsumersOfType(topologyGraph.getEntities(dcs),
+                            EntityType.PHYSICAL_MACHINE_VALUE));
+                }
+                // Finally get the VMs that consume from those set of PMs.
                 if (CollectionUtils.isNotEmpty(pms)) {
-                    // We're dealing with a cluster...
                     final Set<Long> clusterWorkloads = getConsumersOfType(
                             topologyGraph.getEntities(pms),
                             migratingEntityType);

@@ -535,7 +535,10 @@ public class Analysis {
                 }
                 // Calculate reservedCapacity and generate resize actions
                 ReservedCapacityAnalysis reservedCapacityAnalysis = new ReservedCapacityAnalysis(topologyDTOs);
-                reservedCapacityAnalysis.execute(converter.getConsistentScalingHelper());
+                // Do not generate reservations for cloud migration plans.
+                if (!isMigrateToCloud) {
+                    reservedCapacityAnalysis.execute(converter.getConsistentScalingHelper());
+                }
 
                 // Execute wasted file analysis
                 WastedFilesAnalysis wastedFilesAnalysis = wastedFilesAnalysisFactory.newWastedFilesAnalysis(
