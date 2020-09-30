@@ -67,7 +67,7 @@ public class SecretPropertiesReader extends YamlProcessor {
             .put("clustermgr", ImmutableMap.of(USERNAME, "clustermgrDbUsername", PASSWORD, "clustermgrDbPassword"))
             .put("plan-orchestrator", ImmutableMap.of(USERNAME, "planDbUsername", PASSWORD, "planDbPassword"))
             .put("topology-processor", ImmutableMap.of(USERNAME, "topologyProcessorDbUsername", PASSWORD, "topologyProcessorDbPassword"))
-            .put("repository", ImmutableMap.of(USERNAME, "repositoryDbUsername", PASSWORD, "repositoryDbPassword"))
+            .put("repository", ImmutableMap.of(USERNAME, "arangoDBUsername", PASSWORD, "arangoDBPassword")) // see RepositoryProperties
             .put("intersight-integration", ImmutableMap.of(CLIENT_ID, "intersightClientId", CLIENT_SECRET, "intersightClientSecret"))
             .build();
 

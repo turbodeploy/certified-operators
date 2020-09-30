@@ -139,6 +139,7 @@ public class LiveActionStore implements ActionStore {
      * @param actionFactory the action factory
      * @param actionIdentityService identity service to fetch OIDs for actions
      * @param topologyContextId the topology context id
+     * @param actionTopologyStore Store for the live topology.
      * @param actionTargetSelector selects which target/probe to execute each action against
      * @param probeCapabilityCache gets the target-specific action capabilities
      * @param entitySettingsCache an entity snapshot factory used for creating entity snapshot
@@ -153,12 +154,13 @@ public class LiveActionStore implements ActionStore {
      * @param acceptedActionsStore dao layer working with accepted actions
      * @param rejectedActionsStore dao layer working with rejected actions
      * @param actionAuditSender action audit sender to receive new generated actions
+     * @param riskPropagationEnabled flag to enable calculation of severity breakdown
      * @param queryTimeWindowForLastExecutedActionsMins time window within which actions will not
      *          be populated if they are already executed (SUCEEDED)
-     * @param entitySeverityCache The {@link EntitySeverityCache}.
      */
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,
+                           @Nonnull final ActionTopologyStore actionTopologyStore,
                            @Nonnull final ActionTargetSelector actionTargetSelector,
                            @Nonnull final ProbeCapabilityCache probeCapabilityCache,
                            @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
@@ -174,11 +176,12 @@ public class LiveActionStore implements ActionStore {
                            @Nonnull final IdentityService<ActionInfo> actionIdentityService,
                            @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander,
                            @Nonnull final ActionAuditSender actionAuditSender,
-                           @Nonnull final EntitySeverityCache entitySeverityCache,
+                           final boolean riskPropagationEnabled,
                            final int queryTimeWindowForLastExecutedActionsMins
     ) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
+        this.severityCache = new EntitySeverityCache(Objects.requireNonNull(actionTopologyStore), riskPropagationEnabled);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
         this.probeCapabilityCache = Objects.requireNonNull(probeCapabilityCache);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
@@ -200,7 +203,6 @@ public class LiveActionStore implements ActionStore {
             throw new IllegalArgumentException("query time window for last execution actions should be non-negative");
         }
         this.queryTimeWindowForLastExecutedActionsMins = queryTimeWindowForLastExecutedActionsMins;
-        this.severityCache = entitySeverityCache;
     }
 
     /**

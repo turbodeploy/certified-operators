@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,9 +35,9 @@ import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -277,9 +278,14 @@ public class ActionsService implements IActionsService {
             final Map<String, EntityStatsApiDTO> entityStatsByUuid = scopes.stream()
                 .collect(Collectors.toMap(ApiId::uuid, scope -> {
                     final EntityStatsApiDTO entityDto = new EntityStatsApiDTO();
-                    StatsMapper.populateEntityDataEntityStatsApiDTO(scope, entityDto);
+                    entityDto.setUuid(scope.uuid());
                     return entityDto;
                 }));
+
+            final Set<Long> entityIds = scopes.stream()
+                .filter(ApiId::isEntity)
+                .map(ApiId::oid)
+                .collect(Collectors.toSet());
 
             final ImmutableActionStatsQuery.Builder queryBuilder = ImmutableActionStatsQuery.builder()
                 .scopes(scopes)
@@ -299,6 +305,17 @@ public class ActionsService implements IActionsService {
                     entityStats.setStats(actionStats);
                 }
             });
+
+            // Fill in extra information if the request belongs to an entity.
+            if (!CollectionUtils.isEmpty(entityIds)) {
+                repositoryApi.entitiesRequest(entityIds)
+                    .getMinimalEntities()
+                    .forEach(minEntity -> {
+                        final EntityStatsApiDTO entityStatsApiDTO = entityStatsByUuid.get(Long.toString(minEntity.getOid()));
+                        StatsMapper.populateEntityDataEntityStatsApiDTO(
+                                minEntity, entityStatsApiDTO);
+                    });
+            }
 
             return Lists.newArrayList(entityStatsByUuid.values());
         }  catch (StatusRuntimeException e) {

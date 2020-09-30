@@ -29,10 +29,10 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
@@ -345,7 +345,7 @@ public class GlobalSupplyChain implements DiagsRestorable<Void> {
             allowedOids.addAll(envTypeToOidsMap.get(filter.getEnvironmentType().get()));
         } else {
             allowedOids.addAll(envTypeToOidsMap.values().stream()
-                    .flatMap(Collection::stream)
+                    .flatMap(oids -> oids.stream())
                     .collect(Collectors.toSet()));
         }
         if (!filter.getAllowedOids().isEmpty()) {
@@ -356,12 +356,12 @@ public class GlobalSupplyChain implements DiagsRestorable<Void> {
         Map<String, SupplyChainNode.Builder> entityTypeToSupplyChainNodesMap =
             entityTypeToOidsMap.entrySet()
                 .stream()
-                .filter(entityType -> !filter.getIgnoredEntityTypes().contains(entityType.getKey()))
+                .filter(entityType -> !filter.getIgnoredEntityTypes().contains(entityType))
                 .collect(Collectors.toMap(
                     entry -> ApiEntityType.fromType(entry.getKey()).apiStr(),
                     entry -> {
                         SupplyChainNode.Builder nodeBuilder = SupplyChainNode.newBuilder();
-                        nodeBuilder.setEntityType(ApiEntityType.fromType(entry.getKey()).typeNumber());
+                        nodeBuilder.setEntityType(ApiEntityType.fromType(entry.getKey()).apiStr());
                         // create a mapping from EntityState to Oids
                         nodeBuilder.putAllMembersByState(
                             entityStateToOidsMap.entrySet().stream()

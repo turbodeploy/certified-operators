@@ -1,7 +1,6 @@
 package com.vmturbo.repository.service;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.mockito.Mockito.mock;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -10,12 +9,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import io.grpc.stub.StreamObserver;
-
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+
+import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
@@ -41,9 +40,9 @@ public class TopologyGraphRepositoryRpcServiceTest {
 
     private LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator(), searchResolver);
 
-    private final ArangoRepositoryRpcService arangoRepoRpcService = mock(ArangoRepositoryRpcService.class);
+    private final ArangoRepositoryRpcService arangoRepoRpcService = Mockito.mock(ArangoRepositoryRpcService.class);
 
-    private UserSessionContext userSessionContext = mock(UserSessionContext.class);
+    private UserSessionContext userSessionContext = Mockito.mock(UserSessionContext.class);
 
     private long REALTIME_CONTEXT_ID = 777777L;
 
@@ -67,7 +66,7 @@ public class TopologyGraphRepositoryRpcServiceTest {
                 .addAllEntityOids(Arrays.asList(1L,2L,3L))
                 .build();
 
-        StreamObserver<PartialEntityBatch> responseObserver = mock(StreamObserver.class);
+        StreamObserver<PartialEntityBatch> responseObserver = Mockito.mock(StreamObserver.class);
         ArgumentCaptor<PartialEntityBatch> responseCaptor = ArgumentCaptor.forClass(PartialEntityBatch.class);
 
         repositoryRpcService.retrieveTopologyEntities(request, responseObserver);

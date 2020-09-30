@@ -51,7 +51,6 @@ import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
-import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope;
@@ -160,11 +159,9 @@ public class BusinessAccountRetrieverTest {
     /**
      * Test getting all business accounts via
      * {@link BusinessAccountRetriever#getBusinessAccountsInScope(List, List)}.
-     *
-     * @throws OperationFailedException To satisfy compiler.
      */
     @Test
-    public void testGetBusinessAccountsInScopeNoTargets() throws OperationFailedException {
+    public void testGetBusinessAccountsInScopeNoTargets() {
         // ARRANGE
         final RepositoryApi.SearchRequest mockReq = ApiTestUtils.mockSearchFullReq(Collections.singletonList(ACCOUNT));
         when(repositoryApi.newSearchRequestMulti(any()))
@@ -191,11 +188,9 @@ public class BusinessAccountRetrieverTest {
 
     /**
      * Test getting all business accounts when there are none in the system.
-     *
-     * @throws OperationFailedException To satisfy compiler.
      */
     @Test
-    public void testGetBusinessAccountsNone() throws OperationFailedException {
+    public void testGetBusinessAccountsNone() {
         // ARRANGE
         final RepositoryApi.SearchRequest mockReq = ApiTestUtils.mockEmptySearchReq();
         when(repositoryApi.newSearchRequestMulti(any()))
@@ -210,11 +205,9 @@ public class BusinessAccountRetrieverTest {
 
     /**
      * Test getting all business accounts discovered by a particular target.
-     *
-     * @throws OperationFailedException To satisfy compiler.
      */
     @Test
-    public void testGetBusinessAccountsInTargetScope() throws OperationFailedException {
+    public void testGetBusinessAccountsInTargetScope() {
         // ARRANGE
         final long targetId = 321;
         final long nonTargetId = 4321;
@@ -253,11 +246,9 @@ public class BusinessAccountRetrieverTest {
 
     /**
      * Test getting the business account that belongs to a valid group.
-     *
-     * @throws OperationFailedException To satisfy compiler.
      */
     @Test
-    public void testGetBusinessAccountsInScopeOfGroup() throws OperationFailedException {
+    public void testGetBusinessAccountsInScopeOfGroup() {
         // ARRANGE
         final String groupId = "123";
         final Set<Long> expandedOids = ImmutableSet.of(ACCOUNT_OID);
@@ -310,12 +301,9 @@ public class BusinessAccountRetrieverTest {
      * Test that get business accounts request contains several search parameters. First for
      * searching  entities with business_account entity type and second for searching business
      * accounts which have associated target.
-     *
-     * @throws OperationFailedException To satisfy compiler.
      */
     @Test
-    public void testSearchParametersWhenGetBusinessAccountsInScope()
-            throws OperationFailedException {
+    public void testSearchParametersWhenGetBusinessAccountsInScope() {
         // ARRANGE
         final RepositoryApi.SearchRequest mockReq =
                 ApiTestUtils.mockSearchFullReq(Collections.singletonList(ACCOUNT));
@@ -387,7 +375,7 @@ public class BusinessAccountRetrieverTest {
      * @throws Exception To satisfy compiler.
      */
     @Test
-    public void testGetBillingFamilies() throws Exception {
+    public void testGetBillingFamilies() {
         // ARRANGE
         final TopologyEntityDTO parentAccount = TopologyEntityDTO.newBuilder()
             .setOid(ACCOUNT_OID + 1)

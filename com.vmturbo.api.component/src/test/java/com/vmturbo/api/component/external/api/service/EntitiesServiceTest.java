@@ -576,8 +576,6 @@ public class EntitiesServiceTest {
         when(serviceProviderExpander.expand(scope)).thenReturn(scope);
         when(supplyChainFetcherFactory.expandAggregatedEntities(scope)).thenReturn(scope);
 
-        when(groupExpander.expandOids(Collections.singleton(apiId))).thenReturn(Collections.singleton(VM_ID));
-
         // call the service
         final ActionPaginationRequest paginationRequest =
             new ActionPaginationRequest(null, 1, false, null);
@@ -595,9 +593,6 @@ public class EntitiesServiceTest {
         when(regionApiId.oid()).thenReturn(regionId);
         when(regionApiId.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(ApiEntityType.REGION)));
         when(uuidMapper.fromUuid(Long.toString(regionId))).thenReturn(regionApiId);
-
-
-        when(groupExpander.expandOids(Collections.singleton(regionApiId))).thenReturn(Collections.singleton(regionId));
 
         final MinimalEntity minimalEntityRegion = MinimalEntity.newBuilder()
                 .setOid(regionId)

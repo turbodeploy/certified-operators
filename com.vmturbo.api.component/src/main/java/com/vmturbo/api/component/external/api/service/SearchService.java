@@ -26,6 +26,7 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -82,9 +83,15 @@ import com.vmturbo.api.serviceinterfaces.ISearchService;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse.TypeCase;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse.Builder;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -96,11 +103,11 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchQuery;
+import com.vmturbo.common.protobuf.search.UIBooleanFilter;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
-import com.vmturbo.common.protobuf.search.UIBooleanFilter;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
@@ -623,12 +630,13 @@ public class SearchService implements ISearchService {
 
         try {
             if (paginationRequest.getOrderBy().equals(SearchOrderBy.SEVERITY)) {
-                final RepositoryApi.PaginatedSearchRequest searchReq =
-                    repositoryApi.newPaginatedSearch(SearchQuery.newBuilder()
-                        .addAllSearchParameters(searchParameters)
-                        .build(), allEntityOids, paginationRequest);
-                return searchReq.requestAspects(entityAspectMapper, aspectNames)
-                        .getResponse();
+                final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
+                        .setSearch(SearchQuery.newBuilder()
+                            .addAllSearchParameters(searchParameters))
+                        .addAllEntityOid(allEntityOids)
+                        .build();
+                return getServiceEntityPaginatedWithSeverity(inputDTO, updatedQuery, paginationRequest,
+                        allEntityOids, searchOidsRequest, aspectNames);
             } else if (paginationRequest.getOrderBy().equals(SearchOrderBy.UTILIZATION)) {
                 final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
                     .setSearch(SearchQuery.newBuilder()
@@ -704,6 +712,90 @@ public class SearchService implements ISearchService {
         } else {
             return Collections.singletonList(className);
         }
+    }
+
+    /**
+     * Implement search pagination with order by severity.  The query workflow will be: 1: The
+     * query will first go to repository (if need) to get all candidates oids. 2: All candidates
+     * oids will passed to Action Orchestrator and perform pagination based on entity severity,
+     * and only return Top X candidates. 3: Query repository to get entity information only for
+     * top X entities.
+     *
+     * <p>
+     * Because action severity data is already stored at Action Orchestrator, and it can be changed
+     * when some action is executed. In this way, we can avoid store duplicate severity data and inconsistent
+     * update operation.
+     *
+     * @param inputDTO a Description of what search to conduct.
+     * @param nameQuery user specified search query for entity name.
+     * @param paginationRequest {@link SearchPaginationRequest}
+     * @param expandedIds a list of entity oids after expanded.
+     * @param searchEntityOidsRequest {@link SearchEntityOidsRequest}.
+     * @param aspectNames The input list of requested aspects by name.
+     * @return {@link SearchPaginationResponse}.
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
+     */
+    @VisibleForTesting
+    protected SearchPaginationResponse getServiceEntityPaginatedWithSeverity(
+            @Nonnull final GroupApiDTO inputDTO, @Nullable final String nameQuery,
+            @Nonnull final SearchPaginationRequest paginationRequest,
+            @Nonnull final Set<Long> expandedIds,
+            @Nonnull final SearchEntityOidsRequest searchEntityOidsRequest,
+            @Nullable Collection<String> aspectNames)
+            throws InterruptedException, ConversionException {
+        final Set<Long> candidates = getCandidateEntitiesForSearch(inputDTO, nameQuery, expandedIds,
+                searchEntityOidsRequest);
+        /*
+         The search query with order by severity workflow will be: 1: The query will first go to
+         repository (if need) to get all candidates oids. 2: All candidates oids will passed to Action
+         Orchestrator and perform pagination based on entity severity, and only return Top X candidates.
+         3: Query repository to get entity information only for top X entities.
+         */
+        MultiEntityRequest multiEntityRequest =
+                MultiEntityRequest.newBuilder()
+                        .addAllEntityIds(candidates)
+                        .setTopologyContextId(realtimeContextId)
+                        .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
+                        .build();
+        List<EntitySeverity> entitySeverityList = new ArrayList<>();
+        Iterable<EntitySeveritiesResponse> entitySeveritiesResponse =
+            () -> entitySeverityRpc.getEntitySeverities(multiEntityRequest);
+        Builder paginationResponse = PaginationResponse.newBuilder()
+                .setTotalRecordCount(candidates.size());
+        StreamSupport.stream(entitySeveritiesResponse.spliterator(), false)
+            .forEach(chunk -> {
+                if (chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY) {
+                    entitySeverityList.addAll(chunk.getEntitySeverity().getEntitySeverityList());
+                } else {
+                    final PaginationResponse chunkPaginationResponse = chunk.getPaginationResponse();
+                    paginationResponse.setTotalRecordCount(chunkPaginationResponse.getTotalRecordCount());
+                    if (chunkPaginationResponse.hasNextCursor()) {
+                        paginationResponse.setNextCursor(chunkPaginationResponse.getNextCursor());
+                    }
+                }
+            });
+
+        final Map<Long, String> paginatedEntitySeverities =
+            entitySeverityList.stream()
+                        .collect(Collectors.toMap(EntitySeverity::getEntityId,
+                                entitySeverity -> ActionDTOUtil.getSeverityName(entitySeverity.getSeverity())));
+        final RepositoryApi.MultiEntityRequest entityRequest =
+                repositoryApi.entitiesRequest(paginatedEntitySeverities.keySet());
+        if (CollectionUtils.isNotEmpty(aspectNames)) {
+            entityRequest.useAspectMapper(entityAspectMapper, aspectNames);
+        }
+        final Map<Long, ServiceEntityApiDTO> serviceEntityMap = entityRequest.getSEMap();
+        // Should use the entity severities collected from the entitySeverityRpc since they are
+        // already sorted and paginated.
+        final List<ServiceEntityApiDTO> entities =
+            entitySeverityList.stream()
+                        .map(EntitySeverity::getEntityId)
+                        .filter(serviceEntityMap::containsKey)
+                        .map(serviceEntityMap::get)
+                        .collect(Collectors.toList());
+        return buildPaginationResponse(entities,
+            paginationResponse.build(), paginationRequest);
     }
 
     /**

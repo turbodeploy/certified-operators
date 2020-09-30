@@ -397,7 +397,7 @@ public class ServiceEntityMapperTest {
 
     private SupplyChainNode makeSupplyChainNode(final long oid) {
         return SupplyChainNode.newBuilder()
-                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr())
                 .putMembersByState(com.vmturbo.api.enums.EntityState.ACTIVE.ordinal(),
                         MemberList.newBuilder().addMemberOids(oid).build())
                 .build();

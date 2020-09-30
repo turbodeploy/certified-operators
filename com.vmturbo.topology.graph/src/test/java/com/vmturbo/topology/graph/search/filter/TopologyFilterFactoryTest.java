@@ -984,14 +984,14 @@ public class TopologyFilterFactoryTest {
                 filterFactory.filterFor(searchFilterWithRegex);
 
         // entity has no tags
-        final TestGraphEntity noTagsEntity = TestGraphEntity.newBuilder(120L, ApiEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity noTagsEntity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
             .build();
         assertFalse(positiveFilter.test(noTagsEntity, graph));
         assertTrue(negativeFilter.test(noTagsEntity, graph));
         assertFalse(filterWithRegex.test(noTagsEntity, graph));
 
         // entity does not have the key
-        final TestGraphEntity noKeyEntity = TestGraphEntity.newBuilder(121L, ApiEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity noKeyEntity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
             .addTag("OTHERKEY", Collections.singletonList("VALUE1"))
             .build();
         assertFalse(positiveFilter.test(noKeyEntity, graph));
@@ -999,7 +999,7 @@ public class TopologyFilterFactoryTest {
         assertTrue(filterWithRegex.test(noKeyEntity, graph));
 
         // entity has the key, but not one of the values
-        final TestGraphEntity wrongValueEntity = TestGraphEntity.newBuilder(122L, ApiEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity wrongValueEntity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
             .addTag("OTHERKEY", Arrays.asList("VALUE1"))
             .addTag("KEY", Arrays.asList("VALUE3", "VALUE4"))
             .build();

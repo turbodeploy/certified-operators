@@ -28,7 +28,6 @@ import reactor.core.publisher.Mono;
 
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 
@@ -143,7 +142,7 @@ public class SupplyChainResultsConverter {
             final Map<String, SupplyChainNode.Builder> retMap = new HashMap<>();
             oidsByTypeAndState.forEach((entityType, oidsByState) -> {
                 final SupplyChainNode.Builder thisNodeBuilder = SupplyChainNode.newBuilder()
-                        .setEntityType(ApiEntityType.fromStringToSdkType(entityType));
+                        .setEntityType(entityType);
                 oidsByState.forEach((state, oidsForState) -> {
                     thisNodeBuilder.putMembersByState(state,
                             MemberList.newBuilder().addAllMemberOids(oidsForState).build());

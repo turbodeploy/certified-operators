@@ -5,6 +5,7 @@ import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.lp;
 import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.nodeMapFor;
 import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.storage;
 import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.vm;
+
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -14,9 +15,9 @@ import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.lang.reflect.Type;
 import java.io.IOException;
 import java.io.StringWriter;
-import java.lang.reflect.Type;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,19 +29,19 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.io.IOUtils;
+import org.junit.Test;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
-import org.apache.commons.io.IOUtils;
-import org.junit.Test;
-
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultVertex;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.SupplyChainNodeBuilder;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.SupplyChainVertex;
@@ -55,30 +56,30 @@ public class SupplyChainSubgraphTest {
         final SupplyChainSubgraph subgraph =
             new SupplyChainSubgraph(providers, consumers);
 
-        final Map<Integer, SupplyChainNode> supplyChainNodes = subgraph.toSupplyChainNodes().stream()
+        final Map<String, SupplyChainNode> supplyChainNodes = subgraph.toSupplyChainNodes().stream()
             .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
 
         assertThat(supplyChainNodes.keySet(), containsInAnyOrder(
-            ApiEntityType.APPLICATION.typeNumber(),
-            ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
-            ApiEntityType.PHYSICAL_MACHINE.typeNumber(),
-            ApiEntityType.VIRTUAL_DATACENTER.typeNumber(),
-            ApiEntityType.DATACENTER.typeNumber(),
-            ApiEntityType.STORAGE.typeNumber(),
-            ApiEntityType.DISKARRAY.typeNumber()
+            ApiEntityType.APPLICATION.apiStr(),
+            ApiEntityType.VIRTUAL_MACHINE.apiStr(),
+            ApiEntityType.PHYSICAL_MACHINE.apiStr(),
+            ApiEntityType.VIRTUAL_DATACENTER.apiStr(),
+            ApiEntityType.DATACENTER.apiStr(),
+            ApiEntityType.STORAGE.apiStr(),
+            ApiEntityType.DISKARRAY.apiStr()
         ));
 
         supplyChainNodes.values().stream()
             .map(RepositoryDTOUtil::getMemberCount)
             .forEach(nodeMemberCount -> assertEquals(1L, (long)nodeMemberCount));
 
-        assertThat(supplyChainNodes.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-            .getConnectedConsumerTypesList(), contains(ApiEntityType.APPLICATION.typeNumber()));
-        assertThat(supplyChainNodes.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+        assertThat(supplyChainNodes.get(ApiEntityType.VIRTUAL_MACHINE.apiStr())
+            .getConnectedConsumerTypesList(), contains(ApiEntityType.APPLICATION.apiStr()));
+        assertThat(supplyChainNodes.get(ApiEntityType.VIRTUAL_MACHINE.apiStr())
             .getConnectedProviderTypesList(),
-            containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.typeNumber(),
-                ApiEntityType.STORAGE.typeNumber(),
-                ApiEntityType.VIRTUAL_DATACENTER.typeNumber()));
+            containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr(),
+                ApiEntityType.STORAGE.apiStr(),
+                ApiEntityType.VIRTUAL_DATACENTER.apiStr()));
     }
 
     @Test
@@ -101,10 +102,10 @@ public class SupplyChainSubgraphTest {
                 ImmutableList.of(vm1, vm2, storage1, storage2, da1, da2);
         final SupplyChainSubgraph subgraph =
                 new SupplyChainSubgraph(vertices, vertices);
-        final Map<Integer, SupplyChainNode> supplyChainNodes = nodeMapFor(subgraph);
+        final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(subgraph);
 
         assertEquals(1, RepositoryDTOUtil.getMemberCount(
-                supplyChainNodes.get(ApiEntityType.DISKARRAY.typeNumber())));
+                supplyChainNodes.get(ApiEntityType.DISKARRAY.apiStr())));
     }
 
 
@@ -115,10 +116,10 @@ public class SupplyChainSubgraphTest {
         List<ResultVertex> vertices = ImmutableList.of(vm);
         final SupplyChainSubgraph subgraph =
                 new SupplyChainSubgraph(vertices, vertices);
-        final Map<Integer, SupplyChainNode> supplyChainNodes = subgraph.toSupplyChainNodes().stream()
+        final Map<String, SupplyChainNode> supplyChainNodes = subgraph.toSupplyChainNodes().stream()
                 .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
 
-        final SupplyChainNode vmNode = supplyChainNodes.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
+        final SupplyChainNode vmNode = supplyChainNodes.get(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         assertEquals(1, RepositoryDTOUtil.getMemberCount(vmNode));
         assertThat(vmNode.getConnectedConsumerTypesList(), is(empty()));
         assertThat(vmNode.getConnectedProviderTypesList(), is(empty()));
@@ -138,24 +139,24 @@ public class SupplyChainSubgraphTest {
 
         final SupplyChainSubgraph subgraph =
                 new SupplyChainSubgraph(providers, consumers);
-        final Map<Integer, SupplyChainNode> supplyChainNodes = subgraph.toSupplyChainNodes().stream()
+        final Map<String, SupplyChainNode> supplyChainNodes = subgraph.toSupplyChainNodes().stream()
                 .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
 
         assertThat(supplyChainNodes.keySet(), containsInAnyOrder(
-                ApiEntityType.APPLICATION.typeNumber(),
-                ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
-                ApiEntityType.PHYSICAL_MACHINE.typeNumber(),
-                ApiEntityType.VIRTUAL_DATACENTER.typeNumber(),
-                ApiEntityType.DATACENTER.typeNumber(),
-                ApiEntityType.STORAGE.typeNumber(),
-                ApiEntityType.DISKARRAY.typeNumber()
+                ApiEntityType.APPLICATION.apiStr(),
+                ApiEntityType.VIRTUAL_MACHINE.apiStr(),
+                ApiEntityType.PHYSICAL_MACHINE.apiStr(),
+                ApiEntityType.VIRTUAL_DATACENTER.apiStr(),
+                ApiEntityType.DATACENTER.apiStr(),
+                ApiEntityType.STORAGE.apiStr(),
+                ApiEntityType.DISKARRAY.apiStr()
         ));
 
-        assertEquals(2, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(ApiEntityType.VIRTUAL_DATACENTER.typeNumber())));
-        assertThat(supplyChainNodes.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-                .getConnectedConsumerTypesList(), contains(ApiEntityType.APPLICATION.typeNumber()));
-        assertThat(supplyChainNodes.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-                .getConnectedProviderTypesList(), contains(ApiEntityType.VIRTUAL_DATACENTER.typeNumber()));
+        assertEquals(2, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(ApiEntityType.VIRTUAL_DATACENTER.apiStr())));
+        assertThat(supplyChainNodes.get(ApiEntityType.VIRTUAL_MACHINE.apiStr())
+                .getConnectedConsumerTypesList(), contains(ApiEntityType.APPLICATION.apiStr()));
+        assertThat(supplyChainNodes.get(ApiEntityType.VIRTUAL_MACHINE.apiStr())
+                .getConnectedProviderTypesList(), contains(ApiEntityType.VIRTUAL_DATACENTER.apiStr()));
     }
 
     /**
@@ -186,14 +187,14 @@ public class SupplyChainSubgraphTest {
                 ImmutableList.of(da1, da2, storage1, vm1, vm2);
         final SupplyChainSubgraph subgraph =
                 new SupplyChainSubgraph(vertices, vertices);
-        final Map<Integer, SupplyChainNode> supplyChainNodes = nodeMapFor(subgraph);
+        final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(subgraph);
 
         assertEquals(1, RepositoryDTOUtil.getMemberCount(
-                supplyChainNodes.get(ApiEntityType.DISKARRAY.typeNumber())));
+                supplyChainNodes.get(ApiEntityType.DISKARRAY.apiStr())));
         assertEquals(1, RepositoryDTOUtil.getMemberCount(
-                supplyChainNodes.get(ApiEntityType.STORAGE.typeNumber())));
+                supplyChainNodes.get(ApiEntityType.STORAGE.apiStr())));
         assertEquals(1, RepositoryDTOUtil.getMemberCount(
-                supplyChainNodes.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())));
+                supplyChainNodes.get(ApiEntityType.VIRTUAL_MACHINE.apiStr())));
     }
 
     /**
@@ -221,14 +222,14 @@ public class SupplyChainSubgraphTest {
                 ImmutableList.of(da1, da2, logicalPool1, storage1, storage2);
         final SupplyChainSubgraph subgraph =
                 new SupplyChainSubgraph(vertices, vertices);
-        final Map<Integer, SupplyChainNode> supplyChainNodes = nodeMapFor(subgraph);
+        final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(subgraph);
 
         assertEquals(1, RepositoryDTOUtil.getMemberCount(
-                supplyChainNodes.get(ApiEntityType.DISKARRAY.typeNumber())));
+                supplyChainNodes.get(ApiEntityType.DISKARRAY.apiStr())));
         assertEquals(1, RepositoryDTOUtil.getMemberCount(
-                supplyChainNodes.get(ApiEntityType.LOGICALPOOL.typeNumber())));
+                supplyChainNodes.get(ApiEntityType.LOGICALPOOL.apiStr())));
         assertEquals(2, RepositoryDTOUtil.getMemberCount(
-                supplyChainNodes.get(ApiEntityType.STORAGE.typeNumber())));
+                supplyChainNodes.get(ApiEntityType.STORAGE.apiStr())));
     }
 
     @Test
@@ -239,7 +240,7 @@ public class SupplyChainSubgraphTest {
         final int idleStateInt = UIEntityState.IDLE.toEntityState().getNumber();
 
         final SupplyChainNodeBuilder nodeBuilder = new SupplyChainNodeBuilder();
-        nodeBuilder.setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
+        nodeBuilder.setEntityType("VirtualMachine");
         nodeBuilder.setSupplyChainDepth(7);
         nodeBuilder.addMember("1", activeState);
         nodeBuilder.addMember("2", idleState);
@@ -255,11 +256,11 @@ public class SupplyChainSubgraphTest {
 
         final Map<String, SupplyChainVertex> graph = ImmutableMap.of("1", vertex1);
         final SupplyChainNode node = nodeBuilder.buildNode(graph);
-        assertThat(node.getEntityType(), is(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
+        assertThat(node.getEntityType(), is("VirtualMachine"));
         assertThat(node.getSupplyChainDepth(), is(7));
         assertThat(RepositoryDTOUtil.getAllMemberOids(node), containsInAnyOrder(1L, 2L));
-        assertThat(node.getConnectedConsumerTypesList(), containsInAnyOrder(ApiEntityType.APPLICATION.typeNumber()));
-        assertThat(node.getConnectedProviderTypesList(), containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
+        assertThat(node.getConnectedConsumerTypesList(), containsInAnyOrder("Application"));
+        assertThat(node.getConnectedProviderTypesList(), containsInAnyOrder("PhysicalMachine"));
 
         final Map<Integer, MemberList> membersByStateMap = node.getMembersByStateMap();
         assertThat(membersByStateMap.keySet(), containsInAnyOrder(activeStateInt, idleStateInt));

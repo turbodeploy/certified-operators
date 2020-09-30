@@ -269,7 +269,7 @@ public class UserSessionContext implements AutoCloseable {
         // convert the seed oid list
         final OidSet seedOids = toOidSet(contents.getSeedOids());
         final OidSet accessibleOids = toOidSet(contents.getAccessibleOids());
-        final Map<Integer, OidSet> oidsByEntityType = contents.getAccessibleOidsByEntityTypeMap().entrySet().stream()
+        final Map<String, OidSet> oidsByEntityType = contents.getAccessibleOidsByEntityTypeMap().entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> toOidSet(entry.getValue())));
 
         return new EntityAccessScope(key.getScopeGroupOids(), seedOids, accessibleOids, oidsByEntityType);

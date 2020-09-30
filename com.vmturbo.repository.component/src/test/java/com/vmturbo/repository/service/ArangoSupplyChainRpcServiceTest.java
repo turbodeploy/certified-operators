@@ -61,17 +61,15 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.repository.plan.db.PlanEntityStore;
 
 public class ArangoSupplyChainRpcServiceTest {
 
     private GraphDBService graphDBService = mock(GraphDBService.class);
     private SupplyChainService supplyChainService = mock(SupplyChainService.class);
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
-    private PlanEntityStore planEntityStore = mock(PlanEntityStore.class);
 
     private ArangoSupplyChainRpcService supplyChainBackend =
-        Mockito.spy(new ArangoSupplyChainRpcService(graphDBService, supplyChainService, userSessionContext, 1234L, planEntityStore));
+        Mockito.spy(new ArangoSupplyChainRpcService(graphDBService, supplyChainService, userSessionContext, 1234L));
 
     private SupplyChainServiceBlockingStub supplyChainStub;
 
@@ -80,7 +78,7 @@ public class ArangoSupplyChainRpcServiceTest {
                 .addMemberOids(1L)
                 .addMemberOids(2L)
                 .build())
-            .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+            .setEntityType("PhysicalMachine")
             .build();
     private final SupplyChainNode vmNode = SupplyChainNode.newBuilder()
             .putMembersByState(0, MemberList.newBuilder()
@@ -88,58 +86,58 @@ public class ArangoSupplyChainRpcServiceTest {
                     .addMemberOids(4L)
                     .addMemberOids(5L)
                     .build())
-            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityType("VirtualMachine")
             .build();
 
     private final SupplyChainNode cloudVMNode1 = SupplyChainNode.newBuilder()
             .putMembersByState(0, MemberList.newBuilder()
                     .addMemberOids(11L)
                     .build())
-            .addConnectedProviderTypes(ApiEntityType.AVAILABILITY_ZONE.typeNumber())
-            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .addConnectedProviderTypes(ApiEntityType.AVAILABILITY_ZONE.apiStr())
+            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr())
             .build();
 
     private final SupplyChainNode cloudVMNode2 = SupplyChainNode.newBuilder()
             .putMembersByState(0, MemberList.newBuilder()
                     .addMemberOids(12L)
                     .build())
-            .addConnectedProviderTypes(ApiEntityType.AVAILABILITY_ZONE.typeNumber())
-            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .addConnectedProviderTypes(ApiEntityType.AVAILABILITY_ZONE.apiStr())
+            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr())
             .build();
 
     private final SupplyChainNode cloudVolumeNode = SupplyChainNode.newBuilder()
             .putMembersByState(0, MemberList.newBuilder()
                     .addMemberOids(21L)
                     .build())
-            .addConnectedConsumerTypes(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-            .addConnectedProviderTypes(ApiEntityType.AVAILABILITY_ZONE.typeNumber())
-            .setEntityType(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
+            .addConnectedConsumerTypes(ApiEntityType.VIRTUAL_MACHINE.apiStr())
+            .addConnectedProviderTypes(ApiEntityType.AVAILABILITY_ZONE.apiStr())
+            .setEntityType(ApiEntityType.VIRTUAL_VOLUME.apiStr())
             .build();
 
     private final SupplyChainNode cloudZoneNode = SupplyChainNode.newBuilder()
             .putMembersByState(0, MemberList.newBuilder()
                     .addMemberOids(31L)
                     .build())
-            .addConnectedConsumerTypes(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-            .addConnectedConsumerTypes(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
-            .setEntityType(ApiEntityType.AVAILABILITY_ZONE.typeNumber())
+            .addConnectedConsumerTypes(ApiEntityType.VIRTUAL_MACHINE.apiStr())
+            .addConnectedConsumerTypes(ApiEntityType.VIRTUAL_VOLUME.apiStr())
+            .setEntityType(ApiEntityType.AVAILABILITY_ZONE.apiStr())
             .build();
 
     private final SupplyChainNode cloudRegionNode = SupplyChainNode.newBuilder()
             .putMembersByState(0, MemberList.newBuilder()
                     .addMemberOids(41L)
                     .build())
-            .addConnectedProviderTypes(ApiEntityType.AVAILABILITY_ZONE.typeNumber())
-            .setEntityType(ApiEntityType.REGION.typeNumber())
+            .addConnectedProviderTypes(ApiEntityType.AVAILABILITY_ZONE.apiStr())
+            .setEntityType(ApiEntityType.REGION.apiStr())
             .build();
 
     private final SupplyChainNode cloudAccountNode = SupplyChainNode.newBuilder()
             .putMembersByState(0, MemberList.newBuilder()
                     .addMemberOids(51)
                     .build())
-            .addConnectedProviderTypes(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-            .addConnectedProviderTypes(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
-            .setEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
+            .addConnectedProviderTypes(ApiEntityType.VIRTUAL_MACHINE.apiStr())
+            .addConnectedProviderTypes(ApiEntityType.VIRTUAL_VOLUME.apiStr())
+            .setEntityType(ApiEntityType.BUSINESS_ACCOUNT.apiStr())
             .build();
 
     @Rule
@@ -182,7 +180,7 @@ public class ArangoSupplyChainRpcServiceTest {
                 .addStartingEntityOid(1L))
             .build();
         final SupplyChainNode node1 = SupplyChainNode.newBuilder()
-                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEntityType("foo")
                 .build();
         final SupplyChainSeed seed2 = SupplyChainSeed.newBuilder()
             .setSeedOid(2L)
@@ -190,7 +188,7 @@ public class ArangoSupplyChainRpcServiceTest {
                 .addStartingEntityOid(2L))
             .build();
         final SupplyChainNode node2 = SupplyChainNode.newBuilder()
-                .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+                .setEntityType("bar")
                 .build();
 
         // Right now the multi-supply-chains request just calls the regular supply chains request.
@@ -297,7 +295,7 @@ public class ArangoSupplyChainRpcServiceTest {
             .build();
         final SupplyChain sc2 = SupplyChain.newBuilder()
             .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .setEntityType("bar"))
             .build();
 
         final Throwable error = Status.INVALID_ARGUMENT.withDescription("one two three").asException();
@@ -366,7 +364,7 @@ public class ArangoSupplyChainRpcServiceTest {
             GetSupplyChainRequest.newBuilder()
                 .setContextId(1234L)
                 .setScope(SupplyChainScope.newBuilder()
-                    .addAllEntityTypesToInclude(Lists.newArrayList(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
+                    .addAllEntityTypesToInclude(Lists.newArrayList("VirtualMachine"))
                     .addAllStartingEntityOid(Lists.newArrayList(5678L)))
                 .build());
 
@@ -591,7 +589,7 @@ public class ArangoSupplyChainRpcServiceTest {
                         .addMemberOids(1L)
                         .addMemberOids(5L)
                         .build())
-                .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+                .setEntityType("PhysicalMachine")
                 .build();
         final SupplyChainNode pmMergedNode = SupplyChainNode.newBuilder()
                 .putMembersByState(0, MemberList.newBuilder()
@@ -599,14 +597,14 @@ public class ArangoSupplyChainRpcServiceTest {
                         .addMemberOids(5L)
                         .addMemberOids(2L)
                         .build())
-                .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+                .setEntityType("PhysicalMachine")
                 .build();
         final SupplyChainNode vmNode2 = SupplyChainNode.newBuilder()
                 .putMembersByState(0, MemberList.newBuilder()
                         .addMemberOids(3L)
                         .addMemberOids(4L)
                         .build())
-                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEntityType("VirtualMachine")
                 .build();
         final SupplyChainNode vmMergedNode = SupplyChainNode.newBuilder()
                 .putMembersByState(0, MemberList.newBuilder()
@@ -614,7 +612,7 @@ public class ArangoSupplyChainRpcServiceTest {
                         .addMemberOids(4L)
                         .addMemberOids(5L)
                         .build())
-                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEntityType("VirtualMachine")
                 .build();
 
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
@@ -650,7 +648,7 @@ public class ArangoSupplyChainRpcServiceTest {
                         .addMemberOids(1L)
                         .addMemberOids(5L)
                         .build())
-                .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+                .setEntityType("PhysicalMachine")
                 .build();
         final SupplyChainNode pmMergedNode = SupplyChainNode.newBuilder()
                 .putMembersByState(0, MemberList.newBuilder()
@@ -658,14 +656,14 @@ public class ArangoSupplyChainRpcServiceTest {
                         .addMemberOids(5L)
                         .addMemberOids(2L)
                         .build())
-                .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+                .setEntityType("PhysicalMachine")
                 .build();
         final SupplyChainNode vmNode2 = SupplyChainNode.newBuilder()
                 .putMembersByState(0, MemberList.newBuilder()
                         .addMemberOids(3L)
                         .addMemberOids(4L)
                         .build())
-                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEntityType("VirtualMachine")
                 .build();
         final SupplyChainNode vmMergedNode = SupplyChainNode.newBuilder()
                 .putMembersByState(0, MemberList.newBuilder()
@@ -673,7 +671,7 @@ public class ArangoSupplyChainRpcServiceTest {
                         .addMemberOids(4L)
                         .addMemberOids(5L)
                         .build())
-                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEntityType("VirtualMachine")
                 .build();
 
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
@@ -692,7 +690,7 @@ public class ArangoSupplyChainRpcServiceTest {
                 .setContextId(1234L)
                 .setScope(SupplyChainScope.newBuilder()
                     .setEnvironmentType(EnvironmentType.CLOUD)
-                    .addAllEntityTypesToInclude(Lists.newArrayList(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+                    .addAllEntityTypesToInclude(Lists.newArrayList("PhysicalMachine"))
                     .addAllStartingEntityOid(Lists.newArrayList(5678L, 91011L)))
                 .build());
 
@@ -746,7 +744,7 @@ public class ArangoSupplyChainRpcServiceTest {
      */
     private void findAndCompareSupplyChainNode(List<SupplyChainNode> list, SupplyChainNode node) {
         Optional<SupplyChainNode> optionalSupplyChainNode = list.stream()
-                .filter(supplyChainNode -> supplyChainNode.getEntityType() == node.getEntityType())
+                .filter(supplyChainNode -> supplyChainNode.getEntityType().equals(node.getEntityType()))
                 .findAny();
         assertTrue(optionalSupplyChainNode.isPresent());
         compareSupplyChainNode(node, optionalSupplyChainNode.get());

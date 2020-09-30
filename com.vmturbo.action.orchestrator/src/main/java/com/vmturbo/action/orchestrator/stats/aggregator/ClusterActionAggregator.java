@@ -35,7 +35,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -52,8 +51,8 @@ public class ClusterActionAggregator extends ActionAggregator {
      * Each entity type will have its own {@link MgmtUnitSubgroupKey} - e.g. the VMs in the cluster
      * will have action stats tracked separately from the hosts in the cluster.
      */
-    private static final Set<Integer> EXPANDED_SCOPE_ENTITY_TYPES = ImmutableSet.<Integer>builder()
-            .add(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+    private static final Set<String> EXPANDED_SCOPE_ENTITY_TYPES = ImmutableSet.<String>builder()
+            .add("VirtualMachine")
             .build();
 
     private final GroupServiceBlockingStub groupService;

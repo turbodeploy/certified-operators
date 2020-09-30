@@ -65,7 +65,6 @@ import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.AtomicActionFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
-import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
@@ -186,7 +185,6 @@ public class ActionExecutionSecureRpcTest {
     private final RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
     private IdentityServiceImpl actionIdentityService;
     private ActionTopologyStore actionTopologyStore = new ActionTopologyStore();
-    private EntitySeverityCache entitySeverityCache = mock(EntitySeverityCache.class);
 
     // utility for creating / interacting with a debugging JWT context
     JwtContextUtil jwtContextUtil;
@@ -276,11 +274,12 @@ public class ActionExecutionSecureRpcTest {
 
         // mock action store
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
+                actionTopologyStore,
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                 actionsStatistician, actionTranslator, atomicActionFactory, clock,
                 userSessionContext, licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
                 actionIdentityService, involvedEntitiesExpander,
-                Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60));
+                Mockito.mock(ActionAuditSender.class), true, 60));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");

@@ -31,7 +31,6 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -78,10 +77,6 @@ public class CurrentQueryMapperTest {
 
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
-    private BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
-
-    private UuidMapper uuidMapper = mock(UuidMapper.class);
-
     @Test
     public void testMapToLiveQueries() throws OperationFailedException {
         // ARRANGE
@@ -127,22 +122,19 @@ public class CurrentQueryMapperTest {
         when(userScope.filter(anySet()))
                 .thenAnswer(invocation -> invocation.getArgumentAt(0, Set.class));
 
-        final EntityScopeFactory scopeFactory = new EntityScopeFactory(groupExpander, supplyChainFetcherFactory, repositoryApi, buyRiScopeHandler, uuidMapper);
-        ApiId id = ApiTestUtils.mockGroupId("1", uuidMapper);
-        final Set<ApiId> originalScope = Collections.singleton(id);
+        final EntityScopeFactory scopeFactory = new EntityScopeFactory(groupExpander, supplyChainFetcherFactory, repositoryApi);
+        final Set<Long> originalScope = Sets.newHashSet(1L, 2L);
         final Set<Long> expandedScope = Sets.newHashSet(3L, 4L);
 
         when(groupExpander.expandOids(originalScope)).thenReturn(expandedScope);
-        when(supplyChainFetcherFactory.bulkExpandAggregatedEntities(Collections.singletonMap(1L, expandedScope)))
-                .thenReturn(Collections.singletonMap(1L, expandedScope));
+        when(supplyChainFetcherFactory.expandAggregatedEntities(expandedScope)).thenReturn(expandedScope);
 
-        final Map<ApiId, Set<Long>> entityScope = scopeFactory.bulkExpandScopes(Collections.singletonMap(id, originalScope),
-                Collections.emptySet(), Optional.empty(), userScope);
-        Set<Long> scope = entityScope.get(id);
+        final EntityScope entityScope = scopeFactory.createEntityScope(originalScope,
+                Collections.emptySet(), Optional.empty(), userScope, Collections.emptySet());
 
         verify(groupExpander).expandOids(originalScope);
         verify(userScope).filter(expandedScope);
-        assertThat(scope, containsInAnyOrder(expandedScope.toArray()));
+        assertThat(entityScope.getOidsList(), containsInAnyOrder(expandedScope.toArray()));
     }
 
     /**
@@ -157,11 +149,9 @@ public class CurrentQueryMapperTest {
         when(userScope.filter(anySet()))
                 .thenAnswer(invocation -> invocation.getArgumentAt(0, Set.class));
 
-        final EntityScopeFactory scopeFactory = new EntityScopeFactory(groupExpander,
-                supplyChainFetcherFactory, repositoryApi, buyRiScopeHandler, uuidMapper);
-        ApiId originalId = ApiTestUtils.mockGroupId("0", uuidMapper);
+        final EntityScopeFactory scopeFactory = new EntityScopeFactory(groupExpander, supplyChainFetcherFactory, repositoryApi);
         // original scope is what the user asks for
-        final Set<ApiId> originalScope = Collections.singleton(originalId);
+        final Set<Long> originalScope = Sets.newHashSet(1L, 2L);
         // full scope is the set of entities without filtering
         final Set<Long> fullScope = Sets.newHashSet(1L, 2L, 3L, 4L);
         // only the cloud entities
@@ -169,45 +159,63 @@ public class CurrentQueryMapperTest {
         // only the on prem entities
         final Set<Long> onPremScope = Sets.newHashSet(2L, 4L);
 
-        // Mock output data.
-        ApiTestUtils.mockEntityId("1", ApiEntityType.VIRTUAL_MACHINE, EnvironmentType.CLOUD, uuidMapper);
-        ApiTestUtils.mockEntityId("2", ApiEntityType.VIRTUAL_MACHINE, EnvironmentType.ON_PREM, uuidMapper);
-        ApiTestUtils.mockEntityId("3", ApiEntityType.PHYSICAL_MACHINE, EnvironmentType.CLOUD, uuidMapper);
-        ApiTestUtils.mockEntityId("4", ApiEntityType.PHYSICAL_MACHINE, EnvironmentType.ON_PREM, uuidMapper);
+        // Create minimal entities to mock output data
+        MinimalEntity vm = MinimalEntity.newBuilder()
+                .setOid(1L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("vm1")
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
+        MinimalEntity vm2 = MinimalEntity.newBuilder()
+                .setOid(2L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("vm2")
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .build();
+        MinimalEntity pm = MinimalEntity.newBuilder()
+                .setOid(3L)
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setDisplayName("pm1")
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
+        MinimalEntity pm2 = MinimalEntity.newBuilder()
+                .setOid(4L)
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setDisplayName("pm2")
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .build();
+        List<MinimalEntity> entities = Arrays.asList(vm, vm2, pm, pm2);
 
         when(groupExpander.expandOids(originalScope)).thenReturn(fullScope);
-        when(supplyChainFetcherFactory.bulkExpandAggregatedEntities(any()))
-            .thenAnswer(invocationOnMock -> invocationOnMock.getArgumentAt(0, Map.class));
+        when(supplyChainFetcherFactory.expandAggregatedEntities(cloudScope)).thenReturn(cloudScope);
+        when(supplyChainFetcherFactory.expandAggregatedEntities(onPremScope)).thenReturn(onPremScope);
+        when(supplyChainFetcherFactory.expandAggregatedEntities(fullScope)).thenReturn(fullScope);
+
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(entities);
+        when(repositoryApi.entitiesRequest(any()))
+                .thenReturn(req);
 
         // Test scope with just cloud env type
-        final Map<ApiId, Set<Long>> entityScopeCloud = scopeFactory.bulkExpandScopes(
-                Collections.singletonMap(originalId, Collections.singleton(originalId)),
-                Collections.emptySet(), Optional.of(EnvironmentType.CLOUD), userScope);
-        Set<Long> cloudOids = entityScopeCloud.get(originalId);
-        Assert.assertEquals(2, cloudOids.size());
-        assertThat(cloudOids, containsInAnyOrder(cloudScope.toArray()));
+        final EntityScope entityScopeCloud = scopeFactory.createEntityScope(
+                originalScope, Collections.emptySet(), Optional.of(EnvironmentType.CLOUD),
+                userScope, Collections.emptySet());
+        Assert.assertEquals(2, entityScopeCloud.getOidsList().size());
+        assertThat(entityScopeCloud.getOidsList(), containsInAnyOrder(cloudScope.toArray()));
 
         // Test scope with just on prem env type
-        final Map<ApiId, Set<Long>> entityScopeOnPrem = scopeFactory.bulkExpandScopes(
-                Collections.singletonMap(originalId, Collections.singleton(originalId)),
-                Collections.emptySet(), Optional.of(EnvironmentType.ON_PREM), userScope);
-        Set<Long> onPremOids = entityScopeOnPrem.get(originalId);
-        assertThat(onPremOids, containsInAnyOrder(onPremScope.toArray()));
+        final EntityScope entityScopeOnPrem = scopeFactory.createEntityScope(
+                originalScope, Collections.emptySet(), Optional.of(EnvironmentType.ON_PREM),
+                userScope, Collections.emptySet());
+        assertThat(entityScopeOnPrem.getOidsList(), containsInAnyOrder(onPremScope.toArray()));
+        Assert.assertEquals(2, entityScopeOnPrem.getOidsList().size());
 
 
         // Test scope with hybrid env type
-        final Map<ApiId, Set<Long>> entityScopeHybrid = scopeFactory.bulkExpandScopes(
-                Collections.singletonMap(originalId, Collections.singleton(originalId)),
-                Collections.emptySet(), Optional.of(EnvironmentType.HYBRID), userScope);
-        Set<Long> hybridOids = entityScopeHybrid.get(originalId);
-        assertThat(hybridOids, containsInAnyOrder(fullScope.toArray()));
-    }
-
-    private ApiId mockId(long id) {
-        ApiId apiId = mock(ApiId.class);
-        when(apiId.uuid()).thenReturn(Long.toString(id));
-        when(apiId.oid()).thenReturn(id);
-        return apiId;
+        final EntityScope entityScopeHybrid = scopeFactory.createEntityScope(
+                originalScope, Collections.emptySet(), Optional.of(EnvironmentType.HYBRID),
+                userScope, Collections.emptySet());
+        assertThat(entityScopeHybrid.getOidsList(), containsInAnyOrder(fullScope.toArray()));
+        Assert.assertEquals(4, entityScopeHybrid.getOidsList().size());
     }
 
     @Test
@@ -216,13 +224,9 @@ public class CurrentQueryMapperTest {
         when(userScope.filter(anySet()))
             .thenAnswer(invocation -> invocation.getArgumentAt(0, Set.class));
 
-        final EntityScopeFactory scopeFactory = new EntityScopeFactory(groupExpander,
-                supplyChainFetcherFactory, repositoryApi, buyRiScopeHandler, uuidMapper);
+        final EntityScopeFactory scopeFactory = new EntityScopeFactory(groupExpander, supplyChainFetcherFactory, repositoryApi);
 
-        final ApiId srcId = ApiTestUtils.mockEntityId("0", uuidMapper);
-        final ApiId original1 = mockId(1L);
-        final ApiId original2 = mockId(2L);
-        final Set<ApiId> originalScope = Sets.newHashSet(original1, original2);
+        final Set<Long> originalScope = Sets.newHashSet(1L, 2L);
         final Set<Long> relatedVms = Sets.newHashSet(11L, 12L);
         final Set<Integer> relatedTypes = Sets.newHashSet(EntityType.VIRTUAL_MACHINE_VALUE);
 
@@ -233,14 +237,13 @@ public class CurrentQueryMapperTest {
                     .build())
                 .build()));
         when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
-        when(supplyChainFetcherFactory.bulkExpandAggregatedEntities(any()))
-                .thenAnswer(invocationOnMock -> invocationOnMock.getArgumentAt(0, Map.class));
+        when(supplyChainFetcherFactory.expandAggregatedEntities(relatedVms)).thenReturn(relatedVms);
 
-        final Map<ApiId, Set<Long>> entityScope = scopeFactory.bulkExpandScopes(
-            Collections.singletonMap(srcId, originalScope),
+        final EntityScope entityScope = scopeFactory.createEntityScope(originalScope,
             relatedTypes,
             Optional.of(EnvironmentType.ON_PREM),
-            userScope);
+            userScope,
+            Collections.emptySet());
 
         verify(nodeFetcherBuilder).entityTypes(Collections.singletonList(
             ApiEntityType.VIRTUAL_MACHINE.apiStr()));
@@ -248,7 +251,7 @@ public class CurrentQueryMapperTest {
         verify(nodeFetcherBuilder).addSeedUuid("2");
         verify(nodeFetcherBuilder).environmentType(EnvironmentType.ON_PREM);
 
-        assertThat(entityScope.get(srcId), containsInAnyOrder(relatedVms.toArray()));
+        assertThat(entityScope.getOidsList(), containsInAnyOrder(relatedVms.toArray()));
     }
 
     @Test
@@ -260,7 +263,7 @@ public class CurrentQueryMapperTest {
         final EntityScopeFactory entityScopeFactory = mock(EntityScopeFactory.class);
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         final ScopeFilterExtractor scopeFilterExtractor =
-            new ScopeFilterExtractor(userSessionContext, entityScopeFactory, uuidMapper);
+            new ScopeFilterExtractor(userSessionContext, entityScopeFactory, buyRiScopeHandler);
 
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         final ApiId mktId = ApiTestUtils.mockRealtimeId("7", 7);
@@ -287,7 +290,7 @@ public class CurrentQueryMapperTest {
         final EntityScopeFactory entityScopeFactory = mock(EntityScopeFactory.class);
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         final ScopeFilterExtractor scopeFilterExtractor =
-            new ScopeFilterExtractor(userSessionContext, entityScopeFactory, uuidMapper);
+            new ScopeFilterExtractor(userSessionContext, entityScopeFactory, buyRiScopeHandler);
 
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         final ApiId mktId = ApiTestUtils.mockRealtimeId("7", 7);
@@ -315,14 +318,10 @@ public class CurrentQueryMapperTest {
         final List<Long> accessibleOids = Arrays.asList(123L, 345L);
         when(entityAccessScope.accessibleOids()).thenReturn(new ArrayOidSet(accessibleOids));
 
-        ApiId accessible1 = mockId(accessibleOids.get(0));
-        when(uuidMapper.fromOid(accessibleOids.get(0))).thenReturn(accessible1);
-        ApiId accessible2 = mockId(accessibleOids.get(1));
-        when(uuidMapper.fromOid(accessibleOids.get(1))).thenReturn(accessible2);
-
         final EntityScopeFactory entityScopeFactory = mock(EntityScopeFactory.class);
+        final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         final ScopeFilterExtractor scopeFilterExtractor =
-            new ScopeFilterExtractor(userSessionContext, entityScopeFactory, uuidMapper);
+            new ScopeFilterExtractor(userSessionContext, entityScopeFactory, buyRiScopeHandler);
 
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         final ApiId mktId = ApiTestUtils.mockRealtimeId("7", 7);
@@ -335,22 +334,22 @@ public class CurrentQueryMapperTest {
             .addOids(1029)
             .build();
 
-        when(entityScopeFactory.bulkExpandScopes(any(), any(), any(), any()))
-            .thenReturn(ImmutableMap.of(mktId, Sets.newHashSet(1029L)));
+        when(entityScopeFactory.createEntityScope(any(), any(), any(), any(), any()))
+            .thenReturn(entityScope);
 
         final Map<ApiId, ScopeFilter> result = scopeFilterExtractor.extractScopeFilters(query);
 
-        verify(entityScopeFactory).bulkExpandScopes(
-            ImmutableMap.of(mktId, Sets.newHashSet(accessible1, accessible2)),
+        verify(entityScopeFactory).createEntityScope(
+            Sets.newHashSet(accessibleOids),
             relatedEntityTypes,
             Optional.of(EnvironmentType.ON_PREM),
-            entityAccessScope);
+            entityAccessScope,
+            Collections.emptySet());
 
         assertThat(result.keySet(), contains(mktId));
         assertThat(result.get(mktId), is(ScopeFilter.newBuilder()
             .setTopologyContextId(7)
-            .setEntityList(EntityScope.newBuilder()
-                .addOids(1029))
+            .setEntityList(entityScope)
             .build()));
     }
 
@@ -362,7 +361,7 @@ public class CurrentQueryMapperTest {
         final EntityScopeFactory entityScopeFactory = mock(EntityScopeFactory.class);
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         final ScopeFilterExtractor scopeFilterExtractor =
-            new ScopeFilterExtractor(userSessionContext, entityScopeFactory, uuidMapper);
+            new ScopeFilterExtractor(userSessionContext, entityScopeFactory, buyRiScopeHandler);
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
         when(query.getEnvironmentType()).thenReturn(Optional.of(EnvironmentType.ON_PREM));
         final Set<Integer> relatedTypes = Sets.newHashSet(10, 11);
@@ -376,16 +375,22 @@ public class CurrentQueryMapperTest {
             .addOids(1029)
             .build();
 
-        when(entityScopeFactory.bulkExpandScopes(any(), any(), any(), any()))
-            .thenReturn(ImmutableMap.of(e1Id, Collections.singleton(1029L),
-                    e2Id, Collections.singleton(1029L)));
+        when(entityScopeFactory.createEntityScope(any(), any(), any(), any(), any()))
+            .thenReturn(entityScope);
 
         final Map<ApiId, ScopeFilter> filters = scopeFilterExtractor.extractScopeFilters(query);
-        verify(entityScopeFactory).bulkExpandScopes(
-            ImmutableMap.of(e1Id, Collections.singleton(e1Id), e2Id, Collections.singleton(e2Id)),
+        verify(entityScopeFactory).createEntityScope(
+            Collections.singleton(1L),
             relatedTypes,
             Optional.of(EnvironmentType.ON_PREM),
-            entityAccessScope);
+            entityAccessScope,
+            Collections.emptySet());
+        verify(entityScopeFactory).createEntityScope(
+            Collections.singleton(2L),
+            relatedTypes,
+            Optional.of(EnvironmentType.ON_PREM),
+            entityAccessScope,
+            Collections.emptySet());
 
         assertThat(filters.keySet(), containsInAnyOrder(e1Id, e2Id));
         assertThat(filters.get(e1Id), is(ScopeFilter.newBuilder()
@@ -533,10 +538,10 @@ public class CurrentQueryMapperTest {
             .build();
 
         EntityScopeFactory entityScopeFactory = new EntityScopeFactory(groupExpander,
-                supplyChainFetcherFactory, repositoryApi, buyRiScopeHandler, uuidMapper);
+                supplyChainFetcherFactory, repositoryApi);
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         ScopeFilterExtractor scopeFilterExtractor = new ScopeFilterExtractor(userSessionContext,
-                entityScopeFactory, uuidMapper);
+                entityScopeFactory, buyRiScopeHandler);
         Map<ApiId, ScopeFilter> scopeFilters = scopeFilterExtractor.extractScopeFilters(actionStatsQuery);
         Assert.assertEquals(1, scopeFilters.size());
         Assert.assertTrue(scopeFilters.containsKey(apiId));

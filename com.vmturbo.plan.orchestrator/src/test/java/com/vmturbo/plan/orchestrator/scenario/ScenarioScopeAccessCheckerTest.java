@@ -42,7 +42,6 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -52,8 +51,8 @@ import com.vmturbo.components.common.identity.ArrayOidSet;
  *
  */
 public class ScenarioScopeAccessCheckerTest {
-    private static final ApiEntityType VM = ApiEntityType.VIRTUAL_MACHINE;
-    private static final ApiEntityType REGION = ApiEntityType.REGION;
+    private static final String VM = "VirtualMachine";
+    private static final String REGION = "Region";
 
     private GroupServiceMole groupServiceMole = spy(GroupServiceMole.class);
 
@@ -130,7 +129,7 @@ public class ScenarioScopeAccessCheckerTest {
                 .build();
 
         final SupplyChainNode virtualMachine = SupplyChainNode.newBuilder()
-                .setEntityType(VM.typeNumber())
+                .setEntityType(VM)
                 .putMembersByState(TopologyDTO.EntityState.POWERED_ON_VALUE,
                         SupplyChainNode.MemberList.newBuilder().addMemberOids(1L).build())
                 .build();
@@ -264,7 +263,7 @@ public class ScenarioScopeAccessCheckerTest {
         ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
                 .setScope(PlanScope.newBuilder()
                         .addScopeEntries(PlanScopeEntry.newBuilder()
-                                .setClassName(REGION.apiStr())
+                                .setClassName(REGION)
                                 .setScopeObjectOid(regionOid)))
                 .build();
         // Setup the User scope with 1 VM and the its Region
@@ -277,7 +276,7 @@ public class ScenarioScopeAccessCheckerTest {
                 SearchEntityOidsResponse.newBuilder().addEntities(regionOid).build());
         // Setup the supply chain to return the VMs on the Region
         final SupplyChainNode virtualMachineNode = SupplyChainNode.newBuilder()
-                .setEntityType(VM.typeNumber())
+                .setEntityType(VM)
                 .putMembersByState(TopologyDTO.EntityState.POWERED_ON_VALUE,
                         SupplyChainNode.MemberList.newBuilder()
                                 .addMemberOids(vmOid)
@@ -315,7 +314,7 @@ public class ScenarioScopeAccessCheckerTest {
         ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
                 .setScope(PlanScope.newBuilder()
                         .addScopeEntries(PlanScopeEntry.newBuilder()
-                                .setClassName(REGION.apiStr())
+                                .setClassName(REGION)
                                 .setScopeObjectOid(regionOid)))
                 .build();
         // Setup the User scope with 1 VM and the a Region
@@ -328,7 +327,7 @@ public class ScenarioScopeAccessCheckerTest {
                 SearchEntityOidsResponse.newBuilder().addEntities(regionOid).build());
         // Setup the supply chain to return the VMs on the Region
         final SupplyChainNode virtualMachineNode = SupplyChainNode.newBuilder()
-                .setEntityType(VM.typeNumber())
+                .setEntityType(VM)
                 .putMembersByState(TopologyDTO.EntityState.POWERED_ON_VALUE,
                         SupplyChainNode.MemberList.newBuilder()
                                 .addMemberOids(vmOutOfScopeOid)
@@ -377,7 +376,7 @@ public class ScenarioScopeAccessCheckerTest {
                         .build()));
         // Setup the supply chain to return the VMs
         final SupplyChainNode virtualMachineNode = SupplyChainNode.newBuilder()
-                .setEntityType(VM.typeNumber())
+                .setEntityType(VM)
                 .putMembersByState(TopologyDTO.EntityState.POWERED_ON_VALUE,
                         SupplyChainNode.MemberList.newBuilder()
                                 .addMemberOids(vmOid)

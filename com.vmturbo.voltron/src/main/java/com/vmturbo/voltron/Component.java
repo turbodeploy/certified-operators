@@ -41,7 +41,6 @@ import com.vmturbo.mediation.client.MediationComponentMain;
 import com.vmturbo.plan.orchestrator.PlanOrchestratorComponent;
 import com.vmturbo.plan.orchestrator.db.Plan;
 import com.vmturbo.repository.RepositoryComponent;
-import com.vmturbo.repository.db.Repository;
 import com.vmturbo.topology.processor.TopologyProcessorComponent;
 import com.vmturbo.topology.processor.db.TopologyProcessor;
 import com.vmturbo.voltron.Voltron.VoltronContext;
@@ -116,7 +115,7 @@ public enum Component {
      * The repository component.
      */
     REPOSITORY("repository", "com.vmturbo.repository.component",
-            RepositoryComponent.class, Optional.of(Repository.REPOSITORY)),
+            RepositoryComponent.class, Optional.empty()),
 
     /**
      * The extractor component.

@@ -20,6 +20,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import io.grpc.Status;
 
@@ -62,7 +63,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -432,13 +432,13 @@ public class ClusterActionAggregatorTest {
                 .addSeeds(SupplyChainSeed.newBuilder()
                     .setSeedOid(CLUSTER_1.getId())
                     .setScope(SupplyChainScope.newBuilder()
-                        .addEntityTypesToInclude(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .addEntityTypesToInclude("VirtualMachine")
                         .addStartingEntityOid(CLUSTER_1_PM_1.getId())
                         .addStartingEntityOid(CLUSTER_1_PM_2.getId())))
                 .addSeeds(SupplyChainSeed.newBuilder()
                     .setSeedOid(CLUSTER_2.getId())
                     .setScope(SupplyChainScope.newBuilder()
-                        .addEntityTypesToInclude(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .addEntityTypesToInclude("VirtualMachine")
                         .addStartingEntityOid(CLUSTER_2_PM.getId())))
                 .build();
         when(supplyChainServiceMole.getMultiSupplyChains(any()))
@@ -447,7 +447,7 @@ public class ClusterActionAggregatorTest {
                     .setSeedOid(CLUSTER_1.getId())
                     .setSupplyChain(SupplyChain.newBuilder()
                         .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                            .setEntityType("VirtualMachine")
                             .putAllMembersByState(ImmutableMap.of(EntityState.POWERED_ON_VALUE,
                                 MemberList.newBuilder()
                                     .addMemberOids(CLUSTER_1_VM_1.getId())
@@ -458,7 +458,7 @@ public class ClusterActionAggregatorTest {
                     .setSeedOid(CLUSTER_2.getId())
                     .setSupplyChain(SupplyChain.newBuilder()
                         .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .setEntityType("VirtualMachine")
                         .putAllMembersByState(ImmutableMap.of(EntityState.POWERED_ON_VALUE,
                             MemberList.newBuilder()
                                 .addMemberOids(CLUSTER_2_VM.getId())
