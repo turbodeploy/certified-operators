@@ -34,7 +34,6 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
-import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
@@ -286,19 +285,13 @@ public class ActionSearchUtil {
         final Map<Long, Set<Long>> recsByFilter = new HashMap<>();
         while (responseIterator.hasNext()) {
             final FilteredActionResponse response = responseIterator.next();
-            if (!response.hasActionChunk()) {
-                continue;
-            }
             final List<ActionSpec> specs = response.getActionChunk().getActionsList().stream()
                     .map(ActionOrchestratorAction::getActionSpec)
                     .collect(Collectors.toList());
                 specsToMap.addAll(specs);
                 recsByFilter.computeIfAbsent(response.getQueryId(), (arg) -> new HashSet<>())
                     .addAll(specs.stream()
-                        // note: ActionSpec.getRecommendation().getId() is NOT equivalent to
-                        // ActionSpec.getRecommendationId()
-                        .map(ActionSpec::getRecommendation)
-                        .map(Action::getId)
+                        .map(ActionSpec::getRecommendationId)
                         .collect(Collectors.toList()));
         }
         final Map<Long, ActionApiDTO> actionsByRec =

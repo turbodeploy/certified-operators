@@ -258,7 +258,9 @@ public class ActionSearchUtilTest {
         verify(actionSpecMapper).createActionFilter(any(), any(), eq(apiId));
         verify(actionsServiceRpc).getAllActions(any());
         assertNotNull(emptyResult);
-        assertTrue(emptyResult.isEmpty());
+        assertEquals(1, emptyResult.size());
+        assertTrue(emptyResult.containsKey(oid));
+        assertTrue(emptyResult.get(oid).isEmpty());
     }
 
 }
