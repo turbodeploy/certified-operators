@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.stitching;
 
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -680,7 +682,8 @@ public class StitchingManager {
      * and tag it with the number of times in a row it ran.
      */
     private static class StitchingOperationTracer {
-        private int iterations;
+        private List<Long> iterationTimes = new ArrayList<>();
+        private long previousOperationStartTime;
         private String previousOperationName = "";
         private Tracing.TracingScope currentScope;
 
@@ -692,10 +695,14 @@ public class StitchingManager {
                 }
 
                 currentScope = Tracing.trace(operationClassName);
-                iterations = 0;
+                previousOperationStartTime = System.nanoTime();
+            } else {
+                final long curTime = System.nanoTime();
+                final long operationDuration = curTime - previousOperationStartTime;
+                previousOperationStartTime = curTime;
+                iterationTimes.add(operationDuration);
             }
             previousOperationName = operationClassName;
-            iterations++;
             return currentScope;
         }
 
@@ -705,11 +712,22 @@ public class StitchingManager {
 
         private void endOperation() {
             if (currentScope != null) {
-                if (iterations > 1) {
-                    currentScope.tag("times", iterations);
+                final long operationDuration = System.nanoTime() - previousOperationStartTime;
+                iterationTimes.add(operationDuration);
+
+                if (iterationTimes.size() > 1) {
+                    Tracing.log(this::stats);
                 }
                 currentScope.close();
             }
+        }
+
+        private String stats() {
+            return String.format("%d times; %s max; %s avg; %s min",
+                iterationTimes.size(),
+                Duration.ofNanos(iterationTimes.stream().mapToLong(d -> d).max().getAsLong()).toString(),
+                Duration.ofNanos((long)iterationTimes.stream().mapToLong(d -> d).average().getAsDouble()).toString(),
+                Duration.ofNanos(iterationTimes.stream().mapToLong(d -> d).min().getAsLong()));
         }
     }
 }
