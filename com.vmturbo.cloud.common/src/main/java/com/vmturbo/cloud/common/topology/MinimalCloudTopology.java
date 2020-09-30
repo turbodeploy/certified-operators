@@ -1,10 +1,12 @@
-package com.vmturbo.cloud.commitment.analysis.topology;
+package com.vmturbo.cloud.common.topology;
 
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.vmturbo.group.api.GroupAndMembers;
 
 /**
  * A cloud topology, providing the minimal set of operations that may be performed on compact
@@ -49,6 +51,15 @@ public interface MinimalCloudTopology<ENTITY_CLASS> {
      */
     @Nonnull
     Optional<Boolean> isEntityPoweredOn(long entityOid);
+
+    /**
+     * Resolves the billing family associated with an account, through the group service.
+     * @param accountOid The target account OID.
+     * @return The {@link GroupAndMembers} instance representing the associated billing family,
+     * if one is found.
+     */
+    @Nonnull
+    Optional<GroupAndMembers> getBillingFamilyForAccount(long accountOid);
 
 
     /**

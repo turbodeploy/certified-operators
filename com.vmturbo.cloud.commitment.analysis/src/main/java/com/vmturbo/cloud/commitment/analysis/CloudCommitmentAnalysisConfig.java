@@ -25,7 +25,6 @@ import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandRe
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReaderImpl;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisPipelineFactory;
-import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysis.IdentityProvider;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext.AnalysisContextFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext.DefaultAnalysisContextFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.ImmutableStaticAnalysisConfig;
@@ -35,11 +34,12 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.Deman
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationStage.DemandTransformationFactory;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher.CloudCommitmentSpecMatcherFactory;
-import com.vmturbo.cloud.commitment.analysis.topology.BillingFamilyRetrieverFactory;
-import com.vmturbo.cloud.commitment.analysis.topology.BillingFamilyRetrieverFactory.DefaultBillingFamilyRetrieverFactory;
-import com.vmturbo.cloud.commitment.analysis.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
-import com.vmturbo.cloud.commitment.analysis.topology.MinimalCloudTopology.MinimalCloudTopologyFactory;
-import com.vmturbo.cloud.commitment.analysis.topology.MinimalEntityCloudTopology.DefaultMinimalEntityCloudTopologyFactory;
+import com.vmturbo.cloud.common.identity.IdentityProvider;
+import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
+import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory.DefaultBillingFamilyRetrieverFactory;
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
+import com.vmturbo.cloud.common.topology.MinimalCloudTopology.MinimalCloudTopologyFactory;
+import com.vmturbo.cloud.common.topology.MinimalEntityCloudTopology.DefaultMinimalEntityCloudTopologyFactory;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;

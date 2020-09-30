@@ -21,6 +21,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
@@ -36,7 +37,6 @@ import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceUtilizationLatestRecord;
-import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
@@ -158,14 +158,14 @@ public class ReservedInstanceUtilizationStoreTest {
                 .putAllRiPricesBySpecId(map).build();
         Mockito.when(priceTableStore.getMergedRiPriceTable()).thenReturn(riPriceTable);
         ReservedInstanceSpecStore reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl,
-                new IdentityProvider(0), 10);
+                new DefaultIdentityProvider(0), 10);
         ReservedInstanceCostCalculator reservedInstanceCostCalculator =
                 new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
 
         entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl);
         accountRIMappingStore = new AccountRIMappingStore(dsl);
         reservedInstanceBoughtStore = new SQLReservedInstanceBoughtStore(dsl,
-                new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore,
+                new DefaultIdentityProvider(0), reservedInstanceCostCalculator, priceTableStore,
                 entityReservedInstanceMappingStore, accountRIMappingStore, new BusinessAccountHelper());
 
         reservedInstanceUtilizationStore = new ReservedInstanceUtilizationStore(dsl,

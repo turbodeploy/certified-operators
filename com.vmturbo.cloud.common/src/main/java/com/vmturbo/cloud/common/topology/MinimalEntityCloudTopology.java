@@ -1,8 +1,9 @@
-package com.vmturbo.cloud.commitment.analysis.topology;
+package com.vmturbo.cloud.common.topology;
 
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -13,6 +14,7 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.group.api.GroupAndMembers;
 
 /**
  * An implementation of {@link MinimalCloudTopology} supporting {@link MinimalEntity} as the entity
@@ -23,6 +25,8 @@ public class MinimalEntityCloudTopology implements MinimalCloudTopology<MinimalE
     private final Map<Long, MinimalEntity> minimalEntitiesByOid;
 
     private final BillingFamilyRetriever billingFamilyRetriever;
+
+    private final Map<Long, GroupAndMembers> billingFamilyByAccountOid = new ConcurrentHashMap<>();
 
     /**
      * Construct a minimal cloud topology. The provided entity stream will be filtered, based on the
@@ -75,6 +79,15 @@ public class MinimalEntityCloudTopology implements MinimalCloudTopology<MinimalE
     public Optional<Boolean> isEntityPoweredOn(final long entityOid) {
         return getEntity(entityOid)
                 .map(entity -> entity.getEntityState() == EntityState.POWERED_ON);
+    }
+
+    @Nonnull
+    @Override
+    public Optional<GroupAndMembers> getBillingFamilyForAccount(final long accountOid) {
+        return Optional.ofNullable(
+                billingFamilyByAccountOid.computeIfAbsent(accountOid,
+                        oid -> billingFamilyRetriever.getBillingFamilyForAccount(accountOid)
+                                .orElse(null)));
     }
 
 

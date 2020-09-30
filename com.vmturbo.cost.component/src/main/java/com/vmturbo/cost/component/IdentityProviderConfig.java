@@ -4,7 +4,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.cloud.common.identity.IdentityProvider;
+import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 
 @Configuration
 public class IdentityProviderConfig {
@@ -14,6 +15,6 @@ public class IdentityProviderConfig {
 
     @Bean
     public IdentityProvider identityProvider() {
-        return new IdentityProvider(identityGeneratorPrefix);
+        return new DefaultIdentityProvider(identityGeneratorPrefix);
     }
 }

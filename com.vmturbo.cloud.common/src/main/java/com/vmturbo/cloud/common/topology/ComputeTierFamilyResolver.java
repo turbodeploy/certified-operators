@@ -1,10 +1,11 @@
-package com.vmturbo.cloud.commitment.analysis.topology;
+package com.vmturbo.cloud.common.topology;
 
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -127,6 +128,31 @@ public class ComputeTierFamilyResolver {
             throw new ComputeTierNotFoundException(
                     String.format("Unable to find compute tiers: %s", tiersNotFound));
         }
+    }
+
+    /**
+     * Resolves and returns the coverage family for {@code tierOid}. If the normalization factor
+     * (coupons) is not a positive value, the tier is assumed to not have a coverage family (the family
+     * attribute under tier info will be ignored).
+     * @param tierOid The target tier OID.
+     * @return The coverage family, if one is found.
+     */
+    public Optional<String> getCoverageFamily(long tierOid) {
+        return computeTierDataByOid.containsKey(tierOid)
+                ? Optional.ofNullable(computeTierDataByOid.get(tierOid).coverageFamily())
+                : Optional.empty();
+    }
+
+    /**
+     * Resolves and returns the number of coupons for the {@code tierOid}.
+     * @param tierOid The target tier OID.
+     * @return The number of coupons, if the tier is found in the underlying cloud topology for this
+     * resolver.
+     */
+    public Optional<Long> getNumCoupons(long tierOid) {
+        return computeTierDataByOid.containsKey(tierOid)
+                ? Optional.of(computeTierDataByOid.get(tierOid).numCoupons())
+                : Optional.empty();
     }
 
     /**

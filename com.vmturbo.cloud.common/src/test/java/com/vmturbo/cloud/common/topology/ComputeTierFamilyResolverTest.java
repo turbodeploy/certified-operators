@@ -1,18 +1,20 @@
-package com.vmturbo.cloud.commitment.analysis.topology;
+package com.vmturbo.cloud.common.topology;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import org.hamcrest.collection.IsIterableContainingInOrder;
 import org.junit.Test;
 
-import com.vmturbo.cloud.commitment.analysis.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
-import com.vmturbo.cloud.commitment.analysis.topology.ComputeTierFamilyResolver.ComputeTierNotFoundException;
-import com.vmturbo.cloud.commitment.analysis.topology.ComputeTierFamilyResolver.IncompatibleTiersException;
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierNotFoundException;
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.IncompatibleTiersException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -77,6 +79,15 @@ public class ComputeTierFamilyResolverTest {
                             .setFamily("b")))
             .build();
 
+    private final TopologyEntityDTO computeTierFamilyBZeroCoupons = TopologyEntityDTO.newBuilder()
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+            .setOid(5L)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setComputeTier(ComputeTierInfo.newBuilder()
+                            .setFamily("b")))
+            .build();
+
     private final CloudTopology<TopologyEntityDTO> cloudTopology =
             new DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class))
                     .newCloudTopology(Stream.of(
@@ -84,7 +95,8 @@ public class ComputeTierFamilyResolverTest {
                             computeTierSmallFamilyA,
                             computeTierMediumFamilyA,
                             computeTierLargeBFamilyA,
-                            computeTierSmallFamilyB));
+                            computeTierSmallFamilyB,
+                            computeTierFamilyBZeroCoupons));
 
     @Test
     public void testFamilyResolution() {
@@ -162,5 +174,38 @@ public class ComputeTierFamilyResolverTest {
 
         assertThat(actualComparison, lessThan(0L));
 
+    }
+
+    @Test
+    public void testCoverageFamily() {
+
+        final ComputeTierFamilyResolver computeTierFamilyResolver =
+                computeTierFamilyResolverFactory.createResolver(cloudTopology);
+
+        assertThat(computeTierFamilyResolver.getCoverageFamily(computeTierSmallFamilyA.getOid()),
+                equalTo(Optional.of("a")));
+    }
+
+    /**
+     * Verify that if the compute tier does not have a coupon value set, it is not assigned to
+     * a coverage family
+     */
+    @Test
+    public void testNoCouponCoverageFamily() {
+
+        final ComputeTierFamilyResolver computeTierFamilyResolver =
+                computeTierFamilyResolverFactory.createResolver(cloudTopology);
+
+        assertThat(computeTierFamilyResolver.getCoverageFamily(computeTierFamilyBZeroCoupons.getOid()),
+                equalTo(Optional.empty()));
+    }
+
+    @Test
+    public void testNumCoupons() {
+        final ComputeTierFamilyResolver computeTierFamilyResolver =
+                computeTierFamilyResolverFactory.createResolver(cloudTopology);
+
+        assertThat(computeTierFamilyResolver.getNumCoupons(computeTierLargeFamilyA.getOid()),
+                equalTo(Optional.of(10L)));
     }
 }

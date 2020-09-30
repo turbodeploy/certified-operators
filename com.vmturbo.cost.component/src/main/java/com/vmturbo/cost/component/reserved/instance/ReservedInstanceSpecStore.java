@@ -22,11 +22,11 @@ import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 import org.jooq.impl.TableImpl;
 
+import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
-import com.vmturbo.cost.component.identity.IdentityProvider;
 
 /**
  * This class is used to update reserved_instance_specs table based on latest reserved instance spec

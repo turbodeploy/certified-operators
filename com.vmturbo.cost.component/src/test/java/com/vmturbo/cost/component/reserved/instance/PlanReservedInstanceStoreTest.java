@@ -19,6 +19,8 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.vmturbo.cloud.common.identity.IdentityProvider;
+import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -26,7 +28,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.PlanReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
-import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
@@ -91,7 +92,7 @@ public class PlanReservedInstanceStoreTest {
 
     private DSLContext dsl = dbConfig.getDslContext();
 
-    private ReservedInstanceSpecStore reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
+    private ReservedInstanceSpecStore reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new DefaultIdentityProvider(0), 10);
 
     private ReservedInstanceCostCalculator reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
 
@@ -99,7 +100,7 @@ public class PlanReservedInstanceStoreTest {
     private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl);
     private AccountRIMappingStore accountRIMappingStore = new AccountRIMappingStore(dsl);
     private PlanReservedInstanceStore planReservedInstanceStore =
-            new PlanReservedInstanceStore(dsl, new IdentityProvider(0),
+            new PlanReservedInstanceStore(dsl, new DefaultIdentityProvider(0),
             reservedInstanceCostCalculator, businessAccountHelper,
                     entityReservedInstanceMappingStore, accountRIMappingStore);
 

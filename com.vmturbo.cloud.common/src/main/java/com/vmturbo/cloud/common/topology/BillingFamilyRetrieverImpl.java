@@ -1,4 +1,4 @@
-package com.vmturbo.cloud.commitment.analysis.topology;
+package com.vmturbo.cloud.common.topology;
 
 import java.util.List;
 import java.util.Map;

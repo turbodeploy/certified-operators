@@ -1,4 +1,4 @@
-package com.vmturbo.cloud.commitment.analysis.topology;
+package com.vmturbo.cloud.common.topology;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -14,7 +14,7 @@ import com.google.common.collect.Lists;
 
 import org.junit.Test;
 
-import com.vmturbo.cloud.commitment.analysis.topology.BillingFamilyRetrieverFactory.DefaultBillingFamilyRetrieverFactory;
+import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory.DefaultBillingFamilyRetrieverFactory;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.GroupMemberRetriever;
