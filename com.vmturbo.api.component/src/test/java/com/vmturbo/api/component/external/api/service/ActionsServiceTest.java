@@ -25,9 +25,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 
 import io.grpc.Status;
 
@@ -38,15 +35,19 @@ import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
@@ -68,8 +69,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -176,8 +177,6 @@ public class ActionsServiceTest {
 
         final ApiId scope1 = ApiTestUtils.mockEntityId("1", uuidMapper);
         final ApiId scope2 = ApiTestUtils.mockGroupId("3", uuidMapper);
-        when(scope1.getDisplayName()).thenReturn("First Entity");
-        when(scope1.getClassName()).thenReturn(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         actionScopesApiInputDTO.setActionInput(actionApiInputDTO);
         actionScopesApiInputDTO.setRelatedType(ApiEntityType.PHYSICAL_MACHINE.apiStr());
 
@@ -209,6 +208,7 @@ public class ActionsServiceTest {
                 .collect(Collectors.toMap(EntityStatsApiDTO::getUuid, Function.identity()));
 
         verify(actionStatsQueryExecutor).retrieveActionStats(expectedQuery);
+        verify(repositoryApi).entitiesRequest(Collections.singleton(1L));
 
         assertThat(statsByUuid.keySet(), containsInAnyOrder("1", "3"));
         assertThat(statsByUuid.get("1").getStats(), is(scope1Snapshots));

@@ -9,7 +9,6 @@ import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 
@@ -48,7 +47,6 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.userscope.UserScope.CurrentUserEntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeRequest;
@@ -57,6 +55,7 @@ import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO;
 import com.vmturbo.common.protobuf.userscope.UserScopeServiceGrpc;
 import com.vmturbo.common.protobuf.userscope.UserScopeServiceGrpc.UserScopeServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  *
@@ -69,7 +68,7 @@ public class UserScopeServiceTest {
 
     private static final SupplyChain TEST_SUPPLY_CHAIN = SupplyChain.newBuilder()
         .addSupplyChainNodes(SupplyChainNode.newBuilder()
-            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityType("TestType")
             .putMembersByState(EntityState.ACTIVE.ordinal(), MemberList.newBuilder()
                 .addAllMemberOids(TEST_SUPPLY_CHAIN_OIDS)
                 .build()))
@@ -77,12 +76,12 @@ public class UserScopeServiceTest {
 
     private static final SupplyChain TEST_NON_INFRASTRUCTURE_SUPPLY_CHAIN = SupplyChain.newBuilder()
             .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                    .setEntityType(ApiEntityType.APPLICATION_COMPONENT.typeNumber())
+                    .setEntityType(EntityType.APPLICATION_COMPONENT.name())
                     .putMembersByState(EntityState.ACTIVE.ordinal(), MemberList.newBuilder()
                             .addMemberOids(10L)
                             .build()))
             .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                    .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                    .setEntityType(EntityType.VIRTUAL_MACHINE.name())
                     .putMembersByState(EntityState.ACTIVE.ordinal(), MemberList.newBuilder()
                             .addMemberOids(11L)
                             .build()))
@@ -146,9 +145,7 @@ public class UserScopeServiceTest {
                 .setFilterForDisplay(false)
                 .setScope(SupplyChainScope.newBuilder()
                     .addStartingEntityOid(memberId)
-                    .addAllEntityTypesToInclude(UserScopeUtils.SHARED_USER_ENTITY_TYPES.stream()
-                        .map(ApiEntityType::typeNumber)
-                        .collect(Collectors.toList())))
+                    .addAllEntityTypesToInclude(UserScopeUtils.SHARED_USER_ENTITY_TYPES))
                 .build());
 
         // return empty so the scope id is considered a group

@@ -17,11 +17,11 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyCha
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.GeoDataInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.RegionInfo;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 
 /**
  * RegionAspectMapper to map region to its aspects.
@@ -95,9 +95,9 @@ public class RegionAspectMapper extends AbstractAspectMapper {
                     .setSeedOid(entity.getOid())
                     .setScope(SupplyChainScope.newBuilder()
                             .addStartingEntityOid(entity.getOid())
-                            .addEntityTypesToInclude(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-                            .addEntityTypesToInclude(ApiEntityType.DATABASE_SERVER.typeNumber())
-                            .addEntityTypesToInclude(ApiEntityType.DATABASE.typeNumber())));
+                            .addEntityTypesToInclude(ApiEntityType.VIRTUAL_MACHINE.apiStr())
+                            .addEntityTypesToInclude(ApiEntityType.DATABASE_SERVER.apiStr())
+                            .addEntityTypesToInclude(ApiEntityType.DATABASE.apiStr())));
         });
 
         Map<Long, Integer> result = new HashMap<>();

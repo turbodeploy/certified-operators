@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
+        "https://checkstyle.org/dtds/suppressions_1_0.dtd">
+
+<!--
+Files should be removed from this list as they become clear of violations. Files should not be added.
+The goal is for the module to become - and remain - clear of violations.
+-->
+
+<suppressions>
+    <suppress checks="JavadocStyleCheck" files=".*Test.java"/>
+    <suppress checks="MissingJavadocMethod" files=".*Test.java"/>
+    <suppress checks="MissingJavadocType" files=".*Test.java"/>
+    <suppress checks="JavadocMethod" files=".*Test.java"/>
+</suppressions>

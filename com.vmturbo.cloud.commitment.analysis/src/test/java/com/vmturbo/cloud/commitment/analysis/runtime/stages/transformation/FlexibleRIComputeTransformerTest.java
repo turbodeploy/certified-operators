@@ -21,9 +21,9 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.Class
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate.DemandTimeSeries;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassification;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.FlexibleRIComputeTransformer.FlexibleRIComputeTransformerFactory;
-import com.vmturbo.cloud.commitment.analysis.topology.ComputeTierFamilyResolver;
-import com.vmturbo.cloud.commitment.analysis.topology.ComputeTierFamilyResolver.ComputeTierNotFoundException;
-import com.vmturbo.cloud.commitment.analysis.topology.ComputeTierFamilyResolver.IncompatibleTiersException;
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierNotFoundException;
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.IncompatibleTiersException;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;

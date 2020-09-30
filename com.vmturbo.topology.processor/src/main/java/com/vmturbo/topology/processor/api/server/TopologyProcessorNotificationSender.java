@@ -39,6 +39,7 @@ import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.api.chunking.ProtobufChunkCollector;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
@@ -406,6 +407,8 @@ public class TopologyProcessorNotificationSender
             // problem, if it will hang in memory at the same time, as the first chunk.
             initialMessage = threadPool.submit(() -> {
                 sendTopologySegment(subMessage);
+                // Disable kafka tracing for the data chunks
+                Tracing.setKafkaTracingEnabled(false);
                 return null;
             });
         }
@@ -455,6 +458,9 @@ public class TopologyProcessorNotificationSender
                 if (extensionChunk.count() > 0) {
                     sendExtensionsChunk(extensionChunk.takeCurrentChunk());
                 }
+                // Re-enable kafka tracing for the finishing message.
+                Tracing.setKafkaTracingEnabled(true);
+
                 final Topology subMessage = Topology.newBuilder()
                         .setTopologyId(getTopologyId())
                         .setEnd(End.newBuilder().setTotalCount(totalCount))

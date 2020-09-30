@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -15,6 +17,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -40,6 +44,10 @@ import com.vmturbo.topology.graph.TopologyGraph;
  * <p/>
  * For additional details on the design for retaining history for ephemeral entities see:
  * https://vmturbo.atlassian.net/browse/OM-56130
+ * <p/>
+ * Also disables resizing for consistent scaling groups that violate the invariant of having
+ * the same capacity on a commodity. If we don't, the market ends up generating nonsense
+ * recommendations for these groups.
  * <p/>
  * Note that this class does no maintenance, settings lookups, etc. Instead, all the work
  * for these functions is done on the entities where we aggregate shared ephemeral entity
@@ -70,15 +78,38 @@ public class EphemeralEntityEditor {
         ImmutableSet.of(EntityType.CONTAINER_SPEC.getNumber());
 
     /**
+     * See https://vmturbo.atlassian.net/browse/OM-62824 for further details.
+     * Sometimes when containers are running on nodes with different CPU speeds, even though
+     * they are configured with the same millicore limits and requests, they may end up with
+     * different speeds in MHz. The market assumes an invariant that all members of a consistent
+     * scaling group have the same capacity for a commodity and will generate nonsense recommendations
+     * when they don't. Until we fix this, disable consistent scaling when we detect this
+     * situation.
+     */
+    private static final Set<Integer> REQUIRED_CONSISTENT_COMMODITIES =
+        ImmutableSet.of(CommodityType.VCPU_VALUE, CommodityType.VCPU_REQUEST_VALUE);
+
+    private static final double DBL_EPSILON = Math.ulp(1.0);
+
+    /**
      * Apply edits to commodities sold by ephemeral entities by copying their
      * shared history from the related persistent entities.
      *
      * @param graph The {@link TopologyGraph} containing all the entities in
      *              the topology and their relationships.
+     * @return a summary of the edits made to the topology by applying edits.
      */
-    public void applyEdits(@Nonnull final TopologyGraph<TopologyEntity> graph) {
+    public EditSummary applyEdits(@Nonnull final TopologyGraph<TopologyEntity> graph) {
+        final EditSummary editSummary = new EditSummary();
         ROOT_PERSISTENT_ENTITY_TYPES.stream().forEach(entityType ->
-            graph.entitiesOfType(entityType).forEach(this::applyEdits));
+            graph.entitiesOfType(entityType)
+                .forEach(persistentEntity -> applyEdits(persistentEntity, editSummary)));
+
+        if (editSummary.getInconsistentScalingGroups() > 0) {
+            logger.warn("Disabled resize on {} scaling groups due to capacity inconsistencies.",
+                editSummary.getInconsistentScalingGroups());
+        }
+        return editSummary;
     }
 
     /**
@@ -87,18 +118,66 @@ public class EphemeralEntityEditor {
      *
      * @param persistentEntity The persistent entity responsible for aggregating
      *                         the shared history for ephemeral entity replicas.
+     * @param editSummary A summary of the edits made.
      */
-    private void applyEdits(@Nonnull final TopologyEntity persistentEntity) {
+    private void applyEdits(@Nonnull final TopologyEntity persistentEntity,
+                            @Nonnull final EditSummary editSummary) {
         final Map<Integer, List<CommoditySoldDTO>> persistentSoldCommodities =
             persistentEntity.soldCommoditiesByType();
+        final Map<Integer, Double> requiredConsistentCommodityValues = new HashMap<>();
+        final Set<Integer> inconsistentCommodities = new HashSet<>();
 
         // As of now all persistent entities aggregate their ephemeral counterparts.
         persistentEntity.getAggregatedEntities().forEach(ephemeralEntity -> {
             logger.debug("Copying commodity history from persistent entity {} to ephemeral entity {}",
                 () -> persistentEntity, () -> ephemeralEntity);
             copyCommodityHistory(persistentSoldCommodities,
-                ephemeralEntity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList());
+                ephemeralEntity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList(),
+                editSummary);
+            identifyInconsistentCommodities(requiredConsistentCommodityValues,
+                inconsistentCommodities, ephemeralEntity);
         });
+
+        editSummary.incrementTotalScalingGroups();
+        if (!inconsistentCommodities.isEmpty()) {
+            logger.debug("Disabling resize on commodities {} for scaling group identified "
+                + "by persistent entity {}", inconsistentCommodities, persistentEntity.getDisplayName());
+            editSummary.incrementInconsistentScalingGroups();
+            persistentEntity.getAggregatedEntities().forEach(ephemeralEntity ->
+                ephemeralEntity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
+                    .filter(builder -> inconsistentCommodities.contains(builder.getCommodityType().getType()))
+                    .forEach(builder -> builder.setIsResizeable(false)));
+        }
+    }
+
+    /**
+     * Identify commodities whose capacities are inconsistent across the scaling group.
+     *
+     * @param commodityTypeToCapacity Map of commodities to the detected capacity of that commodity for the
+     *                                scaling group.
+     * @param inconsistentCommodities The inconsistent commodities detected so far.
+     * @param ephemeralEntity The entity whose commodities should be scanned for inconsistencies with
+     *                        the other scaling group members.
+     */
+    private void identifyInconsistentCommodities(@Nonnull final Map<Integer, Double> commodityTypeToCapacity,
+                                                 @Nonnull final Set<Integer> inconsistentCommodities,
+                                                 @Nonnull final TopologyEntity ephemeralEntity) {
+        ephemeralEntity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
+            .filter(builder -> REQUIRED_CONSISTENT_COMMODITIES.contains(builder.getCommodityType().getType()))
+            .forEach(builder -> {
+                final Integer type = builder.getCommodityType().getType();
+                final Double otherMemberCapacity = commodityTypeToCapacity.get(type);
+                // Be sure to scale by scaling factor because the market will do so.
+                final double scaledCapacity = builder.getCapacity() * builder.getScalingFactor();
+                if (otherMemberCapacity != null) {
+                    // Compare for relative equality.
+                    if (Math.abs(otherMemberCapacity - scaledCapacity) > DBL_EPSILON) {
+                        inconsistentCommodities.add(type);
+                    }
+                }
+
+                commodityTypeToCapacity.put(type, scaledCapacity);
+            });
     }
 
     /**
@@ -109,17 +188,19 @@ public class EphemeralEntityEditor {
      * <p/>
      * Also updates the ephemeral commodity resizeable flag to match that of the persistent
      * commodity.
-     *
-     * @param persistentSoldCommodities Commodities sold by the persistent entity.
+     *  @param persistentSoldCommodities Commodities sold by the persistent entity.
      * @param ephemeralSoldCommodities Commodities sold by the ephemeral entity.
+     * @param editSummary A summary to capture edits made.
      */
     private void copyCommodityHistory(
         @Nonnull final Map<Integer, List<CommoditySoldDTO>> persistentSoldCommodities,
-        @Nonnull final List<CommoditySoldDTO.Builder> ephemeralSoldCommodities) {
-        ephemeralSoldCommodities.stream().forEach(ephemeralCommSold -> {
+        @Nonnull final List<Builder> ephemeralSoldCommodities,
+        @Nonnull final EditSummary editSummary) {
+        for (CommoditySoldDTO.Builder ephemeralCommSold : ephemeralSoldCommodities) {
             final List<CommoditySoldDTO> soldOfType =
                 persistentSoldCommodities.get(ephemeralCommSold.getCommodityType().getType());
             getMatchingPersistentCommodity(ephemeralCommSold, soldOfType).ifPresent(persistentCommSold -> {
+                boolean commoditiesAdjusted = false;
                 logger.trace("Copying historicalUsed {}, historicalPeak {} and isResizeable {} for commodity of type {}",
                     persistentCommSold::getHistoricalUsed,
                     persistentCommSold::getHistoricalPeak,
@@ -132,15 +213,22 @@ public class EphemeralEntityEditor {
                 if (persistentCommSold.hasIsResizeable()) {
                     if (!ephemeralCommSold.hasIsResizeable() || ephemeralCommSold.getIsResizeable()) {
                         ephemeralCommSold.setIsResizeable(persistentCommSold.getIsResizeable());
+                        editSummary.incrementInsufficientData();
                     }
                 }
 
                 // Copy over historical used and peak
                 if (persistentCommSold.hasHistoricalPeak()) {
                     ephemeralCommSold.setHistoricalPeak(persistentCommSold.getHistoricalPeak());
+                    commoditiesAdjusted = true;
                 }
                 if (persistentCommSold.hasHistoricalUsed()) {
                     ephemeralCommSold.setHistoricalUsed(persistentCommSold.getHistoricalUsed());
+                    commoditiesAdjusted = true;
+                }
+
+                if (commoditiesAdjusted) {
+                    editSummary.incrementCommodities();
                 }
 
                 // Note that we purposely do NOT copy over the UtilizationData field on
@@ -148,7 +236,7 @@ public class EphemeralEntityEditor {
                 // in TopologyProcessor for computing the percentile values set on the
                 // historical used and peak fields.
             });
-        });
+        }
     }
 
     /**
@@ -175,5 +263,79 @@ public class EphemeralEntityEditor {
                 .filter(persistent -> Objects.equals(
                     persistent.getCommodityType().getKey(), ephemeralCommodity.getCommodityType().getKey()))
                 .findFirst());
+    }
+
+    /**
+     * Helper class summarizing the edits made by the {@link EphemeralEntityEditor}.
+     */
+    public static class EditSummary {
+        private long commoditiesAdjusted;
+        private long commoditiesWithInsufficientData;
+        private long inconsistentScalingGroups;
+        private long totalScalingGroups;
+
+        /**
+         * Increment the number of commodities adjusted.
+         */
+        public void incrementCommodities() {
+            commoditiesAdjusted++;
+        }
+
+        /**
+         * Increment the number of commodities whose resize was disabled because of insufficient data.
+         */
+        public void incrementInsufficientData() {
+            commoditiesWithInsufficientData++;
+        }
+
+        /**
+         * Increment the number of inconsistent scaling groups detected.
+         */
+        private void incrementInconsistentScalingGroups() {
+            inconsistentScalingGroups++;
+        }
+
+        /**
+         * Increment the number total number of scaling groups.
+         */
+        private void incrementTotalScalingGroups() {
+            totalScalingGroups++;
+        }
+
+        /**
+         * Get the number of commodities adjusted.
+         *
+         * @return the number of commodities adjusted.
+         */
+        public long getCommoditiesAdjusted() {
+            return commoditiesAdjusted;
+        }
+
+        /**
+         * Get the number of inconsistent scaling groups detected.
+         *
+         * @return the number of inconsistent scaling groups detected.
+         */
+        public long getInconsistentScalingGroups() {
+            return inconsistentScalingGroups;
+        }
+
+        /**
+         * Get the number of commodities whose resize was disabled because of insufficient data.
+         *
+         * @return the number of commodities whose resize was disabled because of insufficient data.
+         */
+        public long getCommoditiesWithInsufficientData() {
+            return commoditiesWithInsufficientData;
+        }
+
+        /**
+         * Get the total number of scaling groups examined by the editor.
+         *
+         * @return the total number of scaling groups examined by the editor.
+         */
+        public long getTotalScalingGroups() {
+            return totalScalingGroups;
+        }
     }
 }

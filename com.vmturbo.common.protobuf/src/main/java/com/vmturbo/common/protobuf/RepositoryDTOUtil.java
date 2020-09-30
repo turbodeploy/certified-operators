@@ -1,6 +1,5 @@
 package com.vmturbo.common.protobuf;
 
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -11,7 +10,6 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
@@ -39,21 +37,6 @@ public class RepositoryDTOUtil {
             // of given entity.
             && (filter.getEntityTypesList().isEmpty() ||
                 filter.getEntityTypesList().contains(entity.getEntityType()));
-    }
-
-    /**
-     * Get the complete list of OIDs in a {@link SupplyChain}.
-     *
-     * @param supplyChain The {@link SupplyChain}.
-     * @return The set of OIDs of all entities that are members of the supply chain.
-     */
-    @Nonnull
-    public static Set<Long> getAllMemberOids(@Nonnull final SupplyChain supplyChain) {
-        return supplyChain.getSupplyChainNodesList().stream()
-            .flatMap(node -> node.getMembersByStateMap().values().stream())
-            .map(MemberList::getMemberOidsList)
-            .flatMap(Collection::stream)
-            .collect(Collectors.toSet());
     }
 
     /**

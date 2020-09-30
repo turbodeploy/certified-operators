@@ -22,8 +22,6 @@ import io.grpc.StatusRuntimeException;
 import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
@@ -54,8 +52,6 @@ public class GroupExpander {
 
     private final GroupMemberRetriever groupMemberRetriever;
 
-    private UuidMapper uuidMapper;
-
     /**
      * Creates an instance of GroupExpander.
      *
@@ -66,15 +62,6 @@ public class GroupExpander {
                          @Nonnull GroupMemberRetriever groupMemberRetriever) {
         this.groupServiceGrpc = groupServiceGrpc;
         this.groupMemberRetriever = groupMemberRetriever;
-    }
-
-    /**
-     * Injected separately (during Spring instantiation) to avoid circular dependencies.
-     *
-     * @param uuidMapper The {@link UuidMapper}.
-     */
-    public void setUuidMapper(final UuidMapper uuidMapper) {
-        this.uuidMapper = uuidMapper;
     }
 
     /**
@@ -240,9 +227,8 @@ public class GroupExpander {
      *
      * @param uuid a UUID for which Cluster or Group UUIDs will be expanded.
      * @return UUIDs if the given uuid is for a Group or Cluster; otherwise just the given uuid
-     * @throws OperationFailedException If there is an error expanding one of the UUIDs.
      */
-    public @Nonnull Set<Long> expandUuid(@Nonnull String uuid) throws OperationFailedException {
+    public @Nonnull Set<Long> expandUuid(@Nonnull String uuid) {
         return expandUuids(Collections.singleton(uuid));
     }
 
@@ -262,35 +248,44 @@ public class GroupExpander {
      * @return UUIDs from each Group or Cluster in the input list; other UUIDs are passed through
      * @throws StatusRuntimeException if there is an error (other than NOT_FOUND) from the
      * groupServiceGrpc call tp getMembers().
-     * @throws OperationFailedException If there is an issue mapping some UUIds.
      */
-    @Nonnull
-    public Set<Long> expandUuids(@Nonnull Collection<String> uuidSet)
-            throws OperationFailedException {
-        Set<ApiId> apiIds = new HashSet<>(uuidSet.size());
-        for (String uuid : uuidSet) {
-            apiIds.add(uuidMapper.fromUuid(uuid));
+    public @Nonnull Set<Long> expandUuids(@Nonnull Set<String> uuidSet) {
+        final Set<Long> oids = new HashSet<>();
+        for (String uuidString : uuidSet) {
+            // sanity-check the uuidString
+            if (StringUtils.isEmpty(uuidString)) {
+                throw new IllegalArgumentException("Empty uuid string given: " + uuidSet);
+            }
+            // is this the special "Market" uuid string? if yes, we just return.
+            if (uuidString.equals(UuidMapper.UI_REAL_TIME_MARKET_STR)) {
+                return Collections.emptySet();
+            }
+
+            oids.add(Long.valueOf(uuidString));
         }
-        return expandOids(apiIds);
+        return expandOids(oids);
     }
 
     @Nonnull
-    public Set<Long> expandOids(@Nonnull final Set<ApiId> oidSet) {
+    public Set<Long> expandOids(@Nonnull final Set<Long> oidSet) {
         Set<Long> answer = Sets.newHashSet();
 
-        // Resolve the input IDs in bulk.
-        uuidMapper.bulkResolveGroups(oidSet);
-
-        for (final ApiId oid : oidSet) {
+        boolean isEntity = false;
+        for (final Long oid : oidSet) {
             // Assume it's group type at the beginning
             // For subsequent items, if it's group type, we continue the RPC call to Group component.
             // If not, we know it's entity type, and will just add oids to return set.
-            if (oid.isRealtimeMarket()) {
-                return Collections.emptySet();
-            } else if (oid.isGroup()) {
-                answer.addAll(oid.getScopeOids());
+            if (!isEntity) {
+                Optional<GroupAndMembers> groupAndMembers = getGroupWithMembers(Long.toString(oid));
+                if (groupAndMembers.isPresent()) {
+                    // When expanding, we take the entities (expand all the way).
+                    answer.addAll(groupAndMembers.get().entities());
+                } else {
+                    isEntity = true;
+                    answer.add(oid);
+                }
             } else {
-                answer.add(oid.oid());
+                answer.add(oid);
             }
         }
         return answer;

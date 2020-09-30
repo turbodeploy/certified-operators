@@ -46,34 +46,32 @@ public class UserScopeUtils {
      */
     public static final Set<String> OBSERVER_ROLES = ImmutableSet.of(OBSERVER, SHARED_OBSERVER, OPERATIONAL_OBSERVER);
 
-    /**
-     * entity types available to "shared" roles. Modeled after SHARED_USER_ENTITIES_LIST in classic's
-     * ScopedUserUtil.java.
-     * Please sync changes to this list with identical const in ux-app user.form.component.ts
-     */
-    public static final Set<ApiEntityType> SHARED_USER_ENTITY_TYPES = ImmutableSet.of(
-            ApiEntityType.APPLICATION_COMPONENT,
-            ApiEntityType.BUSINESS_APPLICATION,
-            ApiEntityType.BUSINESS_TRANSACTION,
-            ApiEntityType.SERVICE,
-            ApiEntityType.VIRTUAL_MACHINE,
-            ApiEntityType.DATABASE_SERVER,
-            ApiEntityType.DATABASE,
-            ApiEntityType.CONTAINER,
-            ApiEntityType.CONTAINER_POD,
-            ApiEntityType.VIRTUAL_DATACENTER
+    // entity types available to "shared" roles. Modeled after SHARED_USER_ENTITIES_LIST in classic's
+    // ScopedUserUtil.java.
+    // Please sync changes to this list with identical const in ux-app user.form.component.ts
+    public static final Set<String> SHARED_USER_ENTITY_TYPES = ImmutableSet.of(
+            ApiEntityType.APPLICATION_COMPONENT.apiStr(),
+            ApiEntityType.BUSINESS_APPLICATION.apiStr(),
+            ApiEntityType.BUSINESS_TRANSACTION.apiStr(),
+            ApiEntityType.SERVICE.apiStr(),
+            ApiEntityType.VIRTUAL_MACHINE.apiStr(),
+            ApiEntityType.DATABASE_SERVER.apiStr(),
+            ApiEntityType.DATABASE.apiStr(),
+            ApiEntityType.CONTAINER.apiStr(),
+            ApiEntityType.CONTAINER_POD.apiStr(),
+            ApiEntityType.VIRTUAL_DATACENTER.apiStr()
             );
 
     /**
      * Cloud static infrastructure EntityTypes.
      */
-    public static final Collection<ApiEntityType> STATIC_CLOUD_ENTITY_TYPES = ImmutableList.of(
-            ApiEntityType.REGION,
-            ApiEntityType.AVAILABILITY_ZONE,
-            ApiEntityType.COMPUTE_TIER,
-            ApiEntityType.STORAGE_TIER,
-            ApiEntityType.DATABASE_SERVER_TIER,
-            ApiEntityType.DATABASE_TIER);
+    public static final Collection<String> STATIC_CLOUD_ENTITY_TYPES = ImmutableList.of(
+            ApiEntityType.REGION.apiStr(),
+            ApiEntityType.AVAILABILITY_ZONE.apiStr(),
+            ApiEntityType.COMPUTE_TIER.apiStr(),
+            ApiEntityType.STORAGE_TIER.apiStr(),
+            ApiEntityType.DATABASE_SERVER_TIER.apiStr(),
+            ApiEntityType.DATABASE_TIER.apiStr());
 
 
     public static boolean isUserScoped() {

@@ -25,7 +25,6 @@ import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.action.RejectedActionsStore;
-import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
 import com.vmturbo.action.orchestrator.approval.ApprovalCommunicationConfig;
 import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
@@ -56,8 +55,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
  * Configuration for the ActionStore package.
  */
 @Configuration
-@Import({ActionOrchestratorApiConfig.class,
-    ActionOrchestratorDBConfig.class,
+@Import({ActionOrchestratorDBConfig.class,
     ActionOrchestratorGlobalConfig.class,
     ActionExecutionConfig.class,
     GroupClientConfig.class,
@@ -71,9 +69,6 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
     ApprovalCommunicationConfig.class,
     AuditCommunicationConfig.class})
 public class ActionStoreConfig {
-
-    @Autowired
-    private ActionOrchestratorApiConfig actionOrchestratorApiConfig;
 
     @Autowired
     private ActionOrchestratorDBConfig databaseConfig;
@@ -273,18 +268,6 @@ public class ActionStoreConfig {
     }
 
     /**
-     * The {@link EntitySeverityCache}.
-     *
-     * @return The {@link EntitySeverityCache}.
-     */
-    @Bean
-    public EntitySeverityCache entitySeverityCache() {
-        return new EntitySeverityCache(tpConfig.actionTopologyStore(),
-                actionOrchestratorApiConfig.entitySeverityNotificationSender(),
-                riskPropagationEnabled);
-    }
-
-    /**
      * Returns the {@link ActionStoreFactory} bean.
      *
      * @return the {@link ActionStoreFactory} bean.
@@ -305,7 +288,8 @@ public class ActionStoreConfig {
             .withAtomicActionFactory(atomicActionFactory())
             .withClock(actionOrchestratorGlobalConfig.actionOrchestratorClock())
             .withUserSessionContext(userSessionConfig.userSessionContext())
-            .withSeverityCache(entitySeverityCache())
+            .withSupplyChainService(SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
+            .withRepositoryService(RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
             .withLicenseCheckClient(licenseCheckClientConfig.licenseCheckClient())
             .withAcceptedActionsStore(acceptedActionsStore())
             .withRejectedActionsStore(rejectedActionsStore())

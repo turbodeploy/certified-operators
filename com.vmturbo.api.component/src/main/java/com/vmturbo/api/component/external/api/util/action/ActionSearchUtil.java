@@ -17,6 +17,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.collections4.CollectionUtils;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
@@ -96,7 +98,7 @@ public class ActionSearchUtil {
                                                       @Nonnull ActionPaginationRequest paginationRequest)
             throws  InterruptedException, OperationFailedException,
                     UnsupportedActionException, ExecutionException, ConversionException {
-        Set<Long> scope = groupExpander.expandOids(Collections.singleton(scopeId));
+        Set<Long> scope = groupExpander.expandOids(ImmutableSet.of(scopeId.oid()));
         if (scope.isEmpty()) {
             return paginationRequest.finalPageResponse(Collections.emptyList(), 0);
         }
@@ -156,7 +158,7 @@ public class ActionSearchUtil {
 
         final Map<ApiId, Set<Long>> originalToExpandedScope = new HashMap<>();
         for (final ApiId scopeId : scopeIds) {
-            final Set<Long> byGroup = groupExpander.expandOids(Collections.singleton(scopeId));
+            final Set<Long> byGroup = groupExpander.expandOids(Collections.singleton(scopeId.oid()));
             if (!byGroup.isEmpty()) {
                 final Set<Long> byProvider = serviceProviderExpander.expand(byGroup);
                 final Set<Long> bySupplyChain = expandSupplyChainWithRelatedEntityTypes ?

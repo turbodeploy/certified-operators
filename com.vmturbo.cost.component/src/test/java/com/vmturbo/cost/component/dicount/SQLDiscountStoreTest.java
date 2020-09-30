@@ -9,6 +9,7 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.cost.component.db.Cost;
@@ -16,7 +17,6 @@ import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
 import com.vmturbo.cost.component.discount.SQLDiscountStore;
-import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbException;
@@ -57,7 +57,7 @@ public class SQLDiscountStoreTest {
                     .build())
             .build();
     private DiscountStore discountDao = new SQLDiscountStore(dbConfig.getDslContext(),
-                new IdentityProvider(0));
+                new DefaultIdentityProvider(0));
 
     @Test
     public void testCRUD() throws DbException, DiscountNotFoundException, DuplicateAccountIdException {

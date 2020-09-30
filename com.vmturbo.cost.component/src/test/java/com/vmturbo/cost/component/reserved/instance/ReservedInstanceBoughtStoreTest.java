@@ -28,6 +28,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
@@ -42,7 +43,6 @@ import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
-import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostFilter;
@@ -75,7 +75,7 @@ public class ReservedInstanceBoughtStoreTest {
 
     private DSLContext dsl = dbConfig.getDslContext();
 
-    private ReservedInstanceSpecStore reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
+    private ReservedInstanceSpecStore reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new DefaultIdentityProvider(0), 10);
 
     private ReservedInstanceCostCalculator reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
 
@@ -84,7 +84,7 @@ public class ReservedInstanceBoughtStoreTest {
     private AccountRIMappingStore accountRIMappingStore = Mockito.mock(AccountRIMappingStore.class);
 
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore = new SQLReservedInstanceBoughtStore(dsl,
-                new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore,
+                new DefaultIdentityProvider(0), reservedInstanceCostCalculator, priceTableStore,
             entityReservedInstanceMappingStore, accountRIMappingStore, new BusinessAccountHelper());
 
     private static final int REGION_VALUE = 54;

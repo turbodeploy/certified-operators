@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.stitching;
 
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -24,6 +26,8 @@ import io.grpc.StatusRuntimeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -41,6 +45,7 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingPhase;
+import com.vmturbo.stitching.journal.JournalableOperation;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -186,8 +191,12 @@ public class StitchingManager {
         stitchingJournal.recordTargets(
             new StitchingJournalTargetEntrySupplier(targetStore, probeStore, stitchingContext)::getTargetEntries);
 
-        preStitch(preStitchScopeFactory, stitchingJournal);
-        mainStitch(preStitchScopeFactory, stitchingJournal);
+        try (TracingScope ignored = Tracing.trace("pre_stitching")) {
+            preStitch(preStitchScopeFactory, stitchingJournal);
+        }
+        try (TracingScope ignored = Tracing.trace("main_stitching")) {
+            mainStitch(preStitchScopeFactory, stitchingJournal);
+        }
 
         return stitchingContext;
     }
@@ -238,11 +247,16 @@ public class StitchingManager {
         final EntitySettingsCollection settingsCollection = graphWithSettings.constructEntitySettingsCollection();
 
         stitchingJournal.markPhase(StitchingPhase.POST_STITCHING);
+        final StitchingOperationTracer tracer = new StitchingOperationTracer();
         postStitchingOperationLibrary.getPostStitchingOperations()
                 .stream()
                 .filter(op -> !operationsToSkip.contains(op.getOperationName()))
-                .forEach(postStitchingOperation -> applyPostStitchingOperation(postStitchingOperation,
-                        scopeFactory, settingsCollection, stitchingJournal));
+                .forEach(postStitchingOperation -> {
+                    tracer.trace(postStitchingOperation);
+                    applyPostStitchingOperation(postStitchingOperation,
+                        scopeFactory, settingsCollection, stitchingJournal);
+                });
+        tracer.close();
 
         executionTimer.observe();
     }
@@ -262,9 +276,13 @@ public class StitchingManager {
         final DataMetricTimer executionTimer = PRE_STITCHING_EXECUTION_DURATION_SUMMARY.startTimer();
 
         stitchingJournal.markPhase(StitchingPhase.PRE_STITCHING);
+        final StitchingOperationTracer tracer = new StitchingOperationTracer();
         preStitchingOperationLibrary.getPreStitchingOperations().stream()
-            .forEach(preStitchingOperation -> applyPreStitchingOperation(
-                preStitchingOperation, scopeFactory, stitchingJournal));
+            .forEach(preStitchingOperation -> {
+                tracer.trace(preStitchingOperation);
+                applyPreStitchingOperation(preStitchingOperation, scopeFactory, stitchingJournal);
+            });
+        tracer.close();
 
         executionTimer.observe();
     }
@@ -284,13 +302,17 @@ public class StitchingManager {
 
         stitchingJournal.markPhase(StitchingPhase.MAIN_STITCHING);
         final DataMetricTimer executionTimer = STITCHING_EXECUTION_DURATION_SUMMARY.startTimer();
+        final StitchingOperationTracer tracer = new StitchingOperationTracer();
         stitchingOperationStore.getAllOperations().stream()
                 .sorted(probeStore.getProbeOrdering())
                 .forEach(probeOperation ->
-                        targetStore.getProbeTargets(probeOperation.probeId).forEach(
-                                target -> applyOperationForTarget(probeOperation.stitchingOperation,
-                                        scopeFactory, stitchingJournal, target.getId(),
-                                        probeOperation.probeId)));
+                    targetStore.getProbeTargets(probeOperation.probeId).forEach(target -> {
+                        tracer.trace(probeOperation.stitchingOperation);
+                        applyOperationForTarget(probeOperation.stitchingOperation,
+                            scopeFactory, stitchingJournal, target.getId(),
+                            probeOperation.probeId);
+                    }));
+        tracer.close();
         cleanupUnstitchedProxyEntities(scopeFactory, stitchingJournal);
         executionTimer.observe();
     }
@@ -651,6 +673,61 @@ public class StitchingManager {
                                                 externalEntities.size(), externalEntitiesString));
             }));
             return String.format("%s [matches=%s]", getClass().getSimpleName(), matchesBuilder);
+        }
+    }
+
+    /**
+     * A tracer for tracing individual stitching operations.
+     * When operations with the same name run consecutively, we use a single span
+     * and tag it with the number of times in a row it ran.
+     */
+    private static class StitchingOperationTracer {
+        private List<Long> iterationTimes = new ArrayList<>();
+        private long previousOperationStartTime;
+        private String previousOperationName = "";
+        private Tracing.TracingScope currentScope;
+
+        private Tracing.TracingScope trace(@Nonnull final JournalableOperation op) {
+            final String operationClassName = op.getClass().getSimpleName();
+            if (currentScope == null || !operationClassName.equals(previousOperationName)) {
+                if (currentScope != null) {
+                    endOperation();
+                }
+
+                currentScope = Tracing.trace(operationClassName);
+                previousOperationStartTime = System.nanoTime();
+            } else {
+                final long curTime = System.nanoTime();
+                final long operationDuration = curTime - previousOperationStartTime;
+                previousOperationStartTime = curTime;
+                iterationTimes.add(operationDuration);
+            }
+            previousOperationName = operationClassName;
+            return currentScope;
+        }
+
+        private void close() {
+            endOperation();
+        }
+
+        private void endOperation() {
+            if (currentScope != null) {
+                final long operationDuration = System.nanoTime() - previousOperationStartTime;
+                iterationTimes.add(operationDuration);
+
+                if (iterationTimes.size() > 1) {
+                    Tracing.log(this::stats);
+                }
+                currentScope.close();
+            }
+        }
+
+        private String stats() {
+            return String.format("%d times; %s max; %s avg; %s min",
+                iterationTimes.size(),
+                Duration.ofNanos(iterationTimes.stream().mapToLong(d -> d).max().getAsLong()).toString(),
+                Duration.ofNanos((long)iterationTimes.stream().mapToLong(d -> d).average().getAsDouble()).toString(),
+                Duration.ofNanos(iterationTimes.stream().mapToLong(d -> d).min().getAsLong()));
         }
     }
 }

@@ -25,7 +25,7 @@ import org.stringtemplate.v4.ST;
 
 import com.vmturbo.cloud.commitment.analysis.demand.CloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate.DemandTimeSeries;
-import com.vmturbo.cloud.commitment.analysis.topology.MinimalCloudTopology;
+import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 

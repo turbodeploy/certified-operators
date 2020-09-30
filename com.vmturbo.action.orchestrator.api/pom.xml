@@ -30,17 +30,6 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.platform.sdk.common</artifactId>
         </dependency>
-
-        <dependency>
-            <groupId>it.unimi.dsi</groupId>
-            <artifactId>fastutil</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.hamcrest</groupId>
-            <artifactId>hamcrest-all</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
 </project>

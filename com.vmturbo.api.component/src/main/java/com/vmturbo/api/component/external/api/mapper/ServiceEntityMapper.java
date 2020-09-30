@@ -403,7 +403,7 @@ public class ServiceEntityMapper {
      */
     @Nonnull
     public Map<Long, ServiceEntityApiDTO> entitiesWithAspects(
-            @Nonnull final Collection<TopologyEntityDTO> entities,
+            @Nonnull final List<TopologyEntityDTO> entities,
             @Nonnull EntityAspectMapper aspectMapper, @Nullable Collection<String> requestedAspects)
             throws ConversionException, InterruptedException {
 
@@ -473,12 +473,12 @@ public class ServiceEntityMapper {
                 .setSeedOid(oid)
                 .setScope(SupplyChainScope.newBuilder()
                     .addStartingEntityOid(oid)
-                    .addEntityTypesToInclude(ApiEntityType.VIRTUAL_MACHINE.typeNumber())));
+                    .addEntityTypesToInclude(ApiEntityType.VIRTUAL_MACHINE.apiStr())));
         });
         supplyChainBlockingStub.getMultiSupplyChains(builder.build()).forEachRemaining(response -> {
             result.put(response.getSeedOid(),
                 response.getSupplyChain().getSupplyChainNodesList().stream()
-                    .filter(node -> node.getEntityType() == ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                    .filter(node -> node.getEntityType().equals(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
                     .map(RepositoryDTOUtil::getMemberCount)
                     .findFirst().orElse(0));
         });

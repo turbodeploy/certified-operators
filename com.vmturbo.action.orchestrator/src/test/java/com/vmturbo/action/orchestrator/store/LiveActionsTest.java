@@ -850,7 +850,7 @@ public class LiveActionsTest {
                 1);
         liveActions.replaceMarketActions(Stream.of(move12Action, move13Action));
 
-        Map<Integer, OidSet> cloudStaticOidSet = ImmutableMap.of(ApiEntityType.COMPUTE_TIER.typeNumber(),
+        Map<String, OidSet> cloudStaticOidSet = ImmutableMap.of(ApiEntityType.COMPUTE_TIER.apiStr(),
                 new ArrayOidSet(Arrays.asList(1L, 3L)));
         // verify that a user with access to entities 0,1 and 2 can fetch move12  but not move13
         when(userSessionContext.isUserScoped()).thenReturn(true);

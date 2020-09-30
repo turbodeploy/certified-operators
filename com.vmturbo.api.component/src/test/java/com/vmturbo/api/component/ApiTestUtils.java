@@ -6,7 +6,6 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -25,28 +24,33 @@ import org.mockito.Mockito;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
-import com.vmturbo.api.component.communication.RepositoryApi.PaginatedSearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedEntityInfo;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.api.pagination.SearchPaginationRequest;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 public class ApiTestUtils {
+
+    @Nonnull
+    private static RepositoryApi.SingleEntityRequest mockSingleEntityRequest() {
+        SingleEntityRequest req = mock(SingleEntityRequest.class);
+        when(req.allowGetAll()).thenReturn(req);
+        when(req.useAspectMapper(any())).thenReturn(req);
+        when(req.contextId(any())).thenReturn(req);
+        when(req.projectedTopology()).thenReturn(req);
+        return req;
+    }
 
     @Nonnull
     public static RepositoryApi.SingleEntityRequest mockSingleEntityEmptyRequest() throws
@@ -56,36 +60,6 @@ public class ApiTestUtils {
         when(req.getEntity()).thenReturn(Optional.empty());
         when(req.getMinimalEntity()).thenReturn(Optional.empty());
         when(req.getSE()).thenReturn(Optional.empty());
-        return req;
-    }
-
-    /**
-     * Mock {@link PaginatedSearchRequest} object.
-     *
-     * @param paginationRequest The input {@link SearchPaginationRequest}.
-     * @param retDtos The DTOs to return.
-     * @return The {@link PaginatedSearchRequest}.
-     *
-     * @throws ConversionException To satisfy compiler.
-     * @throws InterruptedException To satisfy compiler.
-     */
-    @Nonnull
-    public static RepositoryApi.PaginatedSearchRequest mockPaginatedSearchRequest(@Nonnull final SearchPaginationRequest paginationRequest,
-                @Nonnull final List<ServiceEntityApiDTO> retDtos)
-            throws ConversionException, InterruptedException {
-        PaginatedSearchRequest req = mock(PaginatedSearchRequest.class);
-        when(req.requestAspects(any(), any())).thenReturn(req);
-        when(req.getResponse()).thenReturn(paginationRequest.finalPageResponse(new ArrayList<>(retDtos), retDtos.size()));
-        return req;
-    }
-
-    @Nonnull
-    private static RepositoryApi.SingleEntityRequest mockSingleEntityRequest() {
-        SingleEntityRequest req = mock(SingleEntityRequest.class);
-        when(req.allowGetAll()).thenReturn(req);
-        when(req.useAspectMapper(any())).thenReturn(req);
-        when(req.contextId(any())).thenReturn(req);
-        when(req.projectedTopology()).thenReturn(req);
         return req;
     }
 
@@ -346,23 +320,6 @@ public class ApiTestUtils {
     public static ApiId mockEntityId(final String uuid, @Nonnull final UuidMapper mockMapper) {
         return mockApiId(Long.valueOf(uuid), uuid, false, false, false, true, Optional.of(mockMapper));
     }
-
-    @Nonnull
-    public static ApiId mockEntityId(final String uuid, ApiEntityType type, @Nonnull final UuidMapper mockMapper) {
-        return mockEntityId(uuid, type, EnvironmentType.ON_PREM, mockMapper);
-    }
-
-    @Nonnull
-    public static ApiId mockEntityId(final String uuid, ApiEntityType type, EnvironmentType environmentType, @Nonnull final UuidMapper mockMapper) {
-        ApiId id = mockApiId(Long.valueOf(uuid), uuid, false, false, false, true, Optional.of(mockMapper));
-        CachedEntityInfo c = mock(CachedEntityInfo.class);
-        when(c.getEntityType()).thenReturn(type);
-        when(id.getCachedEntityInfo()).thenReturn(Optional.of(c));
-        when(c.getEnvironmentType()).thenReturn(environmentType);
-        when(id.getEnvironmentType()).thenReturn(environmentType);
-        return id;
-    }
-
 
     @Nonnull
     private static ApiId mockApiId(final long id,

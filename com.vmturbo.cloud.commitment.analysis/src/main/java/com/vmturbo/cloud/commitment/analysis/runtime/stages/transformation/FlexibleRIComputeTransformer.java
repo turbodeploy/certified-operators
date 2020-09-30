@@ -18,7 +18,7 @@ import com.vmturbo.cloud.commitment.analysis.demand.CloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate.DemandTimeSeries;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassification;
-import com.vmturbo.cloud.commitment.analysis.topology.ComputeTierFamilyResolver;
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 
 /**

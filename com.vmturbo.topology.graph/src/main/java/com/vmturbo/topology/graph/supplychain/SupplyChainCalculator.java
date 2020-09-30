@@ -96,7 +96,7 @@ public class SupplyChainCalculator {
             final SupplyChainNodeBuilder entityTypeNode =
                 resultBuilder.computeIfAbsent(
                         entityTypeId, k -> new SupplyChainNodeBuilder(
-                                                ApiEntityType.fromType(entityTypeId).typeNumber(), depth))
+                                                ApiEntityType.fromType(entityTypeId).apiStr(), depth))
                     .addEntity(entity);
 
             // add entity type arrows to the result
@@ -140,9 +140,9 @@ public class SupplyChainCalculator {
      * @param entityTypeIds a set of entity type ids
      * @return the translation to a list of entity type names
      */
-    private static List<Integer> getEntityTypeNames(@Nonnull Collection<Integer> entityTypeIds) {
+    private static List<String> getEntityTypeNames(@Nonnull Collection<Integer> entityTypeIds) {
         return entityTypeIds.stream()
-                    .map(entityTypeId -> ApiEntityType.fromType(entityTypeId).typeNumber())
+                    .map(entityTypeId -> ApiEntityType.fromType(entityTypeId).apiStr())
                     .collect(Collectors.toList());
     }
 
@@ -317,10 +317,10 @@ public class SupplyChainCalculator {
          * @param entityType entity type for {@link SupplyChainNode} to be built
          * @param depth depth of the node
          */
-        public SupplyChainNodeBuilder(int entityType, int depth) {
+        public SupplyChainNodeBuilder(@Nonnull String entityType, int depth) {
             builder = SupplyChainNode.newBuilder()
-                .setEntityType(entityType)
-                .setSupplyChainDepth(depth);
+                            .setEntityType(entityType)
+                            .setSupplyChainDepth(depth);
         }
 
         /**

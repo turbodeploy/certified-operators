@@ -25,9 +25,6 @@ import com.google.common.collect.Sets;
 
 import io.grpc.stub.StreamObserver;
 
-import org.springframework.util.CollectionUtils;
-
-import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
@@ -35,10 +32,11 @@ import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccou
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
+import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.dto.template.TemplateApiDTO;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.exceptions.ConversionException;
-import com.vmturbo.api.pagination.SearchPaginationRequest;
-import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
-import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.Builder;
@@ -47,7 +45,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceStub;
 import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -94,7 +91,6 @@ public class RepositoryApi {
 
     private final ServiceEntityMapper serviceEntityMapper;
     private final BusinessAccountMapper businessAccountMapper;
-    private final PaginationMapper paginationMapper;
 
     public RepositoryApi(@Nonnull final SeverityPopulator severityPopulator,
                          @Nonnull final RepositoryServiceBlockingStub repositoryService,
@@ -103,7 +99,6 @@ public class RepositoryApi {
                          @Nonnull final SearchServiceStub searchServiceAsyncStub,
                          @Nonnull final ServiceEntityMapper serviceEntityMapper,
                          @Nonnull BusinessAccountMapper businessAccountMapper,
-                         @Nonnull final PaginationMapper paginationMapper,
                          final long realtimeTopologyContextId) {
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -113,7 +108,6 @@ public class RepositoryApi {
         this.repositoryService = Objects.requireNonNull(repositoryService);
         this.businessAccountMapper = Objects.requireNonNull(businessAccountMapper);
         this.repositoryServiceAsyncStub = Objects.requireNonNull(repositoryServiceAsyncStub);
-        this.paginationMapper = paginationMapper;
     }
 
     /**
@@ -139,24 +133,6 @@ public class RepositoryApi {
     public SearchRequest newSearchRequestMulti(@Nonnull Collection<SearchParameters> params) {
         return new SearchRequest(realtimeTopologyContextId, searchServiceBlockingStub,
                 searchServiceAsyncStub, severityPopulator, serviceEntityMapper, params);
-    }
-
-    /**
-     * Create a new paginated search request.
-     *
-     * @param searchQuery The search query.
-     * @param extraOids An extra OID filter to use as a starting filter - used when the query
-     *                  applies within a particular scope.
-     *                  TODO (roman, Sept 28 2020): Factor this into query.
-     * @param paginationRequest The {@link SearchPaginationRequest}.
-     * @return The {@link PaginatedSearchRequest}.
-     */
-    @Nonnull
-    public PaginatedSearchRequest newPaginatedSearch(@Nonnull final SearchQuery searchQuery,
-            @Nonnull final Set<Long> extraOids,
-            @Nonnull final SearchPaginationRequest paginationRequest) {
-        return new PaginatedSearchRequest(realtimeTopologyContextId, searchServiceBlockingStub,
-                searchQuery, extraOids, serviceEntityMapper, paginationRequest, severityPopulator, paginationMapper);
     }
 
     /**
@@ -424,100 +400,6 @@ public class RepositoryApi {
                 throws ConversionException, InterruptedException {
             return new ArrayList<>(getSEMap(contextId, aspectMapper, requestedAspects).values());
         }
-    }
-
-    /**
-     * Encapsulates a "paginated" search request - i.e. where the client sends pagination-related
-     * parameters, and expects a {@link SearchPaginationResponse}.
-     */
-    public static class PaginatedSearchRequest {
-        private final long realtimeContextId;
-        private final SearchServiceBlockingStub searchServiceBlockingStub;
-        private final SearchQuery searchQuery;
-        private final Set<Long> startingOids;
-        private final SeverityPopulator severityPopulator;
-        private final ServiceEntityMapper serviceEntityMapper;
-        private EntityAspectMapper aspectMapper = null;
-        private Collection<String> requestedAspects = null;
-        private final SearchPaginationRequest searchPaginationRequest;
-        private final PaginationMapper paginationMapper;
-
-        private PaginatedSearchRequest(long realtimeContextId, SearchServiceBlockingStub searchServiceBlockingStub,
-                SearchQuery searchQuery, Set<Long> startingOids, ServiceEntityMapper serviceEntityMapper,
-                SearchPaginationRequest searchPaginationRequest,
-                SeverityPopulator severityPopulator,
-                PaginationMapper paginationMapper) {
-            this.realtimeContextId = realtimeContextId;
-            this.searchServiceBlockingStub = searchServiceBlockingStub;
-            this.searchQuery = searchQuery;
-            this.startingOids = startingOids;
-            this.serviceEntityMapper = serviceEntityMapper;
-            this.severityPopulator = severityPopulator;
-            this.searchPaginationRequest = searchPaginationRequest;
-            this.paginationMapper = paginationMapper;
-        }
-
-        /**
-         * Request specific aspects in the response.
-         *
-         * <p/>Note: Aspect mapping can be quite expensive. Avoid if the API doesn't require it!
-         *
-         * @param aspectMapper The aspect mapper to use.
-         * @param aspectNames The aspects to request.
-         * @return The request, for chaining.
-         */
-        @Nonnull
-        public PaginatedSearchRequest requestAspects(@Nonnull final EntityAspectMapper aspectMapper,
-                                                     @Nullable final Collection<String> aspectNames) {
-            this.aspectMapper = aspectMapper;
-            if (!CollectionUtils.isEmpty(aspectNames)) {
-                requestedAspects = aspectNames;
-            }
-            return this;
-        }
-
-        /**
-         * Get the {@link SearchPaginationResponse}. This makes the call to the search service,
-         * and converts the result.
-         *
-         * @return The {@link SearchPaginationResponse}.
-         * @throws InterruptedException If there is an issue waiting for a dependent operation.
-         * @throws ConversionException If there is an issue with entity conversion.
-         */
-        @Nonnull
-        public SearchPaginationResponse getResponse() throws InterruptedException, ConversionException {
-            final boolean mapAspects = aspectMapper != null;
-            SearchEntitiesResponse response = searchServiceBlockingStub.searchEntities(SearchEntitiesRequest.newBuilder()
-                    .setSearch(searchQuery)
-                    .addAllEntityOid(startingOids)
-                    .setReturnType(mapAspects ? Type.FULL : Type.API)
-                    .setPaginationParams(paginationMapper.toProtoParams(searchPaginationRequest))
-                    .build());
-            final Map<Long, ServiceEntityApiDTO> entities;
-            if (mapAspects) {
-                entities = serviceEntityMapper.entitiesWithAspects(
-                    Collections2.transform(response.getEntitiesList(), PartialEntity::getFullEntity),
-                    aspectMapper, requestedAspects);
-            } else {
-                entities = serviceEntityMapper.toServiceEntityApiDTOMap(
-                    Collections2.transform(response.getEntitiesList(), PartialEntity::getApi));
-            }
-            severityPopulator.populate(realtimeContextId, entities.values());
-            List<BaseApiDTO> orderedEntities = response.getEntitiesList().stream()
-                    .map(e -> mapAspects ? e.getFullEntity().getOid() : e.getApi().getOid())
-                    .map(entities::get)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-            return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
-                .map(nextCursor -> {
-                    return searchPaginationRequest.nextPageResponse(orderedEntities, nextCursor,
-                            response.getPaginationResponse().getTotalRecordCount());
-                }).orElseGet(() -> {
-                    return searchPaginationRequest.finalPageResponse(orderedEntities,
-                            response.getPaginationResponse().getTotalRecordCount());
-                });
-        }
-
     }
 
     /**

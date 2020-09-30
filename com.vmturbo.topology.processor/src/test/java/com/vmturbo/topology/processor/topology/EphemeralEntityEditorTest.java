@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
 import static org.hamcrest.core.Is.is;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -25,6 +26,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -57,8 +59,8 @@ public class EphemeralEntityEditorTest {
         .setPercentile(3.5)
         .build();
 
-    private static final int COMM_1_TYPE = 1;
-    private static final int COMM_2_TYPE = 2;
+    private static final int COMM_1_TYPE = CommodityDTO.CommodityType.VCPU_VALUE;
+    private static final int COMM_2_TYPE = CommodityDTO.CommodityType.VCPU_REQUEST_VALUE;
 
     private final CommoditySoldDTO sold1 = CommoditySoldDTO.newBuilder()
             .setCommodityType(CommodityType.newBuilder().setType(COMM_1_TYPE))
@@ -176,13 +178,12 @@ public class EphemeralEntityEditorTest {
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
         final CommoditySoldDTO.Builder ephemeralCommSold = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(2).setKey("bar"));
+            .setCommodityType(CommodityType.newBuilder().setType(COMM_2_TYPE).setKey("bar"));
         final CommoditySoldDTO beforeEdits = ephemeralCommSold.build();
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
         editor.applyEdits(graph);
         assertThat(ephemeralBuilder.getCommoditySoldList(0), matchesHistory(beforeEdits));
-
     }
 
     /**
@@ -196,7 +197,7 @@ public class EphemeralEntityEditorTest {
         when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
 
         final CommoditySoldDTO.Builder ephemeralCommSold = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder().setType(2).setKey("foo"));
+            .setCommodityType(CommodityType.newBuilder().setType(COMM_2_TYPE).setKey("foo"));
         ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
 
         editor.applyEdits(graph);
@@ -294,6 +295,82 @@ public class EphemeralEntityEditorTest {
         assertThat(ephemeralBuilder.getCommoditySoldList(0), matchesHistory(sold1));
         assertThat(ephemeralBuilder.getCommoditySoldList(1), matchesHistory(sold2NoKey));
         assertThat(ephemeralBuilder2.getCommoditySoldList(0), matchesHistory(sold2WithKey));
+    }
+
+    /**
+     * Test that VCPU & VCPU_REQUEST resize is disabled when scaling group members have
+     * inconsistent capacities.
+     */
+    @Test
+    public void testDisableInconsistentCapacities() {
+        final TopologyEntity container2 = mock(TopologyEntity.class);
+        final TopologyEntityDTO.Builder ephemeralBuilder2 = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.CONTAINER.getNumber());
+
+        when(container2.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
+        when(container2.getTopologyEntityDtoBuilder()).thenReturn(ephemeralBuilder2);
+
+        when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
+        when(containerSpec.getAggregatedEntities()).thenReturn(Arrays.asList(container, container2));
+        when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
+
+        final CommoditySoldDTO.Builder vcpuSold = CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+            .setCapacity(10.0)
+            .setIsResizeable(true);
+        final CommoditySoldDTO.Builder vcpuRequestSold = CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+            .setCapacity(10.0)
+            .setIsResizeable(true);
+        ephemeralBuilder.addCommoditySoldList(vcpuSold);
+        ephemeralBuilder.addCommoditySoldList(vcpuRequestSold);
+        ephemeralBuilder2.addCommoditySoldList(vcpuSold.setCapacity(11.0));
+        ephemeralBuilder2.addCommoditySoldList(vcpuRequestSold.setCapacity(9.0));
+
+        editor.applyEdits(graph);
+        assertCommoditiesNotResizable(ephemeralBuilder);
+        assertCommoditiesNotResizable(ephemeralBuilder2);
+    }
+
+    /**
+     * Test that VCPU and VCPU_REQUEST resize is disabled when scaling group members have
+     * inconsistent capacities and the inconsistency is due to different scaling factors.
+     */
+    @Test
+    public void testDisableInconsistentCapacitiesBecauseOfScalingFactor() {
+        final TopologyEntity container2 = mock(TopologyEntity.class);
+        final TopologyEntityDTO.Builder ephemeralBuilder2 = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.CONTAINER.getNumber());
+
+        when(container2.getEntityType()).thenReturn(EntityType.CONTAINER.getNumber());
+        when(container2.getTopologyEntityDtoBuilder()).thenReturn(ephemeralBuilder2);
+
+        when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
+        when(containerSpec.getAggregatedEntities()).thenReturn(Arrays.asList(container, container2));
+        when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
+
+        final CommoditySoldDTO.Builder vcpuSold = CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+            .setCapacity(10.0)
+            .setIsResizeable(true);
+        final CommoditySoldDTO.Builder vcpuRequestSold = CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+            .setCapacity(10.0)
+            .setIsResizeable(true);
+        ephemeralBuilder.addCommoditySoldList(vcpuSold);
+        ephemeralBuilder.addCommoditySoldList(vcpuRequestSold);
+        ephemeralBuilder2.addCommoditySoldList(vcpuSold.setScalingFactor(11.0));
+        ephemeralBuilder2.addCommoditySoldList(vcpuRequestSold.setCapacity(9.0));
+
+        editor.applyEdits(graph);
+        assertCommoditiesNotResizable(ephemeralBuilder);
+        assertCommoditiesNotResizable(ephemeralBuilder2);
+    }
+
+    private void assertCommoditiesNotResizable(TopologyEntityDTO.Builder ephemeralBuilder) {
+        ephemeralBuilder.getCommoditySoldListList().forEach(commSold -> {
+            assertFalse(commSold.getIsResizeable());
+        });
     }
 
     /**

@@ -1,7 +1,6 @@
 package com.vmturbo.repository.topology.protobufs;
 
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -29,7 +28,7 @@ import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
  * Reads raw topology DTOs from the database in chunks.
  *
  */
-public class TopologyProtobufReader extends TopologyProtobufHandler implements Iterator<List<ProjectedTopologyEntity>> {
+public class TopologyProtobufReader extends TopologyProtobufHandler {
 
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
@@ -56,13 +55,11 @@ public class TopologyProtobufReader extends TopologyProtobufHandler implements I
         return database.collection(collectionName);
     }
 
-    @Override
     public boolean hasNext() {
         return sequenceNumber < count;
     }
 
-    @Override
-    public List<ProjectedTopologyEntity> next() {
+    public List<ProjectedTopologyEntity> nextChunk() {
         BaseDocument doc = topologyCollection.getDocument(String.valueOf(sequenceNumber), BaseDocument.class);
         logger.debug("...fetch next chunk, doc properties size:  {}", doc.getProperties().size());
         sequenceNumber++;

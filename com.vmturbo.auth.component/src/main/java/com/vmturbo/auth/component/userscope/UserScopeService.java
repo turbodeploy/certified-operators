@@ -315,8 +315,7 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
         // for "shared" users, we should only include specific entity types.
         if (excludeInfrastructureEntities) {
             logger.debug("Adding filter for shared entity types: {}", UserScopeUtils.SHARED_USER_ENTITY_TYPES);
-            UserScopeUtils.SHARED_USER_ENTITY_TYPES.forEach(e ->
-                supplyChainRequestBuilder.getScopeBuilder().addEntityTypesToInclude(e.typeNumber()));
+            supplyChainRequestBuilder.getScopeBuilder().addAllEntityTypesToInclude(UserScopeUtils.SHARED_USER_ENTITY_TYPES);
         }
         final GetSupplyChainRequest supplyChainRequest = supplyChainRequestBuilder.build();
 
@@ -331,17 +330,18 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
                 response.getMissingStartingEntitiesList());
         }
 
-        response.getSupplyChainNodesList().forEach(node -> {
-            // add all of these members into both the type-specific oid set as well as the
-            // global set of accessible oids
-            OidSetDTO.Builder typeSetBuilder = OidSetDTO.newBuilder();
-            node.getMembersByStateMap().values()
-                .forEach(memberList -> {
-                    typeSetBuilder.getArrayBuilder().addAllOids(memberList.getMemberOidsList());
-                    accessibleEntities.addAll(memberList.getMemberOidsList());
+        response.getSupplyChainNodesList().stream()
+                .forEach(node -> {
+                    // add all of these members into both the type-specific oid set as well as the
+                    // global set of accessible oids
+                    OidSetDTO.Builder typeSetBuilder = OidSetDTO.newBuilder();
+                    node.getMembersByStateMap().values().stream()
+                            .forEach(memberList -> {
+                                typeSetBuilder.getArrayBuilder().addAllOids(memberList.getMemberOidsList());
+                                accessibleEntities.addAll(memberList.getMemberOidsList());
+                            });
+                    contentsBuilder.putAccessibleOidsByEntityType(node.getEntityType(), typeSetBuilder.build());
                 });
-            contentsBuilder.putAccessibleOidsByEntityType(node.getEntityType(), typeSetBuilder.build());
-        });
         // convert the set to a primitive array, which we will both cache and send back to the caller
         OidArray.Builder accessibleOidArrayBuilder = OidArray.newBuilder();
         for (Long oid : accessibleEntities) {

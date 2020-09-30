@@ -608,7 +608,11 @@ public class AuthProvider extends AuthProviderBase {
 
             while (groups.hasNext()) {
                 Collection<ApiEntityType> entityTypes = GroupProtoUtil.getEntityTypes(groups.next());
-                if (entityTypes.size() == 0 || !UserScopeUtils.SHARED_USER_ENTITY_TYPES.containsAll(entityTypes)) {
+                final Set<String> groupEntityTypes = entityTypes
+                                .stream()
+                                .map(ApiEntityType::apiStr)
+                                .collect(Collectors.toSet());
+                if (entityTypes.size() == 0 || !UserScopeUtils.SHARED_USER_ENTITY_TYPES.containsAll(groupEntityTypes)) {
                     // invalid group assignment
                     throw new IllegalArgumentException("Shared users can only be scoped to groups of VM's or Applications!");
                 }

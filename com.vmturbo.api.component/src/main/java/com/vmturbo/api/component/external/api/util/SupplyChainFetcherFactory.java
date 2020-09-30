@@ -28,18 +28,14 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-
 import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
@@ -68,7 +64,6 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainStatsRequest;
@@ -77,9 +72,10 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainGroupB
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -156,11 +152,7 @@ public class SupplyChainFetcherFactory {
 
     private final GroupExpander groupExpander;
 
-    private UuidMapper uuidMapper;
-
     private final long realtimeTopologyContextId;
-
-    private static final long PLACEHOLDER_KEY = 1L;
 
     //Mapper for getting aspects for entity or group
     private final EntityAspectMapper entityAspectMapper;
@@ -179,10 +171,6 @@ public class SupplyChainFetcherFactory {
         this.groupExpander = groupExpander;
         this.costServiceBlockingStub = costServiceBlockingStub;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
-    }
-
-    public void setUuidMapper(UuidMapper uuidMapper) {
-        this.uuidMapper = uuidMapper;
     }
 
     /**
@@ -251,27 +239,13 @@ public class SupplyChainFetcherFactory {
     }
 
     /**
-     * Expand multiple aggregated entities with the minimum number of RPC calls.
-     *
-     * @param entityOidsToExpand Groups of entity OIDs to expand, arranged by an ID. The ID can be
-     *        any number; it doesn't have to refer to an object in the system.
-     * @return Map from input id to the set of entity OIDs
-     */
-    public Map<Long, Set<Long>> bulkExpandAggregatedEntities(Map<Long, Set<Long>> entityOidsToExpand) {
-        return expandAggregatedEntities(entityOidsToExpand, ApiEntityType.ENTITY_TYPES_TO_EXPAND);
-    }
-
-    /**
      * Calls the expand aggregate function with {@link #ENTITY_TYPES_TO_EXPAND}.
      *
      * @param entityOidsToExpand the input set of ServiceEntity oids
      * @return the input set with oids of aggregating entities substituted by their expansions.
      */
-    public Set<Long> expandAggregatedEntities(Set<Long> entityOidsToExpand) {
-        return expandAggregatedEntities(
-                Collections.singletonMap(PLACEHOLDER_KEY, entityOidsToExpand),
-                ApiEntityType.ENTITY_TYPES_TO_EXPAND)
-            .get(PLACEHOLDER_KEY);
+    public Set<Long> expandAggregatedEntities(Collection<Long> entityOidsToExpand) {
+        return expandAggregatedEntities(entityOidsToExpand, ApiEntityType.ENTITY_TYPES_TO_EXPAND);
     }
 
     /**
@@ -288,101 +262,65 @@ public class SupplyChainFetcherFactory {
      * @return the input set with oids of aggregating entities substituted by their
      *         expansions
      */
-    private Map<Long, Set<Long>> expandAggregatedEntities(Map<Long, Set<Long>> entityOidsToExpand,
+    public Set<Long> expandAggregatedEntities(Collection<Long> entityOidsToExpand,
                                               Map<ApiEntityType, Set<ApiEntityType>>  expandingMap) {
-        // Build up a list of ApiIds for all the ids in the input. This is to help do the
-        // expansion in bulk, and utilize any client-side cached information about these ids.
-        Map<Long, ApiId> allIds = entityOidsToExpand.values().stream()
-                .flatMap(Collection::stream)
-                .collect(Collectors.toMap(Function.identity(), uuidMapper::fromOid));
-        if (allIds.isEmpty()) {
-            // If there are no entities we just have a bunch of empty lists.
-            return entityOidsToExpand;
+        // Early return if the input is empty, to prevent making
+        // the initial RPC call.
+        if (entityOidsToExpand.isEmpty()) {
+            return Collections.emptySet();
         }
 
-        // Ensure that the entity oids are resolved (i.e. we know if its an entity).
-        uuidMapper.bulkResolveEntities(allIds.values());
+        final Set<String> entityTypeString = expandingMap.keySet().stream()
+            .map(ApiEntityType::apiStr)
+            .collect(Collectors.toSet());
+        final Set<Long> expandedEntityOids = Sets.newHashSet();
+        // get all service entities which need to expand.
+        final Map<Long, MinimalEntity> expandServiceEntities = repositoryApi.newSearchRequest(
+            SearchProtoUtil.makeSearchParameters(SearchProtoUtil.idFilter(entityOidsToExpand))
+                .addSearchFilter(SearchFilter.newBuilder()
+                    .setPropertyFilter(SearchProtoUtil.entityTypeFilter(entityTypeString))
+                    .build())
+                .build())
+            .getMinimalEntities()
+            .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
 
-        // For each collection in the input, create a SupplyChainSeed.
-        // This seed contains all the entities in that collection which need to be expanded.
-        List<SupplyChainSeed> supplyChainSeeds = new ArrayList<>(entityOidsToExpand.size());
-        // This will be the response, containing the set of entities each seed should be expanded
-        // to.
-        final Map<Long, Set<Long>> expandedResponse = new HashMap<>(entityOidsToExpand.size());
-        for (Entry<Long, Set<Long>> inputOidGroup : entityOidsToExpand.entrySet()) {
-            Long oidGroupIdx = inputOidGroup.getKey();
-            Collection<Long> oidGroup = inputOidGroup.getValue();
-            Set<Long> unexpandedOids = new HashSet<>();
-            Set<Long> oidsToExpand = new HashSet<>();
-            Set<ApiEntityType> typesToExpandTo = new HashSet<>();
-            oidGroup.forEach(oid -> {
-                ApiId id = allIds.get(oid);
-                if (id.isEntity()) {
-                    // Some entity types need to be expanded.
-                    id.getCachedEntityInfo().ifPresent(entityInfo -> {
-                        Set<ApiEntityType> expandTo = expandingMap.get(entityInfo.getEntityType());
-                        if (!CollectionUtils.isEmpty(expandTo)) {
-                            oidsToExpand.add(oid);
-                            typesToExpandTo.addAll(expandTo);
-                        } else {
-                            unexpandedOids.add(oid);
-                        }
-                    });
-                } else {
-                    // Non-entities don't get expanded.
-                    unexpandedOids.add(oid);
-                }
-            });
-
-            // This adds the unexpanded oids to the response at the right index.
-            expandedResponse.put(oidGroupIdx, unexpandedOids);
-
-            // If some of the entities in this group of oids need to be expanded, we add a
-            // supply chain seed for this group.
-            if (!oidsToExpand.isEmpty()) {
-                SupplyChainSeed.Builder seedBldr = SupplyChainSeed.newBuilder()
-                        // The seed OID is the index in the response list.
-                        .setSeedOid(oidGroupIdx)
-                        .setScope(SupplyChainScope.newBuilder()
-                            .addAllStartingEntityOid(oidsToExpand));
-                // Only want the types we are looking to expand to.
-                typesToExpandTo.forEach(t -> seedBldr.getScopeBuilder().addEntityTypesToInclude(t.typeNumber()));
-                supplyChainSeeds.add(seedBldr.build());
-            }
-        }
-
-        if (!supplyChainSeeds.isEmpty()) {
+        // go through each entity and check if it needs to expand.
+        for (Long oidToExpand : entityOidsToExpand) {
             try {
-                supplyChainRpcService.getMultiSupplyChains(GetMultiSupplyChainsRequest.newBuilder()
-                        .addAllSeeds(supplyChainSeeds)
-                        .build()).forEachRemaining(response -> {
-                    if (response.hasSeedOid() && response.hasSupplyChain()) {
-                        for (SupplyChainNode relatedEntities : response.getSupplyChain().getSupplyChainNodesList()) {
-                            // Add the expanded entities into the response at the index specified by
-                            // the seed.
-                            expandedResponse.computeIfAbsent(response.getSeedOid(), k -> new HashSet<>()).addAll(
-                                    RepositoryDTOUtil.getAllMemberOids(relatedEntities));
-                        }
-                    } else if (response.hasError()) {
-                        if (response.hasSeedOid()) {
-                            logger.error("Failed to get supply chain for seed {}. Error: {}",
-                                    entityOidsToExpand.get(response.getSeedOid()), response.getError());
-                            expandedResponse.put(response.getSeedOid(), entityOidsToExpand.get(response.getSeedOid()));
-                        } else {
-                            logger.error("Failed to get supply chain. Error: {}", response.getError());
-                        }
+                // if expandServiceEntityMap contains oid, it means current oid entity needs to expand.
+                if (expandServiceEntities.containsKey(oidToExpand)) {
+                    final MinimalEntity expandEntity = expandServiceEntities.get(oidToExpand);
+                    final List<String> relatedEntityTypes =
+                            expandingMap.getOrDefault(ApiEntityType.fromType(expandEntity.getEntityType()), Collections.emptySet())
+                            .stream()
+                            .map(ApiEntityType::apiStr)
+                            .collect(Collectors.toList());
+                    if (relatedEntityTypes.isEmpty()) {
+                        continue;
                     }
-                });
-            } catch (StatusRuntimeException e) {
-                logger.error("Failed to query supply chain service. Error: {}. Returning unexpanded seeds.", e.toString());
-                supplyChainSeeds.forEach(seed -> {
-                    // Include unexpanded seed.
-                    expandedResponse.put(seed.getSeedOid(), entityOidsToExpand.get(seed.getSeedOid()));
-                });
+                    // fetch the supply chain map:  entity type -> SupplyChainNode
+                    Map<String, SupplyChainNode> supplyChainMap = newNodeFetcher()
+                        .entityTypes(relatedEntityTypes)
+                        .addSeedUuid(Long.toString(expandEntity.getOid()))
+                        .fetch();
+                    if (!supplyChainMap.isEmpty()) {
+                        for (SupplyChainNode relatedEntities : supplyChainMap.values()) {
+                            expandedEntityOids.addAll(RepositoryDTOUtil.getAllMemberOids(relatedEntities));
+                        }
+                    } else {
+                        logger.warn("RelatedEntityType {} not found in supply chain for {}; " +
+                            "the entity is discarded", relatedEntityTypes, expandEntity.getOid());
+                    }
+                } else {
+                    expandedEntityOids.add(oidToExpand);
+                }
+            } catch (OperationFailedException e) {
+                logger.warn("Error fetching supplychain for {}: ", oidToExpand, e.getMessage());
+                // include the OID unexpanded
+                expandedEntityOids.add(oidToExpand);
             }
         }
-
-        return expandedResponse;
+        return expandedEntityOids;
     }
 
     /**
@@ -434,11 +372,17 @@ public class SupplyChainFetcherFactory {
 
         @Override
         public Set<Long> fetchEntityIds() throws OperationFailedException {
-            return new SupplychainNodeFetcher(
-                        realtimeTopologyContextId, topologyContextId, seedUuids, entityTypes,
-                        entityStates, environmentType, supplyChainRpcService, groupExpander,
-                        enforceUserScope, repositoryApi)
-                    .fetchEntityIds();
+            try {
+                return
+                    new SupplychainNodeFetcher(
+                            realtimeTopologyContextId, topologyContextId, seedUuids, entityTypes,
+                            entityStates, environmentType, supplyChainRpcService, groupExpander,
+                            enforceUserScope, repositoryApi)
+                        .fetchEntityIds();
+            } catch (InterruptedException|ExecutionException|TimeoutException e) {
+                throw new OperationFailedException("Failed to fetch supply chain! Error: "
+                        + e.getMessage());
+            }
         }
 
         @Override
@@ -547,14 +491,20 @@ public class SupplyChainFetcherFactory {
 
         @Override
         @Nonnull
-        public Set<Long> fetchEntityIds() throws OperationFailedException {
-            return new SupplychainApiDTOFetcher(
-                realtimeTopologyContextId, topologyContextId, seedUuids, entityTypes,
-                entityStates, environmentType, entityDetailType, aspectsToInclude,
-                includeHealthSummary, supplyChainRpcService, severityRpcService,
-                repositoryApi, groupExpander, entityAspectMapper, enforceUserScope,
-                costServiceBlockingStub)
-                .fetchEntityIds();
+        public Set<Long> fetchEntityIds() throws OperationFailedException, InterruptedException {
+            try {
+                return
+                    new SupplychainApiDTOFetcher(
+                        realtimeTopologyContextId, topologyContextId, seedUuids, entityTypes,
+                        entityStates, environmentType, entityDetailType, aspectsToInclude,
+                        includeHealthSummary, supplyChainRpcService, severityRpcService,
+                        repositoryApi, groupExpander, entityAspectMapper, enforceUserScope,
+                        costServiceBlockingStub)
+                        .fetchEntityIds();
+            } catch (ExecutionException | TimeoutException e) {
+                throw new OperationFailedException("Failed to fetch supply chain! Error: "
+                        + e.getMessage());
+            }
         }
 
         @Override
@@ -596,7 +546,7 @@ public class SupplyChainFetcherFactory {
 
         protected final Set<String> seedUuids = Sets.newHashSet();
 
-        protected final Set<ApiEntityType> entityTypes = Sets.newHashSet();
+        protected final Set<String> entityTypes = Sets.newHashSet();
 
         protected final Set<EntityState> entityStates = Sets.newHashSet();
 
@@ -686,9 +636,10 @@ public class SupplyChainFetcherFactory {
                             // The "Workload" type is UI-only, and represents a collection of
                             // entity types that count as a workload in our system. Expand the
                             // magic type into the real types it represents.
-                            return ApiEntityType.WORKLOAD_ENTITY_TYPES.stream();
+                            return ApiEntityType.WORKLOAD_ENTITY_TYPES.stream()
+                                .map(ApiEntityType::apiStr);
                         } else {
-                            return Stream.of(ApiEntityType.fromString(type));
+                            return Stream.of(type);
                         }
                     })
                     .forEach(this.entityTypes::add);
@@ -773,7 +724,7 @@ public class SupplyChainFetcherFactory {
 
         protected final Set<String> seedUuids;
 
-        private final Set<ApiEntityType> entityTypes;
+        private final Set<String> entityTypes;
 
         private final Set<EntityState> entityStates;
 
@@ -790,7 +741,7 @@ public class SupplyChainFetcherFactory {
         private SupplychainFetcher(final long realtimeTopologyContextId,
                                    final long topologyContextId,
                                    @Nullable final Set<String> seedUuids,
-                                   @Nullable final Set<ApiEntityType> entityTypes,
+                                   @Nullable final Set<String> entityTypes,
                                    @Nullable final Set<EntityState> entityStates,
                                    @Nonnull final Optional<EnvironmentTypeEnum.EnvironmentType> environmentType,
                                    @Nonnull SupplyChainServiceBlockingStub supplyChainRpcService,
@@ -813,7 +764,7 @@ public class SupplyChainFetcherFactory {
                 throws InterruptedException, ConversionException;
 
         public final T fetch() throws InterruptedException, ExecutionException, TimeoutException,
-                ConversionException, OperationFailedException {
+                ConversionException {
             return processSupplyChain(fetchSupplyChainNodes());
         }
 
@@ -822,10 +773,14 @@ public class SupplyChainFetcherFactory {
          * of all the entities in the supply chain.
          *
          * @return the set of ids of all the entities in the supply chain.s
-         * @throws OperationFailedException If there is an error with scope expansion.
+         * @throws InterruptedException
+         * @throws ExecutionException
+         * @throws TimeoutException
          */
-        public final Set<Long> fetchEntityIds() throws  OperationFailedException {
-            return fetchSupplyChainNodes().stream()
+        public final Set<Long> fetchEntityIds()
+                throws InterruptedException, ExecutionException, TimeoutException {
+            return
+                fetchSupplyChainNodes().stream()
                     .map(SupplyChainNode::getMembersByStateMap)
                     .map(Map::values)
                     .flatMap(memberList ->
@@ -833,27 +788,28 @@ public class SupplyChainFetcherFactory {
                     .collect(Collectors.toSet());
         }
 
-        private Optional<SupplyChainScope> createSupplyChainScope()
-                throws OperationFailedException {
+        private Optional<SupplyChainScope> createSupplyChainScope() {
             SupplyChainScope.Builder scopeBuilder = SupplyChainScope.newBuilder();
             // if list of seed uuids has limited scope,then expand it; if global scope, don't expand
             if (UuidMapper.hasLimitedScope(seedUuids)) {
 
                 // expand any groups in the input list of seeds
-                Set<Long> expandedUuids = groupExpander.expandUuids(CollectionUtils.emptyIfNull(seedUuids));
+                Set<String> expandedUuids = groupExpander.expandUuids(seedUuids).stream()
+                    .map(l -> Long.toString(l))
+                    .collect(Collectors.toSet());
                 // empty expanded list?  If so, return immediately
                 if (expandedUuids.isEmpty()) {
                     return Optional.empty();
                 }
                 // otherwise add the expanded list of seed uuids to the request
-                scopeBuilder.addAllStartingEntityOid(expandedUuids);
+                scopeBuilder.addAllStartingEntityOid(expandedUuids.stream()
+                    .map(Long::valueOf)
+                    .collect(Collectors.toList()));
             }
 
             // If entityTypes is specified, include that in the request
             if (CollectionUtils.isNotEmpty(entityTypes)) {
-                entityTypes.forEach(type -> {
-                    scopeBuilder.addEntityTypesToInclude(type.typeNumber());
-                });
+                scopeBuilder.addAllEntityTypesToInclude(entityTypes);
             }
 
             if (CollectionUtils.isNotEmpty(entityStates)) {
@@ -864,8 +820,7 @@ public class SupplyChainFetcherFactory {
             return Optional.of(scopeBuilder.build());
         }
 
-        final List<SupplyChainStat> fetchStats(@Nonnull final List<SupplyChainGroupBy> groupBy)
-                throws OperationFailedException {
+        final List<SupplyChainStat> fetchStats(@Nonnull final List<SupplyChainGroupBy> groupBy) {
             Optional<SupplyChainScope> scope = createSupplyChainScope();
             if (scope.isPresent()) {
                 return supplyChainRpcService.getSupplyChainStats(GetSupplyChainStatsRequest.newBuilder()
@@ -883,11 +838,11 @@ public class SupplyChainFetcherFactory {
          * of the timeout.
          *
          * @return The {@link SupplychainApiDTO} populated with the supply chain search results.
-         * @throws OperationFailedException If there is an error expanding scope IDs.
          */
-        final List<SupplyChainNode> fetchSupplyChainNodes() throws OperationFailedException {
-            if (UuidMapper.hasLimitedScope(seedUuids)
-                    && seedUuids.size() == 1) {
+        final List<SupplyChainNode> fetchSupplyChainNodes()
+                throws InterruptedException, ExecutionException, TimeoutException {
+            if (UuidMapper.hasLimitedScope(seedUuids) &&
+                seedUuids.size() == 1) {
                 final String groupUuid = seedUuids.iterator().next();
                 final Optional<GroupAndMembers> groupWithMembers =
                     groupExpander.getGroupWithMembers(groupUuid);
@@ -913,8 +868,12 @@ public class SupplyChainFetcherFactory {
                     // supply chain API. In the long term there should be a better API to retrieve this
                     // (e.g. some sort of "entity counts" API for grouped severities,
                     //       and/or options on the /search API for aspects)
-                    if (CollectionUtils.isNotEmpty(entityTypes)) {
-                        final Set<ApiEntityType> groupTypes = GroupProtoUtil.getEntityTypes(group);
+                    if (CollectionUtils.size(entityTypes) > 0) {
+                        final List<String> groupTypes = GroupProtoUtil
+                            .getEntityTypes(group)
+                            .stream()
+                            .map(ApiEntityType::apiStr)
+                            .collect(Collectors.toList());
 
                         if (groupTypes.containsAll(entityTypes)) {
                             if (groupWithMembers.get().entities().isEmpty()) {
@@ -924,9 +883,10 @@ public class SupplyChainFetcherFactory {
                             final Map<ApiEntityType, Set<Long>> typeToMembers =
                                 groupExpander.expandUuidToTypeToEntitiesMap(group.getId());
 
-                            return entityTypes.stream()
+                            return entityTypes
+                                .stream()
                                 .map(type -> createSupplyChainNode(type,
-                                    typeToMembers.get(type),
+                                    typeToMembers.get(ApiEntityType.fromString(type)),
                                     group, null, null))
                                 .filter(Optional::isPresent)
                                 .map(Optional::get)
@@ -1003,8 +963,8 @@ public class SupplyChainFetcherFactory {
         private List<SupplyChainNode> createSupplyChainForResourceGroup(
             GroupAndMembers groupAndMembers) {
             final Set<Long> entities = new HashSet<>(groupAndMembers.entities());
-            final Map<ApiEntityType, Set<ApiEntityType>> connectionsProvider = new HashMap<>();
-            final Map<ApiEntityType, Set<ApiEntityType>> connectionsConsumer = new HashMap<>();
+            final Map<ApiEntityType, Set<String>> connectionsProvider = new HashMap<>();
+            final Map<ApiEntityType, Set<String>> connectionsConsumer = new HashMap<>();
             final Map<ApiEntityType, Set<Long>> entitiesMap = new HashMap<>();
             final boolean limitedTypes = CollectionUtils.isNotEmpty(entityTypes);
 
@@ -1013,7 +973,7 @@ public class SupplyChainFetcherFactory {
                     final ApiEntityType firstEntityType =
                         ApiEntityType.fromType(entity.getEntityType());
                     final boolean entityInScope =
-                        !limitedTypes || entityTypes.contains(firstEntityType);
+                        !limitedTypes || entityTypes.contains(firstEntityType.apiStr());
 
                     if (entityInScope) {
                         entitiesMap.computeIfAbsent(ApiEntityType.fromType(entity.getEntityType()),
@@ -1039,7 +999,7 @@ public class SupplyChainFetcherFactory {
                     providers
                         .forEach(p -> {
                             // If the type is not part of requested entity continue
-                            if (limitedTypes && !entityTypes.contains(p.second)) {
+                            if (limitedTypes && !entityTypes.contains(p.second.apiStr())) {
                                 return;
                             }
 
@@ -1059,17 +1019,17 @@ public class SupplyChainFetcherFactory {
                                 final ApiEntityType providerType = p.second;
                                 connectionsProvider
                                     .computeIfAbsent(consumerType, t -> new HashSet<>())
-                                    .add(providerType);
+                                    .add(providerType.apiStr());
                                 connectionsConsumer
                                     .computeIfAbsent(providerType, t -> new HashSet<>())
-                                    .add(consumerType);
+                                    .add(consumerType.apiStr());
                             }
                         });
                 });
 
             return entitiesMap.entrySet()
                 .stream()
-                .map(e -> createSupplyChainNode(e.getKey(), e.getValue(),
+                .map(e -> createSupplyChainNode(e.getKey().apiStr(), e.getValue(),
                     groupAndMembers.group(), connectionsProvider.get(e.getKey()),
                     connectionsConsumer.get(e.getKey())))
                 .filter(Optional::isPresent)
@@ -1077,11 +1037,11 @@ public class SupplyChainFetcherFactory {
                 .collect(Collectors.toList());
         }
 
-        private Optional<SupplyChainNode> createSupplyChainNode(ApiEntityType type,
+        private Optional<SupplyChainNode> createSupplyChainNode(String type,
                                                                 Set<Long> entities,
                                                                 final Grouping group,
-                                                                final Set<ApiEntityType> providerSet,
-                                                                final Set<ApiEntityType> consumerSet
+                                                                final Set<String> providerSet,
+                                                                final Set<String> consumerSet
         ) {
             if (CollectionUtils.isEmpty(entities)) {
                 return Optional.empty();
@@ -1111,22 +1071,18 @@ public class SupplyChainFetcherFactory {
                 filteredMembers = entities;
             }
             final SupplyChainNode.Builder nodeBuilder = SupplyChainNode.newBuilder()
-                .setEntityType(type.typeNumber())
+                .setEntityType(type)
                 .putMembersByState(EntityState.POWERED_ON_VALUE,
                     MemberList.newBuilder()
                         .addAllMemberOids(filteredMembers)
                         .build());
 
             if (providerSet != null) {
-                providerSet.forEach(t -> {
-                    nodeBuilder.addConnectedProviderTypes(t.typeNumber());
-                });
+                nodeBuilder.addAllConnectedProviderTypes(providerSet);
             }
 
             if (consumerSet != null) {
-                consumerSet.forEach(t -> {
-                    nodeBuilder.addConnectedConsumerTypes(t.typeNumber());
-                });
+                nodeBuilder.addAllConnectedConsumerTypes(consumerSet);
             }
 
             return Optional.of(nodeBuilder.build());
@@ -1161,7 +1117,7 @@ public class SupplyChainFetcherFactory {
         private SupplychainNodeFetcher(final long realtimeTopologyContextId,
                                        final long topologyContextId,
                                        @Nullable final Set<String> seedUuids,
-                                       @Nullable final Set<ApiEntityType> entityTypes,
+                                       @Nullable final Set<String> entityTypes,
                                        @Nullable final Set<EntityState> entityStates,
                                        @Nonnull final Optional<EnvironmentType> environmentType,
                                        @Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,
@@ -1177,7 +1133,7 @@ public class SupplyChainFetcherFactory {
         public Map<String, SupplyChainNode> processSupplyChain(
                 @Nonnull final List<SupplyChainNode> supplyChainNodes) {
             return supplyChainNodes.stream()
-                .collect(Collectors.toMap(t -> ApiEntityType.fromType(t.getEntityType()).apiStr(), Function.identity()));
+                .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
         }
     }
 
@@ -1214,7 +1170,7 @@ public class SupplyChainFetcherFactory {
         private SupplychainApiDTOFetcher(final long realtimeTopologyContextId,
                                         final long topologyContextId,
                                          @Nullable final Set<String> seedUuids,
-                                         @Nullable final Set<ApiEntityType> entityTypes,
+                                         @Nullable final Set<String> entityTypes,
                                          @Nullable final Set<EntityState> entityStates,
                                          @Nonnull final Optional<EnvironmentType> environmentType,
                                          @Nullable final EntityDetailType entityDetailType,
@@ -1406,7 +1362,7 @@ public class SupplyChainFetcherFactory {
             StreamSupport.stream(response.spliterator(), false)
                 .forEach(chunk -> {
                     if (chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY) {
-                        chunk.getEntitySeverity().getEntitySeverityList().forEach(entitySeverity -> {
+                        chunk.getEntitySeverity().getEntitySeverityList().stream().forEach(entitySeverity -> {
                             // If no severity is provided by the AO, default to normal
                             Severity effectiveSeverity = entitySeverity.hasSeverity()
                                 ? entitySeverity.getSeverity()
@@ -1448,15 +1404,11 @@ public class SupplyChainFetcherFactory {
             logger.debug("Compiling results for {}", node.getEntityType());
 
             // This is thread-safe because we're doing it in a synchronized method.
-            resultApiDTO.getSeMap().computeIfAbsent(ApiEntityType.fromType(node.getEntityType()).apiStr(), entityType -> {
+            resultApiDTO.getSeMap().computeIfAbsent(node.getEntityType(), entityType -> {
                 // first SupplychainEntryDTO for this entity type; create one and just store the values
                 final SupplychainEntryDTO supplyChainEntry = new SupplychainEntryDTO();
-                supplyChainEntry.setConnectedConsumerTypes(node.getConnectedConsumerTypesList().stream()
-                    .map(ApiEntityType::fromSdkTypeToEntityTypeString)
-                    .collect(Collectors.toSet()));
-                supplyChainEntry.setConnectedProviderTypes(node.getConnectedProviderTypesList().stream()
-                    .map(ApiEntityType::fromSdkTypeToEntityTypeString)
-                    .collect(Collectors.toSet()));
+                supplyChainEntry.setConnectedConsumerTypes(new HashSet<>(node.getConnectedConsumerTypesList()));
+                supplyChainEntry.setConnectedProviderTypes(new HashSet<>(node.getConnectedProviderTypesList()));
                 supplyChainEntry.setDepth(node.getSupplyChainDepth());
                 supplyChainEntry.setInstances(serviceEntityApiDTOS);
 
