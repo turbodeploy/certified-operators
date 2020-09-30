@@ -1089,6 +1089,11 @@ public class MarketsServiceTest {
         doReturn(plan).when(planInfo).getPlanInstance();
         doReturn(Optional.of(planInfo)).when(mockApi).getCachedPlanInfo();
 
+        final MarketApiDTO marketApiDTO = new MarketApiDTO();
+        marketApiDTO.setUuid(planUuid);
+        marketApiDTO.setDisplayName(plan.getName());
+        when(marketMapper.dtoFromPlanInstance(any())).thenReturn(marketApiDTO);
+
         final ArgumentCaptor<UpdatePlanRequest> argument = ArgumentCaptor.forClass(UpdatePlanRequest.class);
         doReturn(planDefault).when(planBackend).updatePlan(argument.capture());
         final String displayName = "newPlanName";

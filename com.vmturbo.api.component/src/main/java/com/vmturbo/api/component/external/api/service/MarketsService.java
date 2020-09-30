@@ -392,9 +392,19 @@ public class MarketsService implements IMarketsService {
                     + " doesn't belong to a plan or a real-time market.");
         }
         licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);        // Look up the plan instance.
-        long planId = apiId.oid();
-        final PlanInstance planInstance = getPlanInstance(planId);
+        final PlanInstance planInstance = getPlanInstance(apiId.oid());
+        return getMarketApiDto(planInstance);
+    }
 
+    /**
+     * Gets API DTO to be returned to UI when plan is updated.
+     *
+     * @param planInstance Instance of plan that is updated, e.g plan name change.
+     * @return Instance of MarketApiDTO
+     * @throws Exception Thrown on translation error.
+     */
+    @Nonnull
+    private MarketApiDTO getMarketApiDto(@Nonnull final PlanInstance planInstance) throws Exception {
         MarketApiDTO marketApiDTO;
         if (planInstance.hasPlanProjectId()) {
             // This could be the main plan (like Consumption plan), that is part of a MCP project.
@@ -405,11 +415,10 @@ public class MarketsService implements IMarketsService {
             marketApiDTO = marketMapper.dtoFromPlanInstance(planInstance);
         }
         marketApiDTO.setEnvironmentType(getEnvironmentType());
-
         // set unplaced entities
         try {
-            marketApiDTO.setUnplacedEntities(!getUnplacedEntitiesByMarketUuid(String.valueOf(planId))
-                    .isEmpty());
+            marketApiDTO.setUnplacedEntities(!getUnplacedEntitiesByMarketUuid(String.valueOf(
+                    planInstance.getPlanId())).isEmpty());
         } catch (Exception e) {
             logger.error("getMarketByUuid(): Error while checking if there are unplaced entities: {}",
                     e.getMessage());
@@ -963,10 +972,7 @@ public class MarketsService implements IMarketsService {
                 .setPlanId(planInstance.getPlanId())
                 .setName(displayName)
                 .build();
-
-        final PlanInstance updatePlanInstance = planRpcService.updatePlan(updatePlanRequest);
-
-        return marketMapper.dtoFromPlanInstance(updatePlanInstance);
+        return getMarketApiDto(planRpcService.updatePlan(updatePlanRequest));
     }
 
     @Override
