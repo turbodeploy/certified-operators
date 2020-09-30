@@ -392,6 +392,7 @@ public class StagesTest {
         when(mainJournal.<TopologyEntity>childJournal(any())).thenReturn(postStitchingJournal);
         container.setMainStitchingJournal(mainJournal);
         when(context.getStitchingJournalContainer()).thenReturn(container);
+        when(context.getTopologyInfo()).thenReturn(TopologyInfo.newBuilder().build());
         when(postStitchingJournal.shouldDumpTopologyAfterPostStitching()).thenReturn(true);
         when(graphWithSettings.getTopologyGraph()).thenReturn(graph);
         when(graph.entities()).thenReturn(Stream.empty());

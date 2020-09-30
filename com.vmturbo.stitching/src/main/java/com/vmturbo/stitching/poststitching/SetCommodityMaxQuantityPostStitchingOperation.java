@@ -172,6 +172,13 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
             Executors.newSingleThreadScheduledExecutor(threadFactory());
 
     /**
+     * This constrcut is only used for getOperationName().
+     */
+    public SetCommodityMaxQuantityPostStitchingOperation() {
+        this.statsHistoryClient = null;
+    }
+
+    /**
      *  We try to initalize the internal max value map during object
      *  initialization.  We also start a background task to periodically
      *  pull the stats from history.We are only interested in the max values

@@ -63,6 +63,7 @@ import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingMetrics;
 import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
+import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperation;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.actions.ActionConstraintsUploader;
@@ -1091,10 +1092,14 @@ public class Stages {
         @NotNull
         @Override
         public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
-            // This method does a sync call to Group Component.
-            // If GC has trouble, the topology broadcast would be delayed.
-            entitySettingsResolver.sendEntitySettings(getContext().getTopologyInfo(),
-                input.getEntitySettings(), input.getTopologyGraph());
+            if (!TopologyDTOUtil.isPlanType(PlanProjectType.CLUSTER_HEADROOM, getContext().getTopologyInfo())) {
+                // This method does a sync call to Group Component.
+                // If GC has trouble, the topology broadcast would be delayed.
+                entitySettingsResolver.sendEntitySettings(getContext().getTopologyInfo(),
+                    input.getEntitySettings(), input.getTopologyGraph());
+            } else {
+                logger.info("Skip SettingsUploadStage for cluster headroom plan");
+            }
             return Status.success();
         }
 
@@ -1217,6 +1222,12 @@ public class Stages {
         @NotNull
         @Override
         public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
+            if (TopologyDTOUtil.isPlanType(PlanProjectType.CLUSTER_HEADROOM, getContext().getTopologyInfo())) {
+                // Certain stitching operations need to be skipped for cluster headroom plan.
+                getContext().setPostStitchingOperationsToSkip(Collections.singleton(
+                    new SetCommodityMaxQuantityPostStitchingOperation().getOperationName()));
+            }
+
             // Set up the post-stitching journal.
             final IStitchingJournal<StitchingEntity> mainJournal = getContext()
                 .getStitchingJournalContainer()
