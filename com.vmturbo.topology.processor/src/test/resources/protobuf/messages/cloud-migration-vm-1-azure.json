@@ -275,7 +275,7 @@
       }],
       "numCpus": 2,
       "billingType": "ONDEMAND",
-      "licenseModel": "LICENSE_INCLUDED",
+      "licenseModel": "AHUB",
       "driverInfo": {
       },
       "dynamicMemory": false

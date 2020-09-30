@@ -364,6 +364,9 @@ public class CloudStorageMigrationHelper {
         private int maxRatioOnNonExpensiveTier = 1;
         private int maxCapacityOnNonExpensiveTier = 0;
 
+        IopsToStorageRatios() {
+        }
+
         IopsToStorageRatios(int maxRatio, int maxCapacity, int maxRatioOnNonExpensiveTier,
                                    int maxCapacityOnNonExpensiveTier) {
             this.maxRatio = maxRatio;

@@ -72,6 +72,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
@@ -80,6 +81,7 @@ import com.vmturbo.mediation.hybrid.cloud.common.OsType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
@@ -218,7 +220,7 @@ public class CloudMigrationPlanHelper {
     /**
      * IOPS to Storage ratios: used for adjusting storage amount based on IOPS.
      */
-    private IopsToStorageRatios iopsToStorageRatios;
+    private IopsToStorageRatios iopsToStorageRatios = new IopsToStorageRatios();
 
     /**
      * Volume to storage amount map: The volume amount may be adjusted based on IOPS. The adjusted
@@ -397,11 +399,11 @@ public class CloudMigrationPlanHelper {
      * StorageAccess bought
      * @throws PipelineStageException Thrown when entity lookup by oid fails.
      */
-    private void prepareEntities(@Nonnull final TopologyPipelineContext context,
-                                @Nonnull final TopologyGraph<TopologyEntity> graph,
-                                @Nonnull final TopologyMigration migrationChange,
-                                @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
-                                 final boolean isDestinationAws)
+     void prepareEntities(@Nonnull final TopologyPipelineContext context,
+                          @Nonnull final TopologyGraph<TopologyEntity> graph,
+                          @Nonnull final TopologyMigration migrationChange,
+                          @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
+                          final boolean isDestinationAws)
             throws PipelineStageException {
         Set<Long> sourceEntities = context.getSourceEntities();
 
@@ -420,16 +422,27 @@ public class CloudMigrationPlanHelper {
             // It could be overridden in settingsApplicator
             builder.getAnalysisSettingsBuilder().setShopTogether(true);
 
-            // Analysis needs to treat the entity as if it's a cloud entity for purposes of
-            // applying template exclusions, obtaining pricing, etc.
-            if (builder.getEnvironmentType().equals(EnvironmentType.ON_PREM)
-                    && builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                // Set environment type of associated virtual volumes of on-prem VMs to CLOUD.
-                entity.getOutboundAssociatedEntities().stream()
+            if (builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                // Analysis needs to treat the entity as if it's a cloud entity for purposes of
+                // applying template exclusions, obtaining pricing, etc.
+                if (builder.getEnvironmentType().equals(EnvironmentType.ON_PREM)) {
+                    // Set environment type of associated virtual volumes of on-prem VMs to CLOUD.
+                    entity.getOutboundAssociatedEntities().stream()
                         .filter(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
                         .map(TopologyEntity::getTopologyEntityDtoBuilder)
                         .forEach(b -> b.setEnvironmentType(EnvironmentType.CLOUD));
-                builder.setEnvironmentType(EnvironmentType.CLOUD);
+                    builder.setEnvironmentType(EnvironmentType.CLOUD);
+                } else if (builder.getEnvironmentType().equals(EnvironmentType.CLOUD)) {
+                    VirtualMachineInfo vmInfo = builder.getTypeSpecificInfo().getVirtualMachine();
+
+                    // For Cloud to Cloud migrations, reset AHUB (Azure BYOL for Windows)
+                    // to normal licensing so we respect the user's choice for migrating
+                    // BYOL or not.
+                    if (vmInfo.getLicenseModel() == LicenseModel.AHUB) {
+                        builder.getTypeSpecificInfoBuilder().getVirtualMachineBuilder()
+                            .setLicenseModel(LicenseModel.LICENSE_INCLUDED);
+                    }
+                }
             }
 
             // Remove non-applicable commodities first here, before other stages add some bought
