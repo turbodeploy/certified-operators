@@ -1,4 +1,4 @@
-package com.vmturbo.cloud.commitment.analysis.spec;
+package com.vmturbo.cloud.commitment.analysis.runtime.stages;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -16,8 +16,12 @@ import org.stringtemplate.v4.ST;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.data.CloudTierCoverageDemand;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.AbstractStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
+import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecData;
+import com.vmturbo.cloud.commitment.analysis.spec.CommitmentSpecDemand;
+import com.vmturbo.cloud.commitment.analysis.spec.CommitmentSpecDemandSet;
+import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecData;
+import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecMatcher;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
 
@@ -77,7 +81,7 @@ public class CCARecommendationSpecMatcherStage extends AbstractStage<CloudTierCo
         CommitmentSpecDemandSet output = commitmentSpecDemandSetBuilder.build();
         StageResult.Builder<CommitmentSpecDemandSet> builder = StageResult.<CommitmentSpecDemandSet>builder().output(output);
         builder.resultSummary(recommendationSpecMatcherStageSummary.toSummaryCollector(
-                    cloudTierCoverageDemand, specByDemand));
+                cloudTierCoverageDemand, specByDemand));
         return builder.build();
     }
 
