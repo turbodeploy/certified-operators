@@ -137,6 +137,9 @@ public class CloudMigrationPlanHelper {
             "UNMANAGED_PREMIUM"
     );
 
+    private static final String AWS_IO1_DISPLAY_NAME = "IO1";
+    private static final String AWS_IO2_DISPLAY_NAME = "IO2";
+
     private static final String CSP_AWS_DISPLAY_NAME = "AWS";
 
     /**
@@ -1282,12 +1285,18 @@ public class CloudMigrationPlanHelper {
     private Set<Long> getCloudStorageTiers(@Nonnull final TopologyGraph<TopologyEntity> graph,
                                            @Nonnull final TopologyInfo topologyInfo,
                                            @Nullable final TopologyEntity currentCsp) {
+        final boolean isIO2TierPresent = isIO2TierPresent(graph);
         // Go over all known storage tiers, for all CSPs.
         return graph.entitiesOfType(STORAGE_TIER)
                 .filter(storageTier -> {
                     // If this is an already known tier that we want to skip (e.g for Lift_n_Shift
                     // plan, we only want GP2 and Managed_Premium), then apply that filter.
                     if (!includeCloudStorageTier(storageTier, topologyInfo)) {
+                        return false;
+                    }
+                    // Exclude IO1 if IO2 tier is present. These two tiers have the same cost, but
+                    // IO2 is better.
+                    if (AWS_IO1_DISPLAY_NAME.equals(storageTier.getDisplayName()) && isIO2TierPresent) {
                         return false;
                     }
                     // Check CSP, we don't want another storage tier with the same CSP.
@@ -1308,6 +1317,15 @@ public class CloudMigrationPlanHelper {
                 })
                 .map(TopologyEntity::getOid)
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Return true is IO2 tier is in scope.
+     * @param graph Topology graph.
+     * @return true is IO2 tier is in scope.
+     */
+    private boolean isIO2TierPresent(@Nonnull final TopologyGraph<TopologyEntity> graph) {
+        return graph.entitiesOfType(STORAGE_TIER).anyMatch(t -> t.getDisplayName().equals(AWS_IO2_DISPLAY_NAME));
     }
 
     /**
