@@ -996,7 +996,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, cloudDBScaleProviderChangeRecommendation);
         Assert.assertEquals("Scale Database db_display_name from db_source_test to db_destination_test, "
-                + "Disk size up from 100.0 MB to 200.0 MB", description);
+                + "Disk size up from 100 MB to 200 MB", description);
     }
 
     /**
@@ -1194,7 +1194,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeMemRecommendation);
 
-        assertEquals(description, "Resize down Mem for Virtual Machine vm1_test from 16.0 GB to 8.0 GB");
+        assertEquals(description, "Resize down Mem for Virtual Machine vm1_test from 16 GB to 8 GB");
     }
 
     /**
@@ -1228,7 +1228,7 @@ public class ActionDescriptionBuilderTest {
                 entitySettingsCache, resizeMemReservationRecommendation);
 
         assertEquals(description,
-                "Resize down Mem reservation for Virtual Machine vm1_test from 16.0 GB to 8.0 GB");
+                "Resize down Mem reservation for Virtual Machine vm1_test from 16 GB to 8 GB");
     }
 
     /**
@@ -1358,7 +1358,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
                         entitySettingsCache, resizeStorageAmountRecommendationForVSanStorageUp);
 
-        assertEquals("Resize up Storage Amount for Storage vsan_storage from 50.0 GB to 75.0 GB",
+        assertEquals("Resize up Storage Amount for Storage vsan_storage from 50 GB to 75 GB",
                         description);
     }
 
@@ -1380,7 +1380,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
                         entitySettingsCache, resizeStorageAmountRecommendationForVSanStorageDown);
 
-        assertEquals("Resize down Storage Amount for Storage vsan_storage from 75.0 GB to 50.0 GB",
+        assertEquals("Resize down Storage Amount for Storage vsan_storage from 75 GB to 50 GB",
                         description);
     }
 
