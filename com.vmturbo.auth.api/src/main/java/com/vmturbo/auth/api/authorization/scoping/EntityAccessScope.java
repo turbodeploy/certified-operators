@@ -2,6 +2,7 @@ package com.vmturbo.auth.api.authorization.scoping;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -10,10 +11,10 @@ import javax.annotation.Nullable;
 
 import org.springframework.util.CollectionUtils;
 
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.identity.OidFilter;
 import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.components.common.identity.OidSet.AllOidsSet;
+import com.vmturbo.components.common.identity.RoaringBitmapOidSet;
 
 /**
  * EntityAccessScope models an access restriction list based on an "entity scope". The "access scope"
@@ -44,7 +45,7 @@ public class EntityAccessScope implements OidFilter {
     private final OidFilter accessFilter;
 
     // a breakdown of accessible oids by entity type. Only really relevant for non-empty and non-all scopes.
-    private final Map<Integer, OidSet> accessibleOidsByEntityType;
+    private final Map<String, OidSet> accessibleOidsByEntityType;
 
     // create a scope with no restrictions
     private EntityAccessScope() {
@@ -55,7 +56,7 @@ public class EntityAccessScope implements OidFilter {
     }
 
     public EntityAccessScope(@Nullable Collection<Long> groupIds, @Nullable OidSet scopeGroupMemberOids,
-                             @Nullable OidFilter accessFilter, @Nullable Map<Integer, OidSet> oidsByEntityType) {
+                             @Nullable OidFilter accessFilter, @Nullable Map<String, OidSet> oidsByEntityType) {
         this.scopeGroupIds = groupIds != null ? groupIds : Collections.EMPTY_LIST;
         this.scopeGroupMemberOids = scopeGroupMemberOids != null ? scopeGroupMemberOids : OidSet.EMPTY_OID_SET;
         this.accessFilter = accessFilter != null ? accessFilter : DEFAULT_ACCESS_FILTER;
@@ -122,15 +123,13 @@ public class EntityAccessScope implements OidFilter {
      * @param entityType The string entity type to look for
      * @return an {@link OidSet} of entity oids of the requested type in the accessible set.
      */
-    public OidSet getAccessibleOidsByEntityType(ApiEntityType entityType) {
+    public OidSet getAccessibleOidsByEntityType(String entityType) {
         // special case for "all oids".
         if (accessFilter.containsAll()) {
             return AllOidsSet.ALL_OIDS_SET;
-        } else if (entityType == null) {
-            return OidSet.EMPTY_OID_SET;
         }
 
-        return accessibleOidsByEntityType.getOrDefault(entityType.typeNumber(), OidSet.EMPTY_OID_SET);
+        return accessibleOidsByEntityType.getOrDefault(entityType, OidSet.EMPTY_OID_SET);
     }
 
     /**
@@ -141,7 +140,7 @@ public class EntityAccessScope implements OidFilter {
      * @param entityTypes The string entity type to look for
      * @return an {@link OidSet} of entity oids of the requested type in the accessible set.
      */
-    public OidSet getAccessibleOidsByEntityTypes(Collection<ApiEntityType> entityTypes) {
+    public OidSet getAccessibleOidsByEntityTypes(Collection<String> entityTypes) {
         // special case for "all oids".
         if (accessFilter.containsAll()) {
             return AllOidsSet.ALL_OIDS_SET;
@@ -150,8 +149,8 @@ public class EntityAccessScope implements OidFilter {
             return accessibleOids();
         }
         OidSet oids = OidSet.EMPTY_OID_SET;
-        for (ApiEntityType entityType : entityTypes) {
-            oids = oids.union(accessibleOidsByEntityType.get(entityType.typeNumber()));
+        for (String entityType : entityTypes) {
+            oids = oids.union(accessibleOidsByEntityType.get(entityType));
         }
         return oids;
     }

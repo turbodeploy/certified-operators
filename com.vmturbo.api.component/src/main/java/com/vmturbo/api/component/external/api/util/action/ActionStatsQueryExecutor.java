@@ -111,7 +111,7 @@ public class ActionStatsQueryExecutor {
             uuidMapper,
             new HistoricalQueryMapper(actionSpecMapper, buyRiScopeHandler, groupExpander, clock),
             new CurrentQueryMapper(actionSpecMapper, groupExpander, supplyChainFetcherFactory,
-                    userSessionContext, repositoryApi, buyRiScopeHandler, uuidMapper),
+                    userSessionContext, repositoryApi, buyRiScopeHandler),
             new ActionStatsMapper(clock, actionSpecMapper),
             repositoryApi,
             thinTargetCache);

@@ -47,7 +47,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -372,7 +371,7 @@ public class ProjectedRICoverageAndUtilStoreTest {
         return  GetMultiSupplyChainsResponse.newBuilder()
                 .setSupplyChain(SupplyChain.newBuilder()
                         .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                                .setEntityType("VirtualMachine")
                                 .putMembersByState(0, MemberList.newBuilder()
                                         .addAllMemberOids(memberOids)
                                         .build())

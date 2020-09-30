@@ -164,7 +164,6 @@ public class ActionExecutionRpcTest {
     private final SettingPolicyServiceMole settingPolicyServiceMole = new SettingPolicyServiceMole();
     private final SupplyChainServiceMole supplyChainServiceMole = spy(new SupplyChainServiceMole());
     private final RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
-    private final EntitySeverityCache entitySeverityCache = mock(EntitySeverityCache.class);
 
     private GrpcTestServer grpcServer;
     private ActionStore actionStoreSpy;
@@ -202,11 +201,12 @@ public class ActionExecutionRpcTest {
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
+                actionTopologyStore,
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                 statistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
                 actionIdentityService, involvedEntitiesExpander,
-                Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60));
+                Mockito.mock(ActionAuditSender.class), true, 60));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
@@ -567,11 +567,12 @@ public class ActionExecutionRpcTest {
             grpcServer.getChannel());
         IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
+                actionTopologyStore,
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                 statistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
                 actionIdentityService, involvedEntitiesExpander,
-                Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60));
+                Mockito.mock(ActionAuditSender.class), true, 60));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
 
         actionStorehouse.storeActions(plan);

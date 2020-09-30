@@ -33,17 +33,16 @@ import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
-import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -99,9 +98,8 @@ public class BusinessAccountRetriever {
      * Find master business accounts and convert them to BillingFamilyApiDTO.
      *
      * @return list of BillingFamilyApiDTOs
-     * @throws OperationFailedException If there is an issue mapping input scopes.
      */
-    public List<BillingFamilyApiDTO> getBillingFamilies() throws OperationFailedException {
+    public List<BillingFamilyApiDTO> getBillingFamilies() {
         final List<BusinessUnitApiDTO> businessAccounts = getBusinessAccountsInScope(null, null);
         final Map<String, BusinessUnitApiDTO> accountsByUuid = businessAccounts.stream()
             .collect(Collectors.toMap(BusinessUnitApiDTO::getUuid, Function.identity()));
@@ -119,10 +117,9 @@ public class BusinessAccountRetriever {
      * @param scopeUuids The list of input IDs.
      * @param criterias criteria list the query is requested for
      * @return The set of discovered business units.
-     * @throws OperationFailedException If there is an error expanding an OID in the scope.
      */
     public List<BusinessUnitApiDTO> getBusinessAccountsInScope(@Nullable List<String> scopeUuids,
-            @Nullable List<FilterApiDTO> criterias) throws OperationFailedException {
+            @Nullable List<FilterApiDTO> criterias) {
         boolean allAccounts = true;
         final List<SearchParameters> searchParameters = new ArrayList<>();
 

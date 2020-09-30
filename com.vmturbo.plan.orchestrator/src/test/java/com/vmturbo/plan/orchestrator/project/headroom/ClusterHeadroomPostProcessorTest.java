@@ -59,7 +59,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
@@ -384,17 +383,17 @@ public class ClusterHeadroomPostProcessorTest {
             GetMultiSupplyChainsResponse.newBuilder().setSeedOid(CLUSTER.getId())
                 .setSupplyChain(SupplyChain.newBuilder()
                     .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .setEntityType(StringConstants.VIRTUAL_MACHINE)
                         .putMembersByState(com.vmturbo.api.enums.EntityState.ACTIVE.ordinal(),
                             MemberList.newBuilder().addMemberOids(7).addMemberOids(99).build())
                         .build())
                     .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                        .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
+                        .setEntityType(StringConstants.PHYSICAL_MACHINE)
                         .putMembersByState(com.vmturbo.api.enums.EntityState.ACTIVE.ordinal(),
                             MemberList.newBuilder().addMemberOids(8).build())
                         .build())
                     .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                        .setEntityType(ApiEntityType.STORAGE.typeNumber())
+                        .setEntityType(StringConstants.STORAGE)
                         .putMembersByState(com.vmturbo.api.enums.EntityState.ACTIVE.ordinal(),
                             MemberList.newBuilder().addMemberOids(9).build())
                         .build()))

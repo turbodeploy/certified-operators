@@ -63,7 +63,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -340,7 +339,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
         MemberList membersBa = MemberList.newBuilder()
                         .addAllMemberOids(baSet).build();
         SupplyChainNode scnBA = SupplyChainNode.newBuilder()
-                        .setEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
+                        .setEntityType("BusinessAccount")
                         .putMembersByState(EntityState.ACTIVE.ordinal(), membersBa)
                         .build();
         supplyChainNodes.add(scnBA);
@@ -348,7 +347,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
         MemberList membersAz = MemberList.newBuilder()
                         .addAllMemberOids(azSet).build();
         SupplyChainNode scnAZ = SupplyChainNode.newBuilder()
-                        .setEntityType(ApiEntityType.AVAILABILITY_ZONE.typeNumber())
+                        .setEntityType("AvailabilityZone")
                         .putMembersByState(EntityState.ACTIVE.ordinal(), membersAz)
                         .build();
         supplyChainNodes.add(scnAZ);
@@ -356,7 +355,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
         MemberList membersRegion = MemberList.newBuilder()
                         .addAllMemberOids(regionSet).build();
         SupplyChainNode scnRegion = SupplyChainNode.newBuilder()
-                        .setEntityType(ApiEntityType.REGION.typeNumber())
+                        .setEntityType("Region")
                         .putMembersByState(EntityState.ACTIVE.ordinal(), membersRegion)
                         .build();
         supplyChainNodes.add(scnRegion);

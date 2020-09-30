@@ -85,7 +85,7 @@ public class SupplyChainMerger {
     private void mergeNode(@Nonnull final Map<String, MergedSupplyChainNode> nodesByType,
                            @Nonnull final SupplyChainNode supplyChainNode) {
         final MergedSupplyChainNode mergedNode =
-            nodesByType.computeIfAbsent(ApiEntityType.fromType(supplyChainNode.getEntityType()).apiStr(),
+            nodesByType.computeIfAbsent(supplyChainNode.getEntityType(),
                 type -> new MergedSupplyChainNode(supplyChainNode));
 
         mergedNode.mergeWith(supplyChainNode);
@@ -134,8 +134,8 @@ public class SupplyChainMerger {
          * @param repoEntityTypes the set of entity types {@link ApiEntityType} to remove SupplyChainNode for
          */
         void removeSupplyChainNodes(@Nonnull Set<ApiEntityType> repoEntityTypes) {
-            final Set<Integer> entityTypes = repoEntityTypes.stream()
-                .map(ApiEntityType::typeNumber)
+            final Set<String> entityTypes = repoEntityTypes.stream()
+                .map(ApiEntityType::apiStr)
                 .collect(Collectors.toSet());
 
             final List<SupplyChainNode> newSupplyChainNodes = supplyChainNodes.stream()
@@ -211,7 +211,7 @@ public class SupplyChainMerger {
          * chains into the final version.
          */
         @Nonnull
-        public SupplyChain getSupplyChain(@Nonnull final List<Integer> entityTypesToIncludeList)
+        public SupplyChain getSupplyChain(@Nonnull final List<String> entityTypesToIncludeList)
                 throws MergedSupplyChainException {
             if (!errors.isEmpty()) {
                 throw new MergedSupplyChainException(errors);
@@ -246,10 +246,10 @@ public class SupplyChainMerger {
      */
     public static class MergedSupplyChainNode {
         private final Map<Integer, Set<Long>> membersByState;
-        private final Set<Integer> connectedConsumerTypes;
-        private final Set<Integer> connectedProviderTypes;
+        private final Set<String> connectedConsumerTypes;
+        private final Set<String> connectedProviderTypes;
         private Optional<Integer> supplyChainDepth;
-        private final Integer entityType;
+        private final String entityType;
 
         /**
          * Create an instance of the class to aggregate multiple individual {@link SupplyChainNode}s

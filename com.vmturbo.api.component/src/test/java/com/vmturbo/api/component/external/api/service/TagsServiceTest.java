@@ -66,11 +66,9 @@ public class TagsServiceTest {
 
     /**
      * Set up tests.
-     *
-     * @throws OperationFailedException To satisfy compiler.
      */
     @Before
-    public void setUp() throws OperationFailedException {
+    public void setUp() {
         MockitoAnnotations.initMocks(this);
         Mockito.when(groupExpander.expandUuids(SOME_SCOPE.stream().collect(Collectors.toSet())))
                 .thenReturn(EXPANDED_SCOPE);

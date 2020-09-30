@@ -383,12 +383,7 @@
                 <module>../com.vmturbo.licensing</module>
             </modules>
         </profile>
-        <profile>
-            <id>deserializer</id>
-            <modules>
-                <module>../com.vmturbo.discovery.deserializer</module>
-            </modules>
-        </profile>
+
         <profile>
             <id>all-separate-probes</id>
             <modules>
@@ -1160,7 +1155,6 @@
                 <module>../com.vmturbo.components</module>
                 <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.cost.calculation</module>
-                <module>../com.vmturbo.discovery.deserializer</module>
                 <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
                 <module>../com.vmturbo.sql.utils</module>
                 <module>../com.vmturbo.sql.test.utils</module>

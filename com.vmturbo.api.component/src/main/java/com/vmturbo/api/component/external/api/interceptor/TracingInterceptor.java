@@ -1,20 +1,18 @@
 package com.vmturbo.api.component.external.api.interceptor;
 
-import java.util.Optional;
-
 import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-
-import io.opentracing.Tracer;
 
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.servlet.ModelAndView;
 
+import io.opentracing.Scope;
+import io.opentracing.Span;
+import io.opentracing.Tracer;
+
 import com.vmturbo.components.api.tracing.Tracing;
-import com.vmturbo.components.api.tracing.Tracing.TracingScope;
-import com.vmturbo.components.common.tracing.TracingManager;
 
 /**
  * Interceptor for the external API REST calls.
@@ -26,27 +24,21 @@ public class TracingInterceptor implements HandlerInterceptor {
 
     private static final String TRACING_SCOPE_NAME = "tracingScope";
 
-    private static final String QUERY_STR_TAG = "query_string";
+    private static final String TRACING_SPAN_NAME = "tracingSpan";
 
-    private static final String TRACE_HEADER_NAME = "X-Trace";
+    private static final String QUERY_STR_TAG = "query_string";
 
     @Override
     public boolean preHandle(final HttpServletRequest request, final HttpServletResponse response, final Object handler) throws Exception {
-        final boolean forceTrace = Optional.ofNullable(request.getHeader(TRACE_HEADER_NAME))
-                .map(Boolean::valueOf)
-                .orElse(false);
-        final Tracer tracer;
-        if (forceTrace) {
-            tracer = TracingManager.alwaysOnTracer();
-        } else {
-            tracer = Tracing.tracer();
-        }
+        final Tracer tracer = Tracing.tracer();
         final String opName = getOpName(request);
-        TracingScope scope = Tracing.trace(opName, tracer);
+        final Span span = tracer.buildSpan(opName).start();
         if (request.getQueryString() != null) {
-            scope.tag(QUERY_STR_TAG, request.getQueryString());
+            span.setTag(QUERY_STR_TAG, request.getQueryString());
         }
+        final Scope scope = tracer.scopeManager().activate(span);
         request.setAttribute(TRACING_SCOPE_NAME, scope);
+        request.setAttribute(TRACING_SPAN_NAME, span);
         return true;
     }
 
@@ -57,8 +49,13 @@ public class TracingInterceptor implements HandlerInterceptor {
     @Override
     public void afterCompletion(final HttpServletRequest request, final HttpServletResponse response, final Object handler, final Exception ex) throws Exception {
         final Object scope = request.getAttribute(TRACING_SCOPE_NAME);
-        if (scope instanceof TracingScope) {
-            ((TracingScope)scope).close();
+        if (scope instanceof Scope) {
+            ((Scope)scope).close();
+        }
+
+        final Object span = request.getAttribute(TRACING_SPAN_NAME);
+        if (span instanceof Span) {
+            ((Span)span).finish();
         }
     }
 

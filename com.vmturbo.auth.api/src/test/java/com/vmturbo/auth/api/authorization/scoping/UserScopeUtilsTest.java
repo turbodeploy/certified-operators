@@ -9,7 +9,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidSet;
 
@@ -33,13 +32,14 @@ public class UserScopeUtilsTest {
         OidSet filteredRequest = UserScopeUtils.filterEntityRequest(scope, aCoupleOids);
         Assert.assertFalse(filteredRequest.containsAll());
         Assert.assertTrue(filteredRequest.contains(aCoupleOids));
+        // the default scope contains all entity types, even made up ones.
+        Assert.assertTrue(scope.getAccessibleOidsByEntityType("MadeUpEntityType").containsAll());
     }
 
     @Test
     public void testScopedAccess() throws UserAccessScopeException {
         List<Long> accessibleOids = Arrays.asList(1L,5L);
-        Map<Integer, OidSet> oidsByEntityType = Collections.singletonMap(
-                ApiEntityType.VIRTUAL_MACHINE.typeNumber(), new ArrayOidSet(accessibleOids));
+        Map<String, OidSet> oidsByEntityType = Collections.singletonMap("TestType", new ArrayOidSet(accessibleOids));
         EntityAccessScope scope = new EntityAccessScope(null, new ArrayOidSet(Arrays.asList(1L)),
                 new ArrayOidSet(accessibleOids), oidsByEntityType);
         // this scope should only see 1 and 5.
@@ -55,8 +55,8 @@ public class UserScopeUtilsTest {
         // filter specific entities request - test request for subset of accessible oids
         Assert.assertTrue(UserScopeUtils.filterEntityRequest(scope, Arrays.asList(1L)).contains(1L));
         // simple check on entity types
-        Assert.assertEquals(0, scope.getAccessibleOidsByEntityType(ApiEntityType.PHYSICAL_MACHINE).size());
-        Assert.assertTrue(scope.getAccessibleOidsByEntityType(ApiEntityType.VIRTUAL_MACHINE).contains(1L));
+        Assert.assertEquals(0, scope.getAccessibleOidsByEntityType("DoesNotExist").size());
+        Assert.assertTrue(scope.getAccessibleOidsByEntityType("TestType").contains(1L));
 
     }
 

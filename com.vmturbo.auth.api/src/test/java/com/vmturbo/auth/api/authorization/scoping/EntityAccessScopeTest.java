@@ -12,7 +12,6 @@ import com.google.common.collect.ImmutableList;
 
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidFilter;
 import com.vmturbo.components.common.identity.OidSet;
@@ -31,22 +30,23 @@ public class EntityAccessScopeTest {
         Collection<Long> groups = ImmutableList.of(1L);
         OidSet scopeGroupMembers = new ArrayOidSet(new long[]{2L, 3L});
         OidFilter accessFilter = new ArrayOidSet(new long[]{2L, 3L, 4L, 5L});
-        Map<Integer, OidSet> accessibleOidsByType = new HashMap<>();
+        Map<String, OidSet> accessibleOidsByType = new HashMap<>();
         OidSet typeASet = new ArrayOidSet(new long[]{2L});
-        accessibleOidsByType.put(ApiEntityType.VIRTUAL_MACHINE.typeNumber(), typeASet);
+        accessibleOidsByType.put("typeA", typeASet);
         OidSet typeBSet = new ArrayOidSet(new long[]{3L, 4L});
-        accessibleOidsByType.put(ApiEntityType.PHYSICAL_MACHINE.typeNumber(), typeBSet);
+        accessibleOidsByType.put("typeB", typeBSet);
         OidSet typeCSet = new ArrayOidSet(new long[]{5L});
-        accessibleOidsByType.put(ApiEntityType.STORAGE.typeNumber(), typeCSet);
+        accessibleOidsByType.put("typeC", typeCSet);
 
         EntityAccessScope scope = new EntityAccessScope(groups, scopeGroupMembers, accessFilter, accessibleOidsByType);
         // verfiy that an invalid or non-existent type gets an empty set
         assertEquals(OidSet.EMPTY_OID_SET, scope.getAccessibleOidsByEntityType(null));
+        assertEquals(OidSet.EMPTY_OID_SET, scope.getAccessibleOidsByEntityType("doesNotExist"));
         // test simple case of single type
-        assertEquals(typeASet, scope.getAccessibleOidsByEntityType(ApiEntityType.VIRTUAL_MACHINE));
+        assertEquals(typeASet, scope.getAccessibleOidsByEntityType("typeA"));
         // verify that requesting multiple types gives back a set containing those types and not the
         // others
-        OidSet typesBandC = scope.getAccessibleOidsByEntityTypes(ImmutableList.of(ApiEntityType.PHYSICAL_MACHINE, ApiEntityType.STORAGE));
+        OidSet typesBandC = scope.getAccessibleOidsByEntityTypes(ImmutableList.of("typeB", "typeC"));
         assertTrue(typesBandC.contains(typeBSet));
         assertTrue(typesBandC.contains(typeCSet));
         assertFalse(typesBandC.contains(typeASet));

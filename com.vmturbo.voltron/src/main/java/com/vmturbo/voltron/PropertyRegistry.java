@@ -58,7 +58,6 @@ class PropertyRegistry {
 
         props.put("authDbPassword", "vmturbo");
         props.put("clustermgrDbPassword", "vmturbo");
-        props.put("repositoryDbPassword", "vmturbo");
         props.put("actionDbPassword", "vmturbo");
         props.put("costDbPassword", "vmturbo");
         props.put("groupComponentDbPassword", "vmturbo");

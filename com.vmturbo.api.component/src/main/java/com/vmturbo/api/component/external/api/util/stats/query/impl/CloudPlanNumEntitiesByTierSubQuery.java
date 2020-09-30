@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
@@ -230,7 +231,7 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
             .fetch()
             .values()
             .stream()
-            .collect(Collectors.toMap(n -> ApiEntityType.fromSdkTypeToEntityTypeString(n.getEntityType()), RepositoryDTOUtil::getAllMemberOids));
+            .collect(Collectors.toMap(SupplyChainNode::getEntityType, RepositoryDTOUtil::getAllMemberOids));
     }
 
     private List<StatApiDTO> getNumEntitiesByTierStats(@Nonnull Set<Long> scopes,

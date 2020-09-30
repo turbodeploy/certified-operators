@@ -160,23 +160,6 @@ public class MultiStageTimer {
     }
 
     /**
-     * Get the total elapsed time for all contained timers.
-     * If there are multiple timers running asynchronously, this will return the total elapsed
-     * time - which may be greater than the "real" elapsed time.
-     *
-     * @param timeUnit The time unit.
-     * @return The total elapsed time.
-     */
-    public long totalElapsed(@Nonnull final TimeUnit timeUnit) {
-        synchronized (timers) {
-            return timeUnit.convert(timers.values().stream()
-                .map(StageTimer::getTotalDuration)
-                .mapToLong(Duration::toMillis)
-                .sum(), TimeUnit.MILLISECONDS);
-        }
-    }
-
-    /**
      * Create a timer that will be asynchronously added as a segment to a given timer stage.
      *
      * <p>This is clumsier than it ought to be. It's used in cases where the activity to be
@@ -424,12 +407,6 @@ public class MultiStageTimer {
             logger.log(level, "{}- {} [{} => {}]", StringUtils.repeat(' ', indent),
                 formatDuration(segment.getDuration()), segment.getStart(), segment.getStop());
         }
-    }
-
-    @Override
-    public String toString() {
-        // TODO (roman, Sept 14 2020): Print the details too.
-        return formatDuration(getTotalTime());
     }
 
     @Nonnull

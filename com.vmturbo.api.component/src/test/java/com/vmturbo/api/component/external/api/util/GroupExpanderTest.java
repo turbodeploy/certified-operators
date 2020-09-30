@@ -8,7 +8,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -28,9 +27,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.api.component.ApiTestUtils;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
@@ -54,8 +50,6 @@ public class GroupExpanderTest {
 
     // the class under test
     private GroupExpander groupExpander;
-
-    private UuidMapper uuidMapper = mock(UuidMapper.class);
 
     private GroupServiceMole groupServiceSpy = spy(new GroupServiceMole());
 
@@ -129,7 +123,6 @@ public class GroupExpanderTest {
         GroupServiceBlockingStub groupServiceRpc = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
         groupExpander = new GroupExpander(groupServiceRpc,
                 new GroupMemberRetriever(groupServiceRpc));
-        groupExpander.setUuidMapper(uuidMapper);
     }
 
     @Test
@@ -164,7 +157,11 @@ public class GroupExpanderTest {
      */
     @Test
     public void testExpandNonGroupNonMarketUuid() throws Exception {
-        final ApiId id = ApiTestUtils.mockEntityId("1234", uuidMapper);
+        when(groupServiceSpy.getMembers(GroupDTO.GetMembersRequest.newBuilder()
+            .addId(1234L)
+            .setExpectPresent(false)
+            .build()))
+            .thenReturn(Collections.singletonList(GetMembersResponse.getDefaultInstance()));
         Set<Long> expandedOids = groupExpander.expandUuid("1234");
         assertThat(expandedOids.size(), equalTo(1));
         assertThat(expandedOids.iterator().next(), equalTo(1234L));
@@ -178,7 +175,6 @@ public class GroupExpanderTest {
      */
     @Test
     public void testExpandMarketUuid() throws Exception {
-        final ApiId id = ApiTestUtils.mockRealtimeId("Market", 77777, uuidMapper);
         Set<Long> expandedOids = groupExpander.expandUuid("Market");
         assertThat(expandedOids.size(), equalTo(0));
     }
@@ -192,12 +188,36 @@ public class GroupExpanderTest {
      */
     @Test
     public void testExpandGroupUuid() throws Exception {
-        final ApiId id = ApiTestUtils.mockGroupId("1234", uuidMapper);
-        when(id.getScopeOids()).thenReturn(Sets.newHashSet(10L, 11L, 12L));
+        doReturn(GetGroupResponse.newBuilder().setGroup(DYNAMIC_GROUP).build())
+            .when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(DYNAMIC_GROUP_OID).build());
+        Mockito.when(groupServiceSpy.getMembers(GroupDTO.GetMembersRequest.newBuilder()
+                .addId(DYNAMIC_GROUP_OID)
+                .setExpectPresent(true)
+                .build()))
+                .thenReturn(Collections.singletonList(GetMembersResponse.newBuilder()
+                        .setGroupId(DYNAMIC_GROUP_OID)
+                        .addMemberId(10)
+                        .addMemberId(11)
+                        .addMemberId(12)
+                        .build()));
 
         Set<Long> expandedOids = groupExpander.expandUuid("1234");
         assertThat(expandedOids.size(), equalTo(3));
         assertThat(expandedOids, containsInAnyOrder(10L, 11L, 12L));
+    }
+
+    /**
+     * Test a gRPC error requesting the group expansion - other than the
+     * NOT_FOUND which is expected and handled.
+     *
+     * @throws Exception due to simulated grpc error
+     */
+    @Test(expected = StatusRuntimeException.class)
+    public void testErrorInGroupGrpcCall() throws Exception {
+        doReturn(Optional.of(Status.ABORTED.asException())).when(groupServiceSpy).getGroupError(any());
+        Set<Long> expandedOids = groupExpander.expandUuid("1234");
+        assertThat(expandedOids.size(), equalTo(1));
+        assertThat(expandedOids.iterator().next(), equalTo(1234L));
     }
 
     /**

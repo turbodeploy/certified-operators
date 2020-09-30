@@ -4,15 +4,11 @@ import java.sql.Connection;
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.annotation.Nonnull;
-
 import org.jooq.DSLContext;
-import org.jooq.DeleteLimitStep;
 import org.jooq.Field;
 import org.jooq.Name;
 import org.jooq.Record;
 import org.jooq.Table;
-import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 /**
@@ -58,27 +54,6 @@ public class JooqUtil {
             dsl.createTemporaryTable(tempTable.table()).columns(fields).execute();
             return tempTable;
         }
-    }
-
-    /**
-     * Delete chunks of records until there are no more records to delete.
-     *
-     * @param deleteLimitStep The delete step to perform.
-     * @param chunkSize The chunk size.
-     * @return The total number of deleted rows.
-     * @throws DataAccessException If anything goes wrong.
-     */
-    public static int deleteInChunks(@Nonnull final DeleteLimitStep<?> deleteLimitStep,
-                                     final int chunkSize) throws DataAccessException  {
-        int totalDeleted = 0;
-        int numDeleted;
-        do {
-            numDeleted = deleteLimitStep
-                    .limit(chunkSize)
-                    .execute();
-            totalDeleted += numDeleted;
-        } while (numDeleted > 0);
-        return totalDeleted;
     }
 
     /**

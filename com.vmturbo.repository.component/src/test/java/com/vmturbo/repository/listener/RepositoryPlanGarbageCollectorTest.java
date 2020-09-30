@@ -18,7 +18,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector.PlanGarbageCollector.ListExistingPlanIds;
-import com.vmturbo.repository.plan.db.PlanEntityStore;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
@@ -35,10 +34,7 @@ public class RepositoryPlanGarbageCollectorTest {
 
     private TopologyLifecycleManager lifecycleManager = mock(TopologyLifecycleManager.class);
 
-    private PlanEntityStore planEntityStore = mock(PlanEntityStore.class);
-
-    private RepositoryPlanGarbageCollector garbageCollector =
-        new RepositoryPlanGarbageCollector(lifecycleManager, planEntityStore);
+    private RepositoryPlanGarbageCollector garbageCollector = new RepositoryPlanGarbageCollector(lifecycleManager);
 
     /**
      * Common setup code before every test.
