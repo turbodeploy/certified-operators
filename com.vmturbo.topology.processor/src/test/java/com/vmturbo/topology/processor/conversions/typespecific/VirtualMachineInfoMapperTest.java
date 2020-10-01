@@ -16,10 +16,10 @@ import static org.junit.Assert.assertTrue;
 import java.util.Collections;
 import java.util.List;
 
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
+import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS.Builder;
@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Archite
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualizationType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
@@ -56,7 +57,7 @@ public class VirtualMachineInfoMapperTest {
                 .setVirtualMachine(VirtualMachineInfo.newBuilder()
                         .setGuestOsInfo(OS.newBuilder()
                                 .setGuestOsType(OSType.UNKNOWN_OS)
-                                .setGuestOsName(""))
+                                .setGuestOsName(StringConstants.UNKNOWN))
                         .setNumCpus(4)
                         .setLicenseModel(licenseModel)
                         .setBillingType(VirtualMachineData.VMBillingType.BIDDING)
@@ -135,6 +136,9 @@ public class VirtualMachineInfoMapperTest {
         assertEquals(OSType.WINDOWS_BYOL, windowsByol.getGuestOsType());
         final Builder linuxOS = VirtualMachineInfoMapper.parseGuestName("LINUX");
         assertEquals(OSType.LINUX, linuxOS.getGuestOsType());
+        final Builder emptyOS = VirtualMachineInfoMapper.parseGuestName("");
+        assertEquals(OSType.UNKNOWN_OS, emptyOS.getGuestOsType());
+        assertEquals(StringConstants.UNKNOWN, emptyOS.getGuestOsName());
     }
 
     /**
