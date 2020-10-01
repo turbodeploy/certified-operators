@@ -68,6 +68,11 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                     // also consuming the volume.
                 new VolumeToPodRule<>(),
 
+                // rule specific to namespaces as seed
+                    // ensure associated volumes are pulled in when traversing
+                    // from a namesapace as seed.
+                new NamespaceToVolumeRule<>(),
+
                 // use default traversal rule in all other cases
                 new DefaultTraversalRule<>());
 
@@ -226,9 +231,27 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                         .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP));
             } else {
                 // if at the seed or going up, traverse all VDCs, but stop immediately
-                return Stream.concat(entity.getProviders().stream(), entity.getConsumers().stream())
+                final Stream<TraversalState.Builder> includedEntities = Stream.concat(entity
+                        .getProviders().stream(), entity.getConsumers().stream())
                         .filter(e -> e.getEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE)
                         .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP));
+
+                // additionally include volume providers of pods if the traversal is from VM
+                // as seed, and the VM itself does not have any volume providers (for example
+                // in an unstitched environment)
+                // TODO: This can be removed when the VM to VV relationship is established
+                // in an unstitched environment also.
+                if ((entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                        && (traversalMode == TraversalMode.START) && entity.getProviders()
+                        .stream().noneMatch(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)) {
+                    return Stream.concat(includedEntities, entity.getConsumers().stream()
+                            .filter(e -> e.getEntityType() == EntityType.CONTAINER_POD_VALUE)
+                            .flatMap(e -> e.getProviders().stream()
+                                    .filter(provider -> provider.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE))
+                            .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP)));
+
+                }
+                return includedEntities;
             }
         }
     }
@@ -345,7 +368,7 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
      *     <li>Include all neighboring Namespaces
      *     </li>
      *     <li>When traversing from WorkloadController as a seed, ensure
-     *         we include Nodes (VMs and Hosts) in the supply chain.
+     *         we include Nodes (VMs and Hosts) and volumes in the supply chain.
      *     </li>
      * </ul>
      * </p>
@@ -372,7 +395,8 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                                             .filter(podProvider -> {
                                                 final int entityType = podProvider.getEntityType();
                                                 return entityType == EntityType.VIRTUAL_MACHINE_VALUE
-                                                        || entityType == EntityType.PHYSICAL_MACHINE_VALUE;
+                                                        || entityType == EntityType.PHYSICAL_MACHINE_VALUE
+                                                        || entityType == EntityType.VIRTUAL_VOLUME_VALUE;
                                             }))
                         .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.CONSUMES));
                 case AGGREGATED_BY:
@@ -470,6 +494,42 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
             } else {
                 return e -> true;
             }
+        }
+    }
+
+    /**
+     * Rule specific to namespace.
+     *
+     * <p>When namespace is traversed as seed:
+     * <ul>
+     *     <li>Include associated volumes.
+     *     </li>
+     * </ul>
+     * </p>
+     *
+     * @param <E> The type of {@link TopologyGraphEntity} in the graph.
+     */
+    private static class NamespaceToVolumeRule<E extends TopologyGraphEntity<E>>
+            extends DefaultTraversalRule<E> {
+        @Override
+        public boolean isApplicable(@Nonnull E entity, @Nonnull TraversalMode traversalMode) {
+            return entity.getEntityType() == EntityType.NAMESPACE_VALUE
+                    && traversalMode == TraversalMode.START;
+        }
+
+        @Override
+        protected Stream<TraversalState.Builder> include(
+                @Nonnull E entity, @Nonnull TraversalMode traversalMode) {
+                // Ensure that we pull in the volumes associated with the namespace
+                // through the pods, which are consumers of the workloads which are
+                // consumers of the namespace, when namespace is the seed.
+                    return entity.getConsumers().stream()
+                            .filter(e -> e.getEntityType() == EntityType.WORKLOAD_CONTROLLER_VALUE)
+                            .flatMap(e -> e.getConsumers().stream()
+                                    .filter(consumer -> consumer.getEntityType() == EntityType.CONTAINER_POD_VALUE))
+                            .flatMap(e -> e.getProviders().stream()
+                                    .filter(provider -> provider.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE))
+                            .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP));
         }
     }
 }

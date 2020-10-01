@@ -532,24 +532,27 @@ public class SupplyChainCalculatorTest {
     }
 
     /**
-     * Test cloud native topology starting from WorkloadController. Ensure that we include
-     * VMs and Hosts connected through our related pods.
+     * Test cloud native topology starting from WorkloadController and Namespaces.
+     * Ensure that we include VMs, Hosts and volumes connected through our related pods.
+     * Also ensure that these entities are included when traversing from a Namespace.
      */
     @Test
-    public void testWorkloadControllerSeed() {
+    public void testWorkloadControllerAndNamespaceSeed() {
         /*
-         * Container -- ContainerSpec
-         *     |             |
-         *  -Pod ------ WorkloadController
-         * |   |             |
-         * |  VM-----        |
-         * |         |    Namespace
-         *  --PM    ST
+         *      Container -- ContainerSpec
+         *          |             |
+         *    ----Pod ------ WorkloadController
+         *   |     /|             |
+         *   |    / VM----        |
+         *   |   |        |       |
+         *   |   VV       |       Namespace
+         *   PM          ST
          */
         final TopologyGraph<TestGraphEntity> graph =
             TestGraphEntity.newGraph(
                 TestGraphEntity.newBuilder(PM_ID, ApiEntityType.PHYSICAL_MACHINE),
                 TestGraphEntity.newBuilder(ST_ID, ApiEntityType.STORAGE),
+                TestGraphEntity.newBuilder(VOLUME_ID, ApiEntityType.VIRTUAL_VOLUME),
                 TestGraphEntity.newBuilder(VM_ID, ApiEntityType.VIRTUAL_MACHINE)
                     .addProviderId(ST_ID),
                 TestGraphEntity.newBuilder(NAMESPACE_ID, ApiEntityType.NAMESPACE),
@@ -558,7 +561,8 @@ public class SupplyChainCalculatorTest {
                     .addConnectedEntity(CONTAINER_SPEC_ID, ConnectionType.OWNS_CONNECTION),
                 TestGraphEntity.newBuilder(CONTAINER_POD_1_ID, ApiEntityType.CONTAINER_POD)
                     .addProviderId(VM_ID)
-                    .addProviderId(WORKLOAD_CONTROLLER_ID),
+                    .addProviderId(WORKLOAD_CONTROLLER_ID)
+                    .addProviderId(VOLUME_ID),
                 TestGraphEntity.newBuilder(CONTAINER_POD_2_ID, ApiEntityType.CONTAINER_POD)
                     .addProviderId(PM_ID)
                     .addProviderId(WORKLOAD_CONTROLLER_ID),
@@ -575,16 +579,22 @@ public class SupplyChainCalculatorTest {
         Map<Integer, SupplyChainNode> supplychain = getSupplyChain(graph, WORKLOAD_CONTROLLER_ID);
         SupplyChainNode vmNode = supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
         SupplyChainNode pmNode = supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber());
+        SupplyChainNode volNode = supplychain.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber());
         SupplyChainNode stNode = supplychain.get(ApiEntityType.STORAGE.typeNumber());
 
         assertEquals(Collections.singleton(PM_ID), getAllNodeIds(pmNode));
         assertEquals(Collections.singleton(VM_ID), getAllNodeIds(vmNode));
+        assertEquals(Collections.singleton(VOLUME_ID), getAllNodeIds(volNode));
         assertEquals(Collections.singleton(ST_ID), getAllNodeIds(stNode));
 
         // Ensure nodes are NOT reachable from namespace
         supplychain = getSupplyChain(graph, NAMESPACE_ID);
         assertNull(supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         assertNull(supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
+
+        // Ensure volume(s) are reachable from namespaces
+        final SupplyChainNode volumeControllerNode = supplychain.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber());
+        assertEquals(Collections.singleton(VOLUME_ID), getAllNodeIds(volumeControllerNode));
 
         // Ensure namespaces are reachable from containers
         supplychain = getSupplyChain(graph, CONTAINER_1_ID);
@@ -596,6 +606,50 @@ public class SupplyChainCalculatorTest {
         supplychain = getSupplyChain(graph, CONTAINER_POD_1_ID);
         final SupplyChainNode podNode = supplychain.get(ApiEntityType.CONTAINER_POD.typeNumber());
         assertEquals(Collections.singleton(CONTAINER_POD_1_ID), getAllNodeIds(podNode));
+    }
+
+    /**
+     * Test cloud native topology starting from VMs to include volumes in
+     * an unstitched env. When unstitched the volumes are reported only as
+     * pods providers.
+     */
+    @Test
+    public void testVMToVolumesUnstitched() {
+        /*
+         *  *  Topology:
+         *
+         *      Pod1    Pod2
+         *    /   \   /   \
+         *   /     \ /     \
+         * Vol1    VM1    Vol2
+         *
+         */
+
+        final long pod1Id = 1;
+        final long pod2Id = 2;
+        final long vm1Id = 11;
+        final long vol1Id = 21;
+        final long vol2Id = 22;
+
+
+        final TopologyGraph<TestGraphEntity> graph =
+                TestGraphEntity.newGraph(
+                        TestGraphEntity.newBuilder(pod1Id, ApiEntityType.CONTAINER_POD)
+                                .addProviderId(vm1Id)
+                                .addProviderId(vol1Id),
+                        TestGraphEntity.newBuilder(pod2Id, ApiEntityType.CONTAINER_POD)
+                                .addProviderId(vm1Id)
+                                .addProviderId(vol2Id),
+                        TestGraphEntity.newBuilder(vm1Id, ApiEntityType.VIRTUAL_MACHINE),
+                        TestGraphEntity.newBuilder(vol1Id, ApiEntityType.VIRTUAL_VOLUME),
+                        TestGraphEntity.newBuilder(vol2Id, ApiEntityType.VIRTUAL_VOLUME));
+
+        // 1.
+        Map<Integer, SupplyChainNode> supplychain = getSupplyChain(graph, vm1Id);
+
+        assertThat(getAllNodeIds(supplychain.get(ApiEntityType.VIRTUAL_VOLUME
+                .typeNumber())), containsInAnyOrder(vol1Id, vol2Id));
+
     }
 
     /**
