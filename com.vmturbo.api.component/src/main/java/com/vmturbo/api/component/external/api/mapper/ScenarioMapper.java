@@ -121,15 +121,14 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Topolo
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
-import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.search.CloudType;
-import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -1504,8 +1503,10 @@ public class ScenarioMapper {
             // - If it is populated, check that it matches the apiId's class name.
             if (scopeDTO.getClassName() != null
                     && !scopeDTO.getClassName().equalsIgnoreCase(resolvedScope.getClassName())) {
-                throw new IllegalArgumentException("Incorrect class name for scope with uuid "
-                        + resolvedScope.uuid());
+                throw new IllegalArgumentException(FormattedString.format(
+                    "Incorrect class name {} (expected: {}) for scope with uuid {}",
+                    resolvedScope.getClassName(), scopeDTO.getClassName(),
+                        resolvedScope.uuid()));
             }
             // Since all scope entries are additive, if any scope is the Market scope, then this is
             // effectively the same as an unscoped plan (which implies the whole Market), so throw

@@ -35,6 +35,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedEntityInfo;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
@@ -51,7 +52,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -178,6 +178,10 @@ public class UuidMapperTest {
         assertFalse(apiId.isRealtimeMarket());
         assertFalse(apiId.isGroup());
         assertFalse(apiId.isPlan());
+
+        assertTrue(apiId.isEntity());
+        // Cache the positive response.
+        verify(repositoryApi, times(1)).entitiesRequest(Collections.singleton(id));
     }
 
     /**
@@ -761,6 +765,54 @@ public class UuidMapperTest {
         // Expect 1 region in the result - the AWS region.
         assertEquals(1, result.size());
         assertEquals(awsRegionOid, result.iterator().next());
+    }
+
+    /**
+     * Test that the {@link ApiId#needsResolution()} method returns false only when there is
+     * a positive resolution of the id.
+     */
+    @Test
+    public void testNeedsResolution() {
+        ApiId apiId = uuidMapper.fromOid(123);
+        assertTrue(apiId.needsResolution());
+        apiId.setIsTarget(false);
+        assertTrue(apiId.needsResolution());
+        apiId.setCachedGroupInfo(Optional.empty());
+        assertTrue(apiId.needsResolution());
+        apiId.setCachedPlanInfo(Optional.empty());
+        assertTrue(apiId.needsResolution());
+        apiId.setCachedEntityInfo(Optional.of(mock(CachedEntityInfo.class)));
+        assertFalse(apiId.needsResolution());
+    }
+
+    /**
+     * Test that the {@link ApiId#needsResolution()} method returns false for the market.
+     *
+     * @throws OperationFailedException To satisfy the compiler.
+     */
+    @Test
+    public void testNeedsResolutionMarket() throws OperationFailedException {
+        ApiId apiId = uuidMapper.fromUuid("Market");
+        assertFalse(apiId.needsResolution());
+    }
+
+    /**
+     * Test that the {@link ApiId#needsResolution()} method false as soon as there is a positive
+     * resolution.
+     */
+    @Test
+    public void testNeedsResolutionEarlySet() {
+        ApiId apiId = uuidMapper.fromOid(123);
+        apiId.setCachedEntityInfo(Optional.of(mock(CachedEntityInfo.class)));
+        assertFalse(apiId.needsResolution());
+        // Make sure setting negative values to other types doesn't flip the "needsResolution"
+        // value
+        apiId.setIsTarget(false);
+        assertFalse(apiId.needsResolution());
+        apiId.setCachedGroupInfo(Optional.empty());
+        assertFalse(apiId.needsResolution());
+        apiId.setCachedPlanInfo(Optional.empty());
+        assertFalse(apiId.needsResolution());
     }
 
     private List<StatApiInputDTO> createStatApiInputDTO() {

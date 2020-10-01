@@ -992,7 +992,9 @@ public class UuidMapper implements RepositoryListener {
          */
         @Nonnull
         public Optional<CachedEntityInfo> getCachedEntityInfo() {
-            apiIdResolver.bulkResolveEntities(Collections.singleton(this));
+            if (!entityInfo.getValue().isPresent()) {
+                apiIdResolver.bulkResolveEntities(Collections.singleton(this));
+            }
             return entityInfo.getValue().orElse(Optional.empty());
         }
 
@@ -1066,7 +1068,9 @@ public class UuidMapper implements RepositoryListener {
          * @return True if this id refers to a target.
          */
         public boolean isTarget() {
-            apiIdResolver.bulkResolveTargets(Collections.singleton(this));
+            if (!isTarget.getValue().isPresent()) {
+                apiIdResolver.bulkResolveTargets(Collections.singleton(this));
+            }
             return isTarget.getValue().orElse(false);
         }
 
@@ -1093,7 +1097,9 @@ public class UuidMapper implements RepositoryListener {
          */
         @Nonnull
         public Optional<CachedGroupInfo> getCachedGroupInfo() {
-            apiIdResolver.bulkResolveGroups(Collections.singleton(this));
+            if (!groupInfo.getValue().isPresent()) {
+                apiIdResolver.bulkResolveGroups(Collections.singleton(this));
+            }
             return groupInfo.getValue().orElse(Optional.empty());
         }
 
@@ -1117,7 +1123,9 @@ public class UuidMapper implements RepositoryListener {
          */
         @Nonnull
         public Optional<CachedPlanInfo> getCachedPlanInfo() {
-            apiIdResolver.bulkResolvePlans(Collections.singleton(this));
+            if (!planInfo.getValue().isPresent()) {
+                apiIdResolver.bulkResolvePlans(Collections.singleton(this));
+            }
             return planInfo.getValue().orElse(Optional.empty());
         }
 
@@ -1131,10 +1139,16 @@ public class UuidMapper implements RepositoryListener {
             return getCachedPlanInfo().isPresent();
         }
 
-        private boolean needsResolution() {
-            return !(isRealtimeMarket() || groupInfo.getValue().isPresent()
-                || entityInfo.getValue().isPresent() || planInfo.getValue().isPresent()
-                || isTarget.getValue().isPresent());
+        boolean needsResolution() {
+            // This ID needs resolution if:
+            // 1) It's not the realtime market, and
+            // 2) It's not POSITIVELY one of "group", "entity", "plan", or "target."
+            //    In particular, if we know it's NOT a "group" (i.e. groupInfo.getValue().isPresent())
+            //    it still needs resolution unless we know what it is (e.g. planInfo.getValue().get().isPresent()).
+            return !(isRealtimeMarket() || groupInfo.getValue().map(Optional::isPresent).orElse(false)
+                || entityInfo.getValue().map(Optional::isPresent).orElse(false)
+                || planInfo.getValue().map(Optional::isPresent).orElse(false)
+                || isTarget.getValue().orElse(false));
         }
 
         /**
