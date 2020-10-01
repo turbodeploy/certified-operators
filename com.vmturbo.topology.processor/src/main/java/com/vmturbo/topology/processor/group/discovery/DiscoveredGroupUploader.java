@@ -45,6 +45,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.stitching.TopologyEntity;
@@ -556,10 +557,11 @@ public class DiscoveredGroupUploader {
      */
     public boolean isUCSTargetPresent()  {
         for (Target target : targetStore.getAll())  {
-            if (target.getProbeInfo().hasProbeType()
-                            && target.getProbeInfo().getProbeType().equals(
-                                            SDKProbeType.UCS.getProbeType()))   {
-                return true;
+            final ProbeInfo probeInfo = target.getProbeInfo();
+            if (probeInfo.hasProbeType()) {
+                final String probeType = probeInfo.getProbeType();
+                return SDKProbeType.UCS.getProbeType().equals(probeType)
+                        || SDKProbeType.INTERSIGHT_UCS.getProbeType().equals(probeType);
             }
         }
         return false;
