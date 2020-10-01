@@ -426,6 +426,11 @@ public class CloudMigrationPlanHelper {
             builder.getAnalysisSettingsBuilder().setShopTogether(true);
 
             if (builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                // Make sure VMs are always controllable. Some VMs are set to "not controllable"
+                // by the probe for reasons that may be applicable to real-time topology. We
+                // should still try to migrate these VMs in migration plan.
+                builder.getAnalysisSettingsBuilder().setControllable(true);
+
                 // Analysis needs to treat the entity as if it's a cloud entity for purposes of
                 // applying template exclusions, obtaining pricing, etc.
                 if (builder.getEnvironmentType().equals(EnvironmentType.ON_PREM)) {
