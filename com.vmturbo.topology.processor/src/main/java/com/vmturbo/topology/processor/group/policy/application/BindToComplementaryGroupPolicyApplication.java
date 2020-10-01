@@ -118,9 +118,9 @@ public class BindToComplementaryGroupPolicyApplication extends PlacementPolicyAp
                 // Add the commodity to the appropriate entities
                 addCommoditySoldToComplementaryProviders(consumers, allBlockedProviders,
                     providerEntityType.typeNumber(), invertedIndex, commoditySold(policy));
-            } catch (GroupResolutionException e) {
-                errors.put(policy, new PolicyApplicationException(e));
             } catch (IllegalArgumentException e) {
+                errors.put(policy, new PolicyApplicationException(e));
+            } catch (GroupResolutionException e) {
                 errors.put(policy, new PolicyApplicationException(e));
             }
         });
@@ -146,6 +146,8 @@ public class BindToComplementaryGroupPolicyApplication extends PlacementPolicyAp
                     addCommodityBought(consumers, providerEntityType.typeNumber(),
                         commodityBought(policy));
                 }
+            } catch (IllegalArgumentException e) {
+                errors.put(policy, new PolicyApplicationException(e));
             } catch (PolicyApplicationException e) {
                 errors.put(policy, e);
             }

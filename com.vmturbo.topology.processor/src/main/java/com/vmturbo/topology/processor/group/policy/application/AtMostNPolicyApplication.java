@@ -102,9 +102,9 @@ public class AtMostNPolicyApplication extends PlacementPolicyApplication<AtMostN
                 // Other providers are still valid destinations, with no limit on the capacity.
                 addCommoditySoldToComplementaryProviders(consumers, providers, providerEntityType.typeNumber(),
                     invertedIndex, commoditySold(policy));
-            } catch (GroupResolutionException e) {
+            }  catch (IllegalArgumentException e) {
                 errors.put(policy, new PolicyApplicationException(e));
-            } catch (IllegalArgumentException e) {
+            } catch (GroupResolutionException e) {
                 errors.put(policy, new PolicyApplicationException(e));
             }
         });
@@ -130,6 +130,8 @@ public class AtMostNPolicyApplication extends PlacementPolicyApplication<AtMostN
                     addCommodityBought(consumers, providerEntityType.typeNumber(),
                         commodityBought(policy));
                 }
+            } catch (IllegalArgumentException e) {
+                errors.put(policy, new PolicyApplicationException(e));
             } catch (PolicyApplicationException e) {
                 errors.put(policy, e);
             }
