@@ -563,7 +563,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
 
-        economy.getSettings().setDefaultRateOfResize((float)Math.pow(10, 10));
+        vm.getSettings().setRateOfResize((float)Math.pow(10, 10));
         Ledger ledger = new Ledger(economy);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
         assertEquals(2, actions.size());
@@ -857,7 +857,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityIncrement(30));
         // set the rate of resize to low
-        economy.getSettings().setDefaultRateOfResize(1000000);
+        vm.getSettings().setRateOfResize(1000000);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
         assertEquals(0, actions.size());
@@ -884,7 +884,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityIncrement(30));
         // set the rate of resize to high
-        economy.getSettings().setDefaultRateOfResize(1);
+        vm.getSettings().setRateOfResize(1);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
         assertEquals(2, actions.size());
@@ -922,7 +922,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityIncrement(500));
         // set the rate of resize to low
-        economy.getSettings().setDefaultRateOfResize(1000000);
+        vm.getSettings().setRateOfResize(1000000);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
         assertEquals(0, actions.size());
@@ -1705,7 +1705,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
 
-        economy.getSettings().setDefaultRateOfResize((float)Math.pow(10, 10));
+        vm.getSettings().setRateOfResize((float)Math.pow(10, 10));
         Ledger ledger = new Ledger(economy);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
         assertEquals(2, actions.size());
@@ -1728,7 +1728,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
 
-        economy.getSettings().setDefaultRateOfResize((float)Math.pow(10, 10));
+        vm.getSettings().setRateOfResize((float)Math.pow(10, 10));
         Ledger ledger = new Ledger(economy);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
         assertEquals(2, actions.size());

@@ -62,7 +62,6 @@ public class Resizer {
             List<@NonNull Action> actions = new ArrayList<>();
             ConsistentResizer consistentResizer = new ConsistentResizer();
             for (Trader seller : economy.getTraders()) {
-                float rateOfResize = economy.getSettings().getRateOfResize(seller.getType());
                 ledger.calculateCommodityExpensesAndRevenuesForTrader(economy, seller);
                 if (economy.getForceStop()) {
                     return actions;
@@ -122,6 +121,7 @@ public class Resizer {
                                 Map<CommoditySold, Trader> rawMaterialMapping =
                                         RawMaterials.findSellerCommodityAndSupplier(economy, seller, soldIndex);
                                 Set<CommoditySold> rawMaterials = (rawMaterialMapping != null) ? rawMaterialMapping.keySet() : null;
+                                float rateOfResize = seller.getSettings().getRateOfResize();
                                 double newEffectiveCapacity = calculateEffectiveCapacity(economy, seller,
                                         resizedCommodity, desiredCapacity, commoditySold, rawMaterials, rateOfResize);
                                 boolean capacityChange = Double.compare(newEffectiveCapacity,
