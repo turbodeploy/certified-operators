@@ -347,6 +347,11 @@ public class PostStitchingTestUtilities {
             builder.setCapacity(capacity);
             return this;
         }
+
+        CommoditySoldBuilder withUsed(final double used) {
+            builder.setUsed(used);
+            return this;
+        }
     }
 
     /**
@@ -415,6 +420,11 @@ public class PostStitchingTestUtilities {
     static CommoditySoldDTO makeCommoditySold(@Nonnull final CommodityType type,
         final double capacity) {
         return CommoditySoldBuilder.newBuilder().withCapacity(capacity).withType(type).build();
+    }
+
+    static CommoditySoldDTO makeCommoditySold(@Nonnull final CommodityType type,
+            @Nonnull final String key, final double used) {
+        return CommoditySoldBuilder.newBuilder().withType(type).withKey(key).withUsed(used).build();
     }
 
     static CommodityBoughtDTO makeCommodityBought(@Nonnull final CommodityType type,

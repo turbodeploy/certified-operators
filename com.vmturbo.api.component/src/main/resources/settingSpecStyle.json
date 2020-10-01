@@ -274,12 +274,6 @@
           "step": 1,
           "labels": ["Low", "Medium", "High", "1", "2", "3"]
         }
-      },
-      "containerRateOfResize": {
-        "range": {
-          "step": 1,
-          "labels": ["Low", "Medium", "High", "1", "2", "3"]
-        }
       }
     }
 }

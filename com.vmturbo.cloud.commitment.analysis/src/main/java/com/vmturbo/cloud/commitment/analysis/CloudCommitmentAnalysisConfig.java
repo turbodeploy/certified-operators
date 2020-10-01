@@ -21,6 +21,7 @@ import com.vmturbo.cloud.commitment.analysis.config.DemandTransformationConfig;
 import com.vmturbo.cloud.commitment.analysis.config.SharedFactoriesConfig;
 import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
+import com.vmturbo.cloud.commitment.analysis.inventory.CloudCommitmentBoughtResolver;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReader;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReaderImpl;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisFactory;
@@ -29,6 +30,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisCont
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext.DefaultAnalysisContextFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.ImmutableStaticAnalysisConfig;
 import com.vmturbo.cloud.commitment.analysis.runtime.StaticAnalysisConfig;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.CloudCommitmentInventoryResolverStage.CloudCommitmentInventoryResolverStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.InitializationStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
@@ -55,13 +57,16 @@ import com.vmturbo.group.api.GroupMemberRetriever;
         CloudCommitmentSpecMatcherConfig.class,
         DemandClassificationConfig.class,
         DemandTransformationConfig.class,
-        SharedFactoriesConfig.class
+        SharedFactoriesConfig.class,
 })
 @Configuration
 public class CloudCommitmentAnalysisConfig {
 
     @Autowired
     private ComputeTierAllocationStore computeTierAllocationStore;
+
+    @Autowired
+    private CloudCommitmentBoughtResolver cloudCommitmentBoughtResolver;
 
     @Autowired
     private RepositoryServiceBlockingStub repositoryServiceBlockingStub;
@@ -140,7 +145,8 @@ public class CloudCommitmentAnalysisConfig {
                 initializationStageFactory(),
                 demandRetrievalFactory(),
                 demandClassificationFactory,
-                demandTransformationFactory);
+                demandTransformationFactory,
+                cloudCommitmentInventoryResolverStageFactory());
     }
 
     /**
@@ -165,6 +171,15 @@ public class CloudCommitmentAnalysisConfig {
         return new DefaultMinimalEntityCloudTopologyFactory(billingFamilyRetrieverFactory());
     }
 
+    /**
+     * Creates an instance of the CloudCommitmentInventoryResolverStage.
+     *
+     * @return The CloudCommitmentInventoryResolverStage.
+     */
+    @Bean
+    public CloudCommitmentInventoryResolverStageFactory cloudCommitmentInventoryResolverStageFactory() {
+        return new CloudCommitmentInventoryResolverStageFactory(cloudCommitmentBoughtResolver);
+    }
 
     /**
      * Bean for the analysis context factory.

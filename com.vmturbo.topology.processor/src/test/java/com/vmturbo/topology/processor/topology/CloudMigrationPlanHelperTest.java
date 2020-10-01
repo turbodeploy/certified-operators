@@ -32,6 +32,7 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
@@ -49,9 +50,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
@@ -201,6 +204,45 @@ public class CloudMigrationPlanHelperTest {
          * Whether commBoughtGrouping is movable or not. If not, movable assert check is ignored.
          */
         @Nullable Boolean movable = null;
+    }
+
+    /**
+     * Test that cloud entities with AHUB pricing are reset to normal LICENSE_INCLUDED
+     * pricing before migration, to ensure correct OS cost calculation at the destination.
+     *
+     * @throws PipelineStageException should not happen in this test and indicates failure
+     */
+    @Test
+    public void prepareEntitiesAHUB() throws PipelineStageException {
+        assertNotNull(vm1Azure);
+        assertNotNull(allocationTopologyInfo);
+
+        TopologyEntity.Builder azureVm = TopologyEntity.newBuilder(vm1Azure);
+
+        // Verify that the VM starts with AHUB licensing
+
+        assertEquals(LicenseModel.AHUB,
+            vm1Azure.getTypeSpecificInfo().getVirtualMachine().getLicenseModel());
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(
+            azureVm);
+
+        TopologyMigration migration = TopologyMigration.getDefaultInstance();
+
+        TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        when(context.getSourceEntities()).thenReturn(Collections.singleton(azureVm.getOid()));
+        when(context.getTopologyInfo()).thenReturn(consumptionTopologyInfo);
+
+        cloudMigrationPlanHelper.prepareEntities(context, graph, migration, Collections.EMPTY_MAP,
+            true);
+
+        TopologyEntity resultVm = graph.getEntity(azureVm.getOid()).orElse(null);
+        assertNotNull(resultVm);
+
+        // VM should have been updated to LICENSE_INCLUDED to ensure correct pricing
+        // calculation on the destination
+        assertEquals(LicenseModel.LICENSE_INCLUDED,
+            resultVm.getTypeSpecificInfo().getVirtualMachine().getLicenseModel());
     }
 
     /**

@@ -18,6 +18,7 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 
@@ -111,9 +112,11 @@ public class ResultsConverter {
 
                 supplyChainNodeBuilder.ifPresent(nodeBuilder -> {
                     if (direction == GraphCmd.SupplyChainDirection.PROVIDER) {
-                        nodeBuilder.addAllConnectedProviderTypes(rels);
+                        rels.forEach(r -> nodeBuilder.addConnectedProviderTypes(
+                                ApiEntityType.fromString(r).typeNumber()));
                     } else if (direction == GraphCmd.SupplyChainDirection.CONSUMER) {
-                        nodeBuilder.addAllConnectedConsumerTypes(rels);
+                        rels.forEach(r -> nodeBuilder.addConnectedConsumerTypes(
+                                ApiEntityType.fromString(r).typeNumber()));
                     }
                 });
 

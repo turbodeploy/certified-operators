@@ -101,7 +101,6 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Responsible for mapping Settings-related XL objects to their API counterparts.
@@ -212,20 +211,9 @@ public class SettingsMapper {
      */
     public static final Map<String, String> GLOBAL_SETTING_ENTITY_TYPES =
         ImmutableMap.<String, String>builder()
-            .put(GlobalSettingSpecs.DefaultRateOfResize.getSettingName(), ApiEntityType.VIRTUAL_MACHINE.apiStr())
-            .put(GlobalSettingSpecs.ContainerRateOfResize.getSettingName(), ApiEntityType.CONTAINER.apiStr())
             .put(GlobalSettingSpecs.DisableAllActions.getSettingName(), SERVICE_ENTITY)
             .put(GlobalSettingSpecs.MaxVMGrowthObservationPeriod.getSettingName(), SERVICE_ENTITY)
             .build();
-
-    /**
-     * Some global settings appear specifically on the default setting policy for a specific entity type.
-     * This is a map of the entity type to the corresponding global settings.
-     */
-    public static final Map<Integer, GlobalSettingSpecs> ENTITY_TYPE_GLOBAL_SETTINGS = ImmutableMap.of(
-            EntityType.VIRTUAL_MACHINE_VALUE, GlobalSettingSpecs.DefaultRateOfResize,
-            EntityType.CONTAINER_VALUE, GlobalSettingSpecs.ContainerRateOfResize
-        );
 
     /**
      * map to get the predefined label for a given setting enum. if not found, we will use
@@ -475,22 +463,6 @@ public class SettingsMapper {
                     .filter(settingMgr -> settingMgr.getSettings() != null)
                     .flatMap(settingMgr -> settingMgr.getSettings().stream())
                     .collect(Collectors.toMap(SettingApiDTO::getUuid, Function.identity()));
-
-            // Some global settings in the UI, are displayed along with the default policy
-            // for a specific entity type. Remove it from the involvedSettings and update the
-            // associated global setting. Api is not setting the default flag. So we can only
-            // check its type.
-            if (ENTITY_TYPE_GLOBAL_SETTINGS.containsKey(entityType)) {
-                final String globalSettingName = ENTITY_TYPE_GLOBAL_SETTINGS.get(entityType).getSettingName();
-                if (involvedSettings.containsKey(globalSettingName)) {
-                    final SettingApiDTO<?> settingApiDto = involvedSettings.remove(globalSettingName);
-                    settingService.updateGlobalSetting(UpdateGlobalSettingRequest.newBuilder()
-                        .addSetting(Setting.newBuilder().setSettingSpecName(globalSettingName)
-                            .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(
-                                Float.valueOf(SettingsMapper.inputValueToString(settingApiDto).orElse("0")))))
-                        .build());
-                }
-            }
 
             if (!involvedSettings.isEmpty()) {
                 settingService.searchSettingSpecs(SearchSettingSpecsRequest.newBuilder()
@@ -811,12 +783,7 @@ public class SettingsMapper {
                             managerMapping.getManagerUuid(setting.getSettingSpecName())
                                     .orElse(NO_MANAGER)));
 
-            // Some global settings in the UI, are displayed along with the default policy
-            // for a specific entity type. So fetch the global setting and inject it here.
-            if (isEntityDefaultPolicyWithGlobalSetting(settingPolicy)) {
-                injectGlobalSetting(ENTITY_TYPE_GLOBAL_SETTINGS.get(
-                        settingPolicy.getInfo().getEntityType()), settingsByMgr, globalSettingNameToSettingMap);
-            } else if (isGlobalSettingPolicy(settingPolicy)) {
+            if (isGlobalSettingPolicy(settingPolicy)) {
                 apiDto.setEntityType(SERVICE_ENTITY);
                 GlobalSettingSpecs.VISIBLE_TO_UI.forEach(globalSettingSpecs ->
                     injectGlobalSetting(globalSettingSpecs, settingsByMgr, globalSettingNameToSettingMap));
@@ -1098,15 +1065,6 @@ public class SettingsMapper {
             return Optional.of((String)value);
         }
         return Optional.of(value.toString());
-    }
-
-    private static boolean isEntityDefaultPolicyWithGlobalSetting(@Nonnull SettingPolicy policy) {
-        return policy.getSettingPolicyType().equals(Type.DEFAULT)
-            && ENTITY_TYPE_GLOBAL_SETTINGS.containsKey(policy.getInfo().getEntityType());
-    }
-
-    public static boolean isVmEntityType(int entityType) {
-        return (EntityType.VIRTUAL_MACHINE.getNumber() == entityType);
     }
 
     private static boolean isGlobalSettingPolicy(SettingPolicy settingPolicy) {
@@ -1404,20 +1362,11 @@ public class SettingsMapper {
 
     private Map<String, Setting> getRelevantGlobalSettings(List<SettingPolicy> settingPolicies) {
         Set<String> globalSettingNames = settingPolicies.stream()
-            .flatMap(policy -> {
-                if (isEntityDefaultPolicyWithGlobalSetting(policy)) {
-                    return Stream.of(ENTITY_TYPE_GLOBAL_SETTINGS.get(
-                        policy.getInfo().getEntityType()).getSettingName());
-                } else if (isGlobalSettingPolicy(policy)) {
-                    return GlobalSettingSpecs.VISIBLE_TO_UI.stream().map(GlobalSettingSpecs::getSettingName);
-                } else {
-                    return Stream.empty();
-                }
-            }
-            ).filter(Objects::nonNull)
+            .filter(SettingsMapper::isGlobalSettingPolicy)
+            .flatMap(policy -> GlobalSettingSpecs.VISIBLE_TO_UI.stream().map(GlobalSettingSpecs::getSettingName))
             .collect(Collectors.toSet());
 
-        Map<String, Setting> globalSettings = new HashMap<String, Setting>();
+        Map<String, Setting> globalSettings = new HashMap<>();
 
         if (CollectionUtils.isEmpty(globalSettingNames)) {
             return globalSettings;

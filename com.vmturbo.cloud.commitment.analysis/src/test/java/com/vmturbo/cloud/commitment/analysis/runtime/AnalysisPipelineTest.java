@@ -15,6 +15,9 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
+import com.vmturbo.cloud.commitment.analysis.inventory.AnalysisTopology;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.CloudCommitmentInventoryResolverStage;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.CloudCommitmentInventoryResolverStage.CloudCommitmentInventoryResolverStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.InitializationStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandSet;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
@@ -40,12 +43,16 @@ public class AnalysisPipelineTest {
 
     private final DemandTransformationFactory demandTransformationFactory = mock(DemandTransformationFactory.class);
 
+    private final CloudCommitmentInventoryResolverStageFactory
+            cloudCommitmentInventoryResolverStageFactory = mock(CloudCommitmentInventoryResolverStageFactory.class);
+
     private final AnalysisPipelineFactory analysisPipelineFactory =
             new AnalysisPipelineFactory(identityProvider,
                     initializationStageFactory,
                     demandRetrievalFactory,
                     demandClassificationFactory,
-                    demandTransformationFactory);
+                    demandTransformationFactory,
+                    cloudCommitmentInventoryResolverStageFactory);
 
     /**
      * Test for the analysis pipeline and factory.
@@ -74,6 +81,10 @@ public class AnalysisPipelineTest {
         final AnalysisStage<ClassifiedEntityDemandSet, AggregateAnalysisDemand> demandTransformationStage =
                 mock(AnalysisStage.class);
         when(demandTransformationFactory.createStage(anyLong(), any(), any())).thenReturn(demandTransformationStage);
+
+        final AnalysisStage<AggregateAnalysisDemand, AnalysisTopology> inventoryResolverStage = mock(
+                CloudCommitmentInventoryResolverStage.class);
+        when(cloudCommitmentInventoryResolverStageFactory.createStage(anyLong(), any(), any())).thenReturn(inventoryResolverStage);
 
         // invoke pipeline factory
         final AnalysisPipeline analysisPipeline = analysisPipelineFactory.createAnalysisPipeline(
@@ -121,10 +132,11 @@ public class AnalysisPipelineTest {
         assertThat(analysisContextCaptor.getValue(), equalTo((analysisContext)));
 
         // check the analysis pipeline structure
-        assertThat(analysisPipeline.stages(), hasSize(4));
+        assertThat(analysisPipeline.stages(), hasSize(5));
         assertThat(analysisPipeline.stages().get(0), equalTo(initializationStage));
         assertThat(analysisPipeline.stages().get(1), equalTo(demandRetrievalStage));
         assertThat(analysisPipeline.stages().get(2), equalTo(demandClassificationStage));
         assertThat(analysisPipeline.stages().get(3), equalTo(demandTransformationStage));
+        assertThat(analysisPipeline.stages().get(4), equalTo(inventoryResolverStage));
     }
 }

@@ -7,7 +7,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Lists;
 
-import com.vmturbo.platform.common.dto.CommonDTO;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,8 +19,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Archite
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualizationType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.mediation.hybrid.cloud.common.OsDetailParser;
 import com.vmturbo.mediation.hybrid.cloud.common.OsDetailParser.OsDetails;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -151,7 +152,10 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
             return os.setGuestOsType(OSType.valueOf(osType)).setGuestOsName(osName);
         } catch (IllegalArgumentException e) {
             // for On-prem OS type, we pass the OS name with UNKNOWN Cloud type
-            return os.setGuestOsType(OSType.UNKNOWN_OS).setGuestOsName(guestName);
+            return os.setGuestOsType(OSType.UNKNOWN_OS).setGuestOsName(
+                    // it's possible that probe doesn't return guestName which is empty string by
+                    // default, we should set it to Unknown so it's searchable from UI
+                    guestName.isEmpty() ? StringConstants.UNKNOWN : guestName);
         }
     }
 }

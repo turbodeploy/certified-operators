@@ -3,6 +3,7 @@ package com.vmturbo.repository.service;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,10 +71,10 @@ public class TopologyGraphSupplyChainRpcServiceTest {
 
     @Spy
     private final SupplyChainStatistician supplyChainStatistician =
-            Mockito.mock(SupplyChainStatistician.class);
+            mock(SupplyChainStatistician.class);
     private final TopologyGraphSupplyChainRpcService service =
         new TopologyGraphSupplyChainRpcService(
-            userSessionContext, liveTopologyStore, Mockito.mock(ArangoSupplyChainRpcService.class),
+            userSessionContext, liveTopologyStore, mock(ArangoSupplyChainRpcService.class),
             supplyChainStatistician, new SupplyChainCalculator(), realTimeContextId);
 
     private static final long VM_ID = 1L;
@@ -191,7 +192,7 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         SupplyChain supplyChain = responseObserver.getResults().get(0).getSupplyChain();
         assertThat(supplyChain.getSupplyChainNodesList().size(), is(1));
         SupplyChainNode node = supplyChain.getSupplyChainNodes(0);
-        assertThat(node.getEntityType(), is(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(node.getEntityType(), is(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         assertThat(RepositoryDTOUtil.getAllMemberOids(node), containsInAnyOrder(ONPREM_IDLE_VM_ID));
     }
 
@@ -220,7 +221,7 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         SupplyChain supplyChain = responseObserver.getResults().get(0).getSupplyChain();
         assertThat(supplyChain.getSupplyChainNodesList().size(), is(1));
         SupplyChainNode node = supplyChain.getSupplyChainNodes(0);
-        assertThat(node.getEntityType(), is(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(node.getEntityType(), is(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         assertThat(RepositoryDTOUtil.getAllMemberOids(node), containsInAnyOrder(ONPREM_IDLE_VM_ID));
 
     }
@@ -453,7 +454,7 @@ public class TopologyGraphSupplyChainRpcServiceTest {
                                 .map(SupplyChainNode::getEntityType)
                                 .collect(Collectors.toList()),
                           containsInAnyOrder(ApiEntityType.fromType(EntityType.VIRTUAL_MACHINE_VALUE)
-                                                .apiStr()));
+                                                .typeNumber()));
         Assert.assertEquals(Collections.singletonList(HYBRID_VM_ID),
                             response.getSupplyChain().getSupplyChainNodes(0)
                                 .getMembersByStateMap().values().stream()
@@ -478,7 +479,7 @@ public class TopologyGraphSupplyChainRpcServiceTest {
                                     .setScope(SupplyChainScope.newBuilder()
                                                 .addStartingEntityOid(VM_ID)
                                                 .addEntityTypesToInclude(
-                                                    ApiEntityType.REGION.apiStr()))
+                                                    ApiEntityType.REGION.typeNumber()))
                                     .build(),
                                responseObserver);
         latch.await();
@@ -488,7 +489,7 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         Assert.assertThat(response.getSupplyChain().getSupplyChainNodesList().stream()
                                 .map(SupplyChainNode::getEntityType)
                                 .collect(Collectors.toList()),
-                          containsInAnyOrder(ApiEntityType.fromType(EntityType.REGION_VALUE).apiStr()));
+                          containsInAnyOrder(ApiEntityType.fromType(EntityType.REGION_VALUE).typeNumber()));
     }
 
     /**
@@ -526,9 +527,9 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         Assert.assertThat(response0.getSupplyChain().getSupplyChainNodesList().stream()
                                     .map(SupplyChainNode::getEntityType)
                                     .collect(Collectors.toList()),
-                          containsInAnyOrder(ApiEntityType.fromType(EntityType.REGION_VALUE).apiStr(),
+                          containsInAnyOrder(ApiEntityType.fromType(EntityType.REGION_VALUE).typeNumber(),
                                              ApiEntityType.fromType(EntityType.VIRTUAL_MACHINE_VALUE)
-                                                    .apiStr()));
+                                                    .typeNumber()));
         Assert.assertEquals(0, response1.getSupplyChain().getSupplyChainNodesCount());
     }
 
@@ -626,7 +627,7 @@ public class TopologyGraphSupplyChainRpcServiceTest {
     private void assertCorrectnessOfSupplyChainResponse(@Nonnull GetSupplyChainResponse response,
                                                         boolean onpremVmIncluded, boolean hybridVmIncluded,
                                                         boolean accountIncluded) {
-        final Map<String, Set<Long>> supplyChainEntityIdsPerEntityType =
+        final Map<Integer, Set<Long>> supplyChainEntityIdsPerEntityType =
             response.getSupplyChain().getSupplyChainNodesList().stream()
                 .collect(Collectors.toMap(
                     SupplyChainNode::getEntityType,
@@ -636,22 +637,22 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         // region is included
         Assert.assertEquals(
             Collections.singleton(REG_ID),
-            supplyChainEntityIdsPerEntityType.get(ApiEntityType.fromType(EntityType.REGION_VALUE).apiStr()));
+            supplyChainEntityIdsPerEntityType.get(ApiEntityType.fromType(EntityType.REGION_VALUE).typeNumber()));
 
         // check account
         if (accountIncluded) {
             Assert.assertEquals(
                 Collections.singleton(ACC_ID),
                 supplyChainEntityIdsPerEntityType.get(ApiEntityType.fromType(
-                                                        EntityType.BUSINESS_ACCOUNT_VALUE).apiStr()));
+                                                        EntityType.BUSINESS_ACCOUNT_VALUE).typeNumber()));
         } else {
             Assert.assertFalse(supplyChainEntityIdsPerEntityType.containsKey(ApiEntityType.fromType(
-                                    EntityType.BUSINESS_ACCOUNT_VALUE).apiStr()));
+                                    EntityType.BUSINESS_ACCOUNT_VALUE).typeNumber()));
         }
 
         // check VMs
         final Set<Long> vmIds = supplyChainEntityIdsPerEntityType.get(
-                                    ApiEntityType.fromType(EntityType.VIRTUAL_MACHINE_VALUE).apiStr());
+                                    ApiEntityType.fromType(EntityType.VIRTUAL_MACHINE_VALUE).typeNumber());
         Assert.assertTrue(vmIds.contains(VM_ID));
         Assert.assertEquals(onpremVmIncluded, vmIds.contains(ONPREM_VM_ID));
         Assert.assertEquals(hybridVmIncluded, vmIds.contains(HYBRID_VM_ID));

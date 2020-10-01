@@ -489,20 +489,6 @@ public class TopologyEntitiesHandler {
                 analysisConfig.getDiscountedComputeCostFactor());
         }
 
-        analysisConfig.getGlobalSetting(GlobalSettingSpecs.DefaultRateOfResize).ifPresent(rateOfResize -> {
-            if (rateOfResize.hasNumericSettingValue()) {
-                economySettings.setDefaultRateOfResize(rateOfResizeTranslationMap
-                    .get(rateOfResize.getNumericSettingValue().getValue()));
-            }
-        });
-
-        analysisConfig.getGlobalSetting(GlobalSettingSpecs.ContainerRateOfResize).ifPresent(rateOfResize -> {
-            if (rateOfResize.hasNumericSettingValue()) {
-                economySettings.setRateOfResizeForTraderType(EntityType.CONTAINER_VALUE,
-                    rateOfResizeTranslationMap.get(rateOfResize.getNumericSettingValue().getValue()));
-            }
-        });
-
         analysisConfig.getMaxPlacementsOverride().ifPresent(maxPlacementIterations -> {
             logger.info("Overriding economy setting max placement iterations with value: {}",
                 maxPlacementIterations);

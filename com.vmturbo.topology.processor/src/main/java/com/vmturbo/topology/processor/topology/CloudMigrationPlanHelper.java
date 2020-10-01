@@ -72,6 +72,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
@@ -80,6 +81,7 @@ import com.vmturbo.mediation.hybrid.cloud.common.OsType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
@@ -134,6 +136,9 @@ public class CloudMigrationPlanHelper {
             "UNMANAGED_STANDARD",
             "UNMANAGED_PREMIUM"
     );
+
+    private static final String AWS_IO1_DISPLAY_NAME = "IO1";
+    private static final String AWS_IO2_DISPLAY_NAME = "IO2";
 
     private static final String CSP_AWS_DISPLAY_NAME = "AWS";
 
@@ -218,7 +223,7 @@ public class CloudMigrationPlanHelper {
     /**
      * IOPS to Storage ratios: used for adjusting storage amount based on IOPS.
      */
-    private IopsToStorageRatios iopsToStorageRatios;
+    private IopsToStorageRatios iopsToStorageRatios = new IopsToStorageRatios();
 
     /**
      * Volume to storage amount map: The volume amount may be adjusted based on IOPS. The adjusted
@@ -397,11 +402,11 @@ public class CloudMigrationPlanHelper {
      * StorageAccess bought
      * @throws PipelineStageException Thrown when entity lookup by oid fails.
      */
-    private void prepareEntities(@Nonnull final TopologyPipelineContext context,
-                                @Nonnull final TopologyGraph<TopologyEntity> graph,
-                                @Nonnull final TopologyMigration migrationChange,
-                                @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
-                                 final boolean isDestinationAws)
+     void prepareEntities(@Nonnull final TopologyPipelineContext context,
+                          @Nonnull final TopologyGraph<TopologyEntity> graph,
+                          @Nonnull final TopologyMigration migrationChange,
+                          @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
+                          final boolean isDestinationAws)
             throws PipelineStageException {
         Set<Long> sourceEntities = context.getSourceEntities();
 
@@ -420,16 +425,32 @@ public class CloudMigrationPlanHelper {
             // It could be overridden in settingsApplicator
             builder.getAnalysisSettingsBuilder().setShopTogether(true);
 
-            // Analysis needs to treat the entity as if it's a cloud entity for purposes of
-            // applying template exclusions, obtaining pricing, etc.
-            if (builder.getEnvironmentType().equals(EnvironmentType.ON_PREM)
-                    && builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                // Set environment type of associated virtual volumes of on-prem VMs to CLOUD.
-                entity.getOutboundAssociatedEntities().stream()
+            if (builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                // Make sure VMs are always controllable. Some VMs are set to "not controllable"
+                // by the probe for reasons that may be applicable to real-time topology. We
+                // should still try to migrate these VMs in migration plan.
+                builder.getAnalysisSettingsBuilder().setControllable(true);
+
+                // Analysis needs to treat the entity as if it's a cloud entity for purposes of
+                // applying template exclusions, obtaining pricing, etc.
+                if (builder.getEnvironmentType().equals(EnvironmentType.ON_PREM)) {
+                    // Set environment type of associated virtual volumes of on-prem VMs to CLOUD.
+                    entity.getOutboundAssociatedEntities().stream()
                         .filter(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
                         .map(TopologyEntity::getTopologyEntityDtoBuilder)
                         .forEach(b -> b.setEnvironmentType(EnvironmentType.CLOUD));
-                builder.setEnvironmentType(EnvironmentType.CLOUD);
+                    builder.setEnvironmentType(EnvironmentType.CLOUD);
+                } else if (builder.getEnvironmentType().equals(EnvironmentType.CLOUD)) {
+                    VirtualMachineInfo vmInfo = builder.getTypeSpecificInfo().getVirtualMachine();
+
+                    // For Cloud to Cloud migrations, reset AHUB (Azure BYOL for Windows)
+                    // to normal licensing so we respect the user's choice for migrating
+                    // BYOL or not.
+                    if (vmInfo.getLicenseModel() == LicenseModel.AHUB) {
+                        builder.getTypeSpecificInfoBuilder().getVirtualMachineBuilder()
+                            .setLicenseModel(LicenseModel.LICENSE_INCLUDED);
+                    }
+                }
             }
 
             // Remove non-applicable commodities first here, before other stages add some bought
@@ -1269,12 +1290,18 @@ public class CloudMigrationPlanHelper {
     private Set<Long> getCloudStorageTiers(@Nonnull final TopologyGraph<TopologyEntity> graph,
                                            @Nonnull final TopologyInfo topologyInfo,
                                            @Nullable final TopologyEntity currentCsp) {
+        final boolean isIO2TierPresent = isIO2TierPresent(graph);
         // Go over all known storage tiers, for all CSPs.
         return graph.entitiesOfType(STORAGE_TIER)
                 .filter(storageTier -> {
                     // If this is an already known tier that we want to skip (e.g for Lift_n_Shift
                     // plan, we only want GP2 and Managed_Premium), then apply that filter.
                     if (!includeCloudStorageTier(storageTier, topologyInfo)) {
+                        return false;
+                    }
+                    // Exclude IO1 if IO2 tier is present. These two tiers have the same cost, but
+                    // IO2 is better.
+                    if (AWS_IO1_DISPLAY_NAME.equals(storageTier.getDisplayName()) && isIO2TierPresent) {
                         return false;
                     }
                     // Check CSP, we don't want another storage tier with the same CSP.
@@ -1295,6 +1322,15 @@ public class CloudMigrationPlanHelper {
                 })
                 .map(TopologyEntity::getOid)
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Return true is IO2 tier is in scope.
+     * @param graph Topology graph.
+     * @return true is IO2 tier is in scope.
+     */
+    private boolean isIO2TierPresent(@Nonnull final TopologyGraph<TopologyEntity> graph) {
+        return graph.entitiesOfType(STORAGE_TIER).anyMatch(t -> t.getDisplayName().equals(AWS_IO2_DISPLAY_NAME));
     }
 
     /**

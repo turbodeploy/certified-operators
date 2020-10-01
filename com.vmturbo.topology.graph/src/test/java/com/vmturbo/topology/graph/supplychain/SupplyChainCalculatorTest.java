@@ -142,24 +142,24 @@ public class SupplyChainCalculatorTest {
 
         assertThat(supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                               .getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.STORAGE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.STORAGE.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                         supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())),
                    is(1));
 
         assertThat(supplychain.get(ApiEntityType.STORAGE.typeNumber())
                               .getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.DISKARRAY.apiStr()));
+                   containsInAnyOrder(ApiEntityType.DISKARRAY.typeNumber()));
         assertThat(supplychain.get(ApiEntityType.STORAGE.typeNumber())
                               .getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                         supplychain.get(ApiEntityType.STORAGE.typeNumber())),
                    is(2));
 
         assertThat(supplychain.get(ApiEntityType.DISKARRAY.typeNumber())
                               .getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.STORAGE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.STORAGE.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                         supplychain.get(ApiEntityType.DISKARRAY.typeNumber())),
                    is(1));
@@ -241,20 +241,20 @@ public class SupplyChainCalculatorTest {
         final SupplyChainNode vmNode = supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
         assertThat(RepositoryDTOUtil.getMemberCount(vmNode), is(2));
         assertThat(vmNode.getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.DISKARRAY.apiStr(), ApiEntityType.STORAGE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.DISKARRAY.typeNumber(), ApiEntityType.STORAGE.typeNumber()));
 
         final SupplyChainNode stNode = supplychain.get(ApiEntityType.STORAGE.typeNumber());
         assertThat(RepositoryDTOUtil.getMemberCount(stNode), is(1));
         // No VM provider, because the VM that's buying from the storage directly is not in
         // the DA's supply chain.
         assertThat(stNode.getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.DISKARRAY.apiStr()));
+                   containsInAnyOrder(ApiEntityType.DISKARRAY.typeNumber()));
 
         final SupplyChainNode daNode = supplychain.get(ApiEntityType.DISKARRAY.typeNumber());
         assertThat(RepositoryDTOUtil.getMemberCount(daNode), is(1));
         assertThat(daNode.getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-                                      ApiEntityType.STORAGE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                                      ApiEntityType.STORAGE.typeNumber()));
     }
 
     /**
@@ -337,21 +337,21 @@ public class SupplyChainCalculatorTest {
                                      ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
 
        assertThat(supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber()).getConnectedProviderTypesList(),
-                  containsInAnyOrder(ApiEntityType.STORAGE.apiStr(),
-                                     ApiEntityType.PHYSICAL_MACHINE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.STORAGE.typeNumber(),
+                                     ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
        assertThat(supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber()).getConnectedConsumerTypesList(),
                   containsInAnyOrder());
 
        assertThat(supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
                        .getConnectedProviderTypesList(),
-                  containsInAnyOrder(ApiEntityType.STORAGE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.STORAGE.typeNumber()));
        assertThat(supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
                        .getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
 
        assertThat(supplychain.get(ApiEntityType.STORAGE.typeNumber()).getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-                                     ApiEntityType.PHYSICAL_MACHINE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                                     ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
        assertThat(supplychain.get(ApiEntityType.STORAGE.typeNumber()).getConnectedProviderTypesList(),
                   containsInAnyOrder());
    }
@@ -730,7 +730,7 @@ public class SupplyChainCalculatorTest {
         final SupplyChainNode stNode = supplychain.get(ApiEntityType.STORAGE.typeNumber());
         final SupplyChainNode pmNode = supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber());
 
-        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.typeNumber()),
                 pmNode.getConnectedConsumerTypesList());
         assertEquals(Collections.emptyList(), stNode.getConnectedProviderTypesList());
     }
@@ -746,16 +746,16 @@ public class SupplyChainCalculatorTest {
        final SupplyChainNode dcNode = supplychain.get(ApiEntityType.DATACENTER.typeNumber());
 
        assertThat(pmNode.getConnectedProviderTypesList(),
-                  containsInAnyOrder(ApiEntityType.DATACENTER.apiStr(),
-                                     ApiEntityType.STORAGE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.DATACENTER.typeNumber(),
+                                     ApiEntityType.STORAGE.typeNumber()));
        assertThat(pmNode.getConnectedConsumerTypesList(), containsInAnyOrder());
 
        assertThat(dcNode.getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
        assertThat(dcNode.getConnectedProviderTypesList(), containsInAnyOrder());
 
        assertThat(stNode.getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
        assertThat(stNode.getConnectedProviderTypesList(), containsInAnyOrder());
 
        assertThat(getAllNodeIds(pmNode), containsInAnyOrder(PM_ID));
@@ -847,16 +847,16 @@ public class SupplyChainCalculatorTest {
         assertThat(getAllNodeIds(vm), containsInAnyOrder(VM_2_ID));
 
         assertThat(region.getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.typeNumber()));
         assertThat(region.getConnectedProviderTypesList(), containsInAnyOrder());
 
         assertThat(zone.getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
-        assertThat(zone.getConnectedProviderTypesList(), containsInAnyOrder(ApiEntityType.REGION.apiStr()));
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
+        assertThat(zone.getConnectedProviderTypesList(), containsInAnyOrder(ApiEntityType.REGION.typeNumber()));
 
         assertThat(vm.getConnectedConsumerTypesList(), containsInAnyOrder());
         assertThat(vm.getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.typeNumber()));
     }
 
    /*
@@ -985,10 +985,10 @@ public class SupplyChainCalculatorTest {
                     ApiEntityType.BUSINESS_ACCOUNT.typeNumber(),
                     ApiEntityType.APPLICATION.typeNumber()));
             assertThat(vm.getConnectedProviderTypesList(),
-                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.apiStr(),
-                    ApiEntityType.AVAILABILITY_ZONE.apiStr(),
-                    ApiEntityType.VM_SPEC.apiStr(),
-                    ApiEntityType.BUSINESS_ACCOUNT.apiStr()));
+                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.typeNumber(),
+                    ApiEntityType.AVAILABILITY_ZONE.typeNumber(),
+                    ApiEntityType.VM_SPEC.typeNumber(),
+                    ApiEntityType.BUSINESS_ACCOUNT.typeNumber()));
 
         } else {
             assertThat(supplyChain.keySet(),
@@ -999,9 +999,9 @@ public class SupplyChainCalculatorTest {
                     ApiEntityType.BUSINESS_ACCOUNT.typeNumber(),
                     ApiEntityType.APPLICATION.typeNumber()));
             assertThat(vm.getConnectedProviderTypesList(),
-                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.apiStr(),
-                    ApiEntityType.AVAILABILITY_ZONE.apiStr(),
-                    ApiEntityType.BUSINESS_ACCOUNT.apiStr()));
+                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.typeNumber(),
+                    ApiEntityType.AVAILABILITY_ZONE.typeNumber(),
+                    ApiEntityType.BUSINESS_ACCOUNT.typeNumber()));
         }
 
        assertThat(getAllNodeIds(region), containsInAnyOrder(REGION_ID));
@@ -1016,34 +1016,34 @@ public class SupplyChainCalculatorTest {
        assertThat(getAllNodeIds(app), containsInAnyOrder(APP_ID));
 
        assertThat(region.getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.typeNumber()));
        assertThat(region.getConnectedProviderTypesList(), containsInAnyOrder());
 
        assertThat(zone.getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-                                     ApiEntityType.VIRTUAL_VOLUME.apiStr()));
+                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                                     ApiEntityType.VIRTUAL_VOLUME.typeNumber()));
        assertThat(zone.getConnectedProviderTypesList(),
-                  containsInAnyOrder(ApiEntityType.REGION.apiStr()));
+                  containsInAnyOrder(ApiEntityType.REGION.typeNumber()));
 
        assertThat(vm.getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.APPLICATION.apiStr()));
+                  containsInAnyOrder(ApiEntityType.APPLICATION.typeNumber()));
 
        assertThat(volume.getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
        assertThat(volume.getConnectedProviderTypesList(),
-                  containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.apiStr(),
-                                     ApiEntityType.BUSINESS_ACCOUNT.apiStr()));
+                  containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.typeNumber(),
+                                     ApiEntityType.BUSINESS_ACCOUNT.typeNumber()));
 
        assertThat(account.getConnectedProviderTypesList(), containsInAnyOrder());
        assertThat(account.getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-                                     ApiEntityType.VIRTUAL_VOLUME.apiStr(),
-                                     ApiEntityType.APPLICATION.apiStr()));
+                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                                     ApiEntityType.VIRTUAL_VOLUME.typeNumber(),
+                                     ApiEntityType.APPLICATION.typeNumber()));
 
        assertThat(app.getConnectedConsumerTypesList(), containsInAnyOrder());
        assertThat(app.getConnectedProviderTypesList(),
-                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-                                     ApiEntityType.BUSINESS_ACCOUNT.apiStr()));
+                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                                     ApiEntityType.BUSINESS_ACCOUNT.typeNumber()));
    }
 
    private void populateCloudEntityFields(@Nonnull Map<Integer, SupplyChainNode> graph) {
@@ -1141,9 +1141,9 @@ public class SupplyChainCalculatorTest {
                                                     is(2));
 
         assertThat(supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber()).getConnectedConsumerTypesList(),
-                                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+                                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         assertThat(supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber()).getConnectedProviderTypesList(),
-                                   containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr()));
+                                   containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
     }
 
     /**
@@ -1179,9 +1179,9 @@ public class SupplyChainCalculatorTest {
                    is(2));
 
         assertThat(supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber()).getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         assertThat(supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber()).getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
     }
 
     /**
@@ -1209,10 +1209,10 @@ public class SupplyChainCalculatorTest {
         final SupplyChainNode pmNode = supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber());
         final SupplyChainNode dcNode = supplychain.get(ApiEntityType.DATACENTER.typeNumber());
 
-        Assert.assertEquals(Collections.singletonList(ApiEntityType.DATACENTER.apiStr()),
+        Assert.assertEquals(Collections.singletonList(ApiEntityType.DATACENTER.typeNumber()),
                 pmNode.getConnectedProviderTypesList());
         assertTrue(pmNode.getConnectedConsumerTypesList().isEmpty());
-        Assert.assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.apiStr()),
+        Assert.assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.typeNumber()),
                 dcNode.getConnectedConsumerTypesList());
         assertTrue(dcNode.getConnectedProviderTypesList().isEmpty());
 
@@ -1285,22 +1285,22 @@ public class SupplyChainCalculatorTest {
 
         assertThat(supplychain.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
                         .getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.STORAGE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.STORAGE.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                         supplychain.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber())),
                    is(1));
         assertThat(supplychain.get(ApiEntityType.STORAGE.typeNumber())
                         .getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.DISKARRAY.apiStr()));
+                   containsInAnyOrder(ApiEntityType.DISKARRAY.typeNumber()));
         assertThat(supplychain.get(ApiEntityType.STORAGE.typeNumber())
                         .getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.apiStr()));
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                         supplychain.get(ApiEntityType.STORAGE.typeNumber())),
                    is(1));
         assertThat(supplychain.get(ApiEntityType.DISKARRAY.typeNumber())
                         .getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.STORAGE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.STORAGE.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                         supplychain.get(ApiEntityType.DISKARRAY.typeNumber())),
                    is(1));
@@ -1432,22 +1432,22 @@ public class SupplyChainCalculatorTest {
     private void checkAWSTopologyWithOrphanVolume(Map<Integer, SupplyChainNode> supplychain) {
         assertThat(supplychain.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
                         .getConnectedProviderTypesList(),
-                containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.apiStr()));
+                containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                 supplychain.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber())),
                 is(1));
         assertThat(supplychain.get(ApiEntityType.AVAILABILITY_ZONE.typeNumber())
                         .getConnectedConsumerTypesList(),
-                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.apiStr()));
+                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.typeNumber()));
         assertThat(supplychain.get(ApiEntityType.AVAILABILITY_ZONE.typeNumber())
                         .getConnectedProviderTypesList(),
-                containsInAnyOrder(ApiEntityType.REGION.apiStr()));
+                containsInAnyOrder(ApiEntityType.REGION.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                 supplychain.get(ApiEntityType.AVAILABILITY_ZONE.typeNumber())),
                 is(1));
         assertThat(supplychain.get(ApiEntityType.REGION.typeNumber())
                         .getConnectedConsumerTypesList(),
-                containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.apiStr()));
+                containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                 supplychain.get(ApiEntityType.REGION.typeNumber())),
                 is(1));
@@ -1456,13 +1456,13 @@ public class SupplyChainCalculatorTest {
     private void checkAzureTopologyWithOrphanVolume(Map<Integer, SupplyChainNode> supplychain) {
         assertThat(supplychain.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
                         .getConnectedProviderTypesList(),
-                containsInAnyOrder(ApiEntityType.REGION.apiStr()));
+                containsInAnyOrder(ApiEntityType.REGION.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                 supplychain.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber())),
                 is(1));
         assertThat(supplychain.get(ApiEntityType.REGION.typeNumber())
                         .getConnectedConsumerTypesList(),
-                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.apiStr()));
+                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                 supplychain.get(ApiEntityType.REGION.typeNumber())),
                 is(1));
@@ -1512,9 +1512,9 @@ public class SupplyChainCalculatorTest {
 
         // check types: VMs do not appear in the supply chain
         assertTrue(vdcTopoPm.getConnectedProviderTypesList().isEmpty());
-        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_DATACENTER.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_DATACENTER.typeNumber()),
                      vdcTopoPm.getConnectedConsumerTypesList());
-        assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.typeNumber()),
                      vdcTopoVdc.getConnectedProviderTypesList());
         assertTrue(vdcTopoVdc.getConnectedConsumerTypesList().isEmpty());
     }
@@ -1577,9 +1577,9 @@ public class SupplyChainCalculatorTest {
         createVDCTopology();
         populateVdcTopoEntityFields(getSupplyChain(vdcTopology, VDC_TOPO_VDC4ID));
         checkVdcTopoSupplyChainNodes(false);
-        assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.typeNumber()),
                      vdcTopoVdc.getConnectedProviderTypesList());
-        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.typeNumber()),
                      vdcTopoVdc.getConnectedConsumerTypesList());
         assertThat(getAllNodeIds(vdcTopoPm),
                    containsInAnyOrder(VDC_TOPO_PM1ID, VDC_TOPO_PM3ID));
@@ -1596,10 +1596,10 @@ public class SupplyChainCalculatorTest {
         createVDCTopology();
         populateVdcTopoEntityFields(getSupplyChain(vdcTopology, VDC_TOPO_VM1ID));
         checkVdcTopoSupplyChainNodes(false);
-        assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.typeNumber()),
                      vdcTopoVdc.getConnectedProviderTypesList());
         assertThat(vdcTopoVdc.getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         assertEquals(Collections.singleton(VDC_TOPO_PM1ID), getAllNodeIds(vdcTopoPm));
         assertEquals(Collections.singleton(VDC_TOPO_VDC1ID), getAllNodeIds(vdcTopoVdc));
         assertEquals(Collections.singleton(VDC_TOPO_VM1ID), getAllNodeIds(vdcTopoVm));
@@ -1614,7 +1614,7 @@ public class SupplyChainCalculatorTest {
         createVDCTopology();
         populateVdcTopoEntityFields(getSupplyChain(vdcTopology, VDC_TOPO_VM2ID));
         checkVdcTopoSupplyChainNodes(false, false);
-        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.typeNumber()),
                      vdcTopoVdc.getConnectedConsumerTypesList());
         assertEquals(Collections.emptyList(), vdcTopoVdc.getConnectedProviderTypesList());
         assertEquals(Collections.singleton(VDC_TOPO_PM2ID), getAllNodeIds(vdcTopoPm));
@@ -1631,7 +1631,7 @@ public class SupplyChainCalculatorTest {
         createVDCTopology();
         populateVdcTopoEntityFields(getSupplyChain(vdcTopology, VDC_TOPO_VM3ID));
         checkVdcTopoSupplyChainNodes(false, false);
-        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.typeNumber()),
                      vdcTopoVdc.getConnectedConsumerTypesList());
         assertEquals(Collections.emptyList(), vdcTopoVdc.getConnectedProviderTypesList());
         assertEquals(Collections.singleton(VDC_TOPO_PM1ID), getAllNodeIds(vdcTopoPm));
@@ -1648,9 +1648,9 @@ public class SupplyChainCalculatorTest {
         createVDCTopology();
         populateVdcTopoEntityFields(getSupplyChain(vdcTopology, VDC_TOPO_VM4ID));
         checkVdcTopoSupplyChainNodes(false);
-        assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.typeNumber()),
                      vdcTopoVdc.getConnectedProviderTypesList());
-        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.typeNumber()),
                      vdcTopoVdc.getConnectedConsumerTypesList());
         assertEquals(Collections.singleton(VDC_TOPO_PM1ID), getAllNodeIds(vdcTopoPm));
         assertEquals(Collections.singleton(VDC_TOPO_VDC4ID), getAllNodeIds(vdcTopoVdc));
@@ -1739,25 +1739,25 @@ public class SupplyChainCalculatorTest {
 
         if (vdcToPmEdgeExists) {
             assertThat(vdcTopoPm.getConnectedConsumerTypesList(),
-                       containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-                                          ApiEntityType.VIRTUAL_DATACENTER.apiStr()));
+                       containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                                          ApiEntityType.VIRTUAL_DATACENTER.typeNumber()));
         } else {
             assertThat(vdcTopoPm.getConnectedConsumerTypesList(),
-                       containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+                       containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         }
 
         if (vdcToVdcEdgeExists) {
             assertThat(vdcTopoVdc.getConnectedProviderTypesList(),
-                       containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr(),
-                                          ApiEntityType.VIRTUAL_DATACENTER.apiStr()));
+                       containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.typeNumber(),
+                                          ApiEntityType.VIRTUAL_DATACENTER.typeNumber()));
             assertThat(vdcTopoVdc.getConnectedConsumerTypesList(),
-                       containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-                                          ApiEntityType.VIRTUAL_DATACENTER.apiStr()));
+                       containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                                          ApiEntityType.VIRTUAL_DATACENTER.typeNumber()));
         }
 
         assertThat(vdcTopoVm.getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr(),
-                                      ApiEntityType.VIRTUAL_DATACENTER.apiStr()));
+                   containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.typeNumber(),
+                                      ApiEntityType.VIRTUAL_DATACENTER.typeNumber()));
         assertTrue(vdcTopoVm.getConnectedConsumerTypesList().isEmpty());
     }
 

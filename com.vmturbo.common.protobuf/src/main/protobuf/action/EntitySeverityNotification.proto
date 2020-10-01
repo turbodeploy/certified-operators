@@ -1,0 +1,49 @@
+syntax = "proto2";
+package action;
+
+option java_package = "com.vmturbo.common.protobuf.action";
+
+import "action/ActionDTO.proto";
+
+// A notification sent by the action orchestrator when:
+// 1) Entity severities are re-calculated after action plan ingestion.
+// 2) One or more entity severities change as a result of action execution.
+message EntitySeverityNotification {
+
+    // Per-entity severities.
+    // Sent broken down by severity, instead of by entity oid, to allow packing the oids that
+    // share a severity together.
+    repeated EntitiesWithSeverity entities_with_severity = 1;
+
+    // New severity breakdowns, arranged by entity id.
+    map<int64, SeverityBreakdown> severity_breakdowns = 2;
+
+    // If true, this is a complete overwrite of the previously broadcast severities.
+    // If false, this should be applied on top of the previously broadcast severities.
+    optional bool full_refresh = 10;
+
+    // Severity breakdowns are only relevant for certain ARM entities like Business Applications.
+    // These entities have no severities in and of themselves. The severity-related information
+    // for them involves the severities of the entities underneath them in the supply chain.
+    // This is a breakdown of those severities.
+    message SeverityBreakdown {
+        // The number of entities with a particular severity under the entity the breakdown
+        // applies to.
+        // At most one entry per severity value.
+        repeated SingleSeverityCount counts = 1;
+
+        message SingleSeverityCount {
+            optional Severity severity = 1;
+            optional int32 count = 2;
+        }
+    }
+
+    // A collection of entity oids with the same severity.
+    message EntitiesWithSeverity {
+        optional Severity severity = 1;
+
+        // Packing for compression on the wire.
+        // Unfortunately this still gets put into a List<Long> when parsed in protobuf.
+        repeated uint64 oids = 2 [packed = true];
+    }
+}

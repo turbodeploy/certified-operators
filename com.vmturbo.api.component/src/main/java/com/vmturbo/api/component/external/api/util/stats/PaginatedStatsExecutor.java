@@ -430,8 +430,8 @@ public class PaginatedStatsExecutor {
                     getMinimalEntitiesForEntityList(entitiesSet);
 
             //3. Cost Stats -  uses entities from historyStatsResponse to scope query for cost
-            final List<CloudCostStatRecord> costStatsResponse = minimalEntityMap.entrySet()
-                .stream().map(entry -> entry.getValue())
+            final List<CloudCostStatRecord> costStatsResponse = minimalEntityMap.values()
+                .stream()
                 .anyMatch(minEntity -> minEntity.getEnvironmentType() == EnvironmentType.CLOUD
                     || minEntity.getEnvironmentType() == EnvironmentType.HYBRID)
                         ? getCloudCostStatsForEntities(entitiesSet)
@@ -698,9 +698,10 @@ public class PaginatedStatsExecutor {
         protected EntityStatsScope createEntityStatsScope()
                 throws OperationFailedException {
             final EntityStatsScope.Builder entityStatsScope = EntityStatsScope.newBuilder();
-            final Optional<String> relatedType = Optional.ofNullable(inputDto.getRelatedType())
+            final Optional<ApiEntityType> relatedType = Optional.ofNullable(inputDto.getRelatedType())
+                    .map(ApiEntityType::fromString)
                     // Treat unknown type as non-existent.
-                    .filter(type -> !type.equals(ApiEntityType.UNKNOWN.apiStr()));
+                    .filter(type -> !type.equals(ApiEntityType.UNKNOWN));
             // Market stats request must be the only uuid in the scopes list
             if (StatsService.isMarketScoped(this.inputDto)) {
                 // 'relatedType' is required for full market entity stats
@@ -713,18 +714,18 @@ public class PaginatedStatsExecutor {
                 // requested 'relatedType'
                 if (userSessionContext.isUserScoped()) {
                     entityStatsScope.setEntityList(EntityList.newBuilder()
-                            .addAllEntities(userSessionContext.getUserAccessScope().getAccessibleOidsByEntityType(relatedType.get()))
+                            .addAllEntities(userSessionContext.getUserAccessScope()
+                                    .getAccessibleOidsByEntityType(relatedType.get()))
                             .build());
                 } else {
                     // Otherwise, just set the entityType field on the stats scope.
-                    entityStatsScope.setEntityType(
-                            ApiEntityType.fromString(relatedType.get()).typeNumber());
+                    entityStatsScope.setEntityType(relatedType.get().typeNumber());
                 }
             } else if (inputDto.getScopes().size() == 1) {
                 // Check if we can do the global entity type optimization.
                 final Optional<Integer> globalEntityType =
                         getGlobalTempGroupEntityType(groupExpander.getGroup(inputDto.getScopes().get(0)));
-                final Optional<Integer> relatedTypeInt = relatedType.map(ApiEntityType::fromString).map(ApiEntityType::typeNumber);
+                final Optional<Integer> relatedTypeInt = relatedType.map(ApiEntityType::typeNumber);
                 if (globalEntityType.isPresent()
                         // We can only do the global entity type optimization if the related type
                         // is unset, or is the same as the global entity type. Why? Because the
@@ -738,10 +739,9 @@ public class PaginatedStatsExecutor {
                     // TODO: Perhaps we should do the same, but it feels like a bug.
                     if (userSessionContext.isUserScoped()) {
                         entityStatsScope.setEntityList(EntityList.newBuilder()
-                                .addAllEntities(userSessionContext.getUserAccessScope()
-                                        .getAccessibleOidsByEntityType(
-                                                ApiEntityType.fromType(globalEntityType.get()).apiStr()))
-                                .build());
+                            .addAllEntities(userSessionContext.getUserAccessScope()
+                                .getAccessibleOidsByEntityType(ApiEntityType.fromType(globalEntityType.get())))
+                            .build());
                     } else {
                         entityStatsScope.setEntityType(globalEntityType.get());
                     }
@@ -836,9 +836,10 @@ public class PaginatedStatsExecutor {
         public Set<Long> getExpandedScope(@Nonnull final StatScopesApiInputDTO inputDto)
                 throws OperationFailedException {
             final Set<Long> expandedUuids;
-            final Optional<String> relatedType = Optional.ofNullable(inputDto.getRelatedType())
+            final Optional<ApiEntityType> relatedType = Optional.ofNullable(inputDto.getRelatedType())
+                    .map(ApiEntityType::fromString)
                     // Treat unknown type as non-existent.
-                    .filter(type -> !type.equals(ApiEntityType.UNKNOWN.apiStr()));
+                    .filter(type -> !type.equals(ApiEntityType.UNKNOWN));
             // Market stats request must be the only uuid in the scopes list
             if (StatsService.isMarketScoped(inputDto)) {
                 // 'relatedType' is required for full market entity stats
@@ -859,9 +860,9 @@ public class PaginatedStatsExecutor {
                 } else {
                     // otherwise, use a supply chain query to get them
                     final Map<String, SupplyChainNode> result = supplyChainFetcherFactory.newNodeFetcher()
-                            .entityTypes(Collections.singletonList(relatedType.get()))
+                            .entityTypes(Collections.singletonList(relatedType.get().apiStr()))
                             .fetch();
-                    final SupplyChainNode relatedTypeNode = result.get(relatedType.get());
+                    final SupplyChainNode relatedTypeNode = result.get(relatedType.get().apiStr());
                     expandedUuids = relatedTypeNode == null ?
                             Collections.emptySet() : RepositoryDTOUtil.getAllMemberOids(relatedTypeNode);
                 }
@@ -874,7 +875,7 @@ public class PaginatedStatsExecutor {
 
                 // Collect related entity types: if there are any we must perform supply chain traversal
                 final List<String> relatedEntityTypes = new ArrayList<>();
-                relatedType.ifPresent(relatedEntityTypes::add);
+                relatedType.ifPresent(t -> relatedEntityTypes.add(t.apiStr()));
                 if (inputDto.getPeriod() != null && inputDto.getPeriod().getStatistics() != null) {
                     relatedEntityTypes.addAll(
                             inputDto.getPeriod().getStatistics().stream()

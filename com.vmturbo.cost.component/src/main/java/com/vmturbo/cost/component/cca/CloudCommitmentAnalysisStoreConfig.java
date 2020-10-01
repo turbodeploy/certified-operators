@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
+import com.vmturbo.cloud.commitment.analysis.inventory.CloudCommitmentBoughtResolver;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriter;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriterImpl;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecResolver;
@@ -20,13 +21,16 @@ import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.entity.scope.SQLCloudScopeStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
+import com.vmturbo.cost.component.reserved.instance.SQLReservedInstanceBoughtStore;
 
 /**
  * The Cloud Commitment Demand Stats Config class.
  */
 @Import({CostDBConfig.class,
         TopologyProcessorListenerConfig.class,
-        ReservedInstanceSpecConfig.class})
+        ReservedInstanceSpecConfig.class,
+        SQLReservedInstanceBoughtStore.class,
+        ReservedInstanceSpecStore.class})
 public class CloudCommitmentAnalysisStoreConfig {
 
     @Autowired
@@ -37,6 +41,9 @@ public class CloudCommitmentAnalysisStoreConfig {
 
     @Autowired
     private ReservedInstanceSpecStore reservedInstanceSpecStore;
+
+    @Autowired
+    private SQLReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
     @Value("${cca.recordCloudAllocationData:true}")
     private boolean recordAllocationData;
@@ -103,10 +110,21 @@ public class CloudCommitmentAnalysisStoreConfig {
 
     /**
      * Bean for RI implementation of cloud commitment spec resolver.
+     *
      * @return An instance of {@link LocalReservedInstanceSpecResolver}
      */
     @Bean
     public CloudCommitmentSpecResolver<ReservedInstanceSpec> reservedInstanceSpecResolver() {
         return new LocalReservedInstanceSpecResolver(reservedInstanceSpecStore);
+    }
+
+    /**
+     * Bean for implementation of Cloud Commitment Bought Resolver.
+     *
+     * @return An instance of the Cloud Commitment Bought Resolver.
+     */
+    @Bean
+    public CloudCommitmentBoughtResolver cloudCommitmentBoughtResolver() {
+        return new LocalCloudCommitmentBoughtResolver(reservedInstanceBoughtStore, reservedInstanceSpecStore);
     }
 }

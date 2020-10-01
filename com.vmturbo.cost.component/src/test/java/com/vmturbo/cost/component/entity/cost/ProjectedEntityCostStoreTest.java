@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.util.EntityCostFilter;
@@ -109,8 +110,8 @@ public class ProjectedEntityCostStoreTest {
             .addComponentCost(DB1_ON_DEM_COST)
             .build();
 
-    private static final String vmEntityType = "VirtualMachine";
-    private static final String dbEntityType = "Database";
+    private static final int vmEntityType = ApiEntityType.VIRTUAL_MACHINE.typeNumber();
+    private static final int dbEntityType = ApiEntityType.DATABASE.typeNumber();
 
     private RepositoryClient repositoryClient;
     private SupplyChainServiceBlockingStub serviceBlockingStub;
@@ -230,7 +231,7 @@ public class ProjectedEntityCostStoreTest {
                 .build();
     }
 
-    private SupplyChainNode createSupplyChainNode(final String entityType,
+    private SupplyChainNode createSupplyChainNode(final int entityType,
                                                   final List<Long> memberOids) {
         return SupplyChainNode.newBuilder()
                 .setEntityType(entityType)

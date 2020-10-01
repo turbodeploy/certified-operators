@@ -197,6 +197,7 @@
     "storageMoveCost": 0.0
   }],
   "settings": {
+    "rateOfResize": 2.0,
     "clonable": false,
     "suspendable": false,
     "minDesiredUtilization": 0.65,
@@ -389,6 +390,7 @@
     "storageMoveCost": 0.0
   }],
   "settings": {
+    "rateOfResize": 2.0,
     "clonable": true,
     "suspendable": true,
     "minDesiredUtilization": 0.65,
@@ -515,6 +517,7 @@
     "numConsumers": 4
   }],
   "settings": {
+    "rateOfResize": 2.0,
     "clonable": false,
     "suspendable": false,
     "minDesiredUtilization": 0.65,
@@ -861,6 +864,7 @@
     "storageMoveCost": 0.0
   }],
   "settings": {
+    "rateOfResize": 2.0,
     "clonable": false,
     "suspendable": false,
     "minDesiredUtilization": 0.65,
@@ -1425,6 +1429,7 @@
     "storageMoveCost": 0.0
   }],
   "settings": {
+    "rateOfResize": 2.0,
     "clonable": true,
     "suspendable": true,
     "minDesiredUtilization": 0.65,
@@ -1476,6 +1481,7 @@
     "numConsumers": 1
   }],
   "settings": {
+    "rateOfResize": 2.0,
     "clonable": true,
     "suspendable": false,
     "minDesiredUtilization": 0.65,

@@ -750,6 +750,9 @@ message TopologyEntityDTO {
         // the probes.  In Classic applications with type GuestLoad are also considered daemons,
         // even though the probes that create them do not currently mark them as daemons.
         optional bool daemon = 12 [default = false];
+
+        // Rate of resize setting.
+        optional float rate_of_resize = 13;
     }
 
     optional Origin origin = 10;
@@ -1197,7 +1200,7 @@ message PlanTopologyInfo {
     optional string plan_sub_type = 3;
 
     // Plan global setting
-    optional plan.PlanGlobalSetting plan_global_setting = 4;
+    optional plan.PlanGlobalSetting __deprecated_plan_global_setting = 4 [deprecated = true];
 }
 
 enum EntityState {

@@ -7,6 +7,7 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.PRICE_INDEX;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -153,7 +154,7 @@ public class PlanStatsService {
      * @param responseObserver the sync for entity stats constructed here and returned to caller
      * @param relatedEntityType the {@link ApiEntityType} string version specifying entities targeted
      */
-    public void getPlanTopologyStats(@Nonnull final TopologyProtobufReader reader,
+    public void getPlanTopologyStats(@Nonnull final Iterator<List<ProjectedTopologyEntity>> reader,
                                      @Nonnull final StatEpoch statEpoch,
                                      @Nonnull final StatsFilter statsFilter,
                                      @Nonnull final Predicate<TopologyEntityDTO> entityPredicate,
@@ -268,8 +269,8 @@ public class PlanStatsService {
      * @param responseObserver stream for entity stats constructed here to be returned to the caller
      * @param relatedEntityType the {@link ApiEntityType} string version specifying entities targeted
      */
-    public void getPlanCombinedStats(@Nonnull final TopologyProtobufReader sourceReader,
-                                     @Nonnull final TopologyProtobufReader projectedReader,
+    public void getPlanCombinedStats(@Nonnull final Iterator<List<ProjectedTopologyEntity>> sourceReader,
+                                     @Nonnull final Iterator<List<ProjectedTopologyEntity>> projectedReader,
                                      @Nonnull final StatsFilter statsFilter,
                                      @Nonnull final Predicate<TopologyEntityDTO> entityPredicate,
                                      @Nonnull final TopologyType topologyToSortOn,
@@ -482,12 +483,12 @@ public class PlanStatsService {
      * @return a mapping of entityId to an {@link EntityAndStats} containing the requested stats
      */
     Map<Long, EntityAndStats> retrieveTopologyEntitiesAndStats(
-        @Nonnull final TopologyProtobufReader reader,
-        @Nonnull final Predicate<TopologyEntityDTO> entityMatcher,
-        @Nonnull final StatsFilter statsFilter,
-        @Nullable final StatEpoch statEpoch,
-        final long snapshotDate,
-        @Nullable final  String relatedEntityType) {
+            @Nonnull final Iterator<List<ProjectedTopologyEntity>> reader,
+            @Nonnull final Predicate<TopologyEntityDTO> entityMatcher,
+            @Nonnull final StatsFilter statsFilter,
+            @Nullable final StatEpoch statEpoch,
+            final long snapshotDate,
+            @Nullable final  String relatedEntityType) {
         final Map<Long, EntityAndStats> entities = new HashMap<>();
         final Map<Long, Integer> providerVMDensitycounts = new HashMap<>();
         final Set<String> requestedDensityStats =
@@ -503,7 +504,7 @@ public class PlanStatsService {
             .collect(Collectors.toSet());
         // process the chunks of TopologyEntityDTO protobufs as received
         while (reader.hasNext()) {
-            List<ProjectedTopologyEntity> chunk = reader.nextChunk();
+            List<ProjectedTopologyEntity> chunk = reader.next();
             logger.debug("chunk size: {}", chunk.size());
             for (ProjectedTopologyEntity entity : chunk) {
                 final TopologyEntityDTO entityDto = entity.getEntity();

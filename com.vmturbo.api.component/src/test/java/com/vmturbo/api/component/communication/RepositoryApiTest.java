@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.communication;
 
+import static org.mockito.Mockito.mock;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -24,6 +26,7 @@ import io.grpc.ManagedChannel;
 
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
@@ -64,7 +67,7 @@ public class RepositoryApiTest {
 
     private final long realtimeContextId = 777777L;
 
-    private final SeverityPopulator severityPopulator = Mockito.mock(SeverityPopulator.class);
+    private final SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
 
     private final SearchServiceMole searchBackend = Mockito.spy(new SearchServiceMole());
 
@@ -73,20 +76,22 @@ public class RepositoryApiTest {
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(searchBackend, repoBackend);
 
-    private final ServiceEntityMapper serviceEntityMapper = Mockito.mock(ServiceEntityMapper.class);
+    private final ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
 
     private RepositoryApi repositoryApi;
     private BusinessAccountMapper businessAccountMapper;
+    private PaginationMapper paginationMapper = mock(PaginationMapper.class);
 
     @Before
     public void setup() {
-        this.businessAccountMapper = Mockito.mock(BusinessAccountMapper.class);
+        this.businessAccountMapper = mock(BusinessAccountMapper.class);
         final ManagedChannel grpcChannel = grpcTestServer.getChannel();
         repositoryApi = new RepositoryApi(severityPopulator,
                 RepositoryServiceGrpc.newBlockingStub(grpcChannel),
                 RepositoryServiceGrpc.newStub(grpcChannel),
                 SearchServiceGrpc.newBlockingStub(grpcChannel),
                 SearchServiceGrpc.newStub(grpcChannel), serviceEntityMapper, businessAccountMapper,
+                paginationMapper,
                 realtimeContextId);
     }
 
@@ -290,7 +295,7 @@ public class RepositoryApiTest {
 
     @Test
     public void testGetSEUseAspectMapper() throws Exception {
-        final EntityAspectMapper aspectMapper = Mockito.mock(EntityAspectMapper.class);
+        final EntityAspectMapper aspectMapper = mock(EntityAspectMapper.class);
 
         final ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
@@ -539,7 +544,7 @@ public class RepositoryApiTest {
 
     @Test
     public void testMultiGetSEUseAspectMapper() throws Exception {
-        final EntityAspectMapper aspectMapper = Mockito.mock(EntityAspectMapper.class);
+        final EntityAspectMapper aspectMapper = mock(EntityAspectMapper.class);
 
         final ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
@@ -698,7 +703,7 @@ public class RepositoryApiTest {
 
     @Test
     public void testSearchSEUseAspectMapper() throws Exception {
-        final EntityAspectMapper aspectMapper = Mockito.mock(EntityAspectMapper.class);
+        final EntityAspectMapper aspectMapper = mock(EntityAspectMapper.class);
         final ServiceEntityApiDTO se = new ServiceEntityApiDTO();
         se.setUuid("7");
 
@@ -970,7 +975,7 @@ public class RepositoryApiTest {
         final RepositoryApi repositoryApi1 = Mockito.spy(repositoryApi);
         final Set<Long> serviceProviders = ImmutableSet.of(1L, 2L);
         final Set<Long> regionIdsSet = ImmutableSet.of(7L);
-        final MultiEntityRequest multiEntityRequest = Mockito.mock(MultiEntityRequest.class);
+        final MultiEntityRequest multiEntityRequest = mock(MultiEntityRequest.class);
         Mockito.when(multiEntityRequest.getEntitiesWithConnections())
                 .thenReturn(serviceProviders.stream()
                         .map(oid -> EntityWithConnections.newBuilder()

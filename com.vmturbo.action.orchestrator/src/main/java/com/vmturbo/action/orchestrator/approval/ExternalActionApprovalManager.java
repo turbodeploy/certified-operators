@@ -105,7 +105,7 @@ public class ExternalActionApprovalManager {
         final Optional<Action> actionOpt =
                 liveActionStore.getActionByRecommendationId(recommendationId);
         if (!actionOpt.isPresent()) {
-            logger.error("Action with recommendation id ({}) doesn't exist, so external "
+            logger.debug("Action with recommendation id ({}) doesn't exist, so external "
                     + "approval is not applied.", recommendationId);
             return;
         }

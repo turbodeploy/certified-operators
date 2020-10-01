@@ -77,6 +77,7 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]templates[/\\]exceptions[/\\]NoMatchingTemplateSpecException.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]db[/\\]migration[/\\]V2_13__remove_resize_for_vms.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]db[/\\]migration[/\\]V2_16__convert_max_utilization_to_setting_override.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]db[/\\]migration[/\\]V2v20AddRateOfResizeScenarioChange.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]DatabaseSchemaIT.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]cpucapacity[/\\]CpuCapacitylRpcTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]plan[/\\]orchestrator[/\\]deployment[/\\]profile[/\\]DeploymentProfileRpcServiceTest.java" />

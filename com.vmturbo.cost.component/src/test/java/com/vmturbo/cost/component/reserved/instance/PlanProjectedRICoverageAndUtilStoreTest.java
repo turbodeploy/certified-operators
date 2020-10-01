@@ -77,6 +77,8 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
 
     private final ReservedInstanceSpecStore reservedInstanceSpecStore = mock(
             ReservedInstanceSpecStore.class);
+    private final AccountRIMappingStore accountRIMappingStore = mock(
+            AccountRIMappingStore.class);
     private final RepositoryServiceMole repositoryService = spy(new RepositoryServiceMole());
     private PlanReservedInstanceServiceBlockingStub planReservedInstanceService;
 
@@ -128,7 +130,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
         // set time out on topology available or failure for 1 seconds
         store = Mockito.spy(new PlanProjectedRICoverageAndUtilStore(dsl,
                 RepositoryServiceGrpc.newBlockingStub(testServer.getChannel()),
-                planReservedInstanceService, reservedInstanceSpecStore, chunkSize));
+                planReservedInstanceService, reservedInstanceSpecStore, accountRIMappingStore, chunkSize));
     }
 
     @Test

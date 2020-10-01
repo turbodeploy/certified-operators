@@ -49,6 +49,16 @@ public enum EntitySettingSpecs {
             true),
 
     /**
+     * Rate of resize.
+     * Rate of resize setting UI style is defined in settingSpecStyle.json.
+     */
+    RateOfResize("RATE_OF_RESIZE", "Rate of Resize",
+        Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+        SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
+        new NumericSettingDataType(1.0f, 3.0f, 2.0f,
+            Collections.singletonMap(EntityType.CONTAINER, 3.0f)), true),
+
+    /**
      * The minimum number of vcpu cores which is the threshold to decide automation mode.
      */
     ResizeVcpuMinThreshold("resizeVcpuMinThreshold", "VCPU Resize Min Threshold (in Cores)",

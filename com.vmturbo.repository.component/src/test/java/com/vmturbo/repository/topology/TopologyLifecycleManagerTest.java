@@ -10,7 +10,6 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.matches;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -20,14 +19,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.Sets;
 
 import org.assertj.core.util.Lists;
 import org.junit.Before;
 import org.junit.Test;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
 import com.vmturbo.repository.graph.GraphDefinition;
@@ -35,6 +33,7 @@ import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriverBuilder;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
+import com.vmturbo.repository.plan.db.MySQLPlanEntityStore;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.RegisteredTopologyLoader;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
@@ -62,6 +61,8 @@ public class TopologyLifecycleManagerTest {
 
     private GraphDBExecutor graphDBExecutor = mock(GraphDBExecutor.class);
 
+    private MySQLPlanEntityStore mySQLPlanEntityStore = mock(MySQLPlanEntityStore.class);
+
     private static final String DATABASE_NAME = "Tturbonomic";
 
     @Before
@@ -69,7 +70,7 @@ public class TopologyLifecycleManagerTest {
         topologyLifecycleManager = new TopologyLifecycleManager(graphDatabaseDriverBuilder,
             graphDefinition, topologyProtobufsManager, realtimeContextId, scheduler,
             liveTopologyStore, 0, 2, 2, 1,
-            globalSupplyChainManager, graphDBExecutor,false);
+            globalSupplyChainManager, graphDBExecutor, false, mySQLPlanEntityStore, false);
         when(graphDBExecutor.getArangoDatabaseName()).thenReturn(DATABASE_NAME);
     }
 

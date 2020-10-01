@@ -22,9 +22,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.collect.Collections2;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.collections4.SetUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -54,15 +57,18 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.identity.IdentityService;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -120,6 +126,16 @@ public class LiveActionStore implements ActionStore {
     private final ActionAuditSender actionAuditSender;
 
     /**
+     * For certain actions that have already executed successfully, it is valid to execute them
+     * again if market re-recommends them, and we don't want them to be removed from the action plan.
+     * For example, container pod provision actions are light weight and may need to be executed
+     * multiple times in a timely fashion to achieve performance in SLO driven horizontal scaling.
+     * OM-62427.
+     */
+    private static final Map<ActionTypeCase, Set<EntityType>> REPEATABLE_ACTIONS =
+            ImmutableMap.of(ActionTypeCase.PROVISION, ImmutableSet.of(EntityType.CONTAINER_POD));
+
+    /**
      * A mutable (real-time) action is considered visible (from outside the Action Orchestrator's perspective)
      * if it's not disabled. We shouldn't consider the action state or executability as before.
      *
@@ -139,7 +155,6 @@ public class LiveActionStore implements ActionStore {
      * @param actionFactory the action factory
      * @param actionIdentityService identity service to fetch OIDs for actions
      * @param topologyContextId the topology context id
-     * @param actionTopologyStore Store for the live topology.
      * @param actionTargetSelector selects which target/probe to execute each action against
      * @param probeCapabilityCache gets the target-specific action capabilities
      * @param entitySettingsCache an entity snapshot factory used for creating entity snapshot
@@ -154,13 +169,12 @@ public class LiveActionStore implements ActionStore {
      * @param acceptedActionsStore dao layer working with accepted actions
      * @param rejectedActionsStore dao layer working with rejected actions
      * @param actionAuditSender action audit sender to receive new generated actions
-     * @param riskPropagationEnabled flag to enable calculation of severity breakdown
      * @param queryTimeWindowForLastExecutedActionsMins time window within which actions will not
      *          be populated if they are already executed (SUCEEDED)
+     * @param entitySeverityCache The {@link EntitySeverityCache}.
      */
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,
-                           @Nonnull final ActionTopologyStore actionTopologyStore,
                            @Nonnull final ActionTargetSelector actionTargetSelector,
                            @Nonnull final ProbeCapabilityCache probeCapabilityCache,
                            @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
@@ -176,12 +190,11 @@ public class LiveActionStore implements ActionStore {
                            @Nonnull final IdentityService<ActionInfo> actionIdentityService,
                            @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander,
                            @Nonnull final ActionAuditSender actionAuditSender,
-                           final boolean riskPropagationEnabled,
+                           @Nonnull final EntitySeverityCache entitySeverityCache,
                            final int queryTimeWindowForLastExecutedActionsMins
     ) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
-        this.severityCache = new EntitySeverityCache(Objects.requireNonNull(actionTopologyStore), riskPropagationEnabled);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
         this.probeCapabilityCache = Objects.requireNonNull(probeCapabilityCache);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
@@ -203,6 +216,7 @@ public class LiveActionStore implements ActionStore {
             throw new IllegalArgumentException("query time window for last execution actions should be non-negative");
         }
         this.queryTimeWindowForLastExecutedActionsMins = queryTimeWindowForLastExecutedActionsMins;
+        this.severityCache = entitySeverityCache;
     }
 
     /**
@@ -368,7 +382,12 @@ public class LiveActionStore implements ActionStore {
                         actionsToRemove.add(action);
                         break;
                     case SUCCEEDED:
-                        recommendations.add(action);
+                        if (isNonRepeatableAction(action)) {
+                            // Address the issue where market re-recommends the same action again
+                            // due to outdated topology. OM-62071.
+                            // Only do this for non-repeatable actions. OM-62427.
+                            recommendations.add(action);
+                        }
                     case FAILED:
                         completedSinceLastPopulate.add(action);
                         actionsToRemove.add(action);
@@ -414,7 +433,11 @@ public class LiveActionStore implements ActionStore {
                 final Action action;
                 if (existingActionOpt.isPresent()) {
                     action = existingActionOpt.get();
-
+                    if (action.getState() == ActionState.SUCCEEDED) {
+                        logger.debug("Action {} has been executed successfully recently"
+                                        + " but is now being recommended again by the market.",
+                                action.getDescription());
+                    }
                     // If we are re-using an existing action, we should update the recommendation
                     // so other properties that may have changed (e.g. importance, executability)
                     // reflect the most recent recommendation from the market. However, we only
@@ -567,11 +590,28 @@ public class LiveActionStore implements ActionStore {
         RecommendationTracker lastExecutedRecommendationsTracker  = new RecommendationTracker();
         lastSuccessfullyExecutedActions.stream()
                 .filter(actionView -> actionView.getState().equals(ActionState.SUCCEEDED))
+                .filter(this::isNonRepeatableAction)
                 .forEach(actionView ->
                         lastExecutedRecommendationsTracker.add(actionFactory.newAction(
                                 actionView.getRecommendation(), actionView.getActionPlanId(),
                                 actionView.getRecommendationOid())));
         return lastExecutedRecommendationsTracker;
+    }
+
+    /**
+     * Check if the action is non-repeatable (i.e., cannot be re-executed).
+     *
+     * @param actionView the action to check
+     * @return true if the action is non-repeatable
+     */
+    private boolean isNonRepeatableAction(@Nonnull final ActionView actionView) {
+        final ActionDTO.Action action = actionView.getRecommendation();
+        try {
+            return !SetUtils.emptyIfNull(REPEATABLE_ACTIONS.get(action.getInfo().getActionTypeCase()))
+                    .contains(EntityType.forNumber(ActionDTOUtil.getPrimaryEntity(action).getType()));
+        } catch (UnsupportedActionException e) {
+            return true;
+        }
     }
 
     /**

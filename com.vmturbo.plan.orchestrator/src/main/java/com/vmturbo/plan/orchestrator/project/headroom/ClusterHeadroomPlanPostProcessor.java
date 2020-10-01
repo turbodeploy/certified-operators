@@ -163,8 +163,9 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     /**
      * String representation of headroom entities.
      */
-    private static final Set<String> HEADROOM_ENTITY_TYPES = ImmutableSet.of(StringConstants.VIRTUAL_MACHINE,
-        StringConstants.PHYSICAL_MACHINE, StringConstants.STORAGE);
+    private static final Set<Integer> HEADROOM_ENTITY_TYPES =
+        ImmutableSet.of(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+           ApiEntityType.PHYSICAL_MACHINE.typeNumber(), ApiEntityType.STORAGE.typeNumber());
 
     /**
      * Set default VM growth as 0. Use it in cases when growth can't be
@@ -354,7 +355,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                         .flatMap(memberList -> memberList.getMemberOidsList().stream())
                         .filter(oidToEntities::containsKey)
                         .forEach(oid ->
-                            entitiesByType.get(ApiEntityType.fromString(node.getEntityType()).typeNumber())
+                            entitiesByType.get(node.getEntityType())
                                 .add(oidToEntities.get(oid))));
 
                 entitiesByClusterAndType.put(clusterId, entitiesByType);
