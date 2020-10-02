@@ -21,6 +21,7 @@ import com.cisco.intersight.client.api.AssetApi;
 import com.cisco.intersight.client.model.AssetTarget;
 import com.cisco.intersight.client.model.AssetTarget.TargetTypeEnum;
 import com.cisco.intersight.client.model.AssetTargetList;
+import com.fasterxml.jackson.core.JsonProcessingException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -208,7 +209,7 @@ public class IntersightTargetSyncService implements Runnable {
                         staleTargets.remove(targetInfo);
                     }
                     targetUpdater.update(assetTarget, targetInfo);
-                } catch (TopologyProcessorException | ApiException | CommunicationException | RuntimeException e) {
+                } catch (TopologyProcessorException | ApiException | CommunicationException | RuntimeException | JsonProcessingException e) {
                     logger.error("Error adding or updating status for target {} of probe type {} due to: {}",
                             assetTarget.getMoid(), probeType, e);
                 }

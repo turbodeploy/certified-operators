@@ -18,10 +18,10 @@ import com.vmturbo.mediation.connector.intersight.IntersightConnection;
 public class IntersightConnectionConfig {
     private static final Logger logger = LogManager.getLogger();
 
-    @Value("${intersightHost:bordeaux.default.svc.cluster.local}")
+    @Value("${intersightHost:http://bullwinkle.default.svc.cluster.local}")
     private String intersightHost;
 
-    @Value("${intersightPort:8443}")
+    @Value("${intersightPort:7979}")
     private int intersightPort;
 
     @Value("${intersightClientId:890ba3015647ba92fa922b62d668375972da829970eb0004f1854dbae9f17089}")

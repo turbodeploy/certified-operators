@@ -10,9 +10,12 @@ import com.cisco.intersight.client.ApiClient;
 import com.cisco.intersight.client.ApiException;
 import com.cisco.intersight.client.api.AssetApi;
 import com.cisco.intersight.client.model.AssetTarget;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONObject;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.topology.processor.api.TargetInfo;
@@ -75,10 +78,12 @@ public class IntersightTargetUpdater {
      * @throws CommunicationException when having problems communicating with the topology processor
      * @throws TopologyProcessorException when topology processor sends back an exception
      * @throws InterruptedException when interrupted while waiting for topology processor to respond
+     * @throws JsonProcessingException thrown if there is a problem serializing the asset target
      */
     public void update(@Nonnull final AssetTarget intersightAssetTarget,
-                       @Nonnull final TargetInfo tpTargetInfo) throws InterruptedException,
-            TopologyProcessorException, CommunicationException, ApiException {
+                       @Nonnull final TargetInfo tpTargetInfo)
+            throws InterruptedException, TopologyProcessorException, CommunicationException,
+            ApiException, JsonProcessingException {
         final WrappedTarget wrappedTarget = new WrappedTarget(intersightAssetTarget, tpTargetInfo);
         // Differentiate various scenarios in updating status for better user experience
         if (wrappedTarget.ifRecentlyCreated(noUpdateOnChangePeriodSeconds)) {
@@ -102,9 +107,11 @@ public class IntersightTargetUpdater {
      * @throws CommunicationException when having problems communicating with the topology processor
      * @throws TopologyProcessorException when topology processor sends back an exception
      * @throws InterruptedException when interrupted while waiting for topology processor to respond
+     * @throws JsonProcessingException thrown if there is a problem serializing the asset target
      */
-    private void onRecentlyCreated(@Nonnull final WrappedTarget target) throws ApiException,
-            InterruptedException, TopologyProcessorException, CommunicationException {
+    private void onRecentlyCreated(@Nonnull final WrappedTarget target)
+            throws ApiException, InterruptedException, TopologyProcessorException,
+            CommunicationException, JsonProcessingException {
         if (target.isValidated()) {
             onNormalUpdate(target);
             topologyProcessor.discoverTarget(target.tp().getId());
@@ -137,8 +144,10 @@ public class IntersightTargetUpdater {
      *
      * @param target the {@link WrappedTarget} which has the combined Intersight and TP target info
      * @throws ApiException thrown if updating the target status returns an API exception
+     * @throws JsonProcessingException thrown if there is a problem serializing the asset target
      */
-    private void onNormalUpdate(@Nonnull final WrappedTarget target) throws ApiException {
+    private void onNormalUpdate(@Nonnull final WrappedTarget target)
+            throws ApiException, JsonProcessingException {
         final long changedCount = Optional.ofNullable(target.intersight().getServices())
                 .orElse(Collections.emptyList()).stream()
                 .filter(service -> Objects.equals(IWO_SERVICE_OBJECT_TYPE, service.getObjectType()))
@@ -147,9 +156,16 @@ public class IntersightTargetUpdater {
                 .map(service -> service.statusErrorReason(target.getNewStatusErrorReason(service))) // update err string
                 .count();
         if (changedCount > 0) {
+            final ObjectMapper jsonMapper = apiClient.getJSON().getMapper();
+            final String targetJsonString = jsonMapper.writeValueAsString(target.intersight());
+            final JSONObject editableJson = new JSONObject(targetJsonString);
+            editableJson.remove("CreateTime");
+            editableJson.remove("ModTime");
+            final AssetTarget editableTarget = jsonMapper.readValue(editableJson.toString(),
+                    AssetTarget.class);
             final AssetApi assetApi = new AssetApi(apiClient);
             try {
-                assetApi.updateAssetTarget(target.intersight().getMoid(), target.intersight(), null);
+                assetApi.updateAssetTarget(target.intersight().getMoid(), editableTarget, null);
             } catch (ApiException e) {
                 logger.error("Attempted to update target {} status to {} but getting an error: {}",
                         target.intersight().getMoid(), target.tp().getStatus(), e.getResponseBody());
