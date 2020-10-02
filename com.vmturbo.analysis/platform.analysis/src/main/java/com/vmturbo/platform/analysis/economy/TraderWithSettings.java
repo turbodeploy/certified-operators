@@ -39,6 +39,7 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     private double minDesiredUtilization_ = 0.0;
     private double quoteFactor_ = 0.75f;
     private double moveCostFactor_ = 0.005f;
+    private float rateOfResize_ = 1f;
     @Nullable private CostFunction costFunction_ = null;
     // default quote function is sum of commodity
     private QuoteFunction quoteFunction_ = QuoteFunctionFactory.sumOfCommodityQuoteFunction();
@@ -194,6 +195,12 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     }
 
     @Override
+    @Pure
+    public float getRateOfResize(@ReadOnly TraderWithSettings this) {
+        return rateOfResize_;
+    }
+
+    @Override
     @Deterministic
     public @NonNull TraderWithSettings setControllable(boolean controllable) {
         controllable_ = controllable;
@@ -211,6 +218,13 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     @Deterministic
     public @NonNull TraderWithSettings setCloneable(boolean cloneable) {
         cloneable_ = cloneable;
+        return this;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull TraderWithSettings setRateOfResize(float rateOfResize) {
+        rateOfResize_ = rateOfResize;
         return this;
     }
 

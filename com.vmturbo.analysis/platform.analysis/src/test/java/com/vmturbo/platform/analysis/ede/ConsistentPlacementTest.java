@@ -119,7 +119,7 @@ public class ConsistentPlacementTest {
 
         PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, sl1);
         assertArrayEquals(expectedActions, results.getActions().toArray());
-        assertTrue(results.getUnplacedTraders().isEmpty());
+        assertTrue(results.getInfinityQuoteTraders().isEmpty());
     }
 
     /**
@@ -148,7 +148,7 @@ public class ConsistentPlacementTest {
         PlacementResults results = Placement
                         .generateShopAlonePlacementDecisions(e, getSl(e, traders[0]));
         assertArrayEquals(expectedActions, results.getActions().toArray());
-        assertTrue(results.getUnplacedTraders().isEmpty());
+        assertTrue(results.getInfinityQuoteTraders().isEmpty());
     }
 
     /**
@@ -186,7 +186,7 @@ public class ConsistentPlacementTest {
         PlacementResults results = Placement
                         .generateShopAlonePlacementDecisions(e, getSl(e, traders[0]));
         assertArrayEquals(expectedActions, results.getActions().toArray());
-        assertTrue(results.getUnplacedTraders().isEmpty());
+        assertTrue(results.getInfinityQuoteTraders().isEmpty());
     }
 
     /**
@@ -208,7 +208,7 @@ public class ConsistentPlacementTest {
 
         PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, sl1);
         assertArrayEquals(expectedActions, results.getActions().toArray());
-        assertTrue(results.getUnplacedTraders().isEmpty());
+        assertTrue(results.getInfinityQuoteTraders().isEmpty());
     }
 
     /**

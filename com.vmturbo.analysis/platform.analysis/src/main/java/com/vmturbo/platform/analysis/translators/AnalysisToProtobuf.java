@@ -296,8 +296,7 @@ public final class AnalysisToProtobuf {
             .setNumOfProduces((int)trader.getUniqueCustomers().stream()
                                         .filter(t -> t.getState().isActive()
                                             && !preferentialTraders.contains(t))
-                                        .count())
-            .setUnplacedExplanation(trader.getUnplacedExplanation());
+                                        .count());
 
         if (trader.isClone()) {
             final Trader cloneOfTrader = ((Economy)economy).getCloneOfTrader(trader);
@@ -419,12 +418,9 @@ public final class AnalysisToProtobuf {
                             shoppingListOid.get(reconfigure.getTarget()));
             if (reconfigure.getSource() != null) {
                 reconfigureTO.setSource(reconfigure.getSource().getOid());
-                for (CommoditySpecification c : reconfigure.getTarget().getBasket()) {
-                    if (!reconfigure.getSource().getBasketSold().contains(c)) {
-                        reconfigureTO.addCommodityToReconfigure(c.getType());
-                    }
-                }
             }
+            reconfigure.getUnavailableCommodities().forEach(c -> reconfigureTO
+                    .addCommodityToReconfigure(c.getType()));
             if (reconfigure.getActionTarget() != null) {
                 String scalingGroupId = reconfigure.getActionTarget().getScalingGroupId();
                 if (!scalingGroupId.isEmpty()) {

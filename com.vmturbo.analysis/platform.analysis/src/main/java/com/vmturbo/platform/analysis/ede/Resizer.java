@@ -43,6 +43,8 @@ public class Resizer {
 
     static final Logger logger = LogManager.getLogger(Resizer.class);
     static Map<CommoditySold, ResizeActionStateTracker> resizeImpact = new HashMap<>();
+    private static final String NEGATIVE_QUANTITY_UPDATE = "Cap Negative Quantity Update to 0 for buyer {} with reverse {} and resold {}";
+    private static final String NEGATIVE_PEAK_QUANTITY_UPDATE = "Cap Negative Peak Quantity Update to 0 for buyer {} with reverse {} and resold {}";
 
     /**
      * Return a list of actions to optimize the size of all eligible commodities in the economy.
@@ -60,7 +62,6 @@ public class Resizer {
             List<@NonNull Action> actions = new ArrayList<>();
             ConsistentResizer consistentResizer = new ConsistentResizer();
             for (Trader seller : economy.getTraders()) {
-                float rateOfResize = economy.getSettings().getRateOfResize(seller.getType());
                 ledger.calculateCommodityExpensesAndRevenuesForTrader(economy, seller);
                 if (economy.getForceStop()) {
                     return actions;
@@ -120,6 +121,7 @@ public class Resizer {
                                 Map<CommoditySold, Trader> rawMaterialMapping =
                                         RawMaterials.findSellerCommodityAndSupplier(economy, seller, soldIndex);
                                 Set<CommoditySold> rawMaterials = (rawMaterialMapping != null) ? rawMaterialMapping.keySet() : null;
+                                float rateOfResize = seller.getSettings().getRateOfResize();
                                 double newEffectiveCapacity = calculateEffectiveCapacity(economy, seller,
                                         resizedCommodity, desiredCapacity, commoditySold, rawMaterials, rateOfResize);
                                 boolean capacityChange = Double.compare(newEffectiveCapacity,
@@ -296,11 +298,23 @@ public class Resizer {
                     seller.getDebugInfoNeverUseInCode(), commSpec.getDebugInfoNeverUseInCode(),
                     maxAmount, resizeCommodity.getEffectiveCapacity(), capacityUpperBound);
         }
+
+        // Need to ensure that we do not go above the capacityUpperBound since we do
+        // desiredAmount / (capacityIncrement * rateOfRightSize) and we take the ceil() of the
+        // decimal. When we take the ceil(), rounding up can bring the capacity above the capacityUpperBound
+        // which is why we need to take the floor() when constricted by the capacity upper bound.
+        // The example where this happens is we have a capacity upper bound of 8 vCPUs worth of MHz
+        // and we resize the VM from 6 to 9 vCPUs because we end up with a decimal for
+        // desiredAmount/capacityIncrement.
+        boolean useMaxLimitiation = (maxAmount - capacityIncrement) < desiredAmount;
+
         if (maxAmount < desiredAmount) {
             desiredAmount = maxAmount;
         }
+        double incrementsValue = desiredAmount / (capacityIncrement * rateOfRightSize);
         // compute increments sufficient for desired amount
-        int numIncrements = (int) Math.ceil(desiredAmount / (capacityIncrement * rateOfRightSize));
+        int numIncrements = useMaxLimitiation ? (int) Math.floor(incrementsValue)
+            : (int) Math.ceil(incrementsValue);
 
         for (CommoditySold rawMaterial : rawMaterials) {
             if (rawMaterial != null
@@ -784,46 +798,91 @@ public class Resizer {
                                                               double newCapacity, double changeInCapacity,
                                                               boolean reverse, boolean isResold) {
 
-        logger.trace("consumer : {}, boughtQnty : {}, newCap : {}, capChange : {}",
+        logger.trace("consumer : {}, boughtQnty : {}, peakQnty : {}, newCap : {}, capChange : {}",
                 shoppingList.getBuyer().getDebugInfoNeverUseInCode(),
-                shoppingList.getQuantity(boughtIndex), newCapacity, changeInCapacity);
+                shoppingList.getQuantity(boughtIndex), shoppingList.getPeakQuantity(boughtIndex),
+                newCapacity, changeInCapacity);
         if (!reverse) {
             if (changeInCapacity < 0) {
                 // resize down
                 double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
+                double oldPeakQuantityBought = shoppingList.getPeakQuantities()[boughtIndex];
                 // If the commodity being updated is on a reseller, we just decrement the consumption by the changeInCapacity.
                 if (isResold) {
                     double newQuantityBought = oldQuantityBought + changeInCapacity;
+                    double newPeakQuantityBought = oldPeakQuantityBought + changeInCapacity;
                     shoppingList.getQuantities()[boughtIndex] = newQuantityBought;
-                    commSoldBySupplier.setQuantity(commSoldBySupplier.getQuantity() + changeInCapacity);
+                    shoppingList.getPeakQuantities()[boughtIndex] = newPeakQuantityBought;
+                    if (commSoldBySupplier.getQuantity() + changeInCapacity < 0) {
+                        logger.error(NEGATIVE_QUANTITY_UPDATE, shoppingList.getBuyer().getDebugInfoNeverUseInCode(),
+                                reverse, isResold);
+                    }
+                    commSoldBySupplier.setQuantity(Math.max(0, commSoldBySupplier.getQuantity() + changeInCapacity));
+                    if (commSoldBySupplier.getPeakQuantity() + changeInCapacity < 0) {
+                        logger.warn(NEGATIVE_PEAK_QUANTITY_UPDATE, shoppingList.getBuyer().getDebugInfoNeverUseInCode(),
+                                reverse, isResold);
+                    }
+                    commSoldBySupplier.setPeakQuantity(Math.max(0, commSoldBySupplier.getPeakQuantity() + changeInCapacity));
                 } else {
                     DoubleTernaryOperator decrementFunction = typeOfCommBought.getDecrementFunction();
                     double decrementedQuantity = decrementFunction.applyAsDouble(
                             oldQuantityBought, newCapacity, 0);
+                    double decrementedPeakQuantity = decrementFunction.applyAsDouble(
+                            oldPeakQuantityBought, newCapacity, 0);
                     double newQuantityBought = commSoldBySupplier.getQuantity() - (oldQuantityBought - decrementedQuantity);
-                    commSoldBySupplier.setQuantity(newQuantityBought);
+                    double newPeakQuantityBought = commSoldBySupplier.getPeakQuantity() - (oldPeakQuantityBought - decrementedPeakQuantity);
+                    if (newQuantityBought < 0) {
+                        logger.error(NEGATIVE_QUANTITY_UPDATE, shoppingList.getBuyer().getDebugInfoNeverUseInCode(),
+                                reverse, isResold);
+                    }
+                    commSoldBySupplier.setQuantity(Math.max(0, newQuantityBought));
+                    if (newPeakQuantityBought < 0) {
+                        logger.warn(NEGATIVE_PEAK_QUANTITY_UPDATE, shoppingList.getBuyer().getDebugInfoNeverUseInCode(),
+                                reverse, isResold);
+                    }
+                    commSoldBySupplier.setPeakQuantity(Math.max(0, newPeakQuantityBought));
                     shoppingList.getQuantities()[boughtIndex] = decrementedQuantity;
+                    shoppingList.getPeakQuantities()[boughtIndex] = decrementedPeakQuantity;
                 }
                 resizeImpact.putIfAbsent(resizingCommodity, new ResizeActionStateTracker());
-                resizeImpact.get(resizingCommodity).addEntry(commSoldBySupplier, oldQuantityBought);
+                resizeImpact.get(resizingCommodity).addEntry(commSoldBySupplier, oldQuantityBought, oldPeakQuantityBought);
             } else {
                 // resize up
                 DoubleTernaryOperator incrementFunction = typeOfCommBought.getIncrementFunction();
                 double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
+                double oldPeakQuantityBought = shoppingList.getPeakQuantities()[boughtIndex];
                 double incrementedQuantity = incrementFunction.applyAsDouble(oldQuantityBought, changeInCapacity, 0);
+                double incrementedPeakQuantity = incrementFunction.applyAsDouble(oldPeakQuantityBought, changeInCapacity, 0);
                 shoppingList.getQuantities()[boughtIndex] = incrementedQuantity;
+                shoppingList.getPeakQuantities()[boughtIndex] = incrementedPeakQuantity;
                 commSoldBySupplier.setQuantity(commSoldBySupplier.getQuantity()
                         + (incrementedQuantity - oldQuantityBought));
+                commSoldBySupplier.setPeakQuantity(commSoldBySupplier.getPeakQuantity()
+                        + (incrementedPeakQuantity - oldPeakQuantityBought));
                 resizeImpact.putIfAbsent(resizingCommodity, new ResizeActionStateTracker());
-                resizeImpact.get(resizingCommodity).addEntry(commSoldBySupplier, oldQuantityBought);
+                resizeImpact.get(resizingCommodity).addEntry(commSoldBySupplier, oldQuantityBought, oldPeakQuantityBought);
             }
         } else {
             double oldQuantityBought = resizeImpact.get(resizingCommodity).getQuantity(commSoldBySupplier);
+            double oldPeakQuantityBought = resizeImpact.get(resizingCommodity).getPeakQuantity(commSoldBySupplier);
             double currentQuantityBought = shoppingList.getQuantities()[boughtIndex];
+            double currentPeakQuantityBought = shoppingList.getPeakQuantities()[boughtIndex];
             double newQuantityBought = commSoldBySupplier.getQuantity()
                     - (currentQuantityBought - oldQuantityBought);
-            commSoldBySupplier.setQuantity(newQuantityBought);
+            double newPeakQuantityBought = commSoldBySupplier.getPeakQuantity()
+                    - (currentPeakQuantityBought - oldPeakQuantityBought);
+            if (newQuantityBought < 0) {
+                logger.error(NEGATIVE_QUANTITY_UPDATE, shoppingList.getBuyer().getDebugInfoNeverUseInCode(),
+                        reverse, isResold);
+            }
+            commSoldBySupplier.setQuantity(Math.max(0, newQuantityBought));
+            if (newPeakQuantityBought < 0) {
+                logger.warn(NEGATIVE_PEAK_QUANTITY_UPDATE, shoppingList.getBuyer().getDebugInfoNeverUseInCode(),
+                        reverse, isResold);
+            }
+            commSoldBySupplier.setPeakQuantity(Math.max(0, newPeakQuantityBought));
             shoppingList.getQuantities()[boughtIndex] = oldQuantityBought;
+            shoppingList.getPeakQuantities()[boughtIndex] = oldPeakQuantityBought;
         }
     }
 }

@@ -61,6 +61,11 @@ public interface TraderSettings {
     double getMinDesiredUtil();
 
     /**
+     * Returns rate of resize of an entity.
+     */
+    float getRateOfResize();
+
+    /**
      * Whether the associated {@link Trader} can take resize down action.
      */
     boolean isEligibleForResizeDown();
@@ -134,6 +139,18 @@ public interface TraderSettings {
      * @return {@code this}
      */
     @NonNull TraderSettings setSuspendable(boolean suspendable);
+
+    /**
+     * Sets the value of the <b>rateOfResize</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param rateOfResize rate of resizse
+     * @return {@code this}
+     */
+    @NonNull TraderSettings setRateOfResize(float rateOfResize);
 
     /**
      * Returns the quote factor of {@code this} trader.

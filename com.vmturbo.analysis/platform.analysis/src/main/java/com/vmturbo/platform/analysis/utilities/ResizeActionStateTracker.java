@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.utilities;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 
 /**
@@ -23,17 +24,53 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
  * commStateMapping holds: {c2, 70}, {c3, 70}
  */
 public final class ResizeActionStateTracker {
-    Map<CommoditySold, Double> commStateMapping;
+    Map<CommoditySold, Pair<Double, Double>> commStateMapping;
 
+    /**
+     * Constructor.
+     */
     public ResizeActionStateTracker() {
         this.commStateMapping = new HashMap<>();
     }
 
-    public void addEntry(CommoditySold commSold, Double qnty) {
-        this.commStateMapping.put(commSold, qnty);
+    /**
+     * Add entry.
+     *
+     * @param commSold the commodity sold.
+     * @param qnty the quantity.
+     * @param peak the peak.
+     */
+    public void addEntry(CommoditySold commSold, Double qnty, Double peak) {
+        this.commStateMapping.put(commSold, new Pair<Double, Double>(qnty, peak));
     }
 
+    /**
+     * Get the quantity.
+     *
+     * @param commSold the commodity sold.
+     * @return the quantity.
+     */
     public double getQuantity(CommoditySold commSold) {
+        return commStateMapping.get(commSold).first;
+    }
+
+    /**
+     * Get the peak.
+     *
+     * @param commSold the commodity sold.
+     * @return the peak.
+     */
+    public double getPeakQuantity(CommoditySold commSold) {
+        return commStateMapping.get(commSold).second;
+    }
+
+    /**
+     * Get the entry value pair.
+     *
+     * @param commSold the commodity sold.
+     * @return the pair.
+     */
+    public Pair<Double, Double> getUsageEntry(CommoditySold commSold) {
         return commStateMapping.get(commSold);
     }
 

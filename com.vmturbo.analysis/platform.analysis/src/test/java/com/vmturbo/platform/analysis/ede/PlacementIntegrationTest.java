@@ -4,10 +4,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -43,7 +41,8 @@ import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
-import com.vmturbo.platform.analysis.utilities.QuoteTracker;
+import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation;
+import com.vmturbo.platform.analysis.utilities.PlacementResults;
 
 public class PlacementIntegrationTest {
 
@@ -214,7 +213,7 @@ public class PlacementIntegrationTest {
     }
 
     /**
-     * VM buying 1000 mem, 200 CPU
+     * VM buying 1600 mem, 300 CPU
      * +--------+-----------------+-----------------+
      * |host    |       Mem       |       CPU       |
      * +--------+-----------------+-----------------+
@@ -229,26 +228,26 @@ public class PlacementIntegrationTest {
      * |pm_e    |       800       |       175       |
      * +--------+-----------------+-----------------+
      *
-     * The unplaced trader explanation should say that pm_b has insufficient CPU because it has the most CPU
-     * of anything with insufficient memory.
+     * The unplaced trader explanation should say that vm sl get infinity quote on CPU because
+     * there is 1 seller that lacks CPU amount, all others have insufficient amount in MEM and CPU
+     * commodities.
      *
-     * It should say that pm_d has insufficient Mem because it has the most memory of any host with
-     * sufficient CPU.
      */
+
     @Test
     public void testUnplacedTradersRiskBasedQuote() {
-        final CommodityBoughtTO cpuBought = commodityBought(cpuSpecTO, 200);
-        final CommodityBoughtTO memBought = commodityBought(memSpecTO, 1000);
+        final CommodityBoughtTO cpuBought = commodityBought(cpuSpecTO, 300);
+        final CommodityBoughtTO memBought = commodityBought(memSpecTO, 1600);
 
         final TraderTO vm = virtualMachineTO(12345L, "test_vm", cpuBought, memBought);
         final TraderTO pmA = physicalMachineTO(PM_SELLER_A_OID, "pm_a", 1200, 120);
-        final TraderTO pmB = physicalMachineTO(PM_SELLER_B_OID, "pm_b", 2000, 150); // Enough memory, closest CPU
+        final TraderTO pmB = physicalMachineTO(PM_SELLER_B_OID, "pm_b", 2000, 150); // Enough memory, insufficient CPU
         final TraderTO pmC = physicalMachineTO(PM_SELLER_C_OID, "pm_c", 1500, 100);
-        final TraderTO pmD = physicalMachineTO(PM_SELLER_D_OID, "pm_d", 500, 250);  // Enough CPU, not enough memory
-        final TraderTO pmE = physicalMachineTO(PM_SELLER_E_OID, "pm_e", 800, 175);  // Neither enough CPU or memory
+        final TraderTO pmD = physicalMachineTO(PM_SELLER_D_OID, "pm_d", 500, 250);
+        final TraderTO pmE = physicalMachineTO(PM_SELLER_E_OID, "pm_e", 800, 175);
 
         final Topology topology = new Topology();
-        ProtobufToAnalysis.addTrader(topology, vm);
+        final Trader vmTrader = ProtobufToAnalysis.addTrader(topology, vm);
         Stream.of(pmA, pmB, pmC, pmD, pmE).forEach(trader -> {
             final Trader t = ProtobufToAnalysis.addTrader(topology, trader);
             t.getSettings().setCanAcceptNewCustomers(true);
@@ -259,86 +258,20 @@ public class PlacementIntegrationTest {
         topology.populateMarketsWithSellersAndMergeConsumerCoverage();
         Economy economy = (Economy)topology.getEconomy();
         economy.composeMarketSubsetForPlacement();
-        final Map<Trader, Collection<QuoteTracker>> unplacedTraders =
-            Placement.placementDecisions (economy).getUnplacedTraders();
+        PlacementResults results = Placement.placementDecisions(economy);
+        Map<Trader, List<InfiniteQuoteExplanation>> explanationByTrader = results
+                .populateExplanationForInfinityQuoteTraders();
 
-        assertEquals(1, unplacedTraders.size());
-        final String explanation = explanationsFor(unplacedTraders).get(0);
+        assertEquals(1, explanationByTrader.size());
+        List<InfiniteQuoteExplanation> explanations = explanationByTrader.get(vmTrader);
+        assertTrue(explanations.size() == 1);
 
-        assertTrue(explanation.contains("CPU| (200.0/150.0) on seller pm_b"));
-        assertTrue(explanation.contains("MEM| (1000.0/500.0) on seller pm_d"));
-    }
-
-    /**
-     * VM buying 1000 mem, 200 CPU, 50 IO
-     * +--------+-----------------+-----------------+-----------------+
-     * |host    |       Mem       |       CPU       |        IO       |
-     * +--------+-----------------+-----------------+-----------------+
-     * |pm_a    |      1200       |       120       |        30       |
-     * +--------+-----------------+-----------------+-----------------+
-     * |pm_b    |       700       |       150       |        90       |
-     * +--------+-----------------+-----------------+-----------------+
-     * |pm_c    |       800       |       250       |        20       |
-     * +--------+-----------------+-----------------+-----------------+
-     * |pm_d    |       900       |       180       |        40       |
-     * +--------+-----------------+-----------------+-----------------+
-     * |pm_e    |         1       |       250       |         1       |
-     * +--------+-----------------+-----------------+-----------------+
-     *
-     * The unplaced trader explanation should say that pm_b has insufficient CPU because it has the most CPU
-     * of anything with insufficient memory.
-     *
-     * It should say that pm_d has insufficient Mem because it has the most memory of any host with
-     * sufficient CPU.
-     */
-    @Test
-    public void testUnplacedTradersCpuMemIo() {
-        final CommodityBoughtTO cpuBought = commodityBought(cpuSpecTO, 200);
-        final CommodityBoughtTO memBought = commodityBought(memSpecTO, 1000);
-        final CommodityBoughtTO ioBought = commodityBought(ioSpecTO, 50);
-
-        final TraderTO vm = virtualMachineTO(12345L, "test_vm", cpuBought, memBought, ioBought);
-        final TraderTO pmA = physicalMachineTO(PM_SELLER_A_OID, "pm_a", 1200, 120, 30); // Insufficient CPU & IO
-        final TraderTO pmB = physicalMachineTO(PM_SELLER_B_OID, "pm_b", 700, 150, 90); // Insufficient CPU & Mem
-        final TraderTO pmC = physicalMachineTO(PM_SELLER_C_OID, "pm_c", 800, 250, 20); // Insufficient Mem & IO
-        final TraderTO pmD = physicalMachineTO(PM_SELLER_D_OID, "pm_d", 900, 180, 40);  // Insufficient of all
-        final TraderTO pmE = physicalMachineTO(PM_SELLER_E_OID, "pm_e", 1, 250, 1); // Insufficient Mem & IO
-
-        final Topology topology = new Topology();
-        ProtobufToAnalysis.addTrader(topology, vm);
-        Stream.of(pmA, pmB, pmC, pmD, pmE).forEach(trader -> {
-            final Trader t = ProtobufToAnalysis.addTrader(topology, trader);
-            t.getSettings().setCanAcceptNewCustomers(true);
-            t.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
-            t.getSettings().setCostFunction(costFunction);
-        });
-
-        topology.populateMarketsWithSellersAndMergeConsumerCoverage();
-        Economy economy = (Economy)topology.getEconomy();
-        economy.composeMarketSubsetForPlacement();
-
-        final Map<Trader, Collection<QuoteTracker>> unplacedTraders =
-            Placement.placementDecisions (economy).getUnplacedTraders();
-
-        assertEquals(1, unplacedTraders.size());
-        final String explanation = explanationsFor(unplacedTraders).get(0);
-
-        assertTrue(explanation.contains("CPU| (200.0/120.0), and IO_THROUGHPUT| (50.0/30.0) on seller pm_a"));
-        assertTrue(explanation.contains("CPU| (200.0/150.0), and MEM| (1000.0/700.0) on seller pm_b"));
-        assertTrue(explanation.contains("MEM| (1000.0/800.0), and IO_THROUGHPUT| (50.0/20.0) on seller pm_c"));
-    }
-
-    private List<String> explanationsFor(Map<Trader, Collection<QuoteTracker>> unplacedTraders) {
-        return unplacedTraders.entrySet().stream()
-            .map(entry -> {
-                final Trader trader = entry.getKey();
-                final Collection<QuoteTracker> quoteTrackers = entry.getValue();
-
-                return trader.getDebugInfoNeverUseInCode() + ": " + quoteTrackers.stream()
-                    .filter(QuoteTracker::hasQuotesToExplain)
-                    .map(QuoteTracker::explainInterestingSellers)
-                    .collect(Collectors.joining(","));
-            }).collect(Collectors.toList());
+        assertTrue(explanations.get(0).commBundle.size() == 1);
+        assertTrue(explanations.get(0).commBundle.iterator().next().commSpec.equals((ProtobufToAnalysis
+                .commoditySpecification(cpuSpecTO))));
+        assertEquals(300, explanations.get(0).commBundle.iterator().next().requestedAmount, 0);
+        assertTrue(explanations.get(0).providerType.get() == pmB.getType());
+        assertTrue(explanations.get(0).seller.get().getOid() == pmB.getOid());
     }
 
     private TraderTO virtualMachineTO(final long oid,

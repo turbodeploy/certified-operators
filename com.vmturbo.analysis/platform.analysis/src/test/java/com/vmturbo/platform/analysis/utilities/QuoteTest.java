@@ -7,6 +7,8 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -20,10 +22,11 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.CapacityLimitation;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.RatioBasedResourceDependency;
-import com.vmturbo.platform.analysis.utilities.Quote.InfiniteRangeBasedResourceDependencyQuote;
-import com.vmturbo.platform.analysis.utilities.Quote.InfiniteRatioBasedResourceDependencyQuote;
+import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation.CommodityBundle;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InfiniteBelowMinAboveMaxCapacityLimitationQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.InfiniteRangeBasedResourceDependencyQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.InfiniteRatioBasedResourceDependencyQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InfiniteDependentComputeCommodityQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InsufficientCommodity;
 import com.vmturbo.platform.analysis.utilities.Quote.LicenseUnavailableQuote;
@@ -155,14 +158,25 @@ public class QuoteTest {
     @Test
     public void testCommodityQuoteExplanation() {
         final Basket basketBought = new Basket(cpuSpec, memSpec);
+        double quantityAvailable = 10.0;
 
         when(shoppingList.getQuantities()).thenReturn(new double[]{9.0, 15.0, 7.0});
         when(shoppingList.getBasket()).thenReturn(basketBought);
 
         final CommodityQuote commodityQuote = new CommodityQuote(seller);
-        commodityQuote.addCostToQuote(Double.POSITIVE_INFINITY, 10.0, cpuSpec);
+        commodityQuote.addCostToQuote(Double.POSITIVE_INFINITY, quantityAvailable, cpuSpec);
+        Optional<InfiniteQuoteExplanation> exp = commodityQuote.getExplanation(shoppingList);
 
-        assertEquals("CPU (15.0/10.0) on seller MockTrader", commodityQuote.getExplanation(shoppingList));
+        assertTrue(exp.isPresent());
+        assertEquals(seller, exp.get().seller.get());
+        assertFalse(exp.get().costUnavailable);
+        assertTrue(seller.getType() == exp.get().providerType.get());
+        assertEquals(1, exp.get().commBundle.size());
+        CommodityBundle bundle = exp.get().commBundle.iterator().next();
+        assertEquals(cpuSpec, bundle.commSpec);
+        assertEquals(shoppingList.getQuantity(shoppingList.getBasket().indexOf(cpuSpec)),
+                bundle.requestedAmount, 0);
+        assertEquals(quantityAvailable, bundle.maxAvailable.get(), 0);
     }
 
     @Test
@@ -171,49 +185,113 @@ public class QuoteTest {
         licenseSpec.setDebugInfoNeverUseInCode("Linux");
 
         final Quote quote = new LicenseUnavailableQuote(seller, licenseSpec);
-        assertEquals("License Linux unavailable", quote.getExplanation(shoppingList));
+        Optional<InfiniteQuoteExplanation> exp = quote.getExplanation(shoppingList);
+
+        assertTrue(exp.isPresent());
+        assertFalse(exp.get().seller.isPresent());
+        assertFalse(exp.get().costUnavailable);
+        assertTrue(seller.getType() == exp.get().providerType.get());
+        assertEquals(1, exp.get().commBundle.size());
+        CommodityBundle bundle = exp.get().commBundle.iterator().next();
+        assertEquals(licenseSpec, bundle.commSpec);
+        assertEquals(1.0, bundle.requestedAmount, 0);
+        assertFalse(bundle.maxAvailable.isPresent());
     }
 
     /**
-     * Test InfiniteRatioBasedResourceDependencyQuote explanation.
+     * Test InfiniteRatioBasedResourceDependencyQuote.
      */
     @Test
     public void testInfiniteRatioBasedResourceDependencyQuote() {
-        final RatioBasedResourceDependency dependency = new RatioBasedResourceDependency(cpuSpec, memSpec, 2, false, 0, true);
-        final Quote quote = new InfiniteRatioBasedResourceDependencyQuote(dependency, 1.0, 5.0);
-        assertEquals("Dependent commodity MEM (5.0) exceeds base commodity CPU (1.0) [maxRatio=2.0]",
-                quote.getExplanation(shoppingList));
+        final RatioBasedResourceDependency dependentResourcePair = new RatioBasedResourceDependency(cpuSpec,
+                memSpec, 2, false, 0, true);
+        double dependentCommodityQuantity = 5.0;
+
+        final Quote quote = new InfiniteRatioBasedResourceDependencyQuote(seller, dependentResourcePair,
+                1.0, dependentCommodityQuantity);
+        Optional<InfiniteQuoteExplanation> exp = quote.getExplanation(shoppingList);
+
+        assertTrue(exp.isPresent());
+        assertFalse(exp.get().seller.isPresent());
+        assertFalse(exp.get().costUnavailable);
+        assertTrue(seller.getType() == exp.get().providerType.get());
+        assertFalse(exp.get().seller.isPresent());
+        assertEquals(1, exp.get().commBundle.size());
+        CommodityBundle bundle = exp.get().commBundle.iterator().next();
+        assertEquals(memSpec, bundle.commSpec);
+        assertEquals(dependentCommodityQuantity, bundle.requestedAmount, 0);
+        assertFalse(bundle.maxAvailable.isPresent());
     }
 
     /**
-     * Test InfiniteBelowMinAboveMaxCapacityLimitationQuote explanation.
+     * Test InfiniteBelowMinAboveMaxCapacityLimitationQuote.
      */
     @Test
     public void testInfiniteBelowMinAboveMaxCapacityLimitationQuote() {
         final CapacityLimitation capacityLimitation = new CapacityLimitation(5.0, 10.0, true);
+        final double commodityQuantity = 4.0;
 
-        final Quote quote = new InfiniteBelowMinAboveMaxCapacityLimitationQuote(cpuSpec, capacityLimitation, 4.0);
-        assertEquals("Commodity CPU with quantity 4.0 can't meet capacity limitation, where min is 5.0, and max is 10.0",
-                quote.getExplanation(shoppingList));
+        final Quote quote = new InfiniteBelowMinAboveMaxCapacityLimitationQuote(seller, cpuSpec, capacityLimitation, commodityQuantity);
+        Optional<InfiniteQuoteExplanation> exp = quote.getExplanation(shoppingList);
+
+        assertTrue(exp.isPresent());
+        assertFalse(exp.get().seller.isPresent());
+        assertFalse(exp.get().costUnavailable);
+        assertTrue(seller.getType() == exp.get().providerType.get());
+        assertFalse(exp.get().seller.isPresent());
+        assertEquals(1, exp.get().commBundle.size());
+        CommodityBundle bundle = exp.get().commBundle.iterator().next();
+        assertEquals(cpuSpec, bundle.commSpec);
+        assertEquals(commodityQuantity, bundle.requestedAmount, 0);
+        assertFalse(bundle.maxAvailable.isPresent());
     }
 
     /**
-     * Test InfiniteRangeBasedResourceDependencyQuote explanation.
+     * Test InfiniteRangeBasedResourceDependencyQuote.
      */
     @Test
     public void testInfiniteRangeBasedResourceDependencyQuote() {
-        final Quote quote = new InfiniteRangeBasedResourceDependencyQuote(cpuSpec, memSpec, 10.0, 5.0, 12.0);
-        assertEquals("Dependent commodity MEM (12.0) exceeds ranged capacity (10.0), with base commodity CPU (5.0).",
-                quote.getExplanation(shoppingList));
+        double dependentCommodityQuantity = 5.0;
+
+        final Quote quote = new InfiniteRangeBasedResourceDependencyQuote(seller, memSpec,
+                cpuSpec, 3.0, 1.0, dependentCommodityQuantity);
+        Optional<InfiniteQuoteExplanation> exp = quote.getExplanation(shoppingList);
+
+        assertTrue(exp.isPresent());
+        assertFalse(exp.get().seller.isPresent());
+        assertFalse(exp.get().costUnavailable);
+        assertTrue(seller.getType() == exp.get().providerType.get());
+        assertFalse(exp.get().seller.isPresent());
+        assertEquals(1, exp.get().commBundle.size());
+        CommodityBundle bundle = exp.get().commBundle.iterator().next();
+        assertEquals(cpuSpec, bundle.commSpec);
+        assertEquals(dependentCommodityQuantity, bundle.requestedAmount, 0);
+        assertFalse(bundle.maxAvailable.isPresent());
     }
 
     @Test
     public void testInfiniteDependentComputeCommodityQuote() {
         final Basket basketBought = new Basket(cpuSpec, memSpec);
+        double memBought = 2.0;
+        double cpuBought = 3.0;
         when(shoppingList.getBasket()).thenReturn(basketBought);
 
-        final Quote quote = new InfiniteDependentComputeCommodityQuote(0, 1, 1.0, 2.0, 3.0);
-        assertEquals("Dependent compute commodities MEM and CPU sum (2.0 + 3.0 = 5.0) exceeds capacity 1.0",
-            quote.getExplanation(shoppingList));
+        final Quote quote = new InfiniteDependentComputeCommodityQuote(seller, memSpec, cpuSpec,
+                1.0, memBought, cpuBought);
+        Optional<InfiniteQuoteExplanation> exp = quote.getExplanation(shoppingList);
+
+        assertTrue(exp.isPresent());
+        assertFalse(exp.get().seller.isPresent());
+        assertFalse(exp.get().costUnavailable);
+        assertTrue(seller.getType() == exp.get().providerType.get());
+        assertFalse(exp.get().seller.isPresent());
+        assertEquals(2, exp.get().commBundle.size());
+        Iterator<CommodityBundle> itr = exp.get().commBundle.iterator();
+        CommodityBundle bundle1 = itr.next();
+        CommodityBundle bundle2 = itr.next();
+        assertTrue((bundle1.commSpec.equals(memSpec) && bundle1.requestedAmount == memBought)
+                || (bundle1.commSpec.equals(cpuSpec) && bundle1.requestedAmount == cpuBought));
+        assertTrue((bundle2.commSpec.equals(memSpec) && bundle2.requestedAmount == memBought)
+                   || (bundle2.commSpec.equals(cpuSpec) && bundle2.requestedAmount == cpuBought));
     }
 }

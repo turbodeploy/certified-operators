@@ -45,7 +45,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.CapacityLimitation;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
-import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.CostUnavailableQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
 /**
@@ -97,7 +97,7 @@ public class CostFunctionFactoryTest {
                         licenseAccessCommBaseType)), windowsVM, new double[]{50, 1},
                 new double[]{90, 1}, computeTier);
         windowsComputeSL.setGroupFactor(1);
-        // DB tet setup
+        // DB test setup
         CommoditySpecification dbLicense =
                 new CommoditySpecification(TestUtils.WINDOWS_COMM_TYPE, licenseAccessCommBaseType);
         List<CommoditySpecification> dbCommList =
@@ -141,7 +141,7 @@ public class CostFunctionFactoryTest {
         MutableQuote quote1 = CostFunctionFactory.calculateComputeAndDatabaseCostQuote(computeTier,
                 shoppingList, costTable, licenseAccessCommBaseType);
         // 1. test without context computation
-        assertTrue(quote1 instanceof CommodityQuote);
+        assertTrue(quote1 instanceof CostUnavailableQuote);
         assertTrue(quote1.getSeller().equals(computeTier) && Double.isInfinite(quote1.getQuoteValue()));
         // 2. test with context computation
         BalanceAccount account1 = new BalanceAccount(100, 10000, accountId1, 0);
@@ -262,7 +262,7 @@ public class CostFunctionFactoryTest {
         buyerVm.getSettings().setContext(null);
         MutableQuote quote3 = CostFunctionFactoryHelper.calculateStorageTierQuote(shoppingList, storageTier,
                 commQuantityMap, priceDataMap, commCapacity, new ArrayList<>(), new ArrayList<>(), true, false);
-        assertTrue(quote3 instanceof CommodityQuote);
+        assertTrue(quote3 instanceof CostUnavailableQuote);
         assertTrue(quote3.getSeller().equals(storageTier) && Double.isInfinite(quote3.getQuoteValue()));
     }
 

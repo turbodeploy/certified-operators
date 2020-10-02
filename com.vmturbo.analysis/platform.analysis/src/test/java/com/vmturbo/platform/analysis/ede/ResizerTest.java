@@ -260,8 +260,12 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         final double cpuUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
+        final double cpuPeakOnCommSoldBeforeResize = pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getPeakQuantity();
         final double memUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
+        final double memPeakOnCommSoldBeforeResize = pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getPeakQuantity();
         // setting historicalQnty on the VM.
         for (CommoditySold cs : vm.getCommoditiesSold()) {
             cs.setHistoricalQuantity(cs.getQuantity());
@@ -286,12 +290,20 @@ public class ResizerTest {
         double cpuUsedOnCommSoldAfterResize =
                         pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
+        double cpuPeakOnCommSoldAfterResize =
+                pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getPeakQuantity();
         // when the usage on the underlying provider is lower than the newCap, we should not increase the usage
         assertEquals(cpuUsedOnCommSoldBeforeResize, cpuUsedOnCommSoldAfterResize, 0);
+        assertEquals(cpuPeakOnCommSoldBeforeResize, cpuPeakOnCommSoldAfterResize, 0);
         double memUsedOnCommSoldAfterResize =
                         pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
+        double memPeakOnCommSoldAfterResize =
+                pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getPeakQuantity();
         assertTrue(memUsedOnCommSoldBeforeResize > memUsedOnCommSoldAfterResize);
+        assertTrue(memPeakOnCommSoldBeforeResize > memPeakOnCommSoldAfterResize);
     }
 
     /**
@@ -312,8 +324,12 @@ public class ResizerTest {
                 RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         final double cpuUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                 .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
+        final double cpuPeakOnCommSoldBeforeResize = pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getPeakQuantity();
         final double memUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                 .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
+        final double memPeakOnCommSoldBeforeResize = pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getPeakQuantity();
         economy.getSettings().setResizeDependentCommodities(false);
         TestUtils.setupHistoryBasedResizeDependencyMap(economy);
         // setting historicalQnty on the VM.
@@ -341,11 +357,19 @@ public class ResizerTest {
         double cpuUsedOnCommSoldAfterResize =
                 pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
+        double cpuPeakOnCommSoldAfterResize =
+                pm.getCommoditiesSold()
+                        .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getPeakQuantity();
         assertEquals(cpuUsedOnCommSoldBeforeResize, cpuUsedOnCommSoldAfterResize, 0);
+        assertEquals(cpuPeakOnCommSoldBeforeResize, cpuPeakOnCommSoldAfterResize, 0);
         double memUsedOnCommSoldAfterResize =
                 pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
+        double memPeakOnCommSoldAfterResize =
+                pm.getCommoditiesSold()
+                        .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getPeakQuantity();
         assertEquals(memUsedOnCommSoldBeforeResize, memUsedOnCommSoldAfterResize, 0);
+        assertEquals(memPeakOnCommSoldBeforeResize, memPeakOnCommSoldAfterResize, 0);
     }
 
     /**
@@ -366,8 +390,12 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         final double cpuUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
+        final double cpuPeakOnCommSoldBeforeResize = pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getPeakQuantity();
         final double memUsedOnCommSoldBeforeResize = pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
+        final double memPeakOnCommSoldBeforeResize = pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getPeakQuantity();
 
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
@@ -389,11 +417,19 @@ public class ResizerTest {
         double cpuUsedOnCommSoldAfterResize =
                         pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getQuantity();
+        double cpuPeakOnCommSoldAfterResize =
+                pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.CPU)).getPeakQuantity();
         assertTrue(cpuUsedOnCommSoldBeforeResize < cpuUsedOnCommSoldAfterResize);
+        assertTrue(cpuPeakOnCommSoldBeforeResize < cpuPeakOnCommSoldAfterResize);
         double memUsedOnCommSoldAfterResize =
                         pm.getCommoditiesSold()
                         .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getQuantity();
+        double memPeakOnCommSoldAfterResize =
+                pm.getCommoditiesSold()
+                .get(pm.getBasketSold().indexOf(TestUtils.MEM)).getPeakQuantity();
         assertTrue(memUsedOnCommSoldBeforeResize < memUsedOnCommSoldAfterResize);
+        assertTrue(memPeakOnCommSoldBeforeResize < memPeakOnCommSoldAfterResize);
     }
 
     /**
@@ -527,7 +563,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
 
-        economy.getSettings().setDefaultRateOfResize((float)Math.pow(10, 10));
+        vm.getSettings().setRateOfResize((float)Math.pow(10, 10));
         Ledger ledger = new Ledger(economy);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
         assertEquals(2, actions.size());
@@ -758,6 +794,30 @@ public class ResizerTest {
      * PM CPU capacity = 100, VM buys 70 from it. App buys 70 of VM's VCPU.
      * PM MEM capacity = 100, VM buys 70 from it. App buys 70 of VM's VMEM.
      * VM's VCPU and VMEM have capacities of 80 each.
+     * The capacity increment is 10.
+     * The desired capacity is 90.72 - result of calling calculateDesiredCapacity.
+     * That capacity increase will be limited to 85 because of the capacity upper bound value.
+     * However, we can do 0 increments because one increment will bring us to 90 which is over 85.
+     * */
+    @Test
+    public void testResizeUpRespectsCapacityUpperBoundWithCapacityIncrementChange() {
+        Economy economy = setupTopologyForResizeTest(100, 100,
+            80, 80, 70, 70, 70, 70, 0.65, 0.8,
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
+
+        vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityUpperBound(85));
+
+        vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityIncrement(10));
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(0, actions.size());
+    }
+
+    /**
+     * Setup economy with one PM, one VM and one application.
+     * PM CPU capacity = 100, VM buys 70 from it. App buys 70 of VM's VCPU.
+     * PM MEM capacity = 100, VM buys 70 from it. App buys 70 of VM's VMEM.
+     * VM's VCPU and VMEM have capacities of 80 each.
      * The capacity increment is 1.
      * That capacity upper bound value is 75. If the current capacity is already above
      * the upper bound, then the upper bound does not matter. And we will allow the generation
@@ -797,7 +857,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityIncrement(30));
         // set the rate of resize to low
-        economy.getSettings().setDefaultRateOfResize(1000000);
+        vm.getSettings().setRateOfResize(1000000);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
         assertEquals(0, actions.size());
@@ -824,7 +884,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityIncrement(30));
         // set the rate of resize to high
-        economy.getSettings().setDefaultRateOfResize(1);
+        vm.getSettings().setRateOfResize(1);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
         assertEquals(2, actions.size());
@@ -862,7 +922,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityIncrement(500));
         // set the rate of resize to low
-        economy.getSettings().setDefaultRateOfResize(1000000);
+        vm.getSettings().setRateOfResize(1000000);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
         assertEquals(0, actions.size());
@@ -1645,7 +1705,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
 
-        economy.getSettings().setDefaultRateOfResize((float)Math.pow(10, 10));
+        vm.getSettings().setRateOfResize((float)Math.pow(10, 10));
         Ledger ledger = new Ledger(economy);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
         assertEquals(2, actions.size());
@@ -1668,7 +1728,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
 
-        economy.getSettings().setDefaultRateOfResize((float)Math.pow(10, 10));
+        vm.getSettings().setRateOfResize((float)Math.pow(10, 10));
         Ledger ledger = new Ledger(economy);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
         assertEquals(2, actions.size());

@@ -2,9 +2,12 @@ package com.vmturbo.platform.analysis.actions;
 
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 
 import com.google.common.hash.Hashing;
 
@@ -14,6 +17,7 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -26,6 +30,8 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
     // Fields
     static final Logger logger = LogManager.getLogger(Placement.class);
 
+    // A set of commodities from shopping list which can not be satisfied by any seller.
+    private Set<CommoditySpecification> unavailableCommodities = new HashSet<>();
     // Constructors
 
     /**
@@ -36,6 +42,7 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
      */
     public Reconfigure(@NonNull Economy economy, @NonNull ShoppingList target) {
         super(economy, target, target.getSupplier());
+        findUnavailableCommodities();
     }
 
 
@@ -197,4 +204,35 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
     public ActionType getType() {
         return ActionType.RECONFIGURE;
     }
+
+    /**
+     * Finds all commodities that are not available on source but are requested by shopping list.
+     * If the source does not exist, returns all the commodities bought by shopping list.
+     *
+     * @return A set of unavailable commodity specifications
+     */
+    private Set<CommoditySpecification> findUnavailableCommodities() {
+        // When the shopping list is not empty and it does not have a supplier,
+        // put all the commodities into reconfigure action's unavailableCommodities.
+        if (getSource() == null) {
+            unavailableCommodities = getTarget().getBasket().stream().collect(Collectors.toSet());
+            return unavailableCommodities;
+        }
+        for (CommoditySpecification c : getTarget().getBasket()) {
+            if (!getSource().getBasketSold().contains(c)) {
+                unavailableCommodities.add(c);
+            }
+        }
+        return unavailableCommodities;
+    }
+
+    /**
+     * Returns a set of commodities asked by the shopping list but can not be satisfied by any seller.
+     *
+     * @return A set of unavailable commodities.
+     */
+    public Set<CommoditySpecification> getUnavailableCommodities() {
+        return unavailableCommodities;
+    }
+
 } // end Reconfigure class

@@ -3,18 +3,21 @@ package com.vmturbo.platform.analysis.utilities;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.analysis.actions.Action;
-import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
@@ -33,32 +36,36 @@ public class PlacementResults {
     private final List<Action> actions;
 
     /**
-     * A map of traders that could not be placed to {@link QuoteTracker}s that explain why the trader
-     * could not be placed.
+     * A map of traders that do not have a proper quote in placement to {@link QuoteTracker}s that
+     * keep track of infinity quotes.
      *
-     * A trader that has multiple shopping lists that cannot be placed has one {@link QuoteTracker} for
-     * each {@link ShoppingList} that could not be placed.
      */
-    private final Map<Trader, Collection<QuoteTracker>> unplacedTraders;
+    private final Map<Trader, Collection<QuoteTracker>> infinityQuoteTraders;
+
+    private final Map<Trader, List<InfiniteQuoteExplanation>> traderExplanations;
 
     /**
      * Create new, initially empty, placement results.
      */
     public PlacementResults() {
         this.actions = new ArrayList<>();
-        this.unplacedTraders = new HashMap<>();
+        this.infinityQuoteTraders = new HashMap<>();
+        this.traderExplanations = new HashMap<>();
     }
 
     /**
      * Create new placement results with specific actions and unplaced traders.
      *
      * @param actions The actions that resulted from a round of placement.
-     * @param unplacedTraders {@link QuoteTracker}s for the traders that could not be placed.
+     * @param infinityQuoteTraders {@link QuoteTracker}s for the traders that do not have a proper quote.
+     * @param traderExplanations A map for trader with infinity quote and its explanations.
      */
     public PlacementResults(@Nonnull final List<Action> actions,
-                            @Nonnull final Map<Trader, Collection<QuoteTracker>> unplacedTraders) {
+                            @Nonnull final Map<Trader, Collection<QuoteTracker>> infinityQuoteTraders,
+                            @Nonnull final Map<Trader, List<InfiniteQuoteExplanation>> traderExplanations) {
         this.actions = Objects.requireNonNull(actions);
-        this.unplacedTraders = Objects.requireNonNull(unplacedTraders);
+        this.infinityQuoteTraders = Objects.requireNonNull(infinityQuoteTraders);
+        this.traderExplanations = Objects.requireNonNull(traderExplanations);
     }
 
     /**
@@ -78,13 +85,15 @@ public class PlacementResults {
     }
 
     /**
-     * Get the {@link QuoteTracker}s for traders that could not be placed. These {@link QuoteTracker}s
-     * can be used to explain why the traders could not be placed on a per-{@link ShoppingList} basis.
+     * Get the {@link QuoteTracker}s for traders that does not have a proper quote. These
+     * {@link QuoteTracker}s can be used to explain why the traders could not be placed on
+     * a per-{@link ShoppingList} basis.
      *
-     * @return The unplaced traders for a round of placement together with associated {@link QuoteTracker}s.
+     * @return The infinity quote traders for a round of placement together with associated
+     * {@link QuoteTracker}s.
      */
-    public Map<Trader, Collection<QuoteTracker>> getUnplacedTraders() {
-        return unplacedTraders;
+    public Map<Trader, Collection<QuoteTracker>> getInfinityQuoteTraders() {
+        return infinityQuoteTraders;
     }
 
     /**
@@ -106,15 +115,31 @@ public class PlacementResults {
     }
 
     /**
-     * Add unplaced traders and their associated {@link QuoteTracker}s to the {@link PlacementResults}.
+     * Add traders with no proper quotes and their associated {@link QuoteTracker}s to the
+     * {@link PlacementResults}.
      *
-     * @param buyingTrader The trader that could not be placed.
+     * @param buyingTrader The trader that does not have a proper quote.
      * @param quoteTrackers The {@link QuoteTracker}s, one for each of the {@link ShoppingList}s on
      *                      the trader that could not be placed.
      */
-    public void addUnplacedTraders(@Nonnull final Trader buyingTrader,
-                                   @Nonnull final Collection<QuoteTracker> quoteTrackers) {
-        this.unplacedTraders.put(buyingTrader, quoteTrackers);
+    public void addInfinityQuoteTraders(@Nonnull final Trader buyingTrader,
+                                        @Nonnull final List<QuoteTracker> quoteTrackers) {
+        if (quoteTrackers.isEmpty()) {
+            return;
+        }
+        // Get existing quote trackers of the given buyer from infinityQuoteTraders,
+        // keep those that associated with shopping lists different from those of the new trackers.
+        Set<ShoppingList> newTrackerSls = quoteTrackers.stream()
+                .map(t -> t.getShoppingList())
+                .collect(Collectors.toSet());
+        Collection<QuoteTracker> existingTrackers = this.infinityQuoteTraders.get(buyingTrader);
+        if (existingTrackers != null) {
+            Set<QuoteTracker> trackersToKeep = existingTrackers.stream()
+                    .filter(q -> !newTrackerSls.contains(q.getShoppingList()))
+                    .collect(Collectors.toSet());
+            quoteTrackers.addAll(trackersToKeep);
+        }
+        this.infinityQuoteTraders.put(buyingTrader, quoteTrackers);
     }
 
     /**
@@ -124,7 +149,7 @@ public class PlacementResults {
      */
     public void combine(@Nonnull final PlacementResults other) {
         this.actions.addAll(other.actions);
-        this.unplacedTraders.putAll(other.unplacedTraders);
+        this.infinityQuoteTraders.putAll(other.infinityQuoteTraders);
     }
 
     /**
@@ -145,56 +170,145 @@ public class PlacementResults {
      */
     public static PlacementResults forSingleAction(@Nonnull final Action action) {
         return new PlacementResults(Collections.singletonList(
-            Objects.requireNonNull(action)), Collections.emptyMap());
+            Objects.requireNonNull(action)), Collections.emptyMap(), Collections.emptyMap());
     }
 
     /**
-     * Add unplaced trader results for markets in the economy that have no suppliers.
-     * {@link ShoppingList}s in the economy that are attempting to buy in {@link Market}s that
-     * have no sellers will be unplaced, but we will not have {@link QuoteTracker}s for them
-     * because we never even attempt placement on {@link Market}s with no sellers.
+     * When there is a reconfigure action, it does not have {@link QuoteTracker} stored in the
+     * {@link PlacementResults}. This method will try to create quoteTrackers for such traders so
+     * that explanations can be generated for them.
      *
-     * This is an attempt to fill in {@link QuoteTracker}s for these {@link Trader}s whose
-     * {@link ShoppingList}s were unplaced and we did not shop for.
-     *
-     * @param trader The trader whose {@link ShoppingList}s may be unplaced.
-     * @param shoppingLists The {@link ShoppingList}s that were unplaced due to being in a market
-     *                      with no sellers.
-     * @param economy The {@link Economy} being analyzed.
+     * @param actions A list of actions.
      */
-    public void addResultsForMarketsWithNoSuppliers(@Nonnull final Trader trader,
-                                                    @Nonnull final Collection<ShoppingList> shoppingLists,
-                                                    @Nonnull final Economy economy) {
-        final List<QuoteTracker> trackers = shoppingLists.stream()
-            .map(sl -> quoteTrackerForMarketWithNoSupplier(sl, economy.getMarket(sl)))
-            .collect(Collectors.toList());
 
-        addUnplacedTraders(trader, trackers);
+    public void createQuoteTrackerForReconfigures(@Nonnull final List<Action> actions) {
+        Map<Trader, List<QuoteTracker>> quoteTrackersByTrader = new HashMap<>();
+        Map<Trader, List<Reconfigure>> reconfiguresByTrader = actions.stream()
+                .filter(a -> a instanceof Reconfigure)
+                .map(a -> (Reconfigure)a)
+                .collect(Collectors.groupingBy(Action::getActionTarget));
+        for (Map.Entry<Trader, List<Reconfigure>> entry : reconfiguresByTrader.entrySet()) {
+            List<QuoteTracker> quoteTrackers = new ArrayList<>();
+            for (Reconfigure reconf : entry.getValue()) {
+                final QuoteTracker quoteTracker = new QuoteTracker(reconf.getTarget());
+                final CommodityQuote quote = new CommodityQuote(null);
+                // UnavailableCommodities contains a set of commodities that satisfied by any seller.
+                // Add all unavailable commodities to the same CommodityQuote of a given shopping list.
+                reconf.getUnavailableCommodities().forEach(unsoldCommodity -> {
+                    quote.addCostToQuote(Double.POSITIVE_INFINITY, 0, unsoldCommodity);
+                    // this will adds the quote to the quoteTracker's infiniteQuotesToExplain
+                    quoteTracker.trackQuote(quote);
+                });
+                quoteTrackers.add(quoteTracker);
+            }
+            if (!quoteTrackers.isEmpty()) {
+                quoteTrackersByTrader.put(entry.getKey(), quoteTrackers);
+            }
+        }
+        quoteTrackersByTrader.entrySet().forEach(e -> addInfinityQuoteTraders(e.getKey(), e.getValue()));
+        return;
     }
 
     /**
-     * Add {@link QuoteTracker}s for traders that cannot be placed because they are in markets with
-     * no suppliers.
+     * Populate {@link InfiniteQuoteExplanation} for each trader. A trader can have multiple
+     * {@link InfiniteQuoteExplanation}s, each corresponding with a shopping list that gets infinity
+     * as best quote.
      *
-     * @param shoppingList The {@link ShoppingList} that could not be placed.
-     * @param market The {@link Market} the {@link ShoppingList} is shopping in.
-     * @return A {@link QuoteTracker} that can be used to explain why the {@link ShoppingList}
-     *         could not be placed.
+     * @return A map of traders and their {@link InfiniteQuoteExplanation}.
      */
-    private QuoteTracker quoteTrackerForMarketWithNoSupplier(@Nonnull final ShoppingList shoppingList,
-                                                             @Nonnull final Market market) {
+    public Map<Trader, List<InfiniteQuoteExplanation>> populateExplanationForInfinityQuoteTraders() {
+        Map<Trader, List<InfiniteQuoteExplanation>> traderToExplanationMap = new HashMap<>();
+        for (Map.Entry<Trader, Collection<QuoteTracker>> entry
+                : this.getInfinityQuoteTraders().entrySet()) {
+            List<InfiniteQuoteExplanation> explanationList = new ArrayList<>();
+            for (QuoteTracker tracker : entry.getValue()) {
+                InfiniteQuotesOfInterest interestingQuotes = new InfiniteQuotesOfInterest(tracker);
+                // First try to find if we can explain by commodities.
+                // If there are a number of commodities failed, try to use the seller that provides
+                // most commodities with close quantity.
+                List<Quote> closestSellerQuote = interestingQuotes.getIndividualCommodityQuotes()
+                        .values().stream()
+                        .filter(individual -> individual != null)
+                        .map(q -> q.quote)
+                        .filter(quote -> quote.getSeller() != null)
+                        .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+                        .entrySet().stream()
+                        .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))
+                        .map(Map.Entry::getKey)
+                        .collect(Collectors.toList());
+                if (!closestSellerQuote.isEmpty()) {
+                    Optional<InfiniteQuoteExplanation> exp = closestSellerQuote.get(0)
+                            .getExplanation(tracker.getShoppingList());
+                    if (exp.isPresent()) {
+                        explanationList.add(exp.get());
+                    }
+                } else if (!interestingQuotes.getIndividualCommodityQuotes().isEmpty()) {
+                    // There is no seller that can provide those commodities, which means the
+                    // infinity quote comes from reconfigure actions.
+                    List<Quote> reconfigureCommodityQuotes = interestingQuotes
+                            .getIndividualCommodityQuotes()
+                            .values().stream()
+                            .filter(individual -> individual != null)
+                            .map(q -> q.quote)
+                            .filter(quote -> quote.getSeller() == null)
+                            .collect(Collectors.toList());
+                    if (!reconfigureCommodityQuotes.isEmpty()) {
+                        Optional<InfiniteQuoteExplanation> exp = reconfigureCommodityQuotes.get(0)
+                                .getExplanation(tracker.getShoppingList());
+                        if (exp.isPresent()) {
+                            explanationList.add(exp.get());
+                        }
+                    }
+                }
 
-        // We currently can't tell what commodity or combination of commodities caused the market
-        // to have no sellers. Therefore, the quote tracker will track all the commodities in this
-        // market's basket. These can be used for comparison with baskets sold by specific sellers
-        // that we expect that would be valid providers. (ie a trader A wants to buy X and Y, we
-        // expect trader B to sell X and Y commodities. However, it only sells X)
-        final QuoteTracker quoteTracker = new QuoteTracker(shoppingList);
-        market.getBasket().forEach(unsoldCommodity -> {
-            final CommodityQuote quote = new CommodityQuote(null);
-            quote.addCostToQuote(Double.POSITIVE_INFINITY, 0, unsoldCommodity);
-            quoteTracker.trackQuote(quote);
+                // The size of explanationList is still 0, which means infinity comes from non
+                // commodity quotes, use the first non commodity quote as the explanation.
+                if (explanationList.isEmpty()) {
+                    Optional<InfiniteQuoteExplanation> nonCommExplanation = interestingQuotes
+                            .getNonCommodityQuotes().stream()
+                            .map(q -> q.getExplanation(tracker.getShoppingList()))
+                            .filter(q -> q.isPresent())
+                            .map(q -> q.get())
+                            .findFirst();
+                    if (nonCommExplanation.isPresent()) {
+                        explanationList.add(nonCommExplanation.get());
+                    }
+                }
+            }
+            if (!explanationList.isEmpty()) {
+                traderToExplanationMap.put(entry.getKey(), explanationList);
+            }
+        }
+        traderToExplanationMap.entrySet().forEach(e -> {
+            this.addExplanations(e.getKey(), e.getValue());
         });
-        return quoteTracker;
+        return traderToExplanationMap;
+
+    }
+
+    /**
+     * Returns the map for trader with infinity quote and its explanations.
+     *
+     * @return A map for trader with infinity quote and its explanations.
+     */
+    public Map<Trader, List<InfiniteQuoteExplanation>> getExplanations() {
+        return traderExplanations;
+    }
+
+    /**
+     * Fill in contents for trader and the {@link InfiniteQuoteExplanation} of each shopping list
+     * that gets infinity as best quote.
+     *
+     * @param trader the trader which gets infnity quote as best quote.
+     * @param explanations a list of {@link InfiniteQuoteExplanation}.
+     */
+    public void addExplanations(Trader trader, List<InfiniteQuoteExplanation> explanations) {
+        List<InfiniteQuoteExplanation> expList = traderExplanations.get(trader);
+        if (expList == null || expList.isEmpty()) {
+            traderExplanations.put(trader, explanations);
+        } else {
+            expList.addAll(explanations);
+        }
+
     }
 }

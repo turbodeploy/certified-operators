@@ -39,7 +39,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDT
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
-import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.CostUnavailableQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InfiniteBelowMinAboveMaxCapacityLimitationQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InfiniteRangeBasedResourceDependencyQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InfiniteRatioBasedResourceDependencyQuote;
@@ -494,7 +494,7 @@ public class CostFunctionFactoryHelper {
             final double maxCapacity = capacityLimitation.getMaxCapacity();
             // Check max capacity
             if (commodityQuantity > maxCapacity) {
-                return new InfiniteBelowMinAboveMaxCapacityLimitationQuote(
+                return new InfiniteBelowMinAboveMaxCapacityLimitationQuote(seller,
                         commoditySpecification, capacityLimitation, commodityQuantity);
             }
             // Check min capacity
@@ -509,7 +509,8 @@ public class CostFunctionFactoryHelper {
                             commodityQuantity, capacityLimitation.getMinCapacity(), seller.getDebugInfoNeverUseInCode());
                 } else {
                     // If need to check capacity min limitation for StorageAmount commodity, and not in Savings mode.
-                    return new InfiniteBelowMinAboveMaxCapacityLimitationQuote(commoditySpecification, capacityLimitation, commodityQuantity);
+                    return new InfiniteBelowMinAboveMaxCapacityLimitationQuote(seller,
+                            commoditySpecification, capacityLimitation, commodityQuantity);
                 }
             }
             // Update commodity capacity in commCapacityMap if needed
@@ -585,7 +586,7 @@ public class CostFunctionFactoryHelper {
                     return getRatioBasedResourceDependencyQuote(
                             sl, seller, commQuantityMap, commCapacityMap, commCapacityLimitation, ratioDependencyList, isSavingsMode);
                 } else {
-                    return new InfiniteRatioBasedResourceDependencyQuote(dependency, baseCommQuantity, dependentCommQuantity);
+                    return new InfiniteRatioBasedResourceDependencyQuote(seller, dependency, baseCommQuantity, dependentCommQuantity);
                 }
             } else {
                 // MaxRatio constraint is met.
@@ -640,13 +641,13 @@ public class CostFunctionFactoryHelper {
                 }
                 // dependentCommQuantity exceeds dependentCapacity.
                 if (!isSavingsMode) {
-                    return new InfiniteRangeBasedResourceDependencyQuote(baseType,
+                    return new InfiniteRangeBasedResourceDependencyQuote(seller, baseType,
                             dependentType, dependentCapacity, baseCommQuantity, dependentCommQuantity);
                 } else {
                     // For Savings mode, get new base commodity quantity that can achieve dependentCommQuantity.
                     final Double newBaseCommQuantity = dependency.getLeastBaseCommodityCapacity(dependentType, dependentCommQuantity);
                     if (newBaseCommQuantity == null) {
-                        return new InfiniteRangeBasedResourceDependencyQuote(baseType,
+                        return new InfiniteRangeBasedResourceDependencyQuote(seller, baseType,
                                 dependentType, dependentCapacity, baseCommQuantity, dependentCommQuantity);
                     }
                     // Update commQuantityMap for baseType.
@@ -676,14 +677,14 @@ public class CostFunctionFactoryHelper {
      * @param appendPenalty if penalty cost should be counted into quote cost.
      * @return the Quote given by {@link CostFunction}
      */
-    private static CommodityQuote calculateStorageTierCost(@Nonnull Map<CommoditySpecification, Double> commQuantityMap,
+    private static MutableQuote calculateStorageTierCost(@Nonnull Map<CommoditySpecification, Double> commQuantityMap,
                                                            @Nonnull ShoppingList sl, @Nonnull Trader seller,
                                                            @Nonnull List<CommodityContext> commodityContext,
                                                            @Nonnull Map<CommoditySpecification, Table<Long, Long, List<PriceData>>> priceDataMap,
                                                            boolean appendPenalty) {
         Optional<Context> optionalContext = sl.getBuyer().getSettings().getContext();
         if (!optionalContext.isPresent()) {
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+            return new CostUnavailableQuote(seller, null, null, null);
         }
         final Context context = optionalContext.get();
         final long regionId = context.getRegionId();
@@ -698,7 +699,7 @@ public class CostFunctionFactoryHelper {
         if (cost == Double.MAX_VALUE) {
             logger.warn("No (cheapest) cost found for storage {} in region {}, account {}.",
                     seller.getDebugInfoNeverUseInCode(), regionId, balanceAccount);
-            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+            return new CostUnavailableQuote(seller, regionId, balanceAccountId, priceId);
         }
         return new CommodityCloudQuote(seller, cost, regionId, chosenAccountId, commodityContext);
     }
