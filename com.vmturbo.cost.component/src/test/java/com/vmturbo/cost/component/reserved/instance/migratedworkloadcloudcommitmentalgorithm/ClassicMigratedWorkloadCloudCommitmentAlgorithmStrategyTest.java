@@ -1,36 +1,29 @@
 package com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm;
 
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyList;
-
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement;
-import com.vmturbo.common.protobuf.stats.Stats;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.component.history.HistoricalStatsService;
 import com.vmturbo.platform.common.dto.CommonDTOREST;
 
 /**
  * Tests the ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy class.
  * Note that it loads a test Spring configuration from the ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTestConfig
- * class, which defines a mock HistoricalStatsService and a MigratedWorkloadCloudCommitmentAlgorithmStrategy with the
- * mock HistoricalStatsService wired into it. It is gated by the ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTest
- * profile.
+ * class, which defines the ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy. It is gated by the
+ * ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTest profile.
  */
 @ActiveProfiles("ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTest")
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -40,197 +33,221 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTest {
     private static final Logger logger = LogManager.getLogger(ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategyTest.class);
 
     /**
-     * A mock HistoricalStatsService.
-     */
-    @Autowired
-    private HistoricalStatsService historicalStatsService;
-
-    /**
      * The MigratedWorkloadCloudCommitmentAlgorithmStrategy under test.
      */
     @Autowired
-    private MigratedWorkloadCloudCommitmentAlgorithmStrategy migratedWorkloadCloudCommitmentAlgorithmStrategy;
+    private ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy migratedWorkloadCloudCommitmentAlgorithmStrategy;
 
     /**
      * Tests a VM with a set of max CPU values that fall below the threshold for identifying the VM as active.
      * No RI actions should be generated.
      */
     @Test
-    @Ignore
     public void testOneVMNoRIActionsGenerated() {
-        // Create the mock data we want the historical stats service to return
-        Stats.EntityStats entityStats = createEnityStatsThatWillNotBuyRI(1);
+        // Build the original and new VMs
+        TopologyEntityDTO originalVm = createVm(1L, 1000d, 500d, 0.5, true, true);
+        TopologyEntityDTO newVm = createVm(1L, 8000d, 500d, 0.5, true, true);
 
-        // Return a single mock entity stats that has 21 days of values, all below 0.20
-        Mockito.when(historicalStatsService.getHistoricalStats(anyList(), anyList(), anyInt()))
-                .thenReturn(Arrays.asList(entityStats));
+        // Build the workload with the original and new VMs
+        MigratedWorkloadPlacement workload = MigratedWorkloadPlacement.newBuilder()
+                .setOriginalVirtualMachine(originalVm)
+                .setVirtualMachine(newVm)
+                .build();
 
-        // Execute our strategy
-        List<ActionDTO.Action> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(Arrays.asList(createMockMigratedWorkloadPlacement(1)), null, null, null, null);
-//        List<ReservedInstanceAnalysisRecommendation> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(Arrays.asList(createMockMigratedWorkloadPlacement(1)), null);
+        // Analyze the workloads
+        List<Long> oids = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyzeWorkloads(Arrays.asList(workload));
 
-        // Assert our results
-        Assert.assertNotNull(actions);
-        Assert.assertEquals("We should not generate any Buy RI actions", 0, actions.size());
+        // Validate the results
+        Assert.assertEquals("We should not recommend buying any RIs", 0, oids.size());
     }
 
     /**
      * Tests a VM with a set of max CPU values that are all above 20%, so an RI should be generated.
      */
     @Test
-    @Ignore
     public void testOneVMRIActionsGenerated() {
-        // Create the mock data we want the historical stats service to return
-        Stats.EntityStats entityStats = createEnityStatsThatWillBuyRI(1);
+        // Build the original and new VMs
+        TopologyEntityDTO originalVm = createVm(1L, 1000d, 500d, 0.5, true, true);
+        TopologyEntityDTO newVm = createVm(1L, 2000d, 500d, 0.5, true, true);
 
-        // Return a single mock entity stats that has 21 days of values, all below 0.20
-        Mockito.when(historicalStatsService.getHistoricalStats(anyList(), anyList(), anyInt()))
-                .thenReturn(Arrays.asList(entityStats));
+        // Build the workload with the original and new VMs
+        MigratedWorkloadPlacement workload = MigratedWorkloadPlacement.newBuilder()
+                .setOriginalVirtualMachine(originalVm)
+                .setVirtualMachine(newVm)
+                .build();
 
-        // Execute our strategy
-//        List<ReservedInstanceAnalysisRecommendation> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(Arrays.asList(createMockMigratedWorkloadPlacement(1)), null);
-        List<ActionDTO.Action> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(Arrays.asList(createMockMigratedWorkloadPlacement(1)), null, null, null, null);
-        Assert.assertNotNull(actions);
+        // Analyze the workloads
+        List<Long> oids = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyzeWorkloads(Arrays.asList(workload));
 
-        // Assert our results
-        Assert.assertEquals("We should generate one Buy RI action", 1, actions.size());
+        // Validate the results
+        Assert.assertEquals("We should recommend buying RIs for 1 VM", 1, oids.size());
+        Assert.assertEquals("We should receive OID 1", oids.get(0).longValue(), 1L);
     }
-
-//    @Test
-//    public void testOneVMRIActionsGenerated() {
-//        // Create the mock data we want the historical stats service to return
-//        Stats.EntityStats entityStats = createEnityStatsThatWillBuyRI(1);
-//
-//        // Execute our strategy
-////        List<ReservedInstanceAnalysisRecommendation> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(Arrays.asList(createMockMigratedWorkloadPlacement(1)), null);
-//        List<Long> oids = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyzeStatistics(Arrays.asList(entityStats));
-//        Assert.assertNotNull(oids);
-//
-//        // Assert our results
-//        Assert.assertEquals("We should generate one Buy RI action", 1, oids.size());
-//    }
 
     /**
      * Tests two VMs that should both generate Buy RI actions.
      */
     @Test
-    @Ignore
     public void testTwoVMsRIActionsGenerated() {
-        // Return a two entity stats that have 21 days of values that are all above 20%
-        Mockito.when(historicalStatsService.getHistoricalStats(anyList(), anyList(), anyInt()))
-                .thenReturn(Arrays.asList(createEnityStatsThatWillBuyRI(1), createEnityStatsThatWillBuyRI(2)));
+        // Build the first workload
+        TopologyEntityDTO originalVm1 = createVm(1L, 1000d, 500d, 0.5, true, true);
+        TopologyEntityDTO newVm1 = createVm(1L, 2000d, 500d, 0.5, true, true);
+        MigratedWorkloadPlacement workload1 = MigratedWorkloadPlacement.newBuilder()
+                .setOriginalVirtualMachine(originalVm1)
+                .setVirtualMachine(newVm1)
+                .build();
 
-        // Execute our strategy
-        List<ActionDTO.Action> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(
-                Arrays.asList(createMockMigratedWorkloadPlacement(1), createMockMigratedWorkloadPlacement(2)), null, null, null, null);
-        Assert.assertNotNull(actions);
+        // Build the first workload
+        TopologyEntityDTO originalVm2 = createVm(2L, 1000d, 500d, 0.5, true, true);
+        TopologyEntityDTO newVm2 = createVm(2L, 2000d, 500d, 0.5, true, true);
+        MigratedWorkloadPlacement workload2 = MigratedWorkloadPlacement.newBuilder()
+                .setOriginalVirtualMachine(originalVm2)
+                .setVirtualMachine(newVm2)
+                .build();
 
-        // Assert our results
-        Assert.assertEquals("We should generate two Buy RI actions", 2, actions.size());
+
+        // Analyze the workloads
+        List<Long> oids = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyzeWorkloads(Arrays.asList(workload1, workload2));
+
+        // Validate the results
+        Assert.assertEquals("We should recommend buying RIs for 2 VMs", 2, oids.size());
+        Assert.assertEquals("We should receive OID 1", oids.get(0).longValue(), 1L);
+        Assert.assertEquals("We should receivd OID 2", oids.get(1).longValue(), 2L);
     }
 
     /**
      * Tests two VMs, one that should generate a Buy RI action and one that should not.
      */
     @Test
-    @Ignore
     public void testTwoVMsOneRIActionGenerated() {
-        // Return a two entity stats that have 21 days of values that are all above 20%
-        Mockito.when(historicalStatsService.getHistoricalStats(anyList(), anyList(), anyInt()))
-                .thenReturn(Arrays.asList(createEnityStatsThatWillBuyRI(1), createEnityStatsThatWillNotBuyRI(2)));
-
-        // Execute our strategy
-        List<ActionDTO.Action> actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(Arrays.asList(createMockMigratedWorkloadPlacement(1)), null, null, null, null);
-        Assert.assertNotNull(actions);
-
-        // Assert our results
-        Assert.assertEquals("We should generate one Buy RI action", 1, actions.size());
-    }
-
-    /**
-     * Helper method that creates entity stats that will not generate a Buy RI action.
-     *
-     * @param id The ID of the VM.
-     * @return Entity stats that will not generate a Buy RI action.
-     */
-    private Stats.EntityStats createEnityStatsThatWillNotBuyRI(long id) {
-        return createMockEntityStats(id, 10f, 10f, 10f, 10f, 10f, 10f, 10f, 10f, 10f, 10f, 10f, 10f, 10f,
-                10f, 10f, 10f, 10f, 10f, 10f, 10f, 10f);
-    }
-
-    /**
-     * Helper method that creates entity stats that will generate a Buy RI action.
-     *
-     * @param id The ID of the VM.
-     * @return Entity stats that will generate a Buy RI action.
-     */
-    private Stats.EntityStats createEnityStatsThatWillBuyRI(long id) {
-        return createMockEntityStats(id, 30f, 30f, 30f, 30f, 30f, 30f, 30f, 30f, 30f, 30f, 30f, 30f, 30f,
-                30f, 30f, 30f, 30f, 30f, 30f, 30f, 30f);
-    }
-
-    /**
-     * Creates a mock MigratedWorkloadPlacement object whose virtual machine has the specified OID.
-     *
-     * @param vmOid The OID of the MigratedWorkloadPlacement's virtual machine
-     * @return A mock MigratedWorkloadPlacement
-     */
-    private MigratedWorkloadPlacement createMockMigratedWorkloadPlacement(long vmOid) {
-        return MigratedWorkloadPlacement.newBuilder()
-                .setVirtualMachine(TopologyEntityDTO.newBuilder().setOid(vmOid).setEntityType(CommonDTOREST.EntityDTO.EntityType.VIRTUAL_MACHINE.getValue()).build())
+        // Build the first workload
+        TopologyEntityDTO originalVm1 = createVm(1L, 1000d, 500d, 0.5, true, true);
+        TopologyEntityDTO newVm1 = createVm(1L, 2000d, 500d, 0.5, true, true);
+        MigratedWorkloadPlacement workload1 = MigratedWorkloadPlacement.newBuilder()
+                .setOriginalVirtualMachine(originalVm1)
+                .setVirtualMachine(newVm1)
                 .build();
+
+        // Build the first workload
+        TopologyEntityDTO originalVm2 = createVm(2L, 1000d, 500d, 0.5, true, true);
+        TopologyEntityDTO newVm2 = createVm(2L, 8000d, 500d, 0.5, true, true);
+        MigratedWorkloadPlacement workload2 = MigratedWorkloadPlacement.newBuilder()
+                .setOriginalVirtualMachine(originalVm2)
+                .setVirtualMachine(newVm2)
+                .build();
+
+
+        // Analyze the workloads
+        List<Long> oids = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyzeWorkloads(Arrays.asList(workload1, workload2));
+
+        // Validate the results
+        Assert.assertEquals("We should only recommend buying RIs for 1 VM", 1, oids.size());
+        Assert.assertEquals("We should receive OID 1", oids.get(0).longValue(), 1L);
     }
 
     /**
-     * Creates a mock EntityStats with the specified OID and the specified max CPU values.
-     *
-     * @param oid     The OID of the EntityStats
-     * @param maxCpus The list of max CPU values that will ultimately be returned by contained StatValue mocks
-     * @return A mock EntityStats
+     * Tests the percentile calculation that returns a valid value.
      */
-    private Stats.EntityStats createMockEntityStats(long oid, float... maxCpus) {
-        Stats.EntityStats.Builder builder = Stats.EntityStats.newBuilder();
+    @Test
+    public void testPercentileCalculation() {
+        // Build the original and new VMs
+        TopologyEntityDTO originalVm = createVm(1L, 1000d, 500d, 0.5, true, true);
+        TopologyEntityDTO newVm = createVm(1L, 2000d, 500d, 0.5, true, true);
+
+        // Build the workload with the original and new VMs
+        MigratedWorkloadPlacement workload = MigratedWorkloadPlacement.newBuilder()
+                .setOriginalVirtualMachine(originalVm)
+                .setVirtualMachine(newVm)
+                .build();
+
+        // Calculate the percentile
+        Optional<Double> percentile = migratedWorkloadCloudCommitmentAlgorithmStrategy.computeProjectedPercentile(workload);
+
+        // Validate the percentile
+        Assert.assertTrue("We should have found a percentile", percentile.isPresent());
+        Assert.assertEquals(0.25d, percentile.get(), 0.001);
+    }
+
+    /**
+     * Tests the percentile calculation that returns an empty result due to no percentile.
+     */
+    @Test
+    public void testPercentileCalculationNoResultMissingPercentile() {
+        // Build the original and new VMs
+        TopologyEntityDTO originalVm = createVm(1L, 1000d, 500d, 0.5, false, true);
+        TopologyEntityDTO newVm = createVm(1L, 2000d, 500d, 0.5, true, true);
+
+        // Build the workload with the original and new VMs
+        MigratedWorkloadPlacement workload = MigratedWorkloadPlacement.newBuilder()
+                .setOriginalVirtualMachine(originalVm)
+                .setVirtualMachine(newVm)
+                .build();
+
+        // Calculate the percentile
+        Optional<Double> percentile = migratedWorkloadCloudCommitmentAlgorithmStrategy.computeProjectedPercentile(workload);
+
+        // Validate the percentile
+        Assert.assertFalse("We should not have found a percentile", percentile.isPresent());
+    }
+
+    /**
+     * Tests the percentile calculation that returns an empty result due to no percentile.
+     */
+    @Test
+    public void testPercentileCalculationNoResultMissingVcpuCommodity() {
+        // Build the original and new VMs
+        TopologyEntityDTO originalVm = createVm(1L, 1000d, 500d, 0.5, false, false);
+        TopologyEntityDTO newVm = createVm(1L, 2000d, 500d, 0.5, true, true);
+
+        // Build the workload with the original and new VMs
+        MigratedWorkloadPlacement workload = MigratedWorkloadPlacement.newBuilder()
+                .setOriginalVirtualMachine(originalVm)
+                .setVirtualMachine(newVm)
+                .build();
+
+        // Calculate the percentile
+        Optional<Double> percentile = migratedWorkloadCloudCommitmentAlgorithmStrategy.computeProjectedPercentile(workload);
+
+        // Validate the percentile
+        Assert.assertFalse("We should not have found a percentile", percentile.isPresent());
+    }
+
+    /**
+     * Helper method that builds a VM with a VCPU commodity (optional) with the specified values.
+     *
+     * @param oid               The OID of the VM
+     * @param capacity          The VCPU capacity
+     * @param used              The VCPU used
+     * @param percentile        The VCPU percentile
+     * @param includePercentile Should it include a percentile value?
+     * @param includeCommodity  Should it include the VCPU commodity at all?
+     * @return A configured TopologyEntityDTO for the VM
+     */
+    private TopologyEntityDTO createVm(Long oid, Double capacity, Double used, Double percentile, boolean includePercentile, boolean includeCommodity) {
+        TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder();
         builder.setOid(oid);
-        for (float maxCpu : maxCpus) {
-            builder.addStatSnapshots(createMockStatSnapshot(maxCpu));
+        builder.setEntityType(CommonDTOREST.EntityDTO.EntityType.VIRTUAL_MACHINE.getValue());
+        if (includeCommodity) {
+            // If we should include the VCPU commodity, build it
+            TopologyDTO.CommoditySoldDTO.Builder commodityBuilder = TopologyDTO.CommoditySoldDTO.newBuilder();
+            commodityBuilder.setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(26).build());
+            commodityBuilder.setCapacity(capacity);
+            commodityBuilder.setUsed(used);
+
+            TopologyDTO.HistoricalValues.Builder historicalValuesBuilder = TopologyDTO.HistoricalValues.newBuilder();
+            if (includePercentile) {
+                // Add the percentile value
+                historicalValuesBuilder.setPercentile(percentile);
+            }
+
+            // Add the historical used value
+            commodityBuilder.setHistoricalUsed(historicalValuesBuilder.build());
+
+            // Add the constructed commodity
+            builder.addCommoditySoldList(commodityBuilder.build());
         }
+
+        // Return the built VM
         return builder.build();
-    }
-
-    /**
-     * Creates a mock StatSnapshot with a list of mock StatRecords that have StatValues with the specified max values.
-     *
-     * @param maxCpu The max CPU value that the StatValue will return
-     * @return A mock StatSnapshot
-     */
-    private Stats.StatSnapshot createMockStatSnapshot(float maxCpu) {
-        return Stats.StatSnapshot.newBuilder()
-                .addStatRecords(createMockStatRecord(maxCpu))
-                .build();
-    }
-
-    /**
-     * Creates a mock StatRecord that returns a mock StatValue that returns the specified max value when its getMax()
-     * method is called.
-     *
-     * @param max The value to return when StatValue::getMax is called
-     * @return A mock implementation of a StatRecord
-     */
-    private Stats.StatSnapshot.StatRecord createMockStatRecord(float max) {
-        return Stats.StatSnapshot.StatRecord.newBuilder()
-                .setUsed(createMockStatValue(max))
-                .build();
-    }
-
-    /**
-     * Creates a mock StatValue that returns the specified max value when its getMax() method is called.
-     *
-     * @param max The value to return when StatValue::getMax is called
-     * @return A mock implementation of a StatValue
-     */
-    private Stats.StatSnapshot.StatRecord.StatValue createMockStatValue(float max) {
-        return Stats.StatSnapshot.StatRecord.StatValue.newBuilder()
-                .setMax(max)
-                .build();
     }
 }

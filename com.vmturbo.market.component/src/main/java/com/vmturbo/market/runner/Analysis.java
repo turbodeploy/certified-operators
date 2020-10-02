@@ -1226,6 +1226,9 @@ public class Analysis {
                             .map(regionId -> projectedCloudTopology.getEntities().get(regionId))
                             .findFirst();
 
+                    // Find the VM in the original topology
+                    TopologyEntityDTO originalVm = originalCloudTopology.getEntities().get(trader.getOid());
+
                     // Validate that we were able to find a compute tier and region
                     if (!computeTier.isPresent()) {
                         logger.warn("Could not find compute tier for workload placement for VM: {}", entity.getOid());
@@ -1237,6 +1240,7 @@ public class Analysis {
                                 .setVirtualMachine(entity)
                                 .setComputeTier(computeTier.get())
                                 .setRegion(region.get())
+                                .setOriginalVirtualMachine(originalVm)
                                 .build());
                     }
                 });

@@ -118,8 +118,7 @@ public class MigratedWorkloadCloudCommitmentConfig {
      */
     @Bean
     public MigratedWorkloadCloudCommitmentAlgorithmStrategy migratedWorkloadCloudCommitmentAlgorithmStrategy(HistoricalStatsService historicalStatsService) {
-        return new ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy(historicalStatsService,
-                pricingConfig.priceTableStore(),
+        return new ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy(pricingConfig.priceTableStore(),
                 pricingConfig.businessAccountPriceTableKeyStore(),
                 planBuyReservedInstanceStore,
                 planReservedInstanceSpecStore,

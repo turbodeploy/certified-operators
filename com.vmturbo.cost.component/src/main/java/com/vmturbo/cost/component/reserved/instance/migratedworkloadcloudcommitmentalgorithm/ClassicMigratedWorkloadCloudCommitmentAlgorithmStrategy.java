@@ -6,7 +6,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -29,8 +28,7 @@ import com.vmturbo.common.protobuf.cost.Pricing;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.search.CloudType;
-import com.vmturbo.common.protobuf.stats.Stats;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
@@ -43,7 +41,6 @@ import com.vmturbo.cost.component.db.tables.records.ActionContextRiBuyRecord;
 import com.vmturbo.cost.component.db.tables.records.BuyReservedInstanceRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanReservedInstanceBoughtRecord;
-import com.vmturbo.cost.component.history.HistoricalStatsService;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanActionContextRiBuyStore;
@@ -52,6 +49,7 @@ import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitm
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.repository.PlanReservedInstanceSpecStore;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTOREST;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -70,9 +68,9 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
     private static final Logger logger = LogManager.getLogger(ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy.class);
 
     /**
-     * The historical service, from which we retrieve historical VM vCPU usage.
+     * Used to convert a percentile (0..1) to a number between 0 and 100.
      */
-    private HistoricalStatsService historicalStatsService;
+    private static final double ONE_HUNDRED = 100.0;
 
     /**
      * Provides access to the price table, which has on-demand and reserved instance prices. We use this information when
@@ -113,7 +111,6 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
     /**
      * Create a new ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy.
      *
-     * @param historicalStatsService                            The historical status service that will be used to retrieve historical VCPU metrics
      * @param priceTableStore                                   The price table store, from which we retrieve on-demand and reserved instance prices
      * @param businessAccountPriceTableKeyStore                 Used to map the business account to a price table key
      * @param planBuyReservedInstanceStore                      Used to create a record in the buy_reserved_instance database table
@@ -122,15 +119,13 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
      * @param planProjectedEntityToReservedInstanceMappingStore Used to add a record to the plan_projected_entity_to_reserved_instance_mapping table
      * @param planReservedInstanceBoughtStore                   Used to add a record to the plan_reserved_instance_bought table
      */
-    public ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy(HistoricalStatsService historicalStatsService,
-                                                                   PriceTableStore priceTableStore,
+    public ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy(PriceTableStore priceTableStore,
                                                                    BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore,
                                                                    PlanBuyReservedInstanceStore planBuyReservedInstanceStore,
                                                                    PlanReservedInstanceSpecStore planReservedInstanceSpecStore,
                                                                    PlanActionContextRiBuyStore planActionContextRiBuyStore,
                                                                    PlanProjectedEntityToReservedInstanceMappingStore planProjectedEntityToReservedInstanceMappingStore,
                                                                    PlanReservedInstanceBoughtStore planReservedInstanceBoughtStore) {
-        this.historicalStatsService = historicalStatsService;
         this.priceTableStore = priceTableStore;
         this.planBuyReservedInstanceStore = planBuyReservedInstanceStore;
         this.businessAccountPriceTableKeyStore = businessAccountPriceTableKeyStore;
@@ -141,24 +136,11 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
     }
 
     /**
-     * The number of historical days to analyze VM usage.
+     * The vCPU percentile threshold: We recommend buying a reserved instance if the percentile it greater than or equal
+     * to this threshold. The default value is 20%.
      */
-    @Value("${migratedWorkflowCloudCommitmentAnalysis.numberOfHistoricalDays:21}")
-    private int numberOfHistoricalDays;
-
-    /**
-     * The vCPU usage threshold: the VM is considered "active" for a day if its vCPU -> Used -> Max is greater than
-     * this threshold. The default value is 20%.
-     */
-    @Value("${migratedWorkflowCloudCommitmentAnalysis.commodityThreshold:20}")
-    private int commodityThreshold;
-
-    /**
-     * The percentage of time that this VM must be "active" in the specified number of historical days for us to
-     * recommend buying an RI. The default value is 80%.
-     */
-    @Value("${migratedWorkflowCloudCommitmentAnalysis.activeDaysThreshold:80}")
-    private int activeDaysThreshold;
+    @Value("${migratedWorkflowCloudCommitmentAnalysis.percentileThreshold:20}")
+    private int percentileThreshold;
 
     /**
      * Performs the analysis of our input data and generates Buy RI recommendations.
@@ -174,16 +156,8 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                                           Long topologyContextId) {
         logger.info("Starting Buy RI Analysis for plan {}", topologyContextId);
 
-        // Extract the list of OIDs to analyze; TODO: filter out VMs already using an RI
-        List<Long> oids = migratedWorkloads.stream()
-                .map(workload -> workload.getVirtualMachine().getOid())
-                .collect(Collectors.toList());
-
-        // Retrieve historical statistics for our VMs
-        List<Stats.EntityStats> stats = historicalStatsService.getHistoricalStats(oids, Arrays.asList("VCPU"), numberOfHistoricalDays);
-
-        // Analyze the historical statistics to determine the OIDs for which to buy RIs
-        List<Long> oidsForWhichToBuyRIs = analyzeStatistics(stats);
+        // Analyze the workloads to determine for which workloads we want to buy RIs
+        List<Long> oidsForWhichToBuyRIs = analyzeWorkloads(migratedWorkloads);
         logger.info("Buy RIs for OIDs: {}", oidsForWhichToBuyRIs);
 
         try {
@@ -205,54 +179,78 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
     }
 
     /**
-     * Analyzes the list of EntityStats to determine for which OIDs we should buy RIs.
+     * Analyzes the list of workloads to determine if we want to buy RIs for them. It uses the projected percentile for
+     * the VM, if present, by adjusting the original percentile at the original capacity to the new VM's capacity.
      *
-     * @param stats A list of EntityStats, from the historical stats service
-     * @return A list of OIDs for which we should buy RIs
+     * @param migratedWorkloads The list of workloads to analyze
+     * @return A list of VM OIDs for which to buy reserved instances
      */
     @VisibleForTesting
-    private List<Long> analyzeStatistics(List<Stats.EntityStats> stats) {
-        // Determine the minimum number of days that a VM must be active
-        int minimumNumberOfDaysActive = (int)((double)activeDaysThreshold / 100 * numberOfHistoricalDays);
-
+    List<Long> analyzeWorkloads(List<MigratedWorkloadPlacement> migratedWorkloads) {
         // Capture the OIDs of the VMs for which we want to buy an RI
-        List<Long> oidsForWhichToBuyRIs = new ArrayList<>();
+        final List<Long> oidsForWhichToBuyRIs = new ArrayList<>();
 
-        // Iterate over the stats for each VM
-        for (Stats.EntityStats stat : stats) {
-            // Count the number of "active" days for this VM
-            int activeDays = 0;
+        // Iterate over all workloads and see if the percentile is greater than 20%
+        migratedWorkloads.forEach(workload -> {
+            Optional<Double> percentile = computeProjectedPercentile(workload);
+            percentile.ifPresent(p -> {
+                if (p * ONE_HUNDRED >= percentileThreshold) {
+                    oidsForWhichToBuyRIs.add(workload.getVirtualMachine().getOid());
 
-            // Each EntityStats will have one snapshot for each day from the history service
-            for (Stats.StatSnapshot snapshot : stat.getStatSnapshotsList()) {
-                List<Stats.StatSnapshot.StatRecord> records = snapshot.getStatRecordsList();
-                if (CollectionUtils.isNotEmpty(records)) {
-                    // Each snapshot should have a single StatRecord
-                    StatRecord record = records.get(0);
-                    if (record != null ) {
-                        // Retrieve the used and capacity so we can calculate the percentage used
-                        Stats.StatSnapshot.StatRecord.StatValue usedValue = record.getUsed();
-                        Stats.StatSnapshot.StatRecord.StatValue capacity = record.getCapacity();
-                        if (usedValue != null && capacity != null && capacity.getMax() != 0) {
-                            // Compare the used -> max value, as a percentage of the capacity, to our commodity threshold
-                            double usedPercentage = (usedValue.getMax() / capacity.getMax()) * 100.0;
-                            if (usedPercentage >= commodityThreshold) {
-                                activeDays++;
-                            }
-                        }
-                    }
+                    logger.debug("Buying an RI for VM {} because the percentile is {}",
+                            workload.getVirtualMachine().getOid(), (p * ONE_HUNDRED));
+                } else {
+                    logger.debug("Not buying an RI for VM {} because the percentile is {}",
+                            workload.getVirtualMachine().getOid(), (p * ONE_HUNDRED));
                 }
-            }
-
-            // If the number of active days is above our minimum then add it to our list
-            logger.info("{} - number of days active: {}, minimum days required: {}", stat.getOid(), activeDays, minimumNumberOfDaysActive);
-            if (activeDays >= minimumNumberOfDaysActive) {
-                oidsForWhichToBuyRIs.add(stat.getOid());
-            }
-        }
+            });
+        });
 
         // Return the list of OIDs for which to buy RIs
         return oidsForWhichToBuyRIs;
+    }
+
+    /**
+     * Computes the projected percentile for the specified workload.
+     *
+     * @param workload The workload for which to compute the projected percentile
+     * @return The percentile, translated from the original capacity to the new capacity
+     */
+    @VisibleForTesting
+    Optional<Double> computeProjectedPercentile(MigratedWorkloadPlacement workload) {
+        // Find the original VCPU commodity
+        Optional<TopologyDTO.CommoditySoldDTO> originalVcpuCommodity = workload.getOriginalVirtualMachine().getCommoditySoldListList()
+                .stream()
+                .filter(c -> c.getCommodityType().getType() == CommonDTOREST.CommodityDTO.CommodityType.VCPU.getValue())
+                .findFirst();
+
+        // Find the new VCPU commodity
+        Optional<TopologyDTO.CommoditySoldDTO> newVcpuCommodity = workload.getVirtualMachine().getCommoditySoldListList()
+                .stream()
+                .filter(c -> c.getCommodityType().getType() == CommonDTOREST.CommodityDTO.CommodityType.VCPU.getValue())
+                .findFirst();
+
+        if (!originalVcpuCommodity.isPresent() || !newVcpuCommodity.isPresent()) {
+            logger.warn("Could not find VCPU capacities for VM {}", workload.getVirtualMachine().getOid());
+            return Optional.empty();
+        }
+
+        // Get the original percentile
+        TopologyDTO.HistoricalValues historicalValues = originalVcpuCommodity.get().getHistoricalUsed();
+        if (!historicalValues.hasPercentile()) {
+            logger.warn("Historical values for VM {} VCPU commodity is null", workload.getVirtualMachine().getOid());
+            return Optional.empty();
+        }
+        double percentile = historicalValues.getPercentile();
+
+        // Get the original capacity
+        double originalCapacity = originalVcpuCommodity.get().getCapacity();
+
+        // Get the new capacity
+        double newCapacity = newVcpuCommodity.get().getCapacity();
+
+        // Translate the percentile on the original VM to the capacity on the new VM
+        return Optional.of(percentile * originalCapacity / newCapacity);
     }
 
     /**
