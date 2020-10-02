@@ -248,7 +248,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
                                                   final List<TopologyEntityDTO> additionalEntities,
                                                   final List<EntityReservedInstanceCoverage> additionalRICoverage) {
         final Map<Long, TopologyEntityDTO> entityMap = getEntityMap(noZones, additionalEntities);
-        store.onProjectedTopologyAvailable(projectedTopoId, topoInfo.getTopologyContextId());
+        store.projectedTopologyAvailableHandler(projectedTopoId, topoInfo.getTopologyContextId());
         // assuming ri oid is 5 and it is used by vm with oid 101L
         final Map<Long, Double> riUsage = new HashMap<>();
         riUsage.put(5L, 0.2);
@@ -374,7 +374,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
             @Override
             public void run() {
                 //when projected topology is available
-                store.onProjectedTopologyAvailable(projectedTopoId1, contextId);
+                store.projectedTopologyAvailableHandler(projectedTopoId1, contextId);
             }
         });
         Thread thread3 = new Thread(new Runnable() {
@@ -387,7 +387,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
             @Override
             public void run() {
                 //when projected topology is failed
-                store.onProjectedTopologyFailure(projectedTopoId2, contextId, "failed");
+                store.projectedTopologyFailureHandler(projectedTopoId2, contextId, "failed");
             }
         });
         thread1.start();

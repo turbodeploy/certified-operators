@@ -270,8 +270,10 @@ public class ReservedInstanceConfig {
         final ProjectedRICoverageListener projectedRICoverageListener =
                 new ProjectedRICoverageListener(projectedEntityRICoverageAndUtilStore(),
                         planProjectedRICoverageAndUtilStore(),
-                        costNotificationConfig.costNotificationSender());
+                        costNotificationConfig.costNotificationSender(),
+                        realtimeTopologyContextId);
         marketComponent.addProjectedEntityRiCoverageListener(projectedRICoverageListener);
+        repositoryClientConfig.repository().addListener(projectedRICoverageListener);
         return projectedRICoverageListener;
     }
 
@@ -311,7 +313,6 @@ public class ReservedInstanceConfig {
                                                            .reservedInstanceSpecStore(),
                                                    accountRIMappingStore(),
                                                    persistEntityCostChunkSize);
-        repositoryClientConfig.repository().addListener(planProjectedRICoverageAndUtilStore);
         return planProjectedRICoverageAndUtilStore;
     }
 
