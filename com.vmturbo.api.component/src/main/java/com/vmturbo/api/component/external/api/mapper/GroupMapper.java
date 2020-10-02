@@ -776,7 +776,7 @@ public class GroupMapper {
                          missingEntitiesCount =
                                  groupAndMembers.entities().size() - groupValidEntities.size();
                          if (missingEntitiesCount > 0) {
-                             logger.warn("{} entities for static group {} not found in repository.",
+                             logger.trace("{} entities for static group {} not found in repository.",
                                      missingEntitiesCount, groupDefinition.getDisplayName());
                          }
                          // TODO: In case of nested group, we should also only return the valid

@@ -89,7 +89,8 @@ public class TopologyProtobufReader extends TopologyProtobufHandler implements I
                         if (parsedEntity.equals(ProjectedTopologyEntity.getDefaultInstance())) {
                             // Try parsing the old format - simple TopologyEntityDTOs.
                             areProjectedEntities.set(false);
-                            logger.warn("Likely reading projected topology {} stored in older format (without price index)!", topologyId);
+                            logger.trace("Likely reading projected topology {} stored in older " +
+                                "format (without price index)!", topologyId);
                         }
                     } catch (JsonParseException e) {
                         // Try parsing the old format - simple TopologyEntityDTOs.
