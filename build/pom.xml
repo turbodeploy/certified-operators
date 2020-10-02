@@ -2159,11 +2159,6 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
-                <artifactId>cloud-common</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.vmturbo</groupId>
                 <artifactId>reserved-instance-coverage-allocator</artifactId>
                 <version>${project.version}</version>
             </dependency>
