@@ -68,6 +68,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
+import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
@@ -132,6 +133,9 @@ public class MarketRunnerTest {
     private InitialPlacementFinder initialPlacementFinder =
             mock(InitialPlacementFinder.class);
 
+    private ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory =
+            mock(ReversibilitySettingFetcherFactory.class);
+
     @Before
     public void before() {
         IdentityGenerator.initPrefix(0);
@@ -174,7 +178,7 @@ public class MarketRunnerTest {
                     wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
                     mock(AnalysisRICoverageListener.class),
                     consistentScalingHelperFactory, initialPlacementFinder,
-                    migratedWorkloadCloudCommitmentAnalysisService);
+                    reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService);
         }).when(analysisFactory).newAnalysis(any(), any(), any(), any());
     }
 

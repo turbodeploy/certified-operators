@@ -103,6 +103,20 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.VIRTUAL_MACHINE), new BooleanSettingDataType(true), true),
 
     /**
+     * Enable Scale actions (currently it is used for Volumes only).
+     */
+    EnableScaleActions("enableScaleActions", "Enable Scale Actions", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            new BooleanSettingDataType(false), true),
+
+    /**
+     * Enable Delete actions (currently it is used for Volumes only).
+     */
+    EnableDeleteActions("enableDeleteActions", "Enable Delete Actions", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            new BooleanSettingDataType(true), true),
+
+    /**
      * CPU utilization threshold.
      */
     CpuUtilization("cpuUtilization", "CPU Utilization",
@@ -223,8 +237,8 @@ public enum EntitySettingSpecs {
             //path is needed for the UI to display this setting in a separate category
             Arrays.asList(CategoryPathConstants.ADVANCED, CategoryPathConstants.UTILTARGET),
             SettingTiebreaker.BIGGER, /*this is related to the center setting. bigger diameter is more conservative*/
-            EnumSet.of(EntityType.PHYSICAL_MACHINE),
-            numeric(0.0f/*min*/, 100.0f/*max*/, 10.0f/*default*/), true),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_VOLUME), numeric(0.0f/*min*/,
+        100.0f/*max*/, 10.0f/*default*/), true),
 
     /**
      * Aggressiveness for business user.
@@ -254,6 +268,15 @@ public enum EntitySettingSpecs {
             numeric(90.0f, 100.0f, 95.0f), true),
 
     /**
+     * Aggressiveness for virtual volume.
+     */
+    PercentileAggressivenessVirtualVolume("percentileAggressivenessVirtualVolume",
+            SettingConstants.AGGRESSIVENESS,
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            numeric(90.0f, 100.0f, 95.0f), true),
+
+    /**
      * Min observation period for container spec.
      */
     MinObservationPeriodContainerSpec("minObservationPeriodContainerSpec",
@@ -263,13 +286,22 @@ public enum EntitySettingSpecs {
         numeric(0.0f, 90.0f, 1.0f), true),
 
     /**
-     * Min observation period for business user.
+     * Min observation period for virtual machine.
      */
     MinObservationPeriodVirtualMachine("minObservationPeriodVirtualMachine",
             "Min Observation Period",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f, 90.0f, 0.0f), true),
+
+    /**
+     * Min observation period for virtual volume.
+     */
+    MinObservationPeriodVirtualVolume("minObservationPeriodVirtualVolume",
+            "Min Observation Period",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            numeric(0.0f, 7.0f, 0.0f), true),
 
     /**
      * Max observation period for business user.
@@ -296,6 +328,15 @@ public enum EntitySettingSpecs {
             SettingConstants.MAX_OBSERVATION_PERIOD,
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(7.0f, 90.0f, 30.0f), true),
+
+    /**
+     * Max observation period for virtual volume.
+     */
+    MaxObservationPeriodVirtualVolume("maxObservationPeriodVirtualVolume",
+            SettingConstants.MAX_OBSERVATION_PERIOD,
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
             numeric(7.0f, 90.0f, 30.0f), true),
 
     /**
@@ -367,6 +408,17 @@ public enum EntitySettingSpecs {
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
             numeric(1.0f/*min*/, 100.0f/*max*/, 90.0f/*default*/), true),
+
+    /**
+     * Resize target Utilization for IOPS and Throughput. We use this unified setting for both IOPS
+     * and Throughput because IOPS and Throughput utilization values are dependent on each other.
+     */
+    ResizeTargetUtilizationIopsAndThroughput("resizeTargetUtilizationIopsAndThroughput",
+            "Scaling Target IOPS/Throughput Utilization",
+            //path is needed for the UI to display this setting in a separate category
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            numeric(1.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
     /**
      * Resize target Utilization for IOPs.
@@ -885,6 +937,19 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE),
             numeric(0, Float.POSITIVE_INFINITY, 50000),
+            true),
+
+    /**
+     * Instructs Market analysis to prefer savings over reversibility when generating Volume Scale
+     * actions.
+     */
+    PreferSavingsOverReversibility(
+            "preferSavingsOverReversibility",
+            "Prefer Savings Over Reversibility",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_VOLUME),
+            new BooleanSettingDataType(true),
             true);
 
     private static final Logger logger = LogManager.getLogger();
@@ -1206,7 +1271,6 @@ public enum EntitySettingSpecs {
         return new SortedSetOfOidSettingDataType(type, null);
     }
 
-    @Nonnull
     public boolean isAllowGlobalDefault() {
         return allowGlobalDefault;
     }

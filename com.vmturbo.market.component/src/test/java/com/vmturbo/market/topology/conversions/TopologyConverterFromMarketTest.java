@@ -11,6 +11,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyByte;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.longThat;
 import static org.mockito.Mockito.doReturn;
@@ -170,6 +172,8 @@ public class TopologyConverterFromMarketTest {
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
     private ConsistentScalingHelperFactory consistentScalingHelperFactory =
             mock(ConsistentScalingHelperFactory.class);
+    private ReversibilitySettingFetcher reversibilitySettingFetcher =
+            mock(ReversibilitySettingFetcher.class);
 
     private static final int BICLIQUE_TYPE_ID = ID_ALLOCATOR.allocate("BICLIQUE");
     private static final int CPU_TYPE_ID = ID_ALLOCATOR.allocate("CPU");
@@ -230,7 +234,7 @@ public class TopologyConverterFromMarketTest {
                 mockCCD,
                 commodityIndexFactory,
                 tierExcluderFactory,
-                consistentScalingHelperFactory, cloudTopology));
+                consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
     }
 
     /**
@@ -749,7 +753,7 @@ public class TopologyConverterFromMarketTest {
         TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                 false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, indexFactory, tierExcluderFactory,
-            consistentScalingHelperFactory));
+                consistentScalingHelperFactory, reversibilitySettingFetcher));
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
@@ -896,7 +900,7 @@ public class TopologyConverterFromMarketTest {
                         MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketPriceTable, mockCommodityConverter, mockCCD, indexFactory,
                         tierExcluderFactory,
-            consistentScalingHelperFactory, cloudTopology));
+                        consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
@@ -1444,7 +1448,7 @@ public class TopologyConverterFromMarketTest {
         TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
-            consistentScalingHelperFactory, cloudTopology));
+            consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
         converter.setCloudTc(mockCloudTc);
 
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,
@@ -1546,7 +1550,7 @@ public class TopologyConverterFromMarketTest {
         TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
-                consistentScalingHelperFactory, cloudTopology));
+                consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
         converter.setCloudTc(mockCloudTc);
 
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,
@@ -1992,43 +1996,94 @@ public class TopologyConverterFromMarketTest {
         final long vmOid = 1L;
         final long volume1Oid = 2L;
         final long volume2Oid = 3L;
+        final long storageTierOid = 4L;
+        final long storageAmountCapacity = 2000;
+        final Origin volumeOrigin = Origin.newBuilder().build();
         final TopologyDTO.TopologyEntityDTO originalVm = TopologyEntityDTO.newBuilder()
                 .setOid(vmOid)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setDisplayName("")
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                            .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                                .build())
+                            .build())
                         .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                         .setProviderId(volume1Oid))
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                            .build())
+                        .build())
                         .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                         .setProviderId(volume2Oid))
                 .setAnalysisSettings(AnalysisSettings.newBuilder())
                 .build();
+        final CommodityType commodityType = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+            .build();
         final TopologyDTO.TopologyEntityDTO originalVolume1 = TopologyEntityDTO.newBuilder()
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(commodityType)
+                    .build())
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setProviderId(storageTierOid))
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCapacity(storageAmountCapacity)
+                .setCommodityType(commodityType)
+                .build())
                 .setOid(volume1Oid)
                 .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setOrigin(volumeOrigin)
                 .build();
         final TopologyDTO.TopologyEntityDTO originalVolume2 = TopologyEntityDTO.newBuilder()
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(commodityType)
+                    .build())
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setProviderId(storageTierOid))
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCapacity(storageAmountCapacity)
+                .setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                    .build())
+                .build())
                 .setOid(volume2Oid)
                 .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
                 .build();
+        final TopologyDTO.TopologyEntityDTO storageTier = TopologyEntityDTO.newBuilder()
+            .setOid(storageTierOid)
+            .setEntityType(EntityType.STORAGE_TIER_VALUE)
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(commodityType)
+                .build())
+            .build();
         final Map<Long, TopologyDTO.TopologyEntityDTO> originalTopology = ImmutableMap.of(
                 vmOid, originalVm,
+                storageTierOid, storageTier,
                 volume1Oid, originalVolume1,
                 volume2Oid, originalVolume2);
+        final CommoditySpecificationTO commoditySpecificationTO =
+            CommoditySpecificationTO.newBuilder()
+            .setBaseType(1111)
+            .setType(1112)
+            .build();
+        Mockito.doReturn(Collections.singletonList(commoditySpecificationTO)).when(mockCommodityConverter)
+            .commoditySpecification(any(), anyByte());
 
-        final EconomyDTOs.TraderTO vmTrader = TraderTO.newBuilder()
-                .setOid(vmOid)
-                .setCloneOf(vmOid)
-                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .addShoppingLists(ShoppingListTO.newBuilder().setOid(4L).setSupplier(volume1Oid))
-                .addShoppingLists(ShoppingListTO.newBuilder().setOid(4L).setSupplier(volume2Oid))
-                .build();
-        final List<EconomyDTOs.TraderTO> projectedTraders = ImmutableList.of(vmTrader);
+        Mockito.doReturn(Optional.of(commodityType)).when(mockCommodityConverter).marketToTopologyCommodity(any());
 
-        converter.convertToMarket(originalTopology);
+        Mockito.doReturn(commodityType).when(mockCommodityConverter)
+            .commodityIdToCommodityType(anyInt());
+
+        final Set<TraderTO> traders = converter.convertToMarket(originalTopology);
+
         final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
-                projectedTraders, originalTopology, PriceIndexMessage.getDefaultInstance(),
+                new ArrayList<>(traders), originalTopology, PriceIndexMessage.getDefaultInstance(),
                 reservedCapacityAnalysis, setUpWastedFileAnalysis());
 
         final ProjectedTopologyEntity projectedVm = entity.get(vmOid);
@@ -2038,6 +2093,17 @@ public class TopologyConverterFromMarketTest {
                 .map(CommoditiesBoughtFromProvider::getProviderId)
                 .collect(Collectors.toSet());
         assertEquals(ImmutableSet.of(volume1Oid, volume2Oid), projectedProviders);
+
+        final ProjectedTopologyEntity projectedVolume1 = entity.get(volume1Oid);
+        final List<CommoditySoldDTO> commoditySoldDTOS = projectedVolume1.getEntity()
+            .getCommoditySoldListList();
+        Assert.assertFalse(commoditySoldDTOS.isEmpty());
+        Assert.assertEquals(volumeOrigin, projectedVolume1.getEntity().getOrigin());
+
+        final CommoditySoldDTO commoditySoldDTO = commoditySoldDTOS.iterator().next();
+        Assert.assertEquals(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
+            commoditySoldDTO.getCommodityType().getType());
+        Assert.assertEquals(storageAmountCapacity, commoditySoldDTO.getCapacity(), 0.1);
     }
 
     private CommoditySoldTO createSoldTO(final int typeValue,

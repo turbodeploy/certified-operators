@@ -82,7 +82,6 @@ public class CloudTopologyConverter {
     private final CloudCostData<TopologyEntityDTO> cloudCostData;
     private Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid = new HashMap<>();
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
-    private final boolean isCloudMigration;
 
     /**
      * @param topology the topologyEntityDTOs which came into market-component
@@ -124,7 +123,6 @@ public class CloudTopologyConverter {
          this.cloudCostData = cloudCostData;
          converterMap = Collections.unmodifiableMap(createConverterMap());
          this.cloudTopology = cloudTopology;
-         this.isCloudMigration = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
      }
 
     /**
@@ -424,9 +422,6 @@ public class CloudTopologyConverter {
 
     /**
      * Gets the provider TopologyEntityDTOs of a specified type.
-     * For ex. if a VM1 is passed in as the entity and providerType as
-     * EntityType.STORAGE_TIER_VALUE. VM1 consumes from 2 storage tiers
-     * - st1 and st2. This method will return st1 and st2 TopologyEntityDTOs.
      *
      * @param entity the {@link TopologyEntityDTO} for which the providers are desired
      * @param providerType the type of provider to look for
@@ -435,30 +430,43 @@ public class CloudTopologyConverter {
     @Nonnull
     Set<TopologyEntityDTO> getTopologyEntityDTOProvidersOfType(
             @Nonnull TopologyEntityDTO entity, int providerType) {
-        final Integer collapsedEntityType = CollapsedTraderHelper.getCollapsedEntityType(entity.getEntityType(), providerType);
+        final Set<TopologyEntityDTO> providers =
+                getTopologyEntityDTODirectProvidersOfType(Sets.newHashSet(entity), providerType);
+        if (!providers.isEmpty()) {
+            return providers;
+        }
+        final Integer collapsedEntityType = CollapsedTraderHelper.getCollapsedEntityType(entity.getEntityType());
         // If there is collapsed entity between entity and providerType, first get collapsed entity,
-        // then recursively get providers with providerType from collapsed entity.
+        // then get providers with providerType from collapsed entity.
         // If a cloud VM is passed in as the entity and EntityType.STORAGE_TIER_VALUE as providerType,
         // returns the storageTier providers for the volumes that the VM resides on. For example,
         // given that VM1 consumes from vol1, and vol1 consumes from storageTier1, with input VM1 and
         // EntityType.STORAGE_TIER_VALUE, this method will return storageTier1 TopologyEntityDTO.
-        if (isCloudMigration && collapsedEntityType != null) {
-            return entity.getCommoditiesBoughtFromProvidersList().stream()
-                    .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
-                    .filter(commBought -> commBought.getProviderEntityType() == collapsedEntityType)
-                    .map(CommoditiesBoughtFromProvider::getProviderId)
-                    .map(topology::get)
-                    .filter(Objects::nonNull)
-                    .flatMap(t -> getTopologyEntityDTOProvidersOfType(t, providerType).stream())
-                    .collect(Collectors.toSet());
+        if (collapsedEntityType != null) {
+            Set<TopologyEntityDTO> directProviders =
+                    getTopologyEntityDTODirectProvidersOfType(Sets.newHashSet(entity), collapsedEntityType);
+            return getTopologyEntityDTODirectProvidersOfType(directProviders, providerType);
         }
-        return entity.getCommoditiesBoughtFromProvidersList().stream()
-            .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
-            .filter(commBought -> commBought.getProviderEntityType() == providerType)
-            .map(CommoditiesBoughtFromProvider::getProviderId)
-            .filter(topology::containsKey)
-            .map(topology::get)
-            .collect(Collectors.toCollection(HashSet::new));
+        return providers;
+    }
+
+    /**
+     * Gets the direct provider TopologyEntityDTOs of a specified type.
+     *
+     * @param entities entities for which the providers are desired
+     * @param providerType the type of provider to look for
+     * @return A set of provider TopologyEntityDTOs.
+     */
+    private Set<TopologyEntityDTO> getTopologyEntityDTODirectProvidersOfType(@Nonnull Set<TopologyEntityDTO> entities,
+                                                                             int providerType) {
+        return entities.stream()
+                .flatMap(e -> e.getCommoditiesBoughtFromProvidersList().stream())
+                .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
+                .filter(commBought -> commBought.getProviderEntityType() == providerType)
+                .map(CommoditiesBoughtFromProvider::getProviderId)
+                .map(topology::get)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
     }
 
     /**

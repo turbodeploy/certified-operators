@@ -36,6 +36,7 @@ import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
+import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
@@ -114,6 +115,8 @@ public interface AnalysisFactory {
 
         private final ConsistentScalingHelperFactory consistentScalingHelperFactory;
 
+        private final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory;
+
         /**
          * The service that will perform cloud commitment (RI) buy analysis during a migrate to cloud plan.
          */
@@ -139,6 +142,7 @@ public interface AnalysisFactory {
                                       @Nonnull final TierExcluderFactory tierExcluderFactory,
                                       @Nonnull AnalysisRICoverageListener listener,
                                       @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
+                                      @Nonnull final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory,
                                       @Nonnull MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
@@ -163,6 +167,7 @@ public interface AnalysisFactory {
             this.tierExcluderFactory = tierExcluderFactory;
             this.listener = listener;
             this.consistentScalingHelperFactory = consistentScalingHelperFactory;
+            this.reversibilitySettingFetcherFactory = reversibilitySettingFetcherFactory;
             this.migratedWorkloadCloudCommitmentAnalysisService = migratedWorkloadCloudCommitmentAnalysisService;
         }
 
@@ -186,7 +191,7 @@ public interface AnalysisFactory {
                 configBuilder.build(), cloudTopologyFactory,
                 topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisFactory,
                 buyRIImpactAnalysisFactory, tierExcluderFactory, listener, consistentScalingHelperFactory,
-                initialPlacementFinder, migratedWorkloadCloudCommitmentAnalysisService);
+                initialPlacementFinder, reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService);
         }
 
         /**

@@ -664,21 +664,41 @@ public class LiveActionStore implements ActionStore {
             });
 
             return Collections2.transform(newActions, action -> {
-                final SupportLevel supportLevel = Optional.ofNullable(
-                    actionAndTargetInfo.get(action.getId()))
+                final ActionTargetInfo targetInfo = actionAndTargetInfo.get(action.getId());
+                final SupportLevel supportLevel = Optional.ofNullable(targetInfo)
                     .map(ActionTargetInfo::supportingLevel)
                     .orElse(SupportLevel.UNSUPPORTED);
-                final Set<Prerequisite> prerequisites = Optional.ofNullable(
-                    actionAndTargetInfo.get(action.getId()))
+                final Set<Prerequisite> prerequisites = Optional.ofNullable(targetInfo)
                     .map(ActionTargetInfo::prerequisites)
                     .orElse(Collections.emptySet());
+                final Boolean disruptiveNew = Optional.ofNullable(targetInfo)
+                        .map(ActionTargetInfo::disruptive)
+                        .orElse(null);
+                final Boolean reversibleNew = Optional.ofNullable(targetInfo)
+                        .map(ActionTargetInfo::reversible)
+                        .orElse(null);
+
+                final Boolean disruptiveOld = action.hasDisruptive() ? action.getDisruptive() : null;
+                final Boolean reversibleOld = action.hasReversible() ? action.getReversible() : null;
 
                 // If there are any updates to the action, update and rebuild it.
-                    if (action.getSupportingLevel() != supportLevel || !prerequisites.isEmpty()) {
-                    return action.toBuilder()
+                if (action.getSupportingLevel() != supportLevel || !prerequisites.isEmpty()
+                        || !Objects.equals(disruptiveNew, disruptiveOld)
+                        || !Objects.equals(reversibleNew, reversibleOld)) {
+                    final ActionDTO.Action.Builder actionBuilder = action.toBuilder()
                         .setSupportingLevel(supportLevel)
-                        .addAllPrerequisite(prerequisites)
-                        .build();
+                        .addAllPrerequisite(prerequisites);
+                    if (disruptiveNew != null) {
+                        actionBuilder.setDisruptive(disruptiveNew);
+                    } else {
+                        actionBuilder.clearDisruptive();
+                    }
+                    if (reversibleNew != null) {
+                        actionBuilder.setReversible(reversibleNew);
+                    } else {
+                        actionBuilder.clearReversible();
+                    }
+                    return actionBuilder.build();
                 } else {
                     return action;
                 }

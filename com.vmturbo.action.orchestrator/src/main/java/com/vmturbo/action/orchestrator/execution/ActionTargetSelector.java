@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
@@ -100,6 +101,24 @@ public class ActionTargetSelector {
          * @return a set of {@link Prerequisite}s
          */
         Set<Prerequisite> prerequisites();
+
+        /**
+         * Checks if action is disruptive.
+         *
+         * @return True for disruptive action. If probe hasn't provided data about action
+         * disruptiveness then it returns {@code null}.
+         */
+        @Nullable
+        Boolean disruptive();
+
+        /**
+         * Checks if action is reversible.
+         *
+         * @return True for reversible action. If probe hasn't provided data about action
+         * reversibility then it returns {@code null}.
+         */
+        @Nullable
+        Boolean reversible();
     }
 
     /**

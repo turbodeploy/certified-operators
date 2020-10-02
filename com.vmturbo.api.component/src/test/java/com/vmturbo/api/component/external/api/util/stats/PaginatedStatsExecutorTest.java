@@ -614,6 +614,53 @@ public class PaginatedStatsExecutorTest {
     }
 
     /**
+     * Tests that getAdditionalDisplayInfoForAllEntities includes cost stats to response
+     * when queried entities are in cloud or hybrid environment.
+     */
+    @Test
+    public void testsGetAdditionalDisplayInfoForAllEntitiesWithCostStats() {
+        final long entityOid = 1L;
+        final float statValue = 5;
+        final EntityStats entityStats = EntityStats.newBuilder()
+                .setOid(entityOid)
+                .addStatSnapshots(STAT_SNAPSHOT)
+                .build();
+        final MinimalEntity cloudMinimalEntity = MinimalEntity.newBuilder()
+                .setOid(entityOid)
+                .setDisplayName("cloudMinimalEntity")
+                .setEntityType(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
+
+        final List<EntityStats> nextStatsPage = Arrays.asList(entityStats);
+        final MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(cloudMinimalEntity));
+        doReturn(multiEntityRequest).when(mockRepositoryApi).entitiesRequest(any());
+        doReturn(Collections.singletonList(costPriceResponse(costCommodity, entityOid, statValue, snapShotDate)))
+                .when(costServiceMole).getCloudCostStats(any());
+        final StatScopesApiInputDTO inputDto = getInputDtoWithProjectionPeriod();
+        final EntityStatsPaginationRequest paginationRequest = new EntityStatsPaginationRequest("foo", 1, true, "order");
+        PaginatedStatsGather paginatedStatsGatherSpy = getPaginatedStatsGatherSpy(inputDto, paginationRequest);
+
+        //WHEN
+        paginatedStatsGatherSpy.getAdditionalDisplayInfoForAllEntities(nextStatsPage, Optional.empty());
+        //THEN
+        EntityStatsPaginationResponse response =
+                paginatedStatsGatherSpy.getEntityStatsPaginationResponse();
+        assertNotNull(response);
+        List<EntityStatsApiDTO> results = response.getRawResults();
+        assertTrue(results.size() == 1);
+        EntityStatsApiDTO result = results.get(0);
+        assertTrue(result.getUuid().equals(String.valueOf(entityOid)));
+        final List<StatSnapshotApiDTO> stats = result.getStats();
+        assertTrue(stats.size() == 1);
+        List<StatApiDTO> statistics = stats.get(0).getStatistics();
+        assertTrue(statistics.size() == 1);
+        final StatApiDTO costPriceStat =  statistics.get(0);
+        assertEquals(costCommodity, costPriceStat.getName());
+        assertTrue(costPriceStat.getValue() == statValue);
+    }
+
+    /**
      * Tests getContainsEntityGroupScope returns false if scope empty.
      *
      * @throws OperationFailedException exception thrown if the scope can not be recognized

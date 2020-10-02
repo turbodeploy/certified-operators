@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Mockito.mock;
@@ -13,7 +14,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
@@ -154,7 +154,7 @@ public class CompoundMoveTest {
         when(repositoryApi.getRegion(any())).thenReturn(emptySearchReq);
 
         when(virtualVolumeAspectMapper.mapVirtualMachines(anySetOf(Long.class), anyLong())).thenReturn(Collections.emptyMap());
-        when(virtualVolumeAspectMapper.mapUnattachedVirtualVolumes(anySetOf(Long.class), anyLong())).thenReturn(Optional.empty());
+        when(virtualVolumeAspectMapper.mapVirtualVolumes(anySetOf(Long.class), anyLong(), anyBoolean())).thenReturn(Collections.emptyMap());
 
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
                 Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()), repositoryApi,

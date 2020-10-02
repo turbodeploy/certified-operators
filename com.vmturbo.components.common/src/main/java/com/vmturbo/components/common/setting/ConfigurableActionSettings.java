@@ -26,9 +26,9 @@ public enum ConfigurableActionSettings {
      * Move action automation mode.
      */
     Move("move", "Move",
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_VOLUME,
-            EntityType.CONTAINER_POD, EntityType.CONTAINER, EntityType.DISK_ARRAY,
-            EntityType.LOGICAL_POOL, EntityType.BUSINESS_USER)),
+        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
+            EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
+            EntityType.BUSINESS_USER)),
 
     /**
      * Cloud compute scale action automation mode.
@@ -143,7 +143,13 @@ public enum ConfigurableActionSettings {
      * Delete action automation mode.
      */
     Delete("delete", "Delete",
-        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_VOLUME)),
+        EnumSet.of(EntityType.STORAGE)),
+
+    /**
+     * Delete Volume action automation mode.
+     */
+    DeleteVolume("deleteVolume", "Delete Volume",
+        EnumSet.of(EntityType.VIRTUAL_VOLUME)),
 
     /**
      * Provision action automation mode.
@@ -166,7 +172,31 @@ public enum ConfigurableActionSettings {
     Activate("activate", "Start",
         EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
             EntityType.CONTAINER_POD, EntityType.CONTAINER,
-            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL));
+            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL)),
+
+    /**
+     * Automation mode for non-disruptive reversible actions.
+     */
+    NonDisruptiveReversibleScaling("nonDisruptiveReversibleScaling",
+        "Non-disruptive Reversible Scaling", EnumSet.of(EntityType.VIRTUAL_VOLUME)),
+
+    /**
+     * Automation mode for non-disruptive irreversible actions.
+     */
+    NonDisruptiveIrreversibleScaling("nonDisruptiveIrreversibleScaling",
+        "Non-disruptive Irreversible Scaling", EnumSet.of(EntityType.VIRTUAL_VOLUME)),
+
+    /**
+     * Automation mode for disruptive reversible actions.
+     */
+    DisruptiveReversibleScaling("disruptiveReversibleScaling",
+        "Disruptive Reversible Scaling", EnumSet.of(EntityType.VIRTUAL_VOLUME)),
+
+    /**
+     * Automation mode for disruptive irreversible actions.
+     */
+    DisruptiveIrreversibleScaling("disruptiveIrreversibleScaling",
+        "Disruptive Irreversible Scaling", EnumSet.of(EntityType.VIRTUAL_VOLUME));
 
     private static final Map<String, ConfigurableActionSettings> SETTINGS_MAP;
 

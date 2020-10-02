@@ -12,7 +12,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -38,7 +37,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresho
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
@@ -221,6 +219,12 @@ public class EntitySettingsApplicator {
                         EntitySettingSpecs.ResizeTargetUtilizationVcpu, CommodityType.VCPU),
                 new ResizeTargetUtilizationCommoditySoldApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationVmem, CommodityType.VMEM),
+                new ResizeTargetUtilizationCommoditySoldApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationIopsAndThroughput,
+                        CommodityType.STORAGE_ACCESS),
+                new ResizeTargetUtilizationCommoditySoldApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationIopsAndThroughput,
+                        CommodityType.IO_THROUGHPUT),
                 new InstanceStoreSettingApplicator(graphWithSettings.getTopologyGraph(),
                                         new VmInstanceStoreCommoditiesCreator(),
                                         new ComputeTierInstanceStoreCommoditiesCreator()),
@@ -234,7 +238,9 @@ public class EntitySettingsApplicator {
                         CommodityType.HEAP),
                 new ScalingPolicyApplicator(),
                 new ResizeIncrementApplicator(EntitySettingSpecs.DBMemScalingIncrement,
-                        CommodityType.DB_MEM));
+                        CommodityType.DB_MEM),
+                new EnableScaleApplicator(),
+                new EnableDeleteApplicator());
     }
 
     /**
@@ -386,35 +392,6 @@ public class EntitySettingsApplicator {
          */
         protected abstract void apply(@Nonnull TopologyEntityDTO.Builder entity,
                 boolean isMoveEnabled);
-
-        /**
-         * Apply the movable flag to the commodities of the entity which satisfies the provided
-         * override condition.
-         *
-         * @param entity to apply the setting
-         * @param movable is movable or not
-         * @param predicate condition function which the commodity should apply the movable or not.
-         */
-        protected static void applyMovableToCommodities(@Nonnull TopologyEntityDTO.Builder entity,
-                boolean movable,
-                @Nonnull Predicate<CommoditiesBoughtFromProvider.Builder> predicate) {
-            entity.getCommoditiesBoughtFromProvidersBuilderList()
-                    .stream()
-                    .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderId)
-                    .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderEntityType)
-                    .filter(predicate)
-                    .forEach(c -> {
-                        // Apply setting value only if move is not disabled by the entity
-                        if (!c.hasMovable() || (c.hasMovable() && c.getMovable())) {
-                            c.setMovable(movable);
-                        } else {
-                            // Do not override with the setting if move has been disabled at entity level
-                            logger.trace("{}:{} Not overriding move setting, move is disabled at entity level {}",
-                                    entity::getEntityType, entity::getDisplayName,
-                                    c::getMovable);
-                        }
-                    });
-        }
     }
 
     /**
@@ -1308,6 +1285,52 @@ public class EntitySettingsApplicator {
                 }
                 logger.trace("Set scaling policy {} for entity {}",
                         settingValue, entity.getDisplayName());
+            }
+        }
+    }
+
+    /**
+     * Applicator for "Enable Scale Actions" setting.
+     */
+    private static class EnableScaleApplicator extends BaseSettingApplicator {
+
+        private static final EntitySettingSpecs settingSpec = EntitySettingSpecs.EnableScaleActions;
+
+        @Override
+        public void apply(@Nonnull TopologyEntityDTO.Builder entity,
+                          @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
+                          @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
+            final Setting setting = entitySettings.get(settingSpec);
+            if (setting != null) {
+                final EntityType entityType = EntityType.forNumber(entity.getEntityType());
+                if (settingSpec.getEntityTypeScope().contains(entityType)) {
+                    final boolean isMoveEnabled = setting.getBooleanSettingValue().getValue();
+                    applyMovableToCommodities(entity, isMoveEnabled, builder -> true);
+                }
+            }
+        }
+    }
+
+    /**
+     * Applicator for "Enable Delete Actions" setting.
+     */
+    private static class EnableDeleteApplicator extends BaseSettingApplicator {
+
+        private static final EntitySettingSpecs settingSpec = EntitySettingSpecs.EnableDeleteActions;
+
+        @Override
+        public void apply(@Nonnull TopologyEntityDTO.Builder entity,
+                          @Nonnull Map<EntitySettingSpecs, Setting> entitySettings,
+                          @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
+            final Setting setting = entitySettings.get(settingSpec);
+            if (setting != null) {
+                final EntityType entityType = EntityType.forNumber(entity.getEntityType());
+                if (settingSpec.getEntityTypeScope().contains(entityType)) {
+                    final boolean isDeleteEnabled = setting.getBooleanSettingValue().getValue();
+                    if (!isDeleteEnabled) {
+                        entity.getAnalysisSettingsBuilder().setDeletable(false);
+                    }
+                }
             }
         }
     }

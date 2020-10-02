@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -15,6 +16,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.StringUtils;
@@ -95,6 +97,9 @@ public class ActionDTOUtil {
 
     // String constant for displayName.
     public static final String DISPLAY_NAME = "displayName";
+
+    private static final ImmutableMap<Integer, String> CLOUD_SCALE_ACTION_ENTITY_TYPE_DISPLAYNAME
+            = ImmutableMap.of(EntityType.VIRTUAL_VOLUME_VALUE, "Volume");
 
     private ActionDTOUtil() {}
 
@@ -306,16 +311,19 @@ public class ActionDTOUtil {
      */
     public static ActionEntity getMoveActionTarget(final ActionInfo actionInfo) {
         if (!actionInfo.getMove().getChangesList().isEmpty()) {
-            final ChangeProvider primaryChangeProvider = getPrimaryChangeProvider(actionInfo);
-            if (primaryChangeProvider.hasSource()
-                && primaryChangeProvider.hasDestination()
-                && primaryChangeProvider.hasResource()
-                && (TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getSource().getType())
-                    || EntityType.STORAGE_VALUE == primaryChangeProvider.getSource().getType())
-                && TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getDestination().getType())
-                && TopologyDTOUtil.isStorageEntityType(primaryChangeProvider.getSource().getType())
-                && TopologyDTOUtil.isStorageEntityType(primaryChangeProvider.getDestination().getType())) {
-                return primaryChangeProvider.getResource();
+            final Optional<ChangeProvider> primaryChangeProviderOpt = getPrimaryChangeProvider(actionInfo);
+            if (primaryChangeProviderOpt.isPresent()) {
+                final ChangeProvider primaryChangeProvider = primaryChangeProviderOpt.get();
+                if (primaryChangeProvider.hasSource()
+                        && primaryChangeProvider.hasDestination()
+                        && primaryChangeProvider.hasResource()
+                        && (TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getSource().getType())
+                        || EntityType.STORAGE_VALUE == primaryChangeProvider.getSource().getType())
+                        && TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getDestination().getType())
+                        && TopologyDTOUtil.isStorageEntityType(primaryChangeProvider.getSource().getType())
+                        && TopologyDTOUtil.isStorageEntityType(primaryChangeProvider.getDestination().getType())) {
+                    return primaryChangeProvider.getResource();
+                }
             }
         }
         return actionInfo.getMove().getTarget();
@@ -756,25 +764,27 @@ public class ActionDTOUtil {
 
     /**
      * Get primary {@link ChangeProvider} for Move or Scale action.
+     * Could be empty for cloud volume Scale action.
      *
      * @param actionInfo Move or Scale action info.
      * @return The primary {@link ChangeProvider}.
      * @throws IllegalArgumentException if action is not of Move/Scale type.
      */
-    @Nonnull
-    public static ChangeProvider getPrimaryChangeProvider(@Nonnull final ActionInfo actionInfo) {
-        return getChangeProviderList(actionInfo).get(getPrimaryChangeProviderIdx(actionInfo));
+    public static Optional<ChangeProvider> getPrimaryChangeProvider(@Nonnull final ActionInfo actionInfo) {
+        List<ChangeProvider> changeProviderList = getChangeProviderList(actionInfo);
+        return changeProviderList.isEmpty() ? Optional.empty()
+                : Optional.of(changeProviderList.get(getPrimaryChangeProviderIdx(actionInfo)));
     }
 
     /**
      * Get primary {@link ChangeProvider} for Move or Scale action.
+     * Could be empty for cloud volume Scale action.
      *
      * @param action Move or Scale action.
      * @return The primary {@link ChangeProvider}.
      * @throws IllegalArgumentException if action is not of Move/Scale type.
      */
-    @Nonnull
-    public static ChangeProvider getPrimaryChangeProvider(@Nonnull final ActionDTO.Action action) {
+    public static Optional<ChangeProvider> getPrimaryChangeProvider(@Nonnull final ActionDTO.Action action) {
         return getPrimaryChangeProvider(action.getInfo());
     }
 
@@ -1074,8 +1084,11 @@ public class ActionDTOUtil {
      * @return The entity type and name separated by a space.
      */
     public static String beautifyEntityTypeAndName(@Nonnull final ActionPartialEntity entityDTO) {
+        final String entityTypeName = CLOUD_SCALE_ACTION_ENTITY_TYPE_DISPLAYNAME
+                .getOrDefault(entityDTO.getEntityType(),
+                        ApiEntityType.fromType(entityDTO.getEntityType()).displayName());
         return new StringBuilder()
-                .append(ApiEntityType.fromType(entityDTO.getEntityType()).displayName())
+                .append(entityTypeName)
                 .append(" ")
                 .append(entityDTO.getDisplayName())
                 .toString();

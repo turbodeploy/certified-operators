@@ -55,6 +55,11 @@ public class ActionDataManager {
         StorageProvisionSpecFactory storageProvisionSpecFactory =
                 new StorageProvisionSpecFactory(searchServiceRpc);
         allDataRequirements.add(storageProvisionSpecFactory.getStorageProvisionSpec());
+
+        // Create a spec for volume scale
+        VolumeScaleSpecFactory volumeScaleSpecFactory
+                = new VolumeScaleSpecFactory(searchServiceRpc);
+        allDataRequirements.add(volumeScaleSpecFactory.getVolumeScaleSpec());
     }
 
     /**

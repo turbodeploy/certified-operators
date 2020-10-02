@@ -1,53 +1,67 @@
 package com.vmturbo.market.topology.conversions;
 
+import java.util.Map;
+
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableTable;
-import com.google.common.collect.Table;
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Class to represent collapsed relationship for trader creation.
  */
-public final class CollapsedTraderHelper {
+public class CollapsedTraderHelper {
 
     private CollapsedTraderHelper() {}
 
     /**
-     * Collapsing entity topology table.
-     * Table recording entity and its direct provider(collapsed entity), to second layer provider(provider for collapsed entity).
+     * Mapping from entity type to collapsed entity type.
+     * Map recording entity and its collapsed entity type(direct provider type).
      */
-    private static final Table<Integer, Integer, Integer> ENTITY_COLLAPSEDENTITY_PROVIDER_TYPE_TABLE =
-            ImmutableTable.of(EntityType.VIRTUAL_MACHINE_VALUE, EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE);
-    /**
-     * Collapsing entity inverse table.
-     * Table recording entity and second layer provider(provider for collapsed entity), to collapsed entity.
-     */
-    private static final Table<Integer, Integer, Integer> ENTITY_PROVIDER_COLLAPSEDENTITY_TYPE_TABLE =
-            ImmutableTable.of(EntityType.VIRTUAL_MACHINE_VALUE, EntityType.STORAGE_TIER_VALUE, EntityType.VIRTUAL_VOLUME_VALUE);
+    private static final Map<Integer, Integer> ENTITY_COLLAPSEDENTITY_TYPE_MAP =
+            ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, EntityType.VIRTUAL_VOLUME_VALUE);
 
     /**
-     * Get final provider type after collapsing.
+     * Mapping from entity type to new provider type after collapsing.
+     * Map recording entity type to provider type for collapsed entity.
+     */
+    private static final Map<Integer, Integer> ENTITY_NEWPROVIDER_TYPE_MAP =
+            ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, EntityType.STORAGE_TIER_VALUE);
+
+    /**
+     * Get new provider type after collapsing. Return null if no need to collapse.
      *
      * @param entityType trader entity type.
      * @param directProviderType direct provider type to be collapsed.
      * @return final provider type if direct provider can be collapsed.
+     *         return null if no need to collapse.
      */
     @Nullable
-    public static Integer getProviderTypeAfterCollapsing(Integer entityType, Integer directProviderType) {
-        return ENTITY_COLLAPSEDENTITY_PROVIDER_TYPE_TABLE.get(entityType, directProviderType);
+    public static Integer getNewProviderTypeAfterCollapsing(Integer entityType, Integer directProviderType) {
+        return shouldDirectProviderCollapse(entityType, directProviderType) ? ENTITY_NEWPROVIDER_TYPE_MAP.get(entityType) : null;
     }
 
     /**
-     * Get collapsed entity type if exists.
+     * Check if direct provider should be collapsed.
      *
      * @param entityType trader entity type.
-     * @param providerType trader final provider type.
+     * @param directProviderType direct provider type.
+     * @return true if direct provider should be collapsed.
+     */
+    private static boolean shouldDirectProviderCollapse(Integer entityType, Integer directProviderType) {
+        return directProviderType == null ? false
+                : directProviderType.equals(ENTITY_COLLAPSEDENTITY_TYPE_MAP.get(entityType));
+    }
+
+    /**
+     * Get collapsed entity type.
+     *
+     * @param entityType trader entity type.
      * @return collapsed entity type if exists.
      */
     @Nullable
-    public static Integer getCollapsedEntityType(Integer entityType, Integer providerType) {
-        return ENTITY_PROVIDER_COLLAPSEDENTITY_TYPE_TABLE.get(entityType, providerType);
+    public static Integer getCollapsedEntityType(Integer entityType) {
+        return ENTITY_COLLAPSEDENTITY_TYPE_MAP.get(entityType);
     }
 }

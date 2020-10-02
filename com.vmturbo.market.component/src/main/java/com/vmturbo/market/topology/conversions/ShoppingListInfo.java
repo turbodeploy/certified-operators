@@ -90,8 +90,7 @@ public class ShoppingListInfo {
      *
      * @return collapsed buyer id.
      */
-    @Nullable
-    public Long getCollapsedBuyerId() {
-        return collapsedBuyerId;
+    public Optional<Long> getCollapsedBuyerId() {
+        return Optional.ofNullable(collapsedBuyerId);
     }
 }

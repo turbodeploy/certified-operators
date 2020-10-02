@@ -84,6 +84,7 @@ import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
+import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcher;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
@@ -159,6 +160,8 @@ public class TopologyEntitiesHandlerTest {
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
     private ConsistentScalingHelperFactory consistentScalingHelperFactory =
             mock(ConsistentScalingHelperFactory.class);
+    private ReversibilitySettingFetcher reversibilitySettingFetcher =
+            mock(ReversibilitySettingFetcher.class);
 
     @Before
     public void setup() {
@@ -424,7 +427,7 @@ public class TopologyEntitiesHandlerTest {
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                         MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory);
+                        consistentScalingHelperFactory, reversibilitySettingFetcher);
         Set<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)
                         .setTopologyType(TopologyType.REALTIME).setTopologyId(1L).build();
@@ -508,7 +511,7 @@ public class TopologyEntitiesHandlerTest {
         TopologyConverter topoConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                         MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory);
+                        consistentScalingHelperFactory, reversibilitySettingFetcher);
 
         Set<TraderTO> traderDTOs = topoConverter.convertToMarket(topoDTOs.stream()
                         .map(TopologyEntityDTO.Builder::build)
@@ -553,7 +556,7 @@ public class TopologyEntitiesHandlerTest {
 
         Set<TraderTO> traderDTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable,
                         ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory).convertToMarket(
+            consistentScalingHelperFactory, reversibilitySettingFetcher).convertToMarket(
                                         topoDTOs.stream().map(TopologyEntityDTO.Builder::build)
                                                         .collect(Collectors.toMap(
                                                                         TopologyEntityDTO::getOid,
@@ -606,7 +609,7 @@ public class TopologyEntitiesHandlerTest {
 
         TopologyConverter togetherConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                         marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory);
+            consistentScalingHelperFactory, reversibilitySettingFetcher);
         final Set<TraderTO> traderDTOs = togetherConverter.convertToMarket(nonShopTogetherTopoDTOs);
 
         // No DSPMAccess and Datastore commodities sold
@@ -644,7 +647,7 @@ public class TopologyEntitiesHandlerTest {
 
         TopologyConverter shopTogetherConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                         marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory);
+            consistentScalingHelperFactory, reversibilitySettingFetcher);
         final Set<TraderTO> shopTogetherTraderDTOs =
                         shopTogetherConverter.convertToMarket(shopTogetherTopoDTOs);
 
@@ -689,7 +692,7 @@ public class TopologyEntitiesHandlerTest {
                         SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map);
         new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable, ccd,
                         CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory).convertToMarket(
+            consistentScalingHelperFactory, reversibilitySettingFetcher).convertToMarket(
                                         topoDTOs.stream().map(TopologyEntityDTO.Builder::build)
                                                         .collect(Collectors.toMap(
                                                                         TopologyEntityDTO::getOid,
@@ -783,13 +786,12 @@ public class TopologyEntitiesHandlerTest {
         when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                         marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory);
+            consistentScalingHelperFactory, reversibilitySettingFetcher);
         Field field = TopologyConverter.class.getDeclaredField("costNotificationStatus");
         field.setAccessible(true);
         field.set(converter, Status.SUCCESS);
         final Set<EconomyDTOs.TraderTO> traderTOs = converter.convertToMarket(dtosToProcess.stream()
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
-        traderTOs.forEach(t -> System.out.println(t));
         // Get handle to the traders which will be used in asserting
         TraderTO m1MediumTrader = null;
         TraderTO m1LargeTrader = null;
@@ -909,14 +911,13 @@ public class TopologyEntitiesHandlerTest {
             when(ccd.getFilteredRiCoverage(anyLong())).thenReturn(Optional.empty());
             final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                             marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory);
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
             Field field = TopologyConverter.class.getDeclaredField("costNotificationStatus");
             field.setAccessible(true);
             field.set(converter, Status.SUCCESS);
             final Set<EconomyDTOs.TraderTO> traderTOs = converter
                             .convertToMarket(dtosToProcess.stream().collect(Collectors.toMap(
                                             TopologyEntityDTO::getOid, Function.identity())));
-            traderTOs.forEach(t -> System.out.println(t));
             // Get handle to the traders which will be used in asserting
             TraderTO m3MediumTrader = null;
             TraderTO m3LargeTrader = null;
@@ -1065,7 +1066,7 @@ public class TopologyEntitiesHandlerTest {
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory);
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
         Set<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
         return generateEnd2EndActions(analysis, economyDTOs, converter);
     }
@@ -1074,7 +1075,7 @@ public class TopologyEntitiesHandlerTest {
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory);
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
         return generateEnd2EndActions(analysis, economyDTOs, converter);
     }
 
@@ -1335,7 +1336,7 @@ public class TopologyEntitiesHandlerTest {
         Analysis analysis = mock(Analysis.class);
         TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory);
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
         Field field = TopologyConverter.class.getDeclaredField("costNotificationStatus");
         field.setAccessible(true);
 
@@ -1435,7 +1436,7 @@ public class TopologyEntitiesHandlerTest {
         when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
-                consistentScalingHelperFactory);
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
         // We fail the cost notification. Every shopping list should have movable false.
         Field field = TopologyConverter.class.getDeclaredField("costNotificationStatus");
         field.setAccessible(true);

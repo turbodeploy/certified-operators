@@ -271,11 +271,11 @@ public class ProbeCapabilityCacheTest {
         final ActionDTO.Action testAction =
             testActionBuilder.buildMoveAction(1L, 2L, 2, 3L, 2);
 
-        assertThat(capabilities.getSupportLevel(
+        assertThat(capabilities.getMergedActionCapability(
             testAction,
             ActionDTOUtil.getPrimaryEntity(testAction),
             // Non-existing probe.
-            123123), is(SupportLevel.UNSUPPORTED));
+            123123).getSupportLevel(), is(SupportLevel.UNSUPPORTED));
 
         // Shouldn't have gotten to the capability matcher.
         verifyZeroInteractions(capabilityMatcher);
@@ -302,10 +302,10 @@ public class ProbeCapabilityCacheTest {
             .thenReturn(Collections.emptyList());
 
         // Default support level when no capabilities are provided is show-only
-        assertThat(capabilities.getSupportLevel(
+        assertThat(capabilities.getMergedActionCapability(
             testAction,
             ActionDTOUtil.getPrimaryEntity(testAction),
-            probeId), is(SupportLevel.SHOW_ONLY));
+            probeId).getSupportLevel(), is(SupportLevel.SHOW_ONLY));
 
         verify(capabilityMatcher).getApplicableCapabilities(testAction, primaryEntity, probeCapabilities.get(probeId));
     }
@@ -335,10 +335,10 @@ public class ProbeCapabilityCacheTest {
                     .setActionCapability(ActionCapability.SUPPORTED)
                     .build()));
 
-        assertThat(capabilities.getSupportLevel(
+        assertThat(capabilities.getMergedActionCapability(
             testAction,
             ActionDTOUtil.getPrimaryEntity(testAction),
-            probeId), is(SupportLevel.SUPPORTED));
+            probeId).getSupportLevel(), is(SupportLevel.SUPPORTED));
 
         verify(capabilityMatcher).getApplicableCapabilities(testAction, primaryEntity, probeCapabilities.get(probeId));
     }
@@ -373,10 +373,10 @@ public class ProbeCapabilityCacheTest {
                     .build()));
 
         // We should use the minimum of the two.
-        assertThat(capabilities.getSupportLevel(
+        assertThat(capabilities.getMergedActionCapability(
             testAction,
             ActionDTOUtil.getPrimaryEntity(testAction),
-            probeId), is(SupportLevel.SHOW_ONLY));
+            probeId).getSupportLevel(), is(SupportLevel.SHOW_ONLY));
 
         verify(capabilityMatcher).getApplicableCapabilities(testAction, primaryEntity, probeCapabilities.get(probeId));
     }
@@ -401,7 +401,8 @@ public class ProbeCapabilityCacheTest {
         assertFalse(capabilities.getProbeCategory(targetId).isPresent());
 
         // Missing probe category should mean the target didn't get added.
-        assertThat(capabilities.getSupportLevel(testAction, primaryEntity, targetId),
+        assertThat(capabilities.getMergedActionCapability(testAction, primaryEntity, targetId)
+                        .getSupportLevel(),
             is(SupportLevel.UNSUPPORTED));
 
         verifyZeroInteractions(capabilityMatcher);

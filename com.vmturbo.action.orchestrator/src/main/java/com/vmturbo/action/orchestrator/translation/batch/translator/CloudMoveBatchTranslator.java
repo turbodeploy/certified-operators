@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.translation.batch.translator;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -113,8 +114,11 @@ public class CloudMoveBatchTranslator implements BatchTranslator {
             @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
         final Move move = actionDto.getInfo().getMove();
 
-        final ActionEntity workloadTier = ActionDTOUtil.getPrimaryChangeProvider(actionDto)
-                .getDestination();
+        Optional<ChangeProvider> changeProvider = ActionDTOUtil.getPrimaryChangeProvider(actionDto);
+        if (!changeProvider.isPresent()) {
+            return actionDto;
+        }
+        final ActionEntity workloadTier = changeProvider.get().getDestination();
         final Allocate allocate = Allocate.newBuilder()
                 .setTarget(move.getTarget())
                 .setWorkloadTier(workloadTier)
@@ -139,8 +143,8 @@ public class CloudMoveBatchTranslator implements BatchTranslator {
     }
 
     private static boolean isAllocateAction(final ActionDTO.Action actionDto) {
-        final ChangeProvider changeProvider = ActionDTOUtil.getPrimaryChangeProvider(actionDto);
-        return changeProvider.hasSource() && changeProvider.hasDestination()
+        final ChangeProvider changeProvider = ActionDTOUtil.getPrimaryChangeProvider(actionDto).orElse(null);
+        return changeProvider != null && changeProvider.hasSource() && changeProvider.hasDestination()
                 && changeProvider.getSource().getId() == changeProvider.getDestination().getId();
     }
 }

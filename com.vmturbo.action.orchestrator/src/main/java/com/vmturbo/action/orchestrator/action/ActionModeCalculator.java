@@ -133,7 +133,7 @@ public class ActionModeCalculator {
      * entity settings.
      *
      * @param action an action
-     * @param entitiesCache a nullable entitis and settings snapshot
+     * @param entitiesCache a nullable entities and settings snapshot
      * @return the action mode and execution schedule
      */
     @Nonnull
@@ -834,7 +834,7 @@ public class ActionModeCalculator {
                         .distinct()
                         .map(ActionSpecifications::new);
             case SCALE:
-                return Stream.of(new ActionSpecifications(ConfigurableActionSettings.CloudComputeScale));
+                return Stream.of(new ActionSpecifications(getScaleActionSetting(action)));
             case RECONFIGURE:
                 return Stream.of(new ActionSpecifications(ConfigurableActionSettings.Reconfigure));
             case PROVISION:
@@ -868,12 +868,45 @@ public class ActionModeCalculator {
             case DEACTIVATE:
                 return Stream.of(new ActionSpecifications(ConfigurableActionSettings.Suspend));
             case DELETE:
-                return Stream.of(new ActionSpecifications(ConfigurableActionSettings.Delete));
+                final EntityType targetType = EntityType.forNumber(
+                        action.getInfo().getDelete().getTarget().getType());
+                return Stream
+                        .of(ConfigurableActionSettings.Delete, ConfigurableActionSettings.DeleteVolume)
+                        .filter(setting -> setting.getEntityTypeScope().contains(targetType))
+                        .map(ActionSpecifications::new);
             case ALLOCATE: // Allocate actions are not executable and are not configurable by the user
             case ACTIONTYPE_NOT_SET:
             default:
                 return Stream.empty();
         }
+    }
+
+    private static ConfigurableActionSettings getScaleActionSetting(
+            @Nonnull final ActionDTO.Action action) {
+        // If probe provided information about disruptiveness/reversibility then use
+        // appropriate settings.
+        if (action.hasDisruptive() && action.hasReversible()) {
+            final ConfigurableActionSettings result;
+            if (action.getDisruptive()) {
+                result = action.getReversible()
+                        ? ConfigurableActionSettings.DisruptiveReversibleScaling
+                        : ConfigurableActionSettings.DisruptiveIrreversibleScaling;
+            } else {
+                result = action.getReversible()
+                        ? ConfigurableActionSettings.NonDisruptiveReversibleScaling
+                        : ConfigurableActionSettings.NonDisruptiveIrreversibleScaling;
+            }
+
+            // Also check that disruptiveness/reversibility settings are applied to the given type.
+            final EntityType entityType = EntityType.forNumber(action.getInfo().getScale()
+                    .getTarget().getType());
+            if (result.getEntityTypeScope().contains(entityType)) {
+                return result;
+            }
+        }
+
+        // By default use generic setting for Scale actions
+        return ConfigurableActionSettings.CloudComputeScale;
     }
 
     /**

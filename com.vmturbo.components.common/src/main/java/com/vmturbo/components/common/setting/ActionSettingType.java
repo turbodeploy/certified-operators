@@ -41,10 +41,11 @@ public enum ActionSettingType {
             final EnumSettingDataType enumSettingDataType;
             switch (baseSetting) {
                 case Reconfigure:
-                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.RECOMMEND, ActionMode.RECOMMEND, ActionMode.class);
+                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.RECOMMEND,
+                            ActionMode.RECOMMEND, null, ActionMode.class);
                     break;
                 case Suspend:
-                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, null,
+                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, null, null,
                         ImmutableMap.<EntityType, ActionMode>builder()
                             .put(EntityType.IO_MODULE, ActionMode.DISABLED)
                             .put(EntityType.APPLICATION_COMPONENT, ActionMode.RECOMMEND)
@@ -52,7 +53,7 @@ public enum ActionSettingType {
                         ActionMode.class);
                     break;
                 case Provision:
-                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, null,
+                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, null, null,
                         ImmutableMap.<EntityType, ActionMode>builder()
                             .put(EntityType.STORAGE_CONTROLLER, ActionMode.DISABLED)
                             .put(EntityType.APPLICATION_COMPONENT, ActionMode.RECOMMEND)
@@ -71,6 +72,14 @@ public enum ActionSettingType {
                 case Delete:
                 case Activate:
                     enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, ActionMode.class);
+                    break;
+                case NonDisruptiveReversibleScaling:
+                case NonDisruptiveIrreversibleScaling:
+                case DisruptiveReversibleScaling:
+                case DisruptiveIrreversibleScaling:
+                case DeleteVolume:
+                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, null,
+                            ActionMode.RECOMMEND, ActionMode.class);
                     break;
                 case StorageMove:
                 case ResizeUpHeap:

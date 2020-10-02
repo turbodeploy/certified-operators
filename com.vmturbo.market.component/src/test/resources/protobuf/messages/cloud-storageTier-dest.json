@@ -1,7 +1,7 @@
 {
   "entity_type": 57,
-  "oid": 73363299852962,
-  "display_name": "GP2",
+  "oid": 73363299852963,
+  "display_name": "STANDARD",
   "commodity_sold_list": [{
     "commodityType": {
       "type": 64

@@ -241,12 +241,24 @@ public class PaginatedStatsExecutor {
 
             final Map<Long, MinimalEntity> entities = getMinimalEntitiesForEntityList(new HashSet<>(entitiesWithStats));
 
-            //Combines the nextStatsPages results with minimalEntityData
+            // Cost Stats - uses entities from nextStatsPage to scope query for cost
+            final List<CloudCostStatRecord> costStatsResponse = entities.values().stream()
+                    .anyMatch(minEntity -> minEntity.getEnvironmentType() == EnvironmentType.CLOUD
+                            || minEntity.getEnvironmentType() == EnvironmentType.HYBRID)
+                    ? getCloudCostStatsForEntities(entitiesWithStats)
+                    : Collections.emptyList();
+            final Map<Long, Map<Long, List<StatApiDTO>>> costStatsEntitiesMap =
+                    mapCostEntityResults(costStatsResponse, entitiesWithStats);
+
+            // Combines the nextStatsPages results with minimalEntityData, and costStatsResponse.
+            final boolean isProjectedStatsRequest = isProjectedStatsRequest();
             final List<EntityStatsApiDTO> dto = nextStatsPage.stream().map(entityStats -> {
-                final Optional<MinimalEntity> apiDto = Optional.ofNullable(entities.get(entityStats.getOid()));
+                final long entityOid = entityStats.getOid();
+                final Optional<MinimalEntity> apiDto = Optional.ofNullable(entities.get(entityOid));
+                final Map<Long, List<StatApiDTO>> entityCostStats = costStatsEntitiesMap.getOrDefault(entityOid, new HashMap<>());
                 return apiDto.map(
-                        seApiDto -> constructEntityStatsDto(seApiDto, isProjectedStatsRequest(),
-                                entityStats, inputDto));
+                        seApiDto -> constructEntityStatsDto(seApiDto, isProjectedStatsRequest,
+                                entityStats, inputDto, entityCostStats));
             }).filter(Optional::isPresent).map(Optional::get).collect(Collectors.toList());
 
             entityStatsPaginationResponse = paginationResponseOpt.map(paginationResponse ->
@@ -581,11 +593,13 @@ public class PaginatedStatsExecutor {
          *                              EntityStatsApiDTO}s.
          * @param entityStats           The {@link EntityStats} from which to get stats values.
          * @param inputDto              The {@link StatScopesApiInputDTO} for the stats query.
+         * @param entityCostStats       Cost statistics related to the entity.
          * @return A fully configured {@link EntityStatsApiDTO}.
          */
         @Nonnull
         private EntityStatsApiDTO constructEntityStatsDto(MinimalEntity serviceEntity, final boolean projectedStatsRequest,
-                final EntityStats entityStats, @Nonnull final StatScopesApiInputDTO inputDto) {
+                                                          final EntityStats entityStats, @Nonnull final StatScopesApiInputDTO inputDto,
+                                                          @Nonnull final Map<Long, List<StatApiDTO>> entityCostStats) {
             final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
             StatsMapper.populateEntityDataEntityStatsApiDTO(serviceEntity, entityStatsApiDTO);
             entityStatsApiDTO.setStats(new ArrayList<>());
@@ -606,6 +620,8 @@ public class PaginatedStatsExecutor {
                             Optional.ofNullable(inputDto.getPeriod())
                                     .map(StatPeriodApiInputDTO::getEndDate)
                                     .ifPresent(statApiDto::setDate);
+                            // add cost stats
+                            entityCostStats.values().forEach(l -> statApiDto.getStatistics().addAll(l));
                             return statApiDto;
                         })
                         .ifPresent(statApiDto -> entityStatsApiDTO.getStats().add(statApiDto));
@@ -1022,7 +1038,8 @@ public class PaginatedStatsExecutor {
         private List<CloudCostStatRecord> getCloudCostStats(Set<Long> cloudEntityOids,
                 StatScopesApiInputDTO requestInputDto) {
 
-            final CloudCostStatsQuery.Builder costStatsBuilder = CloudCostStatsQuery.newBuilder();
+            final CloudCostStatsQuery.Builder costStatsBuilder
+                    = CloudCostStatsQuery.newBuilder().setRequestProjected(isProjectedStatsRequest());
 
             //Set the scope
              if (!cloudEntityOids.isEmpty()) {
@@ -1172,10 +1189,24 @@ public class PaginatedStatsExecutor {
                 @Nonnull List<CloudCostStatRecord> cloudCostStatsResponse,
                 @Nonnull Set<Long> pagedEntities) {
             final Map<Long, Map<Long, List<StatApiDTO>>> entityUuidMap = new HashMap<>();
+            // Due to limitation of rpc call to cost component, there are two cases supported:
+            // 1. rpc call to cost component with RequestProjected flag false. Cost component only returns current cost.
+            // 2. rpc call to cost component with RequestProjected flag true. Cost component can possibly return both
+            // current and projected cost. And the end date when made the rpc call is not the same as the projected
+            // snapshot time in response. The projected snapshot time is one hour plus end date in the query(one hour
+            // is how cost component set the projected snapshot time and api component should not rely on that).
+            // With the previous limitation, queryEndDate here is to filter out the possible current cost snapshot
+            // because we only need projected cost when querying projected stats.
+
+            final long queryEndDate = period != null && period.getEndDate() != null
+                            ? DateTimeUtil.parseTime(period.getEndDate()) : 0L;
 
             for (CloudCostStatRecord cloudCostStatRecord: cloudCostStatsResponse) {
                 long snapShotDate = cloudCostStatRecord.getSnapshotDate();
-
+                // filter out possible current cost for projected cost query
+                if (snapShotDate < queryEndDate) {
+                    continue;
+                }
                 for (StatRecord statRecord: cloudCostStatRecord.getStatRecordsList()) {
                     final long entityUuid = statRecord.getAssociatedEntityId();
                     if (!pagedEntities.contains(entityUuid)) {

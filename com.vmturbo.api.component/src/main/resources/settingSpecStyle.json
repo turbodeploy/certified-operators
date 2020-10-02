@@ -65,6 +65,36 @@
                 ]
             }
         },
+        "percentileAggressivenessVirtualVolume": {
+            "range": {
+                "step": 1,
+                "labels": [
+                    "More Efficiency",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "More Performance",
+                    "P90",
+                    "P95",
+                    "P99",
+                    "P99.1",
+                    "P99.5",
+                    "P99.9",
+                    "P100"
+                ],
+                "customStepValues": [
+                    90,
+                    95,
+                    99,
+                    99.1,
+                    99.5,
+                    99.9,
+                    100
+                ]
+            }
+        },
       "percentileAggressivenessContainerSpec": {
         "range": {
           "step": 1,
@@ -108,6 +138,27 @@
         }
       },
       "minObservationPeriodVirtualMachine": {
+        "range": {
+          "step": 1,
+          "labels": [
+            "More Elastic",
+            "",
+            "",
+            "Less Elastic",
+            "None",
+            "1 day",
+            "3 days",
+            "7 days"
+          ],
+          "customStepValues": [
+            0,
+            1,
+            3,
+            7
+          ]
+        }
+      },
+      "minObservationPeriodVirtualVolume": {
         "range": {
           "step": 1,
           "labels": [
@@ -183,6 +234,24 @@
         }
       },
       "maxObservationPeriodVirtualMachine": {
+        "range": {
+          "step": 1,
+          "labels": [
+            "Less Elastic",
+            "Recommended",
+            "More Elastic",
+            "Last 90 Days",
+            "Last 30 Days",
+            "Last 7 Days"
+          ],
+          "customStepValues": [
+            90,
+            30,
+            7
+          ]
+        }
+      },
+      "maxObservationPeriodVirtualVolume": {
         "range": {
           "step": 1,
           "labels": [

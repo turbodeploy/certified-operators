@@ -535,23 +535,39 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testSettingDelete() {
+        testSettingDeleteForEntityType(ConfigurableActionSettings.Delete, EntityType.STORAGE);
+    }
+
+    /**
+     * Should return AUTOMATIC for a Delete Volume action, with the target having an AUTOMATIC
+     * delete action mode.
+     */
+    @Test
+    public void testSettingDeleteVolume() {
+        testSettingDeleteForEntityType(ConfigurableActionSettings.DeleteVolume,
+                EntityType.VIRTUAL_VOLUME);
+    }
+
+    private void testSettingDeleteForEntityType(
+            @Nonnull final ConfigurableActionSettings setting,
+            @Nonnull final EntityType entityType) {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
-            .setDelete(Delete.newBuilder()
-                .setTarget(ActionEntity.newBuilder()
-                    .setId(7L)
-                    .setType(1))))
-            .build();
+                .setDelete(Delete.newBuilder()
+                        .setTarget(ActionEntity.newBuilder()
+                                .setId(7L)
+                                .setType(entityType.getNumber()))))
+                .build();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
-            ImmutableMap.of(ConfigurableActionSettings.Delete.getSettingName(),
-                Setting.newBuilder()
-                    .setSettingSpecName(ConfigurableActionSettings.Delete.getSettingName())
-                    .setEnumSettingValue(EnumSettingValue.newBuilder()
-                        .setValue(ActionMode.AUTOMATIC.name()))
-                    .build()));
+                ImmutableMap.of(setting.getSettingName(),
+                        Setting.newBuilder()
+                                .setSettingSpecName(setting.getSettingName())
+                                .setEnumSettingValue(EnumSettingValue.newBuilder()
+                                        .setValue(ActionMode.AUTOMATIC.name()))
+                                .build()));
         Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
-            is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
+                is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
     /**
@@ -1063,6 +1079,159 @@ public class ActionModeCalculatorTest {
         entitySpecs = actionModeCalculator.specsApplicableToAction(resizeDownDbMemAction, settingsForEntity).collect(Collectors.toList());
         Assert.assertEquals(1, entitySpecs.size());
         Assert.assertEquals(ConfigurableActionSettings.ResizeDownDBMem, entitySpecs.get(0).getConfigurableActionSetting());
+    }
+
+    /**
+     * Tests {@link ActionModeCalculator#specsApplicableToAction} method for disruptive
+     * reversible Scale action.
+     */
+    @Test
+    public void testSpecsApplicableToActionForDisruptiveReversibleScale() {
+        // ARRANGE
+        final ActionDTO.Action action = actionBuilder
+                .setInfo(ActionInfo.newBuilder()
+                        .setScale(Scale.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(1L)
+                                        .setType(EntityType.VIRTUAL_VOLUME_VALUE)
+                                        .build())
+                                .build())
+                        .build())
+                .setDisruptive(true)
+                .setReversible(true)
+                .build();
+
+        // ACT
+        final List<ActionSpecifications> entitySpecs = actionModeCalculator
+                .specsApplicableToAction(action, Collections.emptyMap())
+                .collect(Collectors.toList());
+
+        // ASSERT
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(ConfigurableActionSettings.DisruptiveReversibleScaling,
+                entitySpecs.get(0).getConfigurableActionSetting());
+    }
+
+    /**
+     * Tests {@link ActionModeCalculator#specsApplicableToAction} method for disruptive
+     * irreversible Scale action.
+     */
+    @Test
+    public void testSpecsApplicableToActionForDisruptiveIrreversibleScale() {
+        // ARRANGE
+        final ActionDTO.Action action = actionBuilder
+                .setInfo(ActionInfo.newBuilder()
+                        .setScale(Scale.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(1L)
+                                        .setType(EntityType.VIRTUAL_VOLUME_VALUE)
+                                        .build())
+                                .build())
+                        .build())
+                .setDisruptive(true)
+                .setReversible(false)
+                .build();
+
+        // ACT
+        final List<ActionSpecifications> entitySpecs = actionModeCalculator
+                .specsApplicableToAction(action, Collections.emptyMap())
+                .collect(Collectors.toList());
+
+        // ASSERT
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(ConfigurableActionSettings.DisruptiveIrreversibleScaling,
+                entitySpecs.get(0).getConfigurableActionSetting());
+    }
+
+    /**
+     * Tests {@link ActionModeCalculator#specsApplicableToAction} method for non-disruptive
+     * reversible Scale action.
+     */
+    @Test
+    public void testSpecsApplicableToActionForNonDisruptiveReversibleScale() {
+        // ARRANGE
+        final ActionDTO.Action action = actionBuilder
+                .setInfo(ActionInfo.newBuilder()
+                        .setScale(Scale.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(1L)
+                                        .setType(EntityType.VIRTUAL_VOLUME_VALUE)
+                                        .build())
+                                .build())
+                        .build())
+                .setDisruptive(false)
+                .setReversible(true)
+                .build();
+
+        // ACT
+        final List<ActionSpecifications> entitySpecs = actionModeCalculator
+                .specsApplicableToAction(action, Collections.emptyMap())
+                .collect(Collectors.toList());
+
+        // ASSERT
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(ConfigurableActionSettings.NonDisruptiveReversibleScaling,
+                entitySpecs.get(0).getConfigurableActionSetting());
+    }
+
+    /**
+     * Tests {@link ActionModeCalculator#specsApplicableToAction} method for non-disruptive
+     * irreversible Scale action.
+     */
+    @Test
+    public void testSpecsApplicableToActionForNonDisruptiveIrreversibleScale() {
+        // ARRANGE
+        final ActionDTO.Action action = actionBuilder
+                .setInfo(ActionInfo.newBuilder()
+                        .setScale(Scale.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(1L)
+                                        .setType(EntityType.VIRTUAL_VOLUME_VALUE)
+                                        .build())
+                                .build())
+                        .build())
+                .setDisruptive(false)
+                .setReversible(false)
+                .build();
+
+        // ACT
+        final List<ActionSpecifications> entitySpecs = actionModeCalculator
+                .specsApplicableToAction(action, Collections.emptyMap())
+                .collect(Collectors.toList());
+
+        // ASSERT
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(ConfigurableActionSettings.NonDisruptiveIrreversibleScaling,
+                entitySpecs.get(0).getConfigurableActionSetting());
+    }
+
+    /**
+     * Tests {@link ActionModeCalculator#specsApplicableToAction} method for Scale action without
+     * disruptiveness/reversibility flags.
+     */
+    @Test
+    public void testSpecsApplicableToActionForScale() {
+        // ARRANGE
+        final ActionDTO.Action action = actionBuilder
+                .setInfo(ActionInfo.newBuilder()
+                        .setScale(Scale.newBuilder()
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(1L)
+                                        .setType(EntityType.VIRTUAL_VOLUME_VALUE)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+
+        // ACT
+        final List<ActionSpecifications> entitySpecs = actionModeCalculator
+                .specsApplicableToAction(action, Collections.emptyMap())
+                .collect(Collectors.toList());
+
+        // ASSERT
+        Assert.assertEquals(1, entitySpecs.size());
+        Assert.assertEquals(ConfigurableActionSettings.CloudComputeScale,
+                entitySpecs.get(0).getConfigurableActionSetting());
     }
 
     private Action getResizeDownAction(long vmId) {

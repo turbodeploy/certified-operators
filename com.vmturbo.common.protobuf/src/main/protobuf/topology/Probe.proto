@@ -2,6 +2,8 @@ syntax = "proto2";
 package topology;
 
 option java_package = "com.vmturbo.common.protobuf.topology";
+
+import "CommonDTO.proto";
 import "action/ActionDTO.proto";
 
 message ProbeActionCapability {
@@ -21,6 +23,35 @@ message ProbeActionCapability {
 
         oneof action_parameter {
             MoveParameters move = 3;
+        }
+
+        // Action policy scope: either provider (Move/Scale type) or commodity (Resize/Scale type).
+        // If no scope defined the policy is applied to all providers (Move/Scale) or commodities
+        // (Resize/Scale).
+        oneof scope {
+            // Provider scope
+            ProviderScope providerScope = 4;
+
+            // Commodity scope
+            CommodityScope commodityScope = 5;
+        }
+
+        // Defines if action is disruptive
+        optional bool disruptive = 6 [default = false];
+
+        // Defines if action is reversible
+        optional bool reversible = 7 [default = true];
+
+        // Provider scope means that policy is applied to actions moving to certain providers.
+        // It is relevant to Move/Scale actions.
+        message ProviderScope {
+            required .common_dto.EntityDTO.EntityType providerType = 1;
+        }
+
+        // Commodity scope means that policy is applied to actions resizing certain commodities.
+        // It is relevant to Resize/Scale actions.
+        message CommodityScope {
+            required .common_dto.CommodityDTO.CommodityType commodityType = 1;
         }
     }
 

@@ -94,6 +94,8 @@ import com.vmturbo.market.topology.conversions.CommodityConverter;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
+import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcher;
+import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.SMAConverter;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
@@ -227,6 +229,8 @@ public class Analysis {
 
     private final InitialPlacementFinder initialPlacementFinder;
 
+    private final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory;
+
     /**
      * The service that will perform cloud commitment (RI) buy analysis during a migrate to cloud plan.
      */
@@ -255,6 +259,7 @@ public class Analysis {
      * @param listener that receives entity ri coverage information availability.
      * @param consistentScalingHelperFactory CSM helper factory
      * @param initialPlacementFinder the class to perform fast reservation
+     * @param reversibilitySettingFetcherFactory factory for {@link ReversibilitySettingFetcher}.
      * @param migratedWorkloadCloudCommitmentAnalysisService cloud migration analysis
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
@@ -271,6 +276,7 @@ public class Analysis {
                     @Nonnull final AnalysisRICoverageListener listener,
                     @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
                     @Nonnull final InitialPlacementFinder initialPlacementFinder,
+                    @Nonnull final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory,
                     @NonNull final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
@@ -295,6 +301,7 @@ public class Analysis {
         this.listener = listener;
         this.consistentScalingHelperFactory = consistentScalingHelperFactory;
         this.initialPlacementFinder = initialPlacementFinder;
+        this.reversibilitySettingFetcherFactory = reversibilitySettingFetcherFactory;
         this.migratedWorkloadCloudCommitmentAnalysisService = migratedWorkloadCloudCommitmentAnalysisService;
     }
 
@@ -332,12 +339,14 @@ public class Analysis {
         // Use the cloud cost data we use for cost calculations for the price table.
         final MarketPriceTable marketPriceTable = marketPriceTableFactory.newPriceTable(
                 this.originalCloudTopology, topologyCostCalculator.getCloudCostData());
+        final ReversibilitySettingFetcher reversibilitySettingFetcher
+                = reversibilitySettingFetcherFactory.newReversibilitySettingRetriever();
         this.converter = new TopologyConverter(topologyInfo, config.getIncludeVdc(),
                 config.getQuoteFactor(), config.getMarketMode(),
                 config.getLiveMarketMoveCostFactor(),
                 marketPriceTable, null, topologyCostCalculator.getCloudCostData(),
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
-                originalCloudTopology);
+                originalCloudTopology, reversibilitySettingFetcher);
         this.smaConverter = new SMAConverter(converter);
         final boolean enableThrottling = topologyInfo.getTopologyType() == TopologyType.REALTIME
                 && (config.getSuspensionsThrottlingConfig() == SuspensionsThrottlingConfig.CLUSTER);

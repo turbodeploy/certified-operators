@@ -534,7 +534,9 @@
         "reservedCapacity": 0.0,
         "isResizeable": false,
         "isThin": true,
-        "active": true
+        "active": true,
+        "min_amount_for_consumer": 0,
+        "max_amount_for_consumer": 1000000.0
       },
       {
         "commodityType": {

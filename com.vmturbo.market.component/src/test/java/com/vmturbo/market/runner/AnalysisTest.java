@@ -94,6 +94,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
+import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
@@ -166,6 +167,9 @@ public class AnalysisTest {
             mock(InitialPlacementFinder.class);
 
     private ConsistentScalingHelper csm = mock(ConsistentScalingHelper.class);
+    private ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory
+            = mock(ReversibilitySettingFetcherFactory.class);
+
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
                      testSettingPolicyService);
@@ -231,7 +235,7 @@ public class AnalysisTest {
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
             wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
                 listener, consistentScalingHelperFactory, initialPlacementFinder,
-                migratedWorkloadCloudCommitmentAnalysisService);
+                        reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService);
     }
     /**
      * Convenience method to get an Analysis based on an analysisConfig and a set of
