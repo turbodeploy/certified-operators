@@ -36,8 +36,6 @@ import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopolog
  */
 public class ReservedInstanceCoverageAllocatorAzureFuncTest extends AbstractReservedInstanceCoverageAllocatorTest {
 
-    GroupMemberRetriever groupMemberRetriever = mock(GroupMemberRetriever.class);
-
     /**
      * Setup method for tests.
      */
@@ -63,7 +61,7 @@ public class ReservedInstanceCoverageAllocatorAzureFuncTest extends AbstractRese
          * Invoke SUT
          */
         final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
-                ImmutableRICoverageAllocatorConfig.builder()
+                CoverageAllocationConfig.builder()
                         .coverageTopology(coverageTopology)
                         .coverageProvider(() -> ImmutableTable.of())
                         .build());
@@ -107,7 +105,7 @@ public class ReservedInstanceCoverageAllocatorAzureFuncTest extends AbstractRese
          * Invoke SUT
          */
         final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
-                ImmutableRICoverageAllocatorConfig.builder()
+                CoverageAllocationConfig.builder()
                         .coverageTopology(coverageTopology)
                         .coverageProvider(() -> ImmutableTable.of())
                         .build());

@@ -2,6 +2,7 @@ package com.vmturbo.reserved.instance.coverage.allocator;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
 
 /**
@@ -9,6 +10,8 @@ import com.google.common.collect.Table;
  */
 @FunctionalInterface
 public interface ReservedInstanceCoverageProvider {
+
+    ReservedInstanceCoverageProvider EMPTY_COVERAGE_PROVIDER = () -> ImmutableTable.of();
 
     /**
      * @return A {@link Table} of {@literal <Entity OID, RI OID, Coverage Amount>}
