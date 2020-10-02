@@ -10,6 +10,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.common.stats.StatsAccumulator;
+import com.vmturbo.history.stats.snapshots.ProducerIdVisitor.ProviderInformation;
 
 /**
  * A helper class to create {@link StatRecord} objects out of nullable fields. The default protobuf
@@ -79,7 +80,7 @@ public interface StatRecordBuilder {
         private final BiConsumer<StatRecord.Builder, Pair<StatValue, String>> usageRecordPopulator;
         private final BiConsumer<StatRecord.Builder, Pair<StatValue, Float>> capacityPopulator;
         private final BiConsumer<StatRecord.Builder, Pair<String, String>> propertyTypePopulator;
-        private final BiConsumer<StatRecord.Builder, Long> producerIdPopulator;
+        private final BiConsumer<StatRecord.Builder, ProviderInformation> producerIdPopulator;
 
         public DefaultStatRecordBuilder(
                         @Nonnull BiConsumer<Builder, String> relatedEntityTypePopulator,
@@ -87,7 +88,7 @@ public interface StatRecordBuilder {
                         @Nonnull BiConsumer<Builder, Pair<StatValue, String>> usageRecordPopulator,
                         @Nonnull BiConsumer<Builder, Pair<StatValue, Float>> capacityPopulator,
                         @Nonnull BiConsumer<Builder, Pair<String, String>> propertyTypePopulator,
-                        @Nonnull BiConsumer<Builder, Long> producerIdPopulator) {
+                        @Nonnull BiConsumer<Builder, ProviderInformation> producerIdPopulator) {
             this.relatedEntityTypePopulator = relatedEntityTypePopulator;
             this.relationPopulator = relationPopulator;
             this.usageRecordPopulator = usageRecordPopulator;
@@ -110,7 +111,7 @@ public interface StatRecordBuilder {
             relationPopulator.accept(builder, relation);
             relatedEntityTypePopulator.accept(builder, relatedEntityType);
             capacityPopulator.accept(builder, new Pair<>(capacityStat, reserved));
-            producerIdPopulator.accept(builder, producerId);
+            producerIdPopulator.accept(builder, new ProviderInformation(producerId));
             return builder.build();
         }
     }

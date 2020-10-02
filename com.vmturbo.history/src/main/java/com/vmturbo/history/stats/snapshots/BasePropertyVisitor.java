@@ -8,7 +8,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 
 import javax.annotation.Nonnull;
-import javax.annotation.concurrent.ThreadSafe;
+import javax.annotation.concurrent.NotThreadSafe;
 
 import org.jooq.Record;
 
@@ -24,7 +24,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.Builder;
  *                 StatRecord.Builder}.
  * @param <D> type of the property in database record.
  */
-@ThreadSafe
+@NotThreadSafe
 public class BasePropertyVisitor<R extends Record, V, D> extends AbstractVisitor<R, V> {
     private final String propertyName;
     private final BiFunction<Record, D, V> valueTransformer;
@@ -73,5 +73,4 @@ public class BasePropertyVisitor<R extends Record, V, D> extends AbstractVisitor
                         this.databaseType.getSimpleName(),
                         this.getState() == null ? null : this.getState().toString());
     }
-
 }

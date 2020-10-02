@@ -9,7 +9,7 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.ThreadSafe;
+import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -30,7 +30,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
  * @param <S> type of the state that we are going to store for each thread
  *                 independently.
  */
-@ThreadSafe
+@NotThreadSafe
 public abstract class AbstractVisitor<R extends Record, S> implements RecordVisitor<R> {
     private final Logger logger = LogManager.getLogger(getClass());
     private final MutablePair<R, S> recordToState = new MutablePair<>();

@@ -9,7 +9,7 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.ThreadSafe;
+import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -28,7 +28,7 @@ import com.vmturbo.history.stats.PropertySubType;
  * extracts theirs values and populates {@link StatRecord.Builder} with capacity and reserved
  * values.
  */
-@ThreadSafe
+@NotThreadSafe
 public class CapacityRecordVisitor
                 extends AbstractVisitor<Record, Pair<StatsAccumulator, StatsAccumulator>> {
     private static final Collection<PropertySubType> CAPACITY_AWARE_SUB_TYPES =

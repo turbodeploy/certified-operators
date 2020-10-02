@@ -8,7 +8,7 @@ import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.ThreadSafe;
+import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.commons.lang.StringUtils;
 import org.jooq.Record;
@@ -24,7 +24,7 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
  *
  * @param <D> type of the value read form database.
  */
-@ThreadSafe
+@NotThreadSafe
 public class PropertyTypeVisitor<D> extends BasePropertyVisitor<Record, Pair<String, String>, D> {
 
     /**

@@ -7,7 +7,7 @@ package com.vmturbo.history.stats.snapshots;
 import java.util.function.BiConsumer;
 
 import javax.annotation.Nonnull;
-import javax.annotation.concurrent.ThreadSafe;
+import javax.annotation.concurrent.NotThreadSafe;
 
 import org.jooq.Record;
 
@@ -24,7 +24,7 @@ import com.vmturbo.history.stats.snapshots.UsageRecordVisitor.UsageState;
  * {@link UsageRecordVisitor} visits property subtype, avg, min and max fields in stats record and
  * populates used, current value, values, used, and peak fields in {@link StatRecord.Builder}.
  */
-@ThreadSafe
+@NotThreadSafe
 public class UsageRecordVisitor extends AbstractVisitor<Record, UsageState> {
     private final boolean fullMarket;
     private final BiConsumer<StatRecord.Builder, Pair<StatValue, String>> usagePopulator;

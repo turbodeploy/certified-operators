@@ -22,6 +22,7 @@ import org.jooq.Record;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
+import com.vmturbo.history.stats.snapshots.ProducerIdVisitor.ProducerIdPopulator;
 
 /**
  * The default implementation of {@link StatSnapshotCreator}, for production use.
@@ -33,7 +34,7 @@ public class DefaultStatSnapshotCreator implements StatSnapshotCreator {
     private static final RecordsAggregator<Record> DEFAULT_RECORDS_AGGREGATOR =
                     new StatsRecordsAggregator(RECORD_TYPE_TO_RECORD_AGGREGATOR.keySet());
 
-    private final SharedPropertyPopulator<Long> producerIdPopulator;
+    private final ProducerIdPopulator producerIdPopulator;
 
     /**
      * Creates {@link DefaultStatSnapshotCreator} instance.
@@ -41,7 +42,7 @@ public class DefaultStatSnapshotCreator implements StatSnapshotCreator {
      * @param producerIdPopulator populator for producer identifier, doing set only
      *                 in case value have not been initialized
      */
-    public DefaultStatSnapshotCreator(@Nonnull SharedPropertyPopulator<Long> producerIdPopulator) {
+    public DefaultStatSnapshotCreator(@Nonnull ProducerIdPopulator producerIdPopulator) {
         this.producerIdPopulator = producerIdPopulator;
     }
 
