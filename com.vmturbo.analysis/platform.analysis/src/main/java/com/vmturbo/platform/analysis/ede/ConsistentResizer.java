@@ -12,9 +12,9 @@ import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.PartialResize;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
+import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.sdk.common.util.Pair;
 
 public class ConsistentResizer {
     static final Logger logger = LogManager.getLogger(Resizer.class);
@@ -124,11 +124,16 @@ public class ConsistentResizer {
                 return;
             }
             CommoditySold congestedRawMaterial = null;
+            double minUpperBound = Double.MAX_VALUE;
+            double maxLowerBound = 0;
 
             // iterate over the partial resizes and recompute the available overhead.
             for (PartialResize partial : resizes) {
                 final double newCapacity = partial.getResize().getNewCapacity();
                 final double oldCapacity = partial.getResize().getOldCapacity();
+                CommoditySoldSettings resizedCommSettings = partial.getResize().getResizedCommodity().getSettings();
+                minUpperBound = Math.min(minUpperBound, resizedCommSettings.getCapacityUpperBound());
+                maxLowerBound = Math.max(maxLowerBound, resizedCommSettings.getCapacityLowerBound());
                 maxCapacity = Math.max(maxCapacity, newCapacity);
                 if (newCapacity > oldCapacity) {
                     // We only set the max old capacity for resize ups, because we never want to set
@@ -160,6 +165,14 @@ public class ConsistentResizer {
                     });
                 }
             }
+            if (maxLowerBound > minUpperBound) {
+                logger.error("Skipping resize generation for {} because the lowerBounds exceeds the upperBound.",
+                        resizes.get(0).getResize().getSellingTrader().getScalingGroupId());
+            }
+            // make sure we dont exceed the upperbound
+            maxCapacity = Math.min(maxCapacity, minUpperBound);
+            // make sure we meet the lowerbound
+            maxCapacity = Math.max(maxCapacity, maxLowerBound);
 
             /*
              * Subtract the new max capacity from each raw material. If any resulting headroom is
@@ -202,6 +215,14 @@ public class ConsistentResizer {
             }
 
             double newCapacity = maxCapacity + maxCapacityAdjustment;
+
+            // if the newCapacity is lower than the maxLowerBound, stop generating an action.
+            if (newCapacity < maxLowerBound) {
+                logger.warn("Skipping resize generation for {} because the newCapacity of {} exceeds the maxlowerBound.",
+                        resizes.get(0).getResize().getSellingTrader().getScalingGroupId(), newCapacity, maxLowerBound);
+                return;
+            }
+
             if (maxOldCapacity > newCapacity) {
                 // The consistent new capacity is less than one of the individual old capacities
                 // that needed to size up, so abort all resizes in the scaling group.
@@ -219,6 +240,12 @@ public class ConsistentResizer {
             }
             double integralIncrementCount = Math.floor(newCapacity / capacityIncrement);
             final double finalNewCapacity = integralIncrementCount * capacityIncrement;
+            // prevent scale down when target is not eligible for resize down.s
+            if (resizes.stream().map(PartialResize::getResize)
+                    .anyMatch(resize -> resize.getOldCapacity() > finalNewCapacity &&
+                            !resize.getSellingTrader().getSettings().isEligibleForResizeDown())) {
+                return;
+            }
             resizes.stream()
                 .map(PartialResize::getResize)
                 // Drop Resize if the capacity difference is less than the configured

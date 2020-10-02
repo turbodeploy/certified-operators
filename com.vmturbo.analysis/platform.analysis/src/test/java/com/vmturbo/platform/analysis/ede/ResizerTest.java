@@ -990,6 +990,8 @@ public class ResizerTest {
         Trader container2 = setupContainerAndApp(economy, 80, 70, 80, 0.65, 0.75, 2);
         cont.setScalingGroupId("SG1");
         container2.setScalingGroupId("SG1");
+        cont.getCommoditiesSold().get(0).getSettings().setCapacityUpperBound(87.5);
+        container2.getCommoditiesSold().get(0).getSettings().setCapacityUpperBound(97.5);
         economy.populatePeerMembersForScalingGroup(cont, "SG1");
         economy.populatePeerMembersForScalingGroup(container2, "SG1");
         Trader container3 = setupContainerAndApp(economy, 80, 70, 80, 0.65, 0.75, 3);
@@ -1001,7 +1003,9 @@ public class ResizerTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         ledger = new Ledger(economy);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
-
+        // assert that the containers resized new capacity satisfy the upperbound
+        assertTrue(cont.getCommoditiesSold().get(0).getCapacity() < 87.5);
+        assertTrue(container2.getCommoditiesSold().get(0).getCapacity() < 87.5);
         double totalIncrease = actions.stream().filter(Resize.class::isInstance)
                 .map(Resize.class::cast)
                 .mapToDouble(r -> r.getNewCapacity() - r.getOldCapacity())
@@ -1015,7 +1019,9 @@ public class ResizerTest {
      * Evaluate that the total increase in capacity is less than the available headroom on the Namespace.
      **/
     @Test
-    public final void testConsistentResizeDownDecisionsForContainers() {
+    @Parameters
+    @TestCaseName("Test #{index}: ConsistentResizeDownDecisionsForContainers({0})")
+    public final void testConsistentResizeDownDecisionsForContainers(boolean isEligibleForResizeDown) {
         Economy economy = new Economy();
         double namespaceCapacity = 102400; // 100GB
         double namespaceUsage = 1536; // 1.5GB
@@ -1023,6 +1029,7 @@ public class ResizerTest {
                 49 /*49MB*/, 1024 /*1GB*/, namespaceUsage, 0.65, 0.75,
                 RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER);
         Trader container2 = setupContainerAndApp(economy, 512 /*0.5GB*/, 30 /*30MB*/, 512 /*0.5GB*/, 0.65, 0.75, 2);
+        container2.getSettings().setIsEligibleForResizeDown(isEligibleForResizeDown);
         cont.setScalingGroupId("SG1");
         container2.setScalingGroupId("SG1");
         economy.populatePeerMembersForScalingGroup(cont, "SG1");
@@ -1031,14 +1038,29 @@ public class ResizerTest {
         ledger = new Ledger(economy);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
-        double totalDecrease = actions.stream().filter(Resize.class::isInstance)
-                .map(Resize.class::cast)
-                .mapToDouble(r -> r.getOldCapacity() - r.getNewCapacity())
-                .sum();
+        if (isEligibleForResizeDown) {
+            double totalDecrease = actions.stream().filter(Resize.class::isInstance)
+                    .map(Resize.class::cast)
+                    .mapToDouble(r -> r.getOldCapacity() - r.getNewCapacity())
+                    .sum();
 
-        assertTrue(actions.stream().filter(Resize.class::isInstance).allMatch(a -> ((Resize) a).getNewCapacity()%10 == 0));
-        assertEquals(totalDecrease, namespaceUsage - namespace.getCommoditiesSold().get(0).getQuantity(), 0);
+            assertTrue(actions.stream().filter(Resize.class::isInstance).allMatch(a -> ((Resize) a).getNewCapacity()%10 == 0));
+            assertEquals(totalDecrease, namespaceUsage - namespace.getCommoditiesSold().get(0).getQuantity(), 0);
+        } else {
+            assertTrue(actions.isEmpty());
+        }
 
+
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestConsistentResizeDownDecisionsForContainers() {
+        return new Object[][] {
+                // member eligibleForResizeDown
+                {true},
+                // member not eligibleForResizeDown
+                {false},
+        };
     }
 
     private Trader setupContainerAndApp(Economy economy,
@@ -1200,7 +1222,7 @@ public class ResizerTest {
                 Arrays.asList(0L), Arrays.asList(TestUtils.VMEM),
                 new double[]{contVmemCapacity}, false, false);
         cont.setDebugInfoNeverUseInCode("CONTAINER1");
-        cont.getCommoditiesSold().get(0).getSettings().setCapacityIncrement(10);
+        cont.getCommoditiesSold().get(0).getSettings().setCapacityIncrement(5);
         TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.VMEMLIMITQUOTA), cont,
                 new double[]{vmemUsedByCont}, pod).setMovable(false);
