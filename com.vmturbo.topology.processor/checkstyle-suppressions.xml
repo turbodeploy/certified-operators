@@ -54,7 +54,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]controllable[/\\]EntityActionDaoImp.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]conversions[/\\]EntityConversionException.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]conversions[/\\]SdkToTopologyEntityConverter.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]conversions[/\\]TopologyToSdkEntityConverter.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]conversions[/\\]typespecific[/\\]BusinessUserMapper.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]conversions[/\\]typespecific[/\\]ComputeTierInfoMapper.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]conversions[/\\]typespecific[/\\]DiskTypeInfoMapper.java" />
@@ -310,7 +309,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]controllable[/\\]ControllableManagerTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]controllable[/\\]EntityActionDaoImpTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]conversions[/\\]SdkToTopologyEntityConverterTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]conversions[/\\]TopologyToSdkEntityConverterTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]conversions[/\\]typespecific[/\\]ApplicationInfoMapperTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]conversions[/\\]typespecific[/\\]BusinessAccountInfoMapperTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]conversions[/\\]typespecific[/\\]ComputeTierInfoMapperTest.java" />

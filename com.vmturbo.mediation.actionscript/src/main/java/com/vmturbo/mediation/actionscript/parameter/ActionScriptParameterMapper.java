@@ -18,9 +18,16 @@ import com.vmturbo.platform.common.dto.ActionExecution.Workflow.Parameter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
- * Maps values from an ActionExecutionDTO to action script parameters
+ * Maps values from an ActionExecutionDTO to action script parameters.
  */
 public class ActionScriptParameterMapper {
+
+    /**
+     * This class only has static methods.
+     */
+    private ActionScriptParameterMapper() {
+
+    }
 
     // Map containing, for each defined parameter, a function to extract the value for that parameter
     // from an ActionExecutionDTO.
@@ -28,12 +35,11 @@ public class ActionScriptParameterMapper {
         PARAMETER_VALUE_GETTER_MAP = createParamNameToValueGetters();
 
     /**
-     * Try to map a value to each of the supplied parameters, from the supplied ActionExecutionDTO
-     * <p>
-     * Values will be mapped to a parameter if the corresponding data is available. If the data is
+     * Try to map a value to each of the supplied parameters, from the supplied ActionExecutionDTO.
+     *
+     * <p>Values will be mapped to a parameter if the corresponding data is available. If the data is
      * not available or not applicable for a particular action, the corresponding variable is not
-     * injected.
-     *</p>
+     * injected.</p>
      *
      * @param action an {@link ActionExecutionDTO} containing information about the action being
      *               executed, used to retrieve values for the parameters
@@ -69,6 +75,12 @@ public class ActionScriptParameterMapper {
         private final String value;
         private final String description;
 
+        /**
+         * Creates an parameter ready to populate a environment variable.
+         *
+         * @param parameterDefinition which environment variable to populate.
+         * @param value the value to set the environment variable to.
+         */
         public ActionScriptParameter(@Nonnull final ActionScriptParameterDefinition parameterDefinition,
                                      @Nonnull String value) {
             this.name = parameterDefinition.name();
@@ -103,21 +115,31 @@ public class ActionScriptParameterMapper {
         typeToFunction.put(ActionScriptParameterDefinition.VMT_ACTION_INTERNAL, action -> Optional.empty());
         // TODO: Supply this value. This is not currently available in XL.
         typeToFunction.put(ActionScriptParameterDefinition.VMT_ACTION_NAME, action -> Optional.empty());
-        // Use the UUID for the internal name. TODO: discuss if this matches what the existing scripts expect.
+        // Use the OID for the internal name. The customer needs to be able to use this ID to
+        // find the entity in the API.
         typeToFunction.put(ActionScriptParameterDefinition.VMT_CURRENT_INTERNAL,
-            action -> getCurrentSE(action).map(EntityDTO::getId));
+            action -> getCurrentSE(action)
+                .map(EntityDTO::getTurbonomicInternalId)
+                .map(String::valueOf));
         typeToFunction.put(ActionScriptParameterDefinition.VMT_CURRENT_NAME,
             action -> getCurrentSE(action).map(EntityDTO::getDisplayName));
-        // Use the UUID for the internal name. TODO: discuss if this matches what the existing scripts expect.
+        // Use the OID for the internal name. The customer needs to be able to use this ID to
+        // find the entity in the API.
         typeToFunction.put(ActionScriptParameterDefinition.VMT_NEW_INTERNAL,
-            action -> getNewSE(action).map(EntityDTO::getId));
+            action -> getNewSE(action)
+                .map(EntityDTO::getTurbonomicInternalId)
+                .map(String::valueOf));
         typeToFunction.put(ActionScriptParameterDefinition.VMT_NEW_NAME,
             action -> getNewSE(action).map(EntityDTO::getDisplayName));
-        // Use the UUID for the internal name. TODO: discuss if this matches what the existing scripts expect.
+        // Use the OID for the internal name. The customer needs to be able to use this ID to
+        // find the entity in the API.
         typeToFunction.put(ActionScriptParameterDefinition.VMT_TARGET_INTERNAL,
-            action -> getTargetSE(action).map(EntityDTO::getId));
+            action -> getTargetSE(action)
+                .map(EntityDTO::getTurbonomicInternalId)
+                .map(String::valueOf));
         typeToFunction.put(ActionScriptParameterDefinition.VMT_TARGET_NAME,
             action -> getTargetSE(action).map(EntityDTO::getDisplayName));
+        // This needs to be the 3rd party, external id that the discovering probe provided.
         typeToFunction.put(ActionScriptParameterDefinition.VMT_TARGET_UUID,
             action -> getTargetSE(action).map(EntityDTO::getId));
 
@@ -125,7 +147,7 @@ public class ActionScriptParameterMapper {
     }
 
     /**
-     * Try to map a value to this parameter, from the supplied ActionExecutionDTO
+     * Try to map a value to this parameter, from the supplied ActionExecutionDTO.
      *
      * @param parameter the name of a script parameter that needs a value mapped
      * @param actionExecutionDTO containing information about the action being executed,
@@ -185,4 +207,5 @@ public class ActionScriptParameterMapper {
         }
         return Optional.empty();
     }
+
 }

@@ -40,16 +40,16 @@ import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
- * Convert topology processor's entity DTOs to entity DTOs used by SDK probes
+ * Convert topology processor's entity DTOs to entity DTOs used by SDK probes.
  *
- * This conversion is primarily needed during action execution, when data about entities is being
- * sent back to the probes as part of the action execution request.
+ * <p>This conversion is primarily needed during action execution, when data about entities is being
+ * sent back to the probes as part of the action execution request.</p>
  *
- * Since the conversion from SDK EntityDTO to TopologyEntityDTO is lossy, the TopologyEntityDTO
+ * <p>Since the conversion from SDK EntityDTO to TopologyEntityDTO is lossy, the TopologyEntityDTO
  * is not sufficient input to perform the conversion back to an SDK EntityDTO.
  * Raw entity data from the entity store will be used to supplement the data contained in an
  * TopologyEntityDTO being converted. Additionally, the target store will be used to appropriately
- * set the namespace and target type within the entity properties.
+ * set the namespace and target type within the entity properties.</p>
  *
  */
 public class TopologyToSdkEntityConverter {
@@ -61,17 +61,25 @@ public class TopologyToSdkEntityConverter {
     private static final String PROBE_TYPE_OTHER = "OTHER";
 
     /**
-     * For retrieving the raw entityDTO(s) related to a TopologyEntityDTO
+     * For retrieving the raw entityDTO(s) related to a TopologyEntityDTO.
      */
     private final EntityStore entityStore;
 
     /**
-     * For looking up the name/address and type of a target
+     * For looking up the name/address and type of a target.
      */
     private final TargetStore targetStore;
 
     private final GroupScopeResolver groupScopeResolver;
 
+    /**
+     * Creates an instance of TopologyToSdkEntityConverter.
+     *
+     * @param entityStore The store for getting information about repository entities.
+     * @param targetStore The store for getting information about targets.
+     * @param groupScopeResolver The utility to get group scope information from a probe's account
+     *                           definition list.
+     */
     public TopologyToSdkEntityConverter(@Nonnull final EntityStore entityStore,
                                         @Nonnull final TargetStore targetStore,
                                         @Nonnull GroupScopeResolver groupScopeResolver) {
@@ -81,13 +89,13 @@ public class TopologyToSdkEntityConverter {
     }
 
     /**
-     * Convert a topology entity DTO to an SDK entity DTO (used by SDK probes)
+     * Convert a topology entity DTO to an SDK entity DTO (used by SDK probes).
      *
-     * Since the conversion from SDK EntityDTO to TopologyEntityDTO is lossy, the TopologyEntityDTO
+     * <p>Since the conversion from SDK EntityDTO to TopologyEntityDTO is lossy, the TopologyEntityDTO
      * is not sufficient input to perform the conversion back to an SDK EntityDTO.
      * Raw entity data from the entity store will be used to supplement the data contained in an
      * TopologyEntityDTO being converted. Additionally, the target store will be used to
-     * appropriately set the namespace and target type within the entity properties.
+     * appropriately set the namespace and target type within the entity properties.</p>
      *
      * @param topologyEntityDTO a topology entity DTO, representing the stitched data for an entity
      * @return an SDK entity DTO (used by SDK probes)
@@ -103,9 +111,9 @@ public class TopologyToSdkEntityConverter {
         final long entityOid = topologyEntityDTO.getOid();
         final Optional<Entity> optRawEntity = entityStore.getEntity(entityOid);
         if (!optRawEntity.isPresent()) {
-            throw new EntityConversionException("Conversion of entity " + entityOid +
-                "failed since no matching entity could be found in the store of raw " +
-                "discovered entity data.");
+            throw new EntityConversionException("Conversion of entity " + entityOid
+                + "failed since no matching entity could be found in the store of raw "
+                + "discovered entity data.");
         }
         final Entity rawEntity = optRawEntity.get();
         final EntityDTO prototype;
@@ -129,11 +137,13 @@ public class TopologyToSdkEntityConverter {
         // Add additional entity properties based on the stitched data
         builder.addAllEntityProperties(getAllTargetSpecificEntityProperties(topologyEntityDTO, rawEntity));
 
+        builder.setTurbonomicInternalId(entityOid);
+
         return builder.build();
     }
 
     /**
-     * Create a list of SDK CommodityDTOs from a TopologyEntityDTO (and its CommoditySoldDTOs)
+     * Create a list of SDK CommodityDTOs from a TopologyEntityDTO (and its CommoditySoldDTOs).
      *
      * @param topologyEntityDTO the topology entity whose commodities sold will be converted
      * @return a list of SDK CommodityDTOs from a TopologyEntityDTO (and its CommoditySoldDTOs)
@@ -145,7 +155,7 @@ public class TopologyToSdkEntityConverter {
     }
 
     /**
-     * Create a list of SDK CommitityBoughts from a TopologyEntityDTO (and its CommodityBoughtDTOs)
+     * Create a list of SDK CommitityBoughts from a TopologyEntityDTO (and its CommodityBoughtDTOs).
      *
      * @param topologyEntityDTO the topology entity whose commodities bought will be converted
      * @return a list of SDK CommitityBoughts from a TopologyEntityDTO (and its CommodityBoughtDTOs)
@@ -157,7 +167,39 @@ public class TopologyToSdkEntityConverter {
     }
 
     /**
-     * Convert a single XL CommoditySoldDTO into an SDK CommodityDTO
+     * Convert an XL CommoditiesBoughtFromProvider into an SDK CommodityBought.
+     *
+     * @param commoditiesBoughtFromProvider the XL-domain CommoditiesBoughtFromProvider to convert
+     * @return an SDK CommodityBought
+     */
+    private CommodityBought newCommodityBought(
+        final CommoditiesBoughtFromProvider commoditiesBoughtFromProvider) {
+        CommodityBought.Builder builder = CommodityBought.newBuilder();
+
+        // Retrieve the provider OID and convert it to a UUID that is meaningful to the probes
+        final long providerOID = commoditiesBoughtFromProvider.getProviderId();
+
+        final String providerUUID = entityStore.chooseEntityDTO(providerOID).getId();
+        builder.setProviderId(providerUUID);
+
+        // Convert the list of CommodityBoughtDTOs into a list of CommodityDTOs
+        commoditiesBoughtFromProvider.getCommodityBoughtList().stream()
+            .map(TopologyToSdkEntityConverter::newCommodityDTO)
+            .forEach(commodityDTO -> {
+                builder.addBought(commodityDTO);
+            });
+
+        // Convert the provider type, if present
+        if (commoditiesBoughtFromProvider.hasProviderEntityType()) {
+            builder.setProviderType(EntityType.forNumber(
+                commoditiesBoughtFromProvider.getProviderEntityType()));
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * Convert a single XL CommoditySoldDTO into an SDK CommodityDTO.
      *
      * @param commoditySoldDTO the XL-domain CommoditySoldDTO to be converted
      * @return an SDK CommodityDTO
@@ -236,37 +278,6 @@ public class TopologyToSdkEntityConverter {
         // fields when originally converted from a CommodityDTO.
 
         // Scaling factor and max quantity are also not mapped, due to no corresponding setting
-
-        return builder.build();
-    }
-
-    /**
-     * Convert an XL CommoditiesBoughtFromProvider into an SDK CommodityBought
-     *
-     * @param commoditiesBoughtFromProvider the XL-domain CommoditiesBoughtFromProvider to convert
-     * @return an SDK CommodityBought
-     */
-    private CommodityBought newCommodityBought(
-            final CommoditiesBoughtFromProvider commoditiesBoughtFromProvider) {
-        CommodityBought.Builder builder = CommodityBought.newBuilder();
-
-        // Retrieve the provider OID and convert it to a UUID that is meaningful to the probes
-        final long providerOID = commoditiesBoughtFromProvider.getProviderId();
-
-        final String providerUUID = entityStore.chooseEntityDTO(providerOID).getId();
-        builder.setProviderId(providerUUID);
-
-        // Convert the list of CommodityBoughtDTOs into a list of CommodityDTOs
-        commoditiesBoughtFromProvider.getCommodityBoughtList().stream()
-                .map(TopologyToSdkEntityConverter::newCommodityDTO)
-                .forEach(commodityDTO -> {
-                    builder.addBought(commodityDTO);});
-
-        // Convert the provider type, if present
-        if (commoditiesBoughtFromProvider.hasProviderEntityType()) {
-            builder.setProviderType(EntityType.forNumber(
-                    commoditiesBoughtFromProvider.getProviderEntityType()));
-        }
 
         return builder.build();
     }
@@ -383,17 +394,18 @@ public class TopologyToSdkEntityConverter {
      * The entity properties will be given a namespace relating to the target: the name/address of
      * the target (if available) or else the id of the target.
      *
-     * Entity properties provide a mechanism to store arbitrary data that is meaningful to probes,
+     * <p>Entity properties provide a mechanism to store arbitrary data that is meaningful to probes,
      * but is not meaningful (e.g.) to the Market. A prime example of this is a UUID, which is needed
      * for the probe to identify an entity, but not useful within XL. We don't have fields for this
      * data in our internal model, so we store this data as namespace-key-value triplets that are
-     * sent back to the probes when executing actions.
+     * sent back to the probes when executing actions.</p>
      *
-     * For each target that generated entity properties for an entity, we add a special property
+     * <p>For each target that generated entity properties for an entity, we add a special property
      * called with a key "TARGET_TYPE". The value will be the ProbeType that generated the properties,
      * and the namespace will match the namespace of the rest of the properties generated by that
      * target. A probe simply has to search for a property with key of "TARGET_TYPE" and value
-     * matching its own ProbeType, and then it will know in which namespace its properties are stored.
+     * matching its own ProbeType, and then it will know in which namespace its properties are
+     * stored.</p>
      *
      * @param topologyEntityDTO original topology dto
      * @param targetId the ID of the target to fetch entity properties for
@@ -436,7 +448,7 @@ public class TopologyToSdkEntityConverter {
 
     private String getTargetType(final Long targetId) {
         Optional<SDKProbeType> probeType = targetStore.getProbeTypeForTarget(targetId);
-        if ( ! probeType.isPresent()) {
+        if ( !probeType.isPresent()) {
             // We allow 3rd-party probes, so treat any unrecognized probes as probe type "OTHER"
             return PROBE_TYPE_OTHER;
         }

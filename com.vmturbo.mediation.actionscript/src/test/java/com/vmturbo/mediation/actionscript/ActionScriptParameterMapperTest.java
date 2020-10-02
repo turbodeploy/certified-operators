@@ -2,7 +2,9 @@ package com.vmturbo.mediation.actionscript;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.junit.Assert;
@@ -28,40 +30,67 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class ActionScriptParameterMapperTest {
 
     /**
-     * Expect no exceptions thrown by default (can override in individual tests)
+     * Expect no exceptions thrown by default (can override in individual tests).
      */
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 
     /**
-     * Test mapping a single parameter--VMT_TARGET_UUID
+     * Test mapping parameters: VMT_TARGET_UUID, VMT_TARGET_INTERNAL, VMT_CURRENT_INTERNAL, and
+     * VMT_NEW_INTERNAL.
      */
     @Test
-    public void testMappingSingleParameter() {
+    public void testMappingParameters() {
         // Create a representation of the action in this test
         final ActionExecutionDTO actionExecutionDTO = createSampleAction();
         // Create a list of parameters representing all the default parameters
-        final List<Parameter> parameters = Arrays.asList(Parameter.newBuilder()
-                .setName(ActionScriptParameterDefinition.VMT_TARGET_UUID.name())
-                .setType(ActionScriptDiscovery.WORKFLOW_PARAMETER_TYPE)
-                .build());
+        final List<Parameter> parameters = Arrays.asList(
+            parameter(ActionScriptParameterDefinition.VMT_TARGET_UUID),
+            parameter(ActionScriptParameterDefinition.VMT_TARGET_INTERNAL),
+            parameter(ActionScriptParameterDefinition.VMT_CURRENT_INTERNAL),
+            parameter(ActionScriptParameterDefinition.VMT_NEW_INTERNAL)
+        );
         // Test the mapping function
-        final Set<ActionScriptParameter> actionScriptParameters =
-            ActionScriptParameterMapper.mapParameterValues(actionExecutionDTO, parameters);
+        final Map<String, ActionScriptParameter> actionScriptParameters =
+            ActionScriptParameterMapper.mapParameterValues(actionExecutionDTO, parameters).stream()
+                .collect(Collectors.toMap(ActionScriptParameter::getName, Function.identity()));
         // Validate the results
-        Assert.assertEquals(1, actionScriptParameters.size());
-        // Extract the single resulting parameter
-        ActionScriptParameter actionScriptParameter = actionScriptParameters.stream().findAny().get();
+        Assert.assertEquals(4, actionScriptParameters.size());
+        checkParameter(ActionScriptParameterDefinition.VMT_TARGET_UUID.name(),
+            actionExecutionDTO.getActionItem(0).getTargetSE().getId(),
+            actionScriptParameters);
+        checkParameter(ActionScriptParameterDefinition.VMT_TARGET_INTERNAL.name(),
+            actionExecutionDTO.getActionItem(0).getTargetSE().getTurbonomicInternalId(),
+            actionScriptParameters);
+        checkParameter(ActionScriptParameterDefinition.VMT_CURRENT_INTERNAL.name(),
+            actionExecutionDTO.getActionItem(0).getCurrentSE().getTurbonomicInternalId(),
+            actionScriptParameters);
+        checkParameter(ActionScriptParameterDefinition.VMT_NEW_INTERNAL.name(),
+            actionExecutionDTO.getActionItem(0).getNewSE().getTurbonomicInternalId(),
+            actionScriptParameters);
+    }
+
+    private static Parameter parameter(ActionScriptParameterDefinition definition) {
+        return Parameter.newBuilder()
+            .setName(definition.name())
+            .setType(ActionScriptDiscovery.WORKFLOW_PARAMETER_TYPE)
+            .build();
+    }
+
+    private void checkParameter(String name, long expectedValue, Map<String, ActionScriptParameter> params) {
+        checkParameter(name, String.valueOf(expectedValue), params);
+    }
+
+    private void checkParameter(String name, String expectedValue, Map<String, ActionScriptParameter> params) {
+        ActionScriptParameter actionScriptParameter = params.get(name);
         // Check that the parameter has the right name
-        Assert.assertEquals(ActionScriptParameterDefinition.VMT_TARGET_UUID.name(),
-            actionScriptParameter.getName());
+        Assert.assertEquals(name, actionScriptParameter.getName());
         // Check that the parameter has the right value
-        String expectedValue = actionExecutionDTO.getActionItem(0).getTargetSE().getId();
         Assert.assertEquals(expectedValue, actionScriptParameter.getValue());
     }
 
     /**
-     * Test mapping all of the parameters defined in {@link ActionScriptParameterDefinition}
+     * Test mapping all of the parameters defined in {@link ActionScriptParameterDefinition}.
      */
     @Test
     public void testMappingAllDefaultParameters() {
@@ -80,7 +109,7 @@ public class ActionScriptParameterMapperTest {
         final Set<ActionScriptParameter> actionScriptParameters =
             ActionScriptParameterMapper.mapParameterValues(actionExecutionDTO, parameters);
         // Validate the results
-        // There are currently two paramters whose values cannot be mapped (VMT_ACTION_INTERNAL and
+        // There are currently two parameters whose values cannot be mapped (VMT_ACTION_INTERNAL and
         // VMT_ACTION_NAME). Therefore, all parameters except two should be mapped.
         // TODO: Update this when the mapping support changes
         final int expectedParametersCount = ActionScriptParameterDefinition.values().length - 2;
@@ -92,7 +121,7 @@ public class ActionScriptParameterMapperTest {
     }
 
     /**
-     * Test mapping a single parameter--VMT_ACTION_NAME, which has no mapping function defined
+     * Test mapping a single parameter--VMT_ACTION_NAME, which has no mapping function defined.
      */
     @Test
     public void testFailedMappingOfMandatoryParameter() {
@@ -113,7 +142,7 @@ public class ActionScriptParameterMapperTest {
     }
 
     /**
-     * Test mapping a single parameter--VMT_ACTION_NAME, which has no mapping function defined
+     * Test mapping a single parameter--VMT_ACTION_NAME, which has no mapping function defined.
      */
     @Test
     public void testFailedMappingOfUnrecognizedParameter() {

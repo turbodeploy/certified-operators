@@ -24,9 +24,7 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]executor[/\\]SignalingSshChannelExec.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]executor[/\\]SshScriptExecutor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]parameter[/\\]ActionScriptParameterDefinition.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]parameter[/\\]ActionScriptParameterMapper.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]ActionScriptDiscoveryTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]ActionScriptParameterMapperTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]ActionScriptTestBase.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]ApacheSshdBuilder.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]mediation[/\\]actionscript[/\\]SystemSshdLauncher.java" />
