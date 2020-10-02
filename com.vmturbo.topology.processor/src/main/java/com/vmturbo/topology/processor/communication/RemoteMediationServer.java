@@ -285,6 +285,8 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                     message.getMessageID(),
                     new MessageAnticipator(transport, responseHandler));
             }
+            getLogger().trace("Sending message to {} through {}", target::getNoSecretDto,
+                () -> transport);
             transport.send(message);
             success = true;
         } finally {
