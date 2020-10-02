@@ -224,6 +224,15 @@ public class GroupRpcService extends GroupServiceImplBase {
             StreamObserver<Grouping> observer)
             throws StoreOperationException, InterruptedException {
         final StopWatch stopWatch = new StopWatch("GetListOfGroups");
+
+        // Look up any temp groups explicitly specified in the request.
+        // This is fast, so we do it before anything.
+        if (request.getGroupFilter().getIncludeTemporary()) {
+            request.getGroupFilter().getIdList().forEach(id -> {
+                tempGroupCache.getGrouping(id).ifPresent(observer::onNext);
+            });
+        }
+
         stopWatch.start("replace group filter");
         final boolean resolveGroupBasedFilters =
             request.getReplaceGroupPropertyWithGroupMembershipFilter();

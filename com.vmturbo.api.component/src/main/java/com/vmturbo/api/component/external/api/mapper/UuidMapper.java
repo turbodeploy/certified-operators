@@ -346,7 +346,10 @@ public class UuidMapper implements RepositoryListener {
 
             try {
                 final List<GroupAndMembers> groupAndMembers = groupMemberRetriever.getGroupsWithMembers(GetGroupsRequest.newBuilder()
-                        .setGroupFilter(GroupFilter.newBuilder().addAllId(map.keySet()))
+                        .setGroupFilter(GroupFilter.newBuilder()
+                            .addAllId(map.keySet())
+                            .setIncludeTemporary(true)
+                            .setIncludeHidden(true))
                         .build());
                 if (!groupAndMembers.isEmpty()) {
                     Set<Long> allMembers = groupAndMembers.stream()

@@ -517,6 +517,26 @@ public class GroupRpcServiceTest {
     }
 
     /**
+     * Test that temporary groups get returned when requested in the "getGroups" method.
+     */
+    @Test
+    public void testGetGroupsIncludeTempGroup() {
+        final Grouping firstGrouping = createGrouping(1L, Collections.singleton(11L));
+        when(temporaryGroupCache.getGrouping(1L)).thenReturn(Optional.of(firstGrouping));
+        final GetGroupsRequest genericGroupsRequest = GetGroupsRequest
+            .newBuilder()
+            .setGroupFilter(GroupFilter.newBuilder()
+                .addId(firstGrouping.getId())
+                .setIncludeTemporary(true))
+            .build();
+        final StreamObserver<GroupDTO.Grouping> mockGroupingObserver =
+            Mockito.mock(StreamObserver.class);
+        groupRpcService.getGroups(genericGroupsRequest, mockGroupingObserver);
+        Mockito.verify(mockGroupingObserver).onNext(firstGrouping);
+        Mockito.verify(mockGroupingObserver).onCompleted();
+    }
+
+    /**
      * Test when user request "all" groups (without certain groupIds) but have access only to
      * entities from one group. In this case will be filtered results and returned only
      * accessible ones.

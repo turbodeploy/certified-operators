@@ -585,7 +585,9 @@ public class UuidMapperTest {
             .build();
         when(groupRetriever.getGroupsWithMembers(GetGroupsRequest.newBuilder()
             .setGroupFilter(GroupFilter.newBuilder()
-                .addId(789))
+                .addId(789)
+                .setIncludeHidden(true)
+                .setIncludeTemporary(true))
             .build())).thenReturn(
                 Collections.singletonList(ImmutableGroupAndMembers.builder().group(grouping)
                         .members(Collections.emptyList()).entities(Collections.emptyList()).build()));
@@ -607,7 +609,9 @@ public class UuidMapperTest {
             .build();
         when(groupRetriever.getGroupsWithMembers(GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder()
-                        .addId(13579))
+                    .setIncludeTemporary(true)
+                    .setIncludeHidden(true)
+                    .addId(13579))
                 .build())).thenReturn(
                 Collections.singletonList(ImmutableGroupAndMembers.builder().group(grouping2)
                         .members(Collections.emptyList()).entities(Collections.emptyList()).build()));
