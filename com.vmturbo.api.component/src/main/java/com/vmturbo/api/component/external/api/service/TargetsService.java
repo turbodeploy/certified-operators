@@ -1070,6 +1070,7 @@ public class TargetsService implements ITargetsService {
         inputFieldDTO.setDisplayName(entry.getDisplayName());
         inputFieldDTO.setIsMandatory(entry.isRequired());
         inputFieldDTO.setIsSecret(entry.isSecret());
+        inputFieldDTO.setIsMultiline(entry.isMultiline());
         inputFieldDTO.setValueType(convert(entry.getValueType()));
         inputFieldDTO.setDefaultValue(entry.getDefaultValue());
         inputFieldDTO.setDescription(entry.getDescription());

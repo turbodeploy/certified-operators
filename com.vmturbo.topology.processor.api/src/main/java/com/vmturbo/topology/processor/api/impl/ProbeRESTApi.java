@@ -50,6 +50,11 @@ public class ProbeRESTApi {
         private final Boolean secret;
 
         @ApiModelProperty(
+            value = "If true, this field can have multiline values",
+            required = true)
+        private final Boolean multiline;
+
+        @ApiModelProperty(
                         value = "Type of value, that should be stored in this field",
                         required = true)
         private final AccountFieldValueType valueType;
@@ -82,6 +87,7 @@ public class ProbeRESTApi {
             this.description = null;
             this.required = null;
             this.secret = null;
+            this.multiline = null;
             this.valueType = null;
             this.defaultValue = null;
             this.allowedValues = Collections.emptyList();
@@ -91,7 +97,7 @@ public class ProbeRESTApi {
 
         public AccountField(@Nonnull final String name, @Nonnull final String displayName,
                             @Nonnull final String description, final boolean required,
-                            final boolean secret, AccountFieldValueType valueType,
+                            final boolean secret, boolean multiline, AccountFieldValueType valueType,
                             @Nullable String defaultValue, @Nullable List<String> allowedValues,
                             final String verificationRegexp,
                             @Nullable Pair<String, String> dependencyField) {
@@ -100,6 +106,7 @@ public class ProbeRESTApi {
             this.description = Objects.requireNonNull(description);
             this.required = required;
             this.secret = secret;
+            this.multiline = multiline;
             this.valueType = valueType;
             this.defaultValue = defaultValue;
             this.allowedValues = allowedValues;
@@ -130,6 +137,11 @@ public class ProbeRESTApi {
         @Override
         public boolean isSecret() {
             return secret;
+        }
+
+        @Override
+        public boolean isMultiline() {
+            return multiline;
         }
 
         @Override

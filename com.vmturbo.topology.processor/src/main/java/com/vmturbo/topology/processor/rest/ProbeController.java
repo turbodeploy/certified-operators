@@ -82,7 +82,8 @@ public final class ProbeController {
         return new AccountField(
                     wrapper.getName(), wrapper.getDisplayName(),
                     wrapper.getDescription(), wrapper.isRequired(), wrapper.isSecret(),
-                    wrapper.getValueType(), wrapper.getDefaultValue(), wrapper.getAllowedValues(),
+            wrapper.isMultiline(), wrapper.getValueType(), wrapper.getDefaultValue(),
+            wrapper.getAllowedValues(),
                 wrapper.getVerificationRegex(), accountDefEntry.hasDependencyKey() ?
                 Pair.create(accountDefEntry.getDependencyKey(),
                         accountDefEntry.getDependencyValue()) : null);

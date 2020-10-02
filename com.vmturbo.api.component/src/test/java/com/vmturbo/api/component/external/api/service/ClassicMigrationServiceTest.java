@@ -160,7 +160,8 @@ public class ClassicMigrationServiceTest {
     }
 
     private static AccountDefEntry createAccountDef(String key, AccountFieldValueType valueType) {
-        return new AccountField(key, key + "-name", key + "-description", true, false, valueType,
+        return new AccountField(key, key + "-name", key + "-description", true, false, false,
+            valueType,
             null, Collections.emptyList(), ".*", null);
     }
 }
