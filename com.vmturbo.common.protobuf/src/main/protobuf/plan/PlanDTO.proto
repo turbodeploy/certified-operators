@@ -201,7 +201,7 @@ message OptionalPlanInstance {
 
 // Options for looking up plan instances.
 message GetPlansOptions {
-    // Scenario uuids tied to plans
+    // "Get plans related to the provided scenario id"
     repeated int64 scenario_id = 1;
 }
 
