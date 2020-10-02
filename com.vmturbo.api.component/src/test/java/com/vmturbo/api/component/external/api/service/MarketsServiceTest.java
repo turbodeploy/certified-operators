@@ -10,6 +10,7 @@ import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,7 +29,6 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 
-import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
@@ -59,6 +59,7 @@ import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -108,7 +109,6 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.AtMostNPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTO.SinglePolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
@@ -413,7 +413,7 @@ public class MarketsServiceTest {
                 .build()).when(planBackend).getPlan(any());
         doReturn(plan1).when(planBackend).deletePlan(any());
 
-        marketsService.deleteMarketByUuid("1");
+        marketsService.deleteMarketByUuid("1", false);
 
         final ArgumentCaptor<MarketNotification> notificationCaptor =
                 ArgumentCaptor.forClass(MarketNotification.class);
@@ -423,6 +423,68 @@ public class MarketsServiceTest {
         assertEquals("1", notification.getMarketId());
         assertEquals(StatusNotification.Status.DELETED,
                 notification.getStatusNotification().getStatus());
+    }
+
+    /**
+     * Tests that successfully deleting a "market" then tries to delete scenario.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testDeleteMarketAndScenarioDeletion() throws Exception {
+        final PlanInstance plan1 = PlanInstance.newBuilder(planDefault).setPlanId(1).build();
+        //GIVEN
+        doReturn(OptionalPlanInstance.newBuilder().setPlanInstance(plan1)
+                .build()).when(planBackend).getPlan(any());
+        doReturn(plan1).when(planBackend).deletePlan(any());
+        doReturn(Collections.emptyList()).when(planBackend).getAllPlans(any());
+
+        //WHEN
+        marketsService.deleteMarketByUuid("1", true);
+
+        //THEN
+        Mockito.verify(scenarioBackend).deleteScenario(any());
+    }
+
+    /**
+     * Test that successfully deleting a "market", skip deleting scenario because tied to other plans.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testDeleteMarketCalledAndScenarioDeletionNotCalled() throws Exception {
+        //GIVEN
+        final PlanInstance plan1 = PlanInstance.newBuilder(planDefault).setPlanId(1).build();
+        doReturn(OptionalPlanInstance.newBuilder().setPlanInstance(plan1)
+                .build()).when(planBackend).getPlan(any());
+        doReturn(plan1).when(planBackend).deletePlan(any());
+        doReturn(Collections.singletonList(PlanInstance.getDefaultInstance())).when(planBackend).getAllPlans(any());
+
+        //WHEN
+        marketsService.deleteMarketByUuid("1", true);
+
+        //THEN
+        verify(scenarioBackend, never()).deleteScenario(any());
+    }
+
+    /**
+     * Test that successfully deleting a "market", skip deleting scenario because not requested.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testDeleteMarketCalledAndScenarioDeletionNotCalledWhenNotRequested() throws Exception {
+        //GIVEN
+        final PlanInstance plan1 = PlanInstance.newBuilder(planDefault).setPlanId(1).build();
+        doReturn(OptionalPlanInstance.newBuilder().setPlanInstance(plan1)
+                .build()).when(planBackend).getPlan(any());
+        doReturn(plan1).when(planBackend).deletePlan(any());
+
+        //WHEN
+        marketsService.deleteMarketByUuid("1", false);
+
+        //THEN
+        verify(scenarioBackend, never()).deleteScenario(any());
     }
 
     /**

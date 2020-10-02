@@ -779,11 +779,12 @@ public class MarketsService implements IMarketsService {
      * Get real-time Actions by Market.
      *
      * @param uuid              uuid of the Market
+     * @param deleteScenario    delete scenario if market plan is being deleted
      * @return {@link ActionPaginationResponse}
      * @throws Exception
      */
     @Override
-    public MarketApiDTO deleteMarketByUuid(String uuid) throws Exception {
+    public MarketApiDTO deleteMarketByUuid(String uuid, boolean deleteScenario) throws Exception {
         logger.debug("Deleting market with UUID: {}", uuid);
         // TODO (roman, June 16 2017) OM-20328: Plan deletion is currently synchronous in XL.
         // The delete plan call won't return until the plan actually got deleted. The API
@@ -820,6 +821,20 @@ public class MarketsService implements IMarketsService {
                 // Delete just the plan, not in a project, like OCP.
                 deletePlanInstance(oldPlanInstance.getPlanId(), null);
             }
+
+            if (deleteScenario && oldPlanInstance.getScenario().hasId()) {
+                //Deleting plan scenario
+                Long scenarioId = oldPlanInstance.getScenario().getId();
+                final Iterator<PlanInstance> plans = planRpcService.getAllPlans(
+                        GetPlansOptions.newBuilder()
+                                .addScenarioId(scenarioId)
+                                .build());
+                if (!plans.hasNext()) {
+                    //If the scenario is not connected to any other plans, safe to delete
+                    deleteScenario(scenarioId, oldPlanInstance.getPlanId());
+                }
+            }
+
             uiNotificationChannel.broadcastMarketNotification(MarketNotification.newBuilder()
                     .setMarketId(uuid)
                     .setStatusNotification(StatusNotification.newBuilder()

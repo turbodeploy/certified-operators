@@ -25,7 +25,7 @@
         <ux.mt.branch.version>8.0.1-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.42-SNAPSHOT</com.vmturbo.api.version>
+        <com.vmturbo.api.version>3.1.43-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.4.0</cpu.capacity.version>
@@ -346,7 +346,6 @@
             <id>cost</id>
             <modules>
                 <module>../com.vmturbo.cloud.commitment.analysis</module>
-                <module>../com.vmturbo.cloud.common</module>
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.cost.calculation</module>
                 <module>../com.vmturbo.cost.component</module>
@@ -383,12 +382,7 @@
                 <module>../com.vmturbo.licensing</module>
             </modules>
         </profile>
-        <profile>
-            <id>deserializer</id>
-            <modules>
-                <module>../com.vmturbo.discovery.deserializer</module>
-            </modules>
-        </profile>
+
         <profile>
             <id>all-separate-probes</id>
             <modules>
@@ -953,7 +947,6 @@
                 <module>../com.vmturbo.communication.matrix</module>
                 <module>../com.vmturbo.trax</module>
                 <module>../com.vmturbo.cloud.commitment.analysis</module>
-                <module>../com.vmturbo.cloud.common</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
                 <module>../com.vmturbo.components</module>
@@ -1043,7 +1036,6 @@
                 <module>../com.vmturbo.communication.matrix</module>
                 <module>../com.vmturbo.trax</module>
                 <module>../com.vmturbo.cloud.commitment.analysis</module>
-                <module>../com.vmturbo.cloud.common</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
                 <module>../com.vmturbo.components</module>
@@ -1153,14 +1145,12 @@
                 <module>../com.vmturbo.communication.matrix</module>
                 <module>../com.vmturbo.trax</module>
                 <module>../com.vmturbo.cloud.commitment.analysis</module>
-                <module>../com.vmturbo.cloud.common</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
                 <module>../com.vmturbo.consul</module>
                 <module>../com.vmturbo.components</module>
                 <module>../com.vmturbo.components.common</module>
                 <module>../com.vmturbo.cost.calculation</module>
-                <module>../com.vmturbo.discovery.deserializer</module>
                 <module>../com.vmturbo.reserved.instance.coverage.allocator</module>
                 <module>../com.vmturbo.sql.utils</module>
                 <module>../com.vmturbo.sql.test.utils</module>
@@ -2150,11 +2140,6 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>cloud-commitment-analysis</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.vmturbo</groupId>
-                <artifactId>cloud-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

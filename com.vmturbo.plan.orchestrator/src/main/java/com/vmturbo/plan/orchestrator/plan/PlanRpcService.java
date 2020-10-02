@@ -1,8 +1,10 @@
 package com.vmturbo.plan.orchestrator.plan;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -21,7 +23,6 @@ import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import org.springframework.context.ApplicationContext;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
@@ -35,9 +36,6 @@ import com.vmturbo.common.protobuf.cost.Cost.UpdatePlanBuyReservedInstanceCostsR
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlansOptions;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
@@ -46,6 +44,9 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.UpdatePlanRequest;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -54,9 +55,9 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDao;
 
@@ -503,6 +504,19 @@ public class PlanRpcService extends PlanServiceImplBase {
     @Override
     public void getAllPlans(GetPlansOptions request, StreamObserver<PlanInstance> responseObserver) {
         logger.debug("Retrieving all the existing plans...");
+
+        if (!request.getScenarioIdList().isEmpty()) {
+            //Filter plans by scenarioId
+            //Currently used to check if any plans are tied to scenarios that we wish to delete.
+            Set<Long> scenarioIds = new HashSet<Long>(request.getScenarioIdList());
+            planDao.getAllPlanInstances().stream()
+                    .filter(planInstance -> planInstance.getScenario().hasId() && scenarioIds.contains(planInstance.getScenario().getId()))
+                    .filter(planInstance -> PlanDTOUtil.isDisplayablePlan(planInstance.getProjectType()))
+                    .forEach(responseObserver::onNext);
+            responseObserver.onCompleted();
+            return;
+        }
+
         planDao.getAllPlanInstances().stream()
             // When listing plans, return only user displayable plans.
             .filter(planInstance -> PlanDTOUtil.isDisplayablePlan(planInstance.getProjectType()))
