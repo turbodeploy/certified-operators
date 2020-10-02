@@ -13,11 +13,9 @@ import javax.annotation.Nullable;
 import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal;
@@ -86,33 +84,29 @@ public class FirstPassCoverageFilter {
      *
      * @return A filtered {@link Stream} of {@link TopologyEntityDTO} instances
      */
-    public Stream<Long> getCoverageEntities() {
+    public Stream<TopologyEntityDTO> getCoverableEntities() {
 
-        final Predicate<Long> entityDTOFilter = entityFilter
+        final Predicate<TopologyEntityDTO> entityDTOFilter = entityFilter
                 .map(ef -> {
                     final Set<Long> entityIdSet = new HashSet(ef.getEntityIdList());
-                    return (Predicate<Long>)(entityOid) ->
-                            entityIdSet.contains(entityOid);
-                }).orElse(Predicates.alwaysTrue());
+                    return (Predicate<TopologyEntityDTO>)(entity) ->
+                            entityIdSet.contains(entity.getOid()); })
+                .orElse(Predicates.alwaysTrue());
 
-        final Predicate<Long> entityAccountFilter = accountFilter
+        final Predicate<TopologyEntityDTO> entityAccountFilter = accountFilter
                 .map(af -> {
                     final Set<Long> accountIdSet = new HashSet<>(af.getAccountIdList());
-                    return (Predicate<Long>)(entityOid) ->
-                            coverageTopology.getAggregationInfo(entityOid)
-                                    .map(aggregationInfo -> accountIdSet.contains(aggregationInfo.accountOid()))
-                                    .orElse(false);
-                }).orElse(Predicates.alwaysTrue());
+                    return (Predicate<TopologyEntityDTO>)(entity) ->
+                            coverageTopology.getOwner(entity.getOid())
+                                    .map(owner -> accountIdSet.contains(owner.getOid()))
+                                    .orElse(false); })
+                .orElse(Predicates.alwaysTrue());
 
-        return SUPPORTED_COVERABLE_ENTITY_TYPES.stream()
-                .map(coverageTopology::getEntitiesOfType)
-                .flatMap(Set::stream)
+        return coverageTopology.getAllEntitiesOfType(SUPPORTED_COVERABLE_ENTITY_TYPES)
+                .stream()
                 .filter(entityDTOFilter)
                 .filter(entityAccountFilter)
-                .filter(entityOid -> coverageTopology.getEntityInfo(entityOid)
-                        .map(entityInfo -> entityInfo.entityState() == EntityState.POWERED_ON)
-                        .orElse(false))
-                .filter(Predicates.not(coverageJournal::isEntityAtCapacity));
+                .filter(entity -> !coverageJournal.isEntityAtCapacity(entity.getOid()));
     }
 
     /**
@@ -129,8 +123,11 @@ public class FirstPassCoverageFilter {
      *
      * @return A filtered {@link Stream} of {@link ReservedInstanceBought} instances
      */
-    public Stream<ReservedInstanceAggregate> getReservedInstances() {
-        return coverageTopology.getAllRIAggregates().stream()
-                .filter(ri -> !coverageJournal.isReservedInstanceAtCapacity(ri.aggregateId()));
+    public Stream<ReservedInstanceBought> getReservedInstances() {
+        return coverageTopology.getAllReservedInstances().values().stream()
+                .filter(ri -> !coverageJournal.isReservedInstanceAtCapacity(ri.getId()))
+                .filter(ri -> coverageTopology.getSpecForReservedInstance(ri.getId())
+                        .map(riSpec -> !ReservedInstanceHelper.isExpired(ri, riSpec))
+                        .orElse(false));
     }
 }

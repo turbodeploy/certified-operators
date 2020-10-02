@@ -43,18 +43,18 @@ public class ReservedInstanceCoverageJournal {
 
     private final ReadWriteLock journalEntriesLock = new ReentrantReadWriteLock();
 
-    private final Map<Long, Double> entityCapacityByOid = new ConcurrentHashMap<>();
+    private final Map<Long, Long> entityCapacityByOid = new ConcurrentHashMap<>();
 
     private final CoverageTopology coverageTopology;
 
-    private final Map<Long, Double> commitmentCapacityByOid;
+    private final Map<Long, Long> riCapacityByOid;
 
     private ReservedInstanceCoverageJournal(@Nonnull Table<Long, Long, Double> coverages,
                                             @Nonnull CoverageTopology coverageTopology) {
 
         this.coverages = HashBasedTable.create(Objects.requireNonNull(coverages));
         this.coverageTopology = Objects.requireNonNull(coverageTopology);
-        this.commitmentCapacityByOid = coverageTopology.getCommitmentCapacityByOid();
+        this.riCapacityByOid = coverageTopology.getReservedInstanceCapacityByOid();
     }
 
     /**
@@ -157,7 +157,7 @@ public class ReservedInstanceCoverageJournal {
      */
     public double getUnallocatedCapacity(long riOid) {
 
-        final double capacity = commitmentCapacityByOid.getOrDefault(riOid, 0.0);
+        final long capacity = riCapacityByOid.getOrDefault(riOid, 0L);
 
         if (DoubleMath.fuzzyCompare(capacity, 0.0, TOLERANCE) > 0) {
             coveragesLock.readLock().lock();
@@ -193,15 +193,15 @@ public class ReservedInstanceCoverageJournal {
      */
     public double getEntityCapacity(long entityOid) {
         return entityCapacityByOid.computeIfAbsent(entityOid,
-                (oid) -> coverageTopology.getCoverageCapacityForEntity(entityOid));
+                (__) -> coverageTopology.getRICoverageCapacityForEntity(entityOid));
     }
 
     /**
-     * @param commitmentOid The OID of the target commitment
-     * @return The coverage capacity of the commitment. If the capacity is unknown, it defaults to 0
+     * @param riOid The OID of the target RI
+     * @return The coverage capacity of the RI. If the capacity is unknown, it defaults to 0
      */
-    public double getCloudCommitmentCapacity(long commitmentOid) {
-        return commitmentCapacityByOid.getOrDefault(commitmentOid, 0.0);
+    public long getReservedInstanceCapacity(long riOid) {
+        return riCapacityByOid.getOrDefault(riOid, 0L);
     }
 
     /**
@@ -245,7 +245,7 @@ public class ReservedInstanceCoverageJournal {
 
             coverages.columnKeySet().stream().forEach(riOid -> {
                 final double allocatedCoverage = getAllocatedCoverageAmount(riOid);
-                final double coverageCapacity = commitmentCapacityByOid.getOrDefault(riOid, 0.0);
+                final long coverageCapacity = riCapacityByOid.getOrDefault(riOid, 0L);
 
                 Verify.verify(DoubleMath.fuzzyCompare(allocatedCoverage, coverageCapacity, TOLERANCE) <= 0,
                         "Allocated coverage is greater than capacity " +

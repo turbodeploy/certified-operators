@@ -30,6 +30,8 @@ import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.dema
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyRegionalContext;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RegionalRIMatcherCache;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceInventoryMatcher;
+import com.vmturbo.reserved.instance.coverage.allocator.rules.RICoverageRuleConfig;
+import com.vmturbo.reserved.instance.coverage.allocator.rules.ReservedInstanceCoverageRulesFactory;
 
 /**
  * This calculator is responsible for merging recorded demand with a provided RI inventory, in order
@@ -193,7 +195,7 @@ public class RIBuyDemandCalculator {
 
 
     /**
-     * Applies RI inventory to a cluster, based on a set of rules from {@link StaticRICoverageRules}.
+     * Applies RI inventory to a cluster, based on a set of rules from {@link ReservedInstanceCoverageRulesFactory}.
      * Currently, the applicable coverage rules are determined by looking at the recorded location of
      * demand, with a zone indicating AWS, a region indicating Azure. This is a short-term solution, with
      * the expecation that these rules will be pushed to the service provider entity.
@@ -211,19 +213,19 @@ public class RIBuyDemandCalculator {
             boolean isAws) {
 
 
-        final List<RICoverageRule> riCoverageRules = isAws
-                ? StaticRICoverageRules.AWS_RI_COVERAGE_RULES
-                : StaticRICoverageRules.AZURE_RI_COVERAGE_RULES;
+        final List<RICoverageRuleConfig> riCoverageRuleConfigs = isAws ?
+                ReservedInstanceCoverageRulesFactory.AWS_RI_COVERAGE_RULE_CONFIGS :
+                ReservedInstanceCoverageRulesFactory.AZURE_RI_COVERAGE_RULE_CONFIGS;
         final Map<Long, ReservedInstanceAdjustmentTracker> riAdjustmentsById = new HashMap<>();
 
-        for (RICoverageRule coverageRule : riCoverageRules) {
+        for (RICoverageRuleConfig coverageRuleConfig : riCoverageRuleConfigs) {
             for (Map.Entry<RIBuyDemandCluster, float[]> demandContextEntry : couponDemandByCluster.entrySet()) {
 
                 final ReservedInstanceInventoryMatcher riInventoryMatcher =
                         regionalRIMatcherCache.getOrCreateRIInventoryMatcherForRegion(
                                 regionalContext.regionOid());
                 final Set<ReservedInstanceBought> risInScope = riInventoryMatcher.matchToDemandContext(
-                        coverageRule, regionalContext, demandContextEntry.getKey());
+                        coverageRuleConfig, regionalContext, demandContextEntry.getKey());
 
                 risInScope.forEach(ri -> {
 

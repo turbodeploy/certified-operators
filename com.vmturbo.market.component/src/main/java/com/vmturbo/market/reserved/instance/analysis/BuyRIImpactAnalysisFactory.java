@@ -1,38 +1,31 @@
 package com.vmturbo.market.reserved.instance.analysis;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
-import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
-import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator;
-import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.AggregationFailureException;
-import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.CloudCommitmentAggregatorFactory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
-import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory;
+import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
 
 /**
- * A factory for {@link BuyRIImpactAnalysis} instances.
+ * A factory for {@link BuyRIImpactAnalysis} instances
  */
 public interface BuyRIImpactAnalysisFactory {
 
     /**
-     * Creates a new instance of {@link BuyRIImpactAnalysis}.
+     * Creates a new instance of {@link BuyRIImpactAnalysis}
      * @param topologyInfo The {@link TopologyInfo} of {@code cloudTopology}
      * @param cloudTopology The target {@link CloudTopology} of the analysis
      * @param cloudCostData The {@link CloudCostData} associated with the {@code cloudTopology}
@@ -43,43 +36,34 @@ public interface BuyRIImpactAnalysisFactory {
     BuyRIImpactAnalysis createAnalysis(
             @Nonnull TopologyInfo topologyInfo,
             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-            @Nonnull CloudCostData<TopologyEntityDTO> cloudCostData,
+            @Nonnull CloudCostData cloudCostData,
             @Nonnull Map<Long, EntityReservedInstanceCoverage> riCoverageByEntityOid);
 
     /**
-     * The default instance of {@link BuyRIImpactAnalysisFactory}.
+     * The default instance of {@link BuyRIImpactAnalysisFactory}
      */
     class DefaultBuyRIImpactAnalysisFactory implements BuyRIImpactAnalysisFactory {
-
-        private final Logger logger = LogManager.getLogger();
-
-        private final CoverageAllocatorFactory allocatorFactory;
+        private final RICoverageAllocatorFactory allocatorFactory;
         private final CoverageTopologyFactory coverageTopologyFactory;
-        private final CloudCommitmentAggregatorFactory cloudCommitmentAggregatorFactory;
         private final boolean allocatorConcurrentProcessing;
         private final boolean validateCoverages;
 
         /**
          * Construct an instance of {@link DefaultBuyRIImpactAnalysisFactory}.
-         *
-         * @param allocatorFactory              An instance of {@link CoverageAllocatorFactory}
-         * @param coverageTopologyFactory       An instance of {@link CoverageTopologyFactory}
-         * @param cloudCommitmentAggregatorFactory A factory instance for creating {@link CloudCommitmentAggregator}
-         *                                         instances.
+         * @param allocatorFactory An instance of {@link RICoverageAllocatorFactory}
+         * @param coverageTopologyFactory An instance of {@link CoverageTopologyFactory}
          * @param allocatorConcurrentProcessing A flag indicating whether to enable concurrent processing
          *                                      of underlying instances of the RI coverage allocator
-         * @param validateCoverages             A flag indicating whether underlying instances of the RI coverage
-         *                                      allocating should validate coverage
+         * @param validateCoverages A flag indicating whether underlying instances of the RI coverage
+         *                          allocating should validate coverage
          */
-        public DefaultBuyRIImpactAnalysisFactory(@Nonnull CoverageAllocatorFactory allocatorFactory,
+        public DefaultBuyRIImpactAnalysisFactory(@Nonnull RICoverageAllocatorFactory allocatorFactory,
                                                  @Nonnull CoverageTopologyFactory coverageTopologyFactory,
-                                                 @Nonnull CloudCommitmentAggregatorFactory cloudCommitmentAggregatorFactory,
                                                  boolean allocatorConcurrentProcessing,
                                                  boolean validateCoverages) {
 
             this.allocatorFactory = Objects.requireNonNull(allocatorFactory);
             this.coverageTopologyFactory = Objects.requireNonNull(coverageTopologyFactory);
-            this.cloudCommitmentAggregatorFactory = Objects.requireNonNull(cloudCommitmentAggregatorFactory);
             this.allocatorConcurrentProcessing = allocatorConcurrentProcessing;
             this.validateCoverages = validateCoverages;
         }
@@ -91,15 +75,23 @@ public interface BuyRIImpactAnalysisFactory {
         public BuyRIImpactAnalysis createAnalysis(
                 @Nonnull TopologyInfo topologyInfo,
                 @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-                @Nonnull CloudCostData<TopologyEntityDTO> cloudCostData,
+                @Nonnull CloudCostData cloudCostData,
                 @Nonnull Map<Long, EntityReservedInstanceCoverage> riCoverageByEntityOid) {
 
             Preconditions.checkNotNull(cloudTopology);
             Preconditions.checkNotNull(cloudCostData);
 
+            final Collection<ReservedInstanceData> buyRIData =
+                    cloudCostData.getAllBuyRIs();
+
             final CoverageTopology coverageTopology = coverageTopologyFactory.createCoverageTopology(
                     cloudTopology,
-                    resolveCommitmentAggregates(cloudTopology, cloudCostData));
+                    buyRIData.stream()
+                            .map(ReservedInstanceData::getReservedInstanceSpec)
+                            .collect(Collectors.toSet()),
+                    buyRIData.stream()
+                            .map(ReservedInstanceData::getReservedInstanceBought)
+                            .collect(Collectors.toSet()));
 
             return new BuyRIImpactAnalysis(
                     allocatorFactory,
@@ -108,33 +100,6 @@ public interface BuyRIImpactAnalysisFactory {
                     riCoverageByEntityOid,
                     allocatorConcurrentProcessing,
                     validateCoverages);
-        }
-
-        private Set<CloudCommitmentAggregate> resolveCommitmentAggregates(
-                @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-                @Nonnull CloudCostData<TopologyEntityDTO> cloudCostData) {
-
-            // convert to cloud common RI data
-            final Set<ReservedInstanceData> buyRIData =
-                    cloudCostData.getAllBuyRIs()
-                        .stream()
-                        .map(riData -> ReservedInstanceData.builder()
-                                .commitment(riData.getReservedInstanceBought())
-                                .spec(riData.getReservedInstanceSpec())
-                                .build())
-                        .collect(ImmutableSet.toImmutableSet());
-
-            final CloudCommitmentAggregator aggregator =
-                    cloudCommitmentAggregatorFactory.newIdentityAggregator(cloudTopology);
-            buyRIData.forEach(buyRI -> {
-                try {
-                    aggregator.collectCommitment(buyRI);
-                } catch (AggregationFailureException e) {
-                    logger.error("Error aggregating BuyRI (BuyRI ID={})", buyRI.commitmentId(), e);
-                }
-            });
-
-            return aggregator.getAggregates();
         }
     }
 

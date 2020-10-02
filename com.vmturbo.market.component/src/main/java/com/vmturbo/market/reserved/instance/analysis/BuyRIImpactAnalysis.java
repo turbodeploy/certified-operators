@@ -8,19 +8,19 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableTable;
-import com.google.common.collect.Table;
-
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableTable;
+import com.google.common.collect.Table;
+
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.proactivesupport.DataMetricSummary;
-import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocationConfig;
-import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory;
+import com.vmturbo.reserved.instance.coverage.allocator.ImmutableRICoverageAllocatorConfig;
+import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocation;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocator;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageProvider;
@@ -32,7 +32,7 @@ import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopolog
  * coverage from buy RI recommendations. This analysis provides an estimation of the coverage (and
  * therefore cost) of RI buy recommendations on the cloud topology, after accepting all scaling actions.
  *
- * <p>This analysis differs from including RI buy recommendations within the market (as market tiers), in
+ * This analysis differs from including RI buy recommendations within the market (as market tiers), in
  * that it does not bias scaling actions towards the recommendations. It therefore provides a
  * quantitative measure of the accuracy of RI buy recommendations in targeting consumption demand
  * (intended to be the natural demand).
@@ -42,7 +42,7 @@ public class BuyRIImpactAnalysis {
     private static final Table<Long, Long, Double> EMPTY_COVERAGE_ALLOCATION = ImmutableTable.of();
 
     /**
-     * A summary metric collecting the total runtime duration of coverage analysis.
+     * A summary metric collecting the total runtime duration of coverage analysis
      */
     private static final DataMetricSummary TOTAL_COVERAGE_ANALYSIS_DURATION_METRIC = DataMetricSummary.builder()
             .withName("mkt_buy_ri_impact_cov_allocator_duration_seconds")
@@ -70,7 +70,7 @@ public class BuyRIImpactAnalysis {
             .register();
 
     /**
-     * A summary metric collecting the runtime duration of first pass filtering entities.
+     * A summary metric collecting the runtime duration of first pass filtering entities
      */
     private static final DataMetricSummary FIRST_PASS_ENTITY_FILTER_DURATION_METRIC = DataMetricSummary.builder()
             .withName("mkt_buy_ri_impact_first_pass_entity_filter_duration_seconds")
@@ -207,7 +207,7 @@ public class BuyRIImpactAnalysis {
 
     private final Logger logger = LogManager.getLogger();
 
-    private final CoverageAllocatorFactory allocatorFactory;
+    private final RICoverageAllocatorFactory allocatorFactory;
 
     private final TopologyInfo topologyInfo;
 
@@ -220,8 +220,8 @@ public class BuyRIImpactAnalysis {
     private final boolean validateCoverages;
 
     /**
-     * Construct an instance of {@link BuyRIImpactAnalysis}.
-     * @param allocatorFactory A {@link CoverageAllocatorFactory} instance
+     * Construct an instance of {@link BuyRIImpactAnalysis}
+     * @param allocatorFactory A {@link RICoverageAllocatorFactory} instance
      * @param topologyInfo The {@link TopologyInfo} of the {@code coverageTopology}
      * @param coverageTopology The target {@link CoverageTopology} of the analysis
      * @param riCoverageByEntityOid The source RI coverage as a basis for analysis
@@ -231,7 +231,7 @@ public class BuyRIImpactAnalysis {
      *                          coverage after analysis
      */
     public BuyRIImpactAnalysis(
-            @Nonnull CoverageAllocatorFactory allocatorFactory,
+            @Nonnull RICoverageAllocatorFactory allocatorFactory,
             @Nonnull TopologyInfo topologyInfo,
             @Nonnull CoverageTopology coverageTopology,
             @Nonnull Map<Long, EntityReservedInstanceCoverage> riCoverageByEntityOid,
@@ -250,8 +250,8 @@ public class BuyRIImpactAnalysis {
      * Runs buy RI impact analysis (through the {@link ReservedInstanceCoverageAllocator}), creating
      * and returning {@link EntityReservedInstanceCoverage} representing the complete set of RI coverage
      * (both RIs in inventory and buy RI recommendations for entities within scope.
-     *
-     * <p>Essentially, the impact of buy RI recommendations is derived from the potential coverage on
+     * <p>
+     * Essentially, the impact of buy RI recommendations is derived from the potential coverage on
      * the projected topology, in which RI coverage from RIs in inventory takes precedence over
      * buy RI recommendations.
      *
@@ -267,7 +267,7 @@ public class BuyRIImpactAnalysis {
 
             final ReservedInstanceCoverageProvider coverageProvider = createCoverageProvider();
             final ReservedInstanceCoverageAllocator coverageAllocator = allocatorFactory.createAllocator(
-                    CoverageAllocationConfig.builder()
+                    ImmutableRICoverageAllocatorConfig.builder()
                             .coverageProvider(coverageProvider)
                             .coverageTopology(coverageTopology)
                             .metricsProvider(createMetricsProvider())
@@ -280,7 +280,7 @@ public class BuyRIImpactAnalysis {
 
             logger.info("Finished BuyRIImpactAnalysis (Topology ID={}, RI Count={}, Allocation Count={})",
                     topologyInfo.getTopologyId(),
-                    coverageTopology.getAllRIAggregates().size(),
+                    coverageTopology.getAllReservedInstances().size(),
                     coverageAllocation.allocatorCoverageTable().size());
 
             return coverageAllocation.allocatorCoverageTable();
@@ -320,7 +320,7 @@ public class BuyRIImpactAnalysis {
     }
 
     /**
-     * Creates a {@link RICoverageAllocationMetricsProvider}.
+     * Creates a {@link RICoverageAllocationMetricsProvider}
      * @return The newly created {@link RICoverageAllocationMetricsProvider} instance.
      */
     @Nonnull

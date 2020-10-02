@@ -26,6 +26,9 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]entities[/\\]SMATemplate.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]entities[/\\]SMAVirtualMachine.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]diagnostics[/\\]ActionLogger.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]reserved[/\\]instance[/\\]analysis[/\\]BuyRIImpactAnalysis.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]reserved[/\\]instance[/\\]analysis[/\\]BuyRIImpactAnalysisConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]reserved[/\\]instance[/\\]analysis[/\\]BuyRIImpactAnalysisFactory.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]rpc[/\\]MarketDebugRpcService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]rpc[/\\]MarketRpcConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]Analysis.java" />
@@ -82,6 +85,7 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]analysis[/\\]StableMarriagePerContextTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]cloudscaling[/\\]sma[/\\]jsonprocessing[/\\]JsonToSMAInputTranslator.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]diagnostics[/\\]ActionLoggerTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]reserved[/\\]instance[/\\]analysis[/\\]BuyRIImpactAnalysisTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]AnalysisDebuggingTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]AnalysisFactoryTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]market[/\\]runner[/\\]AnalysisTest.java" />

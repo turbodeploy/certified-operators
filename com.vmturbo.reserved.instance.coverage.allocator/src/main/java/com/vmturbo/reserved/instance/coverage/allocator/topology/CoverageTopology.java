@@ -7,47 +7,114 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
-import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
- * An interface similar to a cloud topology, providing topology information required for coverage
- * assignments.
+ * A sub-interface of {@link CloudTopology}, in which access to instances of {@link ReservedInstanceBought}
+ * and {@link ReservedInstanceSpec} is provided in a similar manner to {@link TopologyEntityDTO}
+ * instances.
  */
 @Immutable
-public interface CoverageTopology {
+public interface CoverageTopology extends CloudTopology<TopologyEntityDTO> {
 
     /**
-     * Gets all entity OIDs of the provided {@code entityType}.
-     * @param entityType The target entity type.
-     * @return The set of entity OIDs matching the specified type.
+     * @return An unmodifiable map of all instances of {@link ReservedInstanceBought} in this topology,
+     * indexe by the OID of each instance
      */
     @Nonnull
-    Set<Long> getEntitiesOfType(@Nonnull int entityType);
+    Map<Long, ReservedInstanceBought> getAllReservedInstances();
 
     /**
-     * Finds and returns the cloud commitment aggregate corresponding to the provided ID.
-     * @param commitmentAggregateOid The aggregate ID.
-     * @return The commitment aggregate, if found.
+     * Determines the tier of an entity. Depending on the entity, this may be either a compute or
+     * database tier. Providers a wrapper around {@link CloudTopology#getComputeTier(long)} and
+     * {@link CloudTopology#getDatabaseTier(long)}.
+     *
+     * <p>
+     * Note: An assumption is made about the correct tier type based on the entity type e.g. only
+     * attempts to determine a compute tier if the entity is a VM
+     *
+     * @param entityOid The OID of the entity
+     * @return An optional containing the tier, if one is found directly connected to the entity. An
+     * empty optional if the entity cannot be found or is not connected to an appropriate tier
      */
     @Nonnull
-    Optional<CloudCommitmentAggregate> getCloudCommitment(long commitmentAggregateOid);
+    Optional<TopologyEntityDTO> getProviderTier(long entityOid);
 
     /**
-     * Returns the set of RI aggregates.
-     * @return The set of RI aggregates.
+     * Determines the tier associated with a {@link ReservedInstanceBought}. There is no check that
+     * tier ID associated with the {@link ReservedInstanceBought} instance is a valid tier entity type.
+     *
+     * @param riOid The OID of the RI
+     * @return An optional containing an entity (presumably a tier type) representing {@code riOid's}
+     * tier. An empty optional if the {@link ReservedInstanceSpec} for {@code riOid} cannot be found
+     * or the associated tier cannot be found.
      */
     @Nonnull
-    Set<ReservedInstanceAggregate> getAllRIAggregates();
+    Optional<TopologyEntityDTO> getReservedInstanceProviderTier(long riOid);
 
     /**
-     * Resolves the capacity for each instance of {@link CloudCommitmentAggregate} contained within
-     * this topology.
-     * @return An immutable map of {@literal <Commitment Aggregate ID, Coverage Capacity>}.
+     * Determines the {@link ReservedInstanceSpec} instance associated with a {@link ReservedInstanceBought}
+     * instance.
+     *
+     * @param riOid The OID of the RI
+     * @return An optional containing the {@link ReservedInstanceSpec} instance, if it can be found.
+     * Otherwise, an empty optional
      */
     @Nonnull
-    Map<Long, Double> getCommitmentCapacityByOid();
+    Optional<ReservedInstanceSpec> getSpecForReservedInstance(long riOid);
+
+    /**
+     * @param riOid The OID of the RI
+     * @return An optional containing the {@link ReservedInstanceBought} instance associated with
+     * {@code riOid}. An empty optional if the RI cannot be found
+     */
+    @Nonnull
+    Optional<ReservedInstanceBought> getReservedInstanceBought(long riOid);
+
+    /**
+     * Analogous to {@link CloudTopology#getOwner(long)} for a {@link ReservedInstanceBought} instance.
+     *
+     * @param riOid The OID of the RI
+     * @return An optional containing the direct owner of the RI, if it can be found (determined through
+     * RI info). Otherwise, an empty optional
+     */
+    @Nonnull
+    Optional<TopologyEntityDTO> getReservedInstanceOwner(long riOid);
+
+    /**
+     * Analogous to {@link CloudTopology#getConnectedRegion(long)} for a {@link ReservedInstanceBought}
+     * instance.
+     *
+     * @param riOid The OID of the RI
+     * @return An optional containing the region of the RI, if it can be found (determined through
+     * RI spec). Otherwise, an empty optional
+     */
+    @Nonnull
+    Optional<TopologyEntityDTO> getReservedInstanceRegion(long riOid);
+
+    /**
+     * Analogous to {@link CloudTopology#getConnectedAvailabilityZone(long)} for a {@link ReservedInstanceBought}
+     * instance.
+     *
+     * @param riOid The OID of the RI
+     * @return An optional containing the availability zone of the RI, if it can be found (determined
+     * through RI info). Otherwise, an empty optional
+     */
+    @Nonnull
+    Optional<TopologyEntityDTO> getReservedInstanceAvailabilityZone(long riOid);
+
+    /**
+     * Resolves the capacity for each instance of {@link ReservedInstanceBought} contained within
+     * this topology
+     * @return An immutable map of {@literal <ReservedInstanceBought OID, Coverage Capacity>}
+     */
+    @Nonnull
+    Map<Long, Long> getReservedInstanceCapacityByOid();
+
 
     /**
      * Resolves the probe types for an entity. This will be resolved through the discovered
@@ -56,41 +123,5 @@ public interface CoverageTopology {
      * @param entityOid The OID fo the entity
      * @return A set of {@link SDKProbeType} from the discovery origin target list of the entity
      */
-    @Nonnull
     Set<SDKProbeType> getProbeTypesForEntity(long entityOid);
-
-    /**
-     * Get the coverage capacity for the specified {@code entityOid}. The capacity will be specified
-     * in coupons.
-     * @param entityOid The target entity OID.
-     * @return The coverage capacity of the entity. Zero will be returned if the entity is not found.
-     */
-    double getCoverageCapacityForEntity(long entityOid);
-
-    /**
-     * Resolves and returns the aggregation info for the specified {@code entityOid}.
-     * @param entityOid The target entity OID.
-     * @return The {@link CloudAggregationInfo} for the entity, if the entity is found in the topology
-     * and all required aggregation info can be resolved.
-     */
-    @Nonnull
-    Optional<CloudAggregationInfo> getAggregationInfo(long entityOid);
-
-    /**
-     * Resolves and returns the entity information for {@code entityOid}. The implementation of
-     * {@link CoverageEntityInfo} will be specific to the entity type of {@code entityOid}.
-     * @param entityOid The target entity OID.
-     * @return The {@link CoverageEntityInfo}.
-     */
-    @Nonnull
-    Optional<CoverageEntityInfo> getEntityInfo(long entityOid);
-
-    /**
-     * Resolves and returns the compute tier info consumed by {@code entityOid}.
-     * @param entityOid The target entity OID.
-     * @return The {@link ComputeTierInfo} for {@code entityOid}. Will be empty if the entity cannot
-     * be found or it is not consuming for a compute tier provider.
-     */
-    @Nonnull
-    Optional<ComputeTierInfo> getComputeTierInfoForEntity(long entityOid);
 }

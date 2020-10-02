@@ -18,7 +18,7 @@ import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.dema
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.AccountGroupingIdentifier.AccountGroupingType;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyDemandCluster;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyRegionalContext;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.calculator.RICoverageRule;
+import com.vmturbo.reserved.instance.coverage.allocator.rules.RICoverageRuleConfig;
 import com.vmturbo.reserved.instance.coverage.allocator.utils.ReservedInstanceHelper;
 
 /**
@@ -68,7 +68,7 @@ public class ReservedInstanceInventoryMatcher {
      * @return A set of RI instances which could cover the target demand cluster.
      */
     public Set<ReservedInstanceBought> matchToDemandContext(
-            @Nonnull RICoverageRule matchingRule,
+            @Nonnull RICoverageRuleConfig matchingRule,
             @Nonnull RIBuyRegionalContext regionalContext,
             @Nonnull RIBuyDemandCluster demandCluster) {
 
@@ -88,8 +88,8 @@ public class ReservedInstanceInventoryMatcher {
 
                     // If the rule is looking for shared scope and this cluster is grouped by a
                     // billing family, look for RIs that match the billing family ID.
-                    if (matchingRule.sharedScope()
-                            && accountGroupingType == AccountGroupingType.BILLING_FAMILY) {
+                    if (matchingRule.isSharedScope() &&
+                            accountGroupingType == AccountGroupingType.BILLING_FAMILY) {
                         keyBuilder.billingFamilyId(regionalContext.accountGroupingId().id());
                     } else {
                         // If the matching rule is either account scoped (not shared) or the
@@ -99,7 +99,7 @@ public class ReservedInstanceInventoryMatcher {
 
                     // If this is a zone-scoped rule, the demand context is assumed to be
                     // within a zone (it would not make sense to have zone scoped rules for Azure)
-                    if (matchingRule.zoneScoped()) {
+                    if (matchingRule.isZoneScoped()) {
                         keyBuilder.zoneOid(demandCluster.regionOrZoneOid());
                     }
 

@@ -13,23 +13,29 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Queues;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal.CoverageJournalEntry;
 import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext;
 import com.vmturbo.reserved.instance.coverage.allocator.filter.FirstPassCoverageFilter;
+import com.vmturbo.reserved.instance.coverage.allocator.key.HashableCoverageKeyCreator;
 import com.vmturbo.reserved.instance.coverage.allocator.metrics.RICoverageAllocationMetricsCollector;
-import com.vmturbo.reserved.instance.coverage.allocator.rules.CoverageGroup;
-import com.vmturbo.reserved.instance.coverage.allocator.rules.CoverageKeyRepository;
-import com.vmturbo.reserved.instance.coverage.allocator.rules.CoverageRule;
-import com.vmturbo.reserved.instance.coverage.allocator.rules.CoverageRulesFactory;
+import com.vmturbo.reserved.instance.coverage.allocator.metrics.RICoverageAllocationMetricsProvider;
+import com.vmturbo.reserved.instance.coverage.allocator.rules.ReservedInstanceCoverageGroup;
+import com.vmturbo.reserved.instance.coverage.allocator.rules.ReservedInstanceCoverageRule;
+import com.vmturbo.reserved.instance.coverage.allocator.rules.ReservedInstanceCoverageRulesFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 
 /**
@@ -45,8 +51,8 @@ import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopolog
  *
  * <p>
  * Subsequent (provider-specific) rules determine valid coverage assignments through the use of
- * {@link com.vmturbo.reserved.instance.coverage.allocator.matcher.CoverageKey} instances and a
- * {@link CoverageKeyRepository}, creating a map
+ * {@link com.vmturbo.reserved.instance.coverage.allocator.key.CoverageKey} instances and a
+ * {@link com.vmturbo.reserved.instance.coverage.allocator.key.CoverageKeyRepository}, creating a map
  * of coverage key -> {@link com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought} instances
  * and a separate map of coverage key -> {@link com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO}
  * instances. Only entities and RIs with overlapping coverage keys are considered potential coverage
@@ -55,8 +61,6 @@ import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopolog
 public class ReservedInstanceCoverageAllocator {
 
     private static final Logger logger = LogManager.getLogger();
-
-    private final CoverageRulesFactory coverageRulesFactory;
 
     private final CoverageTopology coverageTopology;
 
@@ -68,10 +72,6 @@ public class ReservedInstanceCoverageAllocator {
 
     private final FirstPassCoverageFilter firstPassFilter;
 
-    private final CloudCommitmentPreference cloudCommitmentPreference;
-
-    private final CoverageEntityPreference coverageEntityPreference;
-
     private final ExecutorService executorService;
 
     private final AtomicBoolean coverageAllocated = new AtomicBoolean(false);
@@ -80,19 +80,15 @@ public class ReservedInstanceCoverageAllocator {
     /**
      * Constructs an instance of {@link ReservedInstanceCoverageAllocator}, based on the configuration
      * passed in.
-     * @param config The {@link CoverageAllocationConfig} instance, used to configure a newly created
+     * @param config The {@link RICoverageAllocatorConfig} instance, used to configure a newly created
      *               {@link ReservedInstanceCoverageAllocator} instance.
      */
-    public ReservedInstanceCoverageAllocator(@Nonnull CoverageRulesFactory coverageRulesFactory,
-                                             @Nonnull CoverageAllocationConfig config) {
+    public ReservedInstanceCoverageAllocator(@Nonnull RICoverageAllocatorConfig config) {
 
         Preconditions.checkNotNull(config);
 
-        this.coverageRulesFactory = Objects.requireNonNull(coverageRulesFactory);
         this.coverageTopology = config.coverageTopology();
         this.metricsCollector = new RICoverageAllocationMetricsCollector(config.metricsProvider());
-        this.cloudCommitmentPreference = config.cloudCommitmentPreference();
-        this.coverageEntityPreference = config.coverageEntityPreference();
         this.validateCoverages = config.validateCoverages();
 
         final ReservedInstanceCoverageProvider coverageProvider =
@@ -167,7 +163,7 @@ public class ReservedInstanceCoverageAllocator {
                                     metricsCollector.onFirstPassRIFilter()
                                             .observe(() -> firstPassFilter.getReservedInstances()),
                                     metricsCollector.onFirstPassEntityFilter()
-                                            .observe(() -> firstPassFilter.getCoverageEntities()),
+                                            .observe(() -> firstPassFilter.getCoverableEntities()),
                                     true));
 
 
@@ -183,10 +179,11 @@ public class ReservedInstanceCoverageAllocator {
 
         metricsCollector.onCoverageAnalysisForCSP(coverageContext, coverageJournal)
                 .observe(() -> {
-                    final List<CoverageRule> coverageRules =
-                            coverageRulesFactory.createRules(
+                    final List<ReservedInstanceCoverageRule> coverageRules =
+                            ReservedInstanceCoverageRulesFactory.createRules(
                                     coverageContext,
-                                    coverageJournal);
+                                    coverageJournal,
+                                    HashableCoverageKeyCreator.newFactory());
 
                     coverageRules.forEach(rule -> {
 
@@ -208,7 +205,7 @@ public class ReservedInstanceCoverageAllocator {
     }
 
     /**
-     * Processes an individual {@link CoverageRule}, which represents potential RI <-> entity
+     * Processes an individual {@link ReservedInstanceCoverageGroup}, which represents potential RI <-> entity
      * assignments through an ordered set of both RI and entity OIDs. The potential assignments represent
      * valid coverage assignments based on criteria of both the RIs and entities, but do no indicate there
      * is enough coverage available to cover all entities or enough entities available to utilize all RIs.
@@ -217,18 +214,15 @@ public class ReservedInstanceCoverageAllocator {
      * Processing will iterate over the sorted list of RIs, allocating available coverage until either all
      * RIs or entities are consumed
      *
-     * @param coverageGroup The {@link CoverageGroup} to process
+     * @param coverageGroup The {@link ReservedInstanceCoverageGroup} to process
      */
-    private void processGroup(@Nonnull CoverageGroup coverageGroup) {
+    private void processGroup(@Nonnull ReservedInstanceCoverageGroup coverageGroup) {
 
-        Queue<Long> entityQueue = Queues.newArrayDeque(
-                coverageEntityPreference.sortEntities(
-                        coverageJournal,
-                        coverageGroup.entityOids()));
+        Queue<Long> entityQueue = Queues.newArrayDeque(coverageGroup.entityOids());
 
-        cloudCommitmentPreference.sortCommitments(coverageJournal,coverageGroup.commitmentOids())
+        coverageGroup.reservedInstanceOids()
                 .stream()
-                // Iterate through commitments, until the enityQueue is empty (findFirst() will short-circuit
+                // Iterate through RIs, until the enityQueue is empty (findFirst() will short-circuit
                 // once the queue is empty)
                 .filter(riOid -> {
                     while (!coverageJournal.isReservedInstanceAtCapacity(riOid) &&
@@ -247,7 +241,7 @@ public class ReservedInstanceCoverageAllocator {
 
                             final CoverageJournalEntry coverageEntry = CoverageJournalEntry.of(
                                     coverageGroup.cloudServiceProvider(),
-                                    coverageGroup.sourceTag(),
+                                    coverageGroup.sourceName(),
                                     riOid,
                                     entityOid,
                                     requestedCoverage,
@@ -273,5 +267,74 @@ public class ReservedInstanceCoverageAllocator {
         }
     }
 
+    /**
+     * A configuration of an instance of {@link ReservedInstanceCoverageAllocator}
+     */
+    @Value.Immutable
+    public interface RICoverageAllocatorConfig {
 
+        /**
+         * The {@link ReservedInstanceCoverageProvider} used to configure an {@link ReservedInstanceCoverageAllocator}
+         * instance. The coverage provider provides the basis for RI coverage & utilization, which the allocator
+         * will build upon.
+         * @return The {@link ReservedInstanceCoverageProvider} instance.
+         */
+        ReservedInstanceCoverageProvider coverageProvider();
+
+        /**
+         * The {@link CoverageTopology} instance, containing both entities and RIs to analyze in
+         * allocating coverage.
+         * @return The {@link CoverageTopology} instance.
+         */
+        CoverageTopology coverageTopology();
+
+        /**
+         * An optional {@link AccountFilter}, used to scope the analysis to a subset of the
+         * {@link CoverageTopology}.
+         * @return An optional {@link AccountFilter} or null if no filter is configured.
+         */
+        @Nullable
+        Cost.AccountFilter accountFilter();
+
+        /**
+         * An optional {@link EntityFilter}, used to scope the analysis to a subset of the
+         * {@link CoverageTopology}.
+         * @return An optional {@link EntityFilter} or null if no filter is configured.
+         */
+        @Nullable
+        Cost.EntityFilter entityFilter();
+
+        /**
+         * An optional metrics provider (a default provider will be used if none are configured), used
+         * in collecting metrics. Only metrics provided by the {@link RICoverageAllocationMetricsProvider}
+         * instance will be collected.
+         * @return The {@link RICoverageAllocationMetricsProvider} instance.
+         */
+        @Value.Default
+        default RICoverageAllocationMetricsProvider metricsProvider() {
+            return RICoverageAllocationMetricsProvider.EMPTY_PROVIDER;
+        }
+
+        /**
+         * Determines whether validation of allocated coverage should occur after analysis. The default
+         * is false.
+         * @return A boolean flag indicating whether to validate coverage.
+         */
+        @Value.Default
+        default boolean validateCoverages() {
+            return false;
+        }
+
+        /**
+         * Determines whether concurrent analysis s enabled. If true, where possible (e.g. across
+         * cloud providers, within a rule with disjoint groups), the allocator will concurrently
+         * process units of work.
+         * @return A boolean flag indicating whether concurrent processing is enabled. The default
+         * is true.
+         */
+        @Value.Default
+        default boolean concurrentProcessing() {
+            return true;
+        }
+    }
 }

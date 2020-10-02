@@ -26,10 +26,10 @@ public class ReservedInstanceCoverageJournalTest {
 
         final CoverageTopology mockCoverageTopology = mock(CoverageTopology.class);
         // Entity 1 with capacity 2
-        when(mockCoverageTopology.getCommitmentCapacityByOid())
-                .thenReturn(ImmutableMap.of(2L, 1.0));
+        when(mockCoverageTopology.getReservedInstanceCapacityByOid())
+                .thenReturn(ImmutableMap.of(2L, 1L));
         // RI 2 with capacity 1
-        when(mockCoverageTopology.getCoverageCapacityForEntity(eq(1L))).thenReturn(2.0);
+        when(mockCoverageTopology.getRICoverageCapacityForEntity(eq(1L))).thenReturn(2L);
 
         // setup SUT
         final ReservedInstanceCoverageJournal coverageJournal =
@@ -54,10 +54,10 @@ public class ReservedInstanceCoverageJournalTest {
 
         final CoverageTopology mockCoverageTopology = mock(CoverageTopology.class);
         // Entity 1 with capacity 2
-        when(mockCoverageTopology.getCommitmentCapacityByOid())
-                .thenReturn(ImmutableMap.of(2L, 1.0));
+        when(mockCoverageTopology.getReservedInstanceCapacityByOid())
+                .thenReturn(ImmutableMap.of(2L, 1L));
         // RI 2 with capacity 1
-        when(mockCoverageTopology.getCoverageCapacityForEntity(eq(1L))).thenReturn(2.0);
+        when(mockCoverageTopology.getRICoverageCapacityForEntity(eq(1L))).thenReturn(2L);
 
         // setup SUT
         final ReservedInstanceCoverageJournal coverageJournal =

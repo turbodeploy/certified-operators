@@ -4,6 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
+import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -14,23 +15,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableTable;
-
 import org.jooq.DSLContext;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
-import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.CloudCommitmentAggregatorFactory;
-import com.vmturbo.cloud.common.commitment.aggregator.DefaultCloudCommitmentAggregator.DefaultCloudCommitmentAggregatorFactory;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
-import com.vmturbo.cloud.common.topology.BillingFamilyRetriever;
-import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
-import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
@@ -53,7 +50,7 @@ import com.vmturbo.cost.component.reserved.instance.SQLReservedInstanceBoughtSto
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory;
+import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocation;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocator;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
@@ -61,8 +58,8 @@ import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopolog
 
 public class SupplementalRICoverageAnalysisTest {
 
-    private final CoverageAllocatorFactory allocatorFactory =
-            mock(CoverageAllocatorFactory.class);
+    private final RICoverageAllocatorFactory allocatorFactory =
+            mock(RICoverageAllocatorFactory.class);
 
     private final CoverageTopologyFactory coverageTopologyFactory =
             mock(CoverageTopologyFactory.class);
@@ -86,8 +83,6 @@ public class SupplementalRICoverageAnalysisTest {
     private final ReservedInstanceSpecStore reservedInstanceSpecStore =
             mock(ReservedInstanceSpecStore.class);
 
-    private CloudCommitmentAggregatorFactory cloudCommitmentAggregatorFactory;
-
     private final ReservedInstanceCoverageAllocator riCoverageAllocator =
             mock(ReservedInstanceCoverageAllocator.class);
     private final CoverageTopology coverageTopology = mock(CoverageTopology.class);
@@ -98,16 +93,6 @@ public class SupplementalRICoverageAnalysisTest {
     public void setup() {
         when(allocatorFactory.createAllocator(any())).thenReturn(riCoverageAllocator);
         when(businessAccountHelper.getDiscoveredBusinessAccounts()).thenReturn(ImmutableSet.of(1L));
-
-        final BillingFamilyRetriever billingFamilyRetriever = mock(BillingFamilyRetriever.class);
-        final BillingFamilyRetrieverFactory billingFamilyRetrieverFactory = mock(BillingFamilyRetrieverFactory.class);
-        when(billingFamilyRetrieverFactory.newInstance()).thenReturn(billingFamilyRetriever);
-
-        cloudCommitmentAggregatorFactory = new DefaultCloudCommitmentAggregatorFactory(
-                identityProvider,
-                new ComputeTierFamilyResolverFactory(),
-                billingFamilyRetrieverFactory);
-
     }
 
     @Test
@@ -167,7 +152,7 @@ public class SupplementalRICoverageAnalysisTest {
 
         // setup coverage topology
         // Entity ID 3 will require resolution of the coverage capacity
-        when(coverageTopology.getCoverageCapacityForEntity(eq(3L))).thenReturn(8.0);
+        when(coverageTopology.getRICoverageCapacityForEntity(eq(3L))).thenReturn(8L);
 
         // set up undiscovered usage
         AccountRIMappingItem item = mock(AccountRIMappingItem.class);
@@ -242,7 +227,37 @@ public class SupplementalRICoverageAnalysisTest {
                 .thenReturn(riSpecs);
         when(coverageTopologyFactory.createCoverageTopology(
                 eq(cloudTopology),
-                any())).thenReturn(coverageTopology);
+                eq(riSpecs),
+                argThat(new ArgumentMatcher<List<ReservedInstanceBought>>() {
+                    @Override
+                    public boolean matches(final Object o) {
+                        List<ReservedInstanceBought> receivedList = (List<ReservedInstanceBought>)o;
+                        if (receivedList.size() > 3) {
+                            return false;
+                        }
+                        // verify there is one undiscovered RI
+                        Optional<ReservedInstanceBought> unDiscoveredRIs = receivedList.stream()
+                                .filter(ri -> ri.getReservedInstanceBoughtInfo().getBusinessAccountId() == unDiscoveredBA.getOid())
+                                .findFirst();
+                        if (!unDiscoveredRIs.isPresent()
+                            ||  unDiscoveredRIs.get()
+                                .getReservedInstanceBoughtInfo()
+                                .getReservedInstanceBoughtCoupons().getNumberOfCoupons() != 1) {
+                            return false;
+                        }
+                        // verify the discovered RI coupons
+                        Optional<ReservedInstanceBought> discoveredRI = receivedList.stream()
+                                .filter(ri -> ri.getId() == 1)
+                                .findAny();
+                        if (!discoveredRI.isPresent()
+                            || discoveredRI.get()
+                                .getReservedInstanceBoughtInfo()
+                                .getReservedInstanceBoughtCoupons().getNumberOfCoupons() != 8) {
+                            return false;
+                        }
+                        return true;
+                    }
+                }))).thenReturn(coverageTopology);
 
         /*
         Setup SUT
@@ -253,9 +268,9 @@ public class SupplementalRICoverageAnalysisTest {
                         coverageTopologyFactory,
                         reservedInstanceBoughtStore,
                         reservedInstanceSpecStore,
-                        cloudCommitmentAggregatorFactory,
                         true,
-                        false);
+                        false,
+                        accountMappingStore);
 
         /*
         Invoke SUT

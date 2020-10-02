@@ -20,9 +20,9 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyDemandCluster;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyRegionalContext;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.calculator.RICoverageRule;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
+import com.vmturbo.reserved.instance.coverage.allocator.rules.RICoverageRuleConfig;
 
 /**
  * Responsible for matching {@link RIBuyDemandCluster} instances to an RI spec to purchase (based on
@@ -90,7 +90,7 @@ public class ReservedInstanceSpecMatcher {
     }
 
 
-    public Set<Long> matchDemandContextToRISpecs(@Nonnull RICoverageRule matchingRule,
+    public Set<Long> matchDemandContextToRISpecs(@Nonnull RICoverageRuleConfig matchingRule,
                                                  @Nonnull RIBuyRegionalContext regionalContext,
                                                  @Nonnull RIBuyDemandCluster demandCluster) {
         final String family = regionalContext.computeTier()
@@ -104,15 +104,15 @@ public class ReservedInstanceSpecMatcher {
                         .regionOid(regionalContext.regionOid())
                         .tenancy(demandCluster.tenancy());
 
-        if (!matchingRule.platformFlexible().orElse(false)) {
+        if (!matchingRule.isPlatformFlexible().orElse(false)) {
             specKeyBuilder.osType(demandCluster.platform());
         }
 
         final Set<ReservedInstanceSpecKey> riSpecKeys = new HashSet<>();
-        if (matchingRule.sizeFlexible().orElse(true)) {
+        if (matchingRule.isSizeFlexible().orElse(true)) {
             riSpecKeys.add(specKeyBuilder.build());
         }
-        if (!matchingRule.sizeFlexible().orElse(false)) {
+        if (!matchingRule.isSizeFlexible().orElse(false)) {
             specKeyBuilder.computerTierOid(demandCluster.computeTierOid());
             riSpecKeys.add(specKeyBuilder.build());
         }

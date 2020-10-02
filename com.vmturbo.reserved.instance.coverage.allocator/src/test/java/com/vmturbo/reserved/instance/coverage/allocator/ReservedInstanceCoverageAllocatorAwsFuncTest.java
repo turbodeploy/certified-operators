@@ -44,6 +44,8 @@ import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopolog
 
 public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReservedInstanceCoverageAllocatorTest{
 
+    GroupMemberRetriever groupMemberRetriever = mock(GroupMemberRetriever.class);
+
     /**
      * Setup method for tests.
      */
@@ -76,7 +78,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 BUSINESS_ACCOUNT);
 
         final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
-                CoverageAllocationConfig.builder()
+                ImmutableRICoverageAllocatorConfig.builder()
                         .coverageTopology(coverageTopology)
                         .coverageProvider(() -> ImmutableTable.of())
                         .build());
@@ -120,7 +122,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
          * Invoke SUT
          */
         final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
-                CoverageAllocationConfig.builder()
+                ImmutableRICoverageAllocatorConfig.builder()
                         .coverageTopology(coverageTopology)
                         .coverageProvider(() -> ImmutableTable.of())
                         .build());
@@ -154,7 +156,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
          * Invoke SUT
          */
         final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
-                CoverageAllocationConfig.builder()
+                ImmutableRICoverageAllocatorConfig.builder()
                         .coverageTopology(coverageTopology)
                         .coverageProvider(() -> ImmutableTable.of())
                         .build());
@@ -197,7 +199,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
          * Invoke SUT
          */
         final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
-                CoverageAllocationConfig.builder()
+                ImmutableRICoverageAllocatorConfig.builder()
                         .coverageTopology(coverageTopology)
                         .coverageProvider(() -> ImmutableTable.of())
                         .build());
@@ -239,7 +241,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
          * Invoke SUT
          */
         final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
-                CoverageAllocationConfig.builder()
+                ImmutableRICoverageAllocatorConfig.builder()
                         .coverageTopology(coverageTopology)
                         .coverageProvider(() -> ImmutableTable.of())
                         .build());
@@ -280,7 +282,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
          * Invoke SUT
          */
         final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
-                CoverageAllocationConfig.builder()
+                ImmutableRICoverageAllocatorConfig.builder()
                         .coverageTopology(coverageTopology)
                         .coverageProvider(() -> ImmutableTable.of())
                         .build());
@@ -344,7 +346,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
          * Invoke SUT
          */
         final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
-                CoverageAllocationConfig.builder()
+                ImmutableRICoverageAllocatorConfig.builder()
                         .coverageTopology(coverageTopology)
                         .coverageProvider(() -> ImmutableTable.of())
                         .build());
@@ -385,7 +387,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
          * Invoke SUT
          */
         final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
-                CoverageAllocationConfig.builder()
+                ImmutableRICoverageAllocatorConfig.builder()
                         .coverageTopology(coverageTopology)
                         .coverageProvider(() -> ImmutableTable.of(
                                 VIRTUAL_MACHINE_SMALL_A.getOid(),

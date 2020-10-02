@@ -1,45 +1,47 @@
 package com.vmturbo.reserved.instance.coverage.allocator.topology;
 
+import java.util.Collection;
 import java.util.Objects;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
- * Factory class for creating instances of {@link CoverageTopology}.
+ * Static factory class for creating instances of {@link CoverageTopology}
  */
 public class CoverageTopologyFactory {
 
     private final ThinTargetCache targetCache;
 
-    /**
-     * Constructs a new factory.
-     * @param targetCache The thin target cache, used to resolve the cloud service provider for entities.
-     */
     public CoverageTopologyFactory(@Nonnull ThinTargetCache targetCache) {
         this.targetCache = Objects.requireNonNull(targetCache);
     }
 
     /**
-     * Creates a new instance of {@link CoverageTopology}.
+     * Creates a new instance of {@link CoverageTopology}
      *
      * @param cloudTopology An instance of {@link CloudTopology}, used to populate {@link TopologyEntityDTO}
      *                      data for the created {@link CoverageTopology}
-     * @param commitmentAggregates The {@link CloudCommitmentAggregate} set to include in the topology.
+     * @param reservedInstanceSpecs The {@link ReservedInstanceSpec} instances used to populate
+     *                              the {@link CoverageTopology}
+     * @param reservedInstances The {@link ReservedInstanceBought} instances used to populate the
+     *                          {@link CoverageTopology}
      * @return A newly created instance of {@link CoverageTopology}
      */
     @Nonnull
     public CoverageTopology createCoverageTopology(
             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-            @Nonnull Set<CloudCommitmentAggregate> commitmentAggregates) {
-        return new DelegatingCoverageTopology(
+            @Nonnull Collection<ReservedInstanceSpec> reservedInstanceSpecs,
+            @Nonnull Collection<ReservedInstanceBought> reservedInstances) {
+        return new CoverageTopologyImpl(
                 cloudTopology,
                 targetCache,
-                commitmentAggregates);
+                reservedInstanceSpecs,
+                reservedInstances);
     }
 }
