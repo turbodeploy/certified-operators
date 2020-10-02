@@ -20,6 +20,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
+import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.api.exceptions.ConversionException;
@@ -28,6 +29,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 
 /**
  * Conversions between different representations of policies.
@@ -185,6 +187,8 @@ public class PolicyMapper {
                 policyApiDTO.setType(PolicyType.MUST_RUN_TOGETHER);
                 policyApiDTO.setConsumerGroup(getPolicyGroupApiDTO(mustRunTogether.getGroupId(),
                         policyInfo.getName(), groupsByID));
+                policyApiDTO.setProviderEntityType(EntityType.fromString(
+                    ApiEntityType.fromType(mustRunTogether.getProviderEntityType()).apiStr()));
                 break;
             case MUST_NOT_RUN_TOGETHER:
                 final PolicyDTO.PolicyInfo.MustNotRunTogetherPolicy mustNotRunTogether =
@@ -192,6 +196,8 @@ public class PolicyMapper {
                 policyApiDTO.setType(PolicyType.MUST_NOT_RUN_TOGETHER);
                 policyApiDTO.setConsumerGroup(getPolicyGroupApiDTO(mustNotRunTogether.getGroupId(),
                         policyInfo.getName(), groupsByID));
+                policyApiDTO.setProviderEntityType(EntityType.fromString(
+                    ApiEntityType.fromType(mustNotRunTogether.getProviderEntityType()).apiStr()));
                 break;
             default:
                 // Not supposed to happen
@@ -273,6 +279,9 @@ public class PolicyMapper {
                     break;
                 case MUST_RUN_TOGETHER:
                     policyInfoBuilder.setMustRunTogether(mustRunTogetherPolicy(policyApiDTO));
+                    break;
+                case MUST_NOT_RUN_TOGETHER:
+                    policyInfoBuilder.setMustNotRunTogether(mustNotRunTogetherPolicy(policyApiDTO));
                     break;
                 default:
                     logger.error("Unhandled policy type: {}", policyApiDTO.getType());
@@ -356,6 +365,9 @@ public class PolicyMapper {
                     @Nonnull PolicyApiDTO policyApiDTO) {
         return PolicyInfo.MustRunTogetherPolicy.newBuilder()
                         .setGroupId(consumersId(policyApiDTO))
+                        .setProviderEntityType(
+                            ApiEntityType.fromString(
+                                policyApiDTO.getProviderEntityType().name()).typeNumber())
                         .build();
     }
 
@@ -364,6 +376,9 @@ public class PolicyMapper {
             @Nonnull PolicyApiDTO policyApiDTO) {
         return PolicyInfo.MustNotRunTogetherPolicy.newBuilder()
                         .setGroupId(consumersId(policyApiDTO))
+                        .setProviderEntityType(
+                            ApiEntityType.fromString(
+                                policyApiDTO.getProviderEntityType().name()).typeNumber())
                         .build();
     }
 
@@ -492,6 +507,9 @@ public class PolicyMapper {
                     final PolicyDTO.PolicyInfo.MustRunTogetherPolicy mustRunTogetherPolicy =
                             PolicyDTO.PolicyInfo.MustRunTogetherPolicy.newBuilder()
                                     .setGroupId(consumerId)
+                                    .setProviderEntityType(
+                                        ApiEntityType.fromString(
+                                            policyApiInputDTO.getProviderEntityType().name()).typeNumber())
                                     .build();
                     inputPolicyBuilder.setMustRunTogether(mustRunTogetherPolicy);
                     break;
@@ -500,6 +518,9 @@ public class PolicyMapper {
                     final PolicyDTO.PolicyInfo.MustNotRunTogetherPolicy mustNotRunTogetherPolicy =
                             PolicyDTO.PolicyInfo.MustNotRunTogetherPolicy.newBuilder()
                                     .setGroupId(consumerId)
+                                    .setProviderEntityType(
+                                        ApiEntityType.fromString(
+                                            policyApiInputDTO.getProviderEntityType().name()).typeNumber())
                                     .build();
                     inputPolicyBuilder.setMustNotRunTogether(mustNotRunTogetherPolicy);
                     break;

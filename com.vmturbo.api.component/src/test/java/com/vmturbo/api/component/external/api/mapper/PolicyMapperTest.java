@@ -21,11 +21,13 @@ import org.mockito.Mockito;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
+import com.vmturbo.api.enums.EntityType;
 import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.platform.common.dto.CommonDTO;
 
 /**
  * Tests for {@link PolicyMapper}.
@@ -49,6 +51,9 @@ public class PolicyMapperTest {
     private static final String testPolicyName = "nameFoo";
     private static final long testConsumerId = 3141592L;
     private static final long testProviderId = 1234567890L;
+    private static final EntityType providerEntityTypeApi = EntityType.PhysicalMachine;
+    private static final CommonDTO.EntityDTO.EntityType providerEntityType =
+        CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE;
 
     @Before
     public void setup() throws Exception {
@@ -378,6 +383,7 @@ public class PolicyMapperTest {
         rawPolicyBuilder.getPolicyInfoBuilder()
                 .setMustRunTogether(PolicyInfo.MustRunTogetherPolicy.newBuilder()
                         .setGroupId(testConsumerId)
+                        .setProviderEntityType(providerEntityType.getNumber())
                         .build())
                 .build();
         final Policy policy = rawPolicyBuilder.build();
@@ -395,6 +401,7 @@ public class PolicyMapperTest {
 
         assertEquals(result.getType(), PolicyType.MUST_RUN_TOGETHER);
         assertEquals(result.getConsumerGroup(), consumerDTO);
+        assertEquals(result.getProviderEntityType(), providerEntityTypeApi);
         // the provider group should not be populated in this case
         assertEquals(null, result.getProviderGroup());
 
@@ -407,6 +414,7 @@ public class PolicyMapperTest {
     public void testPolicyToApiDtoMustNotRunTogether() throws Exception {
         rawPolicyBuilder.getPolicyInfoBuilder()
                 .setMustNotRunTogether(PolicyInfo.MustNotRunTogetherPolicy.newBuilder()
+                        .setProviderEntityType(providerEntityType.getNumber())
                         .setGroupId(testConsumerId)
                         .build())
                 .build();
@@ -424,6 +432,7 @@ public class PolicyMapperTest {
         assertEquals(result.getCommodityType(), testPolicyCommodityType);
         assertEquals(result.getType(), PolicyType.MUST_NOT_RUN_TOGETHER);
         assertEquals(result.getConsumerGroup(), consumerDTO);
+        assertEquals(result.getProviderEntityType(), providerEntityTypeApi);
         // the provider group should not be populated in this case
         assertEquals(null, result.getProviderGroup());
     }
@@ -601,6 +610,7 @@ public class PolicyMapperTest {
     public void testPolicyApiInputDtoToProtoMustRunTogether() {
         PolicyApiInputDTO inputDTO = makeTestPolicyApiInputDTO();
         inputDTO.setType(PolicyType.MUST_RUN_TOGETHER);
+        inputDTO.setProviderEntityType(providerEntityTypeApi);
 
         final PolicyInfo result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
@@ -611,12 +621,14 @@ public class PolicyMapperTest {
         assertTrue(result.hasMustRunTogether());
         final PolicyInfo.MustRunTogetherPolicy policy = result.getMustRunTogether();
         assertEquals(policy.getGroupId(), testConsumerId);
+        assertEquals(policy.getProviderEntityType(), providerEntityType.getNumber());
     }
 
     @Test
     public void testPolicyApiInputDtoToProtoMustNotRunTogether() {
         PolicyApiInputDTO inputDTO = makeTestPolicyApiInputDTO();
         inputDTO.setType(PolicyType.MUST_NOT_RUN_TOGETHER);
+        inputDTO.setProviderEntityType(providerEntityTypeApi);
 
         final PolicyInfo result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
@@ -627,6 +639,7 @@ public class PolicyMapperTest {
         assertTrue(result.hasMustNotRunTogether());
         final PolicyInfo.MustNotRunTogetherPolicy policy = result.getMustNotRunTogether();
         assertEquals(policy.getGroupId(), testConsumerId);
+        assertEquals(policy.getProviderEntityType(), providerEntityType.getNumber());
     }
 
     /**
