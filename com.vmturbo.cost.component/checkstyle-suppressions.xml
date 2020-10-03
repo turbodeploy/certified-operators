@@ -81,8 +81,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]ServiceEntityReservedInstanceCoverageRecord.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]action[/\\]ReservedInstanceActionsSender.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]action[/\\]ReservedInstanceActionsSenderConfig.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]coverage[/\\]analysis[/\\]SupplementalRICoverageAnalysis.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]coverage[/\\]analysis[/\\]SupplementalRICoverageAnalysisFactory.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]filter[/\\]BuyReservedInstanceTableFilter.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]filter[/\\]EntityReservedInstanceMappingFilter.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]filter[/\\]PlanProjectedEntityReservedInstanceMappingFilter.java" />
@@ -158,7 +156,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]ReservedInstanceCoverageUpdateTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]ReservedInstanceCoverageValidatorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]ReservedInstanceUtilizationStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]coverage[/\\]analysis[/\\]SupplementalRICoverageAnalysisTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]RIBuyRateProviderTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]ReservedInstanceAnalysisInvokerTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]cost[/\\]component[/\\]reserved[/\\]instance[/\\]recommendationalgorithm[/\\]ReservedInstanceAnalysisRecommendationTest.java" />

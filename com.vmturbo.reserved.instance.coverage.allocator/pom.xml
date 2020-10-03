@@ -31,6 +31,11 @@
             <artifactId>common-protobuf</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>cloud-common</artifactId>
+        </dependency>
+
         <!-- Needed for CloudTopology -->
         <dependency>
             <groupId>com.vmturbo</groupId>

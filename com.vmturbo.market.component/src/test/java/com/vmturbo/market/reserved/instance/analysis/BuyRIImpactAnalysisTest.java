@@ -2,7 +2,6 @@ package com.vmturbo.market.reserved.instance.analysis;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -10,15 +9,16 @@ import static org.mockito.Mockito.when;
 
 import java.util.Map;
 
-import org.junit.Before;
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
 
+import org.junit.Before;
+import org.junit.Test;
+
+import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator;
+import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.CloudCommitmentAggregatorFactory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -27,28 +27,45 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory.DefaultBuyRIImpactAnalysisFactory;
-import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory;
+import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocation;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocator;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
 
+/**
+ * Unit tests for {@link BuyRIImpactAnalysis}.
+ */
 public class BuyRIImpactAnalysisTest {
 
-    private final RICoverageAllocatorFactory allocatorFactory = mock(RICoverageAllocatorFactory.class);
+    private final CoverageAllocatorFactory allocatorFactory = mock(CoverageAllocatorFactory.class);
 
     private final CoverageTopologyFactory coverageTopologyFactory =
             mock(CoverageTopologyFactory.class);
 
     private final ReservedInstanceCoverageAllocator riCoverageAllocator =
             mock(ReservedInstanceCoverageAllocator.class);
+
+    private final CloudCommitmentAggregator cloudCommitmentAggregator = mock(CloudCommitmentAggregator.class);
+
+    private final CloudCommitmentAggregatorFactory cloudCommitmentAggregatorFactory =
+            mock(CloudCommitmentAggregatorFactory.class);
+
     private final CoverageTopology coverageTopology = mock(CoverageTopology.class);
 
+    /**
+     * JUnit setup.
+     */
     @Before
     public void setup() {
         when(allocatorFactory.createAllocator(any())).thenReturn(riCoverageAllocator);
+        when(cloudCommitmentAggregatorFactory.newIdentityAggregator(any()))
+                .thenReturn(cloudCommitmentAggregator);
     }
 
+    /**
+     * Test creation of the coverage records from supplemental allocation results.
+     */
     @Test
     public void testCreateCoverageRecordsFromSupplementalAllocation() {
 
@@ -80,7 +97,7 @@ public class BuyRIImpactAnalysisTest {
 
         // setup coverage topology
         // Entity ID 3 will require resolution of the coverage capacity
-        when(coverageTopology.getRICoverageCapacityForEntity(eq(3L))).thenReturn(8L);
+        when(coverageTopology.getCoverageCapacityForEntity(eq(3L))).thenReturn(8.0);
 
 
         /*
@@ -121,8 +138,7 @@ public class BuyRIImpactAnalysisTest {
                                 riSpec2)));
         when(coverageTopologyFactory.createCoverageTopology(
                 eq(cloudTopology),
-                eq(ImmutableSet.of(riSpec1, riSpec2)),
-                eq(ImmutableSet.of(ri1, ri2)))).thenReturn(coverageTopology);
+                any())).thenReturn(coverageTopology);
 
         /*
         Setup SUT
@@ -131,6 +147,7 @@ public class BuyRIImpactAnalysisTest {
                 new DefaultBuyRIImpactAnalysisFactory(
                         allocatorFactory,
                         coverageTopologyFactory,
+                        cloudCommitmentAggregatorFactory,
                         true,
                         false) {
                 };

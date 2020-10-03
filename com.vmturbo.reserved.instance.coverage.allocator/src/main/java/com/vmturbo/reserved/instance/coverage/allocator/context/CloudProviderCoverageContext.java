@@ -16,6 +16,7 @@ import javax.annotation.concurrent.Immutable;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -115,8 +116,6 @@ public class CloudProviderCoverageContext {
      * @param coverageTopology An instance of {@link CoverageTopology}, used to resolve oids of
      *                         both {@link ReservedInstanceBought} instances and
      *                         {@link TopologyEntityDTO} instances.
-     * @param reservedInstances A {@link Stream} of {@link ReservedInstanceBought} instances
-     * @param entities A {@link Stream} of {@link TopologyEntityDTO} instances
      * @param skipPartialContexts If true, any context with only {@link ReservedInstanceBought}
      *                            instances or {@link TopologyEntityDTO} instances will not be returned.
      *                            If false, all created contexts will be returned.
@@ -126,8 +125,8 @@ public class CloudProviderCoverageContext {
      */
     public static Set<CloudProviderCoverageContext> createContexts(
             @Nonnull CoverageTopology coverageTopology,
-            @Nonnull Stream<ReservedInstanceBought> reservedInstances,
-            @Nonnull Stream<TopologyEntityDTO> entities,
+            @Nonnull Stream<ReservedInstanceAggregate> riAggregates,
+            @Nonnull Stream<Long> coverableEntityOids,
             boolean skipPartialContexts) {
 
 
@@ -143,23 +142,26 @@ public class CloudProviderCoverageContext {
                         // If more than one CSP is is linked to an entity, return no CSP
                         .collect(Collectors.reducing((csp1, csp2) -> null));
 
-        reservedInstances.forEach(ri -> {
-            final long accountOid = ri.getReservedInstanceBoughtInfo().getBusinessAccountId();
-            resolveCSPForEntity.apply(accountOid).ifPresent(cloudServiceProvider ->
+        riAggregates.forEach(riAggregate -> {
+            // For RIs, the CSP is determined through the associated tier, given the
+            // RIs may not be aggregated by purchasing account (if they are scoped to accounts
+            // outside of their purchasing account)
+            final long tierOid = riAggregate.aggregateInfo().tierInfo().tierOid();
+            resolveCSPForEntity.apply(tierOid).ifPresent(cloudServiceProvider ->
                     contextBuildersByProvider.computeIfAbsent(cloudServiceProvider, (csp) ->
                             CloudProviderCoverageContext.newBuilder()
                                     .cloudServiceProvider(cloudServiceProvider)
                                     .coverageTopology(coverageTopology))
-                            .reservedInstanceOid(ri.getId()));
+                            .reservedInstanceOid(riAggregate.aggregateId()));
         });
 
-        entities.forEach(entity ->
-            resolveCSPForEntity.apply(entity.getOid()).ifPresent(cloudServiceProvider ->
+        coverableEntityOids.forEach(entityOid ->
+            resolveCSPForEntity.apply(entityOid).ifPresent(cloudServiceProvider ->
                     contextBuildersByProvider.computeIfAbsent(cloudServiceProvider, (csp) ->
                         CloudProviderCoverageContext.newBuilder()
                                 .cloudServiceProvider(cloudServiceProvider)
                                 .coverageTopology(coverageTopology))
-                        .coverableEntityOid(entity.getOid())));
+                        .coverableEntityOid(entityOid)));
 
         return contextBuildersByProvider.values().stream()
                 .filter(contextBuilder -> !skipPartialContexts ||
