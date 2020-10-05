@@ -411,7 +411,8 @@ public class SettingsMapper {
     @Nonnull
     public SettingPolicyInfo convertNewInputPolicy(@Nonnull final SettingsPolicyApiDTO apiInputPolicy)
             throws InvalidOperationException, UnknownObjectException {
-        return convertInputPolicy(apiInputPolicy, resolveEntityType(apiInputPolicy));
+        return convertInputPolicy(apiInputPolicy, resolveEntityType(apiInputPolicy),
+                apiInputPolicy.getDisplayName());
     }
 
     /**
@@ -436,8 +437,36 @@ public class SettingsMapper {
         if (!getResponse.hasSettingPolicy()) {
             throw new UnknownObjectException("Setting policy not found: " + existingPolicyId);
         }
+        if (newPolicy.getSettingsManagers() != null) {
+            // perform a sanity check for combinations of settingsmanagers & settings
+            newPolicy.getSettingsManagers().forEach(settingsManagerApiDTO -> {
+                String managerUuid = settingsManagerApiDTO.getUuid();
+                if (managerUuid == null || managerUuid.equals("")) {
+                    throw new IllegalArgumentException(
+                            "No uuid provided for at least one settings manager.");
+                }
+                SettingsManagerInfo managerInfo = managerMapping.getManagerInfo(managerUuid)
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "Cannot find settings manager '" + managerUuid + "'."));
+                if (settingsManagerApiDTO.getSettings() != null) {
+                    settingsManagerApiDTO.getSettings().forEach(settingApiDTO -> {
+                        String settingUuid = settingApiDTO.getUuid();
+                        if (settingUuid == null) {
+                            throw new IllegalArgumentException("No uuid provided for at least one "
+                                    + "setting under settings manager '" + managerUuid + "'.");
+                        }
+                        if (!managerInfo.getSettings().contains(settingUuid)) {
+                            throw new IllegalArgumentException(
+                                    "Could not retrieve setting with uuid '" + settingUuid
+                                    + "' under settings manager '" + managerUuid + "'.");
+                        }
+                    });
+                }
+            });
+        }
         return convertInputPolicy(newPolicy,
-                getResponse.getSettingPolicy().getInfo().getEntityType());
+                getResponse.getSettingPolicy().getInfo().getEntityType(),
+                getResponse.getSettingPolicy().getInfo().getDisplayName());
     }
 
     /**
@@ -447,6 +476,8 @@ public class SettingsMapper {
      * @param apiInputPolicy The {@link SettingsPolicyApiDTO} received from the user.
      * @param entityType The entity type of the {@link SettingsPolicyApiDTO}. This needs to be
      *                   provided externally because it's usually not set in the input DTO.
+     * @param displayName The display name of the {@link SettingsPolicyApiDTO}. This needs to be
+     *                   provided externally because it may not be set in the input DTO.
      * @return The {@link SettingPolicyInfo} representing the input DTO for internal XL
      *         communication.
      * @throws InvalidOperationException If the input is illegal.
@@ -454,7 +485,8 @@ public class SettingsMapper {
     @Nonnull
     @VisibleForTesting
     SettingPolicyInfo convertInputPolicy(@Nonnull final SettingsPolicyApiDTO apiInputPolicy,
-                                         final int entityType)
+                                        final int entityType,
+                                        final String displayName)
             throws InvalidOperationException {
         final Map<String, SettingSpec> specsByName = new HashMap<>();
         Map<String, SettingApiDTO> involvedSettings = new HashMap<>();
@@ -481,6 +513,16 @@ public class SettingsMapper {
         }
 
         String inputPolicyDisplayName = apiInputPolicy.getDisplayName();
+        if (inputPolicyDisplayName == null) {
+            // if the display name is not provided in the dto, and either we cannot resolve it
+            // internally (when updating a policy) or the user's creating a new policy, then there
+            // is no value available to populate this field, so throw an error.
+            if (displayName == null) {
+                throw new IllegalArgumentException("Display name neither provided nor could be "
+                                                    + "resolved internally.");
+            }
+            inputPolicyDisplayName = displayName;
+        }
         final SettingPolicyInfo.Builder infoBuilder = SettingPolicyInfo.newBuilder()
             .setName(inputPolicyDisplayName)
             .setDisplayName(inputPolicyDisplayName);
@@ -920,9 +962,53 @@ public class SettingsMapper {
                                           @Nonnull final SettingSpec settingSpec) {
         final Setting.Builder settingBuilder = Setting.newBuilder()
                 .setSettingSpecName(apiDto.getUuid());
+        final String settingValue =
+                StringUtils.trimToEmpty(SettingsMapper.inputValueToString(apiDto).orElse(""));
+        validateSettingValue(settingValue, settingSpec);
         PROTO_SETTING_VALUE_INJECTORS.get(settingSpec.getSettingValueTypeCase())
-                .setBuilderValue(StringUtils.trimToEmpty(SettingsMapper.inputValueToString(apiDto).orElse("")), settingBuilder);
+                .setBuilderValue(settingValue, settingBuilder);
         return settingBuilder.build();
+    }
+
+    /**
+     * Validates that the setting's value matches the setting value type.
+     *
+     * @param settingValue the value to be checked
+     * @param spec the spec for the setting
+     */
+    private static void validateSettingValue(@Nonnull final String settingValue,
+                                             @Nonnull final SettingSpec spec) {
+        switch (spec.getSettingValueTypeCase()) {
+            case BOOLEAN_SETTING_VALUE_TYPE:
+                if (!StringUtils.equalsIgnoreCase(settingValue, Boolean.TRUE.toString())
+                        && !StringUtils.equalsIgnoreCase(settingValue, Boolean.FALSE.toString())) {
+                    // Throw an exception with a more meaningful message if the boolean value is
+                    // neither "true" nor "false" (case insensitive).
+                    throw new IllegalArgumentException("Setting '" + spec.getName()
+                            + "' must have a boolean value. The value '" + settingValue
+                            + "' is invalid.");
+                }
+                break;
+            case NUMERIC_SETTING_VALUE_TYPE:
+                try {
+                    Float.valueOf(settingValue);
+                } catch (NumberFormatException e) {
+                    // Throw an exception with a more meaningful message if value is not a number.
+                    throw new IllegalArgumentException("Setting '" + spec.getName()
+                            + "' must have a numeric value. The value '" + settingValue
+                            + "' is invalid.");
+                }
+                break;
+            case ENUM_SETTING_VALUE_TYPE:
+                final EnumSettingValueType enumType = spec.getEnumSettingValueType();
+                if (!enumType.getEnumValuesList().contains(settingValue)) {
+                    throw new IllegalArgumentException("The value '" + settingValue
+                            + "' provided for setting '" + spec.getName()
+                            + "' is not one of the allowed values: "
+                            + StringUtils.join(enumType.getEnumValuesList(), ", "));
+                }
+                break;
+        }
     }
 
     /**

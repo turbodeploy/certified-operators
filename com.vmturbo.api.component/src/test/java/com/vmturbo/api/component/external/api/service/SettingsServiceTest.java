@@ -63,6 +63,7 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBloc
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -365,6 +366,8 @@ public class SettingsServiceTest {
                 .build())).thenReturn(
                         SettingSpec.newBuilder()
                                 .setNumericSettingValueType(NumericSettingValueType.newBuilder())
+                                .setGlobalSettingSpec(
+                                        GlobalSettingSpec.newBuilder().getDefaultInstanceForType())
                                 .build());
 
         settingsService.putSettingByUuidAndName(managerName, settingSpecName, settingInput);
@@ -401,6 +404,8 @@ public class SettingsServiceTest {
                 .setSettingSpecName(settingSpecName)
                 .build())).thenReturn(
                 SettingSpec.newBuilder()
+                        .setGlobalSettingSpec(GlobalSettingSpec.newBuilder()
+                                .getDefaultInstanceForType())
                         .setNumericSettingValueType(NumericSettingValueType.newBuilder())
                         .build());
 
@@ -436,6 +441,8 @@ public class SettingsServiceTest {
                 .setSettingSpecName(settingSpecName)
                 .build())).thenReturn(
                         SettingSpec.newBuilder()
+                                .setGlobalSettingSpec(GlobalSettingSpec.newBuilder()
+                                        .getDefaultInstanceForType())
                                 .setBooleanSettingValueType(BooleanSettingValueType.newBuilder())
                                 .build());
 
@@ -448,5 +455,103 @@ public class SettingsServiceTest {
         }
 
         assertEquals(true, exceptionThrown);
+    }
+
+    /**
+     * Tests that updating an entity default setting works.
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testPutSettingByUuidAndNameForEntitySpecStringDto() throws Exception {
+        // GIVEN
+        final String settingsManagerUuid = "marketsettingsmanager";
+        final String settingUuid = "resizeVStorage";
+        final String settingValue = "true";
+        final ApiEntityType entityType = ApiEntityType.fromString("VirtualMachine");
+
+        final SettingApiDTO<String> inputStringSettingApiDTO = new SettingApiDTO<>();
+        inputStringSettingApiDTO.setValue(settingValue);
+        inputStringSettingApiDTO.setEntityType(entityType.apiStr());
+
+        when(settingRpcServiceSpy.getSettingSpec(SingleSettingSpecRequest.newBuilder()
+                .setSettingSpecName(settingUuid)
+                .build())).thenReturn(
+                SettingSpec.newBuilder()
+                        .setEntitySettingSpec(EntitySettingSpec.newBuilder().build())
+                        .setBooleanSettingValueType(BooleanSettingValueType.newBuilder())
+                        .setName(settingUuid)
+                        .build());
+
+        final SettingApiDTO<String> responseStringSettingApiDTO = new SettingApiDTO<>();
+        responseStringSettingApiDTO.setUuid(settingUuid);
+        responseStringSettingApiDTO.setEntityType(entityType.apiStr());
+        responseStringSettingApiDTO.setValue("false");
+        responseStringSettingApiDTO.setDefaultValue("false");
+        final SettingsManagerApiDTO settingsManagerApiDTO = new SettingsManagerApiDTO();
+        settingsManagerApiDTO.setUuid(settingsManagerUuid);
+        settingsManagerApiDTO.setSettings(Collections.singletonList(responseStringSettingApiDTO));
+        final SettingsPolicyApiDTO responseFromGetSettingPolicies = new SettingsPolicyApiDTO();
+        responseFromGetSettingPolicies.setSettingsManagers(
+                Collections.singletonList(settingsManagerApiDTO));
+        when(settingsPoliciesService.getSettingsPolicies(true,
+                Collections.singleton(entityType.typeNumber()),
+                Collections.singleton(settingsManagerUuid))).thenReturn(
+                        Collections.singletonList(responseFromGetSettingPolicies));
+        final SettingApiDTO<String> requestStringSettingApiDTOUpdated = new SettingApiDTO<>();
+        requestStringSettingApiDTOUpdated.setUuid(settingUuid);
+        requestStringSettingApiDTOUpdated.setEntityType(entityType.apiStr());
+        requestStringSettingApiDTOUpdated.setValue("true");
+        requestStringSettingApiDTOUpdated.setDefaultValue("false");
+        final SettingsManagerApiDTO updatedSettingsManagerApiDTO = new SettingsManagerApiDTO();
+        updatedSettingsManagerApiDTO.setUuid(settingsManagerUuid);
+        updatedSettingsManagerApiDTO.setSettings(
+                Collections.singletonList(requestStringSettingApiDTOUpdated));
+        SettingsPolicyApiDTO requestSettingsPolicyApiDtoWithUpdatedValues =
+                new SettingsPolicyApiDTO();
+        requestSettingsPolicyApiDtoWithUpdatedValues.setSettingsManagers(
+                Collections.singletonList(updatedSettingsManagerApiDTO));
+        when(settingsPoliciesService.editSettingsPolicy(any(), eq(false), any()))
+                .thenReturn(requestSettingsPolicyApiDtoWithUpdatedValues);
+
+        // WHEN
+        SettingApiDTO<String> result = settingsService.putSettingByUuidAndName(
+                settingsManagerUuid, settingUuid, inputStringSettingApiDTO);
+
+        // THEN
+        assertEquals(settingValue, result.getValue());
+        assertEquals(settingUuid, result.getUuid());
+        assertEquals(entityType.apiStr(), result.getEntityType());
+    }
+
+    /**
+     * Tests that updating an entity default setting without specifying entity type throws an error.
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testPutSettingByUuidAndNameForEntitySpecStringDtoWithoutEntityType()
+            throws Exception {
+        // GIVEN
+        final String settingsManagerUuid = "marketsettingsmanager";
+        final String settingUuid = "usedIncrement_VCPU";
+        final String settingValue = "1234";
+        final SettingApiDTO<String> inputStringSettingApiDTO = new SettingApiDTO<>();
+        inputStringSettingApiDTO.setValue(settingValue);
+
+        when(settingRpcServiceSpy.getSettingSpec(SingleSettingSpecRequest.newBuilder()
+                .setSettingSpecName(settingUuid)
+                .build())).thenReturn(
+                SettingSpec.newBuilder()
+                        .setEntitySettingSpec(EntitySettingSpec.newBuilder().build())
+                        .setNumericSettingValueType(NumericSettingValueType.newBuilder())
+                        .build());
+
+        // THEN
+        expectedException.expect(IllegalArgumentException.class);
+
+        // WHEN
+        SettingApiDTO<String> result = settingsService.putSettingByUuidAndName(
+                settingsManagerUuid, settingUuid, inputStringSettingApiDTO);
     }
 }
