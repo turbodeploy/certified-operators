@@ -142,6 +142,9 @@ public class ProjectedRICoverageCalculator {
                         final Map<Long, Double> riIdtoCouponsOfRIUsed = projectedRiTierDestination
                             .useCoupons(entityId, projectedCouponCommBought.get().getQuantity());
                         riCoverageBuilder.putAllCouponsCoveredByRi(riIdtoCouponsOfRIUsed);
+                        logger.debug("Adding coupons {} to projectedRiTierDestination {} for {} ",
+                                riIdtoCouponsOfRIUsed.toString(),
+                                projectedRiTierDestination.getDisplayName(), riCoverageBuilder.getEntityId());
                     } else {
                         // Entity stayed on the same RI Tier. Check if the coverage changed.
                         if (!originalRiCoverage.isPresent()) {
@@ -161,14 +164,28 @@ public class ProjectedRICoverageCalculator {
                             final Map<Long, Double> riIdtoCouponsOfRIUsed = projectedRiTierDestination
                                 .useCoupons(entityId, projectedNumberOfCouponsBought);
                             riCoverageBuilder.putAllCouponsCoveredByRi(riIdtoCouponsOfRIUsed);
+                            logger.debug("Original == projected, coupons {} added to projectedRiTierDestination {} for {} ",
+                                    riIdtoCouponsOfRIUsed.toString(),
+                                    projectedRiTierDestination.getDisplayName(), riCoverageBuilder.getEntityId());
+
                         } else {
                             // Coverage did not change. Use the original ri coverage.
                             riCoverageBuilder.putAllCouponsCoveredByRi(
                                 originalRiCoverage.get().getCouponsCoveredByRiMap());
+                            logger.debug("Original  coupons {} added to projectedRiTierDestination for {} ",
+                                    originalRiCoverage.get().getCouponsCoveredByRiMap().toString(),
+                                    riCoverageBuilder.getEntityId());
+
                         }
                     }
                 }
                 projectedReservedInstanceCoverage.put(entityId, riCoverageBuilder.build());
+                logger.debug("Added projected RI coverage {} onto {}",
+                        riCoverageBuilder.toString(), entityId);
+
+            } else {
+                logger.debug("Invalid projectedCoverageCapacity for {}",
+                        projectedTraderTO.getDebugInfoNeverUseInCode());
             }
         } else if (originalRiCoverage.isPresent()) {
             // If we are here, the projected trader is not valid and the entity was originally on
@@ -176,6 +193,8 @@ public class ProjectedRICoverageCalculator {
             // Since the EntityReservedInstanceCoverage is a protobuf, it is immutable and hence
             // safe to copy into projectedReservedInstanceCoverage.
             projectedReservedInstanceCoverage.put(entityId, originalRiCoverage.get());
+            logger.debug("Copying original RI coverage {} onto {}",
+                    originalRiCoverage.get().getCouponsCoveredByRiMap().toString(), entityId);
         }
     }
 

@@ -462,6 +462,8 @@ public class SystemLoadWriterTest {
                                         .setType(type.getSdkType().getNumber())
                                         .build())
                                 .setCapacity(baseCapacity * (type.ordinal() + 1))
+                                .setPeak(basePeak * (type.ordinal() + 1))
+                                .setUsed(baseUsage * (type.ordinal() + 1))
                                 .build())
                         .collect(Collectors.toList()))
                 .addAllCommoditiesBoughtFromProviders(Arrays.stream(sellers)
@@ -538,7 +540,7 @@ public class SystemLoadWriterTest {
                 .filter(r -> r.getUuid().equals(Long.toString(entityId)))
                 .collect(Collectors.toList());
         checkBoughtCommodities(recordsStream, baseUsed, basePeak);
-        checkSoldCommodities(recordsStream, baseCapacity);
+        checkSoldCommodities(recordsStream, baseUsed, basePeak, baseCapacity);
     }
 
     /**
@@ -565,15 +567,19 @@ public class SystemLoadWriterTest {
      * base capacity from which they were calculated.
      *
      * @param records      sold capacity records for some VM
+     * @param baseUsed     base for used value
+     * @param basePeak     base for peak value
      * @param baseCapacity base for capacity values
+     *
      */
-    private void checkSoldCommodities(List<SystemLoadRecord> records, double baseCapacity) {
+    private void checkSoldCommodities(List<SystemLoadRecord> records, double baseUsed,
+                                      double basePeak, double baseCapacity) {
         records.stream().filter(r -> r.getRelation() == RelationType.COMMODITIES).forEach(r -> {
             final SystemLoadCommodity type = SystemLoadCommodity.valueOf(r.getPropertyType());
             assertThat(r.getPropertySubtype(), is(StringConstants.USED));
-            assertNull(r.getAvgValue());
-            assertNull(r.getMinValue());
-            assertNull(r.getMaxValue());
+            assertThat(r.getAvgValue(), is(baseUsed * (type.ordinal() + 1)));
+            assertThat(r.getMinValue(), is(baseUsed * (type.ordinal() + 1)));
+            assertThat(r.getMaxValue(), is(basePeak * (type.ordinal() + 1)));
             assertThat(r.getCapacity(), is(baseCapacity * (type.ordinal() + 1)));
         });
     }

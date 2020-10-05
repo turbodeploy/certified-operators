@@ -741,7 +741,7 @@ public class ScenarioMapperTest {
                     .build()));
 
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting), null);
-        assertThat(scenarioInfo.getChangesCount(), is(1));
+        assertThat(scenarioInfo.getChangesCount(), is(2));
         final List<ScenarioChange> change = scenarioInfo.getChangesList();
         assertTrue(change.get(0).hasSettingOverride());
         assertTrue(change.get(0).getSettingOverride().hasSetting());
@@ -770,7 +770,7 @@ public class ScenarioMapperTest {
                         .build()));
 
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting), null);
-        assertThat(scenarioInfo.getChangesCount(), is(1));
+        assertThat(scenarioInfo.getChangesCount(), is(2));
         final List<ScenarioChange> change = scenarioInfo.getChangesList();
         assertTrue(change.get(0).hasSettingOverride());
         assertTrue(change.get(0).getSettingOverride().hasSetting());
@@ -789,7 +789,7 @@ public class ScenarioMapperTest {
     public void testSettingOverrideUnknownSetting() throws OperationFailedException, UnknownObjectException {
         final SettingApiDTO<String> setting = createStringSetting("unknown", "value");
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting), null);
-        assertThat(scenarioInfo.getChangesCount(), is(0));
+        assertThat(scenarioInfo.getChangesCount(), is(1));
     }
 
     /**
@@ -834,7 +834,7 @@ public class ScenarioMapperTest {
     @Test
     public void testToScenarioInfoWithEmptyConfigChanges() throws OperationFailedException, UnknownObjectException {
         final ScenarioInfo scenarioInfo = getScenarioInfo((List<SettingApiDTO<String>>)null, null);
-        Assert.assertTrue(scenarioInfo.getChangesList().isEmpty());
+        assertEquals(1, scenarioInfo.getChangesCount());
     }
 
     /**
@@ -873,8 +873,9 @@ public class ScenarioMapperTest {
         final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
         loadChanges.setUtilizationList(ImmutableList.of(createUtilizationApiDto(20)));
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList(), loadChanges);
+        assertEquals(2, scenarioInfo.getChangesCount());
         final UtilizationLevel utilizationLevel =
-                scenarioInfo.getChangesList().get(0).getPlanChanges().getUtilizationLevel();
+                scenarioInfo.getChangesList().get(1).getPlanChanges().getUtilizationLevel();
         Assert.assertEquals(20, utilizationLevel.getPercentage());
     }
 
@@ -1025,7 +1026,13 @@ public class ScenarioMapperTest {
         long testbaselineDate = 123456789;
         loadChanges.setBaselineDate(String.valueOf(testbaselineDate));
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList(), loadChanges);
-        final long baselineDate = scenarioInfo.getChangesList().get(0)
+
+        assertEquals(2, scenarioInfo.getChangesCount());
+        assertEquals(EntitySettingSpecs.RateOfResize.getSettingName(),
+            scenarioInfo.getChanges(0).getSettingOverride().getSetting().getSettingSpecName());
+        assertEquals(3, scenarioInfo.getChanges(0).getSettingOverride()
+            .getSetting().getNumericSettingValue().getValue(), 1e-7);
+        final long baselineDate = scenarioInfo.getChangesList().get(1)
             .getPlanChanges().getHistoricalBaseline().getBaselineDate();
         Assert.assertEquals(testbaselineDate, baselineDate);
     }
@@ -1040,7 +1047,7 @@ public class ScenarioMapperTest {
             throws OperationFailedException, UnknownObjectException {
         final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList(), loadChanges);
-        Assert.assertEquals(0, scenarioInfo.getChangesList().size());
+        Assert.assertEquals(1, scenarioInfo.getChangesList().size());
     }
 
 
@@ -1826,9 +1833,9 @@ public class ScenarioMapperTest {
         final List<ScenarioChange> scenarioChanges = scenarioMapper.buildSettingChanges(Arrays.asList(setting));
 
         //THEN
-        assertTrue(scenarioChanges.size() == 1);
+        assertEquals(2, scenarioChanges.size());
         assertTrue(scenarioChanges.get(0).hasSettingOverride());
-        assertTrue(scenarioChanges.get(0).getSettingOverride().getGroupOid() == 123L);
+        assertEquals(123L, scenarioChanges.get(0).getSettingOverride().getGroupOid());
     }
 
     /**
@@ -1853,9 +1860,13 @@ public class ScenarioMapperTest {
         final List<ScenarioChange> scenarioChanges = scenarioMapper.buildSettingChanges(Arrays.asList(setting));
 
         //THEN
-        assertTrue(scenarioChanges.size() == 1);
+        assertEquals(2, scenarioChanges.size());
         assertTrue(scenarioChanges.get(0).hasSettingOverride());
         assertFalse(scenarioChanges.get(0).getSettingOverride().hasGroupOid());
+        assertEquals(EntitySettingSpecs.RateOfResize.getSettingName(),
+            scenarioChanges.get(1).getSettingOverride().getSetting().getSettingSpecName());
+        assertEquals(3, scenarioChanges.get(1).getSettingOverride()
+            .getSetting().getNumericSettingValue().getValue(), 1e-7);
     }
 
     /**
@@ -1888,7 +1899,7 @@ public class ScenarioMapperTest {
         final List<ScenarioChange> scenarioChanges = scenarioMapper.buildSettingChanges(Arrays.asList(setting));
 
         //THEN
-        assertTrue(scenarioChanges.size() == 4);
+        assertEquals(5, scenarioChanges.size());
     }
 
     /**

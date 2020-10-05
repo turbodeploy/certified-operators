@@ -10,12 +10,15 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
+
+import io.grpc.Status;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -27,6 +30,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedEntityInfo;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -42,6 +46,8 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
@@ -80,6 +86,8 @@ public class StatsQueryScopeExpanderTest {
         .setDisplayName("dc")
         .build();
 
+    private UuidMapper uuidMapper = mock(UuidMapper.class);
+
     @Before
     public void setup() {
         supplyChainFetcherFactory = spy(new SupplyChainFetcherFactory(
@@ -89,7 +97,8 @@ public class StatsQueryScopeExpanderTest {
             groupExpander,
             mock(EntityAspectMapper.class),
             CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            7));
+                7));
+        supplyChainFetcherFactory.setUuidMapper(uuidMapper);
         scopeExpander = new StatsQueryScopeExpander(supplyChainFetcherFactory, userSessionContext);
         // Doing this here because we make this RPC in every call.
         final SearchRequest req = ApiTestUtils.mockSearchMinReq(Collections.singletonList(DC));
@@ -162,10 +171,8 @@ public class StatsQueryScopeExpanderTest {
 
     @Test
     public void testExpandScopeGroup() throws OperationFailedException {
-        ApiId scope = mock(ApiId.class);
-        when(scope.oid()).thenReturn(7L);
-        when(scope.isRealtimeMarket()).thenReturn(false);
-        when(scope.isGroup()).thenReturn(true);
+        ApiId scope = ApiTestUtils.mockGroupId("7", uuidMapper);
+        ApiTestUtils.mockGroupId("1", uuidMapper);
         when(scope.getScopeOids(userSessionContext, Collections.emptyList())).thenReturn(Collections.singleton(1L));
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
@@ -184,7 +191,7 @@ public class StatsQueryScopeExpanderTest {
         when(scope.isRealtimeMarket()).thenReturn(false);
         when(scope.isGroup()).thenReturn(true);
 
-        when(groupExpander.expandOids(Collections.singleton(7L))).thenReturn(Collections.emptySet());
+        when(groupExpander.expandOids(Collections.singleton(scope))).thenReturn(Collections.emptySet());
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
 
@@ -199,6 +206,8 @@ public class StatsQueryScopeExpanderTest {
         when(scope.isRealtimeMarket()).thenReturn(false);
         when(scope.isGroup()).thenReturn(false);
         when(scope.isTarget()).thenReturn(true);
+        when(uuidMapper.fromOid(7L)).thenReturn(scope);
+        ApiTestUtils.mockEntityId("1", ApiEntityType.VIRTUAL_MACHINE, uuidMapper);
         when(scope.getScopeOids(userSessionContext, Collections.emptyList())).thenReturn(Collections.singleton(1L));
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
@@ -209,17 +218,17 @@ public class StatsQueryScopeExpanderTest {
 
     @Test
     public void testExpandScopePlan() throws OperationFailedException {
-        ApiId scope = mock(ApiId.class);
-        when(scope.oid()).thenReturn(7L);
-        when(scope.isRealtimeMarket()).thenReturn(false);
-        when(scope.isGroup()).thenReturn(false);
-        when(scope.isTarget()).thenReturn(false);
-        when(scope.isPlan()).thenReturn(true);
+        ApiId scope = ApiTestUtils.mockPlanId("7", uuidMapper);
         when(scope.getScopeOids(userSessionContext, Collections.emptyList())).thenReturn(Collections.singleton(1L));
 
         final UuidMapper.CachedPlanInfo planInfo = mock(UuidMapper.CachedPlanInfo.class);
         when(planInfo.getPlanScopeIds()).thenReturn(Sets.newHashSet(1L));
         when(scope.getCachedPlanInfo()).thenReturn(Optional.of(planInfo));
+
+        ApiId entityId = ApiTestUtils.mockEntityId("1", uuidMapper);
+        CachedEntityInfo c = mock(CachedEntityInfo.class);
+        when(c.getEntityType()).thenReturn(ApiEntityType.VIRTUAL_MACHINE);
+        when(entityId.getCachedEntityInfo()).thenReturn(Optional.of(c));
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
 
@@ -229,13 +238,7 @@ public class StatsQueryScopeExpanderTest {
 
     @Test
     public void testExpandScopeEntity() throws OperationFailedException {
-        ApiId scope = mock(ApiId.class);
-        when(scope.oid()).thenReturn(7L);
-        when(scope.isRealtimeMarket()).thenReturn(false);
-        when(scope.isGroup()).thenReturn(false);
-        when(scope.isTarget()).thenReturn(false);
-        when(scope.isPlan()).thenReturn(false);
-        when(scope.isEntity()).thenReturn(true);
+        ApiId scope = ApiTestUtils.mockEntityId("7", ApiEntityType.VIRTUAL_MACHINE, uuidMapper);
         when(scope.getScopeOids(userSessionContext, Collections.emptyList())).thenReturn(Collections.singleton(7L));
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
@@ -246,13 +249,10 @@ public class StatsQueryScopeExpanderTest {
 
     @Test
     public void testExpandDcToPm() throws OperationFailedException {
-        ApiId scope = mock(ApiId.class);
-        when(scope.oid()).thenReturn(DC.getOid());
-        when(scope.isRealtimeMarket()).thenReturn(false);
-        when(scope.isGroup()).thenReturn(false);
-        when(scope.isTarget()).thenReturn(false);
-        when(scope.isPlan()).thenReturn(false);
-        when(scope.isEntity()).thenReturn(true);
+        ApiId scope = ApiTestUtils.mockEntityId(Long.toString(DC.getOid()), uuidMapper);
+        CachedEntityInfo i = mock(CachedEntityInfo.class);
+        when(i.getEntityType()).thenReturn(ApiEntityType.DATACENTER);
+        when(scope.getCachedEntityInfo()).thenReturn(Optional.of(i));
         when(scope.getScopeOids(userSessionContext, Collections.emptyList())).thenReturn(Collections.singleton(DC.getOid()));
 
         final SupplyChainNodeFetcherBuilder fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
@@ -263,6 +263,17 @@ public class StatsQueryScopeExpanderTest {
                         .build())
                     .build()));
         when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
+        when(supplyChainServiceBackend.getMultiSupplyChains(any()))
+            .thenReturn(Collections.singletonList(GetMultiSupplyChainsResponse.newBuilder()
+                    // The 1 here is hard-coded in the single-scope implementation of
+                    // SupplyChainFetcherFactory.
+                    .setSeedOid(1L)
+                    .setSupplyChain(SupplyChain.newBuilder()
+                        .addSupplyChainNodes(SupplyChainNode.newBuilder()
+                            .putMembersByState(UIEntityState.ACTIVE.toEntityState().getNumber(), MemberList.newBuilder()
+                                    .addMemberOids(1L)
+                                    .build())))
+                    .build()));
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
 
@@ -272,18 +283,10 @@ public class StatsQueryScopeExpanderTest {
 
     @Test
     public void testExpandDcToPmFailedQuery() throws OperationFailedException {
-        ApiId scope = mock(ApiId.class);
-        when(scope.oid()).thenReturn(DC.getOid());
-        when(scope.isRealtimeMarket()).thenReturn(false);
-        when(scope.isGroup()).thenReturn(false);
-        when(scope.isTarget()).thenReturn(false);
-        when(scope.isPlan()).thenReturn(false);
-        when(scope.isEntity()).thenReturn(true);
+        ApiId scope = ApiTestUtils.mockEntityId(Long.toString(DC.getOid()), ApiEntityType.DATACENTER, uuidMapper);
         when(scope.getScopeOids(userSessionContext, Collections.emptyList())).thenReturn(Collections.singleton(DC.getOid()));
 
-        final SupplyChainNodeFetcherBuilder fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(Collections.emptyMap());
-        when(fetcherBuilder.fetch()).thenThrow(new OperationFailedException("foo"));
-        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
+        doReturn(Optional.of(Status.INTERNAL.asException())).when(supplyChainServiceBackend).getMultiSupplyChainsError(any());
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
 
@@ -293,14 +296,8 @@ public class StatsQueryScopeExpanderTest {
 
     @Test
     public void testExpandGetRelatedTypes() throws OperationFailedException {
-        ApiId scope = mock(ApiId.class);
-        when(scope.oid()).thenReturn(7L);
-        when(scope.isRealtimeMarket()).thenReturn(false);
-        when(scope.isGroup()).thenReturn(false);
-        when(scope.isTarget()).thenReturn(false);
-        when(scope.isPlan()).thenReturn(false);
-        when(scope.isEntity()).thenReturn(true);
-        when(scope.getScopeTypes()).thenReturn(Optional.empty());
+        ApiId scope = ApiTestUtils.mockEntityId("7", ApiEntityType.VIRTUAL_MACHINE, uuidMapper);
+        ApiTestUtils.mockEntityId("1", ApiEntityType.PHYSICAL_MACHINE, uuidMapper);
 
         final StatApiInputDTO inputStat = new StatApiInputDTO();
         inputStat.setName("foo");
@@ -325,19 +322,35 @@ public class StatsQueryScopeExpanderTest {
         assertThat(expandedScope.getExpandedOids(), is(Collections.singleton(1L)));
     }
 
+    /**
+     * Test to check that the scope for an observer role gets expanded properly.
+     */
+    @Test
+    public void testExpandEmptyRelatedTypesForObserver() {
+        ApiId scope = ApiTestUtils.mockEntityId("7", ApiEntityType.VIRTUAL_MACHINE, uuidMapper);
+        final StatApiInputDTO inputStat = new StatApiInputDTO();
+        EntityAccessScope accessScope = new EntityAccessScope(null, null,
+            new ArrayOidSet(Arrays.asList(7L)), null);
+
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        when(userSessionContext.isUserObserver()).thenReturn(true);
+        when(scope.oid()).thenReturn(7L);
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(scope.getScopeOids(userSessionContext, Collections.singletonList(inputStat))).thenReturn(Collections.singleton(7L));
+
+        StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.singletonList(inputStat));
+        assertThat(expandedScope.getExpandedOids(), is(Collections.singleton(7L)));
+    }
+
     @Test
     public void testExpandDcRelatedToDc() throws OperationFailedException {
         // The UI sometimes requests stats for DC entities w/related entity "DataCenter". And even
         // though the related entity type is "DataCenter", we expect the final entity type to be
         // that of a PhysicalMachine.
-        ApiId scope = mock(ApiId.class);
-        when(scope.oid()).thenReturn(DC.getOid());
-        when(scope.isRealtimeMarket()).thenReturn(false);
-        when(scope.isGroup()).thenReturn(false);
-        when(scope.isTarget()).thenReturn(false);
-        when(scope.isPlan()).thenReturn(false);
-        when(scope.isEntity()).thenReturn(true);
+        ApiId scope = ApiTestUtils.mockEntityId(Long.toString(DC.getOid()), ApiEntityType.DATACENTER, uuidMapper);
         when(scope.getScopeTypes()).thenReturn(Optional.empty());
+
+        ApiTestUtils.mockEntityId("1", ApiEntityType.PHYSICAL_MACHINE, uuidMapper);
 
         final SupplyChainNodeFetcherBuilder fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
                 ImmutableMap.of(

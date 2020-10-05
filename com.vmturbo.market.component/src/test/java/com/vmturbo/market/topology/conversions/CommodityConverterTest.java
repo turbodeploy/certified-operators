@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
@@ -406,8 +407,8 @@ public class CommodityConverterTest {
                 .setCommodityType(commodityType).setUsed(100).setScalingFactor(2))
             .build();
 
-        final Map<Long, Map<CommodityType, Double>> input =
-            ImmutableMap.of(pm.getOid(), ImmutableMap.of(commodityType, 30d));
+        final Map<Long, Map<CommodityType, Pair<Double, Double>>> input =
+            ImmutableMap.of(pm.getOid(), ImmutableMap.of(commodityType, new Pair<>(30d, 30d)));
         converterToTest.setProviderUsedSubtractionMap(input);
 
         final List<CommoditySoldTO> commoditySoldTOs =

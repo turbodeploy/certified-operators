@@ -5,7 +5,9 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -21,6 +23,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
@@ -32,9 +36,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
 import org.mockito.Mockito;
-import org.mockito.runners.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
 
 import javaslang.control.Either;
@@ -68,6 +70,8 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
@@ -77,6 +81,11 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
+import com.vmturbo.repository.plan.db.PlanEntityFilter;
+import com.vmturbo.repository.plan.db.PlanEntityFilter.PlanEntityFilterConverter;
+import com.vmturbo.repository.plan.db.PlanEntityStore;
+import com.vmturbo.repository.plan.db.TopologyNotFoundException;
+import com.vmturbo.repository.plan.db.TopologySelection;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
@@ -87,7 +96,6 @@ import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
 /**
  *  Test Repository RPC functions.
  */
-@RunWith(MockitoJUnitRunner.class)
 public class ArangoRepositoryRpcServiceTest {
 
     private RepositoryClient repoClient;
@@ -109,12 +117,17 @@ public class ArangoRepositoryRpcServiceTest {
 
     private final LiveTopologyStore liveTopologyStore = mock(LiveTopologyStore.class);
 
+    private PlanEntityStore planEntityStore = mock(PlanEntityStore.class);
+
     private final PartialEntityConverter partialEntityConverter = new PartialEntityConverter(
             liveTopologyStore);
 
+    private final PlanEntityFilterConverter planEntityFilterConverter = mock(PlanEntityFilterConverter.class);
+
     private final ArangoRepositoryRpcService repoRpcService = new ArangoRepositoryRpcService(
         topologyLifecycleManager, topologyProtobufsManager, graphDBService,
-        planStatsService, partialEntityConverter, 10);
+        planStatsService, partialEntityConverter, 10,
+        planEntityStore, planEntityFilterConverter);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(repoRpcService);
@@ -171,6 +184,7 @@ public class ArangoRepositoryRpcServiceTest {
 
     @Test
     public void testRetrieveTopology() throws Exception {
+        when(planEntityStore.getTopologySelection(anyLong())).thenThrow(TopologyNotFoundException.class);
         final ProjectedTopologyEntity entity = ProjectedTopologyEntity.newBuilder()
             .setEntity(TopologyEntityDTO.newBuilder()
                 .setEntityType(10)
@@ -179,7 +193,7 @@ public class ArangoRepositoryRpcServiceTest {
         when(topologyProtobufsManager.createTopologyProtobufReader(topologyId, Optional.empty()))
             .thenReturn(topologyProtobufReader);
         when(topologyProtobufReader.hasNext()).thenReturn(true, false);
-        when(topologyProtobufReader.nextChunk()).thenReturn(Collections.singletonList(entity));
+        when(topologyProtobufReader.next()).thenReturn(Collections.singletonList(entity));
 
         final List<RetrieveTopologyResponse> responseList = new ArrayList<>();
         repositoryService.retrieveTopology(RetrieveTopologyRequest.newBuilder()
@@ -188,7 +202,42 @@ public class ArangoRepositoryRpcServiceTest {
 
         assertThat(responseList.size(), is(1));
         assertEquals(responseList.get(0).getEntitiesList().get(0).getFullEntity(), entity.getEntity());
+    }
 
+    /**
+     * Test retrieving topology when the {@link PlanEntityStore} has the data.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testRetrieveTopologySql() throws Exception {
+        // ARRANGE
+        TopologySelection topologySelection = mock(TopologySelection.class);
+        when(planEntityStore.getTopologySelection(anyLong())).thenReturn(topologySelection);
+        TopologyEntityFilter entityFilter = TopologyEntityFilter.newBuilder()
+            .addEntityTypes(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .build();
+        PlanEntityFilter planEntityFilter = mock(PlanEntityFilter.class);
+        when(planEntityFilterConverter.newPlanFilter(entityFilter))
+                .thenReturn(planEntityFilter);
+        PartialEntity partialEntity = PartialEntity.newBuilder()
+            .setFullEntity(TopologyEntityDTO.newBuilder()
+                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setOid(999L))
+            .build();
+        when(planEntityStore.getPlanEntities(topologySelection, planEntityFilter, Type.FULL))
+            .thenReturn(Stream.of(partialEntity));
+
+        // ACT
+        final List<PartialEntity> responseList = new ArrayList<>();
+        repositoryService.retrieveTopology(RetrieveTopologyRequest.newBuilder()
+                .setTopologyId(topologyId)
+                .setEntityFilter(entityFilter)
+                .build()).forEachRemaining(r -> responseList.addAll(r.getEntitiesList()));
+
+        // ASSERT
+        assertThat(responseList, containsInAnyOrder(partialEntity));
+        verify(planEntityStore).getTopologySelection(topologyId);
     }
 
     @Test
@@ -223,6 +272,81 @@ public class ArangoRepositoryRpcServiceTest {
     }
 
     @Test
+    public void testRetrieveTopologyEntitiesWithTopologyId() throws TopologyNotFoundException {
+        // ARRANGE
+        TopologySelection topologySelection = mock(TopologySelection.class);
+        final RetrieveTopologyEntitiesRequest req = RetrieveTopologyEntitiesRequest.newBuilder()
+            // Topology ID set.
+            .setTopologyId(topologyId)
+            .setTopologyContextId(topologyContextId)
+            .setTopologyType(RepositoryDTO.TopologyType.SOURCE)
+            .addEntityOids(123L)
+            .build();
+        when(planEntityStore.getTopologySelection(anyLong())).thenReturn(topologySelection);
+        PlanEntityFilter planEntityFilter = mock(PlanEntityFilter.class);
+        when(planEntityFilterConverter.newPlanFilter(req))
+                .thenReturn(planEntityFilter);
+        PartialEntity partialEntity = PartialEntity.newBuilder()
+                .setFullEntity(TopologyEntityDTO.newBuilder()
+                        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .setOid(999L))
+                .build();
+        when(planEntityStore.getPlanEntities(topologySelection, planEntityFilter, Type.FULL))
+                .thenReturn(Stream.of(partialEntity));
+
+        // ACT
+        final List<PartialEntity> responseList = new ArrayList<>();
+        repositoryService.retrieveTopologyEntities(req)
+            .forEachRemaining(batch -> responseList.addAll(batch.getEntitiesList()));
+
+        // ASSERT
+        assertThat(responseList, containsInAnyOrder(partialEntity));
+        verify(planEntityStore).getTopologySelection(topologyId);
+    }
+
+    /**
+     * Test retrieval of topology entities from the {@link PlanEntityStore} without a topology ID.
+     * The service should construct a topology selection and pass it to the {@link PlanEntityStore}.
+     *
+     * @throws TopologyNotFoundException To satisfy compiler.
+     */
+    @Test
+    public void testRetrieveTopologyEntitiesSQLWithoutTopologyId() throws TopologyNotFoundException {
+        // ARRANGE
+        final RetrieveTopologyEntitiesRequest req = RetrieveTopologyEntitiesRequest.newBuilder()
+                // No topology ID set.
+                .setTopologyContextId(topologyContextId)
+                .setTopologyType(RepositoryDTO.TopologyType.SOURCE)
+                .addEntityOids(123L)
+                .build();
+        PlanEntityFilter planEntityFilter = mock(PlanEntityFilter.class);
+        TopologySelection topologySelection = mock(TopologySelection.class);
+        when(planEntityStore.getTopologySelection(topologyContextId, RepositoryDTO.TopologyType.SOURCE))
+                .thenReturn(topologySelection);
+        when(planEntityFilterConverter.newPlanFilter(eq(req)))
+                .thenReturn(planEntityFilter);
+        PartialEntity partialEntity = PartialEntity.newBuilder()
+                .setFullEntity(TopologyEntityDTO.newBuilder()
+                        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .setOid(999L))
+                .build();
+        when(planEntityStore.getPlanEntities(topologySelection, planEntityFilter, Type.FULL))
+                .thenReturn(Stream.of(partialEntity));
+
+        // ACT
+        final List<PartialEntity> responseList = new ArrayList<>();
+        repositoryService.retrieveTopologyEntities(req)
+                .forEachRemaining(batch -> responseList.addAll(batch.getEntitiesList()));
+
+        // ASSERT
+        assertThat(responseList, containsInAnyOrder(partialEntity));
+        verify(planEntityFilterConverter).newPlanFilter(eq(req));
+    }
+
+    /**
+     * Test retrieval of topology entities with a filter by type.
+     */
+    @Test
     public void testRetrieveTopologyEntitiesByType() {
         final TopologyID topologyID = mock(TopologyID.class);
         when(topologyLifecycleManager.getTopologyId(topologyContextId, TopologyType.PROJECTED))
@@ -238,7 +362,8 @@ public class ArangoRepositoryRpcServiceTest {
     }
 
     @Test
-    public void testRetrieveTopologyEntitiesStreaming() {
+    public void testRetrieveTopologyEntitiesStreaming() throws Exception {
+        when(planEntityStore.getTopologySelection(anyLong())).thenThrow(TopologyNotFoundException.class);
         // test that a response that should get chunked.
         Collection<TopologyEntityDTO> manyEntities = new ArrayList<>();
         // we configured the service for a batch size of 10, so let's send 11 entities.
@@ -278,10 +403,113 @@ public class ArangoRepositoryRpcServiceTest {
     }
 
     /**
-     * Test retrieving projected statistics.
+     * Test retrieving combined plan topology stats when the {@link PlanEntityStore} has the data.
+     *
+     * @throws TopologyNotFoundException To satisfy compiler.
      */
     @Test
-    public void testRetrievePlanProjectedStats() {
+    public void testCombinedPlanTopologyStatsSql() throws TopologyNotFoundException {
+        final PlanCombinedStatsRequest req = PlanCombinedStatsRequest.newBuilder()
+            .setRequestDetails(RequestDetails.newBuilder()
+                .setReturnType(Type.FULL)
+                .setPaginationParams(PaginationParameters.newBuilder()
+                        .setCursor("foo"))
+                .setRelatedEntityType("foo"))
+            .setTopologyContextId(topologyContextId)
+            .setTopologyToSortOn(RepositoryDTO.TopologyType.SOURCE)
+            .build();
+
+        final TopologySelection srcSelection = mock(TopologySelection.class);
+        final TopologySelection projSelection = mock(TopologySelection.class);
+        when(planEntityStore.getTopologySelection(topologyContextId, RepositoryDTO.TopologyType.SOURCE))
+                .thenReturn(srcSelection);
+        when(planEntityStore.getTopologySelection(topologyContextId, RepositoryDTO.TopologyType.PROJECTED))
+                .thenReturn(projSelection);
+        final PlanEntityFilter filter = mock(PlanEntityFilter.class);
+        when(planEntityFilterConverter.newPlanFilter(eq(req.getRequestDetails())))
+                .thenReturn(filter);
+
+        final Iterator<List<ProjectedTopologyEntity>> srcIt = mock(Iterator.class);
+        final Iterator<List<ProjectedTopologyEntity>> projIt = mock(Iterator.class);
+        when(planEntityStore.getHackyStatsEntities(srcSelection, filter)).thenReturn(srcIt);
+        when(planEntityStore.getHackyStatsEntities(projSelection, filter)).thenReturn(projIt);
+
+        doAnswer(invocation -> {
+            StreamObserver o = invocation.getArgumentAt(7, StreamObserver.class);
+            o.onCompleted();
+            return null;
+        }).when(planStatsService).getPlanCombinedStats(any(), any(), any(), any(), any(),
+                any(), any(), any(), any());
+
+        repositoryService.getPlanCombinedStats(req).forEachRemaining(r -> {
+            // Drain
+        });
+
+        verify(planStatsService).getPlanCombinedStats(eq(srcIt), eq(projIt),
+                eq(req.getRequestDetails().getFilter()),
+                isA(Predicate.class),
+                eq(TopologyType.SOURCE),
+                eq(req.getRequestDetails().getPaginationParams()),
+                eq(req.getRequestDetails().getReturnType()),
+                isA(StreamObserver.class),
+                eq(req.getRequestDetails().getRelatedEntityType()));
+    }
+
+    /**
+     * Test retrieving plan topology stats when the {@link PlanEntityStore} has the data.
+     *
+     * @throws TopologyNotFoundException To satisfy compiler.
+     */
+    @Test
+    public void testGetPlanTopologyStatsSql() throws TopologyNotFoundException {
+        final String relatedEntityType = ApiEntityType.VIRTUAL_MACHINE.apiStr();
+        final PlanTopologyStatsRequest statsRequest = PlanTopologyStatsRequest.newBuilder()
+            .setTopologyId(topologyId)
+            .setRequestDetails(RequestDetails.newBuilder()
+                .setRelatedEntityType(relatedEntityType)
+                .setReturnType(Type.FULL)
+                .setPaginationParams(PaginationParameters.newBuilder()
+                    .setCursor("foo"))
+                .setEntityFilter(EntityFilter.newBuilder()
+                    .addEntityIds(1L)))
+            .build();
+        TopologySelection topologySelection = mock(TopologySelection.class);
+        PlanEntityFilter planEntityFilter = mock(PlanEntityFilter.class);
+        when(planEntityStore.getTopologySelection(topologyId)).thenReturn(topologySelection);
+        when(planEntityFilterConverter.newPlanFilter(statsRequest.getRequestDetails()))
+                .thenReturn(planEntityFilter);
+        Iterator<List<ProjectedTopologyEntity>> retIt = mock(Iterator.class);
+        when(planEntityStore.getHackyStatsEntities(topologySelection, planEntityFilter)).thenReturn(retIt);
+
+        // Need to complete the observer or else the RPC won't return.
+        doAnswer(invocation -> {
+            StreamObserver observer = invocation.getArgumentAt(6, StreamObserver.class);
+            observer.onCompleted();
+            return null;
+        }).when(planStatsService).getPlanTopologyStats(any(), any(), any(), any(), any(), any(), any(), any());
+
+        repositoryService.getPlanTopologyStats(statsRequest).forEachRemaining(l -> {
+            // Drain.
+        });
+
+        verify(planStatsService).getPlanTopologyStats(eq(retIt),
+                eq(StatEpoch.PLAN_PROJECTED),
+                eq(statsRequest.getRequestDetails().getFilter()),
+                isA(Predicate.class),
+                eq(statsRequest.getRequestDetails().getPaginationParams()),
+                eq(statsRequest.getRequestDetails().getReturnType()),
+                isA(StreamObserver.class),
+                eq(relatedEntityType));
+    }
+
+    /**
+     * Test retrieving projected statistics.
+     *
+     * @throws TopologyNotFoundException To satisfy compiler.
+     */
+    @Test
+    public void testRetrievePlanProjectedStats() throws TopologyNotFoundException {
+        when(planEntityStore.getTopologySelection(anyLong())).thenThrow(TopologyNotFoundException.class);
         // arrange
         final ProjectedTopologyEntity topologyEntityDTO = ProjectedTopologyEntity.newBuilder()
             .setEntity(TopologyEntityDTO.newBuilder()
@@ -309,7 +537,7 @@ public class ArangoRepositoryRpcServiceTest {
 
         final TopologyProtobufReader protobufReader = mock(TopologyProtobufReader.class);
         when(protobufReader.hasNext()).thenReturn(true).thenReturn(false);
-        when(protobufReader.nextChunk()).thenReturn(Collections.singletonList(topologyEntityDTO));
+        when(protobufReader.next()).thenReturn(Collections.singletonList(topologyEntityDTO));
 
         when(topologyProtobufsManager.createTopologyProtobufReader(topologyId, Optional.empty()))
                 .thenReturn(protobufReader);
@@ -357,7 +585,7 @@ public class ArangoRepositoryRpcServiceTest {
 
         List<PlanEntityStats> returnedPlanEntityStats = new ArrayList<>();
         PaginationResponse returnedPaginationResponse = null;
-        while(response.hasNext()){
+        while (response.hasNext()) {
             PlanTopologyStatsResponse chunk = response.next();
             if (chunk.getTypeCase() == TypeCase.PAGINATION_RESPONSE) {
                 returnedPaginationResponse = chunk.getPaginationResponse();
@@ -415,9 +643,12 @@ public class ArangoRepositoryRpcServiceTest {
 
     /**
      * Test retrieving plan combined (source and projected) statistics.
+     *
+     * @throws TopologyNotFoundException To satisfy compiler.
      */
     @Test
-    public void testRetrievePlanCombinedStats() {
+    public void testRetrievePlanCombinedStats() throws TopologyNotFoundException {
+        when(planEntityStore.getHackyStatsEntities(any(), any())).thenThrow(TopologyNotFoundException.class);
         // arrange
         final long sourceEntityId = 1L;
         final long projectedEntityId = 2L;
@@ -466,12 +697,12 @@ public class ArangoRepositoryRpcServiceTest {
         // Create two mock protobuf readers, one for each source and projected topologies
         final TopologyProtobufReader sourceProtobufReader = mock(TopologyProtobufReader.class);
         when(sourceProtobufReader.hasNext()).thenReturn(true).thenReturn(false);
-        when(sourceProtobufReader.nextChunk())
+        when(sourceProtobufReader.next())
             .thenReturn(Lists.newArrayList(sourceTopologyEntityDTO, commonTopologyEntityDTO));
 
         final TopologyProtobufReader projectedProtobufReader = mock(TopologyProtobufReader.class);
         when(projectedProtobufReader.hasNext()).thenReturn(true).thenReturn(false);
-        when(projectedProtobufReader.nextChunk())
+        when(projectedProtobufReader.next())
             .thenReturn(Lists.newArrayList(commonTopologyEntityDTO, projectedTopologyEntityDTO));
 
         final long sourceTopologyId = 4567;

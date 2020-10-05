@@ -46,11 +46,15 @@
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
         </dependency>
+
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>common-protobuf</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>cloud-common</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>cost-calculation</artifactId>

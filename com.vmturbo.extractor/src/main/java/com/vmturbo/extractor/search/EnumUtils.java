@@ -3,12 +3,14 @@ package com.vmturbo.extractor.search;
 import static com.vmturbo.extractor.topology.mapper.EntityTypeMappers.SUPPORTED_ENTITY_TYPE_MAPPING;
 import static com.vmturbo.extractor.topology.mapper.GroupMappers.GROUP_TYPE_MAPPING;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.extractor.schema.enums.EntityState;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.extractor.schema.enums.EnvironmentType;
 import com.vmturbo.extractor.schema.enums.MetricType;
+import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.topology.mapper.GroupMappers;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -359,6 +361,24 @@ public class EnumUtils {
          */
         public static MetricType protoIntToDb(int protoCommodityTypeInt) {
             return protoIntToDb(protoCommodityTypeInt, null);
+        }
+    }
+
+    /**
+     * Class to perform conversions among severity types.
+     */
+    public static class SeverityUtils {
+        private SeverityUtils() {
+        }
+
+        /**
+         * Convert a Protobuf entity severity to a DB entity severity.
+         *
+         * @param protoSeverity Protobuf severity
+         * @return DB severity
+         */
+        public static Severity protoToDb(ActionDTO.Severity protoSeverity) {
+            return Severity.valueOf(protoSeverity.name());
         }
     }
 }

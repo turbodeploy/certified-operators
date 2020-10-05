@@ -23,16 +23,15 @@ import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatsRollupConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
-import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
+import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 
 @Configuration
 @Import({GroupClientConfig.class,
@@ -76,7 +75,7 @@ public class ActionStatsConfig {
     @Autowired
     private UserSessionConfig userSessionConfig;
 
-    @Value("${actionStatsWriteBatchSize}")
+    @Value("${actionStatsWriteBatchSize:500}")
     private int actionStatsWriteBatchSize;
 
     @Bean
@@ -184,8 +183,6 @@ public class ActionStatsConfig {
      */
     @Bean
     public InvolvedEntitiesExpander involvedEntitiesExpander() {
-        return new InvolvedEntitiesExpander(
-            RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()),
-            SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()));
+        return new InvolvedEntitiesExpander(tpConfig.actionTopologyStore(), new SupplyChainCalculator());
     }
 }

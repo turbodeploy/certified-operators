@@ -262,19 +262,6 @@ public class CloudCommitmentAnalysis {
     }
 
     /**
-     * The identity provider for an analysis. Used to uniquely identify the analysis and individual
-     * stages.
-     */
-    public interface IdentityProvider {
-
-        /**
-         * Returns the next available ID.
-         * @return The next available ID.
-         */
-        long next();
-    }
-
-    /**
      * A builder class for {@link CloudCommitmentAnalysis}.
      */
     public static class Builder {

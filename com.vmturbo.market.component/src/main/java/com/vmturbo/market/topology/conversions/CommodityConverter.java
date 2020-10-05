@@ -65,7 +65,7 @@ public class CommodityConverter {
     private final ConsistentScalingHelper consistentScalingHelper;
 
     // provider oid -> commodity type -> used value of all consumers to be removed of this provider
-    private Map<Long, Map<CommodityType, Double>> providerUsedSubtractionMap = Collections.emptyMap();
+    private Map<Long, Map<CommodityType, Pair<Double, Double>>> providerUsedSubtractionMap = Collections.emptyMap();
 
     CommodityConverter(@Nonnull final NumericIDAllocator idAllocator,
                        final boolean includeGuaranteedBuyer,
@@ -155,12 +155,11 @@ public class CommodityConverter {
         capacity *= scalingFactor;
         used *= scalingFactor;
 
+        boolean shouldSubtractUsageAndPeak = shouldUseSubtractionMap(dto, topologyCommSold);
         // Subtract used value of consumers from used value of provider.
         // This can only happen in a plan with entities to remove.
-        if (providerUsedSubtractionMap != null
-            && providerUsedSubtractionMap.containsKey(dto.getOid())
-            && providerUsedSubtractionMap.get(dto.getOid()).containsKey(topologyCommSold.getCommodityType())) {
-            used -= providerUsedSubtractionMap.get(dto.getOid()).get(topologyCommSold.getCommodityType());
+        if (shouldSubtractUsageAndPeak) {
+            used -= providerUsedSubtractionMap.get(dto.getOid()).get(topologyCommSold.getCommodityType()).first;
         }
 
         final int type = commodityType.getType();
@@ -296,6 +295,13 @@ public class CommodityConverter {
                                                   ? TopologyDTO.CommoditySoldDTO::getHistoricalPeak
                                                   : null);
         peak *= scalingFactor;
+
+        // Subtract peak value of consumers from peak value of provider.
+        // This can only happen in a plan with entities to remove.
+        if (shouldSubtractUsageAndPeak) {
+            peak -= providerUsedSubtractionMap.get(dto.getOid()).get(topologyCommSold.getCommodityType()).second;
+        }
+
         if (peak < used) {
             peak = used;
         }
@@ -337,6 +343,21 @@ public class CommodityConverter {
         logger.debug("Created {} sold commodity TOs for {}",
                 soldCommodityTOs.size(), topologyCommSold);
         return soldCommodityTOs;
+    }
+
+    /**
+     * Determine if should subtract used and peak from the provider utilization when removing vms from
+     * plan.
+     *
+     * @param dto the topology entity
+     * @param topologyCommSold the comm sold
+     * @return boolean if should use the subtraction map
+     */
+    private boolean shouldUseSubtractionMap(TopologyEntityDTO dto, CommoditySoldDTO topologyCommSold) {
+        return providerUsedSubtractionMap != null
+                && providerUsedSubtractionMap.containsKey(dto.getOid())
+                && providerUsedSubtractionMap.get(dto.getOid())
+                    .containsKey(topologyCommSold.getCommodityType());
     }
 
     /**
@@ -432,9 +453,8 @@ public class CommodityConverter {
         return isOfType && commodityType.hasKey();
     }
 
-    @VisibleForTesting
     @Nonnull
-    Optional<CommodityType> marketToTopologyCommodity(
+    public Optional<CommodityType> marketToTopologyCommodity(
             @Nonnull final CommodityDTOs.CommoditySpecificationTO marketCommodity) {
         return commodityTypeAllocator.marketToTopologyCommodity(marketCommodity);
     }
@@ -684,11 +704,11 @@ public class CommodityConverter {
      *
      * @param providerUsedSubtractionMap providerUsedSubtractionMap
      */
-    void setProviderUsedSubtractionMap(final Map<Long, Map<CommodityType, Double>> providerUsedSubtractionMap) {
+    void setProviderUsedSubtractionMap(final Map<Long, Map<CommodityType, Pair<Double, Double>>> providerUsedSubtractionMap) {
         this.providerUsedSubtractionMap = providerUsedSubtractionMap;
     }
 
-    Map<Long, Map<CommodityType, Double>> getProviderUsedSubtractionMap() {
+    Map<Long, Map<CommodityType, Pair<Double, Double>>> getProviderUsedSubtractionMap() {
         return this.providerUsedSubtractionMap;
     }
 

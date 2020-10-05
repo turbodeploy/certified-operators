@@ -63,13 +63,13 @@ public class GroupConfig {
     @Autowired
     private TargetConfig targetConfig;
 
-    @Value("${discoveredGroupUploadIntervalSeconds}")
+    @Value("${discoveredGroupUploadIntervalSeconds:10}")
     private long discoveredGroupUploadIntervalSeconds;
 
     /**
      * Size of chunks for uploading entity settings to the group component.
      */
-    @Value("${entitySettingsChunksSize}")
+    @Value("${entitySettingsChunksSize:100}")
     private int entitySettingsChunksSize;
 
     @Bean

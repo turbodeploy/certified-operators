@@ -1,6 +1,7 @@
 package com.vmturbo.repository.topology.protobufs;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -28,7 +29,7 @@ import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
  * Reads raw topology DTOs from the database in chunks.
  *
  */
-public class TopologyProtobufReader extends TopologyProtobufHandler {
+public class TopologyProtobufReader extends TopologyProtobufHandler implements Iterator<List<ProjectedTopologyEntity>> {
 
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
@@ -55,11 +56,13 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
         return database.collection(collectionName);
     }
 
+    @Override
     public boolean hasNext() {
         return sequenceNumber < count;
     }
 
-    public List<ProjectedTopologyEntity> nextChunk() {
+    @Override
+    public List<ProjectedTopologyEntity> next() {
         BaseDocument doc = topologyCollection.getDocument(String.valueOf(sequenceNumber), BaseDocument.class);
         logger.debug("...fetch next chunk, doc properties size:  {}", doc.getProperties().size());
         sequenceNumber++;
@@ -86,7 +89,8 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
                         if (parsedEntity.equals(ProjectedTopologyEntity.getDefaultInstance())) {
                             // Try parsing the old format - simple TopologyEntityDTOs.
                             areProjectedEntities.set(false);
-                            logger.warn("Likely reading projected topology {} stored in older format (without price index)!", topologyId);
+                            logger.trace("Likely reading projected topology {} stored in older " +
+                                "format (without price index)!", topologyId);
                         }
                     } catch (JsonParseException e) {
                         // Try parsing the old format - simple TopologyEntityDTOs.

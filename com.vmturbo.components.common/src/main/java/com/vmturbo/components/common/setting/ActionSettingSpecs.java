@@ -174,15 +174,21 @@ public class ActionSettingSpecs {
     }
 
     /**
-     * Get the {@link SettingSpec} with the provided settingName.
+     * Get the {@link SettingSpec} with the provided settingName. Returns null if the setting name
+     * is not found.
      *
      * @param settingName the settingName to search using.
-     * @return the {@link SettingSpec} with the provided settingName.
+     * @return the {@link SettingSpec} with the provided settingName. Returns null if the setting
+     *         name is not found.
      */
     @Nullable
     public static SettingSpec getSettingSpec(@Nonnull String settingName) {
         Objects.requireNonNull(settingName);
-        return SETTING_NAME_TO_SETTING_SPEC.get(settingName).getFirst();
+        Pair<SettingSpec, ProbeFeature> settingSpecPair = SETTING_NAME_TO_SETTING_SPEC.get(settingName);
+        if (settingSpecPair == null) {
+            return null;
+        }
+        return settingSpecPair.getFirst();
     }
 
     /**

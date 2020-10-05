@@ -180,14 +180,14 @@ public class CurrentActionStatReaderTest {
         when(queryInfo1.queryId()).thenReturn(query1.getQueryId());
         when(queryInfo1.topologyContextId()).thenReturn(context1);
         when(queryInfo1.query()).thenReturn(query1.getQuery());
-        when(queryInfo1.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        when(queryInfo1.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
         when(queryInfoFactory.extractQueryInfo(query1)).thenReturn(queryInfo1);
 
         final QueryInfo queryInfo2 = mock(QueryInfo.class);
         when(queryInfo2.queryId()).thenReturn(query2.getQueryId());
         when(queryInfo2.topologyContextId()).thenReturn(context2);
         when(queryInfo2.query()).thenReturn(query2.getQuery());
-        when(queryInfo2.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        when(queryInfo2.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
         when(queryInfoFactory.extractQueryInfo(query2)).thenReturn(queryInfo2);
 
         final CombinedStatsBuckets bucket1 = mock(CombinedStatsBuckets.class);
@@ -272,7 +272,7 @@ public class CurrentActionStatReaderTest {
             .query(query1.getQuery())
             .actionGroupPredicate(action -> true)
             .desiredEntities(ImmutableSet.of(221L))
-            .involvedEntityCalculation(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES)
+            .involvedEntityCalculation(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES)
             .build();
         when(queryInfoFactory.extractQueryInfo(query1)).thenReturn(queryInfo1);
 
@@ -283,7 +283,7 @@ public class CurrentActionStatReaderTest {
             .query(query2.getQuery())
             .actionGroupPredicate(action -> true)
             .desiredEntities(ImmutableSet.of(222L))
-            .involvedEntityCalculation(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES)
+            .involvedEntityCalculation(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES)
             .build();
         when(queryInfoFactory.extractQueryInfo(query2)).thenReturn(queryInfo2);
 

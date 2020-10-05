@@ -26,6 +26,7 @@
         <jacocoVersion>0.8.2</jacocoVersion>
         <mockito.version>1.10.19</mockito.version>
         <powermock.version>1.6.6</powermock.version>
+        <spotbugs.version>4.0.4</spotbugs.version>
     </properties>
 
     <build>
@@ -102,6 +103,23 @@
                         <sourceDirectory>${basedir}</sourceDirectory>
                     </sourceDirectories>
                     <includes>src/**,*.xml,*.md</includes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>${spotbugs.version}</version>
+                <configuration>
+                    <!-- min|less|default|more|max -->
+                    <effort>More</effort>
+                    <!-- Report on Low, Medium, High bugs -->
+                    <threshold>High</threshold>
+                    <failOnError>false</failOnError>
+                    <maxHeap>1024</maxHeap>
+                    <!--
+                     <includeFilterFile></includeFilterFile>
+                     <excludeFilterFile></excludeFilterFile>
+                    -->
                 </configuration>
             </plugin>
         </plugins>

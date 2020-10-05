@@ -47,6 +47,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -70,6 +71,8 @@ public class ProjectedRICoverageAndUtilStoreTest {
     private ProjectedRICoverageAndUtilStore store;
     private final ReservedInstanceBoughtStore reservedInstanceBoughtStore =
             mock(ReservedInstanceBoughtStore.class);
+    private final AccountRIMappingStore accountRIMappingStore =
+            mock(AccountRIMappingStore.class);
     private final BuyReservedInstanceStore buyReservedInstanceStore =
             mock(BuyReservedInstanceStore.class);
     private final Clock clock = Clock.systemUTC();
@@ -141,7 +144,7 @@ public class ProjectedRICoverageAndUtilStoreTest {
                 supplyChainService,
                 reservedInstanceBoughtStore,
                 buyReservedInstanceStore,
-                clock));
+                accountRIMappingStore, clock));
     }
 
     /**
@@ -371,7 +374,7 @@ public class ProjectedRICoverageAndUtilStoreTest {
         return  GetMultiSupplyChainsResponse.newBuilder()
                 .setSupplyChain(SupplyChain.newBuilder()
                         .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                                .setEntityType("VirtualMachine")
+                                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                                 .putMembersByState(0, MemberList.newBuilder()
                                         .addAllMemberOids(memberOids)
                                         .build())

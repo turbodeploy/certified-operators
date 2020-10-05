@@ -54,6 +54,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost;
@@ -472,14 +473,15 @@ public class ActionSpecMappingContextFactory {
     private Map<Long, ApiPartialEntity> getDatacentersByEntity(@Nonnull final Set<Long> entityOids,
                                                                final long topologyContextId) {
         final GetMultiSupplyChainsRequest.Builder requestBuilder =
-            GetMultiSupplyChainsRequest.newBuilder();
+            GetMultiSupplyChainsRequest.newBuilder()
+                .setContextId(topologyContextId);
         // For each OID in the set of entities, get Datacenters in its supply chain
         entityOids.forEach(oid -> {
             requestBuilder.addSeeds(SupplyChainSeed.newBuilder()
                 .setSeedOid(oid)
                 .setScope(SupplyChainScope.newBuilder()
                     .addStartingEntityOid(oid)
-                    .addEntityTypesToInclude(ApiEntityType.DATACENTER.apiStr())));
+                    .addEntityTypesToInclude(ApiEntityType.DATACENTER.typeNumber())));
         });
         final Map<Long, Long> dcOidMap = Maps.newHashMap();
         supplyChainServiceClient.getMultiSupplyChains(requestBuilder.build())
@@ -533,7 +535,8 @@ public class ActionSpecMappingContextFactory {
     @Nonnull
     @VisibleForTesting
     Map<Long, ApiPartialEntity> getEntities(@Nonnull final List<Action> actions, final long contextId) {
-        final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(actions);
+        final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(actions,
+            InvolvedEntityCalculation.INCLUDE_ALL_MERGED_INVOLVED_ENTITIES);
         boolean isPlan = contextId != realtimeTopologyContextId;
         // In plans, we also want to retrieve the provisioned sellers, because we will show and
         // interpret actions that interact with them (e.g. provision host X, move vm Y onto host X).
@@ -621,26 +624,18 @@ public class ActionSpecMappingContextFactory {
 
         // retrieve volume aspects for scale volume actions
         if (!scaleVolumeIds.isEmpty()) {
-            final Optional<Map<Long, EntityAspect>> scaleVolumeAspects =
-                    volumeAspectMapper.mapVirtualVolumes(scaleVolumeIds, topologyContextId);
-            scaleVolumeAspects.ifPresent(longEntityAspectMap -> longEntityAspectMap.forEach((id, aspect) -> {
-                List<VirtualDiskApiDTO> virtualDiskApiDTOS = Collections.unmodifiableList(((VirtualDisksAspectApiDTO)aspect).getVirtualDisks());
-                volumesAspectsByEntity.put(id, virtualDiskApiDTOS);
-            }));
+            volumesAspectsByEntity.putAll(
+                    volumeAspectMapper.mapVirtualVolumes(scaleVolumeIds, topologyContextId,
+                            topologyContextId != realtimeTopologyContextId));
         }
 
         // retrieve volume aspects for delete volume actions
-        final Map<Long, List<VirtualDiskApiDTO>> aspectsByEntity = new HashMap<>(volumesAspectsByEntity);
         if (!deleteVolumeIds.isEmpty()) {
-            final Optional<Map<Long, EntityAspect>> unattachedVolumeAspects = volumeAspectMapper
-                    .mapVirtualVolumes(deleteVolumeIds, topologyContextId);
-            unattachedVolumeAspects.ifPresent(longEntityAspectMap -> longEntityAspectMap.forEach((id, aspect) -> {
-                List<VirtualDiskApiDTO> virtualDiskApiDTOS = Collections.unmodifiableList(((VirtualDisksAspectApiDTO)aspect).getVirtualDisks());
-                aspectsByEntity.put(id, virtualDiskApiDTOS);
-            }));
+            volumesAspectsByEntity.putAll(volumeAspectMapper
+                    .mapVirtualVolumes(deleteVolumeIds, topologyContextId, false));
         }
 
-        return aspectsByEntity;
+        return new HashMap<>(volumesAspectsByEntity);
     }
 
     /**

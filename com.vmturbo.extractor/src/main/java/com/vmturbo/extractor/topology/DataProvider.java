@@ -17,12 +17,10 @@ import com.google.common.collect.ImmutableList;
 
 import it.unimi.dsi.fastutil.ints.Int2DoubleArrayMap;
 import it.unimi.dsi.fastutil.ints.Int2DoubleMap;
-import it.unimi.dsi.fastutil.longs.Long2IntMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -30,7 +28,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.search.SearchMetadataUtils;
-import com.vmturbo.extractor.topology.fetcher.ActionFetcher;
 import com.vmturbo.extractor.topology.fetcher.DataFetcher;
 import com.vmturbo.extractor.topology.fetcher.GroupFetcher;
 import com.vmturbo.extractor.topology.fetcher.GroupFetcher.GroupData;
@@ -44,31 +41,23 @@ import com.vmturbo.topology.graph.TopologyGraph;
  */
 public class DataProvider {
 
+    private final GroupServiceBlockingStub groupService;
+
     // commodity values cached for use later in finish stage
     private final Long2ObjectMap<Int2DoubleMap> entityToCommodityUsed = new Long2ObjectArrayMap<>();
     private final Long2ObjectMap<Int2DoubleMap> entityToCommodityCapacity = new Long2ObjectArrayMap<>();
 
-    /**
-     * Cache the historical utilization value (when present) for each entity, for use in calculating
-     * average group utilization (currently only applies to Clusters).
-     *
-     * <p>The historical utilization is a percentage; there are multiple ways it can be calculated.
-     * If the percentile-based calculation is available, that will be used to populate this value.
-     * Otherwise, if the older weighted-average calculation is available then that will be used.
-     * Entities with no historical utilization will be omitted.</p>
-     */
-    private final Long2ObjectMap<Int2DoubleMap> entityToCommodityHistoricalUtilization = new Long2ObjectArrayMap<>();
+    // data cached until next cycle
+    private volatile GroupData groupData;
+    private volatile Map<Long, Map<Integer, Set<Long>>> entityToRelatedEntities;
+    private volatile TopologyGraph<SupplyChainEntity> graph;
 
-    private GroupData groupData;
+    DataProvider(GroupServiceBlockingStub groupService) {
+        this.groupService = groupService;
+    }
 
-    private Map<Long, Map<Integer, Set<Long>>> entityToRelatedEntities;
-
-    private Long2IntMap entityOrGroupToActionCount;
-
-    private TopologyGraph<SupplyChainEntity> graph;
-
-    private final Long2ObjectMap<Boolean> virtualVolumeToEphemeral = new Long2ObjectOpenHashMap();
-    private final Long2ObjectMap<Boolean> virtualVolumeToEncrypted = new Long2ObjectOpenHashMap();
+    private final Long2ObjectMap<Boolean> virtualVolumeToEphemeral = new Long2ObjectOpenHashMap<>();
+    private final Long2ObjectMap<Boolean> virtualVolumeToEncrypted = new Long2ObjectOpenHashMap<>();
 
     /**
      * Scraps data from topologyEntityDTO.
@@ -129,7 +118,6 @@ public class DataProvider {
         });
         entityToCommodityUsed.put(topologyEntityDTO.getOid(), used);
         entityToCommodityCapacity.put(topologyEntityDTO.getOid(), capacity);
-        //entityToCommodityHistoricalUtilization.put(topologyEntityDTO.getOid(), historicalUtilization);
     }
 
 
@@ -139,30 +127,40 @@ public class DataProvider {
      *
      * @param timer a {@link MultiStageTimer} to collect overall timing information
      * @param graph The topology graph contains all entities and relations between entities.
-     * @param groupService group rpc service
-     * @param actionService action rpc service
-     * @param topologyContextId topology context id
+     * @param requireSupplyChainForAllEntities whether or not to require full supply chain for all entities
      */
     public void fetchData(@Nonnull MultiStageTimer timer,
                           @Nonnull TopologyGraph<SupplyChainEntity> graph,
-                          @Nonnull GroupServiceBlockingStub groupService,
-                          @Nonnull ActionsServiceBlockingStub actionService,
-                          long topologyContextId) {
+                          boolean requireSupplyChainForAllEntities) {
         this.graph = graph;
-        // run basic fetchers first since other fetchers may depend on them
-        // like: ActionFetcher needs the groups data to fetch action count for groups
-        new GroupFetcher(groupService, timer, (data) -> this.groupData = data).fetchAndConsume();
-
-        // prepare all other needed fetchers
+        // prepare all needed fetchers
         final List<DataFetcher<?>> dataFetchers = ImmutableList.of(
-                new SupplyChainFetcher(graph, timer, (data) -> this.entityToRelatedEntities = data),
-                new ActionFetcher(actionService, groupData, timer,
-                        (data) -> this.entityOrGroupToActionCount = data, topologyContextId)
-                // todo: add more fetchers for severity, cost, etc
+                new GroupFetcher(groupService, timer, this::setGroupData),
+                new SupplyChainFetcher(graph, timer, this::setEntityToRelatedEntities,
+                        requireSupplyChainForAllEntities)
+                // todo: add more fetchers for cost, etc
         );
-        // run other fetchers sequentially
-        // todo: evaluate whether running them in parallel gives us a performance benefit
-        dataFetchers.forEach(DataFetcher::fetchAndConsume);
+        // run all fetchers in parallel
+        dataFetchers.parallelStream().forEach(DataFetcher::fetchAndConsume);
+    }
+
+    /**
+     * Clean unneeded data while keeping useful data for actions ingestion.
+     */
+    public void clean() {
+        entityToCommodityUsed.clear();
+        entityToCommodityCapacity.clear();
+        virtualVolumeToEphemeral.clear();
+        virtualVolumeToEncrypted.clear();
+    }
+
+    private void setGroupData(GroupData groupData) {
+        this.groupData = groupData;
+    }
+
+    private void setEntityToRelatedEntities(
+            Map<Long, Map<Integer, Set<Long>>> entityToRelatedEntities) {
+        this.entityToRelatedEntities = entityToRelatedEntities;
     }
 
     /**
@@ -177,13 +175,27 @@ public class DataProvider {
     }
 
     /**
+     * Get the latest group to leaf entities map.
+     *
+     * @return map from group id to its leaf entities
+     */
+    @Nullable
+    public Long2ObjectMap<List<Long>> getGroupToLeafEntities() {
+        return groupData != null && groupData.getGroupToLeafEntityIds() != null
+                ? groupData.getGroupToLeafEntityIds() : null;
+    }
+
+    /**
      * Get all the groups which contains the given entity.
      *
      * @param entityOid oid of entity
      * @return list of groups
      */
     public List<Grouping> getGroupsForEntity(long entityOid) {
-        return groupData.getLeafEntityToGroups().getOrDefault(entityOid, Collections.emptyList());
+        // do not use getOrDefault since Long2ObjectMap may call both 'get' and 'containsKey'
+        // which is expensive for large topology
+        List<Grouping> groupings = groupData.getLeafEntityToGroups().get(entityOid);
+        return groupings != null ? groupings : Collections.emptyList();
     }
 
     /**
@@ -194,7 +206,8 @@ public class DataProvider {
      * @return direct member count
      */
     public int getGroupDirectMembersCount(long groupId) {
-        return groupData.getGroupToDirectMemberIds().getOrDefault(groupId, Collections.emptyList()).size();
+        final List<Long> members = groupData.getGroupToDirectMemberIds().get(groupId);
+        return members != null ? members.size() : 0;
     }
 
     /**
@@ -206,8 +219,11 @@ public class DataProvider {
      * @return direct member count
      */
     public int getGroupDirectMembersCount(long groupId, EntityType entityType) {
-        return (int)groupData.getGroupToDirectMemberIds().getOrDefault(groupId, Collections.emptyList())
-                .stream()
+        final List<Long> members = groupData.getGroupToDirectMemberIds().get(groupId);
+        if (members == null) {
+            return 0;
+        }
+        return (int)members.stream()
                 .map(graph::getEntity)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
@@ -223,7 +239,8 @@ public class DataProvider {
      * @return indirect member count
      */
     public int getGroupIndirectMembersCount(long groupId) {
-        return groupData.getGroupToLeafEntityIds().getOrDefault(groupId, Collections.emptyList()).size();
+        final List<Long> members = groupData.getGroupToLeafEntityIds().get(groupId);
+        return members != null ? members.size() : 0;
     }
 
     /**
@@ -247,8 +264,11 @@ public class DataProvider {
      * @return stream of entities
      */
     public Stream<Long> getGroupLeafEntitiesOfType(long groupId, EntityType entityType) {
-        return groupData.getGroupToLeafEntityIds().getOrDefault(groupId, Collections.emptyList())
-                .stream()
+        final List<Long> leafEntities = groupData.getGroupToLeafEntityIds().get(groupId);
+        if (leafEntities == null) {
+            return Stream.empty();
+        }
+        return leafEntities.stream()
                 .filter(entityId -> graph.getEntity(entityId)
                         .map(entity -> entity.getEntityType() == entityType.getNumber())
                         .orElse(false));
@@ -277,13 +297,11 @@ public class DataProvider {
      * @return related entities count for the group
      */
     public List<String> getGroupRelatedEntitiesNames(long groupId, Set<EntityType> relatedEntityTypes) {
-        return
-                getGroupRelatedEntities(groupId, relatedEntityTypes)
+        return getGroupRelatedEntities(groupId, relatedEntityTypes)
                 .map(this::getDisplayName)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .collect(Collectors.toList());
-
     }
 
     /**
@@ -294,9 +312,11 @@ public class DataProvider {
      * @return related entities count for the group
      */
     public Stream<Long> getGroupRelatedEntities(long groupId, Set<EntityType> relatedEntityTypes) {
-        return groupData.getGroupToLeafEntityIds()
-                .getOrDefault(groupId, Collections.emptyList())
-                .stream()
+        List<Long> leafEntities = groupData.getGroupToLeafEntityIds().get(groupId);
+        if (leafEntities == null) {
+            return Stream.empty();
+        }
+        return leafEntities.stream()
                 .flatMap(entityOid -> relatedEntityTypes.stream().flatMap(relatedEntityType ->
                         getRelatedEntitiesOfType(entityOid, relatedEntityType).stream()))
                 .distinct();
@@ -323,8 +343,19 @@ public class DataProvider {
      * @return set of related entities oids
      */
     public Set<Long> getRelatedEntitiesOfType(long entityOid, EntityType relatedEntityType) {
+        return getRelatedEntitiesOfType(entityOid, relatedEntityType.getNumber());
+    }
+
+    /**
+     * Get the ids of related entities of specified type for the given entity in the SupplyChain.
+     *
+     * @param entityOid oid of entity
+     * @param relatedEntityType int value of related entity type
+     * @return set of related entities oids
+     */
+    public Set<Long> getRelatedEntitiesOfType(long entityOid, int relatedEntityType) {
         return entityToRelatedEntities.getOrDefault(entityOid, Collections.emptyMap())
-                .getOrDefault(relatedEntityType.getNumber(), Collections.emptySet());
+                .getOrDefault(relatedEntityType, Collections.emptySet());
     }
 
     /**
@@ -341,16 +372,6 @@ public class DataProvider {
                 .map(Optional::get)
                 .map(SupplyChainEntity::getDisplayName)
                 .collect(Collectors.toList());
-    }
-
-    /**
-     * Get the action count for the given entity/group.
-     *
-     * @param oid id of entity or group
-     * @return action count for the given entity/group
-     */
-    public int getActionCount(long oid) {
-        return entityOrGroupToActionCount.getOrDefault(oid, 0);
     }
 
     /**
@@ -430,6 +451,16 @@ public class DataProvider {
     }
 
     /**
+     * Get entity type for the given entity.
+     *
+     * @param entityOid id of the entity
+     * @return optional integer value of entity type
+     */
+    public Optional<Integer> getEntityType(long entityOid) {
+        return graph.getEntity(entityOid).map(SupplyChainEntity::getEntityType);
+    }
+
+    /**
      * Gets if VirtualVolume isEphemeral.
      * @param virtualVolumeOid virtualVolume oid
      * @return boolean is known, otherwise null
@@ -447,5 +478,23 @@ public class DataProvider {
     @Nullable
     public Boolean virtualVolumeIsEncrypted(long virtualVolumeOid) {
         return virtualVolumeToEncrypted.get(virtualVolumeOid);
+    }
+
+    /**
+     * Return the latest topology graph.
+     *
+     * @return {@link TopologyGraph}
+     */
+    public TopologyGraph<SupplyChainEntity> getTopologyGraph() {
+        return graph;
+    }
+
+    /**
+     * Get the latest calculated supply chain.
+     *
+     * @return related entities in supply chain for entity for different entity types
+     */
+    public Map<Long, Map<Integer, Set<Long>>> getSupplyChain() {
+        return entityToRelatedEntities;
     }
 }

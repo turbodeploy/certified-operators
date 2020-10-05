@@ -167,6 +167,11 @@ public class EntityMetricWriter extends TopologyWriterBase {
         createWastedFileRecords(e);
     }
 
+    @Override
+    public boolean requireSupplyChainForAllEntities() {
+        return true;
+    }
+
     /**
      * Record metric records for this entity, including records for bought and sold commodities.
      *

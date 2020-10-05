@@ -3,11 +3,15 @@ package com.vmturbo.cost.component.reserved.instance;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import com.google.common.collect.Maps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,16 +24,19 @@ import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotificat
 import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.cost.component.notification.CostNotificationSender;
+import com.vmturbo.cost.component.reserved.instance.PlanProjectedRICoverageAndUtilStore.TopologyRiCoverageContainer;
 import com.vmturbo.market.component.api.ProjectedReservedInstanceCoverageListener;
+import com.vmturbo.repository.api.RepositoryListener;
 
 /**
  * Listener that receives the projected entity RI coverage from the market and forwards them to
  * the classes in the cost component that store them and make them available for queries.
  */
-public class ProjectedRICoverageListener implements ProjectedReservedInstanceCoverageListener {
+public class ProjectedRICoverageListener implements RepositoryListener, ProjectedReservedInstanceCoverageListener {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -39,13 +46,114 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
 
     private final CostNotificationSender costNotificationSender;
 
+    private final long realtimeTopologyContextId;
+
+    /**
+     * Tracks artifacts associated with projected topology availability, and RI coverage
+     * notification receipt corresponding to given projectedTopologyIds. Both artifacts must be
+     * received before the RI coverage notification should be sent.
+     */
+    private final Map<Long, Pair<CostNotification, TopologyRiCoverageContainer>>
+            projectedTopologyIdToCoverageAndTopologyReceived = Maps.newHashMap();
+
     ProjectedRICoverageListener(@Nonnull final ProjectedRICoverageAndUtilStore projectedRICoverageStore,
                                 @Nonnull final PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore,
-                                @Nonnull final CostNotificationSender costNotificationSender) {
+                                @Nonnull final CostNotificationSender costNotificationSender,
+                                @Nonnull final long realtimeTopologyContextId) {
         this.projectedRICoverageAndUtilStore = Objects.requireNonNull(projectedRICoverageStore);
         this.planProjectedRICoverageAndUtilStore = Objects.requireNonNull(planProjectedRICoverageAndUtilStore);
         this.costNotificationSender = Objects.requireNonNull(costNotificationSender);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
+
+    /**
+     * Caches projected topology broadcast results. Ensures that both projected RI coverage results
+     * and projected topology broadcast results have been received by the cost component before any
+     * post processing is initiated.
+     *
+     * @param projectedTopologyId The projectedTopologyId of the topology broadcast received
+     * @param planId The topologyContextId of the topology broadcast
+     */
+    @Override
+    public void onProjectedTopologyAvailable(long projectedTopologyId, long planId) {
+        if (realtimeTopologyContextId == planId) {
+            return;
+        }
+        TopologyRiCoverageContainer topologyRiCoverageContainer =
+                planProjectedRICoverageAndUtilStore.projectedTopologyAvailableHandler(
+                        projectedTopologyId, planId);
+        final Pair<CostNotification, TopologyRiCoverageContainer> value =
+                projectedTopologyIdToCoverageAndTopologyReceived.get(projectedTopologyId);
+        if (Objects.isNull(value)) {
+            projectedTopologyIdToCoverageAndTopologyReceived.put(
+                    projectedTopologyId,
+                    new Pair<>(
+                            null, topologyRiCoverageContainer));
+        } else {
+            // We have both projectedTopology and projectedRiCoverage
+            projectedTopologyIdToCoverageAndTopologyReceived.remove(projectedTopologyId);
+            sendProjectedRiCoverageNotification(value.first);
+        }
+    }
+
+    /**
+     * Caches projected RI coverage results. Ensures that both projected RI coverage results
+     * and projected topology broadcast results have been received by the cost component before any
+     * post processing is initiated.
+     *
+     * @param projectedTopologyId The projectedTopologyId of the projected RI coverage results received
+     * @param costNotification The RI coverage notification built
+     */
+    public void updateRiCoverageMapWithCostNotification(long projectedTopologyId, CostNotification costNotification) {
+        final Pair<CostNotification, TopologyRiCoverageContainer> value =
+                projectedTopologyIdToCoverageAndTopologyReceived.get(projectedTopologyId);
+        if (Objects.isNull(value)) {
+            projectedTopologyIdToCoverageAndTopologyReceived.put(
+                    projectedTopologyId,
+                    new Pair<>(
+                            costNotification,
+                            null));
+        } else {
+            // We have both projectedTopology and projectedRiCoverage
+            projectedTopologyIdToCoverageAndTopologyReceived.remove(projectedTopologyId);
+            sendProjectedRiCoverageNotification(costNotification);
+        }
+
+    }
+
+    /**
+     * Calls into the failure handler in {@link PlanProjectedRICoverageAndUtilStore}.
+     *
+     * @param projectedTopologyId projected topology id
+     * @param topologyContextId context id of the available topology
+     * @param failureDescription description wording of the failure cause
+     */
+    @Override
+    public void onProjectedTopologyFailure(long projectedTopologyId, long topologyContextId,
+            @Nonnull String failureDescription) {
+        planProjectedRICoverageAndUtilStore.projectedTopologyFailureHandler(
+                projectedTopologyId, topologyContextId, failureDescription);
+    }
+
+    /**
+     * No-op.
+     *
+     * @param topologyId topology id
+     * @param topologyContextId context id of the available topology
+     */
+    @Override
+    public void onSourceTopologyAvailable(long topologyId, long topologyContextId) { }
+
+    /**
+     * No-op.
+     *
+     * @param topologyId topology id
+     * @param topologyContextId context id of the available topology
+     * @param failureDescription description wording of the failure cause
+     */
+    @Override
+    public void onSourceTopologyFailure(long topologyId, long topologyContextId,
+            @Nonnull String failureDescription) {}
 
     @Override
     public void onProjectedEntityRiCoverageReceived(final long projectedTopologyId,
@@ -76,6 +184,8 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
                             " Processed " + chunkCount + " chunks so far.", e);
                 }
             }
+            final CostNotification costNotification = buildProjectedRiCoverageNotification(
+                    originalTopologyInfo, Status.SUCCESS);
             if (originalTopologyInfo.getTopologyType() == TopologyType.PLAN) {
                 // Update DB tables with the RI coverage results from the Actions:
                 // PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING
@@ -90,13 +200,12 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
                         originalTopologyInfo,
                         riCoverageList,
                         projectedRICoverageAndUtilStore.resolveBuyRIsInScope(originalTopologyInfo.getTopologyContextId()));
+                updateRiCoverageMapWithCostNotification(projectedTopologyId, costNotification);
             } else {
                 projectedRICoverageAndUtilStore.updateProjectedRICoverage(originalTopologyInfo,
                         riCoverageList);
+                sendProjectedRiCoverageNotification(costNotification);
             }
-            // Send the projected RI coverage status notification.
-            sendProjectedRiCoverageNotification(buildProjectedRiCoverageNotification(
-                    originalTopologyInfo, Status.SUCCESS));
             logger.debug("Finished processing projected RI coverage info. Got RI coverage for {} entities, " +
                     "delivered in {} chunks.", coverageCount, chunkCount);
         } catch (Exception e) {
@@ -112,7 +221,7 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
      *
      * @param projectedRiCoverageNotification The projected RI coverage notification
      */
-    private void sendProjectedRiCoverageNotification(
+    protected void sendProjectedRiCoverageNotification(
             @Nonnull final CostNotification projectedRiCoverageNotification) {
         try {
             costNotificationSender.sendStatusNotification(projectedRiCoverageNotification);
@@ -136,7 +245,7 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
      * @param status               The status of the cost processing
      * @return The projected RI coverage notification
      */
-    private CostNotification buildProjectedRiCoverageNotification(
+    protected CostNotification buildProjectedRiCoverageNotification(
             @Nonnull final TopologyInfo originalTopologyInfo,
             @Nonnull final Status status) {
         return buildProjectedRiCoverageNotification(originalTopologyInfo, status, null);

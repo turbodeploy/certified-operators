@@ -45,7 +45,7 @@ public class CostConfig {
     @Autowired
     private CostComponentGlobalConfig costComponentGlobalConfig;
 
-    @Value("${persistEntityCostChunkSize}")
+    @Value("${persistEntityCostChunkSize:1000}")
     private int persistEntityCostChunkSize;
 
     @Value("${realtimeTopologyContextId}")

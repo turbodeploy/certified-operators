@@ -24,8 +24,8 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.topology.graph.TestGraphEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 
@@ -80,6 +80,18 @@ public class SupplyChainCalculatorTest {
     private SupplyChainNode account;
     private SupplyChainNode app;
     private SupplyChainNode vmspec;
+
+    /**
+     * Constants for VDI topology creation.
+     */
+    private static final long VDI_TOPO_PM1ID = 1L;
+    private static final long VDI_TOPO_PM2ID = 2L;
+    private static final long VDI_TOPO_VDC1ID = 11L;
+    private static final long VDI_TOPO_DP1ID = 12L;
+    private static final long VDI_TOPO_VM1ID = 21L;
+    private static final long VDI_TOPO_BU1ID = 22L;
+    private static final long VDI_TOPO_VPODID = 333L;
+
     /**
      * Constants and variables for checks related to topologies with VDCs.
      */
@@ -99,13 +111,7 @@ public class SupplyChainCalculatorTest {
     private SupplyChainNode vdcTopoVdc;
     private SupplyChainNode vdcTopoVm;
 
-    /**
-     * Constants and variables for checks related to container topologies with VDCs.
-     */
-    private static final long POD_1_ID = 1;
     private static final long POD_2_ID = 2;
-    private static final long VDC_ID = 11;
-    private static final long VDC_CONTAINERS_TOPO_VM_1_ID = 21;
     private static final long VDC_CONTAINERS_TOPO_VM_2_ID = 22;
 
     /**
@@ -136,24 +142,24 @@ public class SupplyChainCalculatorTest {
 
         assertThat(supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                               .getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.STORAGE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.STORAGE.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                         supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())),
                    is(1));
 
         assertThat(supplychain.get(ApiEntityType.STORAGE.typeNumber())
                               .getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.DISKARRAY.apiStr()));
+                   containsInAnyOrder(ApiEntityType.DISKARRAY.typeNumber()));
         assertThat(supplychain.get(ApiEntityType.STORAGE.typeNumber())
                               .getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                         supplychain.get(ApiEntityType.STORAGE.typeNumber())),
                    is(2));
 
         assertThat(supplychain.get(ApiEntityType.DISKARRAY.typeNumber())
                               .getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.STORAGE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.STORAGE.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                         supplychain.get(ApiEntityType.DISKARRAY.typeNumber())),
                    is(1));
@@ -235,20 +241,20 @@ public class SupplyChainCalculatorTest {
         final SupplyChainNode vmNode = supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
         assertThat(RepositoryDTOUtil.getMemberCount(vmNode), is(2));
         assertThat(vmNode.getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.DISKARRAY.apiStr(), ApiEntityType.STORAGE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.DISKARRAY.typeNumber(), ApiEntityType.STORAGE.typeNumber()));
 
         final SupplyChainNode stNode = supplychain.get(ApiEntityType.STORAGE.typeNumber());
         assertThat(RepositoryDTOUtil.getMemberCount(stNode), is(1));
         // No VM provider, because the VM that's buying from the storage directly is not in
         // the DA's supply chain.
         assertThat(stNode.getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.DISKARRAY.apiStr()));
+                   containsInAnyOrder(ApiEntityType.DISKARRAY.typeNumber()));
 
         final SupplyChainNode daNode = supplychain.get(ApiEntityType.DISKARRAY.typeNumber());
         assertThat(RepositoryDTOUtil.getMemberCount(daNode), is(1));
         assertThat(daNode.getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-                                      ApiEntityType.STORAGE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                                      ApiEntityType.STORAGE.typeNumber()));
     }
 
     /**
@@ -331,21 +337,21 @@ public class SupplyChainCalculatorTest {
                                      ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
 
        assertThat(supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber()).getConnectedProviderTypesList(),
-                  containsInAnyOrder(ApiEntityType.STORAGE.apiStr(),
-                                     ApiEntityType.PHYSICAL_MACHINE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.STORAGE.typeNumber(),
+                                     ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
        assertThat(supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber()).getConnectedConsumerTypesList(),
                   containsInAnyOrder());
 
        assertThat(supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
                        .getConnectedProviderTypesList(),
-                  containsInAnyOrder(ApiEntityType.STORAGE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.STORAGE.typeNumber()));
        assertThat(supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
                        .getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
 
        assertThat(supplychain.get(ApiEntityType.STORAGE.typeNumber()).getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-                                     ApiEntityType.PHYSICAL_MACHINE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                                     ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
        assertThat(supplychain.get(ApiEntityType.STORAGE.typeNumber()).getConnectedProviderTypesList(),
                   containsInAnyOrder());
    }
@@ -384,6 +390,46 @@ public class SupplyChainCalculatorTest {
        assertThat(getAllNodeIds(supplychainFromST.get(ApiEntityType.STORAGE.typeNumber())),
                   containsInAnyOrder(ST_ID));
    }
+
+    /**
+     * Tests that storage does not bring irrelevant DCs, when shared.
+     */
+    @Test
+    public void testSharedStorage() {
+        /*
+         * Topology:
+         *   VM
+         *    |
+         *   PM1 PM2
+         *    | \/ |
+         *  DC1 ST DC2
+         * Scoping on VM should not bring DC2
+         */
+        final long pm1Id = 1L;
+        final long pm2Id = 2L;
+        final long stId = 11L;
+        final long dc1Id = 101L;
+        final long dc2Id = 102L;
+        final long vmId = 1001L;
+        final TopologyGraph<TestGraphEntity> graph =
+                TestGraphEntity.newGraph(
+                        TestGraphEntity.newBuilder(pm1Id, ApiEntityType.PHYSICAL_MACHINE)
+                                .addProviderId(stId)
+                                .addProviderId(dc1Id),
+                        TestGraphEntity.newBuilder(pm2Id, ApiEntityType.PHYSICAL_MACHINE)
+                                .addProviderId(stId)
+                                .addProviderId(dc2Id),
+                        TestGraphEntity.newBuilder(stId, ApiEntityType.STORAGE),
+                        TestGraphEntity.newBuilder(dc1Id, ApiEntityType.DATACENTER),
+                        TestGraphEntity.newBuilder(dc2Id, ApiEntityType.DATACENTER),
+                        TestGraphEntity.newBuilder(vmId, ApiEntityType.VIRTUAL_MACHINE)
+                                .addProviderId(pm1Id));
+
+        final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(graph, vmId);
+
+        assertThat(getAllNodeIds(supplyChain.get(ApiEntityType.DATACENTER.typeNumber())),
+                                 containsInAnyOrder(dc1Id));
+    }
 
     /**
      * Tests that scoping on a storage does not bring VMs
@@ -476,6 +522,7 @@ public class SupplyChainCalculatorTest {
         populateCloudEntityFields(supplyChain);
         assertFullCloudSupplyChain(supplyChain, false, true);
     }
+
     @Test
     public void testControlledEntitySeed() {
         createCloudTopologyWithScalingGroup();
@@ -683,7 +730,7 @@ public class SupplyChainCalculatorTest {
         final SupplyChainNode stNode = supplychain.get(ApiEntityType.STORAGE.typeNumber());
         final SupplyChainNode pmNode = supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber());
 
-        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.typeNumber()),
                 pmNode.getConnectedConsumerTypesList());
         assertEquals(Collections.emptyList(), stNode.getConnectedProviderTypesList());
     }
@@ -699,16 +746,16 @@ public class SupplyChainCalculatorTest {
        final SupplyChainNode dcNode = supplychain.get(ApiEntityType.DATACENTER.typeNumber());
 
        assertThat(pmNode.getConnectedProviderTypesList(),
-                  containsInAnyOrder(ApiEntityType.DATACENTER.apiStr(),
-                                     ApiEntityType.STORAGE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.DATACENTER.typeNumber(),
+                                     ApiEntityType.STORAGE.typeNumber()));
        assertThat(pmNode.getConnectedConsumerTypesList(), containsInAnyOrder());
 
        assertThat(dcNode.getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
        assertThat(dcNode.getConnectedProviderTypesList(), containsInAnyOrder());
 
        assertThat(stNode.getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
        assertThat(stNode.getConnectedProviderTypesList(), containsInAnyOrder());
 
        assertThat(getAllNodeIds(pmNode), containsInAnyOrder(PM_ID));
@@ -800,16 +847,16 @@ public class SupplyChainCalculatorTest {
         assertThat(getAllNodeIds(vm), containsInAnyOrder(VM_2_ID));
 
         assertThat(region.getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.typeNumber()));
         assertThat(region.getConnectedProviderTypesList(), containsInAnyOrder());
 
         assertThat(zone.getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
-        assertThat(zone.getConnectedProviderTypesList(), containsInAnyOrder(ApiEntityType.REGION.apiStr()));
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
+        assertThat(zone.getConnectedProviderTypesList(), containsInAnyOrder(ApiEntityType.REGION.typeNumber()));
 
         assertThat(vm.getConnectedConsumerTypesList(), containsInAnyOrder());
         assertThat(vm.getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.typeNumber()));
     }
 
    /*
@@ -938,10 +985,10 @@ public class SupplyChainCalculatorTest {
                     ApiEntityType.BUSINESS_ACCOUNT.typeNumber(),
                     ApiEntityType.APPLICATION.typeNumber()));
             assertThat(vm.getConnectedProviderTypesList(),
-                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.apiStr(),
-                    ApiEntityType.AVAILABILITY_ZONE.apiStr(),
-                    ApiEntityType.VM_SPEC.apiStr(),
-                    ApiEntityType.BUSINESS_ACCOUNT.apiStr()));
+                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.typeNumber(),
+                    ApiEntityType.AVAILABILITY_ZONE.typeNumber(),
+                    ApiEntityType.VM_SPEC.typeNumber(),
+                    ApiEntityType.BUSINESS_ACCOUNT.typeNumber()));
 
         } else {
             assertThat(supplyChain.keySet(),
@@ -952,9 +999,9 @@ public class SupplyChainCalculatorTest {
                     ApiEntityType.BUSINESS_ACCOUNT.typeNumber(),
                     ApiEntityType.APPLICATION.typeNumber()));
             assertThat(vm.getConnectedProviderTypesList(),
-                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.apiStr(),
-                    ApiEntityType.AVAILABILITY_ZONE.apiStr(),
-                    ApiEntityType.BUSINESS_ACCOUNT.apiStr()));
+                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.typeNumber(),
+                    ApiEntityType.AVAILABILITY_ZONE.typeNumber(),
+                    ApiEntityType.BUSINESS_ACCOUNT.typeNumber()));
         }
 
        assertThat(getAllNodeIds(region), containsInAnyOrder(REGION_ID));
@@ -969,34 +1016,34 @@ public class SupplyChainCalculatorTest {
        assertThat(getAllNodeIds(app), containsInAnyOrder(APP_ID));
 
        assertThat(region.getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.typeNumber()));
        assertThat(region.getConnectedProviderTypesList(), containsInAnyOrder());
 
        assertThat(zone.getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-                                     ApiEntityType.VIRTUAL_VOLUME.apiStr()));
+                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                                     ApiEntityType.VIRTUAL_VOLUME.typeNumber()));
        assertThat(zone.getConnectedProviderTypesList(),
-                  containsInAnyOrder(ApiEntityType.REGION.apiStr()));
+                  containsInAnyOrder(ApiEntityType.REGION.typeNumber()));
 
        assertThat(vm.getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.APPLICATION.apiStr()));
+                  containsInAnyOrder(ApiEntityType.APPLICATION.typeNumber()));
 
        assertThat(volume.getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
        assertThat(volume.getConnectedProviderTypesList(),
-                  containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.apiStr(),
-                                     ApiEntityType.BUSINESS_ACCOUNT.apiStr()));
+                  containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.typeNumber(),
+                                     ApiEntityType.BUSINESS_ACCOUNT.typeNumber()));
 
        assertThat(account.getConnectedProviderTypesList(), containsInAnyOrder());
        assertThat(account.getConnectedConsumerTypesList(),
-                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-                                     ApiEntityType.VIRTUAL_VOLUME.apiStr(),
-                                     ApiEntityType.APPLICATION.apiStr()));
+                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                                     ApiEntityType.VIRTUAL_VOLUME.typeNumber(),
+                                     ApiEntityType.APPLICATION.typeNumber()));
 
        assertThat(app.getConnectedConsumerTypesList(), containsInAnyOrder());
        assertThat(app.getConnectedProviderTypesList(),
-                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-                                     ApiEntityType.BUSINESS_ACCOUNT.apiStr()));
+                  containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                                     ApiEntityType.BUSINESS_ACCOUNT.typeNumber()));
    }
 
    private void populateCloudEntityFields(@Nonnull Map<Integer, SupplyChainNode> graph) {
@@ -1094,9 +1141,9 @@ public class SupplyChainCalculatorTest {
                                                     is(2));
 
         assertThat(supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber()).getConnectedConsumerTypesList(),
-                                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+                                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         assertThat(supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber()).getConnectedProviderTypesList(),
-                                   containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr()));
+                                   containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
     }
 
     /**
@@ -1132,11 +1179,10 @@ public class SupplyChainCalculatorTest {
                    is(2));
 
         assertThat(supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber()).getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         assertThat(supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber()).getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
     }
-
 
     /**
      * Tests that scoping on a PM includes the related DC
@@ -1163,10 +1209,10 @@ public class SupplyChainCalculatorTest {
         final SupplyChainNode pmNode = supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber());
         final SupplyChainNode dcNode = supplychain.get(ApiEntityType.DATACENTER.typeNumber());
 
-        Assert.assertEquals(Collections.singletonList(ApiEntityType.DATACENTER.apiStr()),
+        Assert.assertEquals(Collections.singletonList(ApiEntityType.DATACENTER.typeNumber()),
                 pmNode.getConnectedProviderTypesList());
         assertTrue(pmNode.getConnectedConsumerTypesList().isEmpty());
-        Assert.assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.apiStr()),
+        Assert.assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.typeNumber()),
                 dcNode.getConnectedConsumerTypesList());
         assertTrue(dcNode.getConnectedProviderTypesList().isEmpty());
 
@@ -1239,22 +1285,22 @@ public class SupplyChainCalculatorTest {
 
         assertThat(supplychain.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
                         .getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.STORAGE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.STORAGE.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                         supplychain.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber())),
                    is(1));
         assertThat(supplychain.get(ApiEntityType.STORAGE.typeNumber())
                         .getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.DISKARRAY.apiStr()));
+                   containsInAnyOrder(ApiEntityType.DISKARRAY.typeNumber()));
         assertThat(supplychain.get(ApiEntityType.STORAGE.typeNumber())
                         .getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.apiStr()));
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                         supplychain.get(ApiEntityType.STORAGE.typeNumber())),
                    is(1));
         assertThat(supplychain.get(ApiEntityType.DISKARRAY.typeNumber())
                         .getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.STORAGE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.STORAGE.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                         supplychain.get(ApiEntityType.DISKARRAY.typeNumber())),
                    is(1));
@@ -1386,22 +1432,22 @@ public class SupplyChainCalculatorTest {
     private void checkAWSTopologyWithOrphanVolume(Map<Integer, SupplyChainNode> supplychain) {
         assertThat(supplychain.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
                         .getConnectedProviderTypesList(),
-                containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.apiStr()));
+                containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                 supplychain.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber())),
                 is(1));
         assertThat(supplychain.get(ApiEntityType.AVAILABILITY_ZONE.typeNumber())
                         .getConnectedConsumerTypesList(),
-                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.apiStr()));
+                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.typeNumber()));
         assertThat(supplychain.get(ApiEntityType.AVAILABILITY_ZONE.typeNumber())
                         .getConnectedProviderTypesList(),
-                containsInAnyOrder(ApiEntityType.REGION.apiStr()));
+                containsInAnyOrder(ApiEntityType.REGION.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                 supplychain.get(ApiEntityType.AVAILABILITY_ZONE.typeNumber())),
                 is(1));
         assertThat(supplychain.get(ApiEntityType.REGION.typeNumber())
                         .getConnectedConsumerTypesList(),
-                containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.apiStr()));
+                containsInAnyOrder(ApiEntityType.AVAILABILITY_ZONE.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                 supplychain.get(ApiEntityType.REGION.typeNumber())),
                 is(1));
@@ -1410,13 +1456,13 @@ public class SupplyChainCalculatorTest {
     private void checkAzureTopologyWithOrphanVolume(Map<Integer, SupplyChainNode> supplychain) {
         assertThat(supplychain.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
                         .getConnectedProviderTypesList(),
-                containsInAnyOrder(ApiEntityType.REGION.apiStr()));
+                containsInAnyOrder(ApiEntityType.REGION.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                 supplychain.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber())),
                 is(1));
         assertThat(supplychain.get(ApiEntityType.REGION.typeNumber())
                         .getConnectedConsumerTypesList(),
-                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.apiStr()));
+                containsInAnyOrder(ApiEntityType.VIRTUAL_VOLUME.typeNumber()));
         assertThat(RepositoryDTOUtil.getMemberCount(
                 supplychain.get(ApiEntityType.REGION.typeNumber())),
                 is(1));
@@ -1466,9 +1512,9 @@ public class SupplyChainCalculatorTest {
 
         // check types: VMs do not appear in the supply chain
         assertTrue(vdcTopoPm.getConnectedProviderTypesList().isEmpty());
-        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_DATACENTER.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_DATACENTER.typeNumber()),
                      vdcTopoPm.getConnectedConsumerTypesList());
-        assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.typeNumber()),
                      vdcTopoVdc.getConnectedProviderTypesList());
         assertTrue(vdcTopoVdc.getConnectedConsumerTypesList().isEmpty());
     }
@@ -1531,9 +1577,9 @@ public class SupplyChainCalculatorTest {
         createVDCTopology();
         populateVdcTopoEntityFields(getSupplyChain(vdcTopology, VDC_TOPO_VDC4ID));
         checkVdcTopoSupplyChainNodes(false);
-        assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.typeNumber()),
                      vdcTopoVdc.getConnectedProviderTypesList());
-        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.typeNumber()),
                      vdcTopoVdc.getConnectedConsumerTypesList());
         assertThat(getAllNodeIds(vdcTopoPm),
                    containsInAnyOrder(VDC_TOPO_PM1ID, VDC_TOPO_PM3ID));
@@ -1550,10 +1596,10 @@ public class SupplyChainCalculatorTest {
         createVDCTopology();
         populateVdcTopoEntityFields(getSupplyChain(vdcTopology, VDC_TOPO_VM1ID));
         checkVdcTopoSupplyChainNodes(false);
-        assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.typeNumber()),
                      vdcTopoVdc.getConnectedProviderTypesList());
         assertThat(vdcTopoVdc.getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         assertEquals(Collections.singleton(VDC_TOPO_PM1ID), getAllNodeIds(vdcTopoPm));
         assertEquals(Collections.singleton(VDC_TOPO_VDC1ID), getAllNodeIds(vdcTopoVdc));
         assertEquals(Collections.singleton(VDC_TOPO_VM1ID), getAllNodeIds(vdcTopoVm));
@@ -1568,7 +1614,7 @@ public class SupplyChainCalculatorTest {
         createVDCTopology();
         populateVdcTopoEntityFields(getSupplyChain(vdcTopology, VDC_TOPO_VM2ID));
         checkVdcTopoSupplyChainNodes(false, false);
-        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.typeNumber()),
                      vdcTopoVdc.getConnectedConsumerTypesList());
         assertEquals(Collections.emptyList(), vdcTopoVdc.getConnectedProviderTypesList());
         assertEquals(Collections.singleton(VDC_TOPO_PM2ID), getAllNodeIds(vdcTopoPm));
@@ -1585,7 +1631,7 @@ public class SupplyChainCalculatorTest {
         createVDCTopology();
         populateVdcTopoEntityFields(getSupplyChain(vdcTopology, VDC_TOPO_VM3ID));
         checkVdcTopoSupplyChainNodes(false, false);
-        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.typeNumber()),
                      vdcTopoVdc.getConnectedConsumerTypesList());
         assertEquals(Collections.emptyList(), vdcTopoVdc.getConnectedProviderTypesList());
         assertEquals(Collections.singleton(VDC_TOPO_PM1ID), getAllNodeIds(vdcTopoPm));
@@ -1602,9 +1648,9 @@ public class SupplyChainCalculatorTest {
         createVDCTopology();
         populateVdcTopoEntityFields(getSupplyChain(vdcTopology, VDC_TOPO_VM4ID));
         checkVdcTopoSupplyChainNodes(false);
-        assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.PHYSICAL_MACHINE.typeNumber()),
                      vdcTopoVdc.getConnectedProviderTypesList());
-        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
+        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.typeNumber()),
                      vdcTopoVdc.getConnectedConsumerTypesList());
         assertEquals(Collections.singleton(VDC_TOPO_PM1ID), getAllNodeIds(vdcTopoPm));
         assertEquals(Collections.singleton(VDC_TOPO_VDC4ID), getAllNodeIds(vdcTopoVdc));
@@ -1693,154 +1739,244 @@ public class SupplyChainCalculatorTest {
 
         if (vdcToPmEdgeExists) {
             assertThat(vdcTopoPm.getConnectedConsumerTypesList(),
-                       containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-                                          ApiEntityType.VIRTUAL_DATACENTER.apiStr()));
+                       containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                                          ApiEntityType.VIRTUAL_DATACENTER.typeNumber()));
         } else {
             assertThat(vdcTopoPm.getConnectedConsumerTypesList(),
-                       containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+                       containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         }
 
         if (vdcToVdcEdgeExists) {
             assertThat(vdcTopoVdc.getConnectedProviderTypesList(),
-                       containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr(),
-                                          ApiEntityType.VIRTUAL_DATACENTER.apiStr()));
+                       containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.typeNumber(),
+                                          ApiEntityType.VIRTUAL_DATACENTER.typeNumber()));
             assertThat(vdcTopoVdc.getConnectedConsumerTypesList(),
-                       containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-                                          ApiEntityType.VIRTUAL_DATACENTER.apiStr()));
+                       containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                                          ApiEntityType.VIRTUAL_DATACENTER.typeNumber()));
         }
 
         assertThat(vdcTopoVm.getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr(),
-                                      ApiEntityType.VIRTUAL_DATACENTER.apiStr()));
+                   containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.typeNumber(),
+                                      ApiEntityType.VIRTUAL_DATACENTER.typeNumber()));
         assertTrue(vdcTopoVm.getConnectedConsumerTypesList().isEmpty());
     }
 
     /**
-     * Tests container topology with VDC. Case 1: Indirection.
-     */
-    @Test
-    public void testVdcInContainerTopology1() {
-        /*
-         *  Topology:
-         *  POD1     POD2
-         *   |\     /|
-         *   | \   / |
-         *   |  \ /  |
-         *   |  VDC  |
-         *   |  / \  |
-         *   | /   \ |
-         *   VM1   VM2
-         *
-         *   Scoping on VM1 will not bring in POD2
-         *   scoping on POD1 will bring VM2
-         */
-        final TopologyGraph<TestGraphEntity> graph =
-                TestGraphEntity.newGraph(
-                        TestGraphEntity.newBuilder(VDC_CONTAINERS_TOPO_VM_1_ID, ApiEntityType.VIRTUAL_MACHINE),
-                        TestGraphEntity.newBuilder(VDC_CONTAINERS_TOPO_VM_2_ID, ApiEntityType.VIRTUAL_MACHINE),
-                        TestGraphEntity.newBuilder(VDC_ID, ApiEntityType.VIRTUAL_DATACENTER)
-                                .addProviderId(VDC_CONTAINERS_TOPO_VM_1_ID)
-                                .addProviderId(VDC_CONTAINERS_TOPO_VM_2_ID),
-                        TestGraphEntity.newBuilder(POD_1_ID, ApiEntityType.CONTAINER_POD)
-                                .addProviderId(VDC_ID)
-                                .addProviderId(VDC_CONTAINERS_TOPO_VM_1_ID),
-                        TestGraphEntity.newBuilder(POD_2_ID, ApiEntityType.CONTAINER_POD)
-                                .addProviderId(VDC_ID)
-                                .addProviderId(VDC_CONTAINERS_TOPO_VM_2_ID));
-
-        checkContainerVdcTopoSupplyChainNodes(getSupplyChain(graph, VDC_CONTAINERS_TOPO_VM_1_ID));
-        checkContainerVdcTopoSupplyChainNodes(getSupplyChain(graph, POD_1_ID));
-    }
-
-    /**
-     * Tests container topology with VDC. Case 2: No unrelated VDCs are brought in by VMs.
-     */
-    @Test
-    public void testVdcInContainerTopology2() {
-        /*
-         *  Topology:
-         *  POD
-         *   | \
-         *   |  VDC1  VDC2
-         *   |  /      /
-         *   | /      /
-         *   VM-------
-         *
-         *   scoping on POD1 will not bring VDC2
-         */
-        final long vcd2Id = 500L;
-        final TopologyGraph<TestGraphEntity> graph =
-                TestGraphEntity.newGraph(
-                        TestGraphEntity.newBuilder(VDC_CONTAINERS_TOPO_VM_1_ID, ApiEntityType.VIRTUAL_MACHINE),
-                        TestGraphEntity.newBuilder(VDC_ID, ApiEntityType.VIRTUAL_DATACENTER)
-                                .addProviderId(VDC_CONTAINERS_TOPO_VM_1_ID),
-                        TestGraphEntity.newBuilder(vcd2Id, ApiEntityType.VIRTUAL_DATACENTER)
-                                .addProviderId(VDC_CONTAINERS_TOPO_VM_1_ID),
-                        TestGraphEntity.newBuilder(POD_1_ID, ApiEntityType.CONTAINER_POD)
-                                .addProviderId(VDC_ID)
-                                .addProviderId(VDC_CONTAINERS_TOPO_VM_1_ID));
-
-        checkContainerVdcTopoSupplyChainNodes(getSupplyChain(graph, POD_1_ID));
-    }
-
-    private void checkContainerVdcTopoSupplyChainNodes(Map<Integer, SupplyChainNode> supplychain) {
-        final SupplyChainNode vmNode = supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
-        final SupplyChainNode vdcNode = supplychain.get(ApiEntityType.VIRTUAL_DATACENTER.typeNumber());
-        final SupplyChainNode podNode = supplychain.get(ApiEntityType.CONTAINER_POD.typeNumber());
-
-        assertTrue(vmNode.getConnectedProviderTypesList().isEmpty());
-        assertThat(vmNode.getConnectedConsumerTypesList(),
-                   containsInAnyOrder(ApiEntityType.CONTAINER_POD.apiStr(),
-                                      ApiEntityType.VIRTUAL_DATACENTER.apiStr()));
-
-        assertThat(podNode.getConnectedProviderTypesList(),
-                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-                                      ApiEntityType.VIRTUAL_DATACENTER.apiStr()));
-        assertTrue(podNode.getConnectedConsumerTypesList().isEmpty());
-
-        assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
-                     vdcNode.getConnectedProviderTypesList());
-        assertEquals(Collections.singletonList(ApiEntityType.CONTAINER_POD.apiStr()),
-                     vdcNode.getConnectedConsumerTypesList());
-
-        assertEquals(Collections.singleton(VDC_CONTAINERS_TOPO_VM_1_ID), getAllNodeIds(vmNode));
-        assertEquals(Collections.singleton(VDC_ID), getAllNodeIds(vdcNode));
-        assertEquals(Collections.singleton(POD_1_ID), getAllNodeIds(podNode));
-    }
-
-    /**
-     * We should not traverse tier -> region relations.
+     * We should not traverse tier -> region relations, and scoping on a region should not bring in
+     * other regions.
      */
     @Test
     public void testTierRule() {
         /*
          *  Topology:
-         *  VM
-         *   | \
-         *   |  REG1   REG2
-         *   |  /      /
-         *   | /      /
-         *   COMPUTE_TIER
-         *
-         *   scoping on VM will not bring REG2
+         *   VM1          VM2
+         *   | \         / |
+         *   |  REG1  REG2 |
+         *   |   \     /   |
+         *   |    \   /    |
+         *     COMPUTE_TIER
          */
-        final long vmId = 1L;
-        final long computeTierId = 2L;
-        final long region1Id = 3L;
-        final long region2Id = 4L;
-        final TopologyGraph<TestGraphEntity> graph =
-                TestGraphEntity.newGraph(
-                        TestGraphEntity.newBuilder(vmId, ApiEntityType.VIRTUAL_MACHINE)
-                                .addProviderId(computeTierId)
-                                .addConnectedEntity(region1Id, ConnectionType.AGGREGATED_BY_CONNECTION),
-                        TestGraphEntity.newBuilder(computeTierId, ApiEntityType.COMPUTE_TIER)
-                                .addConnectedEntity(region1Id, ConnectionType.AGGREGATED_BY_CONNECTION)
-                                .addConnectedEntity(region2Id, ConnectionType.AGGREGATED_BY_CONNECTION),
-                        TestGraphEntity.newBuilder(region1Id, ApiEntityType.REGION),
-                        TestGraphEntity.newBuilder(region2Id, ApiEntityType.REGION));
-        final SupplyChainNode regionNode = getSupplyChain(graph, vmId)
-                                                .get(ApiEntityType.REGION.typeNumber());
-        assertThat(getAllNodeIds(regionNode), containsInAnyOrder(region1Id));
+        final long vm1Id = 1L;
+        final long vm2Id = 2L;
+        final long computeTierId = 3L;
+        final long region1Id = 4L;
+        final long region2Id = 5L;
+        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
+                TestGraphEntity.newBuilder(vm1Id, ApiEntityType.VIRTUAL_MACHINE)
+                        .addProviderId(computeTierId)
+                        .addConnectedEntity(region1Id, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(vm2Id, ApiEntityType.VIRTUAL_MACHINE)
+                        .addProviderId(computeTierId)
+                        .addConnectedEntity(region2Id, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(computeTierId, ApiEntityType.COMPUTE_TIER)
+                        .addConnectedEntity(region1Id, ConnectionType.AGGREGATED_BY_CONNECTION)
+                        .addConnectedEntity(region2Id, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(region1Id, ApiEntityType.REGION),
+                TestGraphEntity.newBuilder(region2Id, ApiEntityType.REGION));
+
+        // scoping on VM1 will not bring REG2 or VM2
+        final Map<Integer, SupplyChainNode> supplyChainVm1 = getSupplyChain(graph, vm1Id);
+        assertThat(getAllNodeIds(supplyChainVm1.get(ApiEntityType.REGION.typeNumber())),
+                containsInAnyOrder(region1Id));
+        assertThat(getAllNodeIds(supplyChainVm1.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())),
+                containsInAnyOrder(vm1Id));
+
+        // scoping on VM2 will not bring REG1 or VM1
+        final Map<Integer, SupplyChainNode> supplyChainVm2 = getSupplyChain(graph, vm2Id);
+        assertThat(getAllNodeIds(supplyChainVm2.get(ApiEntityType.REGION.typeNumber())),
+                containsInAnyOrder(region2Id));
+        assertThat(getAllNodeIds(supplyChainVm2.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())),
+                containsInAnyOrder(vm2Id));
+
+        // scoping on REG1 will not bring REG2 or VM2
+        final Map<Integer, SupplyChainNode> supplyChainRegion1 = getSupplyChain(graph, region1Id);
+        assertThat(getAllNodeIds(supplyChainRegion1.get(ApiEntityType.REGION.typeNumber())),
+                containsInAnyOrder(region1Id));
+        assertThat(getAllNodeIds(supplyChainRegion1.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())),
+                containsInAnyOrder(vm1Id));
+
+        // scoping on REG2 will not bring REG1 or VM1
+        final Map<Integer, SupplyChainNode> supplyChainRegion2 = getSupplyChain(graph, region2Id);
+        assertThat(getAllNodeIds(supplyChainRegion2.get(ApiEntityType.REGION.typeNumber())),
+                containsInAnyOrder(region2Id));
+        assertThat(getAllNodeIds(supplyChainRegion2.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())),
+                containsInAnyOrder(vm2Id));
+    }
+
+    /**
+     * In the topology created by {@link #createVdiTopology()}, scope on VM1.
+     * Expect: PM1, BU1, VM1, DP1, VP, VDC1.
+     */
+    @Test
+    public void testVdiTopologyScopeOnVm1() {
+        final TopologyGraph<TestGraphEntity> topology = createVdiTopology();
+        final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(topology, VDI_TOPO_VM1ID);
+        assertEquals(6, supplyChain.keySet().size());
+        assertEquals(Collections.singleton(VDI_TOPO_PM1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_DP1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.DESKTOP_POOL.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VM1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_BU1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.BUSINESS_USER.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VPODID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIEW_POD.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VDC1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIRTUAL_DATACENTER.typeNumber())));
+    }
+
+    /**
+     * In the topology created by {@link #createVdiTopology()}, scope on BU1.
+     * Expect: PM1, BU1, VM1, VP, DP1, VDC1.
+     */
+    @Test
+    public void testVdiTopologyScopeOnBu1() {
+        final TopologyGraph<TestGraphEntity> topology = createVdiTopology();
+        final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(topology, VDI_TOPO_BU1ID);
+        assertEquals(6, supplyChain.keySet().size());
+        assertEquals(Collections.singleton(VDI_TOPO_PM1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_DP1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.DESKTOP_POOL.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VM1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_BU1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.BUSINESS_USER.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VPODID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIEW_POD.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VDC1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIRTUAL_DATACENTER.typeNumber())));
+    }
+
+    /**
+     * In the topology created by {@link #createVdiTopology()}, scope on Dp1.
+     * Expect: PM1, PM2, BU1, VM1, DP1, VP, and VDC1.
+     */
+    @Test
+    public void testVdiTopologyScopeOnDp1() {
+        final TopologyGraph<TestGraphEntity> topology = createVdiTopology();
+        final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(topology, VDI_TOPO_DP1ID);
+        assertEquals(6, supplyChain.keySet().size());
+        assertThat(getAllNodeIds(supplyChain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber())),
+                containsInAnyOrder(VDI_TOPO_PM1ID, VDI_TOPO_PM2ID));
+        assertEquals(Collections.singleton(VDI_TOPO_DP1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.DESKTOP_POOL.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VM1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_BU1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.BUSINESS_USER.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VDC1ID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIRTUAL_DATACENTER.typeNumber())));
+        assertEquals(Collections.singleton(VDI_TOPO_VPODID),
+                getAllNodeIds(supplyChain.get(ApiEntityType.VIEW_POD.typeNumber())));
+    }
+
+    /*
+     * Topology:
+     *    BU1-------
+     *      \      /
+     *     VM1----DP1
+     *      \     /  \
+     *       \ VDC1  VPOD
+     *       \  / \
+     *        PM1 PM2
+     **/
+    private TopologyGraph<TestGraphEntity> createVdiTopology() {
+        // entities
+        final TestGraphEntity.Builder pm1Builder =
+                TestGraphEntity.newBuilder(VDI_TOPO_PM1ID, ApiEntityType.PHYSICAL_MACHINE);
+        final TestGraphEntity.Builder pm2Builder =
+                TestGraphEntity.newBuilder(VDI_TOPO_PM2ID, ApiEntityType.PHYSICAL_MACHINE);
+
+        final TestGraphEntity.Builder vdc1Builder =
+                TestGraphEntity.newBuilder(VDI_TOPO_VDC1ID, ApiEntityType.VIRTUAL_DATACENTER);
+
+        final TestGraphEntity.Builder dp1Builder =
+                TestGraphEntity.newBuilder(VDI_TOPO_DP1ID, ApiEntityType.DESKTOP_POOL);
+
+        final TestGraphEntity.Builder vpBuilder =
+                TestGraphEntity.newBuilder(VDI_TOPO_VPODID, ApiEntityType.VIEW_POD);
+
+        final TestGraphEntity.Builder vm1Builder =
+                TestGraphEntity.newBuilder(VDI_TOPO_VM1ID, ApiEntityType.VIRTUAL_MACHINE);
+
+        final TestGraphEntity.Builder bu1Builder =
+                TestGraphEntity.newBuilder(VDI_TOPO_BU1ID, ApiEntityType.BUSINESS_USER);
+
+        // VM consumes from PM
+        vm1Builder.addProviderId(VDI_TOPO_PM1ID);
+
+        // VM consumes from DP
+        vm1Builder.addProviderId(VDI_TOPO_DP1ID);
+
+        // BU consumes from VM
+        bu1Builder.addProviderId(VDI_TOPO_VM1ID);
+
+        // BU consumes from DP
+        bu1Builder.addProviderId(VDI_TOPO_DP1ID);
+
+        // VDC consumes from PMs
+        vdc1Builder.addProviderId(VDI_TOPO_PM1ID);
+        vdc1Builder.addProviderId(VDI_TOPO_PM2ID);
+
+        // DP consumes from VDC
+        dp1Builder.addProviderId(VDI_TOPO_VDC1ID);
+        dp1Builder.addProviderId(VDI_TOPO_VPODID);
+
+        return TestGraphEntity.newGraph(pm1Builder, pm2Builder, vdc1Builder, vm1Builder,
+                bu1Builder, dp1Builder, vpBuilder);
+    }
+
+    /**
+     * When scoping on a single desktop pool,
+     * others should not be brought in the supply chain.
+     */
+    @Test
+    public void testScopeOnSingleDP() {
+        // Topology
+        //   BU1
+        //   / \
+        // DP1  DP2
+        // scoping on DP1 should not bring DP2 to the result
+        final long buId = 1L;
+        final long dp1Id = 2L;
+        final long dp2Id = 3L;
+        final TestGraphEntity.Builder buBuilder =
+                TestGraphEntity.newBuilder(buId, ApiEntityType.BUSINESS_USER)
+                    .addProviderId(dp1Id)
+                    .addProviderId(dp2Id);
+        final TestGraphEntity.Builder dp1Builder =
+                TestGraphEntity.newBuilder(dp1Id, ApiEntityType.DESKTOP_POOL);
+        final TestGraphEntity.Builder dp2Builder =
+                TestGraphEntity.newBuilder(dp2Id, ApiEntityType.DESKTOP_POOL);
+
+        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
+                                                            buBuilder, dp1Builder, dp2Builder);
+        final Map<Integer, SupplyChainNode> supplyChain = getSupplyChain(graph, dp1Id);
+
+        assertEquals(Collections.singleton(dp1Id),
+                     getAllNodeIds(supplyChain.get(ApiEntityType.DESKTOP_POOL.typeNumber())));
     }
 
     private Map<Integer, SupplyChainNode> getSupplyChain(

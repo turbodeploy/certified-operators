@@ -47,6 +47,8 @@ import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
@@ -282,25 +284,6 @@ public class TopologyConverter {
                 projectedRICoverageCalculator, tierExcluder, commodityIndex,
                 getExplanationOverride()));
         this.reversibilitySettingFetcher = reversibilitySettingFetcher;
-    }
-
-    /**
-     * Returns a function that decides if Compliance risk needs to be overridden in
-     * ActionInterpreter. For cloud migration, we override Optimized plan actions with VM moves.
-     *
-     * @return Function that decides if Compliance risk explanation is to be overridden.
-     */
-    private Function<MoveTO, Boolean> getExplanationOverride() {
-        return moveTO -> {
-            if (!isCloudResizeEnabled) {
-                return false;
-            }
-            final MarketTier marketTier = cloudTc.getMarketTier(moveTO.getDestination());
-            if (marketTier == null) {
-                return false;
-            }
-            return marketTier.getTier().getEntityType() == EntityType.COMPUTE_TIER_VALUE;
-        };
     }
 
     /**
@@ -612,7 +595,7 @@ public class TopologyConverter {
     }
 
     // Read only version
-    protected final Map<Long, ShoppingListInfo> getShoppingListOidToInfos() {
+    public final Map<Long, ShoppingListInfo> getShoppingListOidToInfos() {
         return Collections.unmodifiableMap(shoppingListOidToInfos);
     }
 
@@ -756,8 +739,16 @@ public class TopologyConverter {
             // Convert market tier traderTO builders to traderTOs
             marketTierTraderTOBuilders.stream()
                     .map(t -> t.addAllCliques(pmBasedBicliquer.getBcIDs(String.valueOf(t.getOid()))))
-                    .map(t -> t.addAllCommoditiesSold(commodityConverter.bcCommoditiesSold(t.getOid())))
-                    .forEach(t -> oidToOriginalTraderTOMap.put(t.getOid(), t.build()));
+                    .forEach(t -> {
+                        final MarketTier marketTier = cloudTc.getMarketTier(t.getOid());
+                        if (marketTier != null
+                            && marketTier.getTier().getEntityType()
+                            != EntityType.STORAGE_TIER_VALUE) {
+                            t.addAllCommoditiesSold(
+                                commodityConverter.bcCommoditiesSold(t.getOid()));
+                        }
+                        oidToOriginalTraderTOMap.put(t.getOid(), t.build());
+                    });
             // Iterate over all scaling groups and compute top usage
             calculateScalingGroupUsageData(entityOidToDto);
             entityOidToDto.values().stream()
@@ -1061,23 +1052,23 @@ public class TopologyConverter {
             }
             commoditiesBoughtFromProviderBuilder.setProviderId(supplier);
         }
-        final TopologyEntityDTO supplierEntity = entityOidToDto.get(supplier);
-        if (supplierEntity != null) {
-            commoditiesBoughtFromProviderBuilder.setProviderEntityType(
-                    supplierEntity.getEntityType());
+        // For a sl of an unplaced VM before market, it doesn't have a provider, but has
+        // providerEntityType. It should remain the same if it's unplaced after market.
+        // For a sl moving from active provider/unplaced to provisioned provider,
+        // we can get the providerEntityType from slInfo.
+        if (supplierEntityType != null) {
+            commoditiesBoughtFromProviderBuilder.setProviderEntityType(supplierEntityType);
         } else {
-            // For a sl of an unplaced VM before market, it doesn't have a provider, but has
-            // providerEntityType. It should remain the same if it's unplaced after market.
-            // For a sl moving from active provider/unplaced to provisioned provider,
-            // we can get the providerEntityType from slInfo
-            if (supplierEntityType != null) {
-                commoditiesBoughtFromProviderBuilder.setProviderEntityType(supplierEntityType);
+            final TopologyEntityDTO supplierEntity = entityOidToDto.get(supplier);
+            if (supplierEntity != null) {
+                commoditiesBoughtFromProviderBuilder
+                        .setProviderEntityType(supplierEntity.getEntityType());
             } else {
                 slInfo.getSellerEntityType()
                         .ifPresent(commoditiesBoughtFromProviderBuilder::setProviderEntityType);
             }
-            slInfo.getResourceId().ifPresent(commoditiesBoughtFromProviderBuilder::setVolumeId);
         }
+        slInfo.getResourceId().ifPresent(commoditiesBoughtFromProviderBuilder::setVolumeId);
         return commoditiesBoughtFromProviderBuilder.build();
     }
 
@@ -1283,15 +1274,18 @@ public class TopologyConverter {
 
         TopologyEntityDTO entityDTO = entityDTOBuilder.build();
         topologyEntityDTOs.add(entityDTO);
+        // when source volume is on-prem volume with volumeId
         topologyEntityDTOs.addAll(createResources(entityDTO));
-        topologyEntityDTOs.addAll(createCollapsedTopologyEntityDTOs(collapsedShoppingLists,
-                reservedCapacityAnalysis,  traderTO.hasCloneOf()));
+        // when source volume is cloud volume with collapsedBuyerId
+        topologyEntityDTOs.addAll(createCollapsedTopologyEntityDTOs(entityDTO, collapsedShoppingLists,
+                reservedCapacityAnalysis));
         return topologyEntityDTOs;
     }
 
     private List<TopologyEntityDTO> createCollapsedTopologyEntityDTOs(
-        final List<ShoppingListTO> collapsedShoppingList,
-        final ReservedCapacityAnalysis reservedCapacityAnalysis, final boolean isProvisioned) {
+            final TopologyEntityDTO projectedEntityForConsumerOfCollapsedEntity,
+            final List<ShoppingListTO> collapsedShoppingList,
+            final ReservedCapacityAnalysis reservedCapacityAnalysis) {
         final List<TopologyEntityDTO> result = new ArrayList<>();
         for (final ShoppingListTO shoppingListTO : collapsedShoppingList) {
             final Optional<Long> collapsedEntityId = Optional.ofNullable(shoppingListOidToInfos
@@ -1310,14 +1304,13 @@ public class TopologyConverter {
                     .map(commodityBoughtTO -> commBoughtTOtoCommBoughtDTO(
                         collapsedEntityDTO.getOid(), shoppingListTO.getSupplier(),
                         shoppingListTO.getOid(), commodityBoughtTO, reservedCapacityAnalysis,
-                        collapsedEntityDTO, new HashMap<>(), isProvisioned))
+                        collapsedEntityDTO, new HashMap<>(), false))
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .collect(Collectors.toList());
-                projectedEntity.addCommoditiesBoughtFromProviders(
-                    createCommoditiesBoughtFromProvider(shoppingListTO, boughtCommodityDTOS,
-                        collapsedEntityDTO.getOid()));
-
+                CommoditiesBoughtFromProvider commBoughtGrouping = createCommoditiesBoughtFromProvider(
+                        shoppingListTO, boughtCommodityDTOS, collapsedEntityDTO.getOid());
+                projectedEntity.addCommoditiesBoughtFromProviders(commBoughtGrouping);
                 final List<CommoditySoldDTO> soldDTOS =
                     createCommoditySoldFromCommBoughtTO(collapsedEntityDTO,
                         shoppingListTO.getCommoditiesBoughtList());
@@ -1327,8 +1320,12 @@ public class TopologyConverter {
                 if (collapsedEntityDTO.hasOrigin()) {
                     projectedEntity.setOrigin(collapsedEntityDTO.getOrigin());
                 }
-                createConnectedAzOrRegion(collapsedEntityDTO)
+                // Connect collapsed entity with the AZ/Region of its consumer's AZ/Region.
+                // i.e. For cloud volumes, connect projected cloud volumes with the same AZ/Region
+                // as the projected VM that the volumes are attached to.
+                createConnectedAzOrRegion(projectedEntityForConsumerOfCollapsedEntity)
                     .ifPresent(projectedEntity::addConnectedEntityList);
+                addMissingStorageAccessForLiftAndShiftPlan(commBoughtGrouping, projectedEntity);
                 result.add(projectedEntity.build());
             }
         }
@@ -1741,19 +1738,7 @@ public class TopologyConverter {
                                 volume.addCommoditySoldList(commSoldBuilder);
                             }
                         }
-                        boolean storageAccessCommodityPresent = commBoughtGrouping.getCommodityBoughtList().stream()
-                                .anyMatch(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE);
-                        if (!storageAccessCommodityPresent) {
-                            // storage access commodity is not in the commodity list for the Lift&Shift
-                            // plan because it is disabled and not sent to the market. In this case,
-                            // we add the storage access commodity sold for the volume here. We don't
-                            // need the storage access usage value to determine the IOPS capacity for
-                            // GP2 and Azure Managed Premium.
-                            CommoditySoldDTO.Builder commSoldBuilder = CommoditySoldDTO.newBuilder()
-                                    .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE));
-                            setStorageAmountSoldCapacityForVolume(commSoldBuilder, commBoughtGrouping);
-                            volume.addCommoditySoldList(commSoldBuilder);
-                        }
+                        addMissingStorageAccessForLiftAndShiftPlan(commBoughtGrouping, volume);
                     }
 
                     copyStaticAttributes(originalVolume, volume);
@@ -1763,6 +1748,26 @@ public class TopologyConverter {
             }
         }
         return resources;
+    }
+
+    private void addMissingStorageAccessForLiftAndShiftPlan(CommoditiesBoughtFromProvider commBoughtGrouping,
+                                                            TopologyEntityDTO.Builder volume) {
+        if (commBoughtGrouping.getProviderEntityType() != EntityType.STORAGE_TIER_VALUE) {
+            return;
+        }
+        boolean storageAccessCommodityPresent = commBoughtGrouping.getCommodityBoughtList().stream()
+                .anyMatch(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE);
+        if (!storageAccessCommodityPresent) {
+            // storage access commodity is not in the commodity list for the Lift&Shift
+            // plan because it is disabled and not sent to the market. In this case,
+            // we add the storage access commodity sold for the volume here. We don't
+            // need the storage access usage value to determine the IOPS capacity for
+            // GP2 and Azure Managed Premium.
+            CommoditySoldDTO.Builder commSoldBuilder = CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE));
+            setStorageAmountSoldCapacityForVolume(commSoldBuilder, commBoughtGrouping);
+            volume.addCommoditySoldList(commSoldBuilder);
+        }
     }
 
     private Optional<ConnectedEntity> createConnectedAzOrRegion(
@@ -2684,7 +2689,8 @@ public class TopologyConverter {
                             ? PLAN_MOVE_COST_FACTOR
                             : liveMarketMoveCostFactor)
                     .setProviderMustClone(isProviderMustClone)
-                    .setDaemon(topologyDTO.getAnalysisSettings().getDaemon());
+                    .setDaemon(topologyDTO.getAnalysisSettings().getDaemon())
+                    .setRateOfResize(topologyDTO.getAnalysisSettings().getRateOfResize());
 
             // Overwrite flags for vSAN
             if (TopologyConversionUtils.isVsanStorage(topologyDTO)) {
@@ -3061,7 +3067,7 @@ public class TopologyConverter {
             if (!shopTogether) {
                 // NOTE: Skip biClique creation for migration case where the shoptogether is true
                 // for migrating entities.
-                createBcCommodityBoughtForCloudEntity(providerOid, entityForSLOid).forEach(values::add);
+                values.addAll(createBcCommodityBoughtForCloudEntity(providerOid, entityForSLOid));
             }
             // Create DC comm bought
             if (!isCloudMigration) {
@@ -3139,7 +3145,6 @@ public class TopologyConverter {
             // Turn off movable for cloud scaling group members that are not group leaders.
             isMovable &= addGroupFactor && consistentScalingHelper.getGroupFactor(entityForSL) > 0;
         }
-
         final EconomyDTOs.ShoppingListTO.Builder economyShoppingListBuilder = EconomyDTOs.ShoppingListTO
                 .newBuilder()
                 .setOid(id)
@@ -3359,25 +3364,25 @@ public class TopologyConverter {
     @Nonnull
     private Set<CommodityDTOs.CommodityBoughtTO> createBcCommodityBoughtForCloudEntity(
             long providerOid, long buyerOid) {
-        MarketTier marketTier = cloudTc.getMarketTier(providerOid);
-        int providerEntityType = marketTier.getTier().getEntityType();
-        TopologyEntityDTO cloudBuyer = entityOidToDto.get(buyerOid);
-        Set<String> bcKeys = new HashSet<>();
-        if (providerEntityType == EntityType.COMPUTE_TIER_VALUE) {
-            Set<Long> connectedStorageMarketTierOids =
+        final MarketTier marketTier = cloudTc.getMarketTier(providerOid);
+        final Set<String> bcKeys = new HashSet<>();
+        if (marketTier != null) {
+            int providerEntityType = marketTier.getTier().getEntityType();
+            TopologyEntityDTO cloudBuyer = entityOidToDto.get(buyerOid);
+            if (providerEntityType == EntityType.COMPUTE_TIER_VALUE) {
+                Set<Long> connectedStorageMarketTierOids =
                     cloudTc.getMarketTierProviderOidOfType(cloudBuyer, EntityType.STORAGE_TIER_VALUE);
-            connectedStorageMarketTierOids.stream().filter(Objects::nonNull)
+                connectedStorageMarketTierOids.stream().filter(Objects::nonNull)
                     .map(stOid -> dsBasedBicliquer.getBcKey(
-                            String.valueOf(providerOid), String.valueOf(stOid)))
+                        String.valueOf(providerOid), String.valueOf(stOid)))
                     .filter(Objects::nonNull)
                     .forEach(bcKeys::add);
-        } else if (providerEntityType == EntityType.STORAGE_TIER_VALUE) {
-            Optional.ofNullable(dsBasedBicliquer.getBcKeys(String.valueOf(providerOid)))
-                    .ifPresent(keys -> keys.stream().filter(Objects::nonNull)
-                    .forEach(bcKeys::add));
+            }
         }
-        return bcKeys.stream().map(this::bcCommodityBought)
-                .filter(Objects::nonNull).collect(Collectors.toCollection(HashSet::new));
+        return bcKeys.stream()
+            .filter(Objects::nonNull)
+            .map(this::bcCommodityBought)
+            .collect(Collectors.toCollection(HashSet::new));
     }
 
     /**
@@ -4087,13 +4092,13 @@ public class TopologyConverter {
      * @return providerUsedSubtractionMap
      */
     @VisibleForTesting
-    Map<Long, Map<TopologyDTO.CommodityType, Double>> createProviderUsedSubtractionMap(
+    Map<Long, Map<TopologyDTO.CommodityType, Pair<Double, Double>>> createProviderUsedSubtractionMap(
             final Map<Long, TopologyEntityDTO> entityOidToDto, final Set<Long> oidsToRemove) {
         if (oidsToRemove.isEmpty()) {
             return Collections.emptyMap();
         }
 
-        final Map<Long, Map<TopologyDTO.CommodityType, Double>> providerUsedSubtractionMap = new HashMap<>();
+        final Map<Long, Map<TopologyDTO.CommodityType, Pair<Double, Double>>> providerUsedSubtractionMap = new HashMap<>();
         for (long oid : oidsToRemove) {
             final TopologyEntityDTO entity = entityOidToDto.get(oid);
             for (CommoditiesBoughtFromProvider commBoughtProvider : entity.getCommoditiesBoughtFromProvidersList()) {
@@ -4108,16 +4113,17 @@ public class TopologyConverter {
                     if (commBought.getCommodityType().hasKey()) {
                         continue;
                     }
-                    final Map<TopologyDTO.CommodityType, Double> commodityUsed =
+                    final Map<TopologyDTO.CommodityType, Pair<Double, Double>> commodityUsed =
                         providerUsedSubtractionMap.computeIfAbsent(commBoughtProvider.getProviderId(),
                             key -> new HashMap<>());
                     final List<Pair<Float, Float>> quantityList =
                         getCommBoughtQuantities(entity, commBought, provider.getOid());
                     // The size of quantityList is greater than 1 only when the commBought is a time slot commodity.
                     if (quantityList.size() >= 1) {
-                        commodityUsed.put(commBought.getCommodityType(),
-                            commodityUsed.getOrDefault(commBought.getCommodityType(), 0.0d)
-                                + quantityList.get(0).first);
+                        Pair<Double, Double> currentVal = commodityUsed.containsKey(commBought.getCommodityType())
+                            ? commodityUsed.get(commBought.getCommodityType()) : new Pair<>(0.0d, 0.0d);
+                        commodityUsed.put(commBought.getCommodityType(), new Pair<>(currentVal.first + quantityList.get(0).first,
+                                currentVal.second + quantityList.get(0).second));
                     }
                 }
             }
@@ -4165,5 +4171,131 @@ public class TopologyConverter {
                             + "cost notification.", analysis.getContextId(), analysis.getTopologyId(),
                     waitEndTime - waitStartTime);
         }
+    }
+
+    /**
+     * Returns a function that decides if Compliance risk needs to be overridden in
+     * ActionInterpreter. For cloud migration, we override Optimized plan actions with VM/Vol moves.
+     * For volumes, a change provider explanation is provided in the return based on whether there
+     * is a change to a higher tier or not. If no tier such tier change, we check for a disk size
+     * increase, if so, risk is marked as Performance. Default risk is Efficiency.
+     *
+     * @return BiFunction that decides if Compliance risk explanation is to be overridden.
+     * For compute tier, we want to override (so flag is true), but we don't actually calculate
+     * the override explanation, that is calculated by ActionInterpreter.
+     * For storage tier, if it is one of the 'higher' tiers like IO1/IO2/Ultra, then it is a
+     * Performance risk. Else, if there is a disk size increase compared to pre-action, then it is
+     * Performance, else it is an Efficiency (default option).
+     */
+    @VisibleForTesting
+    BiFunction<MoveTO, Map<Long, ProjectedTopologyEntity>,
+            Pair<Boolean, ChangeProviderExplanation>> getExplanationOverride() {
+        return (moveTO, projectedTopology) -> {
+            if (!isCloudResizeEnabled) {
+                return new Pair<>(false, null);
+            }
+            final MarketTier marketTier = cloudTc.getMarketTier(moveTO.getDestination());
+            if (marketTier == null) {
+                return new Pair<>(false, null);
+            }
+            if (marketTier.getTier().getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+                return new Pair<>(true, null);
+            }
+            if (marketTier.getTier().getEntityType() != EntityType.STORAGE_TIER_VALUE) {
+                return new Pair<>(false, null);
+            }
+            final ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO
+                    .getShoppingListToMove());
+            if (slInfo == null) {
+                return new Pair<>(false, null);
+            }
+            long buyerVmId = slInfo.getBuyerId();
+            final String tierName = marketTier.getTier().getDisplayName();
+            ChangeProviderExplanation explanation = null;
+            // Using IOPS as the reason that we have congestion (performance risk).
+            final ReasonCommodity iopsReasonCommodity = ReasonCommodity.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(
+                            CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE).build())
+                    .build();
+            if ("IO1".equals(tierName)
+                    || "IO2".equals(tierName)
+                    || "MANAGED_ULTRA_SSD".equals(tierName)) {
+                // If moving to any of these higher tiers, then it is performance.
+                explanation = ChangeProviderExplanation.newBuilder()
+                        .setCongestion(ChangeProviderExplanation.Congestion.newBuilder()
+                                .addCongestedCommodities(iopsReasonCommodity)).build();
+                logger.trace("MCP Performance risk (VM: {}, tier: {}), moveTO: {}.",
+                        buyerVmId, tierName, moveTO);
+            } else {
+                explanation = checkVolumeDiskSizeIncrease(slInfo, buyerVmId, tierName,
+                        iopsReasonCommodity, projectedTopology);
+            }
+            if (explanation == null) {
+                // If not performance, it is efficiency
+                explanation = ChangeProviderExplanation.newBuilder()
+                        .setEfficiency(ChangeProviderExplanation.Efficiency.getDefaultInstance())
+                        .build();
+                logger.trace("MCP Efficiency risk (VM: {}, tier: {}).", buyerVmId, tierName);
+            }
+            return new Pair<>(true, explanation);
+        };
+    }
+
+    /**
+     * Checks if there is a volume disk size increase for cloud migration (Optimized plan) actions.
+     * If disk size increase, then a Performance explanation is returned.
+     *
+     * @param slInfo VM shopping list info.
+     * @param buyerVmId VM that volume is a part of.
+     * @param tierName New storage tier name.
+     * @param iopsReasonCommodity Reason (Iops) to use for the Performance risk.
+     * @param projectedTopology Projected topology containing the after-action disk size.
+     * @return Performance risk change provider explanation if disk increase, or null.
+     */
+    @Nullable
+    private ChangeProviderExplanation checkVolumeDiskSizeIncrease(
+            @Nonnull final ShoppingListInfo slInfo, long buyerVmId, @Nonnull final String tierName,
+            @Nonnull final ReasonCommodity iopsReasonCommodity,
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
+        // For onPrem -> cloud, we have volumeId in resourceId field, for cloud -> cloud, it is
+        // available in the collapsedBuyerId field instead.
+        final Long volumeId = slInfo.getResourceId().isPresent() ? slInfo.getResourceId().get()
+                : slInfo.getCollapsedBuyerId().orElse(null);
+        if (volumeId == null) {
+            logger.trace("MCP Performance risk (VM: {}, tier: {}) No volume id available.",
+                    buyerVmId, tierName);
+            return null;
+        }
+        ProjectedTopologyEntity projectedVolume = projectedTopology.get(volumeId);
+        if (projectedVolume == null || projectedVolume.getEntity().getEntityType()
+                != EntityType.VIRTUAL_VOLUME_VALUE) {
+            logger.trace("MCP Performance risk (VM: {}, tier: {}) No projected volume {}.",
+                    buyerVmId, tierName, volumeId);
+            return null;
+        }
+        // Get disk size before plan.
+        double diskSizeBeforeMb = slInfo.commodities.stream()
+                .filter(commBought -> commBought.getCommodityType().getType()
+                        == CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE)
+                .map(CommodityBoughtDTO::getUsed)
+                .findFirst()
+                .orElse(0d);
+
+        // Get disk size after from projected volume.
+        double diskSizeAfterMb = projectedVolume.getEntity().getCommoditySoldListList().stream()
+                .filter(commSold -> commSold.getCommodityType().getType()
+                        == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                .map(CommoditySoldDTO::getCapacity)
+                .findAny()
+                .orElse(0d);
+
+        logger.trace("MCP Performance risk (VM: {}, tier: {}) Vol: {}, disk size {} -> {} MB.",
+                buyerVmId, tierName, volumeId, diskSizeBeforeMb, diskSizeAfterMb);
+        if (diskSizeAfterMb > diskSizeBeforeMb) {
+            return ChangeProviderExplanation.newBuilder()
+                    .setCongestion(ChangeProviderExplanation.Congestion.newBuilder()
+                            .addCongestedCommodities(iopsReasonCommodity)).build();
+        }
+        return null;
     }
 }

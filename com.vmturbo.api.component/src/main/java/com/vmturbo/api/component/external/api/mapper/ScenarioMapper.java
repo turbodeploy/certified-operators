@@ -95,7 +95,6 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanGlobalSetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
@@ -129,6 +128,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.components.api.FormattedString;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -175,6 +175,11 @@ public class ScenarioMapper {
      * Name of alleviate pressure plan type.
      */
     static final String ALLEVIATE_PRESSURE_PLAN_TYPE = "ALLEVIATE_PRESSURE";
+
+    /**
+     * Plan rate of resize is high.
+     */
+    private static final float PLAN_RATE_OF_RESIZE = 3.0f;
 
     /**
      * Supported RI Purchase Profile Settings.
@@ -318,7 +323,6 @@ public class ScenarioMapper {
         // check the scenario and add default automation settings if necessary
         infoBuilder.addAllChanges(checkAndCreateDefaultAutomationSettingsForPlan(dto));
         infoBuilder.setScope(getScope(dto.getScope()));
-        infoBuilder.setPlanGlobalSetting(getPlanGlobalSetting(dto));
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
         return infoBuilder.build();
@@ -426,20 +430,6 @@ public class ScenarioMapper {
                             .setMerge(mergePolicyBuilder)))))
             .build();
         return change;
-    }
-
-    /**
-     * Extract plan global setting from {@link ScenarioApiDTO}.
-     *
-     * @param dto {@link ScenarioApiDTO}
-     * @return plan global setting
-     */
-    @Nonnull
-    private PlanGlobalSetting getPlanGlobalSetting(@Nonnull final ScenarioApiDTO dto) {
-        // The rate of resize is temporarily set to 3. We should get it from ScenarioApiDTO.
-        return PlanGlobalSetting.newBuilder()
-            .setRateOfResize(Setting.newBuilder().setNumericSettingValue(
-                NumericSettingValue.newBuilder().setValue(3))).build();
     }
 
     @Nonnull
@@ -870,7 +860,7 @@ public class ScenarioMapper {
     List<ScenarioChange> buildSettingChanges(@Nullable final List<SettingApiDTO<String>> settingsList) throws
             OperationFailedException {
         if (CollectionUtils.isEmpty(settingsList)) {
-            return Collections.emptyList();
+            return Collections.singletonList(getRateOfResizeScenarioChange());
         }
         // First we convert them back to "real" settings.
         final List<SettingApiDTO> convertedSettingOverrides =
@@ -908,7 +898,25 @@ public class ScenarioMapper {
             }
         }
 
+        // The rate of resize is temporarily set to 3. We should get it from settingsList.
+        retChanges.add(getRateOfResizeScenarioChange());
+
         return retChanges.build();
+    }
+
+    /**
+     * TODO: Get rate of resize setting from settingsList.
+     * The rate of resize is temporarily set to 3.
+     *
+     * @return rate of resize scenario change
+     */
+    private ScenarioChange getRateOfResizeScenarioChange() {
+        return ScenarioChange.newBuilder()
+            .setSettingOverride(SettingOverride.newBuilder()
+                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setSetting(Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.RateOfResize.getSettingName())
+                    .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(PLAN_RATE_OF_RESIZE))))
+            .build();
     }
 
     /**
@@ -1495,8 +1503,10 @@ public class ScenarioMapper {
             // - If it is populated, check that it matches the apiId's class name.
             if (scopeDTO.getClassName() != null
                     && !scopeDTO.getClassName().equalsIgnoreCase(resolvedScope.getClassName())) {
-                throw new IllegalArgumentException("Incorrect class name for scope with uuid "
-                        + resolvedScope.uuid());
+                throw new IllegalArgumentException(FormattedString.format(
+                    "Incorrect class name {} (expected: {}) for scope with uuid {}",
+                    resolvedScope.getClassName(), scopeDTO.getClassName(),
+                        resolvedScope.uuid()));
             }
             // Since all scope entries are additive, if any scope is the Market scope, then this is
             // effectively the same as an unscoped plan (which implies the whole Market), so throw
@@ -1849,6 +1859,10 @@ public class ScenarioMapper {
             : changes.stream()
                 .filter(ScenarioChange::hasSettingOverride)
                 .map(ScenarioChange::getSettingOverride)
+                // TODO: Show rate of resize setting correctly in the plan UI.
+                // Skip rate of resize setting and don't return it because plan UI doesn't show it correctly.
+                .filter(override -> !EntitySettingSpecs.RateOfResize.getSettingName()
+                    .equals(override.getSetting().getSettingSpecName()))
                 .flatMap(override -> createApiSettingFromOverride(override, mappingContext).stream())
                 .collect(Collectors.toList());
 

@@ -28,6 +28,7 @@ import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.api.chunking.ProtobufChunkIterator;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.components.api.tracing.Tracing;
 
 /**
  * Handles the websocket connections with clients using the
@@ -90,30 +91,32 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
                 .setTopologyId(sourceTopologyInfo.getTopologyId())
                 .build());
 
-        final ProtobufChunkIterator<TopologyEntityDTO> iterator = ProtobufChunkIterator.partition(topologyDTOs,
-            planAnalysisTopologySender.getRecommendedRequestSizeBytes(),
-            planAnalysisTopologySender.getMaxRequestSizeBytes());
         long totalCount = 0;
+        try (KafkaTracingReenabler ignored = withKafkaTracingDisabled()) {
+            final ProtobufChunkIterator<TopologyEntityDTO> iterator = ProtobufChunkIterator.partition(topologyDTOs,
+                planAnalysisTopologySender.getRecommendedRequestSizeBytes(),
+                planAnalysisTopologySender.getMaxRequestSizeBytes());
 
-        while (iterator.hasNext()) {
-            final Collection<TopologyEntityDTO> nextChunk;
-            try {
-                nextChunk = iterator.next();
-            } catch (OversizedElementException e) {
-                // This MAY happen in some very unusual customer topologies. A single entity would have
-                // to be larger than the 64MB limit, which is highly unlikely. We keep sending what
-                // we can.
-                logOversizedElement("plan analysis topology", e, sourceTopologyInfo);
-                continue;
+            while (iterator.hasNext()) {
+                final Collection<TopologyEntityDTO> nextChunk;
+                try {
+                    nextChunk = iterator.next();
+                } catch (OversizedElementException e) {
+                    // This MAY happen in some very unusual customer topologies. A single entity would have
+                    // to be larger than the 64MB limit, which is highly unlikely. We keep sending what
+                    // we can.
+                    logOversizedElement("plan analysis topology", e, sourceTopologyInfo);
+                    continue;
+                }
+                totalCount += nextChunk.size();
+                final Topology.Builder topologyBldr = Topology.newBuilder()
+                    .setTopologyId(sourceTopologyInfo.getTopologyId());
+                for (TopologyEntityDTO entity : nextChunk) {
+                    topologyBldr.getDataBuilder().addEntities(DataSegment.newBuilder()
+                        .setEntity(entity));
+                }
+                sendPlanAnalysisTopologySegment(topologyBldr.build());
             }
-            totalCount += nextChunk.size();
-            final Topology.Builder topologyBldr = Topology.newBuilder()
-                .setTopologyId(sourceTopologyInfo.getTopologyId());
-            for (TopologyEntityDTO entity : nextChunk) {
-                topologyBldr.getDataBuilder().addEntities(DataSegment.newBuilder()
-                    .setEntity(entity));
-            }
-            sendPlanAnalysisTopologySegment(topologyBldr.build());
         }
 
         sendPlanAnalysisTopologySegment(Topology.newBuilder()
@@ -158,29 +161,34 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
                 .setTopologyId(projectedTopologyId)
                 .build());
 
+
         final ProtobufChunkIterator<ProjectedTopologyEntity> chunkIterator =
             ProtobufChunkIterator.partition(projectedTopo,
                 projectedTopologySender.getRecommendedRequestSizeBytes(),
                 projectedTopologySender.getMaxRequestSizeBytes());
         long totalCount = 0;
-        while (chunkIterator.hasNext()) {
-            Collection<ProjectedTopologyEntity> chunk = null;
-            try {
-                chunk = chunkIterator.next();
-            } catch (OversizedElementException e) {
-                // This MAY happen in some very unusual customer topologies. A single entity would have
-                // to be larger than the 64MB limit, which is highly unlikely. We keep sending what
-                // we can.
-                logOversizedElement("projected topology", e, originalTopologyInfo);
-                continue;
-            }
-            totalCount += chunk.size();
-            final ProjectedTopology topology = ProjectedTopology.newBuilder()
+
+        try (KafkaTracingReenabler ignored = withKafkaTracingDisabled()) {
+            while (chunkIterator.hasNext()) {
+                Collection<ProjectedTopologyEntity> chunk = null;
+                try {
+                    chunk = chunkIterator.next();
+                } catch (OversizedElementException e) {
+                    // This MAY happen in some very unusual customer topologies. A single entity would have
+                    // to be larger than the 64MB limit, which is highly unlikely. We keep sending what
+                    // we can.
+                    logOversizedElement("projected topology", e, originalTopologyInfo);
+                    continue;
+                }
+                totalCount += chunk.size();
+                final ProjectedTopology topology = ProjectedTopology.newBuilder()
                     .setData(Data.newBuilder().addAllEntities(chunk).build())
                     .setTopologyId(projectedTopologyId)
                     .build();
-            sendProjectedTopologySegment(topology);
+                sendProjectedTopologySegment(topology);
+            }
         }
+
         sendProjectedTopologySegment(ProjectedTopology.newBuilder()
                 .setTopologyId(projectedTopologyId)
                 .setEnd(End.newBuilder().setTotalCount(totalCount).build())
@@ -213,22 +221,26 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
                 projectedEntityCostsSender.getRecommendedRequestSizeBytes(),
                 projectedEntityCostsSender.getMaxRequestSizeBytes());
         long totalCount = 0;
-        while (chunkIterator.hasNext()) {
-            final Collection<EntityCost> costChunk;
-            try {
-                costChunk = chunkIterator.next();
-            } catch (OversizedElementException e) {
-                // This should never happen because costs are tiny (compared to the max request size)!
-                logOversizedElement("projected entity costs", e, originalTopologyInfo);
-                continue;
-            }
-            totalCount += costChunk.size();
-            sendProjectedEntityCostSegment(ProjectedEntityCosts.newBuilder()
-                .setProjectedTopologyId(projectedTopologyId)
-                .setData(ProjectedEntityCosts.Data.newBuilder()
+
+        try (KafkaTracingReenabler ignored = withKafkaTracingDisabled()) {
+            while (chunkIterator.hasNext()) {
+                final Collection<EntityCost> costChunk;
+                try {
+                    costChunk = chunkIterator.next();
+                } catch (OversizedElementException e) {
+                    // This should never happen because costs are tiny (compared to the max request size)!
+                    logOversizedElement("projected entity costs", e, originalTopologyInfo);
+                    continue;
+                }
+                totalCount += costChunk.size();
+                sendProjectedEntityCostSegment(ProjectedEntityCosts.newBuilder()
+                    .setProjectedTopologyId(projectedTopologyId)
+                    .setData(ProjectedEntityCosts.Data.newBuilder()
                         .addAllEntityCosts(costChunk))
-                .build());
+                    .build());
+            }
         }
+
         sendProjectedEntityCostSegment(ProjectedEntityCosts.newBuilder()
             .setProjectedTopologyId(projectedTopologyId)
             .setEnd(ProjectedEntityCosts.End.newBuilder()
@@ -267,23 +279,27 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
                 projectedEntityRiCoverageSender.getRecommendedRequestSizeBytes(),
                 projectedEntityRiCoverageSender.getMaxRequestSizeBytes());
         long totalCount = 0;
-        while (chunkIterator.hasNext()) {
-            final Collection<EntityReservedInstanceCoverage> coverageChunk;
-            try {
-                coverageChunk = chunkIterator.next();
-            } catch (OversizedElementException e) {
-                // This should never happen because RI coverage messages are tiny
-                // (compared to the max request size)!
-                logOversizedElement("projected entity RI", e, originalTopologyInfo);
-                continue;
+
+        try (KafkaTracingReenabler ignored = withKafkaTracingDisabled()) {
+            while (chunkIterator.hasNext()) {
+                final Collection<EntityReservedInstanceCoverage> coverageChunk;
+                try {
+                    coverageChunk = chunkIterator.next();
+                } catch (OversizedElementException e) {
+                    // This should never happen because RI coverage messages are tiny
+                    // (compared to the max request size)!
+                    logOversizedElement("projected entity RI", e, originalTopologyInfo);
+                    continue;
+                }
+                totalCount += coverageChunk.size();
+                sendProjectedEntityRiCoverageSegment(ProjectedEntityReservedInstanceCoverage
+                    .newBuilder().setProjectedTopologyId(projectedTopologyId)
+                    .setData(ProjectedEntityReservedInstanceCoverage.Data.newBuilder()
+                        .addAllProjectedRisCoverage(coverageChunk))
+                    .build());
             }
-            totalCount += coverageChunk.size();
-            sendProjectedEntityRiCoverageSegment(ProjectedEntityReservedInstanceCoverage
-                            .newBuilder().setProjectedTopologyId(projectedTopologyId)
-                            .setData(ProjectedEntityReservedInstanceCoverage.Data.newBuilder()
-                                            .addAllProjectedRisCoverage(coverageChunk))
-                            .build());
         }
+
         sendProjectedEntityRiCoverageSegment(
                         ProjectedEntityReservedInstanceCoverage.newBuilder()
                                         .setProjectedTopologyId(projectedTopologyId)
@@ -360,5 +376,29 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
             @Nonnull ActionPlan actionPlan) {
         return ActionPlan.class.getSimpleName() + "[" +
                 actionPlan.getInfo() + "]";
+    }
+
+    /**
+     * Temporarily disable kafka tracing while sending a large volume of message chunks.
+     * We do this because tracing these message balloons the size of the kafka traces by a huge
+     * volume while providing very little of interest in the trace. The large size makes jaeger
+     * use up excessive memory as well as making the UI for viewing traces extremely slow.
+     *
+     * @return An {@link AutoCloseable} that will re-enable the trace when its close method is called.
+     */
+    private KafkaTracingReenabler withKafkaTracingDisabled() {
+        // Disable kafka tracing
+        Tracing.setKafkaTracingEnabled(false);
+        return new KafkaTracingReenabler();
+    }
+
+    /**
+     * Small helper class to re-enable kafka tracing when its close method is called.
+     */
+    private static class KafkaTracingReenabler implements AutoCloseable {
+        @Override
+        public void close() {
+            Tracing.setKafkaTracingEnabled(true);
+        }
     }
 }

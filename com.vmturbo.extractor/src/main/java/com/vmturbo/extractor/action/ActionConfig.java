@@ -2,6 +2,7 @@ package com.vmturbo.extractor.action;
 
 import java.time.Clock;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,6 +12,9 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceStub;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.topology.TopologyListenerConfig;
 
@@ -44,8 +48,7 @@ public class ActionConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
-    // TODO before checkin - change to 60 by default.
-    @Value("${actionMetricsWritingIntervalMins:0}")
+    @Value("${actionMetricsWritingIntervalMins:60}")
     private long actionMetricsWritingIntervalMins;
 
     /**
@@ -62,6 +65,12 @@ public class ActionConfig {
      */
     @Value("${enableReporting:false}")
     private boolean enableReporting;
+
+    /**
+     * Whether or not to enable search data ingestion.
+     */
+    @Value("${enableSearchApi:false}")
+    private boolean enableSearchApi;
 
     /**
      * See {@link ActionConverter}.
@@ -84,23 +93,72 @@ public class ActionConfig {
     }
 
     /**
-     * The {@link ActionWriter}. This is the one that actually writes data!
+     * Service for fetching actions.
+     *
+     * @return {@link ActionsServiceBlockingStub}
+     */
+    @Bean
+    public ActionsServiceBlockingStub actionServiceBlockingStub() {
+        return ActionsServiceGrpc.newBlockingStub(actionClientConfig.actionOrchestratorChannel());
+    }
+
+    /**
+     * Service for fetching entity severities.
+     *
+     * @return {@link EntitySeverityServiceStub}
+     */
+    @Bean
+    public EntitySeverityServiceStub entitySeverityServiceStub() {
+        return EntitySeverityServiceGrpc.newStub(actionClientConfig.actionOrchestratorChannel());
+    }
+
+    /**
+     * The {@link ActionWriter}.
      *
      * @return The {@link ActionWriter}.
      */
     @Bean
     public ActionWriter actionWriter() {
         final ActionWriter actionWriter = new ActionWriter(Clock.systemUTC(),
-            topologyListenerConfig.pool(),
-            ActionsServiceGrpc.newBlockingStub(actionClientConfig.actionOrchestratorChannel()),
-            extractorDbConfig.ingesterEndpoint(), topologyListenerConfig.writerConfig(),
-            actionConverter(), actionHashManager(),
-            actionMetricsWritingIntervalMins, TimeUnit.MINUTES,
+            actionServiceBlockingStub(),
+            entitySeverityServiceStub(),
+            topologyListenerConfig.dataProvider(),
+            TimeUnit.MINUTES.toMillis(actionMetricsWritingIntervalMins),
             enableReporting && enableActionIngestion,
-            realtimeTopologyContextId);
+            enableSearchApi,
+            realtimeTopologyContextId,
+            reportingActionWriterSupplier(),
+            searchActionWriterSupplier());
 
         actionClientConfig.actionOrchestratorClient().addListener(actionWriter);
         return actionWriter;
     }
 
+    /**
+     * Supplies a ReportingActionWriter. This is the one that actually writes data!
+     * @return supplier of ReportingActionWriter
+     */
+    @Bean
+    public Supplier<ReportingActionWriter> reportingActionWriterSupplier() {
+        return () -> new ReportingActionWriter(
+                Clock.systemUTC(),
+                topologyListenerConfig.pool(),
+                extractorDbConfig.ingesterEndpoint(),
+                topologyListenerConfig.writerConfig(),
+                actionConverter(),
+                actionHashManager(),
+                TimeUnit.MINUTES.toMillis(actionMetricsWritingIntervalMins));
+    }
+
+    /**
+     * Supplies a SearchActionWriter.
+     * @return supplier of SearchActionWriter
+     */
+    @Bean
+    public Supplier<SearchActionWriter> searchActionWriterSupplier() {
+        return () -> new SearchActionWriter(topologyListenerConfig.dataProvider(),
+                extractorDbConfig.ingesterEndpoint(),
+                topologyListenerConfig.writerConfig(),
+                topologyListenerConfig.pool());
+    }
 }

@@ -107,6 +107,11 @@ public class Grafanon implements RequiresDataInitialization {
             grafanaClient.ensureUserExists(grafanonConfig.getViewerUserInput().get(), refreshSummary);
         }
 
+        // Temporary - re-assign all editors to be organizational admins.
+        // TODO (roman, Sept 18 2020 OM-62720: Remove this after customers are
+        // migrated to 7.22.9 or later.
+        grafanaClient.ensureTurboAdminIsAdmin(refreshSummary);
+
         try {
             // Get the endpoint here (inside the initialization thread) to avoid blocking the
             // main thread.

@@ -2,7 +2,10 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -17,6 +20,7 @@ import java.util.stream.Stream;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Matchers;
 import org.mockito.Mock;
@@ -34,13 +38,26 @@ import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.action.ActionDTOMoles;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -56,11 +73,17 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
     private static final Set<Long> VOLUMES_IDS = Stream.of(10001L, 10002L).collect(Collectors.toSet());
     private static final Map<String, Set<Long>> RELATED_ENTITIES = createRelatedEntitiesMap();
     private static final Stream<ApiPartialEntity> SOURCE_VOLUMES_ENTITIES = createVolumesEntities(1, 2, 2116);
-    private static final Stream<MinimalEntity> SOURCE_TIERS_ENTITIES = createTiersEntities(2, STORAGE_TIER_ST);
     private static final Stream<ApiPartialEntity> PROJECTED_VOLUMES_ENTITIES = createVolumesEntities(1, 3, 2116);
-    private static final Stream<MinimalEntity> PROJECTED_TIERS_ENTITIES = createTiersEntities(3, STORAGE_TIER_IO);
     private static final Map<Long, List<String>> TIME_TO_TYPES = createFiltersTypesMap();
     private static final Map<Long, List<String>> TIME_TO_VALUES = createFiltersValuesMap();
+
+    private final ActionDTOMoles.ActionsServiceMole actionsServiceMole = spy(new ActionDTOMoles.ActionsServiceMole());
+
+    /**
+     * Test server1 to mock out gRPC dependencies.
+     */
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsServiceMole);
 
     @Mock
     private SupplyChainFetcherFactory supplyChainFetcherFactory;
@@ -77,7 +100,7 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
     public void setup() {
         MockitoAnnotations.initMocks(this);
         query = new CloudPlanNumEntitiesByTierSubQuery(repositoryApi, supplyChainFetcherFactory,
-                null);
+                ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()));
     }
 
     private static Map<String, Set<Long>> createRelatedEntitiesMap() {
@@ -174,6 +197,8 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
      */
     @Test
     public void testGetAggregateStats() throws OperationFailedException {
+        final Stream<MinimalEntity> sourceTierEntites = createTiersEntities(2, STORAGE_TIER_ST);
+        final Stream<MinimalEntity> projectedTierEntities = createTiersEntities(3, STORAGE_TIER_IO);
         final SupplyChainNodeFetcherBuilder builder = Mockito
                         .mock(SupplyChainNodeFetcherBuilder.class, Mockito.RETURNS_DEEP_STUBS);
         Mockito.when(builder.addSeedUuids(Matchers.anyCollection())
@@ -199,11 +224,64 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
         Mockito.when(request.projectedTopology()).thenReturn(request);
         Mockito.when(request.getEntities()).thenReturn(SOURCE_VOLUMES_ENTITIES)
                         .thenReturn(PROJECTED_VOLUMES_ENTITIES);
-        Mockito.when(request.getMinimalEntities()).thenReturn(SOURCE_TIERS_ENTITIES)
-                        .thenReturn(PROJECTED_TIERS_ENTITIES);
+        Mockito.when(request.getMinimalEntities()).thenReturn(sourceTierEntites)
+                        .thenReturn(projectedTierEntities);
         final List<StatSnapshotApiDTO> result = query
                         .getAggregateStats(Collections.singleton(requestedStats), context);
         checkResult(result, BEFORE_TIME, 2);
+        checkResult(result, AFTER_TIME, 1);
+    }
+
+    /**
+     * Tests get aggregated stats method for the CloudPlanNumEntitiesByTierSubQuery when the Plan is Migrate to Cloud.
+     *
+     * @throws OperationFailedException If anything goes wrong during getting stats.
+     */
+    @Test
+    public void testGetAggregateStatsForMPC() throws OperationFailedException {
+        final Stream<MinimalEntity> sourceTierEntites = createTiersEntities(2, STORAGE_TIER_ST);
+        final Stream<MinimalEntity> projectedTierEntities = createTiersEntities(3, STORAGE_TIER_IO);
+        final StatApiInputDTO requestedStats =
+                new StatApiInputDTO(StringConstants.NUM_VIRTUAL_DISKS,
+                        null, null, null);
+        final PlanInstance planInstance = PlanInstance.newBuilder()
+                .setProjectType(PlanProjectType.CLOUD_MIGRATION)
+                .setStartTime(BEFORE_TIME)
+                .setEndTime(AFTER_TIME)
+                .setPlanId(0L).setStatus(PlanStatus.SUCCEEDED).build();
+        final StatsQueryContext context = mock(StatsQueryContext.class, Mockito.RETURNS_DEEP_STUBS);
+        Mockito.when(context.getPlanInstance()).thenReturn(Optional.of(planInstance));
+        MultiEntityRequest request = Mockito.mock(MultiEntityRequest.class);
+        Mockito.when(repositoryApi.entitiesRequest(Matchers.anySet())).thenReturn(request);
+        Mockito.when(request.projectedTopology()).thenReturn(request);
+        Mockito.when(request.getMinimalEntities()).thenReturn(sourceTierEntites)
+                .thenReturn(projectedTierEntities);
+
+        ActionEntity aEntity1 = ActionEntity.newBuilder().setType(EntityType.REGION_VALUE).setId(100L).build();
+        ChangeProvider changeProvider1 = ChangeProvider.newBuilder().setDestination(aEntity1).build();
+        ActionEntity aEntity2 = ActionEntity.newBuilder().setType(EntityType.STORAGE_TIER_VALUE).setId(3L).build();
+        ChangeProvider changeProvider2 = ChangeProvider.newBuilder().setDestination(aEntity2).build();
+        Move move = Move.newBuilder()
+                .addChanges(changeProvider1)
+                .addChanges(changeProvider2)
+                .setTarget(aEntity1)
+                .build();
+        final ActionSpec dummyActionSpec = ActionSpec.newBuilder().setRecommendation(Action.newBuilder()
+                .setInfo(ActionInfo.newBuilder().setMove(move))
+                .setId(1L)
+                .setDeprecatedImportance(1D)
+                .setExplanation(Explanation.getDefaultInstance()))
+                .build();
+        final FilteredActionResponse dummyAOResponse =
+                FilteredActionResponse.newBuilder()
+                        .setActionChunk(FilteredActionResponse.ActionChunk.newBuilder()
+                                .addActions(ActionOrchestratorAction.newBuilder().setActionSpec(dummyActionSpec)))
+                        .build();
+        when(actionsServiceMole.getAllActions(any())).thenReturn(Collections.singletonList(dummyAOResponse));
+
+        final List<StatSnapshotApiDTO> result = query
+                .getAggregateStats(Collections.singleton(requestedStats), context);
+
         checkResult(result, AFTER_TIME, 1);
     }
 

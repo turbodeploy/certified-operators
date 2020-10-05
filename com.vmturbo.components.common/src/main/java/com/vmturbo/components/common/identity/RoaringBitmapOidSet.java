@@ -64,7 +64,7 @@ public class RoaringBitmapOidSet implements OidSet {
     @Override
     public OidSet union(final OidSet other) {
         if (other == null) {
-            return EMPTY_OID_SET;
+            return this;
         }
         // create a roaring bitmap containing the union results
         Roaring64NavigableMap resultMap = new Roaring64NavigableMap();

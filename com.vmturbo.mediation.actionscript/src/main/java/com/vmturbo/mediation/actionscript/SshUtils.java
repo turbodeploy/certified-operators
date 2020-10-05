@@ -1,14 +1,23 @@
 package com.vmturbo.mediation.actionscript;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.SocketTimeoutException;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import com.google.common.base.Charsets;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
@@ -16,6 +25,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.sshd.client.ClientBuilder;
 import org.apache.sshd.client.ClientFactoryManager;
 import org.apache.sshd.client.SshClient;
+import org.apache.sshd.client.channel.ClientChannel;
+import org.apache.sshd.client.channel.ClientChannelEvent;
 import org.apache.sshd.client.config.hosts.HostConfigEntryResolver;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.client.subsystem.SubsystemClient;
@@ -25,9 +36,8 @@ import org.apache.sshd.client.subsystem.sftp.SftpClientFactory;
 import org.apache.sshd.common.PropertyResolverUtils;
 import org.apache.sshd.common.random.RandomFactory;
 import org.apache.sshd.common.random.SingletonRandomFactory;
+import org.apache.sshd.common.util.io.NoCloseOutputStream;
 import org.apache.sshd.common.util.security.SecurityUtils;
-
-import com.google.common.base.Charsets;
 
 import com.vmturbo.mediation.actionscript.exception.KeyValidationException;
 import com.vmturbo.mediation.actionscript.exception.RemoteExecutionException;
@@ -40,6 +50,7 @@ public class SshUtils {
 
     private static final Logger logger = LogManager.getLogger();
 
+    private static final long SSH_OPERATION_TIMEOUT_MILLIS = 20000L;
     private static final long SESSION_CONNECT_TIMEOUT_SECS = 10L;
     private static final long AUTH_TIMEOUT_SECS = 15L;
     private static final long HEARTBEAT_SECS = 30L;
@@ -254,6 +265,79 @@ public class SshUtils {
             }
         };
         return runner.run(cmd);
+    }
+
+    /**
+     * Get owner of the file through ssh using "stat" command.
+     *
+     * @param path path to the remote file
+     * @param runner SshRunner with a live session
+     * @return owner of the remote file
+     * @throws RemoteExecutionException if there's a problem obtaining the file owner
+     * @throws KeyValidationException if the key provided in the accountValues is not valid
+     */
+    public static Optional<String> getOwnerOfRemoteFile(@Nonnull final String path,
+            @Nonnull final SshRunner runner)
+            throws RemoteExecutionException, KeyValidationException {
+        RemoteCommand<Optional<String>> cmd;
+
+        cmd = (a, session, ae) -> {
+            try (ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+                 ByteArrayOutputStream errorStream = new ByteArrayOutputStream()) {
+                final String statCommand = "stat -c '%U' " + path;
+                executeSSHCommand(session, statCommand, outStream, errorStream);
+                final byte[] errBytes = errorStream.toByteArray();
+                final byte[] outputBytes = outStream.toByteArray();
+
+                if (errBytes.length != 0) {
+                    logger.error("Failed to obtain owner of the file using `{}` command. Error - "
+                            + "{}.", statCommand, new String(errBytes));
+                }
+                if (outputBytes.length == 0) {
+                    return Optional.empty();
+                }
+                final String owner = new String(outputBytes);
+                if (owner.endsWith("\n")) {
+                    return Optional.of(owner.replace("\n", ""));
+                } else {
+                    return Optional.of(owner);
+                }
+            } catch (IOException e) {
+                throw new RemoteExecutionException("Failed to obtain attributes for file " + path,
+                        e);
+            }
+        };
+        return runner.run(cmd);
+    }
+
+    /**
+     * Improved internal implementation of org.apache.sshd.client.session
+     * .ClientSession#executeRemoteCommand(). Added configured timeouts instead of default values.
+     *
+     * @param session configured ssh client session
+     * @param command the command to execute
+     * @param stdout standard output stream
+     * @param stderr error output stream
+     * @throws IOException if failed to execute the command or got a non-zero exit status
+     */
+    private static void executeSSHCommand(@Nonnull ClientSession session, @Nonnull String command,
+            @Nonnull OutputStream stdout, @Nonnull OutputStream stderr) throws IOException {
+        try (OutputStream channelErr = new NoCloseOutputStream(stderr);
+             OutputStream channelOut = new NoCloseOutputStream(stdout);
+             ClientChannel channel = session.createExecChannel(command)) {
+            channel.setOut(channelOut);
+            channel.setErr(channelErr);
+            channel.open().verify(SSH_OPERATION_TIMEOUT_MILLIS);
+
+            Collection<ClientChannelEvent> waitMask = channel.waitFor(
+                    Collections.unmodifiableSet(EnumSet.of(ClientChannelEvent.CLOSED)),
+                    SSH_OPERATION_TIMEOUT_MILLIS);
+            if (waitMask.contains(ClientChannelEvent.TIMEOUT)) {
+                throw new SocketTimeoutException(
+                        "Failed to retrieve command result in time: " + command);
+            }
+            ClientChannel.validateCommandExitStatusCode(command, channel.getExitStatus());
+        }
     }
 
     private static void closeClient(SubsystemClient client, String label) {

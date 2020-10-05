@@ -44,6 +44,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -71,6 +72,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
@@ -79,6 +81,7 @@ import com.vmturbo.mediation.hybrid.cloud.common.OsType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
@@ -133,6 +136,9 @@ public class CloudMigrationPlanHelper {
             "UNMANAGED_STANDARD",
             "UNMANAGED_PREMIUM"
     );
+
+    private static final String AWS_IO1_DISPLAY_NAME = "IO1";
+    private static final String AWS_IO2_DISPLAY_NAME = "IO2";
 
     private static final String CSP_AWS_DISPLAY_NAME = "AWS";
 
@@ -207,9 +213,25 @@ public class CloudMigrationPlanHelper {
             PHYSICAL_MACHINE);
 
     /**
+     * These providers need to be marked as non-movable and non-scalable for MCP plan, so that
+     * we don't create shopping lists for these and we don't see any actions for them.
+     */
+    private static final Set<EntityType> NON_MOVABLE_PROVIDER_TYPES = ImmutableSet.of(
+            PHYSICAL_MACHINE,
+            STORAGE);
+
+    /**
      * IOPS to Storage ratios: used for adjusting storage amount based on IOPS.
      */
-    private IopsToStorageRatios iopsToStorageRatios;
+    private IopsToStorageRatios iopsToStorageRatios = new IopsToStorageRatios();
+
+    /**
+     * Volume to storage amount map: The volume amount may be adjusted based on IOPS. The adjusted
+     * value is initially set in the commodity of the VM. Keep the updated storage amount value
+     * together with the volume provider ID in this map. It will be used when preparing the
+     * commodities of VM providers as the value also need to be set in the volume entity as well.
+     */
+    private Map<Long, Double> volumeToStorageAmountMap = new HashMap<>();
 
     /**
      * Constructor called by migration stage.
@@ -234,14 +256,22 @@ public class CloudMigrationPlanHelper {
      * @param changes Migration changes specified by user.
      * @return Output graph, mostly same as input, except non-migrating workloads/volumes removed.
      * @throws PipelineStageException Thrown on stage execution issue.
+     * @throws CloudMigrationStageException Thrown when a cloud migration plan the destination does not
+     * have a valid cloudType, or when an intra-plan migration in attempted in such plans
      */
     public TopologyGraph<TopologyEntity> executeStage(
             @Nonnull final TopologyPipelineContext context,
             @Nonnull final TopologyGraph<TopologyEntity> inputGraph,
             @Nullable final PlanScope planScope,
-            @Nonnull final List<ScenarioChange> changes) throws PipelineStageException {
+            @Nonnull final List<ScenarioChange> changes) throws PipelineStageException, CloudMigrationStageException {
         if (!isApplicable(context, planScope)) {
             return inputGraph;
+        }
+        final Set<Long> sourceEntities = context.getSourceEntities();
+        if (isIntraCloudMigration(inputGraph, sourceEntities, context.getDestinationEntities())) {
+            final long planOid = context.getTopologyInfo().getTopologyContextId();
+            logger.error("Illegal intra-cloud migration plan {} stopped.", planOid);
+            throw CloudMigrationStageException.intraCloudMigrationException(planOid);
         }
         TopologyMigration migrationChange = changes
                 .stream()
@@ -258,7 +288,7 @@ public class CloudMigrationPlanHelper {
                         migrationChange.getDestinationEntityType() == DestinationEntityType.VIRTUAL_MACHINE
                                 ? EntityType.VIRTUAL_MACHINE.getNumber()
                                 : EntityType.DATABASE_SERVER.getNumber(),
-                        context.getSourceEntities());
+                        sourceEntities);
         // Set the migration destination.
         boolean isDestinationAws = isDestinationAws(context, inputGraph);
         // Prepare source entities for migration.
@@ -273,7 +303,7 @@ public class CloudMigrationPlanHelper {
         if (migrationChange.getDestinationEntityType()
             .equals(TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)) {
             context.addSettingPolicyEditor(new CloudMigrationSettingsPolicyEditor(
-                context.getSourceEntities()));
+                sourceEntities));
         }
         // Certain stitching operations need to be skipped to for HyperV VMs.
         context.setPostStitchingOperationsToSkip(ImmutableSet.of(
@@ -298,6 +328,68 @@ public class CloudMigrationPlanHelper {
     }
 
     /**
+     * Determines whether the planned cloud migration is attempting to move one or more entities
+     * to a location within the cloud provider that already hosts it.
+     *
+     * @param topologyGraph The {@link TopologyGraph} constructed representing the projected topology
+     * @param sourceOids OIDs of the migrating entities
+     * @param destinationOids OIDs of the destination region(s)
+     * @return Whether an intra-cloud migration is planned
+     * @throws CloudMigrationStageException If the destination region(s) have no corresponding cloud provider
+     */
+    public final boolean isIntraCloudMigration(
+            @Nonnull final TopologyGraph topologyGraph,
+            @Nonnull final Set<Long> sourceOids,
+            @Nonnull final Set<Long> destinationOids) throws CloudMigrationStageException {
+        CloudType destinationCloudType = CloudType.UNKNOWN;
+        final Set<TopologyEntity> regions = (Set<TopologyEntity>)topologyGraph.getEntities(destinationOids)
+                .collect(Collectors.toSet());
+        for (TopologyEntity destinationRegion : regions) {
+            Optional<TopologyEntity> cloudProviderOptional = destinationRegion.getOwner();
+            if (!cloudProviderOptional.isPresent()) {
+                continue;
+            }
+            final Optional<CloudType> cloudTypeOptional = CloudType.getByName(
+                    cloudProviderOptional.get().getDisplayName());
+            if (cloudTypeOptional.isPresent()) {
+                destinationCloudType = cloudTypeOptional.get();
+                break;
+            }
+        }
+        if (CloudType.UNKNOWN.equals(destinationCloudType)) {
+            throw CloudMigrationStageException.unknownDestinationCloudType();
+        }
+
+        final Set<TopologyEntity> sources = (Set<TopologyEntity>)topologyGraph.getEntities(sourceOids)
+                .collect(Collectors.toSet());
+        for (TopologyEntity entity : sources) {
+            if (EnvironmentType.ON_PREM.equals(entity.getEnvironmentType())) {
+                continue;
+            }
+            // Get cloud type via owner - owner will be Business Account
+            final Optional<TopologyEntity> businessAccountOptional = entity.getOwner();
+            if (!businessAccountOptional.isPresent()) {
+                continue;
+            }
+            // Business Account owner is CSP
+            final List<TopologyEntity> csps = businessAccountOptional.get().getAggregators();
+            CloudType sourceCloudType = CloudType.UNKNOWN;
+            for (TopologyEntity csp : csps) {
+                final Optional<CloudType> cloudTypeOptional = CloudType.getByName(csp.getDisplayName());
+                if (cloudTypeOptional.isPresent()) {
+                    sourceCloudType = cloudTypeOptional.get();
+                    break;
+                }
+            }
+            if (destinationCloudType.equals(sourceCloudType)) {
+                logger.error("{} ({}) is already hosted by {}.", entity.getDisplayName(), entity.getOid(), sourceCloudType.toString());
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Prepares entities that are being migrated. Checks to make sure all are in topology map.
      * Sets shopAlone to false for them, will get set to true later after market fixes to support
      * shopTogether properly. Updates bought commodities.
@@ -310,11 +402,11 @@ public class CloudMigrationPlanHelper {
      * StorageAccess bought
      * @throws PipelineStageException Thrown when entity lookup by oid fails.
      */
-    private void prepareEntities(@Nonnull final TopologyPipelineContext context,
-                                @Nonnull final TopologyGraph<TopologyEntity> graph,
-                                @Nonnull final TopologyMigration migrationChange,
-                                @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
-                                 final boolean isDestinationAws)
+     void prepareEntities(@Nonnull final TopologyPipelineContext context,
+                          @Nonnull final TopologyGraph<TopologyEntity> graph,
+                          @Nonnull final TopologyMigration migrationChange,
+                          @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
+                          final boolean isDestinationAws)
             throws PipelineStageException {
         Set<Long> sourceEntities = context.getSourceEntities();
 
@@ -333,16 +425,32 @@ public class CloudMigrationPlanHelper {
             // It could be overridden in settingsApplicator
             builder.getAnalysisSettingsBuilder().setShopTogether(true);
 
-            // Analysis needs to treat the entity as if it's a cloud entity for purposes of
-            // applying template exclusions, obtaining pricing, etc.
-            if (builder.getEnvironmentType().equals(EnvironmentType.ON_PREM)
-                    && builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                // Set environment type of associated virtual volumes of on-prem VMs to CLOUD.
-                entity.getOutboundAssociatedEntities().stream()
+            if (builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                // Make sure VMs are always controllable. Some VMs are set to "not controllable"
+                // by the probe for reasons that may be applicable to real-time topology. We
+                // should still try to migrate these VMs in migration plan.
+                builder.getAnalysisSettingsBuilder().setControllable(true);
+
+                // Analysis needs to treat the entity as if it's a cloud entity for purposes of
+                // applying template exclusions, obtaining pricing, etc.
+                if (builder.getEnvironmentType().equals(EnvironmentType.ON_PREM)) {
+                    // Set environment type of associated virtual volumes of on-prem VMs to CLOUD.
+                    entity.getOutboundAssociatedEntities().stream()
                         .filter(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
                         .map(TopologyEntity::getTopologyEntityDtoBuilder)
                         .forEach(b -> b.setEnvironmentType(EnvironmentType.CLOUD));
-                builder.setEnvironmentType(EnvironmentType.CLOUD);
+                    builder.setEnvironmentType(EnvironmentType.CLOUD);
+                } else if (builder.getEnvironmentType().equals(EnvironmentType.CLOUD)) {
+                    VirtualMachineInfo vmInfo = builder.getTypeSpecificInfo().getVirtualMachine();
+
+                    // For Cloud to Cloud migrations, reset AHUB (Azure BYOL for Windows)
+                    // to normal licensing so we respect the user's choice for migrating
+                    // BYOL or not.
+                    if (vmInfo.getLicenseModel() == LicenseModel.AHUB) {
+                        builder.getTypeSpecificInfoBuilder().getVirtualMachineBuilder()
+                            .setLicenseModel(LicenseModel.LICENSE_INCLUDED);
+                    }
+                }
             }
 
             // Remove non-applicable commodities first here, before other stages add some bought
@@ -803,6 +911,7 @@ public class CloudMigrationPlanHelper {
                                   @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
                                   boolean isDestinationAws,
                                   boolean isConsumer) {
+        EntityType entityType = EntityType.forNumber(dtoBuilder.getEntityType());
         List<CommoditiesBoughtFromProvider> newCommoditiesByProvider = new ArrayList<>();
         // Go over grouping of comm bought along with their providers.
         for (CommoditiesBoughtFromProvider commBoughtGrouping
@@ -810,7 +919,7 @@ public class CloudMigrationPlanHelper {
 
             // We need to skip some on-prem specific commodities bought to allow cloud migration.
             List<CommodityBoughtDTO> commoditiesToInclude = getUpdatedCommBought(
-                    commBoughtGrouping, topologyInfo, dtoBuilder.getOid(), sourceToProducerToMaxStorageAccess, isDestinationAws, isConsumer);
+                    commBoughtGrouping, topologyInfo, dtoBuilder, sourceToProducerToMaxStorageAccess, isDestinationAws, isConsumer);
             if (commoditiesToInclude.size() == 0) {
                 // Don't keep this group if there are no valid bought commodities from it.
                 continue;
@@ -825,7 +934,12 @@ public class CloudMigrationPlanHelper {
                     && commBoughtGrouping.getMovable();
             boolean isScalable = commBoughtGrouping.hasScalable()
                     && commBoughtGrouping.getScalable();
-            if (!isMovable || !isScalable) {
+            if (!isConsumer && NON_MOVABLE_PROVIDER_TYPES.contains(entityType)) {
+                // We don't want host and storage shopping lists to be movable.
+                newCommBoughtGrouping
+                        .setMovable(false)
+                        .setScalable(false);
+            } else if (!isMovable || !isScalable) {
                 newCommBoughtGrouping
                         .setMovable(true)
                         .setScalable(true);
@@ -841,7 +955,7 @@ public class CloudMigrationPlanHelper {
      *
      * @param commBoughtGrouping Grouping to look for commBoughtDTO in.
      * @param topologyInfo Plan topology info.
-     * @param entityOid entity OID
+     * @param dtoBuilder entity builder
      * @param sourceToProducerToMaxStorageAccess a structure mapping entities to max historical
      * StorageAccess bought
      * @param isDestinationAws boolean that indicates if destination is AWS
@@ -853,11 +967,12 @@ public class CloudMigrationPlanHelper {
     private List<CommodityBoughtDTO> getUpdatedCommBought(
             @Nonnull final CommoditiesBoughtFromProvider commBoughtGrouping,
             @Nonnull final TopologyInfo topologyInfo,
-            final long entityOid,
+            final TopologyEntityDTO.Builder dtoBuilder,
             @Nonnull final Map<Long, Map<Long, Double>> sourceToProducerToMaxStorageAccess,
             boolean isDestinationAws,
             boolean isConsumer) {
         List<CommodityBoughtDTO> commoditiesToInclude = new ArrayList<>();
+        Long entityOid = dtoBuilder.getOid();
         boolean isComputeTierCommList = commBoughtGrouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE;
         for (CommodityBoughtDTO dtoBought : commBoughtGrouping.getCommodityBoughtList()) {
             CommodityType commodityType = CommodityType.forNumber(dtoBought
@@ -907,19 +1022,40 @@ public class CloudMigrationPlanHelper {
                     commodityBoughtDTO.setActive(false);
                 }
                 commoditiesToInclude.add(commodityBoughtDTO.build());
-            } else if (isConsumer && commodityType == CommodityType.STORAGE_AMOUNT) {
-                if (TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
-                    // Assign storage provisioned used value for storage amount.
-                    // Also adjust storage amount based on IOPS value if necessary.
-                    final double historicalMaxIOP = getHistoricalMaxIOPSValue(commBoughtGrouping, entityOid,
-                            sourceToProducerToMaxStorageAccess);
-                    commoditiesToInclude.add(CloudStorageMigrationHelper
-                            .adjustStorageAmountForCloudMigration(dtoBought, commBoughtGrouping,
-                                    iopsToStorageRatios, entityOid, historicalMaxIOP, isDestinationAws));
+            } else if (commodityType == CommodityType.STORAGE_AMOUNT) {
+                if (isConsumer) {
+                    if (TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
+                        // Assign storage provisioned used value for storage amount.
+                        // Also adjust storage amount based on IOPS value if necessary.
+                        final double historicalMaxIOP = getHistoricalMaxIOPSValue(commBoughtGrouping, entityOid,
+                                sourceToProducerToMaxStorageAccess);
+                        CommodityBoughtDTO storageAmountCommodity = CloudStorageMigrationHelper
+                                .adjustStorageAmountForCloudMigration(dtoBought, commBoughtGrouping,
+                                        iopsToStorageRatios, entityOid, historicalMaxIOP, isDestinationAws);
+                        volumeToStorageAmountMap.put(commBoughtGrouping.getProviderId(), storageAmountCommodity.getUsed());
+                        commoditiesToInclude.add(storageAmountCommodity);
+                    } else {
+                        // Assign storage provisioned used value for storage amount
+                        commoditiesToInclude.add(CloudStorageMigrationHelper
+                                .updateStorageAmountCommodityBought(dtoBought, commBoughtGrouping, isDestinationAws));
+                    }
                 } else {
-                    // Assign storage provisioned used value for storage amount
-                    commoditiesToInclude.add(CloudStorageMigrationHelper
-                            .updateStorageAmountCommodityBought(dtoBought, commBoughtGrouping, isDestinationAws));
+                    if (TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)
+                            && dtoBuilder.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
+                        // Provider entity of VM commodity is a volume. Set the storage amount the same
+                        // value as the VM commodity bought value.
+                        Double storageAmount = volumeToStorageAmountMap.get(entityOid);
+                        if (storageAmount != null) {
+                            commoditiesToInclude.add(dtoBought.toBuilder()
+                                    .setUsed(storageAmount)
+                                    .setPeak(storageAmount)
+                                    .build());
+                        } else {
+                            commoditiesToInclude.add(dtoBought);
+                        }
+                    } else {
+                        commoditiesToInclude.add(dtoBought);
+                    }
                 }
             } else {
                 commoditiesToInclude.add(dtoBought);
@@ -1154,12 +1290,18 @@ public class CloudMigrationPlanHelper {
     private Set<Long> getCloudStorageTiers(@Nonnull final TopologyGraph<TopologyEntity> graph,
                                            @Nonnull final TopologyInfo topologyInfo,
                                            @Nullable final TopologyEntity currentCsp) {
+        final boolean isIO2TierPresent = isIO2TierPresent(graph);
         // Go over all known storage tiers, for all CSPs.
         return graph.entitiesOfType(STORAGE_TIER)
                 .filter(storageTier -> {
                     // If this is an already known tier that we want to skip (e.g for Lift_n_Shift
                     // plan, we only want GP2 and Managed_Premium), then apply that filter.
                     if (!includeCloudStorageTier(storageTier, topologyInfo)) {
+                        return false;
+                    }
+                    // Exclude IO1 if IO2 tier is present. These two tiers have the same cost, but
+                    // IO2 is better.
+                    if (AWS_IO1_DISPLAY_NAME.equals(storageTier.getDisplayName()) && isIO2TierPresent) {
                         return false;
                     }
                     // Check CSP, we don't want another storage tier with the same CSP.
@@ -1180,6 +1322,15 @@ public class CloudMigrationPlanHelper {
                 })
                 .map(TopologyEntity::getOid)
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Return true is IO2 tier is in scope.
+     * @param graph Topology graph.
+     * @return true is IO2 tier is in scope.
+     */
+    private boolean isIO2TierPresent(@Nonnull final TopologyGraph<TopologyEntity> graph) {
+        return graph.entitiesOfType(STORAGE_TIER).anyMatch(t -> t.getDisplayName().equals(AWS_IO2_DISPLAY_NAME));
     }
 
     /**
@@ -1507,6 +1658,41 @@ public class CloudMigrationPlanHelper {
             return settings.stream().anyMatch(
                 setting -> setting.getSettingSpecName()
                     .equals(EntitySettingSpecs.ExcludedTemplates.getSettingName()));
+        }
+    }
+
+    /**
+     * Extends {@link PipelineStageException}.
+     */
+    public static class CloudMigrationStageException extends PipelineStageException {
+        /**
+         * Construct a new exception.
+         * @param error The error message.
+         */
+        public CloudMigrationStageException(@Nonnull final String error) {
+            super(error);
+        }
+
+        /**
+         * Construct a new CloudMigrationStageException.
+         *
+         * @return A new CloudMigrationStageException when a cloud migration destination region has
+         * an unknown destination cloudType
+         */
+        public static CloudMigrationStageException unknownDestinationCloudType() {
+            return new CloudMigrationStageException(
+                    "Cloud migration plan encountered with unknown destination cloudType.");
+        }
+
+        /**
+         * Construct a new CloudMigrationStageException.
+         *
+         * @param planOid The OID of the plan
+         * @return A new CloudMigrationStageException when an intra-cloud migration is attempted
+         */
+        public static CloudMigrationStageException intraCloudMigrationException(final long planOid) {
+            return new CloudMigrationStageException("Plan: " + planOid + " has been stopped. Intra-cloud migration plans cannot be performed. "
+                    + "Ensure that no migrating entities are already hosted by the destination cloud service provider and try again.");
         }
     }
 }

@@ -20,6 +20,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -226,6 +227,7 @@ public class RollupProcessor {
         timer.start("Repartitioning");
         final Set<Table> tables = getTablesToRepartition();
         final Stream<Pair<Table, Future<Void>>> tableFutures = tables.stream()
+                .sorted(Comparator.comparing(Table::getName))
                 .map(table -> Pair.of(table, scheduleRepartition(table)));
         tableFutures.forEach(tf -> {
             try {

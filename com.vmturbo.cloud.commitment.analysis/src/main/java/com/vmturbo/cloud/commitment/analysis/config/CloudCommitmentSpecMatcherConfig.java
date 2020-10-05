@@ -11,7 +11,7 @@ import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher.Def
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecResolver;
 import com.vmturbo.cloud.commitment.analysis.spec.RISpecPurchaseFilterFactory;
 import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecMatcher.ReservedInstanceSpecMatcherFactory;
-import com.vmturbo.cloud.commitment.analysis.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 
 /**

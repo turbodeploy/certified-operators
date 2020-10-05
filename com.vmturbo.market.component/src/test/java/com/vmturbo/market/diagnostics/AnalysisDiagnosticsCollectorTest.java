@@ -49,6 +49,7 @@ import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -190,8 +191,9 @@ public class AnalysisDiagnosticsCollectorTest {
         Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, topologyInfo.get(),
             commSpecsToAdjustOverhead);
         Analysis analysis = createAnalysis(topology);
+        Ede ede = new Ede();
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(
-            traderTOs, topologyInfo.get(), analysisConfig.get(), analysis, topology);
+            traderTOs, topologyInfo.get(), analysisConfig.get(), analysis, topology, ede);
         logger.info("Analysis generated {} actions", results.getActionsList().size());
 
         assertTrue(results.getActionsList().size() > 0);

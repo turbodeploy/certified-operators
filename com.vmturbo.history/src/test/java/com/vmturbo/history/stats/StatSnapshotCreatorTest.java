@@ -54,7 +54,8 @@ import com.vmturbo.history.schema.abstraction.tables.records.BuStatsLatestRecord
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
-import com.vmturbo.history.stats.snapshots.SharedPropertyPopulator;
+import com.vmturbo.history.stats.snapshots.ProducerIdVisitor;
+import com.vmturbo.history.stats.snapshots.ProducerIdVisitor.ProducerIdPopulator;
 import com.vmturbo.history.stats.snapshots.SnapshotCreator;
 import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
 
@@ -69,7 +70,7 @@ public class StatSnapshotCreatorTest {
     private static final String KEY_1 = "key1";
     private static final String KEY_2 = "key2";
     private static final String USED = PropertySubType.Used.getApiParameterName();
-    public static final float FLOAT_COMPARISON_EPSILON = 0.001F;
+    private static final float FLOAT_COMPARISON_EPSILON = 0.001F;
     private static final long PRODUCER_OID = 111L;
     private static final String PROVIDER_DISPLAY_NAME = "providerDisplayName";
     private static final String COMMODITY_KEY = "commodityKey";
@@ -241,28 +242,100 @@ public class StatSnapshotCreatorTest {
         assertEquals(map.get(volume2).get(storageAccess).getUsed().getAvg(), 15, delta);
     }
 
+    /**
+     * Test {@link SnapshotCreator} when no group-by is given in the request
+     * and several DB records are returned.  The output should be a single
+     * stat snapshot, with the aggregated values, and with "multiple providers"
+     * as provider information.
+     */
     @Test
-    public void testNoGroupByKey() {
+    public void testNoGroupBy() {
         // arrange
         final List<CommodityRequest> commodityRequests =
-            Collections.singletonList(CommodityRequest.newBuilder()
-                .setCommodityName(C_1)
-                .build());
+                Collections.singletonList(CommodityRequest.newBuilder()
+                        .setCommodityName(C_1)
+                        .build());
+        final long providerId1 = 100;
+        final long providerId2 = 200;
+        final String provider1 = "provider1";
+        final String provider2 = "provider2";
+        final float smallValue = 15.0f;
+        final float bigValue = 20.0f;
 
         final List<Record> statsRecordsList = Lists.newArrayList(
-            newStatRecordWithKey(SNAPSHOT_TIME, 1, C_1, C_1_SUBTYPE, KEY_1),
-            newStatRecordWithKey(SNAPSHOT_TIME, 2, C_1, C_1_SUBTYPE, KEY_2));
+                newStatRecordWithProducerUuid(
+                        SNAPSHOT_TIME, smallValue, C_1, USED, Long.toString(providerId1)),
+                newStatRecordWithProducerUuid(
+                        SNAPSHOT_TIME, bigValue, C_1, USED, Long.toString(providerId2)));
+        when(liveStatsReader.getEntityDisplayNameForId(providerId1)).thenReturn(provider1);
+        when(liveStatsReader.getEntityDisplayNameForId(providerId2)).thenReturn(provider2);
 
+        // act
         final List<StatSnapshot> snapshots =
-            snapshotCreator.createStatSnapshots(statsRecordsList, false, commodityRequests)
-                .map(StatSnapshot.Builder::build)
-                .collect(Collectors.toList());
+                snapshotCreator.createStatSnapshots(statsRecordsList, false, commodityRequests)
+                        .map(StatSnapshot.Builder::build)
+                        .collect(Collectors.toList());
 
+        // assert
         Assert.assertThat(snapshots.size(), is(1));
         final StatSnapshot snapshot = snapshots.get(0);
-        Assert.assertThat(snapshot.getStatRecordsList().size(), CoreMatchers.is(1));
-        Assert.assertThat(snapshot.getStatRecordsList().iterator().next().getStatKey(), Matchers.anyOf(
-                        CoreMatchers.is(KEY_1), CoreMatchers.is(KEY_2)));
+        Assert.assertThat(snapshot.getStatRecordsList().size(), is(1));
+
+        final StatRecord record = snapshot.getStatRecordsList().iterator().next();
+        Assert.assertTrue(record.hasProviderDisplayName());
+        Assert.assertEquals(ProducerIdVisitor.MULTIPLE_PROVIDERS, record.getProviderDisplayName());
+        Assert.assertFalse(record.hasProviderUuid());
+
+        final StatValue statValue = record.getUsed();
+        Assert.assertEquals(bigValue * 2, statValue.getMax(), FLOAT_COMPARISON_EPSILON);
+        Assert.assertEquals(smallValue / 2, statValue.getMin(), FLOAT_COMPARISON_EPSILON);
+        Assert.assertEquals((bigValue + smallValue) / 2, statValue.getAvg(), FLOAT_COMPARISON_EPSILON);
+        Assert.assertEquals(bigValue + smallValue, statValue.getTotal(), FLOAT_COMPARISON_EPSILON);
+    }
+
+    /**
+     * Test {@link SnapshotCreator} when no group-by is given in the request
+     * and only one DB records is returned.  The output should be a single
+     * stat snapshot and there should be provider information.
+     */
+    @Test
+    public void testNoGroupByOneRecordOnly() {
+        // arrange
+        final List<CommodityRequest> commodityRequests =
+                Collections.singletonList(CommodityRequest.newBuilder()
+                        .setCommodityName(C_1)
+                        .build());
+        final long providerId = 100;
+        final String provider = "provider";
+        final float value = 20.0f;
+
+        final List<Record> statsRecordsList =
+                Collections.singletonList(newStatRecordWithProducerUuid(
+                        SNAPSHOT_TIME, value, C_1, USED, Long.toString(providerId)));
+        when(liveStatsReader.getEntityDisplayNameForId(providerId)).thenReturn(provider);
+
+        // act
+        final List<StatSnapshot> snapshots =
+                snapshotCreator.createStatSnapshots(statsRecordsList, false, commodityRequests)
+                        .map(StatSnapshot.Builder::build)
+                        .collect(Collectors.toList());
+
+        // assert
+        Assert.assertThat(snapshots.size(), is(1));
+        final StatSnapshot snapshot = snapshots.get(0);
+        Assert.assertThat(snapshot.getStatRecordsList().size(), is(1));
+
+        final StatRecord record = snapshot.getStatRecordsList().iterator().next();
+        Assert.assertTrue(record.hasProviderDisplayName());
+        Assert.assertEquals(provider, record.getProviderDisplayName());
+        Assert.assertTrue(record.hasProviderUuid());
+        Assert.assertEquals(Long.toString(providerId), record.getProviderUuid());
+
+        final StatValue statValue = record.getUsed();
+        Assert.assertEquals(value * 2, statValue.getMax(), FLOAT_COMPARISON_EPSILON);
+        Assert.assertEquals(value / 2, statValue.getMin(), FLOAT_COMPARISON_EPSILON);
+        Assert.assertEquals(value, statValue.getAvg(), FLOAT_COMPARISON_EPSILON);
+        Assert.assertEquals(value, statValue.getTotal(), FLOAT_COMPARISON_EPSILON);
     }
 
     /**
@@ -510,8 +583,7 @@ public class StatSnapshotCreatorTest {
         vmStatsLatestRecord.setPropertySubtype(PropertySubType.Used.getApiParameterName());
         vmStatsLatestRecord.setCapacity(Double.valueOf(CAPACITY));
         multimap.put(TEST_RECORD_KEY, vmStatsLatestRecord);
-        final SharedPropertyPopulator<Long> sharedPropertyPopulator =
-                Mockito.mock(SharedPropertyPopulator.class);
+        final ProducerIdPopulator sharedPropertyPopulator = Mockito.mock(ProducerIdPopulator.class);
         final Entry<Timestamp, Multimap<String, Record>> entry =
                 new SimpleEntry<>(SNAPSHOT_TIME, multimap);
         final SnapshotCreator snapshotCreator = new SnapshotCreator(false, sharedPropertyPopulator);

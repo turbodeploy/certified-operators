@@ -134,14 +134,14 @@ public class GlobalSupplyChainCalculator {
 
             // construct the supply chain node and add it to the result
             final SupplyChainNode.Builder supplyChainNodeBuilder =
-                SupplyChainNode.newBuilder().setEntityType(entityType.apiStr());
+                SupplyChainNode.newBuilder().setEntityType(entityType.typeNumber());
             for (Integer consumerType : connectedConsumerTypes) {
                 supplyChainNodeBuilder.addConnectedConsumerTypes(
-                        ApiEntityType.fromType(consumerType).apiStr());
+                        ApiEntityType.fromType(consumerType).typeNumber());
             }
             for (Integer providerType : connectedProviderTypes) {
                 supplyChainNodeBuilder.addConnectedProviderTypes(
-                        ApiEntityType.fromType(providerType).apiStr());
+                        ApiEntityType.fromType(providerType).typeNumber());
             }
             for (Entry<EntityState, Set<Long>> stateAndMembers : membersByState.entrySet()) {
                 supplyChainNodeBuilder.putMembersByState(

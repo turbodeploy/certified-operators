@@ -1,15 +1,21 @@
 package com.vmturbo.api.component.external.api.util.action;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
@@ -22,12 +28,14 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
@@ -105,7 +113,7 @@ public class ActionSearchUtilTest {
         Set<Long> scope = Collections.singleton(BUSINESS_ACCOUNT_ID_1);
         ApiId scopeId = Mockito.mock(ApiId.class);
         when(scopeId.oid()).thenReturn(BUSINESS_ACCOUNT_ID_1);
-        when(groupExpander.expandOids(scope)).thenReturn(scope);
+        when(groupExpander.expandOids(Collections.singleton(scopeId))).thenReturn(scope);
         when(supplyChainFetcherFactory.expandAggregatedEntities(scope)).thenReturn(scope);
         when(serviceProviderExpander.expand(scope)).thenReturn(scope);
 
@@ -128,7 +136,7 @@ public class ActionSearchUtilTest {
     public void testGetActionsByEntityGroup() throws Exception {
         ApiId scopeId = Mockito.mock(ApiId.class);
         when(scopeId.oid()).thenReturn(BILLING_FAMILY_ID);
-        when(groupExpander.expandOids(Collections.singleton(BILLING_FAMILY_ID)))
+        when(groupExpander.expandOids(Collections.singleton(scopeId)))
                 .thenReturn(BUSINESS_ACCOUNTS);
         when(supplyChainFetcherFactory.expandAggregatedEntities(BUSINESS_ACCOUNTS))
                 .thenReturn(BUSINESS_ACCOUNTS);
@@ -153,7 +161,7 @@ public class ActionSearchUtilTest {
     public void testGetActionsByEntityEmptyGroup() throws Exception {
         ApiId scopeId = Mockito.mock(ApiId.class);
         when(scopeId.oid()).thenReturn(RESOURCE_GROUP_ID);
-        when(groupExpander.expandOids(Collections.singleton(RESOURCE_GROUP_ID)))
+        when(groupExpander.expandOids(Collections.singleton(scopeId)))
                 .thenReturn(Collections.emptySet());
 
         ActionApiInputDTO inputDto = Mockito.mock(ActionApiInputDTO.class);
@@ -181,7 +189,7 @@ public class ActionSearchUtilTest {
     public void testGetActionsWithRelatedEntityTypeByEntityEmptyGroup() throws Exception {
         ApiId scopeId = Mockito.mock(ApiId.class);
         when(scopeId.oid()).thenReturn(RESOURCE_GROUP_ID);
-        when(groupExpander.expandOids(Collections.singleton(RESOURCE_GROUP_ID)))
+        when(groupExpander.expandOids(Collections.singleton(scopeId)))
                 .thenReturn(Collections.emptySet());
 
         ActionApiInputDTO inputDto = Mockito.mock(ActionApiInputDTO.class);
@@ -198,7 +206,7 @@ public class ActionSearchUtilTest {
         Set<Long> scope = Collections.singleton(BUSINESS_ACCOUNT_ID_1);
         ApiId scopeId = Mockito.mock(ApiId.class);
         when(scopeId.oid()).thenReturn(BUSINESS_ACCOUNT_ID_1);
-        when(groupExpander.expandOids(scope)).thenReturn(scope);
+        when(groupExpander.expandOids(Collections.singleton(scopeId))).thenReturn(scope);
         when(supplyChainFetcherFactory.expandScope(scope,
                 Collections.singletonList(EntityType.VIRTUAL_MACHINE.name())))
                 .thenReturn(scope);
@@ -220,4 +228,37 @@ public class ActionSearchUtilTest {
         verify(actionSpecMapper, times(1))
                 .createActionFilter(any(), any(), any());
     }
+
+    /**
+     * Test that searching for actions with multiple scopes functions correctly.
+     *
+     * @throws Exception never.
+     */
+    @Test
+    public void testGetActionsByScopes() throws Exception {
+        final String uuid = "123456";
+        final long oid = 123456L;
+        final ApiId apiId = ApiTestUtils.mockEntityId(uuid);
+        final Set<Long> scopeSet = Collections.singleton(oid);
+
+        final Map<Long, List<ActionApiDTO>> nullResult = actionSearchUtil.getActionsByScopes(
+            Collections.singleton(apiId), new ActionApiInputDTO(), 9876L);
+
+        // when scope expansion fails, return null
+        assertNull(nullResult);
+
+        when(groupExpander.expandOids(Collections.singleton(apiId))).thenReturn(scopeSet);
+        when(serviceProviderExpander.expand(scopeSet)).thenReturn(scopeSet);
+        when(supplyChainFetcherFactory.expandAggregatedEntities(scopeSet)).thenReturn(scopeSet);
+
+        final Map<Long, List<ActionApiDTO>> emptyResult = actionSearchUtil.getActionsByScopes(
+            Collections.singleton(apiId), new ActionApiInputDTO(), 9876L);
+
+        // when no actions are found, return empty result.
+        verify(actionSpecMapper).createActionFilter(any(), any(), eq(apiId));
+        verify(actionsServiceRpc).getAllActions(any());
+        assertNotNull(emptyResult);
+        assertTrue(emptyResult.isEmpty());
+    }
+
 }

@@ -1,8 +1,10 @@
 package com.vmturbo.plan.orchestrator.plan;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -21,6 +23,7 @@ import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.context.ApplicationContext;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserContextUtils;
@@ -41,17 +44,22 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.UpdatePlanRequest;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
+import com.vmturbo.plan.orchestrator.project.PlanProjectDao;
 
 /**
  * Plan gRPC service implementation.
@@ -59,6 +67,8 @@ import com.vmturbo.plan.orchestrator.api.PlanUtils;
 public class PlanRpcService extends PlanServiceImplBase {
 
     private final PlanDao planDao;
+
+    private PlanProjectDao planProjectDao;
 
     private final AnalysisServiceBlockingStub analysisService;
 
@@ -84,7 +94,10 @@ public class PlanRpcService extends PlanServiceImplBase {
 
     private Long realtimeTopologyContextId;
 
+    private final ApplicationContext applicationContext;
+
     public PlanRpcService(@Nonnull final PlanDao planDao,
+                          @Nonnull final ApplicationContext applicationContext,
                           @Nonnull final AnalysisServiceBlockingStub analysisService,
                           @Nonnull final PlanNotificationSender planNotificationSender,
                           @Nonnull final ExecutorService analysisExecutor,
@@ -98,6 +111,7 @@ public class PlanRpcService extends PlanServiceImplBase {
                           @Nonnull final TimeUnit startAnalysisRetryTimeUnit,
                           final Long realtimeTopologyContextId) {
         this.planDao = Objects.requireNonNull(planDao);
+        this.applicationContext = Objects.requireNonNull(applicationContext);
         this.analysisService = Objects.requireNonNull(analysisService);
         this.planNotificationSender = Objects.requireNonNull(planNotificationSender);
         this.analysisExecutor = analysisExecutor;
@@ -131,18 +145,92 @@ public class PlanRpcService extends PlanServiceImplBase {
         }
     }
 
+    /**
+     * Returns the PlanProjectDao from Spring's application context. Because the plan orchestrator is manually creating
+     * its beans in Spring configuration files, and not using Spring built-in dependency injection capabilities, such as
+     * component scans and annotations, the PlanConfig cannot import the PlanProjectConfig. The PlanProjectConfig is
+     * importing the PlanConfig, so adding it to the PlanConfig creates a circular reference. Instead, each Spring application
+     * has exactly one application context, which can be used to retrieve any bean configured in the Spring application.
+     *
+     * The PlanConfig autowires in the ApplicationContext and passes it to the PlanRpcService in its constructor. We use
+     * the application context to load the PlanProjectDao bean. We lazily load it in this fashion because there is no
+     * guarantee that the beans created in the PlanProjectConfig will be loaded before the beans created in the PlanConfig.
+     * But, but the time the application is running, all beans will be in the application context.
+     *
+     * @return  The PlanProjectDao bean
+     */
+    private PlanProjectDao getPlanProjectDao() {
+        if (planProjectDao == null) {
+            planProjectDao = this.applicationContext.getBean(PlanProjectDao.class);
+        }
+        return planProjectDao;
+    }
+
+    /**
+     * Stops the plan with the specified plan ID.
+     *
+     * @param planId                    The ID of the plan to stop
+     * @throws NoSuchObjectException    If the plan ID does not exist
+     * @throws IntegrityException       If the update has data integrity issues
+     */
+    private void stopPlan(Long planId) throws NoSuchObjectException, IntegrityException {
+        logger.info("Triggering plan cancellation for plan {}.", planId);
+        planDao.updatePlanInstance(planId, oldInstance -> oldInstance.setStatus(PlanStatus.STOPPED));
+    }
+
+    /**
+     * Returns true if this PlanInstance is a migrate-to-public-cloud plan.
+     *
+     * @param planInstance  The plan instance to evaluate
+     * @return              True if it is an MPC plan, false otherwise
+     */
+    private boolean isMPCPlan(PlanInstance planInstance) {
+        Scenario scenario = planInstance.getScenario();
+        if (scenario != null) {
+            ScenarioInfo scenarioInfo = scenario.getScenarioInfo();
+            if (scenarioInfo != null) {
+                // Compare the scenario info type to "CLOUD_MIGRATION"
+                return scenarioInfo.getType().equals(PlanProjectType.CLOUD_MIGRATION.toString());
+            }
+        }
+        return false;
+    }
+
     @Override
     public void cancelPlan(PlanId request, StreamObserver<PlanInstance> responseObserver) {
         // stop analysis
         final long planId = request.getPlanId();
         analysisExecutor.submit(() -> {
             try {
-                logger.info("Triggering plan cancellation for plan {}.", planId);
-                planDao.updatePlanInstance(planId, oldInstance ->
-                        oldInstance.setStatus(PlanStatus.STOPPED));
+                // Retrieve the plan instance with the specified plan ID
                 PlanInstance planInstance = planDao.getPlanInstance(planId)
-                    .orElseThrow(() -> new NoSuchObjectException("Invalid Plan ID: " + planId));
-                responseObserver.onNext(planInstance);
+                        .orElseThrow(() -> new NoSuchObjectException("Invalid Plan ID: " + planId));
+
+                if (isMPCPlan(planInstance)) {
+                    // Load the plan project using the PlanProjectDao
+                    PlanProjectDao planProjectDao = getPlanProjectDao();
+                    Optional<PlanProject> planProject = planProjectDao.getPlanProject(planInstance.getPlanProjectId());
+                    if (planProject.isPresent()) {
+                        PlanProjectInfo planProjectInfo = planProject.get().getPlanProjectInfo();
+                        if (planProjectInfo != null) {
+                            // Stop all related plans
+                            for (Long id : planProjectInfo.getRelatedPlanIdsList()) {
+                                stopPlan(id);
+                            }
+
+                            // Stop the plan project
+                            planProjectDao.updatePlanProject(planProject.get().getPlanProjectId(), PlanProject.PlanProjectStatus.FAILED);
+                        }
+                    }
+                }
+
+                // Stop plan that triggered the cancel
+                stopPlan(planId);
+
+                // Return the updated plan instance back to the caller
+                PlanInstance updatedPlanInstance = planDao.getPlanInstance(planId)
+                        .orElseThrow(() -> new NoSuchObjectException("Invalid Plan ID: " + planId));
+                responseObserver.onNext(updatedPlanInstance);
                 responseObserver.onCompleted();
             } catch (NoSuchObjectException e) {
                 // This could happen in the rare case where the plan got deleted
@@ -343,9 +431,6 @@ public class PlanRpcService extends PlanServiceImplBase {
             if (scenarioInfo.hasScope()) {
                 builder.setPlanScope(scenarioInfo.getScope());
             }
-            if (scenarioInfo.hasPlanGlobalSetting()) {
-                builder.setPlanGlobalSetting(scenarioInfo.getPlanGlobalSetting());
-            }
             if (scenarioInfo.hasType()) {
                 builder.setPlanType(scenarioInfo.getType());
             }
@@ -419,6 +504,19 @@ public class PlanRpcService extends PlanServiceImplBase {
     @Override
     public void getAllPlans(GetPlansOptions request, StreamObserver<PlanInstance> responseObserver) {
         logger.debug("Retrieving all the existing plans...");
+
+        if (!request.getScenarioIdList().isEmpty()) {
+            //Filter plans by scenarioId
+            //Currently used to check if any plans are tied to scenarios that we wish to delete.
+            Set<Long> scenarioIds = new HashSet<Long>(request.getScenarioIdList());
+            planDao.getAllPlanInstances().stream()
+                    .filter(planInstance -> planInstance.getScenario().hasId() && scenarioIds.contains(planInstance.getScenario().getId()))
+                    .filter(planInstance -> PlanDTOUtil.isDisplayablePlan(planInstance.getProjectType()))
+                    .forEach(responseObserver::onNext);
+            responseObserver.onCompleted();
+            return;
+        }
+
         planDao.getAllPlanInstances().stream()
             // When listing plans, return only user displayable plans.
             .filter(planInstance -> PlanDTOUtil.isDisplayablePlan(planInstance.getProjectType()))

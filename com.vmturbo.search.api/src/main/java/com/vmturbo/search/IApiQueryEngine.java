@@ -59,7 +59,7 @@ public interface IApiQueryEngine {
      * @return a list of results
      * @throws Exception when the query cannot be processed
      */
-    List<SearchCountRecordApiDTO> countEntites(
+    List<SearchCountRecordApiDTO> countEntities(
         @Nonnull EntityCountRequestApiDTO entityCountRequestApiDTO) throws  Exception;
 
     /**

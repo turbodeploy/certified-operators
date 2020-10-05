@@ -24,6 +24,7 @@ import org.mockito.Mockito;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.util.CollectionUtils;
 
+import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
@@ -35,7 +36,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.BuyReservedInstanceRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
-import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceCostFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceFilter;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisRecommendation;
@@ -62,7 +62,7 @@ public class BuyReservedInstanceStoreTest {
 
     private DSLContext dsl = dbConfig.getDslContext();
 
-    private BuyReservedInstanceStore buyRiStore = new BuyReservedInstanceStore(dsl, new IdentityProvider(0));
+    private BuyReservedInstanceStore buyRiStore = new BuyReservedInstanceStore(dsl, new DefaultIdentityProvider(0));
 
     private final ReservedInstanceBoughtInfo newRInfo = ReservedInstanceBoughtInfo.newBuilder()
             .setReservedInstanceSpec(99L)

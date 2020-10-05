@@ -22,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.common.protobuf.cost.Pricing.BusinessAccountPriceTableKey;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -29,7 +30,6 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
-import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
@@ -56,7 +56,7 @@ public class BusinessAccountPriceTableKeyStoreTest {
     private DSLContext dsl = dbConfig.getDslContext();
 
     private PriceTableKeyIdentityStore priceTableKeyIdentityStore = new PriceTableKeyIdentityStore(dsl,
-        new IdentityProvider(0));
+        new DefaultIdentityProvider(0));
 
     private BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore =
         new BusinessAccountPriceTableKeyStore(dsl, priceTableKeyIdentityStore);

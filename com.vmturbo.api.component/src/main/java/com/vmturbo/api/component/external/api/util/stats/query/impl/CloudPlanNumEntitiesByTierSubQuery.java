@@ -43,11 +43,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest.ActionQuery;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
@@ -210,14 +210,21 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
             boolean projectedTopology, PlanProjectType planProjectType)
             throws OperationFailedException {
         String volumeEntityType = ApiEntityType.VIRTUAL_VOLUME.apiStr();
+
+        if (planProjectType == PlanProjectType.CLOUD_MIGRATION) {
+            // The repository doesn't currently provide accurate results for newly-migrated
+            // entities, so parse the action list to determine which entities were migrated.
+            return fetchNumEntitiesByTierStats(getEntitiesFromActionList(contextId, StringConstants.NUM_VIRTUAL_DISKS),
+                    projectedTopology, StringConstants.NUM_VIRTUAL_DISKS, StringConstants.TIER);
+        }
+
         // get all volumes ids in the plan scope, using supply chain fetcher
         // get all VMs ids in the plan scope, using supply chain fetcher
         Set<Long> volumeIds = getRelatedEntities(scopes, Collections.singletonList(volumeEntityType))
-            .get(volumeEntityType);
-        return fetchNumEntitiesByTierStats(volumeIds, projectedTopology, contextId,
-            StringConstants.NUM_VIRTUAL_DISKS, StringConstants.TIER,
-                ENTITY_TYPE_TO_GET_TIER_FUNCTION.get(volumeEntityType),
-                planProjectType);
+            .getOrDefault(volumeEntityType, ImmutableSet.of());
+        return fetchNumEntitiesByTierStats(getEntitiesFromRepository(volumeIds, projectedTopology, contextId,
+                ENTITY_TYPE_TO_GET_TIER_FUNCTION.get(volumeEntityType)), projectedTopology,
+            StringConstants.NUM_VIRTUAL_DISKS, StringConstants.TIER);
     }
 
     @Nonnull
@@ -230,7 +237,7 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
             .fetch()
             .values()
             .stream()
-            .collect(Collectors.toMap(SupplyChainNode::getEntityType, RepositoryDTOUtil::getAllMemberOids));
+            .collect(Collectors.toMap(n -> ApiEntityType.fromSdkTypeToEntityTypeString(n.getEntityType()), RepositoryDTOUtil::getAllMemberOids));
     }
 
     private List<StatApiDTO> getNumEntitiesByTierStats(@Nonnull Set<Long> scopes,
@@ -238,30 +245,28 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
                                @Nonnull String statName,
                                @Nonnull Set<String> entityTypes,
                                PlanProjectType planProjectType) throws OperationFailedException {
-        // fetch related entities ids for given scopes
-        final Map<String, Set<Long>> idsByEntityType = getRelatedEntities(scopes,
-            new ArrayList<>(entityTypes));
-        return idsByEntityType.entrySet().stream()
-            .flatMap(entry -> fetchNumEntitiesByTierStats(entry.getValue(), projectedTopology, contextId,
-                statName, StringConstants.TEMPLATE,
-                ENTITY_TYPE_TO_GET_TIER_FUNCTION.get(entry.getKey()), planProjectType).stream()
-            ).collect(Collectors.toList());
-    }
-
-
-    private List<StatApiDTO> fetchNumEntitiesByTierStats(@Nonnull Set<Long> entityIds, boolean projectedTopology,
-            long contextId, @Nonnull String statName, @Nonnull String filterType,
-            @Nonnull Function<ApiPartialEntity, Optional<Long>> getTierId,
-            PlanProjectType planProjectType) {
-        Map<Optional<Long>, Long> tierIdToNumEntities;
         if (planProjectType == PlanProjectType.CLOUD_MIGRATION) {
             // The repository doesn't currently provide accurate results for newly-migrated
             // entities, so parse the action list to determine which entities were migrated.
-            tierIdToNumEntities = getEntitiesFromActionList(contextId, statName);
-        } else {
-            tierIdToNumEntities = getEntitiesFromRepository(entityIds, projectedTopology, contextId,
-                    getTierId);
+            return fetchNumEntitiesByTierStats(getEntitiesFromActionList(contextId, statName),
+                    projectedTopology, statName, StringConstants.TEMPLATE);
         }
+
+        // fetch related entities ids for given scopes
+        final Map<String, Set<Long>> idsByEntityType = getRelatedEntities(scopes,
+            new ArrayList<>(entityTypes));
+
+        return idsByEntityType.entrySet().stream()
+            .flatMap(entry ->
+                fetchNumEntitiesByTierStats(getEntitiesFromRepository(entry.getValue(), projectedTopology, contextId,
+                        ENTITY_TYPE_TO_GET_TIER_FUNCTION.get(entry.getKey())), projectedTopology, statName,
+                        StringConstants.TEMPLATE).stream()
+            ).collect(Collectors.toList());
+    }
+
+    private List<StatApiDTO> fetchNumEntitiesByTierStats(@Nonnull Map<Optional<Long>, Long> tierIdToNumEntities,
+                                                         boolean projectedTopology, @Nonnull String statName,
+                                                         @Nonnull String filterType) {
         // tier id --> tier name
         // Looking up display name in real-time topology, as some (like NVME_SSD StorageTier -
         // which don't participate in market) are not in plan topology.
@@ -269,17 +274,17 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
         // Storage tiers available in plan are always going to be a subset of tiers available
         // in real-time, and the properties (like displayName) of the tiers won't change.
         final Map<Long, String> tierIdToName = repositoryApi.entitiesRequest(tierIdToNumEntities.keySet()
-                        .stream().filter(Optional::isPresent)
-                        .map(Optional::get).collect(Collectors.toSet()))
-                        .getMinimalEntities()
-                        .collect(Collectors.toMap(MinimalEntity::getOid,
-                                                  MinimalEntity::getDisplayName));
+                .stream().filter(Optional::isPresent)
+                .map(Optional::get).collect(Collectors.toSet()))
+                .getMinimalEntities()
+                .collect(Collectors.toMap(MinimalEntity::getOid,
+                        MinimalEntity::getDisplayName));
 
         return tierIdToNumEntities.entrySet().stream()
-                        .filter(entry -> entry.getKey().isPresent())
-            .map(entry -> createStatApiDTOForPlan(statName, entry.getValue(),
-                filterType, tierIdToName.get(entry.getKey().get()), projectedTopology))
-            .collect(Collectors.toList());
+                .filter(entry -> entry.getKey().isPresent())
+                .map(entry -> createStatApiDTOForPlan(statName, entry.getValue(),
+                        filterType, tierIdToName.get(entry.getKey().get()), projectedTopology))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -341,7 +346,8 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
                             .setTopologyContextId(contextId)
                             .setPaginationParams(PaginationParameters.newBuilder()
                                     .setCursor(cursor.getAndSet("")))
-                            .setFilter(actionQueryFilter)
+                            .addActionQuery(ActionQuery.newBuilder()
+                                .setQueryFilter(actionQueryFilter))
                             .build();
             actionsServiceBlockingStub.getAllActions(filteredActionRequest)
                     .forEachRemaining(rsp -> {

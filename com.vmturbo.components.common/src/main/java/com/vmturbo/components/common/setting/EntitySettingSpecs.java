@@ -17,7 +17,12 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.commons.lang3.EnumUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
@@ -33,7 +38,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Enumeration for all the pre-built entity settings.
  */
 public enum EntitySettingSpecs {
-
     /**
      * Shop together setting for VMs.
      */
@@ -43,6 +47,16 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.VIRTUAL_MACHINE),
             new BooleanSettingDataType(false),
             true),
+
+    /**
+     * Rate of resize.
+     * Rate of resize setting UI style is defined in settingSpecStyle.json.
+     */
+    RateOfResize("RATE_OF_RESIZE", "Rate of Resize",
+        Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+        SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
+        new NumericSettingDataType(1.0f, 3.0f, 2.0f,
+            Collections.singletonMap(EntityType.CONTAINER, 3.0f)), true),
 
     /**
      * The minimum number of vcpu cores which is the threshold to decide automation mode.
@@ -93,7 +107,7 @@ public enum EntitySettingSpecs {
      */
     EnableScaleActions("enableScaleActions", "Enable Scale Actions", Collections.emptyList(),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_VOLUME),
-            new BooleanSettingDataType(true), true),
+            new BooleanSettingDataType(false), true),
 
     /**
      * Enable Delete actions (currently it is used for Volumes only).
@@ -168,7 +182,7 @@ public enum EntitySettingSpecs {
     VCPURequestUtilization("vcpuRequestUtilization", "VCPU Request Utilization",
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD),
-            numeric(0f, 100f, 99.99f), true),
+            numeric(0f, 100f, 99.99f), true, true),
     /**
      * DTU utilization threshold.
      */
@@ -490,7 +504,7 @@ public enum EntitySettingSpecs {
     ContainerVmemIncrement("usedIncrement_Container_VMEM", "Increment constant for VMem and VMem Request [MB]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.CONTAINER),
-            numeric(0.0f, 1000000.0f, 64.0f), true),
+            numeric(0.0f, 1000000.0f, 64.0f), true ),
 
     /**
      * Virtual Storage Increment.
@@ -683,7 +697,7 @@ public enum EntitySettingSpecs {
     RemainingGcCapacityUtilization("remainingGcCapacityUtilization", "Remaining GC Capacity Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.APPLICATION_COMPONENT),
-            numeric(90f, 99f, 97f), true),
+            numeric(90f, 99f, 97f), true, true),
 
     /**
      * DbCacheHitRate utilization threshold.
@@ -693,7 +707,7 @@ public enum EntitySettingSpecs {
     DbCacheHitRateUtilization("dbCacheHitRateUtilization", "DB Cache Hit Rate Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DATABASE_SERVER),
-            numeric(80f, 99f, 90f), true),
+            numeric(80f, 99f, 90f), true, true),
 
     /**
      * DBMem utilization threshold.
@@ -812,7 +826,7 @@ public enum EntitySettingSpecs {
     ScalingGroupMembership("scalingGroupMembership", "Scaling Group Membership",
         Collections.emptyList(), SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
-        string(), false),
+        string(), false, true),
 
     /**
      * Enforce instance store aware scaling actions for {@link EntityType#VIRTUAL_MACHINE}s.
@@ -964,6 +978,8 @@ public enum EntitySettingSpecs {
             new BooleanSettingDataType(true),
             true);
 
+    private static final Logger logger = LogManager.getLogger();
+
     private static final ImmutableSet<String> AUTOMATION_SETTINGS = ImmutableSet.<String>builder()
         .add(EntitySettingSpecs.EnforceNonDisruptive.name)
         .add(EntitySettingSpecs.ScalingPolicy.name)
@@ -973,6 +989,24 @@ public enum EntitySettingSpecs {
             .map(ConfigurableActionSettings::getSettingName)
             .collect(Collectors.toList()))
         .build();
+
+    /**
+     * A set containing the deprecated settings names. We keep deprecated settings in the codebase
+     * to support loading old topologies. Deprecated settings are not visible to the user, and are
+     * not used anywhere else in the code.
+     */
+    @VisibleForTesting
+    protected static final Set<String> DEPRECATED_SETTINGS = Arrays.stream(values())
+            .filter(setting -> {
+                    try {
+                        return null != EntitySettingSpecs.class.getField(setting.name())
+                                .getAnnotation(Deprecated.class);
+                    } catch (NoSuchFieldException e) {
+                        return false;
+                    }
+                })
+                .map(EntitySettingSpecs::getSettingName)
+                .collect(Collectors.toSet());
 
     /**
      * Default regex for a String-type SettingDataStructure = matches anything.
@@ -1007,7 +1041,14 @@ public enum EntitySettingSpecs {
     }
 
     /**
-     * Create an EntitySettingsSpec, representing a setting attached to an entity or group.
+     * A setting that is used internally by the system. Internal settings should not be visible to
+     * the user.
+     */
+    private final boolean isInternal;
+
+    /**
+     * Create an EntitySettingsSpec, representing a setting attached to an entity or group. Creates
+     * an external setting by default. to create an internal setting should use another constructor.
      *
      * @param name the name (also called 'uuid') of this setting
      * @param displayName A human-readable display name for the setting.
@@ -1020,9 +1061,31 @@ public enum EntitySettingSpecs {
      * @param allowGlobalDefault whether a global default can be set for this setting
      */
     EntitySettingSpecs(@Nonnull String name, @Nonnull String displayName,
+                       @Nonnull List<String> categoryPath, @Nonnull SettingTiebreaker tieBreaker,
+                       @Nonnull Set<EntityType> entityTypeScope, @Nonnull SettingDataStructure<?> dataStructure,
+                       boolean allowGlobalDefault) {
+        this(name, displayName, categoryPath, tieBreaker, entityTypeScope,
+                dataStructure, allowGlobalDefault, false);
+    }
+
+    /**
+     * Create an EntitySettingsSpec, representing a setting attached to an entity or group.
+     *
+     * @param name the name (also called 'uuid') of this setting
+     * @param displayName A human-readable display name for the setting.
+     *                    NOTE: For action workflows, the first word MUST be the name of the action
+     *                        type affected by the workflow policy. The UI relies on this convention.
+     * @param categoryPath the category grouping in which to include this setting
+     * @param tieBreaker used to break ties, choosing the bigger or smaller setting
+     * @param entityTypeScope enumeration of entity types that this setting may apply to
+     * @param dataStructure the type of data structure used to specify the values for this setting
+     * @param allowGlobalDefault whether a global default can be set for this setting
+     * @param isInternal whether a setting is only used internally by the system
+     */
+    EntitySettingSpecs(@Nonnull String name, @Nonnull String displayName,
             @Nonnull List<String> categoryPath, @Nonnull SettingTiebreaker tieBreaker,
             @Nonnull Set<EntityType> entityTypeScope, @Nonnull SettingDataStructure<?> dataStructure,
-            boolean allowGlobalDefault) {
+            boolean allowGlobalDefault, boolean isInternal) {
         this.name = Objects.requireNonNull(name);
         this.displayName = Objects.requireNonNull(displayName);
         this.categoryPath = Objects.requireNonNull(categoryPath);
@@ -1031,6 +1094,7 @@ public enum EntitySettingSpecs {
         this.dataStructure = Objects.requireNonNull(dataStructure);
         this.allowGlobalDefault = allowGlobalDefault;
         this.settingSpec = createSettingSpec();
+        this.isInternal = isInternal;
     }
 
     /**
@@ -1141,6 +1205,44 @@ public enum EntitySettingSpecs {
     public static boolean isAutomationSetting(@Nonnull String specName) {
         Objects.requireNonNull(specName);
         return AUTOMATION_SETTINGS.contains(specName);
+    }
+
+    @VisibleForTesting
+    protected static boolean isDeprecatedSetting(@Nonnull String specName) {
+        return DEPRECATED_SETTINGS.contains(specName);
+    }
+
+    @VisibleForTesting
+    protected static boolean isInternalSetting(@Nonnull String specName) {
+        boolean isInternal = false;
+        EntitySettingSpecs spec = EnumUtils.getEnumIgnoreCase(EntitySettingSpecs.class, specName);
+        if (null == spec) {
+            logger.error("{} is an invalid EntitySettingSpec name", specName);
+            return isInternal;
+        }
+        isInternal = spec.isInternal;
+        return isInternal;
+    }
+
+    /**
+     * Check if the given setting spec name is a hidden setting. What makes a setting hidden is that
+     * it is not listed in settingManagers.json.
+     *
+     * @param specName Name of the setting spec.
+     * @return whether the setting is hidden.
+     */
+    public static boolean isHiddenSetting(@Nonnull String specName) {
+        return isInternalSetting(specName) || isDeprecatedSetting(specName);
+    }
+
+    /**
+     * Check if the given setting spec name is a visible setting.
+     *
+     * @param specName Name of the setting spec.
+     * @return true if the setting is a visible setting else return false.
+     */
+    public static boolean isVisibleSetting(@Nonnull String specName) {
+        return !isHiddenSetting(specName);
     }
 
     /**

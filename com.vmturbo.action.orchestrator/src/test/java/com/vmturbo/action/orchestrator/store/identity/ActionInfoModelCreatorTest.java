@@ -3,12 +3,16 @@ package com.vmturbo.action.orchestrator.store.identity;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
+import com.google.gson.Gson;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -16,6 +20,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator.AtomicResizeChange;
+import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator.ResizeChangeByTarget;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -35,6 +41,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.components.api.ComponentGsonFactory;
 
 /**
  * Unit test for {@link ActionInfoModelCreator}.
@@ -190,6 +197,67 @@ public class ActionInfoModelCreatorTest {
                 .build();
         ActionInfoModel model2 = modelCreator.apply(resize2);
         Assert.assertEquals(model2, model1);
+    }
+
+    /**
+     * Test that the ActionInfoModel details for atomic resize
+     * are not truncate when there are multiple resizes for multiple de-duplication targets
+     * and commodities.
+     */
+    @Test
+    public void testAtomicResizeActionTypeWithManyDeDuplicationTargetsAndCommodities() {
+        ActionInfo resize1 = ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(createActionEntity(1))
+                        .addResizes(createResizeInfo(73617269445251L, 26))
+                        .addResizes(createResizeInfo(73617269445251L, 53))
+                        .addResizes(createResizeInfo(73617269445251L, 100))
+                        .addResizes(createResizeInfo(73617269445251L, 101))
+                        .addResizes(createResizeInfo(73617269445252L, 26))
+                        .addResizes(createResizeInfo(73617269445252L, 53))
+                        .addResizes(createResizeInfo(73617269445252L, 100))
+                        .addResizes(createResizeInfo(73617269445252L, 101))
+                        .addResizes(createResizeInfo(73617269445253L, 26))
+                        .addResizes(createResizeInfo(73617269445253L, 53))
+                        .addResizes(createResizeInfo(73617269445253L, 100))
+                        .addResizes(createResizeInfo(73617269445253L, 101))
+                        .addResizes(createResizeInfo(73617269445254L, 26))
+                        .addResizes(createResizeInfo(73617269445254L, 53))
+                        .addResizes(createResizeInfo(73617269445254L, 100))
+                        .addResizes(createResizeInfo(73617269445254L, 101))
+                        .addResizes(createResizeInfo(73617269445255L, 26))
+                        .addResizes(createResizeInfo(73617269445255L, 53))
+                        .addResizes(createResizeInfo(73617269445255L, 100))
+                        .addResizes(createResizeInfo(73617269445255L, 101))
+                        .addResizes(createResizeInfo(73617269445256L, 26))
+                        .addResizes(createResizeInfo(73617269445256L, 53))
+                        .addResizes(createResizeInfo(73617269445256L, 100))
+                        .addResizes(createResizeInfo(73617269445256L, 101))
+                        .addResizes(createResizeInfo(73617269445257L, 26))
+                        .addResizes(createResizeInfo(73617269445257L, 53))
+                        .addResizes(createResizeInfo(73617269445257L, 100))
+                        .addResizes(createResizeInfo(73617269445257L, 101))
+                        .build())
+                .build();
+        ActionInfoModel model1 = modelCreator.apply(resize1);
+
+        final List<ResizeChangeByTarget> resizeChangeByTarget
+                = resize1.getAtomicResize().getResizesList()
+                .stream()
+                .collect(Collectors.groupingBy(resize -> resize.getTarget().getId()))
+                .entrySet()
+                .stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> new ResizeChangeByTarget(entry.getKey(), entry.getValue()))
+                .collect(Collectors.toList());
+        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
+        AtomicResizeChange resizeChange = new AtomicResizeChange(resizeChangeByTarget);
+
+        final String changesString = gson.toJson(resizeChange);
+
+        System.out.println(changesString + "[" + changesString.length() + "]");
+
+        Assert.assertEquals(changesString, model1.getDetails().get());
     }
 
     /**

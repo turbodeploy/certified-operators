@@ -109,6 +109,7 @@ import com.vmturbo.topology.processor.topology.DemandOverriddenCommodityEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
 import com.vmturbo.topology.processor.topology.EphemeralEntityEditor;
+import com.vmturbo.topology.processor.topology.EphemeralEntityEditor.EditSummary;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
@@ -117,6 +118,7 @@ import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicator
 import com.vmturbo.topology.processor.topology.RequestAndLimitCommodityThresholdsInjector;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
+import com.vmturbo.topology.processor.topology.TopologyEditorException;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 import com.vmturbo.topology.processor.topology.pipeline.CachedTopology.CachedTopologyResult;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PassthroughStage;
@@ -630,7 +632,8 @@ public class Stages {
 
         @NotNull
         @Override
-        public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) throws PipelineStageException {
+        public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input)
+                throws PipelineStageException {
             // Topology editing should use a group resolver distinct from the rest of the pipeline.
             // This is so that pre-edit group membership lookups don't get cached in the "main"
             // group resolver, preventing post-edit group membership lookups from seeing members
@@ -640,6 +643,8 @@ public class Stages {
             try {
                 topologyEditor.editTopology(input, changes, getContext(), groupResolver);
             } catch (GroupResolutionException e) {
+                throw new PipelineStageException(e);
+            } catch (TopologyEditorException e) {
                 throw new PipelineStageException(e);
             }
             // TODO (roman, Oct 23 2018): Add some information about the number/type of
@@ -1651,8 +1656,34 @@ public class Stages {
         @Override
         @Nonnull
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
-            ephemeralEntityEditor.applyEdits(graph);
-            return Status.success();
+            final EditSummary editSummary = ephemeralEntityEditor.applyEdits(graph);
+
+            final StringBuilder statusBuilder = new StringBuilder();
+            if (editSummary.getCommoditiesAdjusted() > 0) {
+                statusBuilder.append("Adjusted ")
+                    .append(editSummary.getCommoditiesAdjusted())
+                    .append(" commodities.\n");
+            }
+            if (editSummary.getCommoditiesWithInsufficientData() > 0) {
+                statusBuilder.append("Disabled resize on ")
+                    .append(editSummary.getCommoditiesWithInsufficientData())
+                    .append(" commodities because of insufficient data.\n");
+            }
+            if (editSummary.getInconsistentScalingGroups() > 0) {
+                statusBuilder.append("Disabled resize on ")
+                    .append(editSummary.getInconsistentScalingGroups())
+                    .append(" consistent scaling groups (of ")
+                    .append(editSummary.getTotalScalingGroups())
+                    .append(" total) due to inconsistent capacities.");
+            }
+
+            // We want to warn when there are inconsistent scaling groups. Ideally we want to
+            // actually still be able to scale but today we don't know how to.
+            if (editSummary.getInconsistentScalingGroups() > 0) {
+                return TopologyPipeline.Status.withWarnings(statusBuilder.toString());
+            } else {
+                return TopologyPipeline.Status.success(statusBuilder.toString());
+            }
         }
     }
 

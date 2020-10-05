@@ -6,11 +6,12 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
 
-import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysis.IdentityProvider;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.CloudCommitmentInventoryResolverStage.CloudCommitmentInventoryResolverStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.InitializationStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationStage.DemandTransformationFactory;
+import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 
 /**
@@ -28,6 +29,8 @@ public class AnalysisPipelineFactory {
 
     private final DemandTransformationFactory demandTransformationFactory;
 
+    private final CloudCommitmentInventoryResolverStageFactory cloudCommitmentInventoryResolverStageFactory;
+
     /**
      * Constructs an analysis pipeline factory.
      * @param identityProvider The identity provider, used to assign IDs to individual stages.
@@ -39,18 +42,22 @@ public class AnalysisPipelineFactory {
      *                                    stage to demand selection.
      * @param demandTransformationFactory The {@link DemandTransformationFactory} to create the demand
      *                                    transformation stage.
+     * @param cloudCommitmentInventoryResolverStageFactory The {@link CloudCommitmentInventoryResolverStageFactory} to
+     *                                    create the CloudCommitmentInventoryResolverStage.
      */
     public AnalysisPipelineFactory(@Nonnull IdentityProvider identityProvider,
                                    @Nonnull InitializationStageFactory initializationStageFactory,
                                    @Nonnull DemandRetrievalFactory demandRetrievalFactory,
                                    @Nonnull DemandClassificationFactory demandClassificationFactory,
-                                   @Nonnull DemandTransformationFactory demandTransformationFactory) {
+                                   @Nonnull DemandTransformationFactory demandTransformationFactory,
+            @Nonnull CloudCommitmentInventoryResolverStageFactory cloudCommitmentInventoryResolverStageFactory) {
 
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.initializationStageFactory = Objects.requireNonNull(initializationStageFactory);
         this.demandRetrievalFactory = Objects.requireNonNull(demandRetrievalFactory);
         this.demandClassificationFactory = Objects.requireNonNull(demandClassificationFactory);
         this.demandTransformationFactory = Objects.requireNonNull(demandTransformationFactory);
+        this.cloudCommitmentInventoryResolverStageFactory = Objects.requireNonNull(cloudCommitmentInventoryResolverStageFactory);
     }
 
     /**
@@ -83,6 +90,11 @@ public class AnalysisPipelineFactory {
                                 analysisContext))
                 .addStage(
                         demandTransformationFactory.createStage(
+                                identityProvider.next(),
+                                analysisConfig,
+                                analysisContext))
+                .addStage(
+                        cloudCommitmentInventoryResolverStageFactory.createStage(
                                 identityProvider.next(),
                                 analysisConfig,
                                 analysisContext))

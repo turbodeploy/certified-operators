@@ -10,11 +10,12 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-import com.vmturbo.cost.component.entity.cost.SqlEntityCostStore;
 import org.junit.Test;
 
 import com.vmturbo.cost.component.entity.cost.PlanProjectedEntityCostStore;
+import com.vmturbo.cost.component.entity.cost.SqlEntityCostStore;
 import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
+import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;
 import com.vmturbo.cost.component.reserved.instance.PlanReservedInstanceStore;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector.PlanGarbageCollector.ListExistingPlanIds;
 
@@ -31,9 +32,11 @@ public class CostPlanGarbageCollectorTest {
 
     private SqlEntityCostStore sqlEntityCostStore = mock(SqlEntityCostStore.class);
 
+    private BuyReservedInstanceStore buyReservedInstanceStore = mock(BuyReservedInstanceStore.class);
+
     private CostPlanGarbageCollector garbageCollector =
         new CostPlanGarbageCollector(actionContextRIBuyStore, planProjectedEntityCostStore,
-            planReservedInstanceStore, sqlEntityCostStore);
+            planReservedInstanceStore, sqlEntityCostStore, buyReservedInstanceStore);
 
     /**
      * Test listing active ids.
@@ -66,6 +69,7 @@ public class CostPlanGarbageCollectorTest {
         verify(planProjectedEntityCostStore).deletePlanProjectedCosts(1L);
         verify(planReservedInstanceStore).deletePlanReservedInstanceStats(1L);
         verify(sqlEntityCostStore).deleteEntityCosts(1L);
+        verify(buyReservedInstanceStore).deleteBuyReservedInstances(1L);
     }
 
 }

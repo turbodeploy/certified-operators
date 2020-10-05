@@ -41,6 +41,7 @@ import com.google.common.collect.Maps;
 
 import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -1479,65 +1480,64 @@ public class ActionSpecMapper {
             }
             actionApiDTO.setNewEntity(newEntity);
             actionApiDTO.setNewValue(newEntity.getUuid());
-        } else if (isVSANCause(actionExplanation)) {
-            // When providing a host because of vSAN storage needs we'd like to know how it
-            // will affect the said vSAN storage.
-            addVSANCausingProvisionInfo(actionApiDTO, context, currentEntityId);
         } else {
-            // In realtime actions we don't provide a reference to the provisioned entities, because
-            // they do not exist in the projected topology. This is because provisioning is not
-            // something that can be realistically executed, and we don't show the impact of
-            // provisions when constructing the projected topology.
-            actionApiDTO.setNewEntity(new ServiceEntityApiDTO());
+            Optional<BaseApiDTO> vsanCause = context.getEntity(currentEntityId)
+                    .map(currentDTO -> getVSANCause(actionExplanation, currentDTO)).orElse(Optional.empty());
+            addVSANCausingProvisionInfo(actionApiDTO, vsanCause);
         }
     }
 
     /**
      * Add info about vSAN storage whose needs have triggered host provision to actionApiDTO.
      * @param actionApiDTO the resulting action description for API
-     * @param context is context
-     * @param currentEntityId current entity ID
+     * @param vsan the vSAN that causes the action
      */
-    private void addVSANCausingProvisionInfo(@Nonnull final ActionApiDTO actionApiDTO,
-                    @Nonnull final ActionSpecMappingContext context,
-                    final long currentEntityId)    {
-        Optional<ServiceEntityApiDTO> completeCurrentEntity = context.getEntity(currentEntityId);
-        if (completeCurrentEntity.isPresent())  {
-            for (BaseApiDTO consumer : completeCurrentEntity.get().getConsumers())  {
-                if (StringConstants.STORAGE.equals(consumer.getClassName()))    {
-                    final ServiceEntityApiDTO newEntity = new ServiceEntityApiDTO();
-                    newEntity.setUuid(consumer.getUuid());
-                    newEntity.setClassName(StringConstants.STORAGE);
-                    newEntity.setDisplayName(consumer.getDisplayName());
-                    newEntity.setEnvironmentType(EnvironmentTypeMapper.fromXLToApi(
-                                    EnvironmentTypeEnum.EnvironmentType.ON_PREM));
-                    actionApiDTO.setNewEntity(newEntity);
-                    actionApiDTO.setNewValue(newEntity.getUuid());
-                    return;
-                }
-            }
+    private void addVSANCausingProvisionInfo(@Nonnull final ActionApiDTO actionApiDTO, @Nonnull final Optional<BaseApiDTO> vsan) {
+        final ServiceEntityApiDTO newEntity = new ServiceEntityApiDTO();
+        actionApiDTO.setNewEntity(newEntity);
+        //If vsan is empty, that means it didn't pass the vsan action check, this is not a vsan caused action.
+        //Don't add the vsan aspect information then.
+        if (!vsan.isPresent()) {
+            return;
         }
-        logger.error("Couldn't find Storage consumer that had become the cause of Provision. Cloned entity: {}",
-                        currentEntityId);
-        actionApiDTO.setNewEntity(new ServiceEntityApiDTO());
+        newEntity.setUuid(vsan.get().getUuid());
+        newEntity.setClassName(StringConstants.STORAGE);
+        newEntity.setDisplayName(vsan.get().getDisplayName());
+        newEntity.setEnvironmentType(EnvironmentTypeMapper.fromXLToApi(
+                                    EnvironmentTypeEnum.EnvironmentType.ON_PREM));
+        actionApiDTO.setNewEntity(newEntity);
+        actionApiDTO.setNewValue(newEntity.getUuid());
     }
 
     /**
-     * Checks the action explanation to see whether vSAN storage needs are the cause.
+     * Find the VSAN that causes the action, if exists.
      * @param actionExplanation action explanation
-     * @return true if the host provision was caused by vSAN needs.
+     * @param currentEntity the current se of the action
+     * @return Not null if we can find a consumer of STORAGE type
      */
-    private boolean isVSANCause(@Nonnull final Explanation actionExplanation)    {
+    private Optional<BaseApiDTO> getVSANCause(@Nonnull final Explanation actionExplanation,
+            final @Nonnull ServiceEntityApiDTO currentEntity) {
         if (!(actionExplanation.hasProvision()
-                    && actionExplanation.getProvision().hasProvisionBySupplyExplanation()
-                    && actionExplanation.getProvision().getProvisionBySupplyExplanation()
-                        .hasMostExpensiveCommodityInfo()))  {
-            return false;
+                && actionExplanation.getProvision().hasProvisionBySupplyExplanation()
+                && actionExplanation.getProvision().getProvisionBySupplyExplanation()
+                .hasMostExpensiveCommodityInfo())) {
+            return Optional.empty();
         }
+
         Explanation.ReasonCommodity reasonCommodity = actionExplanation.getProvision()
-                        .getProvisionBySupplyExplanation().getMostExpensiveCommodityInfo();
-        return reasonCommodity.hasCommodityType() && reasonCommodity.getCommodityType().hasType()
-                        && HCIUtils.isVSANRelatedCommodity(reasonCommodity.getCommodityType().getType());
+                .getProvisionBySupplyExplanation().getMostExpensiveCommodityInfo();
+        if (!(reasonCommodity.hasCommodityType() && reasonCommodity.getCommodityType().hasType()
+                && HCIUtils.isVSANRelatedCommodity(reasonCommodity.getCommodityType().getType()))) {
+            return Optional.empty();
+        }
+
+        for (BaseApiDTO consumer : currentEntity.getConsumers())  {
+            if (StringConstants.STORAGE.equals(consumer.getClassName())) {
+                return Optional.of(consumer);
+            }
+        }
+        return Optional.empty();
+
     }
 
     // Top level merged resize action
@@ -2564,6 +2564,20 @@ public class ActionSpecMapper {
     private Map<Long, Cost.EntityReservedInstanceCoverage> getEntityRiCoverageMap(
             Long topologyContextId,
             EntityFilter entityFilter) {
+        if (topologyContextId == null) {
+            logger.error("Topology Context ID is null for entityFilter " + entityFilter);
+            return Collections.emptyMap();
+        }
+
+        //Check if the topology is real time.
+        boolean isRealTimeTopology = topologyContextId == realtimeTopologyContextId ? true : false;
+
+        // If real time, fetch projected RI coverage from the cost component.
+        if (isRealTimeTopology) {
+            return fetchEntityRiCoverageMap(topologyContextId, entityFilter);
+        }
+
+        // If not real time, rely on the cache.
         boolean containsTopologyContextEntry = topologyContextIdToEntityFilterToEntityRiCoverage.containsKey(topologyContextId);
         if (containsTopologyContextEntry
                 && topologyContextIdToEntityFilterToEntityRiCoverage.get(topologyContextId).containsKey(entityFilter)) {

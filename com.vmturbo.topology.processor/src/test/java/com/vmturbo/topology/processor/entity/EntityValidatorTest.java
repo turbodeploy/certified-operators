@@ -153,6 +153,10 @@ public class EntityValidatorTest {
     public void testReplaceNaNBoughtUsed() {
         final TopologyEntityDTO.Builder teBuilder = entityBuilder()
             .addCommoditiesBoughtFromProviders(boughtFromProvider(naNCommodityBought()));
+        final Optional<EntityValidationFailure> failure = entityValidator
+            .validateSingleEntity(teBuilder, false);
+        Assert.assertTrue(failure.isPresent());
+        Assert.assertTrue(failure.get().toString().contains("NaN"));
         entityValidator
             .processIllegalCommodityValues(teBuilder, Optional.empty(), buildGraph(teBuilder));
         Assert.assertTrue(

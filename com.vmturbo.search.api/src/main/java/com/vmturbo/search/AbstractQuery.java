@@ -1,5 +1,8 @@
 package com.vmturbo.search;
 
+import static org.jooq.impl.DSL.coalesce;
+import static org.jooq.impl.DSL.inline;
+
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -15,6 +18,7 @@ import javax.annotation.Nullable;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,6 +40,8 @@ import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.RelatedActionFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.extractor.schema.tables.SearchEntity;
+import com.vmturbo.extractor.schema.tables.SearchEntityAction;
+import com.vmturbo.extractor.schema.tables.records.SearchEntityActionRecord;
 import com.vmturbo.extractor.schema.tables.records.SearchEntityRecord;
 import com.vmturbo.search.mappers.EntitySeverityMapper;
 import com.vmturbo.search.mappers.EntityStateMapper;
@@ -58,9 +64,14 @@ public abstract class AbstractQuery {
     private static final Logger logger = LogManager.getLogger();
 
     /**
-     * The JOOQ table to use for search queries.
+     * The JOOQ entity table to use for search queries.
      */
-    protected static final Table<SearchEntityRecord> searchTable = SearchEntity.SEARCH_ENTITY;
+    public static final Table<SearchEntityRecord> SEARCH_ENTITY_TABLE = SearchEntity.SEARCH_ENTITY;
+
+    /**
+     * The JOOQ action table to use for search queries.
+     */
+    public static final Table<SearchEntityActionRecord> SEARCH_ENTITY_ACTION_TABLE = SearchEntityAction.SEARCH_ENTITY_ACTION;
 
     /**
      * Mapping of common dtos to database columns.
@@ -68,18 +79,29 @@ public abstract class AbstractQuery {
      * <p>TODO: Seems like this mapping should ideally be part of the search metadata.
      * Meaning, it should be included in {@link SearchMetadataMapping}.</p>
      */
-    private static Map<FieldApiDTO, Field> primaryTableColumns =
+    private static final Map<FieldApiDTO, Field> primaryTableColumns =
         new HashMap<FieldApiDTO, Field>() {{
             put(PrimitiveFieldApiDTO.oid(), SearchEntity.SEARCH_ENTITY.OID);
             put(PRIMITIVE_TYPE, SearchEntity.SEARCH_ENTITY.TYPE);
             put(PrimitiveFieldApiDTO.entityType(), SearchEntity.SEARCH_ENTITY.TYPE);
             put(PrimitiveFieldApiDTO.groupType(), SearchEntity.SEARCH_ENTITY.TYPE);
             put(PrimitiveFieldApiDTO.name(), SearchEntity.SEARCH_ENTITY.NAME);
-            put(PrimitiveFieldApiDTO.severity(), SearchEntity.SEARCH_ENTITY.SEVERITY);
+            put(PrimitiveFieldApiDTO.severity(), SearchEntityAction.SEARCH_ENTITY_ACTION.SEVERITY);
             put(PrimitiveFieldApiDTO.entityState(), SearchEntity.SEARCH_ENTITY.STATE);
             put(PrimitiveFieldApiDTO.environmentType(), SearchEntity.SEARCH_ENTITY.ENVIRONMENT);
-            put(RelatedActionFieldApiDTO.actionCount(), SearchEntity.SEARCH_ENTITY.NUM_ACTIONS);
+            put(RelatedActionFieldApiDTO.actionCount(), SearchEntityAction.SEARCH_ENTITY_ACTION.NUM_ACTIONS);
         }};
+
+    /**
+     * Default values for some table fields to be returned. Action data is ingested to different
+     * table at a different schedule than the main ingestion. There may be some entities without
+     * action data if analysis took too long to finish.
+     */
+    protected static final Map<SearchMetadataMapping, Object> FIELD_DEFAULT_VALUE =
+            ImmutableMap.of(
+                    SearchMetadataMapping.RELATED_ACTION_COUNT, 0,
+                    SearchMetadataMapping.PRIMITIVE_SEVERITY, "NORMAL"
+            );
 
     private static final Map<PrimitiveFieldApiDTO, Function> ENUM_FIELD_JOOQ_TO_API_MAPPER = new HashMap<PrimitiveFieldApiDTO, Function>() {{
         put(PrimitiveFieldApiDTO.entityType(), EntityTypeMapper.fromSearchSchemaToApiFunction);
@@ -246,7 +268,7 @@ public abstract class AbstractQuery {
     Field buildAndTrackSelectFieldFromEntityType(FieldApiDTO apiField) {
         SearchMetadataMapping columnMetadata = getMetadataMapping().get(apiField);
         trackUserRequestedFields(columnMetadata, apiField);
-        return buildFieldForApiField(apiField, true);
+        return buildSelectFieldForApiField(apiField);
     }
 
     /**
@@ -260,6 +282,23 @@ public abstract class AbstractQuery {
     }
 
     /**
+     * Get {@link Field} configuration for entityField from mappings.
+     *
+     * @param apiField {@link FieldApiDTO} to parse into select query {@link Field}
+     * @return Field configuration based on {@link FieldApiDTO}
+     */
+    @VisibleForTesting
+    Field<?> buildSelectFieldForApiField(FieldApiDTO apiField) {
+        Field<?> field = buildFieldForApiField(apiField);
+        final SearchMetadataMapping mapping = getMetadataMapping().get(apiField);
+        if (FIELD_DEFAULT_VALUE.containsKey(mapping)) {
+            field = coalesce(field, inline(FIELD_DEFAULT_VALUE.get(mapping)));
+        }
+        // always add alias to select fields
+        return addColumnAliasToField(field, mapping);
+    }
+
+    /**
      * Builds a {@link Field} object from {@link SearchMetadataMapping}.
      *
      * @param apiField {@link FieldApiDTO} to parse into select query {@link Field}
@@ -267,28 +306,16 @@ public abstract class AbstractQuery {
      */
     @VisibleForTesting
     Field<?> buildFieldForApiField(@Nonnull FieldApiDTO apiField) {
-        return buildFieldForApiField(apiField, false);
-    }
-
-    /**
-     * Builds a {@link Field} object from {@link SearchMetadataMapping}.
-     *
-     * @param apiField {@link FieldApiDTO} to parse into select query {@link Field}
-     * @param aliasColumn if field name should contain an alias
-     * @return Field
-     */
-    @VisibleForTesting
-    Field<?> buildFieldForApiField(@Nonnull FieldApiDTO apiField, @Nonnull boolean aliasColumn) {
         final SearchMetadataMapping mapping = getMetadataMapping().get(apiField);
         if (mapping == null) {
             throw new IllegalArgumentException("Field " + apiField.toString()
                     + " does not apply to selected type. ");
         }
 
-        final Field<?> field;
-        if (this.primaryTableColumns.containsKey(apiField)) {
+        Field<?> field;
+        if (primaryTableColumns.containsKey(apiField)) {
             //For Primary Columns we use the jooq generated Fields
-            field = this.primaryTableColumns.get(apiField);
+            field = primaryTableColumns.get(apiField);
         } else {
             final String columnName = mapping.getColumnName();
             final String jsonKey = mapping.getJsonKeyName();
@@ -298,8 +325,7 @@ public abstract class AbstractQuery {
             DataType dataType = getColumnDataType(mapping);
             field = unCastfield.cast(dataType); //Required for proper handling of where and sorting
         }
-
-        return aliasColumn ? addColumnAliasToField(field, mapping) : field;
+        return field;
     }
 
     /**
@@ -351,10 +377,6 @@ public abstract class AbstractQuery {
 
     protected DSLContext getReadOnlyDSLContext() {
         return readOnlyDSLContext;
-    }
-
-    protected Table<SearchEntityRecord> getSearchTable() {
-        return searchTable;
     }
 
     /**

@@ -287,8 +287,17 @@ public class PlanReservedInstanceRpcServiceTest {
 
         // 3. Test with real VM costs set.
         double onDemandComputeCost = 0.0054;
-        final CurrencyAmount onDemandAmount = CurrencyAmount.newBuilder()
+        double onDemandLicenseCost = 0.0012;
+        final CurrencyAmount computeRate = CurrencyAmount.newBuilder()
                 .setAmount(onDemandComputeCost)
+                .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
+                .build();
+        final CurrencyAmount licenseRate = CurrencyAmount.newBuilder()
+                .setAmount(onDemandLicenseCost)
+                .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
+                .build();
+        final CurrencyAmount totalRate = CurrencyAmount.newBuilder()
+                .setAmount(onDemandComputeCost + onDemandLicenseCost)
                 .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
                 .build();
         final EntityCost vmCost = EntityCost.newBuilder()
@@ -297,8 +306,12 @@ public class PlanReservedInstanceRpcServiceTest {
                 .addComponentCost(ComponentCost.newBuilder()
                         .setCategory(CostCategory.ON_DEMAND_COMPUTE)
                         .setCostSource(CostSource.ON_DEMAND_RATE)
-                        .setAmount(onDemandAmount))
-                .setTotalAmount(onDemandAmount)
+                        .setAmount(computeRate))
+                .addComponentCost(ComponentCost.newBuilder()
+                        .setCategory(CostCategory.ON_DEMAND_LICENSE)
+                        .setCostSource(CostSource.ON_DEMAND_RATE)
+                        .setAmount(licenseRate))
+                .setTotalAmount(totalRate)
                 .build();
         originalEntityCosts.put(vmId, vmCost);
         final Map<Long, Double> aggregatedCoverage = new HashMap<>();

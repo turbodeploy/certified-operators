@@ -36,6 +36,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.api.enums.EntityState;
+import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterResponse;
@@ -62,6 +63,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -69,7 +71,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -339,7 +340,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
         MemberList membersBa = MemberList.newBuilder()
                         .addAllMemberOids(baSet).build();
         SupplyChainNode scnBA = SupplyChainNode.newBuilder()
-                        .setEntityType("BusinessAccount")
+                        .setEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
                         .putMembersByState(EntityState.ACTIVE.ordinal(), membersBa)
                         .build();
         supplyChainNodes.add(scnBA);
@@ -347,7 +348,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
         MemberList membersAz = MemberList.newBuilder()
                         .addAllMemberOids(azSet).build();
         SupplyChainNode scnAZ = SupplyChainNode.newBuilder()
-                        .setEntityType("AvailabilityZone")
+                        .setEntityType(ApiEntityType.AVAILABILITY_ZONE.typeNumber())
                         .putMembersByState(EntityState.ACTIVE.ordinal(), membersAz)
                         .build();
         supplyChainNodes.add(scnAZ);
@@ -355,7 +356,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
         MemberList membersRegion = MemberList.newBuilder()
                         .addAllMemberOids(regionSet).build();
         SupplyChainNode scnRegion = SupplyChainNode.newBuilder()
-                        .setEntityType("Region")
+                        .setEntityType(ApiEntityType.REGION.typeNumber())
                         .putMembersByState(EntityState.ACTIVE.ordinal(), membersRegion)
                         .build();
         supplyChainNodes.add(scnRegion);

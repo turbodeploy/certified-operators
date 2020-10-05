@@ -109,6 +109,9 @@ spec:
                 debug:
                   description: Global debug
                   type: boolean
+                storageAnnotations:
+                  description: Global pvc annotations list
+                  type: object
                 storageClassName:
                   description: StorageClassName to be used for all persistent volume claims
                   type: string
@@ -3658,6 +3661,9 @@ spec:
                   properties:
                     showGuestLoad:
                       description: Show GuestLoad entities
+                      type: boolean
+                    useSqlForPlans:
+                      description: Store plan data in MySQL instead of ArangoDB.
                       type: boolean
                   type: object
               type: object

@@ -35,6 +35,7 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
@@ -49,6 +50,9 @@ import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
+import com.vmturbo.repository.plan.db.PlanEntityStore;
+import com.vmturbo.repository.plan.db.TopologyNotFoundException;
+import com.vmturbo.repository.plan.db.TopologySelection;
 import com.vmturbo.repository.service.SupplyChainMerger.MergedSupplyChain;
 import com.vmturbo.repository.service.SupplyChainMerger.MergedSupplyChainException;
 import com.vmturbo.repository.service.SupplyChainMerger.SingleSourceSupplyChain;
@@ -66,6 +70,8 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
     private final GraphDBService graphDBService;
 
     private final UserSessionContext userSessionContext;
+
+    private final PlanEntityStore planEntityStore;
 
     private final long realtimeTopologyContextId;
 
@@ -111,11 +117,37 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
     public ArangoSupplyChainRpcService(@Nonnull final GraphDBService graphDBService,
                                        @Nonnull final SupplyChainService supplyChainService,
                                        @Nonnull final UserSessionContext userSessionContext,
-                                       final long realtimeTopologyContextId) {
+                                       final long realtimeTopologyContextId,
+                                       @Nonnull final PlanEntityStore planEntityStore) {
         this.graphDBService = Objects.requireNonNull(graphDBService);
         this.supplyChainService = Objects.requireNonNull(supplyChainService);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.planEntityStore = planEntityStore;
+    }
+
+    private boolean getPlanSupplyChainFromSql(GetSupplyChainRequest request, StreamObserver<GetSupplyChainResponse> responseObserver) {
+        final Optional<Long> contextId = request.hasContextId()
+            ? Optional.of(request.getContextId()) : Optional.empty();
+
+        if (contextId.map(context -> context != realtimeTopologyContextId).orElse(false)) {
+            try {
+                // We only look up supply chain in the projected topology for plans.
+                TopologySelection topologySelection = planEntityStore.getTopologySelection(contextId.get(), TopologyType.PROJECTED);
+                SupplyChain supplyChain = planEntityStore.getSupplyChain(topologySelection, request.getScope());
+                responseObserver.onNext(GetSupplyChainResponse.newBuilder()
+                    .setSupplyChain(supplyChain)
+                    .build());
+                responseObserver.onCompleted();
+                return true;
+            } catch (TopologyNotFoundException e) {
+                // Move up to warn when we deprecate Arango.
+                logger.debug("Topology not found in MySQL database: {}", e.toString());
+                return false;
+            }
+        } else {
+            return false;
+        }
     }
 
     /**
@@ -143,6 +175,10 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
     @Override
     public void getSupplyChain(GetSupplyChainRequest request,
                                StreamObserver<GetSupplyChainResponse> responseObserver) {
+        if (getPlanSupplyChainFromSql(request, responseObserver)) {
+            return;
+        }
+
         final Optional<Long> contextId = request.hasContextId() ?
                 Optional.of(request.getContextId()) : Optional.empty();
         final SupplyChainScope scope = request.getScope();
@@ -230,11 +266,11 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
      *                         from the supply chain view.
      * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
      */
-    private void getGlobalSupplyChain(@Nullable List<String> entityTypesToIncludeList,
-                                                        @Nonnull final Optional<EnvironmentType> environmentType,
-                                                        @Nonnull final Optional<Long> contextId,
-                                                        final boolean filterForDisplay,
-                                                        @Nonnull final StreamObserver<GetSupplyChainResponse> responseObserver) {
+    private void getGlobalSupplyChain(@Nullable List<Integer> entityTypesToIncludeList,
+                                    @Nonnull final Optional<EnvironmentType> environmentType,
+                                    @Nonnull final Optional<Long> contextId,
+                                    final boolean filterForDisplay,
+                                    @Nonnull final StreamObserver<GetSupplyChainResponse> responseObserver) {
         GLOBAL_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
             supplyChainService.getGlobalSupplyChain(contextId, environmentType,
                     filterForDisplay ? IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN : Collections.emptySet())
@@ -278,7 +314,7 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
      * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
      */
     private void getMultiSourceSupplyChain(@Nonnull final List<Long> startingVertexOids,
-                                           @Nonnull final List<String> entityTypesToIncludeList,
+                                           @Nonnull final List<Integer> entityTypesToIncludeList,
                                            @Nonnull final Optional<Long> contextId,
                                            @Nonnull final Optional<EnvironmentType> envType,
                                            final boolean filterForDisplay,
@@ -342,7 +378,7 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
                     @Nonnull Map<Long, SingleSourceSupplyChain> zoneSupplyChainOnlyRegion) {
         // collect all the availability zones' ids returned by the supply chain
         final Set<Long> zoneIds = singleSourceSupplyChain.getSupplyChainNodes().stream()
-            .filter(supplyChainNode -> ApiEntityType.fromString(supplyChainNode.getEntityType()) == ApiEntityType.AVAILABILITY_ZONE)
+            .filter(supplyChainNode -> ApiEntityType.fromType(supplyChainNode.getEntityType()) == ApiEntityType.AVAILABILITY_ZONE)
             .flatMap(supplyChainNode -> RepositoryDTOUtil.getAllMemberOids(supplyChainNode).stream())
             .collect(Collectors.toSet());
 

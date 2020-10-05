@@ -308,7 +308,7 @@ public class EntityAspectMapper {
      */
     @Nonnull
     public Map<Long, Map<AspectName, EntityAspect>> getAspectsByEntities(
-            @Nonnull List<TopologyEntityDTO> entities, @Nullable Collection<String> aspectsList)
+            @Nonnull Collection<TopologyEntityDTO> entities, @Nullable Collection<String> aspectsList)
             throws InterruptedException, ConversionException {
         // a mapping from aspectMapper -> list of entity types supported by that aspect mapper.
         Map<IAspectMapper, List<Integer>> mappers = getMappersAndEntityTypes(aspectsList);

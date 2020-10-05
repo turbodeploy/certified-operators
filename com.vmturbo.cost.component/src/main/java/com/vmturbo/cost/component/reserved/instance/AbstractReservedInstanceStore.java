@@ -16,10 +16,10 @@ import org.jooq.DSLContext;
 import org.jooq.Record3;
 import org.jooq.Result;
 
+import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceCostStat;
-import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 
@@ -168,7 +168,7 @@ public abstract class AbstractReservedInstanceStore {
                         riBuilder.getReservedInstanceBoughtInfoBuilder()
                                 .getReservedInstanceBoughtCouponsBuilder()
                                 .setNumberOfCouponsUsed(coupons)
-                                .setNumberOfCoupons((int)coupons);
+                                .setNumberOfCoupons(coupons);
                     } else {
                         double coupons = riToUndiscoveredAccountUsage.getOrDefault(riBuilder.getId(),
                                 0d);

@@ -9,7 +9,6 @@ import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -20,7 +19,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -37,6 +35,7 @@ import org.jooq.Record2;
 import org.jooq.Result;
 import org.jooq.TableField;
 import org.jooq.impl.DSL;
+import org.jooq.impl.TableImpl;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
@@ -47,8 +46,7 @@ import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityCloudScopeRecord;
 import com.vmturbo.cost.component.db.tables.records.EntityComputeTierAllocationRecord;
@@ -65,7 +63,8 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * {@link Tables#ENTITY_CLOUD_SCOPE}. An assumption is made the {@link Tables#ENTITY_COMPUTE_TIER_ALLOCATION}
  * has a foreign key relationship with the {@link Tables#ENTITY_CLOUD_SCOPE} table.
  */
-public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implements ComputeTierAllocationStore {
+public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implements ComputeTierAllocationStore,
+        TableDiagsRestorable<Void, EntityComputeTierAllocationRecord> {
 
     private static final ZoneId UTC_ZONE_ID = ZoneId.from(ZoneOffset.UTC);
 
@@ -557,23 +556,14 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
         return allocationRecord;
     }
 
-    private String fetchDiagsForExport() {
-        return dslContext.select(DSL.asterisk())
-                .from(Tables.ENTITY_COMPUTE_TIER_ALLOCATION)
-                .fetch().formatJSON();
+    @Override
+    public DSLContext getDSLContext() {
+        return dslContext;
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
-        //TODO To be implemented as a part of OM-58627
-        return;
-    }
-
-    @Override
-    public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
-        String records = fetchDiagsForExport();
-        appender.appendString(records);
-
+    public TableImpl<EntityComputeTierAllocationRecord> getTable() {
+        return Tables.ENTITY_COMPUTE_TIER_ALLOCATION;
     }
 
     @Nonnull

@@ -1,6 +1,7 @@
 package com.vmturbo.topology.graph.supplychain;
 
 import java.util.Queue;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -56,7 +57,17 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
         @Override
         public void apply(@Nonnull E entity, @Nonnull TraversalMode traversalMode, int depth,
                           @Nonnull Queue<TraversalState> frontier) {
+            // if the traversal mode is STOP, then stop here
+            if (traversalMode == TraversalMode.STOP) {
+                return;
+            }
+
             final int newDepth = depth + 1;
+
+            // add to the frontier all traversal states
+            // that subclasses explicitly include to the traversal
+            include(entity, traversalMode).forEach(mode -> frontier.add(mode.withDepth(newDepth)));
+
             // traverse the inclusion chain outwards
             // Add all Controllers of the
             // traversed entity to the frontier.
@@ -67,7 +78,7 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
             // This ensures that further traversal from the
             // entities newly added to the frontier will only continue
             // in the same direction.
-            getFilteredControllers(entity, traversalMode).forEach(e ->
+            entity.getControllers().forEach(e ->
                 frontier.add(new TraversalState(e.getOid(), TraversalMode.CONTROLLED_BY, newDepth)));
             // In the case when a VMSpec controls multiple VM, when one of the VM is the seed,
             // we don't want to see other vms in the Supply Chain. In this case, when the mode
@@ -80,8 +91,9 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
             // Like with the outwards traversal, when an entity
             // is traversed, then any other entity it controls
             // should also be traversed.
-            getFilteredControlledEntities(entity, traversalMode).forEach(e ->
+            entity.getControlledEntities().forEach(e ->
                 frontier.add(new TraversalState(e.getOid(), traversalMode, newDepth)));
+
             // traverse the inclusion chain outwards
                 // Add all aggregators and the owner of the
                 // traversed entity to the frontier.
@@ -97,8 +109,10 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
                 // the next step will add the region that owns the zone
                 // but it will not add any other VMs that are contained
                 // in the zone.
-            getFilteredAggregators(entity, traversalMode).forEach(e ->
-                frontier.add(new TraversalState(e.getOid(), TraversalMode.AGGREGATED_BY, newDepth)));
+            entity.getAggregatorsAndOwner().stream()
+                .filter(filter(entity, EdgeTraversalDescription.FROM_AGGREGATED_TO_AGGREGATOR))
+                .forEach(e ->
+                    frontier.add(new TraversalState(e.getOid(), TraversalMode.AGGREGATED_BY, newDepth)));
 
             // if the traversal mode is AGGREGATED_BY,
             // then nothing else should be added to the frontier
@@ -109,6 +123,7 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
             if (traversalMode == TraversalMode.AGGREGATED_BY) {
                 return;
             }
+
             // traverse the inclusion chain inwards
             // traversal mode remains the same
                 // Like with the outwards traversal, when an entity
@@ -122,18 +137,24 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
                 // we will treat them as parts of the seed (traversal direction
                 // will be START), which will in turn bring consuming
                 // applications, anything higher the supply chain, etc.
-            getFilteredAggregatedEntities(entity, traversalMode).forEach(e ->
-                frontier.add(new TraversalState(e.getOid(), traversalMode, newDepth)));
+            entity.getAggregatedAndOwnedEntities().stream()
+                .filter(filter(entity, EdgeTraversalDescription.FROM_AGGREGATOR_TO_AGGREGATED))
+                .forEach(e ->
+                    frontier.add(new TraversalState(e.getOid(), traversalMode, newDepth)));
+
             // downward traversal of the supply chain
                 // For example, from VMs to PMs.
                 // The downward traversal is marked by traversal mode
                 // CONSUMES. The downward traversal is initiated in
                 // the seed, which means that traversal direction START
                 // should also be included in the conditional.
-            if (traversalMode == TraversalMode.CONSUMES
-                    || traversalMode == TraversalMode.START) {
-                getFilteredProviders(entity, traversalMode).forEach(e ->
-                    frontier.add(new TraversalState(e.getOid(), TraversalMode.CONSUMES, newDepth)));
+            if (traversalMode == TraversalMode.CONSUMES || traversalMode == TraversalMode.START) {
+                Stream.concat(entity.getProviders().stream(),
+                              entity.getOutboundAssociatedEntities().stream())
+                    .filter(filter(
+                                entity, EdgeTraversalDescription.DOWN, traversalMode == TraversalMode.START))
+                    .forEach(e ->
+                        frontier.add(new TraversalState(e.getOid(), TraversalMode.CONSUMES, newDepth)));
             }
 
             // upward traversal of the supply chain
@@ -142,116 +163,87 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
                 // PRODUCES. The upward traversal is initiated in
                 // the seed, which means that traversal direction START
                 // should also be included in the conditional.
-            if (traversalMode == TraversalMode.PRODUCES
-                    || traversalMode == TraversalMode.START) {
+            if (traversalMode == TraversalMode.PRODUCES || traversalMode == TraversalMode.START) {
                 // from traversal modes START and PRODUCES,
                 // we start/continue our upward traversal
                 // of the supply chain
-                getFilteredConsumers(entity, traversalMode).forEach(e ->
-                    frontier.add(new TraversalState(e.getOid(), TraversalMode.PRODUCES, newDepth)));
+                Stream.concat(entity.getConsumers().stream(), entity.getInboundAssociatedEntities().stream())
+                    .filter(filter(entity, EdgeTraversalDescription.UP, traversalMode == TraversalMode.START))
+                    .forEach(e ->
+                        frontier.add(new TraversalState(e.getOid(), TraversalMode.PRODUCES, newDepth)));
             }
-
-
         }
 
         /**
-         * Convenience method that allows filtering of consumers of an entity
-         * when overriding this class. Examples of consumers include:
-         * VMs consume from PMs, apps consume from VMs, storage consumes from
-         * disk arrays etc. Inbound "normal" connections are also included,
-         * e.g., VMs are treated as consumers of volumes and volumes are treated
-         * as consumers of storage and storage tiers.
+         * Convenience method that allows custom filtering of related entities.
+         * The method allows filtering of connected entities as well as
+         * providers and consumers.
+         *
+         * @param entity the entity whose related entities will be filtered
+         * @param edgeTraversalDescription the traversal mode for the related entity
+         * @param seed true if and only if the current entity is in the seed
+         * @return a predicate that filters entities
+         */
+        protected Predicate<E> filter(@Nonnull E entity,
+                                      @Nonnull EdgeTraversalDescription edgeTraversalDescription,
+                                      boolean seed) {
+            return e -> true;
+        }
+
+        private Predicate<E> filter(@Nonnull E entity,
+                                    @Nonnull EdgeTraversalDescription edgeTraversalDescription) {
+            return filter(entity, edgeTraversalDescription, false);
+        }
+
+        /**
+         * Convenience method that can be overridden by the subclasses
+         * to add new entities to the traversal frontier.  In other words,
+         * a new traversal rule defined as a subclass of
+         * {@link DefaultTraversalRule} can use this method to specify
+         * that certain entities must be added to the traversal, if this
+         * rule applies.
+         *
+         * <p>The entities are returned as a stream of {@link TraversalState}
+         *    builders.  We return a {@link TraversalState} builder to
+         *    not only specify the entities, but also the traversal modes with
+         *    which they should be included in the traversal.  We return a
+         *    builder instead of an immutable {@link TraversalState} object,
+         *    because the traversal depth should not be set by this method,
+         *    but by the calling method {@link DefaultTraversalRule#apply}.
+         * </p>
          *
          * @param entity the entity
          * @param traversalMode the traversal mode
-         * @return consumers of this entity to be considered
-         *         in the next traversal
+         * @return a stream of traversal state builders.  These traversal states
+         *         will be included in the frontier with the appropriate depth
          */
-        protected Stream<E> getFilteredConsumers(@Nonnull E entity,
-                                                 @Nonnull TraversalMode traversalMode) {
-            return Stream.concat(entity.getConsumers().stream(),
-                                 entity.getInboundAssociatedEntities().stream());
+        protected Stream<TraversalState.Builder> include(
+                @Nonnull E entity, @Nonnull TraversalMode traversalMode) {
+            return Stream.empty();
         }
+    }
 
+    /**
+     * This enum describes the relationship between an entity that is being
+     * traversed (we will call it the "source" entity) and another entity
+     * that is about to be traversed (we will call it the "target" entity).
+     */
+    enum EdgeTraversalDescription {
         /**
-         * Convenience method that allows filtering of providers of an entity
-         * when overriding this class. Examples of providers include:
-         * PMs provide to VMs, VMs provide to apps, disk arrays provide to
-         * storage etc. Outbound "normal" connections are also included,
-         * e.g., volumes are treated as providers of VMs and storage (tiers)
-         * are treated as providers of volumes.
-         *
-         * @param entity the entity
-         * @param traversalMode the traversal mode
-         * @return providers of this entity to be considered
-         *         in the next traversal
+         * The target provides to the source.
          */
-        protected Stream<E> getFilteredProviders(@Nonnull E entity,
-                                                 @Nonnull TraversalMode traversalMode) {
-            return Stream.concat(entity.getProviders().stream(),
-                                 entity.getOutboundAssociatedEntities().stream());
-        }
-
+        DOWN,
         /**
-         * Convenience method that allows filtering of aggregators and the
-         * owner of an entity when overriding this class. Examples of aggregators
-         * include: regions aggregate tiers, zones aggregate workloads.
-         * Examples of owners include: regions own zones, accounts own
-         * sub-accounts and workloads.
-         *
-         * @param entity the entity
-         * @param traversalMode the traversal mode
-         * @return aggregators and owner of this entity to be considered
-         *         in the next traversal
+         * The target consumes by the source.
          */
-        protected Stream<E> getFilteredAggregators(@Nonnull E entity,
-                                                   @Nonnull TraversalMode traversalMode) {
-            return entity.getAggregatorsAndOwner().stream();
-        }
-
+        UP,
         /**
-         * Convenience method that allows filtering of aggregated and
-         * owned entities of an entity when overriding this class. Examples of
-         * aggregated entities include: regions aggregate tiers, zones aggregate
-         * workloads. Examples of owned entities include: regions own zones,
-         * accounts own sub-accounts and workloads.
-         *
-         * @param entity the entity
-         * @param traversalMode the traversal mode
-         * @return aggregated and owned entities of this entity to be considered
-         *         in the next traversal
+         * The target is an aggregator of the source.
          */
-        protected Stream<E> getFilteredAggregatedEntities(@Nonnull E entity,
-                                                          @Nonnull TraversalMode traversalMode) {
-            return entity.getAggregatedAndOwnedEntities().stream();
-        }
-
+        FROM_AGGREGATED_TO_AGGREGATOR,
         /**
-         * Convenience method that allows filtering of controllers
-         * of an entity when overriding this class. Examples of controllers
-         * include: workloadControllers controls vms, containerpods.
-         *
-         * @param entity the entity
-         * @param traversalMode the traversal mode
-         * @return controllers of this entity to be considered
-         *         in the next traversal
+         * The target is aggregated by the source.
          */
-        protected Stream<E> getFilteredControllers(@Nonnull E entity,
-                                                   @Nonnull TraversalMode traversalMode) {
-            return entity.getControllers().stream();
-        }
-
-        /**
-         * Convenience method that allows filtering of controlled
-         * of an entity when overriding this class.
-         * @param entity the entity
-         * @param traversalMode the traversal mode
-         * @return controlled entities of this entity to be considered
-         *         in the next traversal
-         */
-        protected Stream<E> getFilteredControlledEntities(@Nonnull E entity,
-                                                          @Nonnull TraversalMode traversalMode) {
-            return entity.getControlledEntities().stream();
-        }
+        FROM_AGGREGATOR_TO_AGGREGATED
     }
 }

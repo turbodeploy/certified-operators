@@ -750,6 +750,9 @@ message TopologyEntityDTO {
         // the probes.  In Classic applications with type GuestLoad are also considered daemons,
         // even though the probes that create them do not currently mark them as daemons.
         optional bool daemon = 12 [default = false];
+
+        // Rate of resize setting.
+        optional float rate_of_resize = 13;
     }
 
     optional Origin origin = 10;
@@ -1007,6 +1010,31 @@ message TopologyEntityDTO {
             INVALID_CONTROLLED_BY_CONNECTION = 9;
         }
     }
+
+    // the reason for unplaced entity
+    repeated UnplacementReason unplaced_reason = 16;
+
+    message UnplacementReason {
+        // A list of resources that causes the unplacement.
+        repeated FailedResources failed_resources = 1;
+
+        message FailedResources {
+            // The commodity type that causes the unplacement.
+            optional CommodityType comm_type = 1;
+            // The amount of quantity requested by buyer.
+            optional double requested_amount = 2;
+            // The max available amount quantity, only exist if there is a closest seller.
+            optional double max_available = 3;
+        }
+        // The provider entity type which an unplaced entity looks for. It may not exist in certain
+        // cases, e.g: add VM which comes from template that buys certain commodity no one
+        // sells.
+        optional int32 provider_type = 2;
+        // The closest seller, for most cloud cases it doesnt exist.
+        optional int64 closest_seller = 3;
+        // Cost data is not found which contributes to the unplacement.
+        optional bool cost_not_found = 4;
+    }
 }
 
 // related information for the target that discovers the entity
@@ -1172,7 +1200,7 @@ message PlanTopologyInfo {
     optional string plan_sub_type = 3;
 
     // Plan global setting
-    optional plan.PlanGlobalSetting plan_global_setting = 4;
+    optional plan.PlanGlobalSetting __deprecated_plan_global_setting = 4 [deprecated = true];
 }
 
 enum EntityState {

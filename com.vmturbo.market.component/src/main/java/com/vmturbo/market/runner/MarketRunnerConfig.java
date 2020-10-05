@@ -93,20 +93,20 @@ public class MarketRunnerConfig {
     @Autowired
     private BuyRIImpactAnalysisConfig buyRIImpactAnalysisConfig;
 
-    @Value("${alleviatePressureQuoteFactor}")
+    @Value("${alleviatePressureQuoteFactor:0.2}")
     private float alleviatePressureQuoteFactor;
 
-    @Value("${standardQuoteFactor}")
+    @Value("${standardQuoteFactor:0.68}")
     private float standardQuoteFactor;
 
     @Value("${marketMode:M2Only}")
     private String marketMode;
 
-    @Value("${suspensionThrottlingPerCluster}")
+    @Value("${suspensionThrottlingPerCluster:true}")
     private boolean suspensionThrottlingPerCluster;
 
     // The plan market and cloud entity move cost factor is currently always 0
-    @Value("${liveMarketMoveCostFactor}")
+    @Value("${liveMarketMoveCostFactor:0.05}")
     private float liveMarketMoveCostFactor;
 
     @Value("${concurrentPlanAnalyses:1}")

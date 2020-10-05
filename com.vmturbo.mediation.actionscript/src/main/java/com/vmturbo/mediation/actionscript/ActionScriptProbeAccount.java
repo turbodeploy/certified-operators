@@ -36,6 +36,7 @@ public class ActionScriptProbeAccount {
     final String userid;
 
     @AccountValue(displayName = "Private Token", constraint = MANDATORY, secret = true,
+        multiline = true,
         description = "SSH Private Token corresponding to the Userid")
     final String privateKeyString;
 

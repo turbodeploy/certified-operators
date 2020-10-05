@@ -122,6 +122,7 @@ public class EntitySettingsApplicator {
                 new SuspendApplicator(),
                 new ProvisionApplicator(),
                 new ResizeApplicator(),
+                new RateOfResizeApplicator(),
                 new ScalingApplicator(),
                 new MoveCommoditiesFromProviderTypesApplicator(ConfigurableActionSettings.StorageMove,
                         TopologyDTOUtil.STORAGE_TYPES),
@@ -643,6 +644,21 @@ public class EntitySettingsApplicator {
                                     entity::getEntityType, entity::getDisplayName, commSoldBuilder::getCommodityType);
                         }
                     });
+        }
+    }
+
+    /**
+     * Applies the "rateOfResize" setting to a {@link TopologyEntityDTO.Builder}.
+     */
+    private static class RateOfResizeApplicator extends SingleSettingApplicator {
+
+        private RateOfResizeApplicator() {
+            super(EntitySettingSpecs.RateOfResize);
+        }
+
+        @Override
+        protected void apply(@Nonnull final Builder entity, @Nonnull final Setting setting) {
+            entity.getAnalysisSettingsBuilder().setRateOfResize(setting.getNumericSettingValue().getValue());
         }
     }
 

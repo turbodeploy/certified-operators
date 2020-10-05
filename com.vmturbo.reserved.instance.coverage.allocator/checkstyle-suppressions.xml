@@ -16,13 +16,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]ReservedInstanceCoverageProvider.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]context[/\\]CloudProviderCoverageContext.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]filter[/\\]FirstPassCoverageFilter.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]key[/\\]CoverageKey.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]key[/\\]CoverageKeyCreationConfig.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]key[/\\]CoverageKeyCreator.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]key[/\\]CoverageKeyMaterial.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]key[/\\]CoverageKeyRepository.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]key[/\\]HashableCoverageKey.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]key[/\\]HashableCoverageKeyCreator.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]metrics[/\\]DataMetricTimerProvider.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]metrics[/\\]InstrumentedAllocationOperation.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]metrics[/\\]RICoverageAllocationMetricsCollector.java" />
@@ -30,14 +23,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]metrics[/\\]RICoverageAllocationOperation.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]rules[/\\]ConfigurableRICoverageRule.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]rules[/\\]ConfigurableRICoverageRuleFactory.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]rules[/\\]FirstPassCoverageRule.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]rules[/\\]RICoverageRuleConfig.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]rules[/\\]ReservedInstanceCoverageGroup.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]rules[/\\]ReservedInstanceCoverageRule.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]rules[/\\]ReservedInstanceCoverageRulesFactory.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]topology[/\\]CoverageTopology.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]topology[/\\]CoverageTopologyFactory.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]topology[/\\]CoverageTopologyImpl.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]utils[/\\]ReservedInstanceHelper.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]AbstractReservedInstanceCoverageAllocatorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]AwsAllocationTopologyTest.java" />
@@ -47,4 +32,7 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]ReservedInstanceCoverageJournalTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]metrics[/\\]RICoverageAllocationMetricsCollectorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]reserved[/\\]instance[/\\]coverage[/\\]allocator[/\\]metrics[/\\]RICoverageAllocationMetricsProviderTest.java" />
+    <suppress checks="JavadocStyleCheck" files=".*Test.java"/>
+    <suppress checks="MissingJavadocMethod" files=".*Test.java"/>
+    <suppress checks="MissingJavadocType" files=".*Test.java"/>
 </suppressions>

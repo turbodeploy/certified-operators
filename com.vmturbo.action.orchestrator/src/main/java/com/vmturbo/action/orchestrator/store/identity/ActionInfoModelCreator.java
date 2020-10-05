@@ -12,11 +12,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
+import org.apache.logging.log4j.util.Strings;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -31,6 +32,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -128,37 +130,68 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
         // because the order of the actions being merged doesn't matter, just their contents.
         // Sorting will ensure that the same ActionInfoModel is generated even when order
         // of the resize actions is different during different market recommendation plans
-        final List<ResizeChange> changes
-                = atomicResize.getResizesList().stream()
-                                .map(resizeInfo -> new ResizeChange(resizeInfo.getTarget().getId(),
-                                                                    resizeInfo.getCommodityType()))
-                                .sorted()
-                                .collect(Collectors.toList());
+        final List<ResizeChangeByTarget> resizeChangeByTarget
+                = atomicResize.getResizesList()
+                        .stream()
+                        .collect(Collectors.groupingBy(resize -> resize.getTarget().getId()))
+                        .entrySet()
+                        .stream()
+                        .sorted(Map.Entry.comparingByKey())
+                        .map(entry -> new ResizeChangeByTarget(entry.getKey(), entry.getValue()))
+                        .collect(Collectors.toList());
 
-        final String changesString = gson.toJson(changes);
+        AtomicResizeChange resizeChange = new AtomicResizeChange(resizeChangeByTarget);
+
+        final String changesString = gson.toJson(resizeChange);
+
         return new ActionInfoModel(ActionTypeCase.ATOMICRESIZE,
                                     atomicResize.getExecutionTarget().getId(),
                                     changesString, null);
     }
 
     /**
-     * Model for atomic resize action details.
+     * Model for atomic resize action details per de-duplication target.
+     * The mode is of the form : {"id": "OID1[commodity list],OID2[commodity list]"}
+     *
+     * <p>Example:
+     * {"id":"73617269445249[26, 53, 100, 101],73617269445251[26, 53, 100, 101]"}
+     *
      */
-    private static class ResizeChange implements Comparable<ResizeChange> {
+    @VisibleForTesting
+    static class ResizeChangeByTarget {
         private final long sourceId;
-        private final CommodityType commType;
+        private final List<Integer> commTypes;
 
-        ResizeChange(long sourceId, CommodityType commType) {
+        ResizeChangeByTarget(long sourceId, List<ResizeInfo> resizeChange) {
+            // Sorting the commodity type will ensure that the same ActionInfoModel is generated
+            // even when order of the resize actions is different during different market recommendation plans
+            this.commTypes = resizeChange.stream()
+                                .map(resize -> resize.getCommodityType().getType())
+                                .sorted()
+                                .collect(Collectors.toList());
             this.sourceId = sourceId;
-            this.commType = commType;
         }
 
-        @Override
-        public int compareTo(@NotNull final ResizeChange o) {
-            if (sourceId == o.sourceId) {
-                return  Integer.compare(commType.getType(), o.commType.getType());
-            }
-            return Long.compare(sourceId, o.sourceId);
+        public String toString() {
+            return "" + sourceId + commTypes;
+        }
+    }
+
+    /**
+     * Model for all the atomic resize action details.
+     */
+    @VisibleForTesting
+    static class AtomicResizeChange {
+
+        private final String id;
+
+        AtomicResizeChange(List<ResizeChangeByTarget> resizeChangeByTarget) {
+
+            List<String> changeStringList = resizeChangeByTarget.stream()
+                    .map(change -> change.toString())
+                    .collect(Collectors.toList());
+            String allChangeString = Strings.join(changeStringList, ',');
+            this.id = allChangeString;
         }
     }
 

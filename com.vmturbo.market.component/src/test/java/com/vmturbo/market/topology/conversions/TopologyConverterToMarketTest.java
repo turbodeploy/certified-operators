@@ -72,6 +72,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Remove
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -562,11 +563,14 @@ public class TopologyConverterToMarketTest {
         CommodityDTO.CommodityType.APPLICATION.name(), CommodityDTO.CommodityType.CLUSTER.name(),
         // DSPM_ACCESS and DATASTORE are excluded because the converter never creates them
         CommodityDTO.CommodityType.DATACENTER.name(), CommodityDTO.CommodityType.NETWORK.name(),
-        CommodityDTO.CommodityType.SEGMENTATION.name(), CommodityDTO.CommodityType.DRS_SEGMENTATION.name(),
         CommodityDTO.CommodityType.STORAGE_CLUSTER.name(),
         CommodityDTO.CommodityType.VAPP_ACCESS.name(), CommodityDTO.CommodityType.VDC.name(),
         CommodityDTO.CommodityType.VMPM_ACCESS.name()
         );
+
+    private static final Set<String> SEGMENTATION_CONSTANT_PRICE_TYPES_S = ImmutableSet.of(
+            CommodityDTO.CommodityType.SEGMENTATION.name(),
+            CommodityDTO.CommodityType.DRS_SEGMENTATION.name());
 
     private static final Set<String> STEP_PRICE_TYPES_S = ImmutableSet.of(
         CommodityDTO.CommodityType.STORAGE_AMOUNT.name(),
@@ -579,6 +583,13 @@ public class TopologyConverterToMarketTest {
                             .setValue(1.0f)
                             .build())
                     .build();
+
+    private static final PriceFunctionTO SEGMENTATION_CONSTANT =
+            PriceFunctionTO.newBuilder().setConstant(
+                PriceFunctionDTOs.PriceFunctionTO.Constant.newBuilder()
+                    .setValue(0.00001f)
+                    .build())
+            .build();
 
     private static final PriceFunctionTO STEP =
                     PriceFunctionTO.newBuilder().setStep(
@@ -608,6 +619,7 @@ public class TopologyConverterToMarketTest {
         Set<TopologyDTO.TopologyEntityDTO> topologyDTOs = Sets.newHashSet(entityBuilder.build());
         TraderTO traderTO = convertToMarketTO(topologyDTOs, REALTIME_TOPOLOGY_INFO).iterator().next();
         verifyPriceFunctions(traderTO, CONSTANT_PRICE_TYPES_S, PriceFunctionTO::hasConstant, CONSTANT);
+        verifyPriceFunctions(traderTO, SEGMENTATION_CONSTANT_PRICE_TYPES_S, PriceFunctionTO::hasConstant, SEGMENTATION_CONSTANT);
         verifyPriceFunctions(traderTO, STEP_PRICE_TYPES_S, PriceFunctionTO::hasStep, STEP);
     }
 
@@ -2000,7 +2012,7 @@ public class TopologyConverterToMarketTest {
             marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher);
 
-        final Map<Long, Map<CommodityType, Double>> result =
+        final Map<Long, Map<CommodityType, Pair<Double, Double>>> result =
             converter.createProviderUsedSubtractionMap(ImmutableMap.of(pm.getOid(), pm,
                 removedVM1.getOid(), removedVM1, removedVM2.getOid(), removedVM2),
                 ImmutableSet.of(removedVM1.getOid(), removedVM2.getOid()));
@@ -2008,7 +2020,7 @@ public class TopologyConverterToMarketTest {
         assertEquals(1, result.size());
         assertEquals(1, result.get(pm.getOid()).size());
         assertEquals(used1 * scalingFactor1 + used2 * scalingFactor2,
-            result.get(pm.getOid()).get(commodityType), 10e-7);
+            result.get(pm.getOid()).get(commodityType).first, 10e-7);
     }
 
     /**
@@ -2031,30 +2043,45 @@ public class TopologyConverterToMarketTest {
                 marketPriceTable,
                 ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
+        final long computeTierOid = 111111L;
+        final TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder()
+            .setOid(computeTierOid)
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                .setConnectedEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setConnectedEntityId(73363299852962L)
+                .setConnectionType(ConnectionType.NORMAL_CONNECTION)
+                .build())
+            .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+            .build();
+        topologyDTOs.put(computeTierOid, computeTier);
         Set<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
-        assertEquals(3, traderTOs.size());
+        assertEquals(4, traderTOs.size());
         // One of the trader is for StorageTier.
-        Optional<TraderTO> storageTierTraderTO = traderTOs.stream().filter(t -> t.getType() == EntityType.STORAGE_TIER_VALUE).findAny();
+        Optional<TraderTO> storageTierTraderTO = traderTOs.stream()
+            .filter(t -> t.getType() == EntityType.STORAGE_TIER_VALUE)
+            .findAny();
         assertTrue(storageTierTraderTO.isPresent());
-        // The other trader is for VirtualMachine.
-        List<TraderTO> entityTraderTOs = traderTOs.stream().filter(t -> t.getType() != EntityType.STORAGE_TIER_VALUE).collect(toList());
-        assertThat(entityTraderTOs .size(), greaterThan(0));
-        Optional<TraderTO> optinalEntityTraderTo = entityTraderTOs.stream().filter(entityTraderTO -> entityTraderTO.getType()
-                == EntityType.VIRTUAL_MACHINE_VALUE).findAny();
-        assertTrue(optinalEntityTraderTo.isPresent());
-        TraderTO entityTraderTo = optinalEntityTraderTo.get();
-        // One of the trader is for StorageTier.
-        Optional<TraderTO> optinalDbEntityTraderTo = entityTraderTOs.stream().filter(entityTraderTO -> entityTraderTO.getType()
-                == EntityType.DATABASE_VALUE).findAny();
-        assertTrue(optinalDbEntityTraderTo.isPresent());
-        TraderTO  dbEntityTraderTo = optinalDbEntityTraderTo.get();
-        assertEquals(2048.0d, dbEntityTraderTo.getCommoditiesSoldList().get(0).getCapacity(), 0.01f);
+        // Check biclique commodity is NOT sold by Storage Tier
+        Assert.assertFalse(storageTierTraderTO.get().getCommoditiesSoldList().stream()
+            .anyMatch(commoditySold -> commoditySold.getSpecification()
+                .getBaseType() == CommodityDTO.CommodityType.BICLIQUE_VALUE));
+
+        TraderTO vmTraderTO =
+            traderTOs.stream()
+                .filter(t -> t.getType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .findAny()
+                .orElse(null);
+        assertNotNull(vmTraderTO);
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, vmTraderTO.getType());
 
         // Test the shoppingList within the VM trader which represents cloud volume.
-        ShoppingListTO volumeSL = entityTraderTo.getShoppingListsCount() > 0 ? entityTraderTo.getShoppingLists(0) : null;
+        final ShoppingListTO volumeSL = vmTraderTO.getShoppingListsCount() > 0
+            ? vmTraderTO.getShoppingLists(0) : null;
         assertNotNull(volumeSL);
         // shoppingList provider is storageTier
         assertEquals(storageTierTraderTO.get().getOid(), volumeSL.getSupplier());
+        // Check that no biclique commodity is bought by volume shopping list
+        Assert.assertEquals(1, volumeSL.getCommoditiesBoughtCount());
         CommodityBoughtTO commodityBoughtTO = volumeSL.getCommoditiesBoughtCount() > 0 ? volumeSL.getCommoditiesBought(0) : null;
         assertNotNull(commodityBoughtTO);
         assertEquals(1506, commodityBoughtTO.getAssignedCapacityForBuyer(), 0.01f);
@@ -2065,6 +2092,17 @@ public class TopologyConverterToMarketTest {
         assertTrue(shoppingListInfo.getCollapsedBuyerId().isPresent());
         // Test collapsedBuyerId
         assertEquals(73442089143125L, shoppingListInfo.getCollapsedBuyerId().get().longValue());
+
+        // Check biclique commodity IS sold by Compute Tier
+        final TraderTO computeTierTraderTO =
+            traderTOs.stream()
+                .filter(t -> t.getType() == EntityType.COMPUTE_TIER_VALUE)
+                .findAny()
+                .orElse(null);
+        Assert.assertNotNull(computeTierTraderTO);
+        Assert.assertTrue(computeTierTraderTO.getCommoditiesSoldList().stream()
+            .anyMatch(commoditySold -> commoditySold.getSpecification()
+            .getBaseType() == CommodityDTO.CommodityType.BICLIQUE_VALUE));
     }
 
     /**

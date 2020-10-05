@@ -53,6 +53,13 @@ public interface AccountDefEntry {
     boolean isSecret();
 
     /**
+     * Returns whether the field can have multiline values.
+     *
+     * @return whether the field can have multiline values.
+     */
+    boolean isMultiline();
+
+    /**
      * Returns type of the value, that is expected to be stored in the field.
      *
      * @return type of the valye to store

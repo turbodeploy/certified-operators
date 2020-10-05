@@ -1,7 +1,10 @@
 package com.vmturbo.components.common.setting;
 
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -153,6 +156,33 @@ public class EntitySettingSpecsTest {
         Assert.assertTrue(stProvValType.getMin() == 1f);
         Assert.assertTrue(stProvValType.getMax() == 1000000f);
         Assert.assertTrue(stProvValType.getDefault() == 200f);
+    }
+
+    /**
+     * Test that deprecated and internal EntitySettingSpec are hidden.
+     */
+    @Test
+    public void testIsHiddenSetting() {
+        Assert.assertTrue(EntitySettingSpecs.DEPRECATED_SETTINGS.stream()
+                .allMatch(settingName -> EntitySettingSpecs.isHiddenSetting(settingName)));
+
+        String internalSettingName = EntitySettingSpecs.DbCacheHitRateUtilization.name();
+        Assert.assertTrue(EntitySettingSpecs.isHiddenSetting(internalSettingName));
+    }
+
+    /**
+     * Test that any setting except for deprecated and internal EntitySettingSpec is visible.
+     */
+    @Test
+    public void testIsVisibleSetting() {
+        List<String> nonInternalOrDeprecatedSettings =
+                Arrays.stream(EntitySettingSpecs.values()).map(EntitySettingSpecs::getSettingName)
+                        .filter(name -> !(EntitySettingSpecs.isInternalSetting(name)
+                                || EntitySettingSpecs.isDeprecatedSetting(name)))
+                        .collect(Collectors.toList());
+
+        Assert.assertTrue(nonInternalOrDeprecatedSettings.stream()
+                .noneMatch(setting -> EntitySettingSpecs.isHiddenSetting(setting)));
     }
 
     /**

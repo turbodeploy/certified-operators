@@ -39,7 +39,7 @@ message StartAnalysisRequest {
     optional string plan_sub_type = 7;
 
     // Plan global setting
-    optional plan.PlanGlobalSetting plan_global_setting = 8;
+    optional plan.PlanGlobalSetting __deprecated_plan_global_setting = 8 [deprecated = true];
 }
 
 message StartAnalysisResponse {

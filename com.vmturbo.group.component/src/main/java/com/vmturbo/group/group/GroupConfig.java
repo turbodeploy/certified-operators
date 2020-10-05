@@ -19,7 +19,7 @@ import com.vmturbo.group.flyway.V1_11_Callback;
         GroupComponentDBConfig.class})
 public class GroupConfig {
 
-    @Value("${tempGroupExpirationTimeMins:10}")
+    @Value("${tempGroupExpirationTimeMins:30}")
     private int tempGroupExpirationTimeMins;
 
     @Autowired

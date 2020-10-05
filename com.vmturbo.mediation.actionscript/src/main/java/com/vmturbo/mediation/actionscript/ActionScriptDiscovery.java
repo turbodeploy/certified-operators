@@ -4,8 +4,10 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
@@ -174,12 +176,39 @@ public class ActionScriptDiscovery {
     private static final int ALL_USERS_EXECUTABLE_MASK = 0001;
 
     private boolean isExecutableFile(String path, SshRunner runner) throws RemoteExecutionException, KeyValidationException {
-        Attributes attrs = SshUtils.getRemoteFileAttributes(path, runner);
+        boolean isOwnerExecutable;
+        final Attributes attrs = SshUtils.getRemoteFileAttributes(path, runner);
         int perms = attrs.getPermissions();
-        String owner = attrs.getOwner();
-        boolean ownerExecutable = owner != null && owner.equals(accountValues.getUserid()) && (perms & OWNER_EXECUTABLE_MASK) != 0;
-        boolean allUsersExecutable = (perms & ALL_USERS_EXECUTABLE_MASK) != 0;
-        return attrs.isRegularFile() && (ownerExecutable || allUsersExecutable);
+        final String owner = getFileOwner(path, runner, attrs);
+        if (owner == null) {
+            // If owner of the file wasn't obtained through sftp and ssh then we don't fail
+            // validation of this file.
+            // If there is no permissions for this file to be executed by action script user,
+            // then user will face exception in process of executing an action associated with this
+            // script file.
+            isOwnerExecutable = true;
+        } else {
+            isOwnerExecutable =
+                    owner.equals(accountValues.getUserid()) && (perms & OWNER_EXECUTABLE_MASK) != 0;
+        }
+        boolean isAllUsersExecutable = (perms & ALL_USERS_EXECUTABLE_MASK) != 0;
+        return attrs.isRegularFile() && isOwnerExecutable || isAllUsersExecutable;
+    }
+
+    @Nullable
+    private String getFileOwner(String path, SshRunner runner, Attributes attributes)
+            throws RemoteExecutionException, KeyValidationException {
+        String owner = attributes.getOwner();
+        if (owner == null) {
+            final Optional<String> ownerOpt = SshUtils.getOwnerOfRemoteFile(path, runner);
+            if (ownerOpt.isPresent()) {
+                owner = ownerOpt.get();
+            } else {
+                logger.warn("Failed to obtain owner of the '{}' file. Please check that this "
+                        + "file can be executed by '{}' user.", path, accountValues.getUserid());
+            }
+        }
+        return owner;
     }
 
     /**

@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.utils.GuestLoadFilters;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.components.common.BaseVmtComponent;
+import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
@@ -62,22 +63,20 @@ import com.vmturbo.repository.diagnostics.RepositoryDiagnosticsConfig;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
 import com.vmturbo.repository.listener.MarketTopologyListener;
 import com.vmturbo.repository.listener.TopologyEntitiesListener;
-import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.migration.RepositoryMigrationsLibrary;
+import com.vmturbo.repository.plan.db.PlanEntityFilter.PlanEntityFilterConverter;
+import com.vmturbo.repository.plan.db.RepositoryDBConfig;
 import com.vmturbo.repository.search.SearchHandler;
 import com.vmturbo.repository.service.ArangoRepositoryRpcService;
 import com.vmturbo.repository.service.ArangoSupplyChainRpcService;
 import com.vmturbo.repository.service.ConstraintsCalculator;
 import com.vmturbo.repository.service.EntityConstraintsRpcService;
 import com.vmturbo.repository.service.LiveTopologyPaginator;
-import com.vmturbo.repository.service.PartialEntityConverter;
 import com.vmturbo.repository.service.PlanStatsService;
 import com.vmturbo.repository.service.SupplyChainStatistician;
 import com.vmturbo.repository.service.TopologyGraphRepositoryRpcService;
 import com.vmturbo.repository.service.TopologyGraphSearchRpcService;
 import com.vmturbo.repository.service.TopologyGraphSupplyChainRpcService;
-import com.vmturbo.topology.graph.search.SearchResolver;
-import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
@@ -96,9 +95,10 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Top
     RepositoryProperties.class,
     SpringSecurityConfig.class,
     UserSessionConfig.class,
-        RepositoryProperties.class,
-        RepositoryComponentConfig.class,
-        RepositoryDiagnosticsConfig.class
+    RepositoryProperties.class,
+    RepositoryComponentConfig.class,
+    RepositoryDiagnosticsConfig.class,
+    RepositoryDBConfig.class
 })
 public class RepositoryComponent extends BaseVmtComponent {
     private static final Logger logger = LoggerFactory.getLogger(RepositoryComponent.class);
@@ -133,6 +133,9 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Autowired
     private RepositoryDiagnosticsConfig repositoryDiagnosticsConfig;
 
+    @Autowired
+    private RepositoryDBConfig repositoryDBConfig;
+
     @Value("${repositoryEntityStatsPaginationDefaultLimit:100}")
     private int repositoryEntityStatsPaginationDefaultLimit;
 
@@ -145,13 +148,13 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${repositorySearchPaginationDefaultLimit:100}")
     private int repositorySearchPaginationDefaultLimit;
 
-    @Value("${repositorySearchPaginationMaxLimit:10000}")
+    @Value("${repositorySearchPaginationMaxLimit:500}")
     private int repositorySearchPaginationMaxLimit;
 
     @Value("${repositoryEntityPaginationDefaultLimit:100}")
     private int repositoryEntityPaginationDefaultLimit;
 
-    @Value("${repositoryEntityPaginationMaxLimit:10000}")
+    @Value("${repositoryEntityPaginationMaxLimit:300}")
     private int repositoryEntityPaginationMaxLimit;
 
     @Value("${repositoryMaxEntitiesPerChunk:5}")
@@ -173,6 +176,9 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${concurrentSearchWaitTimeoutMin:5}")
     private int concurrentSearchWaitTimeoutMin;
 
+    @Value("${mariadbHealthCheckIntervalSeconds:60}")
+    private int mariaHealthCheckIntervalSeconds;
+
     @PostConstruct
     private void setup() {
 
@@ -183,6 +189,12 @@ public class RepositoryComponent extends BaseVmtComponent {
                     repositoryComponentConfig.arangoDatabaseFactory()::getArangoDriver,
                     Optional.ofNullable(repositoryComponentConfig.getArangoDatabaseName())));
         }
+
+        logger.info("Adding MariaDB health check to the component health monitor.");
+        getHealthMonitor()
+                .addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+                        repositoryDBConfig.dataSource()::getConnection));
+
         getHealthMonitor().addHealthCheck(apiConfig.messageProducerHealthMonitor());
         // Temporarily force all Repository migrations to retry, in order to address some
         // observed issues with V_01_00_00__PURGE_ALL_LEGACY_PLANS not running successfully in
@@ -203,11 +215,6 @@ public class RepositoryComponent extends BaseVmtComponent {
                 repositoryEntityStatsPaginationDefaultSortCommodity);
     }
 
-    @Bean
-    public PartialEntityConverter partialEntityConverter() {
-        return new PartialEntityConverter(repositoryComponentConfig.liveTopologyStore());
-    }
-
     /**
      * Create a service for retrieving plan entity stats.
      *
@@ -217,7 +224,7 @@ public class RepositoryComponent extends BaseVmtComponent {
     public PlanStatsService planStatsService() {
         return new PlanStatsService(paginationParamsFactory(),
             entityStatsPaginator(),
-            partialEntityConverter(),
+            repositoryComponentConfig.partialEntityConverter(),
             maxEntitiesPerChunk);
     }
 
@@ -228,18 +235,21 @@ public class RepositoryComponent extends BaseVmtComponent {
                         repositoryComponentConfig.topologyProtobufsManager(),
                         repositoryComponentConfig.graphDBService(),
             planStatsService(),
-            partialEntityConverter(),
-            maxEntitiesPerChunk);
+            repositoryComponentConfig.partialEntityConverter(),
+            maxEntitiesPerChunk,
+            repositoryComponentConfig.mySQLPlanEntityStore(),
+            new PlanEntityFilterConverter());
 
         // Return a topology-graph backed rpc service, which will fall back to arango for
         // non-realtime queries.
         return new TopologyGraphRepositoryRpcService(repositoryComponentConfig.liveTopologyStore(),
             arangoRpcService,
-            partialEntityConverter(),
+            repositoryComponentConfig.partialEntityConverter(),
                 repositoryComponentConfig.getRealtimeTopologyContextId(),
             maxEntitiesPerChunk,
             userSessionConfig.userSessionContext());
     }
+
 
     @Bean
     public RepositoryServiceController repositoryServiceController() throws GraphDatabaseException,
@@ -250,14 +260,15 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Bean
     public LiveTopologyPaginator liveTopologyPaginator() {
         return new LiveTopologyPaginator(repositorySearchPaginationDefaultLimit,
-            repositorySearchPaginationMaxLimit);
+            repositorySearchPaginationMaxLimit,
+            actionOrchestratorClientConfig.entitySeverityClientCache());
     }
 
     @Bean
     public SearchServiceImplBase searchRpcService() {
         return new TopologyGraphSearchRpcService(repositoryComponentConfig.liveTopologyStore(),
             liveTopologyPaginator(),
-            partialEntityConverter(),
+            repositoryComponentConfig.partialEntityConverter(),
             userSessionConfig.userSessionContext(),
             maxEntitiesPerChunk,
             concurrentSearchLimit,
@@ -278,7 +289,8 @@ public class RepositoryComponent extends BaseVmtComponent {
                 repositoryComponentConfig.graphDBService(),
                 repositoryComponentConfig.supplyChainService(),
             userSessionConfig.userSessionContext(),
-                repositoryComponentConfig.getRealtimeTopologyContextId());
+                repositoryComponentConfig.getRealtimeTopologyContextId(),
+            repositoryComponentConfig.mySQLPlanEntityStore());
        return new TopologyGraphSupplyChainRpcService(userSessionConfig.userSessionContext(),
                repositoryComponentConfig.liveTopologyStore(),
                 arangoService,
@@ -320,8 +332,6 @@ public class RepositoryComponent extends BaseVmtComponent {
     public SearchServiceController searchServiceController() throws InterruptedException, URISyntaxException, CommunicationException {
         return new SearchServiceController(searchRpcService());
     }
-
-
 
     @Bean
     public TopologyEntitiesListener topologyEntitiesListener() {

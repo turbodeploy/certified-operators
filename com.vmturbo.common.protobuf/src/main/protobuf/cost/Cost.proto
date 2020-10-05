@@ -1245,6 +1245,9 @@ message MigratedWorkloadCloudCommitmentAnalysisRequest {
 
         // The cloud service provider hosting this region
         optional .topology.TopologyEntityDTO provider = 4;
+
+        // The virtual machine from the original topology
+        optional .topology.TopologyEntityDTO original_virtual_machine = 5;
     }
 
     // The profile for the RIs to buy. TODO: need to flesh this out better

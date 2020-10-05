@@ -99,6 +99,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest.ActionQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -391,9 +392,19 @@ public class MarketsService implements IMarketsService {
                     + " doesn't belong to a plan or a real-time market.");
         }
         licenseCheckClient.checkFeatureAvailable(ProbeLicense.PLANNER);        // Look up the plan instance.
-        long planId = apiId.oid();
-        final PlanInstance planInstance = getPlanInstance(planId);
+        final PlanInstance planInstance = getPlanInstance(apiId.oid());
+        return getMarketApiDto(planInstance);
+    }
 
+    /**
+     * Gets API DTO to be returned to UI when plan is updated.
+     *
+     * @param planInstance Instance of plan that is updated, e.g plan name change.
+     * @return Instance of MarketApiDTO
+     * @throws Exception Thrown on translation error.
+     */
+    @Nonnull
+    private MarketApiDTO getMarketApiDto(@Nonnull final PlanInstance planInstance) throws Exception {
         MarketApiDTO marketApiDTO;
         if (planInstance.hasPlanProjectId()) {
             // This could be the main plan (like Consumption plan), that is part of a MCP project.
@@ -404,11 +415,10 @@ public class MarketsService implements IMarketsService {
             marketApiDTO = marketMapper.dtoFromPlanInstance(planInstance);
         }
         marketApiDTO.setEnvironmentType(getEnvironmentType());
-
         // set unplaced entities
         try {
-            marketApiDTO.setUnplacedEntities(!getUnplacedEntitiesByMarketUuid(String.valueOf(planId))
-                    .isEmpty());
+            marketApiDTO.setUnplacedEntities(!getUnplacedEntitiesByMarketUuid(String.valueOf(
+                    planInstance.getPlanId())).isEmpty());
         } catch (Exception e) {
             logger.error("getMarketByUuid(): Error while checking if there are unplaced entities: {}",
                     e.getMessage());
@@ -769,11 +779,12 @@ public class MarketsService implements IMarketsService {
      * Get real-time Actions by Market.
      *
      * @param uuid              uuid of the Market
+     * @param deleteScenario    delete scenario if market plan is being deleted
      * @return {@link ActionPaginationResponse}
      * @throws Exception
      */
     @Override
-    public MarketApiDTO deleteMarketByUuid(String uuid) throws Exception {
+    public MarketApiDTO deleteMarketByUuid(String uuid, boolean deleteScenario) throws Exception {
         logger.debug("Deleting market with UUID: {}", uuid);
         // TODO (roman, June 16 2017) OM-20328: Plan deletion is currently synchronous in XL.
         // The delete plan call won't return until the plan actually got deleted. The API
@@ -810,6 +821,20 @@ public class MarketsService implements IMarketsService {
                 // Delete just the plan, not in a project, like OCP.
                 deletePlanInstance(oldPlanInstance.getPlanId(), null);
             }
+
+            if (deleteScenario && oldPlanInstance.getScenario().hasId()) {
+                //Deleting plan scenario
+                Long scenarioId = oldPlanInstance.getScenario().getId();
+                final Iterator<PlanInstance> plans = planRpcService.getAllPlans(
+                        GetPlansOptions.newBuilder()
+                                .addScenarioId(scenarioId)
+                                .build());
+                if (!plans.hasNext()) {
+                    //If the scenario is not connected to any other plans, safe to delete
+                    deleteScenario(scenarioId, oldPlanInstance.getPlanId());
+                }
+            }
+
             uiNotificationChannel.broadcastMarketNotification(MarketNotification.newBuilder()
                     .setMarketId(uuid)
                     .setStatusNotification(StatusNotification.newBuilder()
@@ -962,10 +987,7 @@ public class MarketsService implements IMarketsService {
                 .setPlanId(planInstance.getPlanId())
                 .setName(displayName)
                 .build();
-
-        final PlanInstance updatePlanInstance = planRpcService.updatePlan(updatePlanRequest);
-
-        return marketMapper.dtoFromPlanInstance(updatePlanInstance);
+        return getMarketApiDto(planRpcService.updatePlan(updatePlanRequest));
     }
 
     @Override
@@ -1119,9 +1141,10 @@ public class MarketsService implements IMarketsService {
                                 .setTopologyContextId(plan.getPlanId())
                                 .setPaginationParams(PaginationParameters.newBuilder()
                                         .setCursor(cursor.getAndSet("")))
-                                .setFilter(ActionQueryFilter.newBuilder()
+                                .addActionQuery(ActionQuery.newBuilder().setQueryFilter(
+                                    ActionQueryFilter.newBuilder()
                                         .setVisible(true)
-                                        .addTypes(ActionType.MOVE))
+                                        .addTypes(ActionType.MOVE)))
                                 .build();
                 actionOrchestratorRpcService.getAllActions(filteredActionRequest)
                         .forEachRemaining(rsp -> {

@@ -139,6 +139,13 @@ public class RefreshSummary implements OperationSummary {
     }
 
     @Override
+    public void recordUserChanged(String username, long userId) {
+        final Operation operation = Operation.withSummary(FormattedString.format(
+            "User {} (id: {}) modified.", username, userId));
+        operations.add(operation);
+    }
+
+    @Override
     public void recordUserCreate(String username, long userId) {
         final Operation operation = Operation.withSummary(FormattedString.format(
                 "User {} (id: {}) created.", username, userId));

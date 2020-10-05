@@ -49,6 +49,9 @@ import org.mockito.runners.MockitoJUnitRunner;
 import gnu.trove.map.TIntObjectMap;
 import gnu.trove.map.TObjectDoubleMap;
 
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import it.unimi.dsi.fastutil.objects.Object2DoubleMap;
+
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -287,11 +290,11 @@ public class MarketStatsAccumulatorTest {
             ArgumentCaptor.forClass(HistUtilizationRecord.class);
         Mockito.verify(mockBulkLoader, Mockito.atLeastOnce())
             .insert(recordArgumentCaptor.capture());
-        final TIntObjectMap<TObjectDoubleMap<String>> entityCapacities =
+        final Int2ObjectMap<Object2DoubleMap<String>> entityCapacities =
             capacityCache.getEntityCapacities(commoditiesBoughtFromProviders.getProviderId());
         for (CommodityBoughtDTO commodityBoughtDTO : commoditiesBoughtFromProviders.getCommodityBoughtList()) {
             final double[] capacityValues =
-                entityCapacities.get(commodityBoughtDTO.getCommodityType().getType()).values();
+                entityCapacities.get(commodityBoughtDTO.getCommodityType().getType()).values().toDoubleArray();
             final double capacity = capacityValues[0];
             final List<HistUtilizationRecord> records = recordArgumentCaptor.getAllValues()
                 .stream()

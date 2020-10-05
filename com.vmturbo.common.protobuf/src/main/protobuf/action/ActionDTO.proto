@@ -1243,16 +1243,26 @@ message FilteredActionRequest {
     // There is one real-time topology context, and a context per-plan.
     optional int64 topology_context_id = 1;
 
-    // A filter to be applied to the actions retrieved. If no filter is supplied
-    // all actions are returned.
-    optional ActionQueryFilter filter = 2;
-
     // The pagination parameters for the request.
     // if enforce_limit in the pagination_params is true (default), it will stream actions in
     // next page in chunks to client, with the first response to be pagination info. (if no fields
     // in pagination_params are set, the service will use the default sort order and limit.)
     // if enforce_limit is set to false, it will stream all actions to client in chunks.
     optional common.PaginationParameters pagination_params = 3;
+
+    // All query filters to be applied to the actions retrieved. Filters are not combined-- each one
+    // will be used to retrieve its own independent set of actions. If no query filter is supplied,
+    // all actions are returned.
+    repeated ActionQuery action_query = 4;
+
+    // Action query containing filter to be applied and metadata for that filter.
+    message ActionQuery {
+        // To identify this query filter and distinguish its results from those of other filters.
+        optional int64 query_id = 1;
+
+        // The filter to be applied.
+        optional ActionQueryFilter query_filter = 2;
+    }
 }
 
 message FilteredActionResponse {
@@ -1271,6 +1281,10 @@ message FilteredActionResponse {
     message ActionChunk {
         repeated ActionOrchestratorAction actions = 1;
     }
+
+    // ID to determine which query filter applies to this action response, if any. Should match
+    // the query_id of an ActionQuery from the FilteredActionRequest.
+    optional int64 query_id = 3;
 }
 
 // The response to an AcceptAction request.

@@ -7,6 +7,7 @@ import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -23,7 +24,13 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+
 import io.grpc.Status;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -31,22 +38,19 @@ import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
-import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
+import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
@@ -56,14 +60,17 @@ import com.vmturbo.api.dto.action.ScopeUuidsApiInputDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
+import com.vmturbo.api.pagination.EntityActionPaginationRequest;
+import com.vmturbo.api.pagination.EntityActionPaginationRequest.EntityActionPaginationResponse;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -170,6 +177,8 @@ public class ActionsServiceTest {
 
         final ApiId scope1 = ApiTestUtils.mockEntityId("1", uuidMapper);
         final ApiId scope2 = ApiTestUtils.mockGroupId("3", uuidMapper);
+        when(scope1.getDisplayName()).thenReturn("First Entity");
+        when(scope1.getClassName()).thenReturn(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         actionScopesApiInputDTO.setActionInput(actionApiInputDTO);
         actionScopesApiInputDTO.setRelatedType(ApiEntityType.PHYSICAL_MACHINE.apiStr());
 
@@ -201,7 +210,6 @@ public class ActionsServiceTest {
                 .collect(Collectors.toMap(EntityStatsApiDTO::getUuid, Function.identity()));
 
         verify(actionStatsQueryExecutor).retrieveActionStats(expectedQuery);
-        verify(repositoryApi).entitiesRequest(Collections.singleton(1L));
 
         assertThat(statsByUuid.keySet(), containsInAnyOrder("1", "3"));
         assertThat(statsByUuid.get("1").getStats(), is(scope1Snapshots));
@@ -308,5 +316,71 @@ public class ActionsServiceTest {
         assertEquals(topologyContextId, multiActionRequest.getTopologyContextId());
         assertEquals(1, multiActionRequest.getActionIdsCount());
         assertEquals(actionId, multiActionRequest.getActionIds(0));
+    }
+
+    /**
+     * Test the process of querying for actions based on scope UUIDs.
+     * @throws Exception never.
+     */
+    @Test
+    public void testGetActionsByUuidsQuery() throws Exception {
+
+        // when no uuids are provided, return an empty response.
+        final ActionScopesApiInputDTO inputDto = new ActionScopesApiInputDTO();
+        inputDto.setActionInput(new ActionApiInputDTO());
+        final EntityActionPaginationResponse responseShouldBeEmpty =
+            actionsServiceUnderTest.getActionsByUuidsQuery(inputDto,
+                new EntityActionPaginationRequest(null, null, true, null));
+        assertEquals(0, responseShouldBeEmpty.getRawResults().size());
+
+        final String cursor = "1";
+
+        // discard first scope because of cursor
+        final String uuid1 = "123";
+        final ApiId scope1 = ApiTestUtils.mockEntityId(uuid1, uuidMapper);
+        when(scope1.getDisplayName()).thenReturn("abc");
+
+        // query markets service for plan scope
+        final String uuid2 = "234";
+        final ApiId scope2 = ApiTestUtils.mockPlanId(uuid2, uuidMapper);
+        when(scope2.getDisplayName()).thenReturn("bcd");
+
+        // retrieve mock action response when querying action service
+        final String uuid3 = "345";
+        final ApiId scope3 = ApiTestUtils.mockEntityId(uuid3, uuidMapper);
+        when(scope3.getTopologyContextId()).thenReturn(987L);
+        when(scope3.getDisplayName()).thenReturn("cde");
+        when(actionSearchUtil.getActionsByScopes(eq(Collections.singleton(scope3)), any(), eq(987L)))
+            .thenReturn(ImmutableMap.of(345L,
+                ImmutableList.of(mock(ActionApiDTO.class), mock(ActionApiDTO.class))));
+
+        // discard scope for which there are no actions
+        final String uuid4 = "456";
+        final ApiId scope4 = ApiTestUtils.mockEntityId(uuid4, uuidMapper);
+        when(scope4.getTopologyContextId()).thenReturn(876L);
+        when(scope4.getDisplayName()).thenReturn("def");
+
+        final ActionPaginationResponse mockResponse = mock(ActionPaginationResponse.class);
+        when(marketsService.getActionsByMarketUuid(any(), any(), any())).thenReturn(mockResponse);
+
+        final EntityActionPaginationRequest paginationRequest = new EntityActionPaginationRequest(cursor, null, true, null);
+
+        // start out with 4 uuids in the input DTO
+        inputDto.setScopes(ImmutableList.of(uuid1, uuid2, uuid3, uuid4));
+        final EntityActionPaginationResponse result =
+            actionsServiceUnderTest.getActionsByUuidsQuery(inputDto, paginationRequest);
+
+        // plan scope is used to query markets service
+        verify(marketsService).getActionsByMarketUuid(eq(uuid2), any(), any());
+
+        // usable scopes are used to query actions service
+        verify(actionSearchUtil).getActionsByScopes(eq(Collections.singleton(scope3)), any(), eq(987L));
+        verify(actionSearchUtil).getActionsByScopes(eq(Collections.singleton(scope4)), any(), eq(876L));
+
+        assertEquals(3, result.getRawResults().size());
+        assertEquals(2, result.getRawResults().stream()
+            .filter(a -> uuid3.equals(a.getUuid()))
+            .mapToLong(a -> a.getActions().size())
+            .sum());
     }
 }

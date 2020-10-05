@@ -85,7 +85,15 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
+import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
+import com.vmturbo.api.serviceinterfaces.IGroupsService;
+import com.vmturbo.api.serviceinterfaces.IPoliciesService;
+import com.vmturbo.api.serviceinterfaces.IScenariosService;
+import com.vmturbo.api.serviceinterfaces.ISchedulesService;
+import com.vmturbo.api.serviceinterfaces.ISettingsPoliciesService;
+import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.api.utils.ParamStrings;
+import com.vmturbo.api.validators.InputDTOValidator;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -1015,7 +1023,7 @@ public class TargetsServiceTest {
         final List<String> allowedValuesList = Lists.newArrayList("A", "B", "C");
         final AccountField allowedValuesField =
                 new AccountField(key, key + "-name", key + "-description", false, false,
-                        AccountFieldValueType.LIST, null, allowedValuesList, ".*", null);
+                    false, AccountFieldValueType.LIST, null, allowedValuesList, ".*", null);
         final ProbeInfo probeInfo =
                 createMockProbeInfo(1, "type1", "category1", "uiCategory1", allowedValuesField);
         final MvcResult result = mockMvc
@@ -1071,7 +1079,7 @@ public class TargetsServiceTest {
         final String key = "allowedValues";
         final AccountField field =
                 new AccountField(key, key + "-name", key + "-description", false, false,
-                        AccountFieldValueType.LIST, null, null, ".*",
+                    false, AccountFieldValueType.LIST, null, null, ".*",
                         Pair.create("field", "value"));
         final ProbeInfo probeInfo =
                 createMockProbeInfo(1, "type1", "category1", "uiCategory1", field);
@@ -1325,8 +1333,8 @@ public class TargetsServiceTest {
     }
 
     private static AccountDefEntry createAccountDef(String key, AccountFieldValueType valueType) {
-        return new AccountField(key, key + "-name", key + "-description", true, false, valueType,
-                null, Collections.emptyList(), ".*", null);
+        return new AccountField(key, key + "-name", key + "-description", true, false, false,
+            valueType, null, Collections.emptyList(), ".*", null);
     }
 
     /**
@@ -1335,6 +1343,46 @@ public class TargetsServiceTest {
     @Configuration
     @EnableWebMvc
     public static class TestConfig extends WebMvcConfigurerAdapter {
+
+        @Bean
+        public InputDTOValidator inputDTOValidator() {
+            return new InputDTOValidator();
+        }
+
+        @Bean
+        public IPoliciesService policyService() {
+            return Mockito.mock(IPoliciesService.class);
+        }
+
+        @Bean
+        public IGroupsService groupComponentService() {
+            return Mockito.mock(IGroupsService.class);
+        }
+
+        @Bean
+        public IBusinessUnitsService buService() {
+            return Mockito.mock(IBusinessUnitsService.class);
+        }
+
+        @Bean
+        public IUsersService userService() {
+            return Mockito.mock(IUsersService.class);
+        }
+
+        @Bean
+        public ISettingsPoliciesService settingsPolicyService() {
+            return Mockito.mock(ISettingsPoliciesService.class);
+        }
+
+        @Bean
+        public IScenariosService scenariosService() {
+            return Mockito.mock(IScenariosService.class);
+        }
+
+        @Bean
+        public ISchedulesService schedulesService() {
+            return Mockito.mock(ISchedulesService.class);
+        }
 
         @Bean
         public TopologyProcessor topologyProcessor() {

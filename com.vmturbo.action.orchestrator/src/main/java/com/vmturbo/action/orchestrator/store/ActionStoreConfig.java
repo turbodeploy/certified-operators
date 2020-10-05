@@ -25,6 +25,7 @@ import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.action.RejectedActionsStore;
+import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
 import com.vmturbo.action.orchestrator.approval.ApprovalCommunicationConfig;
 import com.vmturbo.action.orchestrator.audit.AuditCommunicationConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
@@ -55,7 +56,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
  * Configuration for the ActionStore package.
  */
 @Configuration
-@Import({ActionOrchestratorDBConfig.class,
+@Import({ActionOrchestratorApiConfig.class,
+    ActionOrchestratorDBConfig.class,
     ActionOrchestratorGlobalConfig.class,
     ActionExecutionConfig.class,
     GroupClientConfig.class,
@@ -69,6 +71,9 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
     ApprovalCommunicationConfig.class,
     AuditCommunicationConfig.class})
 public class ActionStoreConfig {
+
+    @Autowired
+    private ActionOrchestratorApiConfig actionOrchestratorApiConfig;
 
     @Autowired
     private ActionOrchestratorDBConfig databaseConfig;
@@ -112,16 +117,16 @@ public class ActionStoreConfig {
     @Autowired
     private AuditCommunicationConfig auditCommunicationConfig;
 
-    @Value("${entityTypeRetryIntervalMillis}")
+    @Value("${entityTypeRetryIntervalMillis:1000}")
     private long entityTypeRetryIntervalMillis;
 
-    @Value("${entityTypeMaxRetries}")
+    @Value("${entityTypeMaxRetries:6}")
     private long entityTypeMaxRetries;
 
     @Value("${minsToWaitForTopology:60}")
     private long minsToWaitForTopology;
 
-    @Value("${actionExecution.concurrentAutomatedActions:5}")
+    @Value("${actionExecution.concurrentAutomatedActions:1000}")
     private int concurrentAutomatedActions;
 
     @Value("${minsActionAcceptanceTTL:1440}")
@@ -268,6 +273,18 @@ public class ActionStoreConfig {
     }
 
     /**
+     * The {@link EntitySeverityCache}.
+     *
+     * @return The {@link EntitySeverityCache}.
+     */
+    @Bean
+    public EntitySeverityCache entitySeverityCache() {
+        return new EntitySeverityCache(tpConfig.actionTopologyStore(),
+                actionOrchestratorApiConfig.entitySeverityNotificationSender(),
+                riskPropagationEnabled);
+    }
+
+    /**
      * Returns the {@link ActionStoreFactory} bean.
      *
      * @return the {@link ActionStoreFactory} bean.
@@ -288,8 +305,7 @@ public class ActionStoreConfig {
             .withAtomicActionFactory(atomicActionFactory())
             .withClock(actionOrchestratorGlobalConfig.actionOrchestratorClock())
             .withUserSessionContext(userSessionConfig.userSessionContext())
-            .withSupplyChainService(SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
-            .withRepositoryService(RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
+            .withSeverityCache(entitySeverityCache())
             .withLicenseCheckClient(licenseCheckClientConfig.licenseCheckClient())
             .withAcceptedActionsStore(acceptedActionsStore())
             .withRejectedActionsStore(rejectedActionsStore())

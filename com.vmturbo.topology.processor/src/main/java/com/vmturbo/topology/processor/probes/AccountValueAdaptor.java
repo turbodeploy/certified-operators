@@ -106,6 +106,11 @@ public class AccountValueAdaptor {
         }
 
         @Override
+        public boolean isMultiline() {
+            return customEntry.getIsMultiline();
+        }
+
+        @Override
         public String getDescription() {
             return customEntry.getDescription();
         }
@@ -162,6 +167,11 @@ public class AccountValueAdaptor {
         @Override
         public boolean isSecret() {
             return enumVal.isSecret();
+        }
+
+        @Override
+        public boolean isMultiline() {
+            return enumVal.isMultiline();
         }
 
         @Override

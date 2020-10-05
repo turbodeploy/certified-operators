@@ -201,7 +201,8 @@ message OptionalPlanInstance {
 
 // Options for looking up plan instances.
 message GetPlansOptions {
-    // TODO: Support for pagination and filtering by user
+    // "Get plans related to the provided scenario id"
+    repeated int64 scenario_id = 1;
 }
 
 

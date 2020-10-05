@@ -11,7 +11,7 @@ import java.util.TreeMap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.ThreadSafe;
+import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,7 +31,7 @@ import com.vmturbo.history.stats.HistoryUtilizationType;
  * {@link HistUtilizationRecordVisitor} visits {@link HistUtilizationRecord}s only and extracts from
  * them appropriate used and capacity values.
  */
-@ThreadSafe
+@NotThreadSafe
 public class HistUtilizationRecordVisitor extends
                 AbstractVisitor<HistUtilizationRecord, Map<Integer, Pair<StatsAccumulator, StatsAccumulator>>> {
     private static final Logger LOGGER = LogManager.getLogger(HistUtilizationRecordVisitor.class);

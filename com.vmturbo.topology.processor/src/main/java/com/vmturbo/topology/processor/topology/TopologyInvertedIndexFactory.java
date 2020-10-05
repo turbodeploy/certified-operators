@@ -25,20 +25,29 @@ public class TopologyInvertedIndexFactory {
     private static final Logger logger = LogManager.getLogger();
 
     /**
+     * The default minimal scan stop threshold for the inverted index.
+     */
+    public static final int DEFAULT_MINIMAL_SCAN_STOP_THRESHOLD = 32;
+
+    /**
      * Create an {@link InvertedIndex} containing a subset of the topology.
      * The purpose of the inverted index is to allow finding "potential" placement destinations,
      * which can restrict the number of providers we need to add segmentation commodities to.
      *
      * @param topologyGraph The topology graph to use to look up entities to add to the index.
      * @param types The types to include in the index.
+     * @param minimalScanStopThreshold The number of items in a postings list of inverted index at or below
+     *      *        which the scan for a minimal postings list can stop. Used to early-exit minimal
+     *      *        postings scans when there are many commodities in a basket. This number should be
+     *      *        >= 0.
      * @return The {@link InvertedIndex}.
      */
     @Nonnull
     public InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> typeInvertedIndex(
-            TopologyGraph<TopologyEntity> topologyGraph, Set<ApiEntityType> types) {
+            TopologyGraph<TopologyEntity> topologyGraph, Set<ApiEntityType> types, int minimalScanStopThreshold) {
         Stopwatch indexCreation = Stopwatch.createStarted();
         final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> invertedIndex =
-                new InvertedIndex<>(32, new TopologyInvertedIndexTranslator());
+                new InvertedIndex<>(minimalScanStopThreshold, new TopologyInvertedIndexTranslator());
         types.forEach(type -> {
             topologyGraph.entitiesOfType(type.typeNumber()).forEach(invertedIndex::add);
         });

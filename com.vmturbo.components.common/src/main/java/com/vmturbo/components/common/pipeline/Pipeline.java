@@ -489,7 +489,7 @@ public abstract class Pipeline<I, O, C extends PipelineContext, S extends Pipeli
         /**
          * Construct a new exception.
          * @param error The error message.
-         * @param cause The cause for the errror.
+         * @param cause The cause for the error.
          */
         public PipelineStageException(@Nonnull final String error, @Nullable final Throwable cause) {
             super(error, cause);

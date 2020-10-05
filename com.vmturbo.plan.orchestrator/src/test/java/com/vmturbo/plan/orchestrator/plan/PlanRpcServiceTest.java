@@ -1,11 +1,14 @@
 package com.vmturbo.plan.orchestrator.plan;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -16,6 +19,7 @@ import io.grpc.stub.StreamObserver;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.springframework.context.ApplicationContext;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
@@ -24,6 +28,7 @@ import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlansOptions;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
@@ -37,9 +42,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.AnalysisDTOMoles.AnalysisServiceMole;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 
 public class PlanRpcServiceTest {
 
@@ -62,9 +67,12 @@ public class PlanRpcServiceTest {
     @SuppressWarnings("unchecked")
     private StreamObserver<PlanInstance> response = mock(StreamObserver.class);
 
+    private PlanDao planDaoMock = mock(PlanDao.class);
+
     @Before
     public void setup() {
-        planService = new PlanRpcService(mock(PlanDao.class),
+        planService = new PlanRpcService(planDaoMock,
+            mock(ApplicationContext.class),
             AnalysisServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             mock(PlanNotificationSender.class),
             sameThreadExecutor,
@@ -146,4 +154,48 @@ public class PlanRpcServiceTest {
                 .build();
     }
 
+    /**
+     * Test filtering plans on scenarioId.
+     */
+    @Test
+    public void testGetAllPlansWithScenarioIdFilters() {
+        //GIVEN
+        final long scenarioId = 456L;
+        GetPlansOptions request = GetPlansOptions.newBuilder().addScenarioId(scenarioId).build();
+        PlanInstance planInstance = PlanInstance.newBuilder()
+                .setPlanId(12L)
+                .setStatus(PlanStatus.SUCCEEDED)
+                .setScenario(Scenario.newBuilder().setId(scenarioId)).build();
+
+        doReturn(Collections.singleton(planInstance)).when(planDaoMock).getAllPlanInstances();
+
+        //WHEN
+        this.planService.getAllPlans(request, response);
+
+        //THEN
+        verify(response, times(1)).onNext(planInstance);
+        verify(response, times(1)).onCompleted();
+    }
+
+    /**
+     * Test filtering plans on scenarioId finds no match.
+     */
+    @Test
+    public void testGetAllPlansWithScenarioIdFiltersNoMatch() {
+        //GIVEN
+        final long scenarioId = 456L;
+        GetPlansOptions request = GetPlansOptions.newBuilder().addScenarioId(scenarioId).build();
+        Set<PlanInstance> planInstances = Collections.singleton(PlanInstance.newBuilder()
+                .setPlanId(12L)
+                .setStatus(PlanStatus.SUCCEEDED)
+                .setScenario(Scenario.newBuilder().setId(2L)).build());
+        doReturn(planInstances).when(planDaoMock).getAllPlanInstances();
+
+        //WHEN
+        this.planService.getAllPlans(request, response);
+
+        //THEN
+        verify(response, times(0)).onNext(any());
+        verify(response, times(1)).onCompleted();
+    }
 }

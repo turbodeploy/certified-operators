@@ -78,15 +78,13 @@ public class BaseSearchableTopology<T extends BaseGraphEntity<T>> extends BaseTo
         @Nonnull
         @Override
         public T finish() {
+            // Trim the tags before calling BaseTopology::finish.
+            defaultTagIndex.finish();
             T ret = super.finish();
 
             // Update the shared buffer size, so the next topology can use it
             // as a starting point.
             sharedBufferSize = compressionBuffer.getSize();
-
-            // Trim the tags now that we're done.
-            defaultTagIndex.finish();
-
             return ret;
         }
     }

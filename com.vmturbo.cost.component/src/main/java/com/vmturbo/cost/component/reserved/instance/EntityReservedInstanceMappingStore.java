@@ -16,10 +16,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableTable;
@@ -35,15 +33,14 @@ import org.jooq.DSLContext;
 import org.jooq.Record2;
 import org.jooq.UpdatableRecord;
 import org.jooq.impl.DSL;
+import org.jooq.impl.TableImpl;
 import org.stringtemplate.v4.ST;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage.RICoverageSource;
-import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.enums.EntityToReservedInstanceMappingRiSourceCoverage;
 import com.vmturbo.cost.component.db.tables.pojos.EntityToReservedInstanceMapping;
@@ -56,7 +53,8 @@ import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanc
  * coupons coverage information. And the data is only comes from billing topology. For example:
  * VM1 use RI1 10 coupons, VM1 use RI2 20 coupons, VM2 use RI3 5 coupons.
  */
-public class EntityReservedInstanceMappingStore implements DiagsRestorable<Void> {
+public class EntityReservedInstanceMappingStore implements
+        TableDiagsRestorable<Void, EntityToReservedInstanceMappingRecord> {
     private static final Logger logger = LogManager.getLogger();
     private static final String entityReservedInstanceMappingFile = "entityToReserved_dump";
 
@@ -619,24 +617,13 @@ public class EntityReservedInstanceMappingStore implements DiagsRestorable<Void>
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
-        // TODO to be implemented as part of OM-58627
+    public DSLContext getDSLContext() {
+        return dsl;
     }
 
     @Override
-    public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
-        dsl.transaction(transactionContext -> {
-            final DSLContext transaction = DSL.using(transactionContext);
-            Stream<EntityToReservedInstanceMappingRecord> latestRecords = transaction.selectFrom(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING).stream();
-            latestRecords.forEach(s -> {
-                try {
-                    appender.appendString(s.formatJSON());
-                } catch (DiagnosticsException e) {
-                    logger.error("Exception encountered while appending entity to RI mapping records" +
-                            " to the diags dump", e);
-                }
-            });
-        });
+    public TableImpl<EntityToReservedInstanceMappingRecord> getTable() {
+        return Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING;
     }
 
     @Nonnull

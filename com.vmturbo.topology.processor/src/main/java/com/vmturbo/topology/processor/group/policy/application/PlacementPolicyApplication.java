@@ -13,6 +13,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Sets;
+
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -261,7 +263,7 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
             .filter(Optional::isPresent)
             .map(Optional::get)
             .flatMap(e -> e.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream())
-            .flatMap(invertedIndex::getSatisfyingSellers)
+            .flatMap(grouping -> invertedIndex.getSatisfyingSellers(grouping))
             // Filter out the providers blocked by the policy.
             .filter(potentialProvider -> !providers.contains(potentialProvider.getOid()))
             // Enforce the provider entity type.
@@ -330,6 +332,7 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
                                       final int providerType,
                                       @Nonnull final CommodityBoughtDTO segmentationCommodity)
         throws PolicyApplicationException {
+        Set<Long> consumersWithPolicyApplicationExceptions = Sets.newHashSet();
         for (Long consumerId : consumers) {
             final Optional<TopologyEntity> optionalConsumer = topologyGraph.getEntity(consumerId);
             if (!optionalConsumer.isPresent()) {
@@ -395,13 +398,18 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
             // not buying ST at all, If create a policy to Force VM1 and VM2 to buy ST1,
             // it should throw exception, because VM2 doesn't buy any Storage type.
             if (commodityBoughtsToAddSegment.isEmpty()) {
-                throw new PolicyApplicationException("Unable to apply consumer segment when no "
-                        + "provider type " + providerType);
+                consumersWithPolicyApplicationExceptions.add(consumerId);
             }
             // For each bundle of commodities bought for the entity type that matches the
             // provider type and volumeId, add the segmentation commodity.
             addCommodityBoughtForProviders(segmentationCommodity, consumer,
                 commodityBoughtsToAddSegment, commodityBoughtsToNotAddSegment);
+        }
+        if (!consumersWithPolicyApplicationExceptions.isEmpty()) {
+            String consumersCommaSeparated = consumersWithPolicyApplicationExceptions.stream()
+                .map(c -> String.valueOf(c)).collect(Collectors.joining(","));
+            throw new PolicyApplicationException("Unable to apply consumer segment on these "
+                + "consumers - " + consumersCommaSeparated + " - because they have no provider of type " + providerType);
         }
     }
 

@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.topology;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -32,6 +33,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
 import org.hamcrest.Matchers;
@@ -44,6 +46,9 @@ import org.mockito.ArgumentMatcher;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -70,6 +75,7 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -288,6 +294,45 @@ public class TopologyEditorTest {
         topologyEditor = new TopologyEditor(identityProvider,
                 templateConverterFactory,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+    }
+
+    /**
+     * Tests expandAndFlattenReferences in the context of an empty cluster. Verifies that an empty
+     * cluster resolves to an empty OID set, as opposed to all OIDs in the {@link TopologyGraph}.
+     *
+     * @throws Exception If {@link GroupResolver} fails to resolve a group
+     */
+    @Test
+    public void testResolveEmptyCluster() throws Exception {
+        final long clusterOid = 1L;
+        final List<MigrationReference> clusters = Lists.newArrayList(
+                MigrationReference.newBuilder()
+                        .setGroupType(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER_VALUE)
+                        .setOid(clusterOid)
+                        .build());
+
+        final Grouping emptyCluster = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder().setStaticGroupMembers(
+                        GroupDTO.StaticMembers.getDefaultInstance()).build())
+                .setId(clusterOid)
+                .build();
+        when(groupResolver.resolve(eq(emptyCluster), isA(TopologyGraph.class)))
+                .thenReturn(emptyResolvedGroup(emptyCluster, ApiEntityType.PHYSICAL_MACHINE));
+
+        final Map<Long, Grouping> groupIdToGroupMap = new HashMap<Long, Grouping>() {{
+            put(clusterOid, emptyCluster);
+        }};
+        final TopologyEntity.Builder pmEntity = TopologyEntityUtils
+                .topologyEntity(pmId, 0, 0, "PM", EntityType.PHYSICAL_MACHINE);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(pmEntity);
+        final Set<Long> migratingEntities = topologyEditor.expandAndFlattenReferences(
+                clusters,
+                EntityType.VIRTUAL_MACHINE_VALUE,
+                groupIdToGroupMap,
+                groupResolver,
+                graph);
+
+        assertTrue(migratingEntities.isEmpty());
     }
 
     /**
@@ -678,6 +723,10 @@ public class TopologyEditorTest {
         return new ResolvedGroup(group, Collections.singletonMap(type, Collections.singleton(member)));
     }
 
+    private ResolvedGroup emptyResolvedGroup(Grouping group, ApiEntityType type) {
+        return new ResolvedGroup(group, Collections.singletonMap(type, Sets.newHashSet()));
+    }
+
     // test remove PM when user choose from a host cluster
     @Test
     public void testRemovePMFromHostGroup() throws Exception {
@@ -1014,5 +1063,79 @@ public class TopologyEditorTest {
         boolean foundSuspendable = clones.stream()
             .anyMatch(clone -> clone.getEntityBuilder().getAnalysisSettings().getSuspendable());
         assertFalse("Cloned ContainerPods must not be suspendable", foundSuspendable);
+    }
+
+    /**
+     * Just to verify if we are resolving DC groups correctly or not.
+     */
+    @Test
+    public void resolveDataCenterGroups() throws Exception {
+        long groupId = 10010;
+        long dcId1 = 1000;
+        long dcId2 = 2000;
+        // PMs under the DCs.
+        long pmId11 = 10001;
+        long pmId12 = 10002;
+        long pmId21 = 20001;
+        // VMs under those PMs.
+        long vmId111 = 100011;
+        long vmId112 = 100012;
+        long vmId121 = 100021;
+        long vmId211 = 200011;
+
+        final MemberType dcGroupType = MemberType.newBuilder()
+                .setEntity(EntityType.DATACENTER_VALUE)
+                .build();
+        final List<MigrationReference> migrationReferences = ImmutableList.of(
+                MigrationReference.newBuilder()
+                        .setOid(groupId)
+                        .setGroupType(GroupType.REGULAR_VALUE)
+                        .build());
+        final Map<Long, Grouping> groupIdToGroupMap = new HashMap<>();
+        groupIdToGroupMap.put(groupId, Grouping.newBuilder()
+                .setId(groupId)
+                .addExpectedTypes(dcGroupType)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(dcGroupType)
+                                        .addMembers(dcId1)
+                                        .addMembers(dcId2)
+                                        .build())
+                                .build())
+                        .build())
+                .build());
+        final Map<ApiEntityType, Set<Long>> entityTypeToMembers = new HashMap<>();
+        entityTypeToMembers.put(ApiEntityType.DATACENTER, ImmutableSet.of(dcId1, dcId2));
+        final ResolvedGroup resolvedGroup = mock(ResolvedGroup.class);
+        when(resolvedGroup.getEntitiesByType())
+                .thenReturn(entityTypeToMembers);
+        final GroupResolver groupResolver = mock(GroupResolver.class);
+        when(groupResolver.resolve(any(), any()))
+                .thenReturn(resolvedGroup);
+
+        final TopologyGraph<TopologyEntity> topologyGraph = TopologyEntityUtils.topologyGraphOf(
+                TopologyEntityUtils.topologyEntity(dcId1, 0, 0, "dc-1", EntityType.DATACENTER),
+                TopologyEntityUtils.topologyEntity(dcId2, 0, 0, "dc-2", EntityType.DATACENTER),
+                TopologyEntityUtils.topologyEntity(pmId11, 0, 0, "pm-11", EntityType.PHYSICAL_MACHINE, dcId1),
+                TopologyEntityUtils.topologyEntity(pmId12, 0, 0, "pm-12", EntityType.PHYSICAL_MACHINE, dcId1),
+                TopologyEntityUtils.topologyEntity(pmId21, 0, 0, "pm-21", EntityType.PHYSICAL_MACHINE, dcId2),
+                TopologyEntityUtils.topologyEntity(vmId111, 0, 0, "vm-111", EntityType.VIRTUAL_MACHINE, pmId11),
+                TopologyEntityUtils.topologyEntity(vmId112, 0, 0, "vm-112", EntityType.VIRTUAL_MACHINE, pmId11),
+                TopologyEntityUtils.topologyEntity(vmId121, 0, 0, "vm-121", EntityType.VIRTUAL_MACHINE, pmId12),
+                TopologyEntityUtils.topologyEntity(vmId211, 0, 0, "vm-211", EntityType.VIRTUAL_MACHINE, pmId21)
+                );
+
+        final Set<Long> workloadsInDc = TopologyEditor.expandAndFlattenReferences(
+                migrationReferences,
+                EntityType.VIRTUAL_MACHINE_VALUE,
+                groupIdToGroupMap,
+                groupResolver,
+                topologyGraph);
+        assertNotNull(workloadsInDc);
+        assertEquals(4, workloadsInDc.size());
+        assertTrue(workloadsInDc.contains(vmId111) && workloadsInDc.contains(vmId112)
+                && workloadsInDc.contains(vmId121) && workloadsInDc.contains(vmId211));
     }
 }

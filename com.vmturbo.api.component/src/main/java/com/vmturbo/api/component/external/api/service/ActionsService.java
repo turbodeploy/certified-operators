@@ -4,11 +4,14 @@ import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -21,7 +24,6 @@ import com.google.common.collect.Lists;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,9 +35,9 @@ import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
-import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -276,14 +278,9 @@ public class ActionsService implements IActionsService {
             final Map<String, EntityStatsApiDTO> entityStatsByUuid = scopes.stream()
                 .collect(Collectors.toMap(ApiId::uuid, scope -> {
                     final EntityStatsApiDTO entityDto = new EntityStatsApiDTO();
-                    entityDto.setUuid(scope.uuid());
+                    StatsMapper.populateEntityDataEntityStatsApiDTO(scope, entityDto);
                     return entityDto;
                 }));
-
-            final Set<Long> entityIds = scopes.stream()
-                .filter(ApiId::isEntity)
-                .map(ApiId::oid)
-                .collect(Collectors.toSet());
 
             final ImmutableActionStatsQuery.Builder queryBuilder = ImmutableActionStatsQuery.builder()
                 .scopes(scopes)
@@ -303,17 +300,6 @@ public class ActionsService implements IActionsService {
                     entityStats.setStats(actionStats);
                 }
             });
-
-            // Fill in extra information if the request belongs to an entity.
-            if (!CollectionUtils.isEmpty(entityIds)) {
-                repositoryApi.entitiesRequest(entityIds)
-                    .getMinimalEntities()
-                    .forEach(minEntity -> {
-                        final EntityStatsApiDTO entityStatsApiDTO = entityStatsByUuid.get(Long.toString(minEntity.getOid()));
-                        StatsMapper.populateEntityDataEntityStatsApiDTO(
-                                minEntity, entityStatsApiDTO);
-                    });
-            }
 
             return Lists.newArrayList(entityStatsByUuid.values());
         }  catch (StatusRuntimeException e) {
@@ -338,6 +324,14 @@ public class ActionsService implements IActionsService {
             EntityActionPaginationRequest paginationRequest)
         throws Exception {
 
+        final Function<String, String> invalidScopeMessage =
+            (uuid) -> "Failed to map uuid " + uuid + " to Api ID.";
+        final Function<String, String> internalFailureMessage =
+            (scopes) -> "Exception getting actions by scope for scopes [" + scopes + "]";
+
+        if (actionScopesApiInputDTO.getActionInput() == null) {
+            throw new IllegalArgumentException("Null ActionApiInputDTO is not allowed");
+        }
         if (nestedDefaultPaginationRequest == null) {
             logger.error("Nested default pagination request for actions did not initialize properly");
             return paginationRequest.allResultsResponse(Collections.emptyList());
@@ -354,75 +348,114 @@ public class ActionsService implements IActionsService {
                     try {
                         return uuidMapper.fromUuid(uuid);
                     } catch (Exception e) {
-                        String errorMsg = "Failed to map uuid " + uuid + " to Api ID. Error: "
-                                + e.getLocalizedMessage();
-                        throw new IllegalArgumentException(errorMsg);
+                        final String message = invalidScopeMessage.apply(uuid);
+                        logger.error(message, e);
+                        throw new IllegalArgumentException(message, e);
                     }
                 })
-                .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
             // relatedType indicates that scope should be expanded and per-entity actions returned
             // rather than aggregated.
             if (actionScopesApiInputDTO.getRelatedType() != null) {
-                scopes = supplyChainFetcherFactory.expandScope(scopes.stream()
-                    .map(ApiId::oid)
-                    .collect(Collectors.toSet()),
-                        ImmutableList.of(actionScopesApiInputDTO.getRelatedType())).stream()
-                            .map(oid -> {
-                                 return uuidMapper.fromOid(oid);
-                            })
-                            .filter(Objects::nonNull)
-                            .collect(Collectors.toSet());
+                scopes = supplyChainFetcherFactory.expandScope(
+                        scopes.stream()
+                            .map(ApiId::oid)
+                            .collect(Collectors.toSet()),
+                        ImmutableList.of(actionScopesApiInputDTO.getRelatedType()))
+                    .stream()
+                        .map(uuidMapper::fromOid)
+                        .collect(Collectors.toSet());
             }
-            List<EntityActionsApiDTO> entityActions = scopes.stream().map(scope -> {
-                EntityActionsApiDTO dto = new EntityActionsApiDTO();
-                dto.setUuid(scope.uuid());
-                dto.setDisplayName(scope.getDisplayName());
-                dto.setClassName(scope.getClassName());
-                return dto;
-            })
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-            entityActions.sort(paginationRequest.getOrderBy().getComparator(paginationRequest.isAscending()));
-            String cursor = paginationRequest.getCursor().orElse("0");
-            int totalCount = entityActions.size();
-            int skipCount;
+            final List<EntityActionsApiDTO> entityActions = scopes.stream()
+                .map(scope -> {
+                    final EntityActionsApiDTO dto = new EntityActionsApiDTO();
+                    dto.setUuid(scope.uuid());
+                    dto.setDisplayName(scope.getDisplayName());
+                    dto.setClassName(scope.getClassName());
+                    return dto;
+                })
+                .sorted(paginationRequest.getOrderBy().getComparator(paginationRequest.isAscending()))
+                .collect(Collectors.toList());
+            final String cursor = paginationRequest.getCursor().orElse("0");
+            final int totalCount = entityActions.size();
+            final int skipCount;
             try {
                 skipCount = Integer.parseInt(cursor);
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("Cursor " + cursor
                     + " is invalid. Should be an integer.");
             }
-            int limit = paginationRequest.getLimit();
-            List<EntityActionsApiDTO> updatedList = entityActions.stream().skip(skipCount).limit(limit).map(dto -> {
-                try {
-                    ApiId scope = uuidMapper.fromUuid(dto.getUuid());
-                    List<ActionApiDTO> apiDtoList;
-                    if (scope.isRealtimeMarket() || scope.isPlan()) {
-                        apiDtoList = marketsService.getActionsByMarketUuid(scope.uuid(),
-                                actionScopesApiInputDTO.getActionInput(), nestedDefaultPaginationRequest)
+            final int limit = paginationRequest.getLimit();
+            final Map<Long, Set<ApiId>> scopesByContext = new HashMap<>();
+            final List<EntityActionsApiDTO> dtosWithPartialActions = entityActions.stream()
+                .skip(skipCount)
+                .limit(limit)
+                .map(dto -> {
+                    try {
+                        final ApiId scope = uuidMapper.fromUuid(dto.getUuid());
+                        if (scope.isRealtimeMarket() || scope.isPlan()) {
+                            final List<ActionApiDTO> apiDtoList =
+                                marketsService.getActionsByMarketUuid(scope.uuid(),
+                                        actionScopesApiInputDTO.getActionInput(),
+                                        nestedDefaultPaginationRequest)
                                     .getRawResults();
-                    } else {
-                        apiDtoList = actionSearchUtil.getActionsByScope(scope,
-                                actionScopesApiInputDTO.getActionInput(), nestedDefaultPaginationRequest)
-                                    .getRawResults();
+                            dto.setActions(apiDtoList);
+                        } else {
+                            scopesByContext.computeIfAbsent(scope.getTopologyContextId(),
+                                (x) -> new HashSet<>()).add(scope);
+                        }
+                        return dto;
+                    } catch (OperationFailedException e) {
+                        final String message = invalidScopeMessage.apply(dto.getUuid());
+                        logger.error(message, e);
+                        throw new IllegalArgumentException(message, e);
+                    } catch (Exception e) {
+                        final String message = internalFailureMessage.apply(dto.getUuid());
+                        logger.error(message, e);
+                        throw new RuntimeException(message, e);
                     }
-                    dto.setActions(apiDtoList);
-                    return dto;
+                })
+                .collect(Collectors.toList());
+
+            final Map<Long, List<ActionApiDTO>> actionsByScope = new HashMap<>();
+            scopesByContext.forEach((contextId, scopesForContext) -> {
+                try {
+                    final Map<Long, List<ActionApiDTO>> contextResult =
+                        actionSearchUtil.getActionsByScopes(scopesForContext,
+                            actionScopesApiInputDTO.getActionInput(), contextId);
+                    if (contextResult != null) {
+                        actionsByScope.putAll(contextResult);
+                    }
                 } catch (Exception e) {
-                    logger.error("Exception getting actions by scope for scope {}. Error: {}",
-                            dto.getUuid(), e.getLocalizedMessage());
-                    return null;
+                    final String message = internalFailureMessage.apply(scopesForContext.stream()
+                        .map(ApiId::uuid)
+                        .collect(Collectors.joining(", "))) + " in context " + contextId;
+                    logger.error(message, e);
+                    throw new RuntimeException(message, e);
                 }
-            })
-            .filter(Objects::nonNull)
-            .filter(dto -> dto.getActions() != null)
-            .collect(Collectors.toList());
+            });
+
+           final List<EntityActionsApiDTO> dtosWithAllActions =  dtosWithPartialActions.stream()
+               .map(dto -> {
+                   try {
+                       // uuidMapper is necessary to handle special-case uuids e.g. Market
+                       final long oid = uuidMapper.fromUuid(dto.getUuid()).oid();
+                       if (actionsByScope.containsKey(oid)) {
+                           dto.setActions(actionsByScope.get(oid));
+                       }
+                       return dto;
+                   } catch (OperationFailedException e) {
+                       final String message = invalidScopeMessage.apply(dto.getUuid());
+                       logger.error(message, e);
+                       throw new IllegalArgumentException(message, e);
+                   }
+
+               }).collect(Collectors.toList());
             if (limit + skipCount >= totalCount) {
-                return paginationRequest.finalPageResponse(updatedList, totalCount);
+                return paginationRequest.finalPageResponse(dtosWithAllActions, totalCount);
             } else {
-                return paginationRequest.nextPageResponse(updatedList, Integer.toString(skipCount
-                        + limit), totalCount);
+                return paginationRequest.nextPageResponse(dtosWithAllActions,
+                    Integer.toString(skipCount + limit), totalCount);
             }
         } catch (StatusRuntimeException e) {
             throw ExceptionMapper.translateStatusException(e);

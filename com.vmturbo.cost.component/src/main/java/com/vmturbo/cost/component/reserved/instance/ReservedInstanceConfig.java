@@ -33,16 +33,13 @@ import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
+import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalCoverageAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
-import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory;
-import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory.DefaultRICoverageAllocatorFactory;
-import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 @Configuration
 @Import({IdentityProviderConfig.class,
@@ -57,29 +54,26 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
     TopologyProcessorListenerConfig.class,
     SupplyChainServiceConfig.class,
     CostClientConfig.class,
-    EntityCostConfig.class})
+    EntityCostConfig.class,
+    SupplementalCoverageAnalysisConfig.class})
 public class ReservedInstanceConfig {
 
-    @Value("${retention.numRetainedMinutes}")
+    @Value("${retention.numRetainedMinutes:130}")
     private int numRetainedMinutes;
 
-    @Value("${retention.updateRetentionIntervalSeconds}")
+    @Value("${retention.updateRetentionIntervalSeconds:10}")
     private int updateRetentionIntervalSeconds;
 
     @Value("${riCoverageCacheExpireMinutes:120}")
     private int riCoverageCacheExpireMinutes;
 
-    @Value("${persistEntityCostChunkSize}")
+    @Value("${persistEntityCostChunkSize:1000}")
     private int persistEntityCostChunkSize;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
-    @Value("${supplementalRICoverageValidation:false}")
-    private boolean supplementalRICoverageValidation;
 
-    @Value("${concurrentSupplementalRICoverageAllocation:true}")
-    private boolean concurrentSupplementalRICoverageAllocation;
 
     @Value("${ignoreReservedInstanceInventory:false}")
     private boolean ignoreReservedInstanceInventory;
@@ -128,6 +122,9 @@ public class ReservedInstanceConfig {
 
     @Autowired
     private EntityCostConfig entityCostConfig;
+
+    @Autowired
+    private SupplementalRICoverageAnalysisFactory supplementalRICoverageAnalysisFactory;
 
     @Bean
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
@@ -218,6 +215,7 @@ public class ReservedInstanceConfig {
                 supplyChainRpcServiceConfig.supplyChainRpcService(),
                 reservedInstanceBoughtStore(),
                 buyReservedInstanceStore(),
+                accountRIMappingStore(),
                 costComponentGlobalConfig.clock());
     }
 
@@ -258,7 +256,7 @@ public class ReservedInstanceConfig {
         return new ReservedInstanceCoverageUpdate(databaseConfig.dsl(),
                 entityReservedInstanceMappingStore(), accountRIMappingStore(),
                 reservedInstanceUtilizationStore(), reservedInstanceCoverageStore(),
-                reservedInstanceCoverageValidatorFactory(), supplementalRICoverageAnalysisFactory(),
+                reservedInstanceCoverageValidatorFactory(), supplementalRICoverageAnalysisFactory,
                 costNotificationConfig.costNotificationSender(), riCoverageCacheExpireMinutes);
     }
 
@@ -272,8 +270,10 @@ public class ReservedInstanceConfig {
         final ProjectedRICoverageListener projectedRICoverageListener =
                 new ProjectedRICoverageListener(projectedEntityRICoverageAndUtilStore(),
                         planProjectedRICoverageAndUtilStore(),
-                        costNotificationConfig.costNotificationSender());
+                        costNotificationConfig.costNotificationSender(),
+                        realtimeTopologyContextId);
         marketComponent.addProjectedEntityRiCoverageListener(projectedRICoverageListener);
+        repositoryClientConfig.repository().addListener(projectedRICoverageListener);
         return projectedRICoverageListener;
     }
 
@@ -311,8 +311,8 @@ public class ReservedInstanceConfig {
                                                    planReservedInstanceService(),
                                                    reservedInstanceSpecConfig
                                                            .reservedInstanceSpecStore(),
+                                                   accountRIMappingStore(),
                                                    persistEntityCostChunkSize);
-        repositoryClientConfig.repository().addListener(planProjectedRICoverageAndUtilStore);
         return planProjectedRICoverageAndUtilStore;
     }
 
@@ -328,32 +328,9 @@ public class ReservedInstanceConfig {
                 reservedInstanceSpecConfig.reservedInstanceSpecStore());
     }
 
-    @Bean
-    public ThinTargetCache thinTargetCache() {
-        return new ThinTargetCache(topologyProcessorListenerConfig.topologyProcessor());
-    }
 
-    @Bean
-    public CoverageTopologyFactory coverageTopologyFactory() {
-        return new CoverageTopologyFactory(thinTargetCache());
-    }
 
-    @Bean
-    public RICoverageAllocatorFactory riCoverageAllocatorFactory() {
-        return new DefaultRICoverageAllocatorFactory();
-    }
 
-    @Bean
-    public SupplementalRICoverageAnalysisFactory supplementalRICoverageAnalysisFactory() {
-        return new SupplementalRICoverageAnalysisFactory(
-                riCoverageAllocatorFactory(),
-                coverageTopologyFactory(),
-                reservedInstanceBoughtStore(),
-                reservedInstanceSpecConfig.reservedInstanceSpecStore(),
-                supplementalRICoverageValidation,
-                concurrentSupplementalRICoverageAllocation,
-                accountRIMappingStore());
-    }
 
     @Bean
     public SettingServiceBlockingStub settingServiceClient() {

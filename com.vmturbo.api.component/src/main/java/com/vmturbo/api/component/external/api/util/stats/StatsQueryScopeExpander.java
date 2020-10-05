@@ -1,7 +1,5 @@
 package com.vmturbo.api.component.external.api.util.stats;
 
-import static java.util.stream.Collectors.toSet;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -140,10 +138,9 @@ public class StatsQueryScopeExpander {
         private static Set<Long> fetchExpandedOids(
                 @Nonnull final UserSessionContext userSessionContext,
                 @Nonnull final Set<ApiEntityType> relatedTypes) {
-            return (userSessionContext.isUserObserver() && userSessionContext.isUserScoped()) ?
-                    userSessionContext.getUserAccessScope().getAccessibleOidsByEntityTypes(
-                            relatedTypes.stream().map(ApiEntityType::apiStr).collect(toSet())).toSet() :
-                    Collections.emptySet();
+            return (userSessionContext.isUserObserver() && userSessionContext.isUserScoped())
+                    ? userSessionContext.getUserAccessScope().getAccessibleOidsByEntityTypes(relatedTypes).toSet()
+                    : Collections.emptySet();
         }
 
         private static Set<Long> fetchScopedOids(
@@ -270,8 +267,7 @@ public class StatsQueryScopeExpander {
                 expandedOidsInScope = immediateOidsInScope;
             }
         } else {
-            expandedOidsInScope = supplyChainFetcherFactory.expandAggregatedEntities(
-                immediateOidsInScope);
+            expandedOidsInScope = supplyChainFetcherFactory.expandAggregatedEntities(immediateOidsInScope);
         }
 
         if (!scope.isPlan()) {

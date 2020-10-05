@@ -17,13 +17,13 @@ public class ComputeTierDemandStatsConfig {
     @Autowired
     private CostDBConfig dbConfig;
 
-    @Value("${statsRecordsCommitBatchSize}")
+    @Value("${statsRecordsCommitBatchSize:100}")
     private int statsRecordsCommitBatchSize;
 
-    @Value("${statsRecordsQueryBatchSize}")
+    @Value("${statsRecordsQueryBatchSize:100}")
     private int statsRecordsQueryBatchSize;
 
-    @Value("${preferredCurrentWeight}")
+    @Value("${preferredCurrentWeight:0.6}")
     private float preferredCurrentWeight;
 
     @Autowired

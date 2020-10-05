@@ -28,6 +28,7 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
@@ -76,7 +77,7 @@ public class PriceTableKeyIdentityStoreTest {
     private DSLContext dsl = dbConfig.getDslContext();
 
     private PriceTableKeyIdentityStore testIdentityStore = new PriceTableKeyIdentityStore(dsl,
-                new IdentityProvider(0));
+                new DefaultIdentityProvider(0));
 
     private final Long awsServiceProviderOid = 123456L;
     private final Long azureServiceProviderOid = 9876543L;
@@ -178,7 +179,7 @@ public class PriceTableKeyIdentityStoreTest {
 
         SQLPriceTableStore sqlPriceTableStore = new SQLPriceTableStore(clock, dsl,
                 new PriceTableKeyIdentityStore(dsl,
-                new IdentityProvider(0)), mergeFactory);
+                new DefaultIdentityProvider(0)), mergeFactory);
 
         final ReservedInstancePriceTable fooPriceTable = ReservedInstancePriceTable.newBuilder()
                 .putRiPricesBySpecId(1L, ReservedInstancePrice.getDefaultInstance())
@@ -218,7 +219,7 @@ public class PriceTableKeyIdentityStoreTest {
 
         final PriceTableMergeFactory mergeFactory = mock(PriceTableMergeFactory.class);
         SQLPriceTableStore sqlPriceTableStore = new SQLPriceTableStore(clock, dsl, new PriceTableKeyIdentityStore(dsl,
-                new IdentityProvider(0)), mergeFactory);
+                new DefaultIdentityProvider(0)), mergeFactory);
 
         sqlPriceTableStore.putProbePriceTables(ImmutableMap.of(priceTableKey1, new PriceTables(priceTable1,
                 ReservedInstancePriceTable.getDefaultInstance(), 111L)));
@@ -304,7 +305,7 @@ public class PriceTableKeyIdentityStoreTest {
         Mockito.verify(appender).appendString(captor.capture());
 
         PriceTableKeyIdentityStore newPriceTableKeyIdentityStore = new PriceTableKeyIdentityStore(dsl,
-                new IdentityProvider(0));
+                new DefaultIdentityProvider(0));
         newPriceTableKeyIdentityStore.restoreDiags(captor.getAllValues(), null);
 
         Map<IdentityMatchingAttributes, Long> newMap = newPriceTableKeyIdentityStore.fetchAllOidMappings();
@@ -316,7 +317,7 @@ public class PriceTableKeyIdentityStoreTest {
         final PriceTableMergeFactory mergeFactory = mock(PriceTableMergeFactory.class);
         //add new price Table.
         SQLPriceTableStore sqlPriceTableStore = new SQLPriceTableStore(clock, dsl, new PriceTableKeyIdentityStore(dsl,
-                new IdentityProvider(0)), mergeFactory);
+                new DefaultIdentityProvider(0)), mergeFactory);
 
         sqlPriceTableStore.putProbePriceTables(ImmutableMap.of(priceTableKey,
                 new PriceTables(PriceTable.getDefaultInstance(),

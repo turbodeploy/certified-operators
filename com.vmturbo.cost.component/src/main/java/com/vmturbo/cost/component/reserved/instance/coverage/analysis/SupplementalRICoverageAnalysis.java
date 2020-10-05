@@ -10,22 +10,22 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableTable;
+import com.google.common.collect.Table;
+
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableTable;
-import com.google.common.collect.Table;
 
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage.RICoverageSource;
 import com.vmturbo.commons.Units;
 import com.vmturbo.proactivesupport.DataMetricSummary;
-import com.vmturbo.reserved.instance.coverage.allocator.ImmutableRICoverageAllocatorConfig;
-import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory;
+import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocationConfig;
+import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocation;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocator;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageProvider;
@@ -39,8 +39,8 @@ import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopolog
  * due to billing probes generally returning coverage day with ~24 hour delay, which may cause
  * under reporting of coverage. Downstream impacts of lower RI coverage will be exhibited in both
  * the current costs reflected in CCC and market scaling decisions.
- * <p>
- * Supplemental RI coverage analysis is meant to build on top of the coverage allocations from
+ *
+ * <p>Supplemental RI coverage analysis is meant to build on top of the coverage allocations from
  * the providers billing data. Therefore this analysis accepts {@link EntityRICoverageUpload}
  * entries, representing the RI coverage extracted from the bill
  */
@@ -49,7 +49,7 @@ public class SupplementalRICoverageAnalysis {
     private final Logger logger = LogManager.getLogger();
 
     /**
-     * A summary metric collecting the total runtime duration of coverage analysis
+     * A summary metric collecting the total runtime duration of coverage analysis.
      */
     private static final DataMetricSummary TOTAL_COVERAGE_ANALYSIS_DURATION_SUMMARY_METRIC =
             DataMetricSummary.builder()
@@ -79,7 +79,7 @@ public class SupplementalRICoverageAnalysis {
                     .register();
 
     /**
-     * A summary metric collecting the runtime duration of first pass filtering entities
+     * A summary metric collecting the runtime duration of first pass filtering entities.
      */
     private static final DataMetricSummary FIRST_PASS_ENTITY_FILTER_DURATION_SUMMARY_METRIC =
             DataMetricSummary.builder()
@@ -225,7 +225,7 @@ public class SupplementalRICoverageAnalysis {
                     .build()
                     .register();
 
-    private final RICoverageAllocatorFactory allocatorFactory;
+    private final CoverageAllocatorFactory allocatorFactory;
 
     private final CoverageTopology coverageTopology;
 
@@ -236,8 +236,8 @@ public class SupplementalRICoverageAnalysis {
     private final boolean validateCoverages;
 
     /**
-     * Constructor for creating an instance of {@link SupplementalRICoverageAnalysis}
-     * @param allocatorFactory An instance of {@link RICoverageAllocatorFactory} to create allocator
+     * Constructor for creating an instance of {@link SupplementalRICoverageAnalysis}.
+     * @param allocatorFactory An instance of {@link CoverageAllocatorFactory} to create allocator
      *                         instances
      * @param coverageTopology The {@link CoverageTopology} to pass through to the
      *                         {@link ReservedInstanceCoverageAllocator}
@@ -248,7 +248,7 @@ public class SupplementalRICoverageAnalysis {
      *                          validation should be enabled.
      */
     public SupplementalRICoverageAnalysis(
-            @Nonnull RICoverageAllocatorFactory allocatorFactory,
+            @Nonnull CoverageAllocatorFactory allocatorFactory,
             @Nonnull CoverageTopology coverageTopology,
             @Nonnull List<EntityRICoverageUpload> entityRICoverageUploads,
             boolean allocatorConcurrentProcessing,
@@ -276,7 +276,7 @@ public class SupplementalRICoverageAnalysis {
         try {
             final ReservedInstanceCoverageProvider coverageProvider = createCoverageProvider();
             final ReservedInstanceCoverageAllocator coverageAllocator = allocatorFactory.createAllocator(
-                    ImmutableRICoverageAllocatorConfig.builder()
+                    CoverageAllocationConfig.builder()
                             .coverageProvider(coverageProvider)
                             .coverageTopology(coverageTopology)
                             .metricsProvider(createMetricsProvider())
@@ -361,12 +361,12 @@ public class SupplementalRICoverageAnalysis {
                         // Either re-use a previously existing EntityRICoverageUpload, if one exists
                         // or create a new one
                         final EntityRICoverageUpload.Builder coverageUploadBuilder =
-                                coverageUpload == null ?
-                                        EntityRICoverageUpload.newBuilder()
+                                coverageUpload == null
+                                        ? EntityRICoverageUpload.newBuilder()
                                                 .setEntityId(entityOid)
                                                 .setTotalCouponsRequired(
-                                                        coverageTopology.getRICoverageCapacityForEntity(entityOid)) :
-                                        coverageUpload.toBuilder();
+                                                        coverageTopology.getCoverageCapacityForEntity(entityOid))
+                                        : coverageUpload.toBuilder();
                         // Add each coverage entry, setting the source appropriately
                         riCoverageMap.entrySet()
                                 .forEach(riEntry ->

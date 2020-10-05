@@ -98,7 +98,7 @@ public class QueryInfoFactoryTest {
                 Set<Long> oids = new HashSet<>(
                     (Collection<Long>)(invocationOnMock.getArguments()[0]));
                 return new InvolvedEntitiesFilter(
-                    oids, InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+                    oids, InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
             }
         );
     }
@@ -213,7 +213,6 @@ public class QueryInfoFactoryTest {
         long belowARMEntityId = 1L;
         long notBelowARMEntityId = 2L;
 
-        when(involvedEntitiesExpander.isARMEntityType(EntityType.SERVICE_VALUE)).thenReturn(true);
         when(involvedEntitiesExpander.isBelowARMEntityType(belowARMEntityId,
                 Collections.singleton(EntityType.SERVICE_VALUE))).thenReturn(true);
         when(involvedEntitiesExpander.isBelowARMEntityType(notBelowARMEntityId,
@@ -244,7 +243,7 @@ public class QueryInfoFactoryTest {
     /**
      * Test that we correctly form entity predicate for action stats query with action type
      * {@link ActionType#BUY_RI}. It includes selecting correct
-     * {@link InvolvedEntityCalculation#INCLUDE_ALL_INVOLVED_ENTITIES} for calculating entities
+     * {@link InvolvedEntityCalculation#INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES} for calculating entities
      * involved in buy_Ri action, because otherwise we return empty list of involved entities for
      * Buy_RI actions.
      */
@@ -281,7 +280,7 @@ public class QueryInfoFactoryTest {
                         .setType(EntityType.REGION.getNumber())
                         .setEnvironmentType(EnvironmentType.CLOUD)
                         .build()));
-        Assert.assertEquals(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES,
+        Assert.assertEquals(InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES,
                 queryInfo.involvedEntityCalculation());
     }
 

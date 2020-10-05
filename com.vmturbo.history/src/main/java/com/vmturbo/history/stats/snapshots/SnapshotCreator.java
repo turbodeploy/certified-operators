@@ -32,6 +32,7 @@ import com.vmturbo.history.schema.abstraction.tables.HistUtilization;
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
 import com.vmturbo.history.stats.HistoryUtilizationType;
 import com.vmturbo.history.stats.StatsConfig;
+import com.vmturbo.history.stats.snapshots.ProducerIdVisitor.ProducerIdPopulator;
 
 /**
  * {@link SnapshotCreator} creates one {@link StatSnapshot.Builder} instance from timestamp and
@@ -47,11 +48,10 @@ public class SnapshotCreator
      *
      * @param fullMarket whether we want to get stat record about full market or
      *                 not.
-     * @param longProducerIdPopulator populator for producer identifier,
-     *                 doing set only in case value have not been initialized
+     * @param longProducerIdPopulator populator for producer identifier
      */
     public SnapshotCreator(boolean fullMarket,
-                    @Nonnull SharedPropertyPopulator<Long> longProducerIdPopulator) {
+                    @Nonnull ProducerIdPopulator longProducerIdPopulator) {
         final Collection<RecordVisitor<?>> statsVisitors =
                 createRequestStatsVisitors(fullMarket, longProducerIdPopulator);
         final Multimap<Class<? extends Record>, RecordVisitor<?>> specialVisitors =
@@ -60,7 +60,7 @@ public class SnapshotCreator
     }
 
     private static Collection<RecordVisitor<?>> createRequestStatsVisitors(boolean fullMarket,
-            @Nonnull SharedPropertyPopulator<Long> producerIdPopulator) {
+            @Nonnull ProducerIdPopulator producerIdPopulator) {
         final ImmutableCollection.Builder<RecordVisitor<?>> builder = ImmutableList.builder();
         builder.add(new UsageRecordVisitor(fullMarket, StatsConfig.USAGE_POPULATOR),
                         new PropertyTypeVisitor<>(fullMarket, StringConstants.PROPERTY_TYPE,
@@ -77,7 +77,7 @@ public class SnapshotCreator
     }
 
     private static Multimap<Class<? extends Record>, RecordVisitor<?>> createRequestSpecialVisitors(
-            boolean fullMarket, @Nonnull SharedPropertyPopulator<Long> producerIdPopulator) {
+            boolean fullMarket, @Nonnull ProducerIdPopulator producerIdPopulator) {
         final ImmutableMultimap.Builder<Class<? extends Record>, RecordVisitor<?>> builder =
                         ImmutableMultimap.builder();
         builder.putAll(HistUtilizationRecord.class, Arrays.stream(HistoryUtilizationType.values())

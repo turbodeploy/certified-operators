@@ -41,11 +41,15 @@ import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintTy
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Active;
@@ -61,7 +65,6 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -170,6 +173,34 @@ public class ActionOrchestratorTestUtils {
     public static ActionDTO.Action createResizeRecommendation(final long actionId,
                                                               @Nonnull final CommodityDTO.CommodityType resizeCommodity) {
         return createResizeRecommendation(actionId, TARGET_ID, resizeCommodity, 1.0, 2.0);
+    }
+
+    /**
+     * Create a provision recommendation.
+     *
+     * @param actionId the action ID
+     * @param targetId the target ID
+     * @param entityType the entity type
+     * @return a provision recommendation
+     */
+    @Nonnull
+    public static ActionDTO.Action createProvisionRecommendation(final long actionId,
+                                                                 final long targetId,
+                                                                 final int entityType) {
+        return baseAction(actionId)
+                .setInfo(ActionInfo.newBuilder()
+                        .setProvision(Provision.newBuilder()
+                                .setEntityToClone(ActionEntity.newBuilder()
+                                        .setId(targetId)
+                                        .setType(entityType))
+                                .setProvisionIndex(0)))
+                .setExplanation(Explanation.newBuilder()
+                        .setProvision(ProvisionExplanation.newBuilder()
+                                .setProvisionBySupplyExplanation(ProvisionBySupplyExplanation.newBuilder()
+                                        .setMostExpensiveCommodityInfo(ActionOrchestratorTestUtils
+                                                .createReasonCommodity(CommodityDTO.CommodityType
+                                                        .RESPONSE_TIME_VALUE, null)))))
+                .build();
     }
 
     public static void assertActionsEqual(@Nonnull final Action expected,
@@ -294,11 +325,21 @@ public class ActionOrchestratorTestUtils {
     }
 
     public static ActionEntity createActionEntity(long id) {
+        return createActionEntity(id, DEFAULT_ENTITY_TYPE);
+    }
+
+    /**
+     * Create an action entity.
+     *
+     * @param id the ID of the action
+     * @param entityType the entity type of the action
+     * @return the action entity
+     */
+    public static ActionEntity createActionEntity(long id, int entityType) {
         return ActionEntity.newBuilder()
-                    .setId(id)
-                     // set some fake type for now
-                    .setType(DEFAULT_ENTITY_TYPE)
-                    .build();
+                .setId(id)
+                .setType(entityType)
+                .build();
     }
 
     public static Explanation.ReasonCommodity createReasonCommodity(int baseType, String key) {

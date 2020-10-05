@@ -7,6 +7,8 @@ import java.util.function.Consumer;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.search.metadata.SearchEntityMetadata;
+import com.vmturbo.search.metadata.SearchGroupMetadata;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
 /**
@@ -34,6 +36,19 @@ public interface ITopologyWriter {
     Consumer<TopologyEntityDTO> startTopology(
             TopologyInfo topologyInfo, WriterConfig writerConfig, MultiStageTimer timer)
             throws IOException, UnsupportedDialectException, SQLException, InterruptedException;
+
+    /**
+     * Whether or not we need the supply chain for all entities in the topology. This is needed
+     * for performance improvement. If search is enabled but reporting is not, which is usually
+     * the case for large customers, we only need to calculate supply chain for those entities
+     * defined in {@link SearchEntityMetadata} and {@link SearchGroupMetadata}, not all entities
+     * in the topology.
+     *
+     * @return false by default; true if the writer (like reporting) requires all
+     */
+    default boolean requireSupplyChainForAllEntities() {
+        return false;
+    }
 
     /**
      * Perform any final processing required after the whole topology has been processed.

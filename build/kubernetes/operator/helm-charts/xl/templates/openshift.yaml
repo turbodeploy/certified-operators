@@ -2,6 +2,24 @@
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
+  name: ui
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  to:
+    kind: Service
+    name: ui
+  port:
+    targetPort: http-ui
+  tls:
+    insecureEdgeTerminationPolicy: Redirect
+    termination: edge
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
   name: api
   labels:
     app.kubernetes.io/name: {{ .Chart.Name }}

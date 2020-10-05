@@ -121,7 +121,7 @@ public class LiveActionsTest {
                 Set<Long> oids = new HashSet<>(
                     (Collection<Long>)(invocationOnMock.getArguments()[0]));
                 return new InvolvedEntitiesFilter(
-                    oids, InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+                    oids, InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES);
             }
         );
     }
@@ -844,12 +844,14 @@ public class LiveActionsTest {
                 ActionOrchestratorTestUtils.createMoveRecommendation(1, 0, 1, 0, 2, 0),
                 1);
         final Action move13Action = ActionOrchestratorTestUtils.actionFromRecommendation(
-                ActionOrchestratorTestUtils.createMoveRecommendation(2, 0, 1, 0, 3, 0),
+                ActionOrchestratorTestUtils.createMoveRecommendation(2, 0, 1,
+                    ApiEntityType.COMPUTE_TIER.typeNumber(), 3,
+                    ApiEntityType.COMPUTE_TIER.typeNumber()),
                 1);
         liveActions.replaceMarketActions(Stream.of(move12Action, move13Action));
 
-        Map<String, OidSet> cloudStaticOidSet = ImmutableMap.of(ApiEntityType.COMPUTE_TIER.apiStr(),
-                new ArrayOidSet(Arrays.asList(0L, 1L, 3L)));
+        Map<Integer, OidSet> cloudStaticOidSet = ImmutableMap.of(ApiEntityType.COMPUTE_TIER.typeNumber(),
+                new ArrayOidSet(Arrays.asList(1L, 3L)));
         // verify that a user with access to entities 0,1 and 2 can fetch move12  but not move13
         when(userSessionContext.isUserScoped()).thenReturn(true);
         when(userSessionContext.getUserAccessScope()).thenReturn(new EntityAccessScope(null, null,

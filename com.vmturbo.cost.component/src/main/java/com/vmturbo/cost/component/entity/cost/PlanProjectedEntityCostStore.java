@@ -10,10 +10,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.Iterators;
 
@@ -25,14 +23,13 @@ import org.jooq.InsertValuesStep3;
 import org.jooq.Record1;
 import org.jooq.Result;
 import org.jooq.impl.DSL;
+import org.jooq.impl.TableImpl;
 
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.components.common.diagnostics.DiagsRestorable;
+import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityCostRecord;
 import com.vmturbo.cost.component.util.EntityCostFilter;
@@ -40,7 +37,8 @@ import com.vmturbo.cost.component.util.EntityCostFilter;
 /**
  * Storage for plan projected per-entity costs.
  */
-public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostStore implements DiagsRestorable<Void> {
+public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostStore implements
+        TableDiagsRestorable<Void, PlanProjectedEntityCostRecord> {
 
     private static final  Logger logger = LogManager.getLogger();
 
@@ -214,24 +212,13 @@ public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostSto
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags, @Nullable Void context) throws DiagnosticsException {
-        // TODO to be implemented as part of OM-58627
+    public DSLContext getDSLContext() {
+        return dslContext;
     }
 
     @Override
-    public void collectDiags(@Nonnull final DiagnosticsAppender appender) throws DiagnosticsException {
-        dslContext.transaction(transactionContext -> {
-            final DSLContext transaction = DSL.using(transactionContext);
-            Stream<PlanProjectedEntityCostRecord> latestRecords = transaction.selectFrom(Tables.PLAN_PROJECTED_ENTITY_COST).stream();
-            latestRecords.forEach(s -> {
-                try {
-                    appender.appendString(s.formatJSON());
-                } catch (DiagnosticsException e) {
-                    logger.error("Exception encountered while appending plan projected entity cost records" +
-                            " to the diags dump", e);
-                }
-            });
-        });
+    public TableImpl<PlanProjectedEntityCostRecord> getTable() {
+        return Tables.PLAN_PROJECTED_ENTITY_COST;
     }
 
     @Nonnull

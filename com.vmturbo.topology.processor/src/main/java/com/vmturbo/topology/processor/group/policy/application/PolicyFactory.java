@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
+import static com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory.DEFAULT_MINIMAL_SCAN_STOP_THRESHOLD;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -42,11 +44,13 @@ public class PolicyFactory {
             @Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
         switch (policyType) {
             case AT_MOST_N:
-                return new AtMostNPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
+                return new AtMostNPolicyApplication(groupResolver, topologyGraph,
+                    invertedIndexFactory, DEFAULT_MINIMAL_SCAN_STOP_THRESHOLD);
             case AT_MOST_NBOUND:
                 return new AtMostNBoundPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
             case BIND_TO_COMPLEMENTARY_GROUP:
-                return new BindToComplementaryGroupPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
+                return new BindToComplementaryGroupPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory,
+                    DEFAULT_MINIMAL_SCAN_STOP_THRESHOLD);
             case BIND_TO_GROUP:
                 return new BindToGroupPolicyApplication(groupResolver, topologyGraph, invertedIndexFactory);
             case MERGE:

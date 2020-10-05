@@ -143,14 +143,14 @@ public class ScopeManager {
      */
     public void addScope(long entityOid, long... scopedOids) {
         final int entityIid = entityIdManager.toIid(entityOid);
-        IntSet scopeSet = currentScope.computeIfAbsent(entityIid, IntOpenHashSet::new);
+        IntSet scopeSet = currentScope.computeIfAbsent(entityIid, _iid -> new IntOpenHashSet());
         for (final long scopedIid : scopedOids) {
             scopeSet.add(entityIdManager.toIid(scopedIid));
         }
     }
 
     private void addScope(Int2ObjectMap<IntSet> scopeMap, int entityIid, int scopedIid) {
-        scopeMap.computeIfAbsent(entityIid, IntOpenHashSet::new).add(scopedIid);
+        scopeMap.computeIfAbsent(entityIid, _iid -> new IntOpenHashSet()).add(scopedIid);
     }
 
     /**

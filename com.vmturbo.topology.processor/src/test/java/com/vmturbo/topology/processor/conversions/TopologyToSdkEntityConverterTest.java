@@ -38,6 +38,9 @@ import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
+/**
+ * Verifies TopologyToSdkEntityConverter.
+ */
 public class TopologyToSdkEntityConverterTest {
 
     private TargetStore targetStore = Mockito.mock(TargetStore.class);
@@ -50,7 +53,7 @@ public class TopologyToSdkEntityConverterTest {
         sender, Clock.systemUTC()));
 
     /**
-     * The class under test
+     * The class under test.
      */
     private TopologyToSdkEntityConverter topologyToSdkEntityConverter =
         new TopologyToSdkEntityConverter(entityStore, targetStore, Mockito.mock(GroupScopeResolver.class));
@@ -65,11 +68,6 @@ public class TopologyToSdkEntityConverterTest {
         final long oid = 93995728L;
         final String displayName = "testVM";
         final EntityType entityType = EntityType.VIRTUAL_MACHINE;
-        TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
-                .setEntityType(entityType.getNumber())
-                .setDisplayName(displayName)
-                .setOid(oid)
-                .build();
 
         // Set the mocks
         Entity matchingEntity = new Entity(oid, entityType);
@@ -87,6 +85,11 @@ public class TopologyToSdkEntityConverterTest {
         mockTarget(targetId, SDKProbeType.VMM, "aaa");
 
         // Perform the conversion (this is the method under test)
+        TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
+            .setEntityType(entityType.getNumber())
+            .setDisplayName(displayName)
+            .setOid(oid)
+            .build();
         EntityDTO entityDTO = topologyToSdkEntityConverter.convertToEntityDTO(topologyEntityDTO);
 
         // Check the output data is correct
@@ -94,6 +97,7 @@ public class TopologyToSdkEntityConverterTest {
         Assert.assertEquals(entityType, entityDTO.getEntityType());
         // ID gets set to a probe-meaningful UUID during conversion
         Assert.assertEquals(uuid, entityDTO.getId());
+        Assert.assertEquals(93995728L, entityDTO.getTurbonomicInternalId());
     }
 
 
@@ -109,18 +113,6 @@ public class TopologyToSdkEntityConverterTest {
         final EntityType entityType = EntityType.VIRTUAL_MACHINE;
         final String key1 = "key1";
         final boolean isResizeable = false;
-        TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
-                .setEntityType(entityType.getNumber())
-                .setDisplayName(displayName)
-                .setOid(oid)
-                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                        .setCommodityType(CommodityType.newBuilder()
-                                .setKey(key1)
-                                .setType(1)
-                                .build())
-                        .setIsResizeable(isResizeable)
-                        .build())
-                .build();
 
         // Set the mocks
         Entity matchingEntity = new Entity(oid, entityType);
@@ -138,6 +130,18 @@ public class TopologyToSdkEntityConverterTest {
         mockTarget(targetId, SDKProbeType.VMM, "aaa");
 
         // Perform the conversion (this is the method under test)
+        TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
+            .setEntityType(entityType.getNumber())
+            .setDisplayName(displayName)
+            .setOid(oid)
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                    .setKey(key1)
+                    .setType(1)
+                    .build())
+                .setIsResizeable(isResizeable)
+                .build())
+            .build();
         EntityDTO entityDTO = topologyToSdkEntityConverter.convertToEntityDTO(topologyEntityDTO);
 
         // Check the output data is correct

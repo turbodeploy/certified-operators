@@ -30,6 +30,7 @@ import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
+import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
@@ -37,7 +38,6 @@ import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
-import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore;
 import com.vmturbo.cost.component.pricing.PriceTableMerge.PriceTableMergeFactory;
 import com.vmturbo.cost.component.pricing.PriceTableStore.PriceTables;
@@ -100,7 +100,7 @@ public class SQLPriceTableStoreTest {
 
         dsl = dbConfig.getDslContext();
         store = new SQLPriceTableStore(clock, dsl, new PriceTableKeyIdentityStore(dsl,
-                new IdentityProvider(0)), mergeFactory);
+                new DefaultIdentityProvider(0)), mergeFactory);
 
         when(merge.merge(any())).thenReturn(MERGED_PRICE_TABLE);
         when(merge.mergeRi(any())).thenReturn(MERGED_RI_PRICE_TABLE);

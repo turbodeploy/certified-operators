@@ -283,9 +283,9 @@ public class ReservationManager implements ReservationDeletedListener {
                         + " of reservation: " + updatedReservation.getId());
             } else {
                 reservationInstance
-                        .addAllFailureInfo(
+                        .addAllUnplacedReason(
                                 initialPlacementBuyerPlacementInfo.getInitialPlacementFailure()
-                                        .getFailureInfoList());
+                                        .getUnplacedReasonList());
                 logger.info(logPrefix + "entity: " + reservationInstance.getEntityId()
                         + " of reservation: " + updatedReservation.getId() + " failed to get placed.");
             }
@@ -668,8 +668,7 @@ public class ReservationManager implements ReservationDeletedListener {
             for (ReservationInstance reservationInstance : reservationInstances) {
                 // if atleast one reservation instance has failure info then the
                 // reservation is PLACEMENT_FAILED.
-                if (reservationInstance.getFailureInfoList() != null
-                        && reservationInstance.getFailureInfoList().size() != 0) {
+                if (!reservationInstance.getUnplacedReasonList().isEmpty()) {
                     return ReservationStatus.PLACEMENT_FAILED;
                 }
                 // if at least one reservation instance has placement info then the reservation is valid.

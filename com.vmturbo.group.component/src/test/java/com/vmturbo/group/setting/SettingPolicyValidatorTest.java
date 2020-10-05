@@ -274,7 +274,7 @@ public class SettingPolicyValidatorTest {
 
         expectedException.expect(InvalidItemException.class);
         expectedException.expectMessage(
-                "Invalid setting policy: " + settingPolicyName + System.lineSeparator()
+                "Invalid Policy Setting: " + settingPolicyName + System.lineSeparator()
                         + "There is no corresponding ActionMode setting for current schedule setting "
                         + settingSpecName);
         when(specStore.getSettingSpec(eq(settingSpecName))).thenReturn(Optional.of(
@@ -521,8 +521,9 @@ public class SettingPolicyValidatorTest {
     @Test
     public void testSettingPolicySetOfOidMismatchedTypes() throws InvalidItemException {
         expectedException.expect(InvalidItemException.class);
-        expectedException.expectMessage("Invalid setting policy: SettingPolicy" +
-            System.lineSeparator() + "Mismatched value. Got BOOLEAN_SETTING_VALUE and expected SORTED_SET_OF_OID_SETTING_VALUE");
+        expectedException.expectMessage("Invalid Policy Setting: SettingPolicy"
+            + System.lineSeparator() + "Mismatched value. Got BOOLEAN_SETTING_VALUE and expected "
+            + "SORTED_SET_OF_OID_SETTING_VALUE");
 
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
             .setSortedSetOfOidSettingValueType(SortedSetOfOidSettingValueType.getDefaultInstance())
@@ -595,8 +596,8 @@ public class SettingPolicyValidatorTest {
     @Test
     public void testSettingPolicyUnorderedSetOfOid() throws InvalidItemException {
         expectedException.expect(InvalidItemException.class);
-        expectedException.expectMessage("Invalid setting policy: SettingPolicy" +
-            System.lineSeparator() + "Value [3, 1, 2, 4] is not strictly ordered.");
+        expectedException.expectMessage("Invalid Policy Setting: SettingPolicy"
+            + System.lineSeparator() + "Value [3, 1, 2, 4] is not strictly ordered.");
 
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
             .setSortedSetOfOidSettingValueType(SortedSetOfOidSettingValueType.getDefaultInstance())
@@ -616,8 +617,8 @@ public class SettingPolicyValidatorTest {
     @Test
     public void testSettingPolicyNotStrictlyOrderedSetOfOid() throws InvalidItemException {
         expectedException.expect(InvalidItemException.class);
-        expectedException.expectMessage("Invalid setting policy: SettingPolicy" +
-            System.lineSeparator() + "Value [1, 2, 2, 3] is not strictly ordered.");
+        expectedException.expectMessage("Invalid Policy Setting: SettingPolicy"
+            + System.lineSeparator() + "Value [1, 2, 2, 3] is not strictly ordered.");
 
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
             .setSortedSetOfOidSettingValueType(SortedSetOfOidSettingValueType.getDefaultInstance())

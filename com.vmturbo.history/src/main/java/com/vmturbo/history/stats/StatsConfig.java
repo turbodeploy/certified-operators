@@ -124,35 +124,35 @@ public class StatsConfig {
     @Autowired
     private PlanOrchestratorClientConfig planOrchestratorClientConfig;
 
-    @Value("${retention.numRetainedMinutes}")
+    @Value("${retention.numRetainedMinutes:130}")
     private int numRetainedMinutes;
 
-    @Value("${retention.updateRetentionIntervalSeconds}")
+    @Value("${retention.updateRetentionIntervalSeconds:10}")
     private int updateRetentionIntervalSeconds;
 
-    @Value("${latestTableTimeWindowMin}")
+    @Value("${latestTableTimeWindowMin:15}")
     private int latestTableTimeWindowMin;
 
     @Value("${realtimeTopologyContextId}")
     public long realtimeTopologyContextId;
 
-    @Value("${historyPaginationDefaultLimit}")
+    @Value("${historyPaginationDefaultLimit:100}")
     private int historyPaginationDefaultLimit;
 
-    @Value("${historyPaginationMaxLimit}")
+    @Value("${historyPaginationMaxLimit:500}")
     private int historyPaginationMaxLimit;
 
-    @Value("${historyPaginationDefaultSortCommodity}")
+    @Value("${historyPaginationDefaultSortCommodity:priceIndex}")
     private String historyPaginationDefaultSortCommodity;
 
     @Value("${maxAmountOfEntitiesPerGrpcMessage:200}")
     private int maxAmountOfEntitiesPerGrpcMessage;
 
-    @Value("${systemLoadRecordsPerChunk}")
+    @Value("${systemLoadRecordsPerChunk:500}")
     private int systemLoadRecordsPerChunk;
-    @Value("${timeToWaitNetworkReadinessMs}")
+    @Value("${timeToWaitNetworkReadinessMs:10}")
     private int timeToWaitNetworkReadinessMs;
-    @Value("${grpcReadingTimeoutMs}")
+    @Value("${grpcReadingTimeoutMs:300000}")
     private long grpcReadingTimeoutMs;
     @Value("${history.entitiesReadPerChunk:5000}")
     private int entitiesReadPerChunk;

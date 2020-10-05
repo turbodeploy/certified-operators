@@ -25,8 +25,8 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
 
 /**
  * An in-memory graph built from supply chain queries used for traversal in order to compute the actual
@@ -201,7 +201,7 @@ public class SupplyChainSubgraph {
                 visitedEntityTypesInThisDepth.add(vertex.getEntityType());
 
                 nodeBuilder.setSupplyChainDepth(currentDepth);
-                nodeBuilder.setEntityType(vertex.getEntityType());
+                nodeBuilder.setEntityType(ApiEntityType.fromString(vertex.getEntityType()).typeNumber());
                 nodeBuilder.addMember(vertex.getOid(), vertex.getState());
             }
         }
@@ -450,13 +450,18 @@ public class SupplyChainSubgraph {
 
         private int supplyChainDepth;
 
-        private String entityType;
+        private Integer entityType;
 
         public void setSupplyChainDepth(final int supplyChainDepth) {
             this.supplyChainDepth = supplyChainDepth;
         }
 
-        public void setEntityType(@Nullable final String entityType) {
+        /**
+         * Set the entity type.
+         *
+         * @param entityType The entity type.
+         */
+        public void setEntityType(@Nullable final Integer entityType) {
             if (entityType != null) {
                 this.entityType = entityType;
             }
@@ -494,8 +499,12 @@ public class SupplyChainSubgraph {
                     }
                 });
             });
-            protoNodeBuilder.addAllConnectedProviderTypes(connectedProviderTypes);
-            protoNodeBuilder.addAllConnectedConsumerTypes(connectedConsumerTypes);
+            connectedConsumerTypes.forEach(type -> {
+                protoNodeBuilder.addConnectedConsumerTypes(ApiEntityType.fromString(type).typeNumber());
+            });
+            connectedProviderTypes.forEach(type -> {
+                protoNodeBuilder.addConnectedProviderTypes(ApiEntityType.fromString(type).typeNumber());
+            });
             return protoNodeBuilder.build();
         }
     }

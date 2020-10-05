@@ -298,6 +298,38 @@ public class RecommendationIdentityServiceImplTest {
         Assert.assertThat(update6, Matchers.hasSize(1));
         Assert.assertNotEquals(update6.get(0), update1.get(0));
         Assert.assertNotEquals(update6.get(0), update3.get(0));
+
+        final ActionInfo atomicResize7 = ActionInfo.newBuilder()
+                .setAtomicResize(AtomicResize.newBuilder()
+                        .setExecutionTarget(wc1)
+                        .addResizes(createResizeInfo(200120012001L, 100))
+                        .addResizes(createResizeInfo(200120012001L, 101))
+                        .addResizes(createResizeInfo(200220022002L, 100))
+                        .addResizes(createResizeInfo(200220022002L, 101))
+                        .addResizes(createResizeInfo(200320032003L, 100))
+                        .addResizes(createResizeInfo(200320032003L, 101))
+                        .addResizes(createResizeInfo(200420042004L, 100))
+                        .addResizes(createResizeInfo(200420042004L, 101))
+                        .addResizes(createResizeInfo(200520052005L, 100))
+                        .addResizes(createResizeInfo(200520052005L, 101))
+                )
+                .build();
+
+        final List<Long> update7
+                = identityService.getOidsForObjects(Collections.singletonList(atomicResize7));
+        Assert.assertThat(update7, Matchers.hasSize(1));
+    }
+
+    private ResizeInfo.Builder createResizeInfo(long id, int commType) {
+        ActionEntity ae = ActionEntity.newBuilder()
+                .setId(id)
+                .setType(15)
+                .build();
+        return ResizeInfo.newBuilder()
+                .setTarget(ae)
+                .setCommodityType(CommodityType.newBuilder().setType(commType))
+                .setCommodityAttribute(CommodityAttribute.CAPACITY)
+                .setOldCapacity(124).setNewCapacity(456);
     }
 
     /**

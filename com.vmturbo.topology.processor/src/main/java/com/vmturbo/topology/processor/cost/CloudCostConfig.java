@@ -31,10 +31,10 @@ public class CloudCostConfig {
     @Autowired
     private ClockConfig clockConfig;
 
-    @Value("${minimumAccountExpensesUploadIntervalMins}")
+    @Value("${minimumAccountExpensesUploadIntervalMins:60}")
     private int minimumAccountExpensesUploadIntervalMins;
 
-    @Value("${minimumRIDataUploadIntervalMins}")
+    @Value("${minimumRIDataUploadIntervalMins:5}")
     private int minimumRIDataUploadIntervalMins;
 
     @Value("${riSpecPriceChunkSize:10000}")

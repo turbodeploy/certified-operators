@@ -98,22 +98,22 @@ public class ServiceConfig {
      */
     public static final String REPORT_CGI_PATH = "/cgi-bin/vmtreport.cgi";
 
-    @Value("${targetValidationTimeoutSeconds}")
+    @Value("${targetValidationTimeoutSeconds:120}")
     private Long targetValidationTimeoutSeconds;
 
-    @Value("${targetValidationPollIntervalSeconds}")
+    @Value("${targetValidationPollIntervalSeconds:2}")
     private Long targetValidationPollIntervalSeconds;
 
-    @Value("${targetDiscoveryTimeoutSeconds}")
+    @Value("${targetDiscoveryTimeoutSeconds:120}")
     private Long targetDiscoveryTimeoutSeconds;
 
-    @Value("${targetDiscoveryPollIntervalSeconds}")
+    @Value("${targetDiscoveryPollIntervalSeconds:2}")
     private Long targetDiscoveryPollIntervalSeconds;
 
-    @Value("${initialPlacementTimeoutSeconds}")
+    @Value("${initialPlacementTimeoutSeconds:600}")
     private  Long initialPlacementTimeoutSeconds;
 
-    @Value("${liveStatsRetrievalWindowSeconds}")
+    @Value("${liveStatsRetrievalWindowSeconds:60}")
     private long liveStatsRetrievalWindowSeconds;
 
     @Value("${samlEnabled:false}")
@@ -125,10 +125,10 @@ public class ServiceConfig {
     @Value("${externalGroupTag:group}")
     private String externalGroupTag;
 
-    @Value("${cpuInfoCacheLifetimeHours}")
+    @Value("${cpuInfoCacheLifetimeHours:8}")
     private int cpuCatalogLifeHours;
 
-    @Value("${sessionTimeoutSeconds}")
+    @Value("${sessionTimeoutSeconds:1800}")
     private int sessionTimeoutSeconds;
 
     @Value("${componentType:api}")

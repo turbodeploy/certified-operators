@@ -213,7 +213,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Value("${serverGrpcPort}")
     private int grpcPort;
 
-    @Value("${connRetryIntervalSeconds}")
+    @Value("${connRetryIntervalSeconds:10}")
     private String connRetryIntervalSeconds;
 
     // the max message size (in bytes) that the GRPC server for this component will accept. Default

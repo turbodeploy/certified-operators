@@ -163,7 +163,6 @@
         "heapUtilization",
         "collectionTimeUtilization",
         "RATE_OF_RESIZE",
-        "containerRateOfResize",
         "percentileAggressivenessBusinessUser",
         "percentileAggressivenessContainerSpec",
         "percentileAggressivenessVirtualMachine",
