@@ -10,6 +10,7 @@ import com.vmturbo.cloud.commitment.analysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cost.CostDebugREST.CostDebugServiceController;
 import com.vmturbo.common.protobuf.trax.TraxREST.TraxConfigurationServiceController;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisStoreConfig;
+import com.vmturbo.cost.component.cca.LocalCloudCommitmentAnalysisConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.BuyRIImpactReportGenerator;
@@ -32,6 +33,7 @@ import com.vmturbo.trax.rpc.TraxConfigurationRpcService;
         EntityCostConfig.class,
         CloudCommitmentAnalysisStoreConfig.class,
         CloudCommitmentAnalysisConfig.class,
+        LocalCloudCommitmentAnalysisConfig.class
 })
 public class CostDebugConfig {
 

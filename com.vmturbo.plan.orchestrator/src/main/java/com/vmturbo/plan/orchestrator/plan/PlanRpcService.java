@@ -52,6 +52,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
@@ -92,6 +93,8 @@ public class PlanRpcService extends PlanServiceImplBase {
 
     private final PlanReservedInstanceServiceBlockingStub planRIService;
 
+    private final SupplyChainServiceBlockingStub supplyChainService;
+
     private Long realtimeTopologyContextId;
 
     private final ApplicationContext applicationContext;
@@ -107,6 +110,7 @@ public class PlanRpcService extends PlanServiceImplBase {
                           @Nonnull final RepositoryServiceBlockingStub repositoryServiceClient,
                           @Nonnull final PlanReservedInstanceServiceBlockingStub planRIService,
                           @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtService,
+                          @Nonnull final SupplyChainServiceBlockingStub supplyChainService,
                           final long startAnalysisRetryTimeout,
                           @Nonnull final TimeUnit startAnalysisRetryTimeUnit,
                           final Long realtimeTopologyContextId) {
@@ -121,6 +125,7 @@ public class PlanRpcService extends PlanServiceImplBase {
         this.repositoryServiceClient = Objects.requireNonNull(repositoryServiceClient);
         this.planRIService = planRIService;
         this.reservedInstanceBoughtService = reservedInstanceBoughtService;
+        this.supplyChainService = supplyChainService;
         this.startAnalysisRetryMs = startAnalysisRetryTimeUnit.toMillis(startAnalysisRetryTimeout);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
@@ -135,8 +140,8 @@ public class PlanRpcService extends PlanServiceImplBase {
             // save the user selected RI/Coupons included in the plan.
             PlanReservedInstanceClient planRIClient = new PlanReservedInstanceClient(
                          planRIService, reservedInstanceBoughtService, realtimeTopologyContextId);
-            planRIClient.savePlanIncludedCoupons(plan, PlanRpcServiceUtil.getScopeSeedIds(plan,
-                    this.groupServiceClient, this.repositoryServiceClient));
+            planRIClient.savePlanIncludedCoupons(plan, PlanRpcServiceUtil.getRIRequestScopeSeedIds(plan,
+                    this.groupServiceClient, this.repositoryServiceClient, this.supplyChainService));
             logger.info("Plan {} successfully created", plan.getPlanId());
         } catch (IntegrityException e) {
             logger.warn("Error creating a plan " + request, e);

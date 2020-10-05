@@ -1,9 +1,11 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.api.component.external.api.service.GroupsService.USER_GROUPS;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -317,11 +319,7 @@ public class GroupsServiceTest {
                                 .setStringFilter(
                                         StringFilter.newBuilder()
                                                 .setStringPropertyRegex(
-                                                        StringConstants.DISPLAY_NAME_ATTR))
-
-                                )
-                                .build()
-                                );
+                                                        StringConstants.DISPLAY_NAME_ATTR))).build());
 
         // Act
         List<FilterApiDTO> filterList = Lists.newArrayList(groupFilterApiDTO);
@@ -377,6 +375,103 @@ public class GroupsServiceTest {
         assertThat(
             groupsRequest.getGroupFilter().getPropertyFilters(0).getStringFilter().getPositiveMatch(),
             is(false));
+    }
+
+    /**
+     * Test getting groups with origin filter given a USER_GROUPS scope.
+     * @throws Exception if generic error
+     */
+    @Test
+    public void testGetGroupsWithUserGroupScopes() throws Exception {
+        // Arrange
+        when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
+                eq(LogicalOperator.AND),
+                eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
+                    .setGroupType(GroupType.REGULAR).build());
+
+        OriginFilter originFilter =  OriginFilter.newBuilder()
+                .addOrigin(GroupDTO.Origin.Type.USER).build();
+        List<String> scopes = Arrays.asList(USER_GROUPS);
+
+        // Act
+        List<FilterApiDTO> filterList = Collections.emptyList();
+        final GroupDTO.GetGroupsRequest.Builder groupsRequest =
+                groupsService.getGroupsRequestForFilters(GroupType.REGULAR,
+                        filterList, scopes, true, null );
+
+        // Assert
+        assertEquals(groupsRequest.getGroupFilter().getOriginFilter().getOriginCount(), 1);
+        assertEquals(groupsRequest.getGroupFilter().getOriginFilter(), originFilter);
+    }
+
+    /**
+     * Test getting groups with origin filter given a User origin.
+     * @throws Exception if generic error
+     */
+    @Test
+    public void testGetGroupsWithOrigin() throws Exception {
+        // Arrange
+        when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
+                eq(LogicalOperator.AND),
+                eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
+                .setGroupType(GroupType.REGULAR).build());
+
+        OriginFilter userOriginFilter =  OriginFilter.newBuilder()
+                .addOrigin(GroupDTO.Origin.Type.USER).build();
+        OriginFilter discoveredOriginFilter = OriginFilter.newBuilder()
+                .addOrigin(Type.DISCOVERED).build();
+        List<String> scopes = Collections.emptyList();
+
+        // Act
+        List<FilterApiDTO> filterList = Collections.emptyList();
+        final GroupDTO.GetGroupsRequest.Builder groupsRequestForUser =
+                groupsService.getGroupsRequestForFilters(GroupType.REGULAR,
+                        filterList, scopes, true, com.vmturbo.api.enums.Origin.USER);
+        final GroupDTO.GetGroupsRequest.Builder groupsRequestForDiscovered =
+                groupsService.getGroupsRequestForFilters(GroupType.REGULAR,
+                        filterList, scopes, true, com.vmturbo.api.enums.Origin.DISCOVERED);
+
+        // Assert
+        assertEquals(groupsRequestForUser.getGroupFilter().getOriginFilter().getOriginCount(), 1);
+        assertEquals(groupsRequestForUser.getGroupFilter().getOriginFilter(), userOriginFilter);
+        assertNotEquals(groupsRequestForUser.getGroupFilter().getOriginFilter(), discoveredOriginFilter);
+        assertEquals(groupsRequestForDiscovered.getGroupFilter().getOriginFilter().getOriginCount(), 1);
+        assertEquals(groupsRequestForDiscovered.getGroupFilter().getOriginFilter(), discoveredOriginFilter);
+        assertNotEquals(groupsRequestForDiscovered.getGroupFilter().getOriginFilter(), userOriginFilter);
+    }
+
+    /**
+     * Test getting groups with origin filter given a User Group scope and
+     * an origin. Origin prevails against user group.
+     * @throws Exception if generic error
+     */
+
+    @Test
+    public void testGetGroupsWithOriginAndUserGroupScopes() throws Exception {
+        // Arrange
+        when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
+                eq(LogicalOperator.AND),
+                eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
+                .setGroupType(GroupType.REGULAR).build());
+
+        OriginFilter userOriginFilter =  OriginFilter.newBuilder()
+                .addOrigin(GroupDTO.Origin.Type.USER).build();
+        OriginFilter discoveredOriginFilter = OriginFilter.newBuilder()
+                .addOrigin(Type.DISCOVERED).build();
+        List<String> scopes = Arrays.asList(USER_GROUPS);
+
+        // Act
+        List<FilterApiDTO> filterList = Collections.emptyList();
+        final GroupDTO.GetGroupsRequest.Builder groupsRequestForUser =
+                groupsService.getGroupsRequestForFilters(GroupType.REGULAR,
+                        filterList, scopes, true, com.vmturbo.api.enums.Origin.DISCOVERED);
+
+
+        // Assert
+        assertEquals(groupsRequestForUser.getGroupFilter().getOriginFilter().getOriginCount(), 1);
+        assertEquals(groupsRequestForUser.getGroupFilter().getOriginFilter(), discoveredOriginFilter);
+        assertNotEquals(groupsRequestForUser.getGroupFilter().getOriginFilter(), userOriginFilter);
+
     }
 
     @Test
@@ -1321,6 +1416,7 @@ public class GroupsServiceTest {
                 eq(LogicalOperator.AND),
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
                 .setGroupType(GroupType.REGULAR).build());
+
         GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder()
                         .setGroupType(GroupType.REGULAR)
@@ -1332,7 +1428,7 @@ public class GroupsServiceTest {
 
         groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(),
                 new SearchPaginationRequest(null, null, true, null), null, null,
-                Lists.newArrayList(GroupsService.USER_GROUPS), false);
+                Lists.newArrayList(USER_GROUPS), false, null);
 
     }
 
@@ -1386,7 +1482,6 @@ public class GroupsServiceTest {
                     .addMembersByType(StaticMembersByType.newBuilder()
                         .setType(MemberType.newBuilder()
                             .setEntity(EntityType.VIRTUAL_MACHINE_VALUE)))));
-
         when(groupServiceSpy.getGroups(expectedRequest)).thenReturn(
             Arrays.asList(groupOfClusters, groupOfVMs));
         when(groupServiceSpy.getGroups(allGroupsRequestWithNameFilter))
@@ -1394,7 +1489,7 @@ public class GroupsServiceTest {
         // search for group of clusters
         SearchPaginationResponse response = groupsService.getPaginatedGroupApiDTOs(
                 Collections.emptyList(), new SearchPaginationRequest(null, null, true, null),
-                Collections.singleton("Cluster"), null, Lists.newArrayList(GroupsService.USER_GROUPS), false);
+                Collections.singleton("Cluster"), null, Lists.newArrayList(USER_GROUPS), false, null);
 
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
@@ -1404,7 +1499,7 @@ public class GroupsServiceTest {
         // search for group of VMs
         response = groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(),
                 new SearchPaginationRequest(null, null, true, null), Collections.singleton("VirtualMachine"), null,
-                Collections.singletonList(GroupsService.USER_GROUPS), false);
+                Collections.singletonList(USER_GROUPS), false, null);
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
                 .map(Long::valueOf)
@@ -1413,13 +1508,14 @@ public class GroupsServiceTest {
         // search for groups of all group types
         response = groupsService.getPaginatedGroupApiDTOs(Collections.singletonList(nameFilter),
             new SearchPaginationRequest(null, null, true, null),
-            null, null, null, true);
+            null, null, null, true, null);
         assertThat(response.getRestResponse().getBody().stream()
             .map(BaseApiDTO::getUuid)
             .map(Long::valueOf)
             .collect(Collectors.toList()), containsInAnyOrder(groupOfVMs.getId(),
                 groupOfClusters.getId(), clusterOfVMs.getId()));
     }
+
 
     /**
      * Test that getPaginatedGroupApiDTOs works as expected for both groups of entities (group of
@@ -1460,13 +1556,14 @@ public class GroupsServiceTest {
         //WHEN
         SearchPaginationResponse response = groupsService.getPaginatedGroupApiDTOs(
                 Collections.emptyList(), new SearchPaginationRequest(null, null, true, null),
-                groupEntityTypes, null, Lists.newArrayList(GroupsService.USER_GROUPS), false);
+                groupEntityTypes, null, Lists.newArrayList(USER_GROUPS), false, null);
         //THEN
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
                 .map(Long::valueOf)
                 .collect(Collectors.toList()), containsInAnyOrder(groupOfVMs.getId(), groupOfPMs.getId()));
     }
+
 
     /**
      * Test that getPaginatedGroupApiDTOs works as expected for dynamic groups of entities.
@@ -1506,7 +1603,7 @@ public class GroupsServiceTest {
         //WHEN
         SearchPaginationResponse response = groupsService.getPaginatedGroupApiDTOs(
                 Collections.emptyList(), new SearchPaginationRequest(null, null, true, null),
-                groupEntityTypes, null, Lists.newArrayList(GroupsService.USER_GROUPS), false);
+                groupEntityTypes, null, Lists.newArrayList(USER_GROUPS), false, null);
         //THEN
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
@@ -1557,7 +1654,7 @@ public class GroupsServiceTest {
         //WHEN
         SearchPaginationResponse response = groupsService.getPaginatedGroupApiDTOs(
                 Collections.emptyList(), new SearchPaginationRequest(null, null, true, null),
-                groupEntityTypes, null, Lists.newArrayList(GroupsService.USER_GROUPS), false);
+                groupEntityTypes, null, Lists.newArrayList(USER_GROUPS), false, null);
         //THEN
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)

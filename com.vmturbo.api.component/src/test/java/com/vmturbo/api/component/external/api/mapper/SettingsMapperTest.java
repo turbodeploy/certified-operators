@@ -572,7 +572,9 @@ public class SettingsMapperTest {
                 .build(),
             SettingSpec.newBuilder()
                 .setName(enumSetting.getUuid())
-                .setEnumSettingValueType(EnumSettingValueType.getDefaultInstance())
+                .setEnumSettingValueType(EnumSettingValueType.newBuilder()
+                        .addEnumValues("VAL")
+                        .build())
                 .build(),
             SettingSpec.newBuilder()
                 .setName(setOfOidSetting.getUuid())
@@ -643,7 +645,8 @@ public class SettingsMapperTest {
         final ScheduleApiDTO once = makeBasicScheduleDTO();
         settingsPolicyApiDTO.setSchedule(once);
 
-        final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
+        final SettingPolicyInfo info = mapper.convertInputPolicy(
+                settingsPolicyApiDTO, entityType, "test policy");
         assertEquals(settingsPolicyApiDTO.getDisplayName(), info.getName());
         assertEquals(EntityType.VIRTUAL_MACHINE.getNumber(), info.getEntityType());
         assertEquals(true, info.getEnabled());
@@ -673,7 +676,8 @@ public class SettingsMapperTest {
         dailyLastDay.setRecurrence(dailyRec);
         settingsPolicyApiDTO.setSchedule(dailyLastDay);
 
-        final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
+        final SettingPolicyInfo info = mapper.convertInputPolicy(
+                settingsPolicyApiDTO, entityType, "test policy");
         assertTrue(info.hasScheduleId());
         assertEquals(dailyLastDay.getUuid(), String.valueOf(info.getScheduleId()));
     }
@@ -692,7 +696,8 @@ public class SettingsMapperTest {
         dailyPerpet.setRecurrence(dailyRec);
         settingsPolicyApiDTO.setSchedule(dailyPerpet);
 
-        final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
+        final SettingPolicyInfo info = mapper.convertInputPolicy(
+                settingsPolicyApiDTO, entityType, "test policy");
         assertTrue(info.hasScheduleId());
         assertEquals(dailyPerpet.getUuid(), String.valueOf(info.getScheduleId()));
     }
@@ -718,7 +723,8 @@ public class SettingsMapperTest {
         final int weekdayNumber = startDateTime.toInstant()
                         .atOffset(OffsetDateTime.now().getOffset()).toLocalDate().getDayOfWeek().getValue();
 
-        final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
+        final SettingPolicyInfo info = mapper.convertInputPolicy(
+                settingsPolicyApiDTO, entityType, "test policy");
         assertTrue(info.hasScheduleId());
         assertEquals(weeklyUnspecified.getUuid(), String.valueOf(info.getScheduleId()));
     }
@@ -737,7 +743,8 @@ public class SettingsMapperTest {
         weeklyRec.setDaysOfWeek(Lists.newArrayList(DayOfWeek.Fri, DayOfWeek.Sun));
         weeklySpecified.setRecurrence(weeklyRec);
         settingsPolicyApiDTO.setSchedule(weeklySpecified);
-        final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
+        final SettingPolicyInfo info = mapper.convertInputPolicy(
+                settingsPolicyApiDTO, entityType, "test policy");
         assertTrue(info.hasScheduleId());
         assertEquals(weeklySpecified.getUuid(), String.valueOf(info.getScheduleId()));
     }
@@ -756,7 +763,8 @@ public class SettingsMapperTest {
         monthlyUnspecified.setRecurrence(monthlyRec);
         settingsPolicyApiDTO.setSchedule(monthlyUnspecified);
 
-        final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
+        final SettingPolicyInfo info = mapper.convertInputPolicy(
+                settingsPolicyApiDTO, entityType, "test policy");
 
         // Because no day of the month was specified, the day of the month will
         // be set based on the start timestamp.
@@ -783,7 +791,8 @@ public class SettingsMapperTest {
         monthlySpecified.setRecurrence(monthlyRec);
         settingsPolicyApiDTO.setSchedule(monthlySpecified);
 
-        final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
+        final SettingPolicyInfo info = mapper.convertInputPolicy(
+                settingsPolicyApiDTO, entityType, "test policy");
         assertTrue(info.hasScheduleId());
         assertEquals(monthlySpecified.getUuid(), String.valueOf(info.getScheduleId()));
     }
@@ -840,7 +849,7 @@ public class SettingsMapperTest {
         mgrDto.setSettings(Collections.singletonList(setting));
         inputDto.setSettingsManagers(Collections.singletonList(mgrDto));
 
-        mapper.convertInputPolicy(inputDto, 1);
+        mapper.convertInputPolicy(inputDto, 1, "test policy");
     }
 
     private DefaultSettingPolicyMapper setUpPolicyMapperInfoToDtoTest() {
@@ -1392,7 +1401,7 @@ public class SettingsMapperTest {
         final SettingsPolicyApiDTO dto = new SettingsPolicyApiDTO();
         doReturn(1).when(mapper).resolveEntityType(eq(dto));
         doReturn(SettingPolicyInfo.getDefaultInstance())
-            .when(mapper).convertInputPolicy(eq(dto), eq(1));
+            .when(mapper).convertInputPolicy(eq(dto), eq(1), eq(null));
         assertThat(mapper.convertNewInputPolicy(dto), is(SettingPolicyInfo.getDefaultInstance()));
     }
 
@@ -1408,7 +1417,7 @@ public class SettingsMapperTest {
                     policyMapper, grpcServer.getChannel()));
         final SettingsPolicyApiDTO dto = new SettingsPolicyApiDTO();
         doReturn(SettingPolicyInfo.getDefaultInstance())
-                .when(mapper).convertInputPolicy(eq(dto), eq(1));
+                .when(mapper).convertInputPolicy(eq(dto), eq(1), eq(""));
 
         when(settingPolicyBackend.getSettingPolicy(any()))
             .thenReturn(GetSettingPolicyResponse.newBuilder()
@@ -1420,6 +1429,97 @@ public class SettingsMapperTest {
         assertThat(mapper.convertEditedInputPolicy(77, dto),
                 is(SettingPolicyInfo.getDefaultInstance()));
 
+    }
+
+    /**
+     * Tests that if the input is missing some information, an exception is being thrown.
+     * @throws Exception on errors
+     */
+    @Test
+    public void testCreateEditedInputPolicyWithIncorrectValues() throws Exception {
+        String settingUuid = "usedIncrement_VCPU";
+        SettingsManagerInfo settingsManagerInfo = new SettingsManagerInfo(
+                "marketsettingsmanager",
+                "Analysis",
+                Collections.singleton(settingUuid),
+                mock(PlanSettingInfo.class));
+        final SettingApiDTO<String> settingDto = new SettingApiDTO<>();
+        final SettingsManagerApiDTO managerDto = new SettingsManagerApiDTO();
+        managerDto.setSettings(Collections.singletonList(settingDto));
+        final SettingsPolicyApiDTO policyDto = new SettingsPolicyApiDTO();
+        policyDto.setSettingsManagers(Collections.singletonList(managerDto));
+
+        // no manager uuid provided
+        if (!setupAndRunConvertEditedInputPolicy(policyDto, settingsManagerInfo)) {
+            Assert.fail("Expected exception due to incorrect input.");
+        }
+
+        // incorrect manager uuid provided (SettingsManagerMapping could not identify it)
+        managerDto.setUuid("marketsettingsmanager");
+        policyDto.setSettingsManagers(Collections.singletonList(managerDto));
+        if (!setupAndRunConvertEditedInputPolicy(policyDto, null)) {
+            Assert.fail("Expected exception due to incorrect input.");
+        }
+
+        // no setting uuid provided
+        policyDto.setSettingsManagers(Collections.singletonList(managerDto));
+        if (!setupAndRunConvertEditedInputPolicy(policyDto, settingsManagerInfo)) {
+            Assert.fail("Expected exception due to incorrect input.");
+        }
+
+        // setting does not belong in the specified settings manager
+        settingDto.setUuid("invalidUuid");
+        managerDto.setSettings(Collections.singletonList(settingDto));
+        policyDto.setSettingsManagers(Collections.singletonList(managerDto));
+        if (!setupAndRunConvertEditedInputPolicy(policyDto, settingsManagerInfo)) {
+            Assert.fail("Expected exception due to incorrect input.");
+        }
+
+        // correct execution
+        settingDto.setUuid(settingUuid);
+        managerDto.setSettings(Collections.singletonList(settingDto));
+        policyDto.setSettingsManagers(Collections.singletonList(managerDto));
+        if (setupAndRunConvertEditedInputPolicy(policyDto, settingsManagerInfo)) {
+            Assert.fail("Unexpected exception occured.");
+        }
+    }
+
+    /**
+     * Sets up the spies/mocks, executes SettingsMapper.convertEditedInputPolicy() and checks if an
+     * IllegalArgumentException has been thrown.
+     *
+     * @param policyDto the input policy
+     * @param settingsManagerInfo the manager info object supposed to be returned by
+     *                            SettingsManagerMapping
+     * @return true if an IllegalArgumentException has been caught, otherwise false
+     * @throws InvalidOperationException on error
+     * @throws UnknownObjectException on error
+     */
+    private boolean setupAndRunConvertEditedInputPolicy(
+            SettingsPolicyApiDTO policyDto,
+            SettingsManagerInfo settingsManagerInfo)
+            throws InvalidOperationException, UnknownObjectException {
+        boolean exceptionCaught = false;
+        final SettingsMapper mapper =
+                spy(new SettingsMapper(settingMgrMapping, settingStyleMapping, settingSpecMapper,
+                        policyMapper, grpcServer.getChannel()));
+        when(settingMgrMapping.getManagerInfo(any()))
+                .thenReturn(Optional.ofNullable(settingsManagerInfo));
+        doReturn(SettingPolicyInfo.getDefaultInstance())
+                .when(mapper).convertInputPolicy(eq(policyDto), eq(1), eq(""));
+
+        when(settingPolicyBackend.getSettingPolicy(any()))
+                .thenReturn(GetSettingPolicyResponse.newBuilder()
+                        .setSettingPolicy(SettingPolicy.newBuilder()
+                                .setInfo(SettingPolicyInfo.newBuilder()
+                                        .setEntityType(1)))
+                        .build());
+        try {
+            mapper.convertEditedInputPolicy(77, policyDto);
+        } catch (IllegalArgumentException e) {
+            exceptionCaught = true;
+        }
+        return exceptionCaught;
     }
 
     /**

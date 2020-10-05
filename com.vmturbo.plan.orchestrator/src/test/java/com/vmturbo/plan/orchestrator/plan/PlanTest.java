@@ -36,7 +36,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-
 import org.springframework.context.ApplicationContext;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -62,6 +61,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Topolo
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.common.protobuf.topology.AnalysisDTOMoles.AnalysisServiceMole;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
@@ -135,6 +135,7 @@ public class PlanTest {
             RepositoryServiceGrpc.newBlockingStub(grpcDependenciesServer.getChannel()),
             PlanReservedInstanceServiceGrpc.newBlockingStub(grpcDependenciesServer.getChannel()),
             ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcDependenciesServer.getChannel()),
+            SupplyChainServiceGrpc.newBlockingStub(grpcDependenciesServer.getChannel()),
             1, TimeUnit.MILLISECONDS, 777L);
 
         planGrpcServer = GrpcTestServer.newServer(planRpcService);

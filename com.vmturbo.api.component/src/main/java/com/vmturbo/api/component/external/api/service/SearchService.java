@@ -71,6 +71,7 @@ import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.Origin;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -336,7 +337,8 @@ public class SearchService implements ISearchService {
                                                      SearchPaginationRequest paginationRequest,
                                                      List<String> entityTypes,
                                                      List<String> probeTypes,
-                                                     boolean isRegex)
+                                                     boolean isRegex,
+                                                     @Nullable Origin groupOrigin)
             throws Exception {
         if (types == null && CollectionUtils.isEmpty(groupTypes)) {
             throw new IllegalArgumentException("Type or groupType must be set for search result.");
@@ -350,7 +352,7 @@ public class SearchService implements ISearchService {
             // (regular, cluster, storage_cluster, etc.)
             return groupsService.getPaginatedGroupApiDTOs(
                 addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                paginationRequest, new HashSet(groupTypes), environmentType, scopes, true);
+                paginationRequest, new HashSet(groupTypes), environmentType, scopes, true, groupOrigin);
         } else if (types != null) {
             final Set<String> typesHashSet = new HashSet(types);
             // Check for a type that requires a query to a specific service, vs. Repository search.
@@ -359,7 +361,7 @@ public class SearchService implements ISearchService {
                 // the "includeAllGroupClasses" flag of the groupService.getPaginatedGroupApiDTOs call.
                 return groupsService.getPaginatedGroupApiDTOs(
                     addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                    paginationRequest, null, environmentType, scopes, true);
+                    paginationRequest, null, environmentType, scopes, true, groupOrigin);
             } else if (Sets.intersection(typesHashSet,
                     GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.keySet()).size() > 0) {
                 for (Map.Entry<String, GroupType> entry : GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.entrySet()) {
@@ -474,7 +476,7 @@ public class SearchService implements ISearchService {
             return groupsService.getPaginatedGroupApiDTOs(
                 addNameMatcher(query, inputDTO.getCriteriaList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
                 paginationRequest, groupTypes, inputDTO.getEnvironmentType(),
-                inputDTO.getScope(), false);
+                inputDTO.getScope(), false, inputDTO.getGroupOrigin());
         } else if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(className)) {
             GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(className);
             String filter = GroupMapper.API_GROUP_TYPE_TO_FILTER_GROUP_TYPE.get(className);

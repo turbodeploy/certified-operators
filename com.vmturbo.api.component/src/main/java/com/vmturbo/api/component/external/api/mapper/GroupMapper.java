@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.api.component.external.api.service.GroupsService.GROUPDTO_ORIGIN_TO_API_CREATION_ORIGIN;
 import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES;
 
 import java.util.ArrayList;
@@ -860,20 +861,25 @@ public class GroupMapper {
              outputDTO.setEntitiesCount(groupAndMembers.entities().size());
          }
 
-        if (group.hasOrigin() && group.getOrigin().hasDiscovered()) {
-            ThinTargetInfo source = null;
-            for (long targetId : group.getOrigin().getDiscovered().getDiscoveringTargetIdList()) {
-                Optional<ThinTargetInfo> thinTargetInfo = thinTargetCache.getTargetInfo(targetId);
-                if (thinTargetInfo.isPresent()) {
-                    source = chooseTarget(source, thinTargetInfo.get());
-                }
-            }
-            if (source != null) {
-                outputDTO.setSource(createTargetApiDto(source));
-            } else {
-                logger.debug("Failed to locate source target information for {}", outputDTO.getUuid());
-            }
-        }
+         if (group.hasOrigin()) {
+
+             outputDTO.setGroupOrigin(GROUPDTO_ORIGIN_TO_API_CREATION_ORIGIN.get(group.getOrigin().getCreationOriginCase()));
+             if (group.getOrigin().hasDiscovered()) {
+                 ThinTargetInfo source = null;
+                 for (long targetId : group.getOrigin().getDiscovered().getDiscoveringTargetIdList()) {
+                     Optional<ThinTargetInfo> thinTargetInfo = thinTargetCache.getTargetInfo(targetId);
+                     if (thinTargetInfo.isPresent()) {
+                         source = chooseTarget(source, thinTargetInfo.get());
+                     }
+                 }
+                 if (source != null) {
+                     outputDTO.setSource(createTargetApiDto(source));
+                 } else {
+                     logger.debug("Failed to locate source target information for {}", outputDTO.getUuid());
+                 }
+
+             }
+         }
          return outputDTO;
     }
 
@@ -1772,7 +1778,6 @@ public class GroupMapper {
                     Comparator.comparing(group -> group.group().getDefinition().getDisplayName()),
                     paginationRequest, getFilter());
             }
-
         }
 
         @Nonnull

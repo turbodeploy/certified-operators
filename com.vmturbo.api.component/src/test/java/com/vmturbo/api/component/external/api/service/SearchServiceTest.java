@@ -18,6 +18,8 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.isA;
+
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -89,6 +91,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.Origin;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
@@ -301,7 +304,8 @@ public class SearchServiceTest {
                         SearchProtoUtil.environmentTypeFilter(EnvironmentTypeEnum.EnvironmentType.CLOUD)))
                 .build());
 
-        when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true))).thenReturn(paginationResponse);
+        when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true), isA(
+                Origin.class))).thenReturn(paginationResponse);
         assertEquals(paginationResponse, searchService.getSearchResults(
             null,
             Lists.newArrayList("Group", "Cluster"),
@@ -313,8 +317,24 @@ public class SearchServiceTest {
             null,
             null,
             null,
-            true));
-        verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true));
+            true, Origin.USER));
+        verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true), isA(Origin.class));
+
+        when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true), eq(null))).thenReturn(paginationResponse);
+        assertEquals(paginationResponse, searchService.getSearchResults(
+                null,
+                Lists.newArrayList("Group", "Cluster"),
+                null,
+                null,
+                null,
+                EnvironmentType.ONPREM,
+                null,
+                null,
+                null,
+                null,
+                true, null));
+        verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true), eq(null));
+
         when(groupsService.getGroupsByType(any(), any(), any(), eq(EnvironmentType.ONPREM))).thenReturn(Collections.emptyList());
         when(paginationRequest.allResultsResponse(any())).thenReturn(paginationResponse);
         assertEquals(paginationResponse, searchService.getSearchResults(
@@ -328,7 +348,7 @@ public class SearchServiceTest {
             paginationRequest,
             null,
             null,
-            true));
+            true, null));
         verify(groupsService).getGroupsByType(eq(GroupType.COMPUTE_HOST_CLUSTER), any(), any(), eq(EnvironmentType.ONPREM));
     }
 
@@ -363,7 +383,8 @@ public class SearchServiceTest {
                 paginationRequest,
                 null,
                 null,
-                true);
+                true,
+                null);
 
         //THEN
         assertEquals(response, paginationResponse);
@@ -380,7 +401,7 @@ public class SearchServiceTest {
     public void testInvalidGetSearchResults() throws Exception {
         // Type, entity type and group type are all empty. This should throw an exception.
         searchService.getSearchResults(".*a.*", null, Lists.newArrayList("string1"), "ACTIVE", null, EnvironmentType.CLOUD,
-                null, null, null, Lists.newArrayList("probeType1"), true);
+                null, null, null, Lists.newArrayList("probeType1"), true, null);
     }
 
 
@@ -394,7 +415,7 @@ public class SearchServiceTest {
         when(groupExpander.getGroup(any())).thenReturn(Optional.empty());
         when(groupsService.expandUuids(any(), any(), any())).thenReturn(Collections.emptySet());
         searchService.getSearchResults(".*a.*", Lists.newArrayList("VirtualMachine"), Lists.newArrayList("string1"), "ACTIVE", null, EnvironmentType.CLOUD,
-                null, null, null, Lists.newArrayList("probeType1"), true);
+                null, null, null, Lists.newArrayList("probeType1"), true, null);
     }
 
     @Test
@@ -455,22 +476,23 @@ public class SearchServiceTest {
     public void testGetSearchGroup() throws Exception {
         final SearchPaginationResponse paginationResponse =
             Mockito.mock(SearchPaginationResponse.class);
-        when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true))).thenReturn(paginationResponse);
+        when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true), eq(null))).thenReturn(paginationResponse);
         assertEquals(paginationResponse, searchService.getSearchResults(
-            "myGroup",
-            Lists.newArrayList("Group"),
-            null,
-            null,
-            Arrays.asList("VirtualMachine"),
-            EnvironmentType.ONPREM,
-            null,
-            null,
-            null,
-            null,
-            true));
+                "myGroup",
+                Lists.newArrayList("Group"),
+                null,
+                null,
+                Arrays.asList("VirtualMachine"),
+                EnvironmentType.ONPREM,
+                null,
+                null,
+                null,
+                null,
+                true,
+                null));
         verify(targetsService, Mockito.never()).getTargets(null);
         verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
-        verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true));
+        verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true), eq(null));
         verify(searchService).addNameMatcher(any(), any(), any());
 
     }
@@ -855,7 +877,7 @@ public class SearchServiceTest {
         final GroupApiDTO requestForAllGroups = new GroupApiDTO();
         requestForAllGroups.setClassName(StringConstants.GROUP);
         final SearchPaginationResponse response = mock(SearchPaginationResponse.class);
-        Mockito.when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), any(), any(), eq(false)))
+        Mockito.when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), any(), any(), eq(false), eq(null)))
             .thenReturn(response);
         final ArgumentCaptor<Set<String>> resultCaptor = ArgumentCaptor.forClass((Class)HashSet.class);
         final SearchPaginationRequest paginationRequest = mock(SearchPaginationRequest.class);
@@ -866,7 +888,7 @@ public class SearchServiceTest {
         assertTrue(response == searchService.getMembersBasedOnFilter("foo",
             requestForAllGroups,
             paginationRequest, null));
-        verify(groupsService, times(2)).getPaginatedGroupApiDTOs(any(), any(), resultCaptor.capture(), any(), any(), eq(false));
+        verify(groupsService, times(2)).getPaginatedGroupApiDTOs(any(), any(), resultCaptor.capture(), any(), any(), eq(false), eq(null));
         // verify that first call to groupsService.getPaginatedGroupApiDTOs passed in VirtualMachine
         // as entityType argument
         assertEquals(Collections.singleton(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
@@ -1384,5 +1406,4 @@ public class SearchServiceTest {
 
         return Arrays.asList(entity1, entity2, entity3, entity4);
     }
-
 }

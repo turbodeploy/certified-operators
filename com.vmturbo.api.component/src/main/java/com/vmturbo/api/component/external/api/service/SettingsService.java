@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -26,6 +27,8 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDT
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ISettingsService;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -196,63 +199,194 @@ public class SettingsService implements ISettingsService {
                 SingleSettingSpecRequest.newBuilder()
                         .setSettingSpecName(name)
                         .build());
-        if (spec != null) {
-            Setting.Builder settingBuilder = Setting.newBuilder().setSettingSpecName(name);
-
-            switch (spec.getSettingValueTypeCase()) {
-                case BOOLEAN_SETTING_VALUE_TYPE:
-                    if (!StringUtils.equalsIgnoreCase(settingValue, Boolean.TRUE.toString()) &&
-                            !StringUtils.equalsIgnoreCase(settingValue, Boolean.FALSE.toString())) {
-                        // Throw an exception with a more meaningful message if the boolean value is
-                        // neither "true" nor "false" (case insensitive).
-                        throw new IllegalArgumentException(
-                                String.format("Setting %s must have a boolean value. The value '%s' is invalid.",
-                                        name, settingValue));
-                    }
-                    settingBuilder.setBooleanSettingValue(BooleanSettingValue.newBuilder()
-                            .setValue(Boolean.valueOf(settingValue)));
-                    break;
-                case NUMERIC_SETTING_VALUE_TYPE:
-                    try {
-                        settingBuilder.setNumericSettingValue(NumericSettingValue.newBuilder()
-                                .setValue(Float.parseFloat(settingValue)));
-                    } catch (NumberFormatException e) {
-                        // Throw an exception with a more meaninful message if value is not a number.
-                        throw new IllegalArgumentException(
-                                String.format("Setting %s must have a numeric value. The value '%s' is invalid. ",
-                                        name, settingValue));
-                    }
-                    break;
-                case ENUM_SETTING_VALUE_TYPE:
-                    settingBuilder.setEnumSettingValue(EnumSettingValue.newBuilder()
-                            .setValue(settingValue));
-                    break;
-                case STRING_SETTING_VALUE_TYPE:
-                    // fall through to next case
-                case SETTINGVALUETYPE_NOT_SET:
-                    settingBuilder.setStringSettingValue(StringSettingValue.newBuilder()
-                            .setValue(settingValue));
-                    break;
-            }
-
-            settingServiceBlockingStub.updateGlobalSetting(
-                UpdateGlobalSettingRequest.newBuilder().addSetting(settingBuilder).build());
-        } else {
+        if (spec == null) {
             throw new IllegalArgumentException("Setting name is invalid: " + name);
         }
+        if (spec.hasGlobalSettingSpec()) {
+            return putGlobalSettingByUuidAndName(name, spec, settingValue);
+        } else {
+            // If it's not a global setting, it's a setting for entity defaults.
+            return putEntityDefaultSettingByUuidAndName(name, spec, settingValue, setting, uuid);
+        }
+    }
+
+    /**
+     * Updates a global setting.
+     *
+     * @param <T> The type of the dto
+     * @param name the setting's name
+     * @param spec the setting spec describing the setting to update
+     * @param settingValue the new value to update the setting with
+     *
+     * @return A SettingApiDTO describing the updated setting.
+     *
+     * @throws UnknownObjectException If the specified setting could not be found.
+     */
+    private <T extends Serializable> SettingApiDTO<T> putGlobalSettingByUuidAndName(
+            @Nonnull String name,
+            @Nonnull SettingSpec spec,
+            String settingValue
+    ) throws UnknownObjectException {
+        Setting.Builder settingBuilder = Setting.newBuilder().setSettingSpecName(name);
+
+        switch (spec.getSettingValueTypeCase()) {
+            case BOOLEAN_SETTING_VALUE_TYPE:
+                if (!StringUtils.equalsIgnoreCase(settingValue, Boolean.TRUE.toString())
+                        && !StringUtils.equalsIgnoreCase(settingValue, Boolean.FALSE.toString())) {
+                    // Throw an exception with a more meaningful message if the boolean value is
+                    // neither "true" nor "false" (case insensitive).
+                    throw new IllegalArgumentException(String.format(
+                            "Setting %s must have a boolean value. The value '%s' is invalid.",
+                            name, settingValue));
+                }
+                settingBuilder.setBooleanSettingValue(
+                        BooleanSettingValue.newBuilder().setValue(Boolean.valueOf(settingValue)));
+                break;
+            case NUMERIC_SETTING_VALUE_TYPE:
+                try {
+                    settingBuilder.setNumericSettingValue(NumericSettingValue.newBuilder()
+                            .setValue(Float.parseFloat(settingValue)));
+                } catch (NumberFormatException e) {
+                    // Throw an exception with a more meaninful message if value is not a number.
+                    throw new IllegalArgumentException(String.format(
+                            "Setting %s must have a numeric value. The value '%s' is invalid. ",
+                            name, settingValue));
+                }
+                break;
+            case ENUM_SETTING_VALUE_TYPE:
+                settingBuilder.setEnumSettingValue(
+                        EnumSettingValue.newBuilder().setValue(settingValue));
+                break;
+            case STRING_SETTING_VALUE_TYPE:
+                // fall through to next case
+            case SETTINGVALUETYPE_NOT_SET:
+                settingBuilder.setStringSettingValue(
+                        StringSettingValue.newBuilder().setValue(settingValue));
+                break;
+        }
+
+        settingServiceBlockingStub.updateGlobalSetting(
+                UpdateGlobalSettingRequest.newBuilder().addSetting(settingBuilder).build());
 
         final GetGlobalSettingResponse response = settingServiceBlockingStub.getGlobalSetting(
-                GetSingleGlobalSettingRequest.newBuilder()
-                        .setSettingSpecName(name)
-                        .build());
+                GetSingleGlobalSettingRequest.newBuilder().setSettingSpecName(name).build());
         if (response.hasSetting()) {
-            SettingApiDTO<String> stringSettingApiDTO = settingsMapper.toSettingApiDto(response.getSetting()).getGlobalSetting()
-                    .orElseThrow(() -> new IllegalStateException("No global setting parsed from " +
-                            "global setting response"));
+            SettingApiDTO<String> stringSettingApiDTO = settingsMapper.toSettingApiDto(
+                            response.getSetting())
+                    .getGlobalSetting()
+                    .orElseThrow(() -> new IllegalStateException("No global setting parsed from "
+                            + "global setting response"));
             //noinspection unchecked
             return (SettingApiDTO<T>)stringSettingApiDTO;
         } else {
             throw new UnknownObjectException("Unknown setting: " + name);
+        }
+    }
+
+    /**
+     * Updates an entity default setting.
+     *
+     * @param <T> The type of the dto
+     * @param name the setting's name
+     * @param spec the setting spec describing the setting to update
+     * @param settingValue the new value to update the setting with
+     * @param setting the original SettingApiDTO provided as input
+     * @param settingsManagerUuid the uuid of the settingsManager specified
+     *
+     * @return A SettingApiDTO describing the updated setting.
+     *
+     * @throws Exception UnknownObjectException if no setting with values provided can be found, or
+     *                  general RuntimeException if an error occurs during conversions.
+     */
+    private <T extends Serializable> SettingApiDTO<T> putEntityDefaultSettingByUuidAndName(
+            @Nonnull String name,
+            @Nonnull SettingSpec spec,
+            String settingValue,
+            @Nonnull SettingApiDTO<T> setting,
+            String settingsManagerUuid
+    ) throws Exception {
+        ApiEntityType settingEntityType = ApiEntityType.fromString(setting.getEntityType());
+        validateInputForEntityDefaultSetting(name, setting, settingEntityType);
+        // get the appropriate settings policy & settings manager
+        List<SettingsPolicyApiDTO> settingsPolicies = settingsPoliciesService.getSettingsPolicies(
+                true,
+                Collections.singleton(settingEntityType.typeNumber()),
+                Collections.singleton(settingsManagerUuid));
+        if (settingsPolicies.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Cannot find default settings policy for entity type '" + settingEntityType
+                    + "'.");
+        } else if (settingsPolicies.size() > 1) {
+            throw new OperationFailedException("Failed to uniquely identify default policy for"
+                    + " entity type '" + setting.getEntityType() + "'. Found "
+                    + settingsPolicies.size() + " policies.");
+        } else if (settingsPolicies.get(0).getSettingsManagers().isEmpty()) {
+            throw new IllegalArgumentException("Cannot find settings manager '"
+                    + settingsManagerUuid + "'.");
+        }
+        SettingsPolicyApiDTO settingsPolicyApiDTO = settingsPolicies.get(0);
+        SettingsManagerApiDTO settingsManager = settingsPolicyApiDTO.getSettingsManagers().get(0);
+        // populate the dto with the updated values
+        SettingApiDTO settingDtoWithUpdatedValues = settingsManager
+                .getSettings()
+                .stream()
+                .filter(s -> s.getUuid().equals(name))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Could not retrieve setting with uuid '" + name
+                        + "' under settings manager '" + settingsManager.getUuid() + "'."));
+        settingDtoWithUpdatedValues.setValue(settingValue);
+        List<SettingApiDTO<?>> settingsToUpdate = new ArrayList<>();
+        settingsToUpdate.add(settingDtoWithUpdatedValues);
+        settingsManager.setSettings(settingsToUpdate);
+        // send the request to update the query using the updated dto
+        SettingsPolicyApiDTO response =
+                settingsPoliciesService.editSettingsPolicy(settingsPolicyApiDTO.getUuid(), false,
+                        settingsPolicyApiDTO);
+        return (SettingApiDTO<T>)response.getSettingsManagers()
+                .stream()
+                .filter(settingsManagerApiDTO ->
+                        settingsManagerApiDTO.getUuid().equals(settingsManagerUuid))
+                .findFirst()
+                .orElseThrow(() -> new OperationFailedException(
+                        "Failed to retrieve settings manager after update."))
+                .getSettings()
+                .stream()
+                .filter(settingApiDTO -> settingApiDTO.getUuid().equals(name))
+                .findFirst()
+                .orElseThrow(() -> new OperationFailedException(
+                        "Failed to retrieve setting after update."));
+    }
+
+    /**
+     * Validates that the input is correct when updating an entity default setting.
+     *
+     * @param <T> The type of the dto
+     * @param name the setting's name
+     * @param setting the original SettingApiDTO provided as input
+     * @param entityType the entity type of the setting to update
+     */
+    private <T extends Serializable> void validateInputForEntityDefaultSetting(
+            @Nonnull String name,
+            @Nonnull SettingApiDTO<T> setting,
+            ApiEntityType entityType
+    ) {
+        // Make sure that the uuid field is populated.
+        if (setting.getUuid() == null || setting.getUuid().isEmpty()) {
+            setting.setUuid(name);
+        } else if (!setting.getUuid().equals(name)) {
+            // some sanity check in case setting name is provided in both URI and input dto with
+            // different values
+            throw new IllegalArgumentException("Multiple uuids provided instead of one: '"
+                    + name + "', '" + setting.getUuid() + "'");
+        }
+        // make sure that entity type is provided (to be able to pick the correct default policy
+        // in case this setting applies to multiple entity types)
+        if (entityType == ApiEntityType.UNKNOWN) {
+            throw new IllegalArgumentException(
+                    "Missing or incorrect entity type for setting " + "with uuid: "
+                            + setting.getUuid()
+                            + ". (entity type is required for entity settings)");
         }
     }
 
