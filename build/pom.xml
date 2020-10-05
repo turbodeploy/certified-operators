@@ -419,6 +419,7 @@
                 <module>../com.vmturbo.mediation.custom.data.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
                 <module>../com.vmturbo.mediation.database.mysql.component</module>
+                <module>../com.vmturbo.mediation.database.oracle.component</module>
                 <module>../com.vmturbo.mediation.tomcat.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
@@ -748,6 +749,13 @@
             <id>mediation-mysql</id>
             <modules>
                 <module>../com.vmturbo.mediation.database.mysql.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-oracle</id>
+            <modules>
+                <module>../com.vmturbo.mediation.database.oracle.component</module>
             </modules>
         </profile>
 
@@ -1245,6 +1253,7 @@
                 <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
                 <module>../com.vmturbo.mediation.database.mysql.component</module>
+                <module>../com.vmturbo.mediation.database.oracle.component</module>
                 <module>../com.vmturbo.mediation.tomcat.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>

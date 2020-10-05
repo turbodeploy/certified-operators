@@ -313,6 +313,10 @@ dependencies:
     repository: file://../probes/mediation-mysql
     version: 0.1.0
     condition: mysql.enabled
+  - name: mediation-oracle
+    repository: file://../probes/mediation-oracle
+    version: 0.1.0
+    condition: oracle.enabled
   - name: mediation-tomcat
     repository: file://../probes/mediation-tomcat
     version: 0.1.0

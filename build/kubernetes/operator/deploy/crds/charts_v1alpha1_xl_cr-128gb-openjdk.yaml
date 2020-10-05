@@ -97,6 +97,8 @@ spec:
     enabled: true
   mysql:
     enabled: false
+  oracle:
+    enabled: false
   tomcat:
     enabled: false
   newrelic:
@@ -238,6 +240,10 @@ spec:
       limits:
         memory: 1Gi
   mediation-mysql:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-oracle:
     resources:
       limits:
         memory: 1Gi

@@ -713,6 +713,12 @@ spec:
                   description: Enable MySQL Server mediation
                   type: boolean
               type: object
+            oracle:
+              properties:
+                enabled:
+                  description: Enable Oracle mediation
+                  type: boolean
+              type: object
             netapp:
               properties:
                 enabled:

@@ -79,6 +79,8 @@ spec:
     enabled: true
   mysql:
     enabled: false
+  oracle:
+    enabled: false
   newrelic:
     enabled: true
 

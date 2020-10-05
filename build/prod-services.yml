@@ -721,6 +721,17 @@ services:
       instance_id: mediation-mysql-1
     restart: always
 
+  mediation-oracle-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.database.oracle.component
+    environment:
+      consul_host: consul
+      component_type: mediation-oracle
+      instance_id: mediation-oracle-1
+    restart: always
+
   mediation-tomcat-prod:
     extends:
       file: common-services.yml

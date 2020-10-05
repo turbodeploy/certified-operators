@@ -442,6 +442,13 @@ services:
 #    mem_limit: 1024M
 #    depends_on: *clustermgrdep
 #
+#  mediation-oracle:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-oracle-prod
+#    mem_limit: 1024M
+#    depends_on: *clustermgrdep
+#
 #  mediation-appdynamics:
 #    extends:
 #      file: prod-services.yml

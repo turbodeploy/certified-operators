@@ -97,6 +97,8 @@ spec:
     enabled: true
   mysql:
     enabled: false
+  oracle:
+    enabled: false
   tomcat:
     enabled: false
   newrelic:

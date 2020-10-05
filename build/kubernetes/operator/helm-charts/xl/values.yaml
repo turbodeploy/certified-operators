@@ -213,6 +213,8 @@ mssql:
   enabled: false
 mysql:
   enabled: false
+oracle:
+  enabled: false
 tomcat:
   enabled: false
 netapp:

@@ -138,6 +138,11 @@ resource "helm_release" "xl" {
   }
 
   set {
+    name  = "oracle.enabled"
+    value = "${var.oracle ? true : false}"
+  }
+
+  set {
     name  = "tomcat.enabled"
     value = "${var.tomcat ? true : false}"
   }

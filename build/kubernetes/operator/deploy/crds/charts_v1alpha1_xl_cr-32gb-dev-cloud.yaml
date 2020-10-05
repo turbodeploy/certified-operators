@@ -85,6 +85,8 @@ spec:
     enabled: false
   mysql:
     enabled: false
+  oracle:
+    enabled: false
   netapp:
     enabled: false
   netflow:
@@ -266,6 +268,10 @@ spec:
       limits:
         memory: 512Mi
   mediation-mysql:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-oracle:
     resources:
       limits:
         memory: 512Mi
