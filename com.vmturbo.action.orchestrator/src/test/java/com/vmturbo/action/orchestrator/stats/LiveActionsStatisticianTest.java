@@ -172,6 +172,12 @@ public class LiveActionsStatisticianTest {
             .setCreationTime(clock.millis())
             .setTopologyType(TopologyType.REALTIME)
             .build();
+
+        // before the first market plan actions should not be considered new, see OM-61639
+        assertFalse(aggregator.actionIsNew(snapshot1, statistician.getPreviousBroadcastActions()));
+        assertFalse(aggregator.actionIsNew(snapshot2, statistician.getPreviousBroadcastActions()));
+        assertFalse(aggregator.actionIsNew(snapshot3, statistician.getPreviousBroadcastActions()));
+
         statistician.recordActionStats(topologyInfo, Stream.of(action1, action2, action3));
 
         // Verify that the statistician interacts with the aggregator in the right order.
