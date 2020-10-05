@@ -262,8 +262,7 @@ public class PlanTopologyScopeEditor {
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .flatMap(e -> e.getAggregatedEntities().stream())
-                .filter(e -> e.getEntityType() == BUSINESS_ACCOUNT_VALUE
-                        && e.getOwner().equals(Optional.empty()))
+                .filter(e -> e.getEntityType() == BUSINESS_ACCOUNT_VALUE)
                 .collect(Collectors.toSet());
         cloudProviders.addAll(accounts);
         // union consumers and producers and filter by target
