@@ -1,10 +1,20 @@
 package com.vmturbo.plan.orchestrator.plan;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.when;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.annotation.Nullable;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Rule;
@@ -26,22 +36,30 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.MigrationReference;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
@@ -52,6 +70,10 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.Payment
  */
 public class PlanRpcServiceUtilTest {
     private static final long PLAN_ID = 111L;
+    private static final long VM_ID_1 = 200L;
+    private static final long VM_ID_2 = 201L;
+    private static final long REGION_ID_1 = 2001L;
+    private static final long REGION_ID_2 = 2002L;
     private static final long GROUP_ID = 3001L;
     private static final ReservedInstanceType EXPECTED_RI_TYPE = ReservedInstanceType.newBuilder()
                     .setOfferingClass(ReservedInstanceType.OfferingClass.STANDARD)
@@ -59,20 +81,26 @@ public class PlanRpcServiceUtilTest {
                     .setTermYears(3).build();
     private static final List<Long> BUSINESS_ACCOUNTS_OIDS = Stream.of(10001L, 1002L, 1003L)
                     .collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
-    private static final List<Long> REGION_OIDS = Stream.of(2001L, 2002L).collect(Collectors
+    private static final List<Long> REGION_OIDS = Stream.of(REGION_ID_1, REGION_ID_2).collect(Collectors
                     .collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
     private static final List<Long> GROUP_OIDS = Stream.of(GROUP_ID).collect(Collectors
                     .collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
+    private static final List<Long> VM_OIDS = Stream.of(VM_ID_1, VM_ID_2).collect(Collectors
+            .collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
 
     private final GroupServiceMole testGroupRpcService = Mockito.spy(new GroupServiceMole());
     private final RepositoryServiceMole testRepositoryRpcService = Mockito.spy(new RepositoryServiceMole());
+    private final SupplyChainServiceMole testSupplyChainRpcService = Mockito.spy(new SupplyChainServiceMole());
 
     /**
      * gRPC servers.
      */
     @Rule
-    public final GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupRpcService,
-                                                                       testRepositoryRpcService);
+    public final GrpcTestServer grpcServer = GrpcTestServer.newServer(
+            testGroupRpcService,
+            testRepositoryRpcService,
+            testSupplyChainRpcService
+    );
 
     /**
      * Tests {@link StartBuyRIAnalysisRequest} creation for the optimize cloud plan option 1 with business accounts scope.
@@ -203,4 +231,146 @@ public class PlanRpcServiceUtilTest {
         Assert.assertTrue(!PlanRpcServiceUtil.isScalingEnabled(planInstance.getScenario().getScenarioInfo()));
     }
 
+    /**
+     * Verify that the method getRegionsBySourceMigration will extract the Region given a single VM.
+     */
+    @Test
+    public void testGetRegionsBySourceMigrationVM() {
+        PlanInstance planInstance = createCloudMigrationPlanInstance(ImmutableSet.of(VM_ID_1),
+                EntityType.VIRTUAL_MACHINE, null);
+
+        mockSupplyChainRpcGetMultiSupplyChains(ApiEntityType.REGION.typeNumber(), ImmutableSet.of(REGION_ID_1));
+
+        Set<Long> regionIds = PlanRpcServiceUtil.getRegionsBySourceMigration(planInstance,
+                GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+
+        Assert.assertEquals(1, regionIds.size());
+        Assert.assertTrue(regionIds.contains(REGION_ID_1));
+    }
+
+    /**
+     * Verify that the method getRegionsBySourceMigration will extract the Regions given multiple VMs.
+     */
+    @Test
+    public void testGetRegionsBySourceMigrationVMs() {
+        PlanInstance planInstance = createCloudMigrationPlanInstance(ImmutableSet.of(VM_ID_1, VM_ID_2),
+                EntityType.VIRTUAL_MACHINE, null);
+
+        mockSupplyChainRpcGetMultiSupplyChains(ApiEntityType.REGION.typeNumber(), ImmutableSet.of(REGION_ID_1, REGION_ID_2));
+
+        Set<Long> regionIds = PlanRpcServiceUtil.getRegionsBySourceMigration(planInstance,
+                GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+
+        Assert.assertEquals(2, regionIds.size());
+        Assert.assertTrue(regionIds.contains(REGION_ID_1));
+        Assert.assertTrue(regionIds.contains(REGION_ID_2));
+    }
+
+    /**
+     * Verify that the method getRegionsBySourceMigration will extract the Regions given a group of VMs.
+     */
+    @Test
+    public void testGetRegionsBySourceMigrationVMGroup() {
+        PlanInstance planInstance = createCloudMigrationPlanInstance(ImmutableSet.of(GROUP_ID), null,
+                GroupType.REGULAR);
+
+        mockGroupRpcGetMembers(GROUP_ID, ImmutableSet.of(VM_ID_1, VM_ID_2));
+
+        mockSupplyChainRpcGetMultiSupplyChains(ApiEntityType.REGION.typeNumber(), ImmutableSet.of(REGION_ID_1));
+
+        Set<Long> regionIds = PlanRpcServiceUtil.getRegionsBySourceMigration(planInstance,
+                GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+
+        Assert.assertEquals(1, regionIds.size());
+        Assert.assertTrue(regionIds.contains(REGION_ID_1));
+    }
+
+    /**
+     * Verify that the method getRegionsBySourceMigration will extract the Regions given a group of VMs.
+     */
+    @Test
+    public void testGetRegionsBySourceMigrationNotVMGroup() {
+        PlanInstance planInstance = createCloudMigrationPlanInstance(ImmutableSet.of(GROUP_ID), null,
+                GroupType.STORAGE_CLUSTER);
+
+        mockGroupRpcGetMembers(GROUP_ID, ImmutableSet.of(VM_ID_1, VM_ID_2));
+
+        mockSupplyChainRpcGetMultiSupplyChains(ApiEntityType.REGION.typeNumber(), ImmutableSet.of(REGION_ID_1));
+
+        Set<Long> regionIds = PlanRpcServiceUtil.getRegionsBySourceMigration(planInstance,
+                GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+
+        Assert.assertEquals(0, regionIds.size());
+    }
+
+    private PlanInstance createCloudMigrationPlanInstance(final Set<Long> sourceOids,
+                                                          @Nullable EntityType entityType,
+                                                          @Nullable GroupType groupType) {
+        Set<MigrationReference> sourceReferences = Sets.newHashSet();
+        sourceOids.stream().forEach(sourceOid -> {
+            MigrationReference.Builder sourceReference = MigrationReference.newBuilder()
+                    .setOid(sourceOid)
+                    .setGroupType(GroupType.STORAGE_CLUSTER_VALUE);
+            if (entityType != null) {
+                sourceReference.setEntityType(entityType.ordinal());
+            } else if (groupType != null) {
+                sourceReference.setGroupType(groupType.ordinal());
+            }
+            sourceReferences.add(sourceReference.build());
+        });
+
+        PlanInstance planInstance = PlanInstance.newBuilder().setPlanId(3L).setStatus(PlanStatus.QUEUED)
+                .setScenario(Scenario.newBuilder().setScenarioInfo(ScenarioInfo.newBuilder()
+                        .setType(StringConstants.CLOUD_MIGRATION_PLAN)
+                        .addChanges(ScenarioChange.newBuilder()
+                                .setTopologyMigration(TopologyMigration.newBuilder()
+                                        .addAllSource(sourceReferences)
+                                        .setDestinationEntityType(TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)
+                                ))))
+                .build();
+
+        return planInstance;
+    }
+
+    /**
+     * Mock the response of the method GroupServiceGrpc::getMembers.
+     *
+     * @param groupOid - Oid of the Group to expand.
+     * @param membersOids - Oids of the members in the response.
+     */
+    private void mockGroupRpcGetMembers(long groupOid, final Set<Long> membersOids) {
+        when(testGroupRpcService.getMembers(GetMembersRequest.newBuilder()
+                .setExpandNestedGroups(true)
+                .addId(groupOid)
+                .build()))
+                .thenReturn(Collections.singletonList(GetMembersResponse.newBuilder()
+                        .setGroupId(groupOid)
+                        .addAllMemberId(membersOids)
+                        .build()));
+    }
+
+    /**
+     * Mock the response of the method SupplyChainServiceGrpc::getMultiSupplyChains.
+     *
+     * @param nodeType - Type of the SupplyChain node in the response.
+     * @param membersOids - Oids of the members in the response.
+     */
+    private void mockSupplyChainRpcGetMultiSupplyChains(int nodeType, final Set<Long> membersOids) {
+        when(testSupplyChainRpcService.getMultiSupplyChains(any()))
+                .thenReturn(Arrays.asList(
+                        SupplyChainProto.GetMultiSupplyChainsResponse.newBuilder()
+                                .setSupplyChain(SupplyChainProto.SupplyChain.newBuilder()
+                                        .addSupplyChainNodes(SupplyChainProto.SupplyChainNode.newBuilder()
+                                                .setEntityType(nodeType)
+                                                .putAllMembersByState(ImmutableMap.of(
+                                                        TopologyDTO.EntityState.POWERED_ON_VALUE,
+                                                        SupplyChainProto.SupplyChainNode.MemberList.newBuilder()
+                                                                .addAllMemberOids(membersOids)
+                                                                .build()))))
+                                .build()));
+    }
 }

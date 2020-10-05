@@ -14,7 +14,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
@@ -32,14 +34,17 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Settin
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.CloudType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.setting.ConfigurableActionSettings;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
@@ -177,11 +182,13 @@ public class PlanRpcServiceUtil {
      * @param planInstance Instance of plan.
      * @param groupClient Client to resolving group id into its member ids.
      * @param repositoryClient Repo for looking up entity types.
+     * @param supplyChainClient Client to resolving regions from source seed Ids.
      * @return List of entity ids that are in plan scope.
      */
-    static List<Long> getScopeSeedIds(@Nonnull PlanInstance planInstance,
-                                      @Nonnull GroupServiceBlockingStub groupClient,
-                                      @Nonnull final RepositoryServiceBlockingStub repositoryClient) {
+    static List<Long> getRIRequestScopeSeedIds(@Nonnull PlanInstance planInstance,
+                                               @Nonnull GroupServiceBlockingStub groupClient,
+                                               @Nonnull final RepositoryServiceBlockingStub repositoryClient,
+                                               @Nonnull final SupplyChainServiceBlockingStub supplyChainClient) {
         if (!planInstance.hasScenario()) {
             return Collections.emptyList();
         }
@@ -189,11 +196,19 @@ public class PlanRpcServiceUtil {
                 .getScope().getScopeEntriesList();
         Map<Integer, Set<Long>> typeToOids = getClassNameToOids(planScopeEntries, groupClient,
                 repositoryClient);
-        return typeToOids.values()
+
+        List<Long> seedIds = typeToOids.values()
                 .stream()
                 .flatMap(Set::stream)
                 .map(Long.class::cast)
                 .collect(Collectors.toList());
+
+        if (PlanProjectType.CLOUD_MIGRATION.name().equals(planInstance.getScenario().getScenarioInfo().getType())) {
+            // We want to add the Regions connected to the migrating entities,
+            // so we can calculate correctly the on-demand cost and RI discount in the after plan.
+            seedIds.addAll(getRegionsBySourceMigration(planInstance, groupClient, supplyChainClient));
+        }
+        return seedIds;
     }
 
     /**
@@ -263,5 +278,75 @@ public class PlanRpcServiceUtil {
      */
     public static boolean updateBuyRICostsOnPlanCompletion(@Nonnull final PlanInstance planInstance) {
         return planInstance.getProjectType() == PlanProjectType.CLOUD_MIGRATION;
+    }
+
+    /**
+     * Gets ids of Regions that are connected to the source entities of migration.
+     *
+     * @param planInstance Instance of plan.
+     * @param groupClient Client to resolving group id into its member ids.
+     * @param supplyChainClient Client to resolving regions from source seed Ids.
+     * @return List of region ids that are connected to the source entities of migration.
+     */
+    @VisibleForTesting
+    public static Set<Long> getRegionsBySourceMigration(@Nonnull final PlanInstance planInstance,
+                                                        @Nonnull final GroupServiceBlockingStub groupClient,
+                                                        @Nonnull final SupplyChainServiceBlockingStub supplyChainClient) {
+        Set<Long> sourceRegions = Sets.newHashSet();
+
+        Set<Long> entitiesSources = Sets.newHashSet();
+        Set<Long> groupSources = Sets.newHashSet();
+
+        // Get the Migration sources Oids from the Plan
+        planInstance.getScenario().getScenarioInfo().getChangesList().stream()
+                .filter(change -> change.hasTopologyMigration())
+                .map(change -> change.getTopologyMigration().getSourceList())
+                .flatMap(List::stream)
+                .forEach(ref -> {
+                    if (ref.hasEntityType()) {
+                        entitiesSources.add(ref.getOid());
+                    } else if (CommonDTO.GroupDTO.GroupType.REGULAR_VALUE == ref.getGroupType()) {
+                        groupSources.add(ref.getOid());
+                    }
+                });
+
+        if (!groupSources.isEmpty()) {
+            // Expand the members of the Groups
+            final GetMembersRequest membersRequest = GetMembersRequest.newBuilder()
+                    .setExpandNestedGroups(true)
+                    .addAllId(groupSources)
+                    .build();
+
+            final Iterator<GetMembersResponse> response =
+                    groupClient.getMembers(membersRequest);
+            while (response.hasNext()) {
+                entitiesSources.addAll(response.next().getMemberIdList());
+            }
+        }
+
+        if (!entitiesSources.isEmpty()) {
+            // Find the Regions connected to the migration source entities using the Supply Chain
+            final SupplyChainProto.GetMultiSupplyChainsRequest.Builder requestBuilder =
+                    SupplyChainProto.GetMultiSupplyChainsRequest.newBuilder();
+            // For each OID in the set of sources, get Region in its supply chain
+            entitiesSources.forEach(oid -> {
+                requestBuilder.addSeeds(SupplyChainProto.SupplyChainSeed.newBuilder()
+                        .setSeedOid(oid)
+                        .setScope(SupplyChainProto.SupplyChainScope.newBuilder()
+                                .addStartingEntityOid(oid)
+                                .addEntityTypesToInclude(ApiEntityType.REGION.typeNumber())));
+            });
+            supplyChainClient.getMultiSupplyChains(requestBuilder.build())
+                    .forEachRemaining(supplyChainResponse -> {
+                        supplyChainResponse.getSupplyChain().getSupplyChainNodesList().stream()
+                                .findFirst().ifPresent(scNode -> {
+                            scNode.getMembersByStateMap().values().stream()
+                                    .findFirst().ifPresent(memberList -> {
+                                sourceRegions.addAll(memberList.getMemberOidsList());
+                            });
+                        });
+                    });
+        }
+        return sourceRegions;
     }
 }

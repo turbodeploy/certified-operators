@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Settin
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.AnalysisDTOMoles.AnalysisServiceMole;
@@ -82,6 +83,7 @@ public class PlanRpcServiceTest {
             RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             PlanReservedInstanceServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             1, TimeUnit.SECONDS, realtimeTopologyContextId );
     }
 
