@@ -134,7 +134,7 @@ public class GlobalActionAggregatorTest {
         ActionStatsLatestRecord globalRecord = recordsByMgmtUnitSubgroup.get(globalSubgroup.id());
         assertThat(globalRecord.getTotalEntityCount(), is(2));
         assertThat(globalRecord.getTotalActionCount(), is(1));
-        assertThat(globalRecord.getNewActionCount(), is(1));
+        assertThat(globalRecord.getNewActionCount(), is(0));
     }
 
     @Test
@@ -198,7 +198,7 @@ public class GlobalActionAggregatorTest {
         ActionStatsLatestRecord globalRecord = recordsByMgmtUnitSubgroup.get(globalSubgroup.id());
         assertThat(globalRecord.getTotalEntityCount(), is(1));
         assertThat(globalRecord.getTotalActionCount(), is(1));
-        assertThat(globalRecord.getNewActionCount(), is(1));
+        assertThat(globalRecord.getNewActionCount(), is(0));
     }
 
     /**
@@ -298,6 +298,6 @@ public class GlobalActionAggregatorTest {
         ActionStatsLatestRecord globalRecord = recordsByMgmtUnitSubgroup.get(globalSubgroup.id());
         assertThat(globalRecord.getTotalEntityCount(), is(3));
         assertThat(globalRecord.getTotalActionCount(), is(1));
-        assertThat(globalRecord.getNewActionCount(), is(1));
+        assertThat(globalRecord.getNewActionCount(), is(0));
     }
 }

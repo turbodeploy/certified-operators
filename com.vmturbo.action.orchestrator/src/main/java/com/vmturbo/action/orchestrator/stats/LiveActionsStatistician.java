@@ -373,6 +373,17 @@ public class LiveActionsStatistician {
 
         public boolean actionChanged(final long actionId, @Nonnull final ActionGroupKey actionGroupKey) {
             final ActionGroupKey oldKey = actionIdToActionGroupKey.get(actionId);
+            // If an action is present in the map, it means that the action has already been recommended
+            // and we do not want to consider it twice in the action stat counts. After a component
+            // restart we will lose the cached recommended actions, and thus we have no way to tell the
+            // ones we should count and the ones we shouldn't. For this reason every time the map is empty,
+            // we won't consider any action as changed, we will just populate the map. Those actions
+            // will be considered in the total action count, but not in the new action count. At the next
+            // incoming market plan we will then be able to calculate the new action count. See OM-61639
+            // for more informa
+            if (actionIdToActionGroupKey.isEmpty()) {
+                return false;
+            }
             return oldKey == null || !oldKey.equals(actionGroupKey);
         }
 

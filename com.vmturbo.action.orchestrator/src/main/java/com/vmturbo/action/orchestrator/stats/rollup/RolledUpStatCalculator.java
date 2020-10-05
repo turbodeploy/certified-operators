@@ -33,6 +33,13 @@ public class RolledUpStatCalculator {
 
     private static final Logger logger = LogManager.getLogger();
 
+    /**
+     * Given a certain hour, all the latest stats records in that time range will be rolled up. The
+     * prior action count will be given by the difference between the total action count and the new
+     * action count of the first record in the time range. The new action count will be given by
+     * the sum of the new action count for each record that is being rolled up. Max, min and avg
+     * will correspond to those operations over the set of snapshots that are being rolled up.
+     */
     @Nonnull
     public Optional<RolledUpActionGroupStat> rollupLatestRecords(final int numSnapshotsInRange,
              @Nonnull final List<StatWithSnapshotCnt<ActionStatsLatestRecord>> actionStats) {
@@ -119,6 +126,13 @@ public class RolledUpStatCalculator {
             .build());
     }
 
+    /**
+     * Given a certain day, all the hourly stats record in that time range will be rolled up. The
+     * prior action count will be given by the prior action count value of the first record in
+     * the range. The new action count will be given by the sum of the new action count for each
+     * record that is being rolled up. Max, min and avg will correspond to those operations over
+     * the set of snapshots that are being rolled up.
+     */
     @Nonnull
     public Optional<RolledUpActionGroupStat> rollupHourRecords(final int numActionPlanSnapshotsInRange,
                    @Nonnull final List<StatWithSnapshotCnt<ActionStatsByHourRecord>> actionStats) {
@@ -196,6 +210,13 @@ public class RolledUpStatCalculator {
         return Optional.of(rolledUpStat);
     }
 
+    /**
+     * Given a certain month, all the daily stats record in that time range will be rolled up. The
+     * prior action count will be given by the prior action count value of the first record in
+     * the range. The new action count will be given by the sum of the new action count for each
+     * record that is being rolled up. Max, min and avg will correspond to those operations over
+     * the set of snapshots that are being rolled up.
+     */
     @Nonnull
     public Optional<RolledUpActionGroupStat> rollupDayRecords(final int numActionPlanSnapshotsInRange,
               @Nonnull final List<StatWithSnapshotCnt<ActionStatsByDayRecord>> actionStats) {
