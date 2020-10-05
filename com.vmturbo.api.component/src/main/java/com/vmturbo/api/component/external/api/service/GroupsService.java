@@ -82,6 +82,7 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.Origin;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -113,6 +114,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin.CreationOriginCase;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin.User;
 import com.vmturbo.common.protobuf.group.GroupDTO.OriginFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
@@ -159,6 +162,26 @@ public class GroupsService implements IGroupsService {
     public static final Set<String> NESTED_GROUP_TYPES =
         ImmutableSet.of(StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER,
                 StringConstants.VIRTUAL_MACHINE_CLUSTER);
+
+    /**
+     * Map Api Enum Origin to GroupDTO.Origin.
+     */
+    public static final Map<Origin, Type> API_ORIGIN_TO_GROUPDTO_ORIGIN =
+            ImmutableMap.<Origin, Type>builder()
+                    .put(Origin.DISCOVERED, Type.DISCOVERED)
+                    .put(Origin.USER, Type.USER)
+                    .put(Origin.SYSTEM, Type.SYSTEM)
+                    .build();
+
+    /**
+     * Map Api Enum Origin to GroupDTO.Origin.
+     */
+    public static final Map<CreationOriginCase, Origin> GROUPDTO_ORIGIN_TO_API_CREATION_ORIGIN =
+            ImmutableMap.<CreationOriginCase, Origin>builder()
+                    .put(CreationOriginCase.DISCOVERED, Origin.DISCOVERED)
+                    .put(CreationOriginCase.USER, Origin.USER)
+                    .put(CreationOriginCase.SYSTEM, Origin.SYSTEM)
+                    .build();
 
     /**
      * Hardcoded uuid of the parent group of all user groups.
@@ -1083,6 +1106,7 @@ public class GroupsService implements IGroupsService {
      * @param includeAllGroupClasses true if the search should return all types of groups, not just
      *                               REGULAR.  False if only REGULAR groups should be returned.
      *                               filterList is assumed empty if includeAllGroupClasses is true.
+     * @param groupOrigin the origin to filter the groups
      *
      * @return The list of {@link GroupApiDTO} objects.
      * @throws InvalidOperationException When the cursor is invalid.
@@ -1096,11 +1120,12 @@ public class GroupsService implements IGroupsService {
                                                              @Nullable final Set<String> groupEntityTypes,
                                                              @Nullable EnvironmentType environmentType,
                                                              @Nullable List<String> scopes,
-                                                             final boolean includeAllGroupClasses)
+                                                             final boolean includeAllGroupClasses,
+                                                             @Nullable final Origin groupOrigin)
             throws InvalidOperationException, ConversionException, OperationFailedException,
             InterruptedException {
         final GetGroupsRequest groupsRequest = getGroupsRequestForFilters(GroupType.REGULAR,
-                filterList, scopes, includeAllGroupClasses).build();
+                filterList, scopes, includeAllGroupClasses, groupOrigin).build();
         final List<Grouping> groups = new LinkedList<>();
         if (groupEntityTypes != null && !groupEntityTypes.isEmpty()) {
             final Iterable<Grouping> rawGroups = () -> groupServiceRpc.getGroups(groupsRequest);
@@ -1190,7 +1215,7 @@ public class GroupsService implements IGroupsService {
     GetGroupsRequest.Builder getGroupsRequestForFilters(@Nonnull GroupType groupType,
             @Nonnull List<FilterApiDTO> filterList)
             throws OperationFailedException, ConversionException {
-        return getGroupsRequestForFilters(groupType, filterList, Collections.emptyList(), false);
+        return getGroupsRequestForFilters(groupType, filterList, Collections.emptyList(), false, null);
     }
 
     /**
@@ -1204,6 +1229,7 @@ public class GroupsService implements IGroupsService {
      * @param includeAllGroupClasses flag indicating whether or not to include all types of Groups
      *                               like Clusters.  This should only be set to true
      *                               if the groupType is REGULAR and filterList is empty.
+     * @param groupOrigin the group origin to filter groups
      * @return a GetGroupsRequest with the filtering set if an item in the filterList is found
      * @throws OperationFailedException when input filters do not apply to group type.
      * @throws ConversionException If the input filters cannot be converted.
@@ -1213,7 +1239,8 @@ public class GroupsService implements IGroupsService {
             @Nonnull GroupType groupType,
             @Nonnull List<FilterApiDTO> filterList,
             @Nullable List<String> scopes,
-            boolean includeAllGroupClasses) throws OperationFailedException, ConversionException {
+            boolean includeAllGroupClasses,
+            @Nullable Origin groupOrigin) throws OperationFailedException, ConversionException {
         GetGroupsRequest.Builder request = GetGroupsRequest.newBuilder();
         GroupFilter groupFilter = groupFilterMapper.apiFilterToGroupFilter(groupType, LogicalOperator.AND, filterList);
         if (includeAllGroupClasses && groupType != GroupType.REGULAR) {
@@ -1228,7 +1255,7 @@ public class GroupsService implements IGroupsService {
         }
         request.setGroupFilter(groupFilter);
 
-        if (scopes != null) {
+        if ( scopes != null ) {
             if (scopes.size() == 1 && scopes.get(0).equals(USER_GROUPS)) {
                 // if we are looking for groups created by user, we should also add a origin filter
                 request.getGroupFilterBuilder().setOriginFilter(
@@ -1238,6 +1265,14 @@ public class GroupsService implements IGroupsService {
                 // add scopes to filter resulting groups
                 request.addAllScopes(convertScopes(scopes));
             }
+        }
+
+        // groupOrigin if present will override setting origin filter via scopes equals
+        // USER_GROUP approach.
+        if ( groupOrigin != null ) {
+            request.getGroupFilterBuilder().setOriginFilter(
+                    OriginFilter.newBuilder().addOrigin(API_ORIGIN_TO_GROUPDTO_ORIGIN.get(groupOrigin))
+            );
         }
         return request;
     }
@@ -1420,7 +1455,7 @@ public class GroupsService implements IGroupsService {
                 // general case of finding groups in entities (like: find clusters in datacenters)
                 // use user scope framework to handle it
                 final GetGroupsRequest request = getGroupsRequestForFilters(groupType, filterList,
-                        scopes, false).build();
+                        scopes, false, null).build();
                 return getGroupApiDTOS(request, true, environmentType);
             }
         } else {

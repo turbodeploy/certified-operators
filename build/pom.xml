@@ -25,7 +25,8 @@
         <ux.mt.branch.version>8.0.1-SNAPSHOT</ux.mt.branch.version>
 
         <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.44-SNAPSHOT</com.vmturbo.api.version>
+
+        <com.vmturbo.api.version>3.1.45-SNAPSHOT</com.vmturbo.api.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.4.0</cpu.capacity.version>

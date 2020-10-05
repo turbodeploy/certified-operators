@@ -101,6 +101,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Discovered;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
@@ -2628,6 +2629,54 @@ public class GroupMapperTest {
         Assert.assertEquals(1, resultPage2.size());
         Assert.assertEquals(group1.getId(),
                 Long.parseLong(resultPage2.iterator().next().getUuid()));
+    }
+
+    /**
+     * Test that the output dto has and it is the correct origin attribute.
+     *
+     *  @throws InterruptedException from toGroupApiDto
+     *  @throws ConversionException from toGroupApiDto
+     *  @throws InvalidOperationException from toGroupApiDto
+     */
+    @Test
+    public void testToGroupApiDtoReturnsCorrectOrigin()
+            throws InvalidOperationException, InterruptedException, ConversionException {
+        final Grouping group1 = Grouping.newBuilder()
+                .setId(1L)
+                .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName("rg-1"))
+                .build();
+        final GroupAndMembers groupAndMembers1 = ImmutableGroupAndMembers.builder()
+                .group(group1)
+                .entities(Collections.emptyList())
+                .members(Collections.emptyList())
+                .build();
+        final Grouping group2 = Grouping.newBuilder()
+                .setId(2L)
+                .setOrigin(Origin.newBuilder().setDiscovered(Origin.Discovered.newBuilder()))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.RESOURCE)
+                        .setDisplayName("empty-rg"))
+                .build();
+        final GroupAndMembers groupAndMembers2 = ImmutableGroupAndMembers.builder()
+                .group(group2)
+                .entities(Collections.emptyList())
+                .members(Collections.emptyList())
+                .build();
+
+        when(groupExpander.getMembersForGroups(Arrays.asList(group2, group1)))
+                .thenReturn(Arrays.asList(groupAndMembers2,  groupAndMembers1));
+        final SearchPaginationRequest paginationRequest =
+                new SearchPaginationRequest("0", 3, true, "NAME");
+        final List<GroupApiDTO> resultPage = groupMapper.toGroupApiDto(
+                Arrays.asList(group1, group2), false,
+                paginationRequest, null).getObjects();
+
+        Assert.assertEquals(2, resultPage.size());
+        Assert.assertEquals(Type.DISCOVERED.name(), resultPage.get(0).getGroupOrigin().name());
+        Assert.assertEquals(Type.USER.name(), resultPage.get(1).getGroupOrigin().name());
     }
 
     /**
