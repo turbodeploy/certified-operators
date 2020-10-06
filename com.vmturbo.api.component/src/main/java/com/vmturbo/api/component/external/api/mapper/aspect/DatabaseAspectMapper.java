@@ -13,6 +13,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Databas
  * Topology Extension data related to Database type-specific data.
  **/
 public class DatabaseAspectMapper extends AbstractAspectMapper {
+
+    private static final String MAX_CONCURRENT_SESSION = "max_concurrent_session";
+    private static final String MAX_CONCURRENT_WORKER = "max_concurrent_worker";
+    private static final String PRICING_MODEL = "pricing_model";
+    private static final String STORAGE_AMOUNT = "storage_amount";
+
     @Nullable
     @Override
     public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
@@ -35,6 +41,28 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
                 aspect.setDeploymentType(databaseInfo.getDeploymentType().name());
             }
         }
+
+        String concurrentSessions = entity.getEntityPropertyMapOrDefault(MAX_CONCURRENT_SESSION, null);
+        if (concurrentSessions != null) {
+            aspect.setMaxConcurrentSessions(Integer.parseInt(concurrentSessions));
+        }
+
+        String concurrentWorkers = entity.getEntityPropertyMapOrDefault(MAX_CONCURRENT_WORKER, null);
+        if (concurrentWorkers != null) {
+            aspect.setMaxConcurrentWorkers(Integer.parseInt(concurrentWorkers));
+        }
+
+        String pricingModel = entity.getEntityPropertyMapOrDefault(PRICING_MODEL, null);
+        if (pricingModel != null) {
+            aspect.setPricingModel(pricingModel);
+        }
+
+        // TODO: Roop Storage amount is not part of aspect anymore.
+        // String storageAmount = entity.getEntityPropertyMapOrDefault(STORAGE_AMOUNT, null);
+        // if (storageAmount != null) {
+        //    aspect.setStorageAmount(storageAmount);
+        // }
+
         return aspect;
     }
 

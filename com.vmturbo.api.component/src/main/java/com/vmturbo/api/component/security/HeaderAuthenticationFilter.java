@@ -1,21 +1,23 @@
 package com.vmturbo.api.component.security;
 
-import com.vmturbo.api.component.communication.HeaderAuthenticationToken;
-import com.vmturbo.api.component.external.api.util.ApiUtils;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.filter.OncePerRequestFilter;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.X_TURBO_ROLE;
+
+import java.io.IOException;
+import java.security.PublicKey;
+import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.servlet.FilterChain;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.security.PublicKey;
-import java.util.Objects;
-import java.util.Optional;
 
-import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.X_TURBO_ROLE;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import com.vmturbo.api.component.communication.HeaderAuthenticationToken;
+import com.vmturbo.api.component.external.api.util.ApiUtils;
 
 /**
  * <P>

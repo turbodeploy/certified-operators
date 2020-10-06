@@ -31,9 +31,11 @@ import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
+import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle.DatabasePrice.StorageOption;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple.DependentCostTuple.DependentResourceOption;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceLimitation;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRangeDependency;
@@ -68,6 +70,9 @@ public class CostDTOCreatorTest {
             .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
             .setOid(BA_ID)
             .build();
+    public static final String DB_TIER_LICENCE_KEY = "SqlServer:Standard:MultiAz:NoLicenseRequired";
+    public static final int DB_TIER_ID = 771;
+    public static final int DB_TIER_REGION_ID = 772;
 
     private static List<TopologyEntityDTO> REGIONS;
     private MarketPriceTable marketPriceTable;
@@ -143,8 +148,11 @@ public class CostDTOCreatorTest {
         Mockito.doReturn(netCommSpecTO).when(converter)
                 .commoditySpecification(netTpCommType);
         AccountPricingData accountPricingData = Mockito.mock(AccountPricingData.class);
-        DatabasePriceBundle databasePriceBundle = DatabasePriceBundle.newBuilder().addPrice(BA_ID, DatabaseEngine.MYSQL, DatabaseEdition.STANDARD,
-                DeploymentType.MULTI_AZ, LicenseModel.BRING_YOUR_OWN_LICENSE, 0.4).build();
+        DatabasePriceBundle databasePriceBundle = DatabasePriceBundle.newBuilder()
+                .addPrice(BA_ID, DatabaseEngine.MYSQL, DatabaseEdition.STANDARD,
+                        DeploymentType.MULTI_AZ, LicenseModel.BRING_YOUR_OWN_LICENSE, 0.4,
+                        Collections.emptyList())
+                .build();
         when(marketPriceTable.getDatabasePriceBundle(TIER_ID, REGION_ID, accountPricingData)).thenReturn(databasePriceBundle);
         ComputePriceBundle computeBundle = ComputePriceBundle.newBuilder()
                 .addPrice(BA_ID, OSType.LINUX, 0.5, true)
@@ -235,6 +243,82 @@ public class CostDTOCreatorTest {
         assertEquals(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, storageResourceRange.getDependentResourceType().getType());
         assertEquals(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, storageResourceRange.getBaseResourceType().getType());
         assertEquals(2, storageResourceRange.getRangeTupleCount());
+    }
+
+    /**
+     * Tests creating a DB tier cost DTO which includes some storage options.
+     */
+    @Test
+    public void createdDatabaseTierCostDTOTest() {
+        AccountPricingData accountPricingData = Mockito.mock(AccountPricingData.class);
+        List<StorageOption> storageOptions = new ArrayList<>();
+        storageOptions.add(new StorageOption(250, 250, 0.0));
+        storageOptions.add(new StorageOption(50, 300, 0.01));
+        DatabasePriceBundle databasePriceBundle = DatabasePriceBundle.newBuilder()
+                .addPrice(0, DatabaseEngine.SQLSERVER, DatabaseEdition.STANDARD,
+                        DeploymentType.MULTI_AZ, LicenseModel.NO_LICENSE_REQUIRED, 0.4,
+                        storageOptions)
+                .build();
+        when(marketPriceTable.getDatabasePriceBundle(DB_TIER_ID, DB_TIER_REGION_ID,
+                accountPricingData)).thenReturn(databasePriceBundle);
+        CostDTOCreator costDTOCreator = new CostDTOCreator(converter, marketPriceTable);
+        Set<AccountPricingData> accountPricingDataSet = new HashSet<>();
+        accountPricingDataSet.add(accountPricingData);
+        List<TopologyEntityDTO> regions = new ArrayList<>();
+        final CommodityType licenseType = CommodityType.newBuilder()
+                .setKey(LicenseModel.NO_LICENSE_REQUIRED.name())
+                .setType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                .build();
+        final TopologyDTO.CommoditySoldDTO license =
+                TopologyDTO.CommoditySoldDTO.newBuilder().setCommodityType(licenseType).build();
+        regions.add(TopologyEntityDTO.newBuilder()
+                .setOid(DB_TIER_REGION_ID)
+                .setEntityType(EntityType.REGION_VALUE)
+                .addCommoditySoldList(license)
+                .build());
+        TopologyEntityDTO dbTier = createDBTier();
+        when(converter.commoditySpecification(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                .build())).thenReturn(CommoditySpecificationTO.newBuilder()
+                .setType(3)
+                .setBaseType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                .build());
+        CostDTO costDTO =
+                costDTOCreator.createDatabaseTierCostDTO(dbTier, regions, accountPricingDataSet);
+        List<DependentResourceOption> dependentResourceOptions = costDTO.getDatabaseTierCost()
+                .getCostTupleListList()
+                .get(0)
+                .getDependentCostTuplesList()
+                .get(0)
+                .getDependentResourceOptionsList();
+        Assert.assertEquals(2, dependentResourceOptions.size());
+        DependentResourceOption dependentResourceOption1 = dependentResourceOptions.get(0);
+        Assert.assertEquals(250, dependentResourceOption1.getIncrement());
+        Assert.assertEquals(250, dependentResourceOption1.getEndRange());
+        Assert.assertEquals(0.0, dependentResourceOption1.getPrice(), 0.01);
+        DependentResourceOption dependentResourceOption2 = dependentResourceOptions.get(1);
+        Assert.assertEquals(50, dependentResourceOption2.getIncrement());
+        Assert.assertEquals(300, dependentResourceOption2.getEndRange());
+        Assert.assertEquals(0.01, dependentResourceOption2.getPrice(), 0.01);
+    }
+
+    private TopologyEntityDTO createDBTier() {
+        final CommodityType licenseType = CommodityType.newBuilder()
+                .setKey(DB_TIER_LICENCE_KEY)
+                .setType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                .build();
+        Mockito.when(converter.commoditySpecification(licenseType))
+                .thenReturn(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                        .setType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                        .build());
+        final TopologyDTO.CommoditySoldDTO license =
+                TopologyDTO.CommoditySoldDTO.newBuilder().setCommodityType(licenseType).build();
+        return TopologyEntityDTO.newBuilder()
+                .setOid(DB_TIER_ID)
+                .setEntityType(EntityType.DATABASE_TIER_VALUE)
+                .addCommoditySoldList(license)
+                .build();
     }
 
     private TopologyEntityDTO createStorageTier() {

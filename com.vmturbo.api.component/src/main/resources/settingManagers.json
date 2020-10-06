@@ -167,6 +167,7 @@
         "percentileAggressivenessContainerSpec",
         "percentileAggressivenessVirtualMachine",
         "percentileAggressivenessVirtualVolume",
+        "percentileAggressivenessDatabase",
         "minObservationPeriodVirtualMachine",
         "minObservationPeriodVirtualVolume",
         "minObservationPeriodContainerSpec",
@@ -175,6 +176,7 @@
         "maxObservationPeriodVirtualMachine",
         "maxObservationPeriodVirtualVolume",
         "maxObservationPeriodDesktopPool",
+        "maxObservationPeriodDatabase",
         "maxVMGrowthObservationPeriod",
         "resizeTargetUtilizationNetThroughput",
         "resizeTargetUtilizationIoThroughput",
@@ -200,7 +202,8 @@
         "appHeapScalingIncrement",
         "dbMemScalingIncrement",
         "resizeVStorage",
-        "preferSavingsOverReversibility"
+        "preferSavingsOverReversibility",
+        "dtuUtilization"
       ]
     },
     "storagesettingsmanager": {

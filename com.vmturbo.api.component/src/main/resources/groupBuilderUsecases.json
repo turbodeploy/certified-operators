@@ -45,7 +45,7 @@
     "DatabaseTier": {
         "criteria": [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseTiersByName"},
-            {"inputType": "#", "elements": "commoditySoldList[type=DBMem,capacity]", "filterCategory": "property", "filterType": "databaseTiersByDBMem"}
+            {"inputType": "#", "elements": "commoditySoldList[type=StorageAmount,capacity]", "filterCategory": "property", "filterType": "databaseTiersByStorageAmount"}
         ]
     },
 
@@ -187,7 +187,9 @@
             {"inputType": "*", "elements": "ApplicationComponent:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseByApplicationComponent"},
             {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseByBusinessApplication"},
             {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseByBusinessTransaction"},
-            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseByService"}
+            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "databaseByService"},
+            {"inputType": "*", "elements": "AvailabilityZone:displayName:AGGREGATES:Database", "filterCategory": "entity", "filterType": "dbByAvailabilityZoneName"},
+            {"inputType": "*", "elements": "Region:displayName:AGGREGATES:Database", "filterCategory": "entity", "filterType": "dbByRegionName"}
         ]
     },
 

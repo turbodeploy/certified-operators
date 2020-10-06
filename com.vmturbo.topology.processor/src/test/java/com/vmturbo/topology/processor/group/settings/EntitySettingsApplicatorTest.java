@@ -1464,6 +1464,9 @@ public class EntitySettingsApplicatorTest {
                 EntitySettingSpecs.VCPURequestUtilization);
         testUtilizationSettings(EntityType.CONTAINER_POD, CommodityType.VCPU_REQUEST,
                 EntitySettingSpecs.VCPURequestUtilization);
+        testUtilizationSettings(EntityType.DATABASE, CommodityType.DTU,
+                EntitySettingSpecs.DTUUtilization);
+
     }
 
     private TopologyEntityDTO.Builder createEntityWithCommodity(@Nonnull EntityType entityType,

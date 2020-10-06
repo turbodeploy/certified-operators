@@ -82,48 +82,50 @@ public class GenerateConstraintMap {
                 allClusterIds.add(group.getId());
             }
         }
-        final Iterator<GetMembersResponse> membersResponseIterator = groupServiceClient.getMembers(GetMembersRequest.newBuilder()
-                .addAllId(allClusterIds).build());
-        while (membersResponseIterator.hasNext()) {
-            GetMembersResponse membersResponse = membersResponseIterator.next();
-            if (!membersResponse.getMemberIdList().isEmpty()) {
-                Optional<Long> providerOidOptional = membersResponse.getMemberIdList()
-                        .stream().findFirst();
-                if (!providerOidOptional.isPresent()) {
-                    continue;
-                }
-                Long providerOid = providerOidOptional.get();
-                Optional<TopologyEntity> providerOptional = topologyGraph.getEntity(providerOid);
-                if (!providerOptional.isPresent()) {
-                    continue;
-                }
-                TopologyEntity provider = providerOptional.get();
-                if (provider.getTypeSpecificInfo().hasPhysicalMachine()) {
-                    String key = provider.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
-                            .filter(a -> a.getCommodityType().getType()
-                                    == CommodityType.CLUSTER_VALUE).findFirst().get()
-                            .getCommodityType().getKey();
-                    updateConstraintMapRequest.addReservationContraintInfo(ReservationConstraintInfo
-                            .newBuilder()
-                            .setKey(key)
-                            .setConstraintId(membersResponse.getGroupId())
-                            .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
-                            .setType(Type.CLUSTER).build());
-                } else if (provider.getTypeSpecificInfo().hasStorage()) {
-                    String key = provider.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
-                            .filter(a -> a.getCommodityType().getType()
-                                    == CommodityType.STORAGE_CLUSTER_VALUE).findFirst().get()
-                            .getCommodityType().getKey();
-                    updateConstraintMapRequest.addReservationContraintInfo(ReservationConstraintInfo
-                            .newBuilder()
-                            .setKey(key)
-                            .setConstraintId(membersResponse.getGroupId())
-                            .setProviderType(EntityType.STORAGE_VALUE)
-                            .setType(Type.STORAGE_CLUSTER).build());
+
+        if (!allClusterIds.isEmpty()) {
+            final Iterator<GetMembersResponse> membersResponseIterator = groupServiceClient.getMembers(GetMembersRequest.newBuilder()
+                    .addAllId(allClusterIds).build());
+            while (membersResponseIterator.hasNext()) {
+                GetMembersResponse membersResponse = membersResponseIterator.next();
+                if (!membersResponse.getMemberIdList().isEmpty()) {
+                    Optional<Long> providerOidOptional = membersResponse.getMemberIdList()
+                            .stream().findFirst();
+                    if (!providerOidOptional.isPresent()) {
+                        continue;
+                    }
+                    Long providerOid = providerOidOptional.get();
+                    Optional<TopologyEntity> providerOptional = topologyGraph.getEntity(providerOid);
+                    if (!providerOptional.isPresent()) {
+                        continue;
+                    }
+                    TopologyEntity provider = providerOptional.get();
+                    if (provider.getTypeSpecificInfo().hasPhysicalMachine()) {
+                        String key = provider.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                                .filter(a -> a.getCommodityType().getType()
+                                        == CommodityType.CLUSTER_VALUE).findFirst().get()
+                                .getCommodityType().getKey();
+                        updateConstraintMapRequest.addReservationContraintInfo(ReservationConstraintInfo
+                                .newBuilder()
+                                .setKey(key)
+                                .setConstraintId(membersResponse.getGroupId())
+                                .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                                .setType(Type.CLUSTER).build());
+                    } else if (provider.getTypeSpecificInfo().hasStorage()) {
+                        String key = provider.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                                .filter(a -> a.getCommodityType().getType()
+                                        == CommodityType.STORAGE_CLUSTER_VALUE).findFirst().get()
+                                .getCommodityType().getKey();
+                        updateConstraintMapRequest.addReservationContraintInfo(ReservationConstraintInfo
+                                .newBuilder()
+                                .setKey(key)
+                                .setConstraintId(membersResponse.getGroupId())
+                                .setProviderType(EntityType.STORAGE_VALUE)
+                                .setType(Type.STORAGE_CLUSTER).build());
+                    }
                 }
             }
         }
-
 
         // go over all the datacenter. Find a host in the datacenter. Find the
         // data center commodity sold by the host. Find the key associated with the

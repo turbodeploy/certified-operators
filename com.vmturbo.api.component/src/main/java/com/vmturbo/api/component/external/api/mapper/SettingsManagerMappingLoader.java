@@ -41,7 +41,6 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.GsonPostProcessable;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 /**
  * Responsible for loading the {@link SettingsManagerMapping}s from a file at system startup.

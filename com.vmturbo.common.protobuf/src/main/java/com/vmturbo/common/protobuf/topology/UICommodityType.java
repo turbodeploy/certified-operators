@@ -240,6 +240,12 @@ public enum UICommodityType {
     KPI("KPI", CommodityType.KPI, "KPI"),
     /** The commodity TOTAL_SESSIONS. */
     TOTAL_SESSIONS("TotalSessions", CommodityType.TOTAL_SESSIONS, "Total Sessions"),
+    /** Database Transaction Unit **/
+    DTU("DTU", CommodityType.DTU, "DTU"),
+    /** Concurrent Sessions refers to the number of concurrent connections allowed to a SQL database at a time. **/
+    CONCURRENT_SESSION("ConcurrentSession", CommodityType.CONCURRENT_SESSION, "Concurrent Session"),
+    /** Concurrent Workers can be thought of as the concurrent processes in the SQL database that are processing queries. **/
+    CONCURRENT_WORKER("ConcurrentWorker", CommodityType.CONCURRENT_WORKER, "Concurrent Worker"),
     /** The commodity UNKNOWN. */
     UNKNOWN("Unknown", CommodityType.UNKNOWN, "Unknown");
 

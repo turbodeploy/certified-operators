@@ -110,6 +110,15 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
     @Nonnull
     Optional<VirtualVolumeConfig> getVolumeConfig(@Nonnull ENTITY_CLASS entity);
 
+    /**
+     * Get storage amount for DB entity.
+     *
+     * @param entity The entity.
+     * @return An Optional StorageAmount in float.
+     */
+    @Nonnull
+    Optional<Float> getDBStorageCapacity(@Nonnull ENTITY_CLASS entity);
+
     /*
      * Get the compute tier configuration of a particular entity.
      *

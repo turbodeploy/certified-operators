@@ -1002,7 +1002,8 @@ public class TopologyEntitiesHandlerTest {
         DatabasePriceBundle.Builder builder = DatabasePriceBundle.newBuilder();
         for (Map.Entry<DatabaseEngine, Double> e : engineBasedPriceMapping.entrySet()) {
             // price entry for Valid Engine and NULL Edition, DeploymentType and LicenseModel
-            builder.addPrice(businessAccountId, e.getKey(), null, null, null, e.getValue());
+            builder.addPrice(businessAccountId, e.getKey(), null, null, null, e.getValue(),
+                    Collections.emptyList());
         }
         return builder.build();
     }

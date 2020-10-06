@@ -35,6 +35,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePri
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
+import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle.DatabasePrice.StorageOption;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -254,14 +255,28 @@ public class MarketPriceTable {
             return;
         }
         final double baseHourlyPrice =
-            dbTierBasePrice.getPricesList().get(0).getPriceAmount().getAmount();
-        DiscountApplicator<TopologyEntityDTO> discountApplicator = accountPricingData.getDiscountApplicator();
+                CostProtoUtil.getHourlyPriceAmount(dbTierBasePrice.getPricesList().get(0));
+        DiscountApplicator<TopologyEntityDTO> discountApplicator =
+                accountPricingData.getDiscountApplicator();
+        // Add storage options- Azure DTU-based DB
+        List<StorageOption> storageOptions = new ArrayList<>();
+        for (Price dependentPrice : dbTierPrices.getDependentPricesList()) {
+            storageOptions.add(new StorageOption(dependentPrice.getIncrementInterval(),
+                    dependentPrice.getEndRangeInUnits(),
+                    CostProtoUtil.getHourlyPriceAmount(dependentPrice)));
+        }
+        /*
+        Sort storage options ascending based on the end range. Turbonomic needs to find the least
+        expensive option that can fit the demand. This is why we sort the options based on the
+        end range.
+         */
+        Collections.sort(storageOptions,
+                (a, b) -> Long.valueOf(a.getEndRange() - b.getEndRange()).intValue());
         // Add the base configuration price.
-        priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(), dbEngine,
-            dbEdition,
-            deploymentType,
-            licenseModel,
-            baseHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue()));
+        priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(), dbEngine, dbEdition,
+                deploymentType, licenseModel, baseHourlyPrice *
+                        (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue()),
+                storageOptions);
 
         for (DatabaseTierConfigPrice dbTierConfigPrice : dbTierPrices.getConfigurationPriceAdjustmentsList()) {
 
@@ -275,13 +290,13 @@ public class MarketPriceTable {
                 continue;
             }
             priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(),
-                dbTierConfigPrice.getDbEngine(),
-                dbTierConfigPrice.getDbEdition(),
-                deploymentType,
-                dbTierConfigPrice.hasDbLicenseModel() ?
-                    dbTierConfigPrice.getDbLicenseModel() : null,
-                (baseHourlyPrice + dbTierConfigPrice.getPricesList().get(0).getPriceAmount().getAmount())
-                    * (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue()));
+                    dbTierConfigPrice.getDbEngine(), dbTierConfigPrice.getDbEdition(),
+                    deploymentType,
+                    dbTierConfigPrice.hasDbLicenseModel() ? dbTierConfigPrice.getDbLicenseModel() :
+                            null, (baseHourlyPrice +
+                            dbTierConfigPrice.getPricesList().get(0).getPriceAmount().getAmount()) *
+                            (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue()),
+                    storageOptions);
         }
     }
 
@@ -731,11 +746,12 @@ public class MarketPriceTable {
             public Builder addPrice(final long accountId, @Nonnull final DatabaseEngine dbEngine,
                     @Nonnull final DatabaseEdition dbEdition,
                     @Nullable final DeploymentType depType,
-                    @Nullable final LicenseModel licenseModel,
-                    final double hourlyPrice) {
+                    @Nullable final LicenseModel licenseModel, final double hourlyPrice,
+                    @Nonnull final List<StorageOption> storageOptions) {
                 // TODO (roman, September 25) - Replace with CostTuple
-                priceBuilder.add(new DatabasePrice(accountId, dbEngine, dbEdition,
-                        depType, licenseModel, hourlyPrice));
+                priceBuilder.add(
+                        new DatabasePrice(accountId, dbEngine, dbEdition, depType, licenseModel,
+                                hourlyPrice, storageOptions));
                 return this;
             }
 
@@ -758,19 +774,20 @@ public class MarketPriceTable {
             private final DeploymentType depType;
             private final LicenseModel licenseModel;
             private final double hourlyPrice;
+            private final List<StorageOption> storageOptions;
 
-            public DatabasePrice(final long accountId,
-                                @Nonnull final DatabaseEngine dbEngine,
-                                @Nonnull final DatabaseEdition dbEdition,
-                                @Nullable final DeploymentType depType,
-                                @Nullable final LicenseModel licenseModel,
-                                final double hourlyPrice) {
+            public DatabasePrice(final long accountId, @Nonnull final DatabaseEngine dbEngine,
+                    @Nonnull final DatabaseEdition dbEdition,
+                    @Nullable final DeploymentType depType,
+                    @Nullable final LicenseModel licenseModel, final double hourlyPrice,
+                    @Nonnull final List<StorageOption> storageOptions) {
                 this.accountId = accountId;
                 this.dbEngine = dbEngine;
                 this.dbEdition = dbEdition;
                 this.depType = depType;
                 this.licenseModel = licenseModel;
                 this.hourlyPrice = hourlyPrice;
+                this.storageOptions = storageOptions;
             }
 
             public long getAccountId() {
@@ -793,8 +810,57 @@ public class MarketPriceTable {
                 return licenseModel;
             }
 
+            /**
+             * This returns the hourly price of the base commodity type.
+             *
+             * @return The hourly price of the base commodity type
+             */
             public double getHourlyPrice() {
                 return hourlyPrice;
+            }
+
+            /**
+             * This returns the storage options and their prices. These options have start,
+             * increment and end. The start of each option is the end range of the previous option
+             * (sorted by the end range). Each storage option can be obtained by adding multiples of
+             * increment to the start. Note that the final number can't be greater than end range.
+             * If the number is greater than the end range, we need to consider another option. For
+             * example, if we need 730GB and the option is: increment:250GB, end_range:750GB,
+             * start:500GB, we need to add one increment to the 500GB (start). The right option for
+             * this demand is 750GB since 730GB is less than or equals this number and this is
+             * obtainable by adding the increment to the start.
+             *
+             * @return The storage options and their prices
+             */
+            public List<StorageOption> getStorageOptions() {
+                return storageOptions;
+            }
+
+            public static class StorageOption {
+                // This is the possible increment in GB in this option (ex. 250GB).
+                final long increment;
+                // This is the end range in GB in this option (ex. 500GB).
+                final long endRange;
+                // This is the price per GB in this option (ex. 0.2 per GB).
+                final double price;
+
+                public long getIncrement() {
+                    return increment;
+                }
+
+                public long getEndRange() {
+                    return endRange;
+                }
+
+                public double getPrice() {
+                    return price;
+                }
+
+                public StorageOption(long increment, long endRange, double price) {
+                    this.increment = increment;
+                    this.endRange = endRange;
+                    this.price = price;
+                }
             }
 
             @Override

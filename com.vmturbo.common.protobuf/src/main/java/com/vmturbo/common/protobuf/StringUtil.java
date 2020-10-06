@@ -67,6 +67,10 @@ public class StringUtil {
             value >>= 10;
             ci.next();
         }
+
+        if (value % 1024 == 0) {
+            return String.format("%.0f %cB", value / 1024.0, ci.current());
+        }
         return String.format("%.1f %cB", value / 1024.0, ci.current());
     }
 }

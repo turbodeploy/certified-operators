@@ -1,6 +1,8 @@
 package com.vmturbo.market.topology.conversions;
 
 import java.util.Collection;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -11,6 +13,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 
@@ -29,6 +32,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.Comput
 import com.vmturbo.market.runner.cost.MarketPriceTable.CoreBasedLicensePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle.DatabasePrice;
+import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle.DatabasePrice.StorageOption;
 import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs;
@@ -37,6 +41,9 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple.DependentCostTuple;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple.DependentCostTuple.DependentResourceOption;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.DatabaseTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.RangeTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRangeDependency;
@@ -121,9 +128,9 @@ public class CostDTOCreator {
                                 // license the VM is looking for is not found in the costMap. (Although
                                 // this should not happen, it is more of a safety mechanism)
                                 if (computePrice.isBasePrice()) {
-                                    computeTierDTOBuilder
-                                            .addCostTupleList(createCostTuple(accountPricingData.getAccountPricingDataOid(), -1,
-                                                    price, region.getOid()));
+                                    computeTierDTOBuilder.addCostTupleList(createCostTuple(
+                                            accountPricingData.getAccountPricingDataOid(), -1,
+                                            price, region.getOid(), Collections.emptyList()));
                                 }
                             } else {
                                 logger.warn("Tier {} - region {} sells license {}, but market has no" +
@@ -155,12 +162,25 @@ public class CostDTOCreator {
                 .build();
     }
 
-    private CostTuple.Builder createCostTuple(long baOid, int licenseCommodityId, double hourlyPrice,
-                                              long regionId) {
-        return CostTuple.newBuilder().setBusinessAccountId(baOid)
+    private CostTuple.Builder createCostTuple(long baOid, int licenseCommodityId,
+            double hourlyPrice, long regionId,
+            @Nonnull final List<DependentCostTuple> dependentCostTuples) {
+        return CostTuple.newBuilder()
+                .setBusinessAccountId(baOid)
                 .setLicenseCommodityType(licenseCommodityId)
                 .setRegionId(regionId)
-                .setPrice(hourlyPrice);
+                .setPrice(hourlyPrice)
+                .addAllDependentCostTuples(dependentCostTuples);
+    }
+
+    @Nonnull
+    private DependentResourceOption convertStorageOptionToResourceOption(
+            @Nonnull final StorageOption storageOption) {
+        return DependentResourceOption.newBuilder()
+                .setIncrement(storageOption.getIncrement())
+                .setEndRange(storageOption.getEndRange())
+                .setPrice(storageOption.getPrice())
+                .build();
     }
 
     /**
@@ -172,9 +192,10 @@ public class CostDTOCreator {
      *
      * @return CostDTO
      */
-    private CostDTO createDatabaseTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions,
+    @VisibleForTesting
+    CostDTO createDatabaseTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions,
                                              Set<AccountPricingData> uniqueAccountPricingData) {
-        ComputeTierCostDTO.Builder dbTierDTOBuilder = ComputeTierCostDTO.newBuilder();
+        DatabaseTierCostDTO.Builder dbTierDTOBuilder = DatabaseTierCostDTO.newBuilder();
         for (AccountPricingData accountPricingData : uniqueAccountPricingData) {
             for (TopologyEntityDTO region: regions) {
                 DatabasePriceBundle priceBundle = marketPriceTable.getDatabasePriceBundle(tier.getOid(),
@@ -200,6 +221,8 @@ public class CostDTOCreator {
                 for (CommodityType licenseCommodity : licenseCommoditySet) {
                     double price = Double.POSITIVE_INFINITY;
                     String licenseId = licenseCommodity.getKey();
+                    // Keeps the storage options of the Azure DB tiers
+                    List<StorageOption> storageOptions = new ArrayList<>();
                     // we support just LicenseIncluded and NoLicenseRequired
                     if (licenseId.contains(MarketPriceTable.LICENSE_MODEL_MAP.get(LicenseModel.LICENSE_INCLUDED)) ||
                             licenseId.contains(MarketPriceTable.LICENSE_MODEL_MAP.get(LicenseModel.NO_LICENSE_REQUIRED))) {
@@ -209,6 +232,7 @@ public class CostDTOCreator {
                         DatabasePrice databasePrice = pricesForBa.get(licenseId);
                         if (databasePrice != null) {
                             price = databasePrice.getHourlyPrice();
+                            storageOptions.addAll(databasePrice.getStorageOptions());
                         } else {
                             // MULTL-AZ licenses are going to be given INFINITE cost
                             logger.trace("Cost not found for tier {} - region {} - AccountPricingDataOid {} - license {}",
@@ -222,27 +246,43 @@ public class CostDTOCreator {
                                     licenseId, tier.getDisplayName(), region.getDisplayName());
                         }
                     }
-                    CommoditySpecificationTO spec = commodityConverter
-                            .commoditySpecification(licenseCommodity);
-                    dbTierDTOBuilder
-                            .addCostTupleList(createCostTuple(accountPricingData.getAccountPricingDataOid(),
-                                    spec.getType(), price, region.getOid()));
+                    // Add storage options for Azure DB tiers
+                    List<DependentCostTuple> dependentCostTuples = new ArrayList<>();
+                    if (!storageOptions.isEmpty()) {
+                        List<DependentResourceOption> dependentResourceOptions = new ArrayList<>();
+                        storageOptions.forEach(storageOption -> {
+                            dependentResourceOptions.add(
+                                    convertStorageOptionToResourceOption(storageOption));
+                        });
+                        dependentCostTuples.add(DependentCostTuple.newBuilder()
+                                .setDependentResourceType(commodityConverter.commoditySpecification(
+                                        CommodityType.newBuilder()
+                                                .setType(
+                                                        CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                                                .build()).getType())
+                                .addAllDependentResourceOptions(dependentResourceOptions)
+                                .build());
+                    }
+                    CommoditySpecificationTO spec =
+                            commodityConverter.commoditySpecification(licenseCommodity);
+                    dbTierDTOBuilder.addCostTupleList(
+                            createCostTuple(accountPricingData.getAccountPricingDataOid(),
+                                    spec.getType(), price, region.getOid(), dependentCostTuples));
                 }
                 // price when license isn't available
-                CommoditySpecificationTO spec = commodityConverter
-                        .commoditySpecification(dataCenterAccessCommodity.get());
-                dbTierDTOBuilder
-                        .addCostTupleList(CostTuple.newBuilder()
-                                .setBusinessAccountId(accountPricingData.getAccountPricingDataOid())
-                                .setLicenseCommodityType(-1)
-                                .setRegionId(region.getOid())
-                                .setPrice(Double.POSITIVE_INFINITY));
+                CommoditySpecificationTO spec =
+                        commodityConverter.commoditySpecification(dataCenterAccessCommodity.get());
+                dbTierDTOBuilder.addCostTupleList(CostTuple.newBuilder()
+                        .setBusinessAccountId(accountPricingData.getAccountPricingDataOid())
+                        .setLicenseCommodityType(-1)
+                        .setRegionId(region.getOid())
+                        .setPrice(Double.POSITIVE_INFINITY));
             }
         }
 
         return CostDTO.newBuilder()
-                .setComputeTierCost(dbTierDTOBuilder
-                        .setLicenseCommodityBaseType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                .setDatabaseTierCost(dbTierDTOBuilder.setLicenseCommodityBaseType(
+                        CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
                         .setCouponBaseType(CommodityDTO.CommodityType.COUPON_VALUE)
                         .build())
                 .build();
