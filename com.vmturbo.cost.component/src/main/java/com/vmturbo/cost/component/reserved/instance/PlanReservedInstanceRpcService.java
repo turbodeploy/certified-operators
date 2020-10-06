@@ -296,7 +296,7 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
         final Map<Long, Double> usedCouponsToUpdate = new HashMap<>();
         final Map<Long, EntityCost> entityCostsToUpdate = new HashMap<>();
         fillUsedCouponsAndEntityCosts(originalEntityCosts, coverageMap, usedCouponsToUpdate,
-                entityCostsToUpdate);
+                entityCostsToUpdate, request.getShouldRiDiscountLicenseCost());
 
         // Update used_coupons in plan_projected_reserved_instance_coverage, doesn't seem to
         // break anything not doing it for BuyRI, but do it for completeness.
@@ -330,12 +330,14 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
      *      plan_projected ri coverage table. Input map updated in place.
      * @param entityCostsToUpdate Map of entityId to costs with RI discount, updated in
      *      plan projected entity cost table. Input map updated in place.
+     * @param shouldRiDiscountLicenseCost Whether license costs should be discounted based on RI coverage
      */
     private void fillUsedCouponsAndEntityCosts(
             @Nonnull final Map<Long, EntityCost> originalEntityCosts,
             @Nonnull final Map<Long, EntityReservedInstanceCoverage> coverageMap,
             @Nonnull final Map<Long, Double> usedCouponsToUpdate,
-            @Nonnull final Map<Long, EntityCost> entityCostsToUpdate) {
+            @Nonnull final Map<Long, EntityCost> entityCostsToUpdate,
+            @Nonnull final boolean shouldRiDiscountLicenseCost) {
         // Find those entities for which we have BuyRIs with missing ri_inventory_discounts.
         for (Map.Entry<Long, EntityCost> entry : originalEntityCosts.entrySet()) {
             final long entityId = entry.getKey();
@@ -376,7 +378,7 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
                 updateRiDiscountedCost(CostCategory.ON_DEMAND_COMPUTE, totalCoupons, usedCoupons,
                         newCostBuilder, computeRate);
             }
-            if (licenseRate != null) {
+            if (licenseRate != null && shouldRiDiscountLicenseCost) {
                 updateRiDiscountedCost(CostCategory.ON_DEMAND_LICENSE, totalCoupons, usedCoupons,
                         newCostBuilder, licenseRate);
             }

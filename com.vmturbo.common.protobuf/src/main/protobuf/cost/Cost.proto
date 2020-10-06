@@ -842,6 +842,9 @@ message GetReservedInstanceSpecByIdsResponse {
 // Request for updating MPC plan BuyRI costs.
 message UpdatePlanBuyReservedInstanceCostsRequest {
     required int64 planId = 1;
+    // Whether license costs be discounted based on RI coverage
+    // This will be removed in 8.0.1
+    optional bool should_ri_discount_license_cost = 2 [default = true];
 }
 
 // Response from updating MPC plan BuyRI costs.

@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -53,6 +54,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
@@ -617,6 +619,29 @@ public class PlanRpcService extends PlanServiceImplBase {
     }
 
     /**
+     * If migrating to Azure, license costs will not be discounted based on RI coverage.
+     *
+     * @param planInstance The {@link PlanInstance} from which the determination should be made
+     * @return Whether license costs should be discounted based on RI coverage
+     */
+    private static boolean getShouldRiDiscountLicenseCost(@Nonnull final PlanInstance planInstance) {
+        boolean shouldRiDiscountLicenseCost = true;
+        final Optional<ScenarioChange> riSettingScenarioChange = planInstance.getScenario().getScenarioInfo().getChangesList().stream()
+                .filter(ScenarioChange::hasRiSetting)
+                .findFirst();
+        if (riSettingScenarioChange.isPresent()) {
+            final Set<CloudType> destinationCloudTypes = riSettingScenarioChange.get()
+                    .getRiSetting().getRiSettingByCloudtypeMap().keySet().stream()
+                    .map(CloudType::fromString)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(Collectors.toSet());
+            shouldRiDiscountLicenseCost = !destinationCloudTypes.contains(CloudType.AZURE);
+        }
+        return shouldRiDiscountLicenseCost;
+    }
+
+    /**
      * Called when plan has been successfully completed. For MPC plan, some BuyRI costs need to be
      * updated then, no-op for other plans.
      *
@@ -626,10 +651,13 @@ public class PlanRpcService extends PlanServiceImplBase {
         if (!PlanRpcServiceUtil.updateBuyRICostsOnPlanCompletion(planInstance)) {
             return;
         }
+
         final UpdatePlanBuyReservedInstanceCostsResponse response =
                 planRIService.updatePlanBuyReservedInstanceCosts(
-                UpdatePlanBuyReservedInstanceCostsRequest.newBuilder().setPlanId(
-                        planInstance.getPlanId()).build());
+                UpdatePlanBuyReservedInstanceCostsRequest.newBuilder()
+                        .setPlanId(planInstance.getPlanId())
+                        .setShouldRiDiscountLicenseCost(getShouldRiDiscountLicenseCost(planInstance))
+                        .build());
         logger.info("Updated {} BuyRI costs for plan {}", response.getUpdateCount(),
                 planInstance.getPlanId());
     }
