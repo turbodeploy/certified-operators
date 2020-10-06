@@ -2,7 +2,6 @@ package com.vmturbo.reserved.instance.coverage.allocator;
 
 import java.util.Comparator;
 import java.util.Set;
-import java.util.SortedSet;
 import java.util.function.Function;
 
 import javax.annotation.Nonnull;
@@ -30,8 +29,8 @@ public interface CoverageEntityPreference {
      * @return The sorted set of entity OIDs.
      */
     @Nonnull
-    SortedSet<Long> sortEntities(@Nonnull ReservedInstanceCoverageJournal coverageJournal,
-                                 @Nonnull Set<Long> entityOids);
+    Iterable<Long> sortEntities(@Nonnull ReservedInstanceCoverageJournal coverageJournal,
+                                @Nonnull Set<Long> entityOids);
 
     /**
      * The default implementation of {@link CoverageEntityPreference}.
@@ -42,7 +41,7 @@ public interface CoverageEntityPreference {
          * {@inheritDoc}.
          */
         @Override
-        public SortedSet<Long> sortEntities(@Nonnull final ReservedInstanceCoverageJournal coverageJournal,
+        public Iterable<Long> sortEntities(@Nonnull final ReservedInstanceCoverageJournal coverageJournal,
                                            @Nonnull final Set<Long> entityOids) {
 
             Preconditions.checkNotNull(coverageJournal);
@@ -63,6 +62,4 @@ public interface CoverageEntityPreference {
                     .build();
         }
     }
-
-
 }

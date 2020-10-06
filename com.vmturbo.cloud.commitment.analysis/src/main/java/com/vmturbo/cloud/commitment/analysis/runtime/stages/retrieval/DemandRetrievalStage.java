@@ -27,9 +27,13 @@ import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandRe
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.AbstractStage;
+import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.group.api.GroupAndMembers;
 
 /**
  * The demand retrieval stage is responsible for querying the demand stores for appropriate demand,
@@ -42,6 +46,8 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
     private final CloudCommitmentDemandReader demandReader;
 
     private final HistoricalDemandSelection demandSelection;
+
+    private final MinimalCloudTopology<MinimalEntity> cloudTopology;
 
     private final boolean logDetailedSummary;
 
@@ -60,6 +66,7 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
 
         this.demandReader = Objects.requireNonNull(demandReader);
         this.demandSelection = Objects.requireNonNull(config.getDemandSelection());
+        this.cloudTopology = context.getSourceCloudTopology();
         this.logDetailedSummary = demandSelection.getLogDetailedSummary();
     }
 
@@ -90,6 +97,10 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
                 // Some demand may end after the lookback start time but start before it. In these
                 // cases, we trim the demand to start on the lookback start time
                 .map(m -> trimDemandStartTime(m, lookBackStartTime))
+                // Billing family is not stored with the demand, given it can fluctuate with discovery
+                // (e.g. if AWS org access is added after discovery). Therefore, we resolve the billing
+                // family after demand retrieval
+                .map(this::addBillingFamily)
                 .peek(demandSummary.toSummaryCollector())
                 .collect(ImmutableSet.toImmutableSet());
 
@@ -130,6 +141,13 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
         } else {
             return cloudTierMapping;
         }
+    }
+
+    private EntityCloudTierMapping addBillingFamily(@Nonnull EntityCloudTierMapping cloudTierMapping) {
+        return ImmutableEntityCloudTierMapping.copyOf(cloudTierMapping)
+                .withBillingFamilyId(cloudTopology.getBillingFamilyForAccount(cloudTierMapping.accountOid())
+                        .map(GroupAndMembers::group)
+                        .map(Grouping::getId));
     }
 
     /**

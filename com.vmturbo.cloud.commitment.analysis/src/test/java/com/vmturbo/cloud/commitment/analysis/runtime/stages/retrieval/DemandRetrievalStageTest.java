@@ -3,6 +3,7 @@ package com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -12,6 +13,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
@@ -22,6 +24,7 @@ import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandRe
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
+import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory;
@@ -46,6 +49,14 @@ public class DemandRetrievalStageTest {
     private final CloudCommitmentDemandReader demandReader = mock(CloudCommitmentDemandReader.class);
 
     private final DemandRetrievalFactory demandRetrievalFactory = new DemandRetrievalFactory(demandReader);
+
+    private final MinimalCloudTopology cloudTopology = mock(MinimalCloudTopology.class);
+
+    @Before
+    public void setup() {
+        when(analysisContext.getSourceCloudTopology()).thenReturn(cloudTopology);
+        when(cloudTopology.getBillingFamilyForAccount(anyLong())).thenReturn(Optional.empty());
+    }
 
     /**
      * Testing execution with demand trimming and allocated demand retrieval

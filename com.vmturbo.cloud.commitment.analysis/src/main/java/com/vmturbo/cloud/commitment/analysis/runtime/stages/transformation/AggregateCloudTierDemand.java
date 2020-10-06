@@ -2,6 +2,7 @@ package com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -9,18 +10,17 @@ import org.immutables.value.Value.Auxiliary;
 import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Derived;
 import org.immutables.value.Value.Immutable;
-import org.immutables.value.Value.Style;
-import org.immutables.value.Value.Style.ImplementationVisibility;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassification;
-import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory.CloudCommitment;
+import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
+import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 
 /**
  * Represents an aggregate of {@link com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping},
  * grouping all demand across entities with the same scope, demand, and classification.
  */
-@Style(visibility = ImplementationVisibility.PACKAGE, overshadowImplementation = true)
+@HiddenImmutableImplementation
 @Immutable(lazyhash = true)
 public interface AggregateCloudTierDemand extends ScopedCloudTierDemand {
 
@@ -69,13 +69,13 @@ public interface AggregateCloudTierDemand extends ScopedCloudTierDemand {
     }
 
     /**
-     * The coverage map, representing the output of the uncovered demand calculation.
-     * @return The coverage map, representing the output of the uncovered demand calculation.
+     * The coverage info, representing the output of the uncovered demand calculation.
+     * @return The coverage info, representing the output of the uncovered demand calculation.
      */
     @Auxiliary
     @Default
-    default Map<CloudCommitment, Double> coverageMap() {
-        return Collections.EMPTY_MAP;
+    default Set<CoverageInfo> coverageInfo() {
+        return Collections.emptySet();
     }
 
     /**
@@ -104,6 +104,7 @@ public interface AggregateCloudTierDemand extends ScopedCloudTierDemand {
      * A data class containing relevant entity information for the aggregate demand contained
      * within {@link AggregateCloudTierDemand}.
      */
+    @HiddenImmutableImplementation
     @Immutable
     interface EntityInfo {
 
@@ -145,5 +146,53 @@ public interface AggregateCloudTierDemand extends ScopedCloudTierDemand {
          * A builder class for {@link EntityInfo}.
          */
         class Builder extends ImmutableEntityInfo.Builder {}
+    }
+
+    /**
+     * A data class representing demand coverage from a {@link CloudCommitmentAggregate}.
+     */
+    @HiddenImmutableImplementation
+    @Immutable(lazyhash = true)
+    interface CoverageInfo {
+
+        /**
+         * The cloud commitment aggregate providing coverage. Only the aggregate ID is used as a uniquely
+         * identifying attribute of the {@link CoverageInfo}.
+         * @return The cloud commitment aggregate.
+         */
+        @Nonnull
+        @Auxiliary
+        CloudCommitmentAggregate cloudCommitmentAggregate();
+
+        /**
+         * The coverage amount provided by the {@link #cloudCommitmentAggregate()}. The unit of the
+         * coverage amount may vary depending on the cloud commitment type (e.g. for RIs, it will be
+         * coupons).
+         * @return The coverage amount.
+         */
+        double coverageAmount();
+
+        /**
+         * The {@link #cloudCommitmentAggregate()} ID.
+         * @return The {@link #cloudCommitmentAggregate()} ID.
+         */
+        @Derived
+        default long aggregateId() {
+            return cloudCommitmentAggregate().aggregateId();
+        }
+
+        /**
+         * Creates and returns a {@link Builder} instance.
+         * @return A newly created builder instance.
+         */
+        @Nonnull
+        static Builder builder() {
+            return new Builder();
+        }
+
+        /**
+         * A builder class for {@link CoverageInfo} instances.
+         */
+        class Builder extends ImmutableCoverageInfo.Builder {}
     }
 }

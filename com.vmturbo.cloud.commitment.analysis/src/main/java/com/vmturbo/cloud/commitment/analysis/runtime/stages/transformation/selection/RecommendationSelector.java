@@ -100,6 +100,7 @@ public class RecommendationSelector {
         final ClassifiedEntitySelection.Builder selectionBuilder = ClassifiedEntitySelection.builder()
                 .entityOid(entityAggregate.entityOid())
                 .accountOid(entityAggregate.accountOid())
+                .billingFamilyId(entityAggregate.billingFamilyId())
                 .regionOid(entityAggregate.regionOid())
                 .availabilityZoneOid(entityAggregate.availabilityZoneOid())
                 .serviceProviderOid(entityAggregate.serviceProviderOid())

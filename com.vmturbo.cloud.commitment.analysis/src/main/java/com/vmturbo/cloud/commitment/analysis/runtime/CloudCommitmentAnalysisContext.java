@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -57,6 +58,8 @@ public class CloudCommitmentAnalysisContext {
 
     private final ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory;
 
+    private final ExecutorService analysisExecutorService;
+
     private final StaticAnalysisConfig staticAnalysisConfig;
 
     private final SetOnce<MinimalCloudTopology<MinimalEntity>> sourceCloudTopology = new SetOnce<>();
@@ -82,6 +85,7 @@ public class CloudCommitmentAnalysisContext {
      *                                          a {@link CloudCommitmentSpecMatcher} based on the type
      *                                          of recommendations request in the analysis config.
      * @param computeTierFamilyResolverFactory A factory for creating {@link ComputeTierFamilyResolver} instances.
+     * @param analysisExecutorService The executor service to be used as a worker pool by analysis stages.
      * @param staticAnalysisConfig Configuration attributes that are static across all instances
      *                             of {@link CloudCommitmentAnalysis}.
      */
@@ -92,6 +96,7 @@ public class CloudCommitmentAnalysisContext {
                                           @Nonnull TopologyEntityCloudTopologyFactory fullCloudTopologyFactory,
                                           @Nonnull CloudCommitmentSpecMatcherFactory cloudCommitmentSpecMatcherFactory,
                                           @Nonnull ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory,
+                                          @Nonnull ExecutorService analysisExecutorService,
                                           @Nonnull StaticAnalysisConfig staticAnalysisConfig) {
 
         this.analysisInfo = Objects.requireNonNull(analysisInfo);
@@ -101,6 +106,7 @@ public class CloudCommitmentAnalysisContext {
         this.fullCloudTopologyFactory = Objects.requireNonNull(fullCloudTopologyFactory);
         this.cloudCommitmentSpecMatcherFactory = Objects.requireNonNull(cloudCommitmentSpecMatcherFactory);
         this.computeTierFamilyResolverFactory = Objects.requireNonNull(computeTierFamilyResolverFactory);
+        this.analysisExecutorService = Objects.requireNonNull(analysisExecutorService);
         this.staticAnalysisConfig = Objects.requireNonNull(staticAnalysisConfig);
     }
 
@@ -216,6 +222,11 @@ public class CloudCommitmentAnalysisContext {
     }
 
     @Nonnull
+    public ExecutorService getAnalysisExecutorService() {
+        return analysisExecutorService;
+    }
+
+    @Nonnull
     private MinimalCloudTopology<MinimalEntity> createMinimalCloudTopology(@Nonnull TopologyType topologyType) {
 
         final Stream<MinimalEntity> entities =
@@ -307,6 +318,8 @@ public class CloudCommitmentAnalysisContext {
 
         private final ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory;
 
+        private final ExecutorService analysisExecutorService;
+
         private final StaticAnalysisConfig staticAnalysisConfig;
 
         /**
@@ -317,6 +330,7 @@ public class CloudCommitmentAnalysisContext {
          * @param fullCloudTopologyFactory The full cloud topology factory.
          * @param cloudCommitmentSpecMatcherFactory the cloud commitment spec matcher factory.
          * @param computeTierFamilyResolverFactory A factory for creating {@link ComputeTierFamilyResolver} instances.
+         * @param analysisExecutorService The executor service to be used as a worker pool by analysis stages.
          * @param staticAnalysisConfig The analysis config, containing static attributes.
          */
         public DefaultAnalysisContextFactory(@Nonnull RepositoryServiceBlockingStub repositoryClient,
@@ -324,6 +338,7 @@ public class CloudCommitmentAnalysisContext {
                                              @Nonnull TopologyEntityCloudTopologyFactory fullCloudTopologyFactory,
                                              @Nonnull CloudCommitmentSpecMatcherFactory cloudCommitmentSpecMatcherFactory,
                                              @Nonnull ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory,
+                                             @Nonnull ExecutorService analysisExecutorService,
                                              @Nonnull StaticAnalysisConfig staticAnalysisConfig) {
 
             this.repositoryClient = Objects.requireNonNull(repositoryClient);
@@ -331,6 +346,7 @@ public class CloudCommitmentAnalysisContext {
             this.fullCloudTopologyFactory = Objects.requireNonNull(fullCloudTopologyFactory);
             this.cloudCommitmentSpecMatcherFactory = Objects.requireNonNull(cloudCommitmentSpecMatcherFactory);
             this.computeTierFamilyResolverFactory = Objects.requireNonNull(computeTierFamilyResolverFactory);
+            this.analysisExecutorService = Objects.requireNonNull(analysisExecutorService);
             this.staticAnalysisConfig = Objects.requireNonNull(staticAnalysisConfig);
         }
 
@@ -349,6 +365,7 @@ public class CloudCommitmentAnalysisContext {
                     fullCloudTopologyFactory,
                     cloudCommitmentSpecMatcherFactory,
                     computeTierFamilyResolverFactory,
+                    analysisExecutorService,
                     staticAnalysisConfig);
         }
     }

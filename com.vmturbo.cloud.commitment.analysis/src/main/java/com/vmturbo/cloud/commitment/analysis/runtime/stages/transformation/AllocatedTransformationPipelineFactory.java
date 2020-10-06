@@ -101,6 +101,7 @@ public class AllocatedTransformationPipelineFactory {
         final AggregateDemandCollector aggregateDemandCollector =
                 aggregateDemandCollectorFactory.newCollector(
                         transformationJournal,
+                        analysisContext.getCloudTierTopology(),
                         analysisWindow,
                         analysisContext.getAnalysisBucket());
 

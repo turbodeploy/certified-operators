@@ -20,6 +20,13 @@ public interface ScopedCloudTierDemand {
     long accountOid();
 
     /**
+     * The ID of the billing family associated with this demand. May be empty if the demand is within
+     * a standalone account.
+     * @return The ID of the billing family associated with this demand.
+     */
+    Optional<Long> billingFamilyId();
+
+    /**
      * The OID of the region tied to the associated demand.
      * @return The OID of the region tied to the associated demand.
      */

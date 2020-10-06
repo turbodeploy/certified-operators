@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration;
 import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration.Verbosity;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
+import com.vmturbo.cost.component.cca.LocalCloudCommitmentAnalysisConfig;
 import com.vmturbo.cost.component.cleanup.CostCleanupConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.flyway.CostFlywayCallback;
@@ -62,7 +63,9 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     CostPlanListenerConfig.class,
     ReservedInstanceSpecConfig.class,
     CostDiagnosticsConfig.class,
-    MigratedWorkloadCloudCommitmentConfig.class})
+    MigratedWorkloadCloudCommitmentConfig.class,
+    LocalCloudCommitmentAnalysisConfig.class
+})
 public class CostComponent extends BaseVmtComponent {
     /**
      * The logger.

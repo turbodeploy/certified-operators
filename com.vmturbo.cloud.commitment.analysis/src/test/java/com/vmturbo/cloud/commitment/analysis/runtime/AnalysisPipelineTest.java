@@ -15,12 +15,13 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
-import com.vmturbo.cloud.commitment.analysis.inventory.AnalysisTopology;
+import com.vmturbo.cloud.commitment.analysis.runtime.data.AnalysisTopology;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.CloudCommitmentInventoryResolverStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.CloudCommitmentInventoryResolverStage.CloudCommitmentInventoryResolverStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.InitializationStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandSet;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCalculationStage.CoverageCalculationFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.EntityCloudTierDemandSet;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateAnalysisDemand;
@@ -46,13 +47,17 @@ public class AnalysisPipelineTest {
     private final CloudCommitmentInventoryResolverStageFactory
             cloudCommitmentInventoryResolverStageFactory = mock(CloudCommitmentInventoryResolverStageFactory.class);
 
+    private final CoverageCalculationFactory
+            coverageCalculationFactory = mock(CoverageCalculationFactory.class);
+
     private final AnalysisPipelineFactory analysisPipelineFactory =
             new AnalysisPipelineFactory(identityProvider,
                     initializationStageFactory,
                     demandRetrievalFactory,
                     demandClassificationFactory,
                     demandTransformationFactory,
-                    cloudCommitmentInventoryResolverStageFactory);
+                    cloudCommitmentInventoryResolverStageFactory,
+                    coverageCalculationFactory);
 
     /**
      * Test for the analysis pipeline and factory.
@@ -85,6 +90,10 @@ public class AnalysisPipelineTest {
         final AnalysisStage<AggregateAnalysisDemand, AnalysisTopology> inventoryResolverStage = mock(
                 CloudCommitmentInventoryResolverStage.class);
         when(cloudCommitmentInventoryResolverStageFactory.createStage(anyLong(), any(), any())).thenReturn(inventoryResolverStage);
+
+        final AnalysisStage<AnalysisTopology, AnalysisTopology> coverageCalculationStage =
+                mock(AnalysisStage.class);
+        when(coverageCalculationFactory.createStage(anyLong(), any(), any())).thenReturn(coverageCalculationStage);
 
         // invoke pipeline factory
         final AnalysisPipeline analysisPipeline = analysisPipelineFactory.createAnalysisPipeline(
@@ -132,11 +141,12 @@ public class AnalysisPipelineTest {
         assertThat(analysisContextCaptor.getValue(), equalTo((analysisContext)));
 
         // check the analysis pipeline structure
-        assertThat(analysisPipeline.stages(), hasSize(5));
+        assertThat(analysisPipeline.stages(), hasSize(6));
         assertThat(analysisPipeline.stages().get(0), equalTo(initializationStage));
         assertThat(analysisPipeline.stages().get(1), equalTo(demandRetrievalStage));
         assertThat(analysisPipeline.stages().get(2), equalTo(demandClassificationStage));
         assertThat(analysisPipeline.stages().get(3), equalTo(demandTransformationStage));
         assertThat(analysisPipeline.stages().get(4), equalTo(inventoryResolverStage));
+        assertThat(analysisPipeline.stages().get(5), equalTo(coverageCalculationStage));
     }
 }

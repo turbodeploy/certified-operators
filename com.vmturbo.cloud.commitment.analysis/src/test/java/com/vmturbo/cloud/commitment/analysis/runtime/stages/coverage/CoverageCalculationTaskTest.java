@@ -1,0 +1,49 @@
+package com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage;
+
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import org.junit.Before;
+
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.AggregateDemandPreference.AggregateDemandPreferenceFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.AnalysisCoverageTopology.AnalysisCoverageTopologyFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCalculationTask.CoverageCalculationTaskFactory;
+import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator;
+import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregator.CloudCommitmentAggregatorFactory;
+import com.vmturbo.reserved.instance.coverage.allocator.CoverageAllocatorFactory;
+import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocator;
+
+public class CoverageCalculationTaskTest {
+
+    private final CloudCommitmentAggregatorFactory aggregatorFactory = mock(CloudCommitmentAggregatorFactory.class);
+    private final CloudCommitmentAggregator commitmentAggregator = mock(CloudCommitmentAggregator.class);
+
+    private final AnalysisCoverageTopologyFactory coverageTopologyFactory = mock(AnalysisCoverageTopologyFactory.class);
+    private final AnalysisCoverageTopology coverageTopology = mock(AnalysisCoverageTopology.class);
+
+    private final CoverageAllocatorFactory coverageAllocatorFactory = mock(CoverageAllocatorFactory.class);
+    private final ReservedInstanceCoverageAllocator coverageAllocator =
+            mock(ReservedInstanceCoverageAllocator.class);
+
+    private final AggregateDemandPreferenceFactory preferenceFactory =
+            mock(AggregateDemandPreferenceFactory.class);
+    private final AggregateDemandPreference demandPreference = mock(AggregateDemandPreference.class);
+
+    private final CoverageCalculationTaskFactory calculationTaskFactory =
+            new CoverageCalculationTaskFactory(
+                    aggregatorFactory,
+                    coverageTopologyFactory,
+                    coverageAllocatorFactory,
+                    preferenceFactory);
+
+
+    @Before
+    public void setup() {
+        when(coverageTopologyFactory.newTopology(any(), any(), any(), any(), any())).thenReturn(coverageTopology);
+        when(coverageAllocatorFactory.createAllocator(any())).thenReturn(coverageAllocator);
+        when(preferenceFactory.newPreference(any())).thenReturn(demandPreference);
+    }
+
+
+}

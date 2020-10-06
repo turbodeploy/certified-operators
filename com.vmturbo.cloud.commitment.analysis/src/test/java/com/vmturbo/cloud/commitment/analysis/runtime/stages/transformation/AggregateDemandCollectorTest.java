@@ -3,6 +3,7 @@ package com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.mock;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -25,7 +26,10 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.Aggre
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateDemandCollector.AggregateDemandCollectorFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationJournal.DemandTransformationResult;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.ClassifiedEntitySelection;
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
@@ -43,7 +47,13 @@ public class AggregateDemandCollectorTest {
 
     private DemandTransformationJournal transformationJournal;
 
-    private final AggregateDemandCollectorFactory collectorFactory = new AggregateDemandCollectorFactory();
+    private CloudTopology<TopologyEntityDTO> cloudTierTopology = mock(CloudTopology.class);
+
+    private final ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory =
+            new ComputeTierFamilyResolverFactory();
+
+    private final AggregateDemandCollectorFactory collectorFactory =
+            new AggregateDemandCollectorFactory(computeTierFamilyResolverFactory);
 
     private AggregateDemandCollector aggregateDemandCollector;
 
@@ -54,6 +64,7 @@ public class AggregateDemandCollectorTest {
 
         aggregateDemandCollector = collectorFactory.newCollector(
                 transformationJournal,
+                cloudTierTopology,
                 analysisWindow,
                 analysisInterval);
     }
@@ -100,6 +111,7 @@ public class AggregateDemandCollectorTest {
         // Invoke SUT
         final AggregateDemandCollector collector = collectorFactory.newCollector(
                 transformationJournal,
+                cloudTierTopology,
                 analysisWindow,
                 analysisInterval);
         collector.collectEntitySelection(classifiedEntitySelection);

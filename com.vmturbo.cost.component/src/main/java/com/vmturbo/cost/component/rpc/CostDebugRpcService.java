@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -23,12 +24,15 @@ import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandSe
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisInfo;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory.CloudCommitment;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.RecommendationSettings;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.ReservedInstancePurchaseProfile;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandClassificationSettings;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.common.protobuf.cost.CostDebug;
 import com.vmturbo.common.protobuf.cost.CostDebug.DisableCostRecordingRequest;
@@ -52,6 +56,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.component.reserved.instance.BuyRIImpactReportGenerator;
 import com.vmturbo.cost.component.reserved.instance.EntityReservedInstanceMappingStore;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
 import com.vmturbo.cost.component.topology.CostJournalRecorder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -78,23 +84,31 @@ public class CostDebugRpcService extends CostDebugServiceImplBase {
 
     private final RepositoryServiceBlockingStub repositoryClient;
 
+    private final ReservedInstanceBoughtStore riBoughtStore;
+
     public CostDebugRpcService(@Nonnull final CostJournalRecorder costJournalRecording,
                                @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
                                @Nonnull final ReservedInstanceAnalysisInvoker invoker,
                                @Nonnull BuyRIImpactReportGenerator buyRIImpactReportGenerator,
                                @Nonnull CloudCommitmentAnalysisManager ccaManager,
-                               @Nonnull RepositoryServiceBlockingStub repositoryClient) {
+                               @Nonnull RepositoryServiceBlockingStub repositoryClient,
+                               @Nonnull ReservedInstanceBoughtStore riBoughtStore) {
         this.costJournalRecording = costJournalRecording;
         this.entityReservedInstanceMappingStore = entityReservedInstanceMappingStore;
         this.invoker = invoker;
         this.buyRIImpactReportGenerator = Objects.requireNonNull(buyRIImpactReportGenerator);
         this.ccaManager = Objects.requireNonNull(ccaManager);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
+        this.riBoughtStore = Objects.requireNonNull(riBoughtStore);
     }
 
     @Override
     public void startFullAllocatedRIBuyAnalysis(final StartFullAllocatedRIBuyRequest request, final StreamObserver<StartFullAllocatedRIBuyResponse> responseObserver) {
         try {
+            final Set<Long> riBoughtIds = riBoughtStore.getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter.SELECT_ALL_FILTER)
+                    .stream()
+                    .map(ReservedInstanceBought::getId)
+                    .collect(Collectors.toSet());
             final CloudCommitmentAnalysisConfig analysisConfig = CloudCommitmentAnalysisConfig.newBuilder()
                     .setAnalysisTag("Test Analysis")
                     .setDemandSelection(HistoricalDemandSelection.newBuilder()
@@ -105,7 +119,13 @@ public class CostDebugRpcService extends CostDebugServiceImplBase {
                             .setLogDetailedSummary(true))
                     .setDemandClassificationSettings(DemandClassificationSettings.newBuilder()
                             .setLogDetailedSummary(true))
-                    .setCloudCommitmentInventory(CloudCommitmentInventory.newBuilder())
+                    .setCloudCommitmentInventory(CloudCommitmentInventory.newBuilder()
+                            .addAllCloudCommitment(riBoughtIds.stream()
+                                    .map(riBoughtId -> CloudCommitment.newBuilder()
+                                            .setOid(riBoughtId)
+                                            .setType(CloudCommitmentType.RESERVED_INSTANCE)
+                                            .build())
+                                    .collect(Collectors.toSet())))
                     .setPurchaseProfile(CommitmentPurchaseProfile.newBuilder()
                             .setAllocatedSelection(AllocatedDemandSelection.newBuilder().build())
                             .setRecommendationSettings(RecommendationSettings.newBuilder())

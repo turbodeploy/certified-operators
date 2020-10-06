@@ -1,5 +1,6 @@
 package com.vmturbo.cloud.commitment.analysis.config;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
@@ -15,6 +16,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selec
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.EntityStateFilter.EntityStateFilterFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.RecommendationSelector.RecommendationSelectorFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.ScopedEntityFilter.ScopedEntityFilterFactory;
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 
 /**
  * A spring configuration for creating a {@link DemandTransformationFactory} bean.
@@ -22,6 +24,12 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selec
 @Lazy
 @Configuration
 public class DemandTransformationConfig {
+
+    /**
+     * Resolved from {@link SharedFactoriesConfig}.
+     */
+    @Autowired
+    private ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory;
 
     /**
      * The {@link FlexibleRIComputeTransformerFactory}.
@@ -38,7 +46,7 @@ public class DemandTransformationConfig {
      */
     @Bean
     public AggregateDemandCollectorFactory aggregateDemandCollectorFactory() {
-        return new AggregateDemandCollectorFactory();
+        return new AggregateDemandCollectorFactory(computeTierFamilyResolverFactory);
     }
 
     /**

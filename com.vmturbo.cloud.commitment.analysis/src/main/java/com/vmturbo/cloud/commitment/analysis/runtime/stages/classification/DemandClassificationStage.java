@@ -129,6 +129,7 @@ public class DemandClassificationStage extends AbstractStage<EntityCloudTierDema
             return ClassifiedEntityDemandAggregate.builder()
                     .entityOid(representativeMapping.entityOid())
                     .accountOid(representativeMapping.accountOid())
+                    .billingFamilyId(representativeMapping.billingFamilyId())
                     .regionOid(representativeMapping.regionOid())
                     .availabilityZoneOid(representativeMapping.availabilityZoneOid())
                     .serviceProviderOid(representativeMapping.serviceProviderOid())

@@ -31,6 +31,7 @@ import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 
 public class AllocatedTransformationPipelineFactoryTest {
 
@@ -108,7 +109,7 @@ public class AllocatedTransformationPipelineFactoryTest {
         when(recommendationSelectorFactory.fromDemandSelection(any())).thenReturn(recommendationSelector);
 
         final AggregateDemandCollector aggregateDemandCollector = mock(AggregateDemandCollector.class);
-        when(aggregateDemandCollectorFactory.newCollector(any(), any(), any()))
+        when(aggregateDemandCollectorFactory.newCollector(any(), any(), any(), any()))
                 .thenReturn(aggregateDemandCollector);
 
         final CloudCommitmentAnalysisConfig analysisConfig = TestUtils.createBaseConfig();
@@ -121,6 +122,7 @@ public class AllocatedTransformationPipelineFactoryTest {
         // verify the analysis selector creation
         final ArgumentCaptor<DemandTransformationJournal> journalCaptor =
                 ArgumentCaptor.forClass(DemandTransformationJournal.class);
+        final ArgumentCaptor<CloudTopology> cloudTopologyCaptor = ArgumentCaptor.forClass(CloudTopology.class);
         final ArgumentCaptor<AllocatedDemandSelection> demandSelectionCaptor =
                 ArgumentCaptor.forClass(AllocatedDemandSelection.class);
         verify(analysisSelectorFactory).newSelector(
@@ -148,6 +150,7 @@ public class AllocatedTransformationPipelineFactoryTest {
                 ArgumentCaptor.forClass(BoundedDuration.class);
         verify(aggregateDemandCollectorFactory).newCollector(
                 journalCaptor.capture(),
+                cloudTopologyCaptor.capture(),
                 timeIntervalCaptor.capture(),
                 boundedDurationCaptor.capture());
         assertThat(journalCaptor.getValue(), equalTo(transformationJournal));

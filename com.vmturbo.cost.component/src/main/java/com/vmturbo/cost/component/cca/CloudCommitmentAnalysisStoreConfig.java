@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWriter;
@@ -17,17 +18,14 @@ import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.entity.scope.SQLCloudScopeStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
-import com.vmturbo.cost.component.reserved.instance.SQLReservedInstanceBoughtStore;
 
 /**
  * The Cloud Commitment Demand Stats Config class.
  */
+@Lazy
 @Import({CostDBConfig.class,
         TopologyProcessorListenerConfig.class,
-        ReservedInstanceSpecConfig.class,
-        SQLReservedInstanceBoughtStore.class,
-        ReservedInstanceSpecStore.class})
+        ReservedInstanceSpecConfig.class})
 public class CloudCommitmentAnalysisStoreConfig {
 
     @Autowired
@@ -35,9 +33,6 @@ public class CloudCommitmentAnalysisStoreConfig {
 
     @Autowired
     private TopologyProcessorListenerConfig topologyProcessorListenerConfig;
-
-    @Value("${cca.recordCloudAllocationData:true}")
-    private boolean recordAllocationData;
 
     @Value("${cca.recordCommitBatchSize:100}")
     private int recordCommitBatchSize;
@@ -49,15 +44,8 @@ public class CloudCommitmentAnalysisStoreConfig {
     @Value("${cca.cloudScopeCleanupPeriodSeconds:86400}")
     private int cloudScopeCleanupPeriodSeconds;
 
-    /**
-     * Bean for the cloud commitment demand writer.
-     *
-     * @return An instance of the CloudCommitmentDemandWriter.
-     */
-    @Bean
-    public CloudCommitmentDemandWriter cloudCommitmentDemandWriter() {
-        return new CloudCommitmentDemandWriterImpl(computeTierAllocationStore(), recordAllocationData);
-    }
+    @Value("${cca.recordCloudAllocationData:true}")
+    private boolean recordAllocationData;
 
     /**
      * Bean for the compute tier allocation store.
@@ -97,5 +85,15 @@ public class CloudCommitmentAnalysisStoreConfig {
                 cloudScopeCleanupScheduler(),
                 Duration.ofSeconds(cloudScopeCleanupPeriodSeconds),
                 recordCommitBatchSize);
+    }
+
+    /**
+     * Bean for the cloud commitment demand writer.
+     *
+     * @return An instance of the CloudCommitmentDemandWriter.
+     */
+    @Bean
+    public CloudCommitmentDemandWriter cloudCommitmentDemandWriter() {
+        return new CloudCommitmentDemandWriterImpl(computeTierAllocationStore(), recordAllocationData);
     }
 }

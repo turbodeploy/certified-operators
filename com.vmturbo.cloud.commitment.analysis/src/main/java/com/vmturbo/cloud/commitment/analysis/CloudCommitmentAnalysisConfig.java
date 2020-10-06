@@ -2,6 +2,8 @@ package com.vmturbo.cloud.commitment.analysis;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -16,6 +18,7 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import com.vmturbo.cloud.commitment.analysis.config.CloudCommitmentSpecMatcherConfig;
+import com.vmturbo.cloud.commitment.analysis.config.CoverageCalculationConfig;
 import com.vmturbo.cloud.commitment.analysis.config.DemandClassificationConfig;
 import com.vmturbo.cloud.commitment.analysis.config.DemandTransformationConfig;
 import com.vmturbo.cloud.commitment.analysis.config.SharedFactoriesConfig;
@@ -33,20 +36,18 @@ import com.vmturbo.cloud.commitment.analysis.runtime.StaticAnalysisConfig;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.CloudCommitmentInventoryResolverStage.CloudCommitmentInventoryResolverStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.InitializationStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCalculationStage.CoverageCalculationFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationStage.DemandTransformationFactory;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher.CloudCommitmentSpecMatcherFactory;
+import com.vmturbo.cloud.commitment.analysis.util.LogContextExecutorService;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
-import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory.DefaultBillingFamilyRetrieverFactory;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology.MinimalCloudTopologyFactory;
 import com.vmturbo.cloud.common.topology.MinimalEntityCloudTopology.DefaultMinimalEntityCloudTopologyFactory;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
-import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.group.api.GroupMemberRetriever;
 
 /**
  * Configures all classes required to run a cloud commitment analysis. The underlying demand stores
@@ -57,6 +58,7 @@ import com.vmturbo.group.api.GroupMemberRetriever;
         CloudCommitmentSpecMatcherConfig.class,
         DemandClassificationConfig.class,
         DemandTransformationConfig.class,
+        CoverageCalculationConfig.class,
         SharedFactoriesConfig.class,
 })
 @Configuration
@@ -70,9 +72,6 @@ public class CloudCommitmentAnalysisConfig {
 
     @Autowired
     private RepositoryServiceBlockingStub repositoryServiceBlockingStub;
-
-    @Autowired
-    private GroupClientConfig groupClientConfig;
 
     @Autowired
     private IdentityProvider identityProvider;
@@ -92,17 +91,27 @@ public class CloudCommitmentAnalysisConfig {
     @Autowired
     private DemandTransformationFactory demandTransformationFactory;
 
-    @Value("${ccaAnalysisStatusLogInterval:PT1M}")
+    @Autowired
+    private BillingFamilyRetrieverFactory billingFamilyRetrieverFactory;
+
+    @Autowired
+    private CoverageCalculationFactory coverageCalculationFactory;
+
+    @Value("${cca.analysisStatusLogInterval:PT1M}")
     private String analysisStatusLogInterval;
 
-    @Value("${maxConcurrentCloudCommitmentAnalyses:3}")
+    @Value("${cca.maxConcurrentAnalyses:3}")
     private int maxConcurrentAnalyses;
 
-    @Value("${analysisBucketAmount:1}")
+    @Value("${cca.analysisBucketAmount:1}")
     private long analysisBucketAmount;
 
-    @Value("${analysisBucketUnit:HOURS}")
+    @Value("${cca.analysisBucketUnit:HOURS}")
     private String analysisBucketUnit;
+
+    // A value less than or equal to zero indicates numCores should be used
+    @Value("${cca.workerThreadCount:0}")
+    private int workerThreadCount;
 
     /**
      * Bean for the cloud commitment demand reader.
@@ -146,19 +155,8 @@ public class CloudCommitmentAnalysisConfig {
                 demandRetrievalFactory(),
                 demandClassificationFactory,
                 demandTransformationFactory,
-                cloudCommitmentInventoryResolverStageFactory());
-    }
-
-    /**
-     * bean for the billing family retriever.
-     *
-     * @return An instance of the billing family retriever.
-     */
-    @Bean
-    public BillingFamilyRetrieverFactory billingFamilyRetrieverFactory() {
-        return new DefaultBillingFamilyRetrieverFactory(
-                new GroupMemberRetriever(
-                        GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel())));
+                cloudCommitmentInventoryResolverStageFactory(),
+                coverageCalculationFactory);
     }
 
     /**
@@ -168,7 +166,23 @@ public class CloudCommitmentAnalysisConfig {
      */
     @Bean
     public MinimalCloudTopologyFactory minimalCloudTopologyFactory() {
-        return new DefaultMinimalEntityCloudTopologyFactory(billingFamilyRetrieverFactory());
+        return new DefaultMinimalEntityCloudTopologyFactory(billingFamilyRetrieverFactory);
+    }
+
+    @Bean
+    protected ThreadFactory workerThreadFactory() {
+        return new ThreadFactoryBuilder()
+                .setNameFormat("cloud-commitment-analysis-worker-%d")
+                .build();
+    }
+
+    @Bean
+    protected ExecutorService workerExecutorService() {
+        int numThreads = workerThreadCount > 0
+                ? workerThreadCount
+                : Runtime.getRuntime().availableProcessors();
+        return LogContextExecutorService.newExecutorService(
+                Executors.newFixedThreadPool(numThreads, workerThreadFactory()));
     }
 
     /**
@@ -194,6 +208,7 @@ public class CloudCommitmentAnalysisConfig {
                 topologyEntityCloudTopologyFactory,
                 cloudCommitmentSpecMatcherFactory,
                 computeTierFamilyResolverFactory,
+                workerExecutorService(),
                 staticAnalysisConfig());
     }
 

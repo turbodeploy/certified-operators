@@ -15,6 +15,7 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
 
 import com.google.common.collect.Lists;
 
@@ -89,6 +90,8 @@ public class CloudCommitmentAnalysisContextTest {
     private final ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory =
             mock(ComputeTierFamilyResolverFactory.class);
 
+    private final ExecutorService executorService = mock(ExecutorService.class);
+
     private final BoundedDuration analysisBucket = BoundedDuration.builder()
             .amount(543)
             .unit(ChronoUnit.HOURS)
@@ -140,6 +143,7 @@ public class CloudCommitmentAnalysisContextTest {
                 fullCloudTopologyFactory,
                 cloudCommitmentSpecMatcherFactory,
                 computeTierFamilyResolverFactory,
+                executorService,
                 staticAnalysisConfig);
     }
 

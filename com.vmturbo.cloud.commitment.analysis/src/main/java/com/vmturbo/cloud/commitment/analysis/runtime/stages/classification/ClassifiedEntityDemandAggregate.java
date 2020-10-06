@@ -38,6 +38,13 @@ public interface ClassifiedEntityDemandAggregate {
     long accountOid();
 
     /**
+     * The billing family ID of the entity.
+     * @return The ID of the billing family for the entity. May be empty if the entity is within
+     * a standalone account.
+     */
+    Optional<Long> billingFamilyId();
+
+    /**
      * The OID of the region containing the entity.
      * @return The OID of the region containing the entity.
      */
