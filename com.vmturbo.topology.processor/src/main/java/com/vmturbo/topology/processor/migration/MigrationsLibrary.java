@@ -93,7 +93,9 @@ public class MigrationsLibrary {
                 new V_01_01_02__Target_Oid_Fields_To_Lowercase(probeStore, targetStore,
                     targetIdentityStore, targetDao))
             .put("V_01_01_03__Target_IsProxySecure_Flag",
-                    new V_01_01_03__Target_IsProxySecure_Flag(targetStore, probeStore, groupScopeResolver));
+                    new V_01_01_03__Target_IsProxySecure_Flag(targetStore, probeStore, groupScopeResolver))
+            .put("V_01_01_04__Fix_Orphaned_Target_Removal_Migration",
+                new V_01_01_04__Fix_Orphaned_Target_Removal_Migration(targetStore, probeStore, targetDao));
         return builder.build();
     }
 }
