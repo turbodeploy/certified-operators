@@ -242,12 +242,6 @@ public class MarketsService implements IMarketsService {
 
     private final LicenseCheckClient licenseCheckClient;
 
-    /**
-     * Entity types which support being shown as unplaced in plan result.
-     */
-    private static final Set<Integer> ENTITY_TYPES_SUPPORTING_UNPLACED =
-        ImmutableSet.of(EntityType.VIRTUAL_MACHINE_VALUE, EntityType.CONTAINER_POD_VALUE);
-
     public MarketsService(@Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final UuidMapper uuidMapper,
                           @Nonnull final PoliciesService policiesService,
@@ -1183,8 +1177,8 @@ public class MarketsService implements IMarketsService {
         Map<Long, TopologyEntityDTO> entities = StreamSupport.stream(response.spliterator(), false)
                 .flatMap(rtResponse -> rtResponse.getEntitiesList().stream())
                 .map(PartialEntity::getFullEntity)
-                // include the entities in ENTITY_TYPES_SUPPORTING_UNPLACED set
-                .filter(entity -> ENTITY_TYPES_SUPPORTING_UNPLACED.contains(entity.getEntityType()))
+                // right now, legacy and UI only expect unplaced virtual machine.
+                .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
         // We have a map of all requested entities in the plan. If this is a migration plan,

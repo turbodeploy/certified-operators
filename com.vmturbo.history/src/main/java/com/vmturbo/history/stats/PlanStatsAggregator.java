@@ -18,7 +18,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -27,7 +26,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Table;
@@ -71,12 +69,6 @@ public class PlanStatsAggregator {
     private final String dbCommodityPrefix;
     private final long topologyId;
     private final long topologyContextId;
-
-    /**
-     * Entity types which support being shown as unplaced in plan result.
-     */
-    private static final Set<Integer> ENTITY_TYPES_SUPPORTING_UNPLACED =
-        ImmutableSet.of(EntityType.VIRTUAL_MACHINE_VALUE, EntityType.CONTAINER_POD_VALUE);
 
     /**
      * Create a new instance.
@@ -216,15 +208,15 @@ public class PlanStatsAggregator {
     private boolean shouldCountEntity(TopologyEntityDTO entity) {
         // Suspended entities should not appear in the counts
         final boolean entitySuspended = entity.getEntityState() == EntityState.SUSPENDED;
-        // Unplaced entities (generally VMs and ContainerPods) should not appear in the counts
+        // Unplaced entities (generally VMs) should not appear in the counts
         final boolean entityPlaced = TopologyDTOUtil.isPlaced(entity);
-        final boolean unplacedEntities = ENTITY_TYPES_SUPPORTING_UNPLACED.contains(entity.getEntityType())
+        final boolean unplacedVm = EntityType.VIRTUAL_MACHINE_VALUE == entity.getEntityType()
             && !entityPlaced;
         // Only filter scenario additions from the SOURCE topology
         final boolean scenarioAddition = isProcessingSourceTopologyStats
             && entity.hasOrigin()
             && entity.getOrigin().hasPlanScenarioOrigin();
-        return !unplacedEntities && !scenarioAddition && !entitySuspended;
+        return !unplacedVm && !scenarioAddition && !entitySuspended;
     }
 
     /**
