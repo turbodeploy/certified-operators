@@ -43,6 +43,7 @@ import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import kotlin.collections.EmptySet;
 
 import org.assertj.core.util.Lists;
 import org.hamcrest.CoreMatchers;
@@ -1650,6 +1651,91 @@ public class GroupRpcServiceTest {
                         .build())
                 .build());
         verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Test that it's impossible to create two groups of groups a and b such that a is a member
+     * of b AND b is a member of a.
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testRecursiveGroupOgGroup() throws Exception {
+        final long idA = 1;
+        final long idB = 2;
+        final GroupFilters groupFiltersA =
+            GroupFilters.newBuilder().addGroupFilter(GroupFilter.newBuilder()
+                .setGroupType(GroupType.REGULAR).addPropertyFilters(PropertyFilter.newBuilder()
+                        .setPropertyName("displayName").setStringFilter(StringFilter.newBuilder()
+                        .setStringPropertyRegex("^.*foo.*$").setPositiveMatch(true)
+                        .setCaseSensitive(false).build()).build()).build()).build();
+        final GroupFilters groupFiltersB =
+            GroupFilters.newBuilder().addGroupFilter(GroupFilter.newBuilder()
+                .setGroupType(GroupType.REGULAR).addPropertyFilters(PropertyFilter.newBuilder()
+                    .setPropertyName("displayName").setStringFilter(StringFilter.newBuilder()
+                        .setStringPropertyRegex("^.*bar.*$").setPositiveMatch(true)
+                        .setCaseSensitive(false).build()).build()).build()).build();
+        GroupDefinition groupDefA = GroupDefinition
+            .newBuilder()
+            .setType(GroupType.REGULAR)
+            .setDisplayName("bar")
+            .setGroupFilters(groupFiltersA)
+            .build();
+        GroupDefinition groupDefB = GroupDefinition
+            .newBuilder()
+            .setType(GroupType.REGULAR)
+            .setDisplayName("foo")
+            .setGroupFilters(groupFiltersB)
+            .build();
+
+        CreateGroupRequest groupRequest = CreateGroupRequest
+            .newBuilder()
+            .setGroupDefinition(groupDefA)
+            .setOrigin(origin)
+            .build();
+
+        final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
+            mock(StreamObserver.class);
+
+        Mockito.when(identityProvider.next()).thenReturn(idA).thenReturn(idB);
+        groupRpcService.createGroup(groupRequest, mockObserver);
+        HashSet<Long> idAList = new HashSet<>(Collections.singletonList(idA));
+        HashSet<Long> idBList = new HashSet<>(Collections.singletonList(idB));
+
+        Grouping groupA = Grouping.newBuilder()
+            .setId(idA)
+            .setDefinition(groupDefA)
+            .setSupportsMemberReverseLookup(false)
+            .build();
+        Grouping groupB = Grouping.newBuilder()
+            .setId(idB)
+            .setDefinition(groupDefB)
+            .setSupportsMemberReverseLookup(false)
+            .build();
+        when(groupStoreDAO.getGroupIds(groupFiltersA)).thenReturn(idBList);
+        when(groupStoreDAO.getGroupsById(idBList)).thenReturn(Collections.singletonList(groupB));
+
+        when(groupStoreDAO.getGroupIds(groupFiltersB)).thenReturn(idAList);
+        when(groupStoreDAO.getGroupsById(idAList)).thenReturn(Arrays.asList(groupA));
+
+        when(groupStoreDAO.getMembers(idBList, false)).thenReturn(new GroupMembersPlain(new HashSet<>(),
+            idBList,
+            new HashSet<>()));
+
+        CreateGroupRequest groupRequest2 = CreateGroupRequest
+            .newBuilder()
+            .setGroupDefinition(groupDefB)
+            .setOrigin(origin)
+            .build();
+        groupRpcService.createGroup(groupRequest2, mockObserver);
+
+        //Verify we send the error response
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+            ArgumentCaptor.forClass(StatusException.class);
+        verify(mockObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+            .descriptionContains("Recursive group definition"));
     }
 
     /**

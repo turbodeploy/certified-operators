@@ -115,6 +115,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                     .register();
 
     private long realtimeTopologyContextId = 777777;
+    static final int MAX_NESTING_DEPTH = 100;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -679,6 +680,8 @@ public class GroupRpcService extends GroupServiceImplBase {
                 .addAllExpectedTypes(expectedTypes)
                 .setSupportsMemberReverseLookup(supportsMemberReverseLookup)
                 .build();
+                postValidateNewGroup(groupStore, createdGroup);
+
         }
 
         responseObserver.onNext(CreateGroupResponse.newBuilder()
@@ -760,6 +763,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         final Grouping newGroup =
                 groupStore.updateGroup(request.getId(), groupDefinition, expectedTypes,
                         supportsMemberReverseLookup);
+        postValidateNewGroup(groupStore, newGroup);
         final UpdateGroupResponse res =
                 UpdateGroupResponse.newBuilder().setUpdatedGroup(newGroup).build();
         responseObserver.onNext(res);
@@ -1171,6 +1175,46 @@ public class GroupRpcService extends GroupServiceImplBase {
             default:
                 throw new InvalidGroupDefinitionException(
                                 "Unsupported selection criteria has been set.");
+        }
+    }
+
+    /**
+     * Perform post validation operations on a new created group. If we find out the group should
+     * not have been created than we roll back the transaction.
+     *
+     * @param groupStore group store to use
+     * @param newGroup the group that is being created
+     * @throws StoreOperationException if the group should not be created and the transaction
+     * should be rolled back
+     */
+    private void postValidateNewGroup(@Nonnull final IGroupStore groupStore,
+                                     @Nonnull Grouping newGroup) throws StoreOperationException {
+        final GroupDefinition groupDefinition = newGroup.getDefinition();
+        switch (groupDefinition.getSelectionCriteriaCase()) {
+            // Check that the new group is not a member of a group and at the same time has that
+            // group as one of its members. We perform this check here since it's easier to to
+            // apply the regEx filters in sql.
+            case GROUP_FILTERS:
+                Set<Long> groupMembers = getGroupMembers(groupStore, groupDefinition, false);
+                Collection<Grouping> groups = groupStore.getGroupsById(groupMembers);
+                for (Grouping group : groups) {
+                    Set<Long> members = getGroupMembers(groupStore, group.getDefinition(), false);
+                    int depth = 0;
+                    while (members.size() > 0) {
+                        if (depth > MAX_NESTING_DEPTH) {
+                            throw new StoreOperationException(Status.ABORTED, "Max depth"
+                                + " exceeded, could not create the group");
+                        }
+                        if (members.contains(newGroup.getId())) {
+                            throw new StoreOperationException(Status.INVALID_ARGUMENT,
+                                "Recursive group definition: this group is contained and "
+                                    + "contains the same group with name "
+                                    + group.getDefinition().getDisplayName());
+                        }
+                        members = groupStore.getMembers(members, false).getGroupIds();
+                        depth += 1;
+                    }
+                }
         }
     }
 
