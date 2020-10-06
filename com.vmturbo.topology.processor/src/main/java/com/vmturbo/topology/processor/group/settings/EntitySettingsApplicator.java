@@ -77,6 +77,7 @@ public class EntitySettingsApplicator {
      */
     public void applySettings(@Nonnull final TopologyInfo topologyInfo,
                               @Nonnull final GraphWithSettings graphWithSettings) {
+        final List<SettingApplicator> applicators = buildApplicators(topologyInfo, graphWithSettings);
         graphWithSettings.getTopologyGraph().entities()
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .forEach(entity -> {
@@ -101,7 +102,7 @@ public class EntitySettingsApplicator {
                     }
                 }
 
-                for (SettingApplicator applicator: buildApplicators(topologyInfo, graphWithSettings)) {
+                for (SettingApplicator applicator: applicators) {
                     applicator.apply(entity, settingsForEntity, actionModeSettings);
                 }
 

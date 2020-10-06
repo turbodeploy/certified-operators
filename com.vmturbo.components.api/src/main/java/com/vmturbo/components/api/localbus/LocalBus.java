@@ -151,7 +151,8 @@ public class LocalBus implements IMessageSenderFactory, IMessageReceiverFactory 
 
         @Override
         public int getRecommendedRequestSizeBytes() {
-            return Integer.MAX_VALUE;
+            // Same as Kafka chunk size.
+            return 126976;
         }
     }
 }

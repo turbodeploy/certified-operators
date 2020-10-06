@@ -5,17 +5,17 @@ import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityTy
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VCPU_VALUE;
 
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
+import java.util.function.IntPredicate;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
+
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -47,13 +47,14 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
     /**
      * Update the 'CPU' sold
      */
-    private static final Collection<Integer> COMMODITIES_TO_SCALE =
-            ImmutableSet.of(CPU_VALUE, CPU_PROVISIONED_VALUE, VCPU_VALUE, VCPU_LIMIT_QUOTA_VALUE);
+    private static final IntPredicate COMMODITIES_TO_SCALE =
+            (type) -> type == CPU_VALUE || type == CPU_PROVISIONED_VALUE || type == VCPU_VALUE || type == VCPU_LIMIT_QUOTA_VALUE;
+
     /**
      * Set of EntityTypes whose providers we need to propagate the update for CPU scalingFactor to.
      */
-    private static final Set<Integer> ENTITIES_TO_UPDATE_PROVIDERS =
-        ImmutableSet.of(EntityType.CONTAINER_POD_VALUE, EntityType.WORKLOAD_CONTROLLER_VALUE);
+    private static final IntPredicate ENTITIES_TO_UPDATE_PROVIDERS =
+            (type) -> type == EntityType.CONTAINER_POD_VALUE || type == EntityType.WORKLOAD_CONTROLLER_VALUE;
 
     private final CpuCapacityStore cpuCapacityStore;
 
@@ -75,17 +76,15 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
             @Nonnull final EntitySettingsCollection settingsCollection,
             @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
         // the entities to operate on will all be PM's
-        pmEntities.forEach(pmEntity ->
+        pmEntities.forEach(pmEntity -> {
+            Optional<Double> scalingFactor = getCpuModelOpt(pmEntity)
+                .flatMap(cpuCapacityStore::getScalingFactor);
+            scalingFactor.ifPresent(sf -> {
                 // queue update to just this entity
                 resultBuilder.queueUpdateEntityAlone(pmEntity, entityToUpdate ->
-                        // check if there's a CPU Model specified
-                        getCpuModelOpt(entityToUpdate).ifPresent(cpuModel ->
-                                // if so, fetch the scalingFactor (if any) for that CPU Model
-                                cpuCapacityStore.getScalingFactor(cpuModel)
-                                        // if found, update the commodities for this entity
-                                        .ifPresent(scalingFactor ->
-                                        updateScalingFactorForEntity(entityToUpdate,
-                                                        scalingFactor, new HashSet<Long>())))));
+                        updateScalingFactorForEntity(entityToUpdate, sf, new LongOpenHashSet()));
+            });
+        });
         return resultBuilder.build();
     }
 
@@ -100,25 +99,29 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
      */
     @VisibleForTesting
     void updateScalingFactorForEntity(@Nonnull final TopologyEntity entityToUpdate,
-                                          @Nonnull final Double scalingFactor,
-                                          @Nonnull HashSet<Long> updatedSet) {
+                                      final double scalingFactor,
+                                      @Nonnull LongSet updatedSet) {
         // Avoid potential for infinite recursion.
         if (updatedSet.contains(entityToUpdate.getOid())) {
             return;
         }
 
-        updateScalingFactorForSoldCommodities(entityToUpdate, scalingFactor);
-        updateScalingFactorForBoughtCommodities(entityToUpdate, scalingFactor);
+        final long soldModified = updateScalingFactorForSoldCommodities(entityToUpdate, scalingFactor);
+        final long boughtModified = updateScalingFactorForBoughtCommodities(entityToUpdate, scalingFactor);
         updatedSet.add(entityToUpdate.getOid());
-        entityToUpdate.getConsumers().forEach(
-                consumer -> updateScalingFactorForEntity(consumer, scalingFactor, updatedSet)
-        );
+        // If we updated any sold commodities, go up to the consumers and make sure their respective
+        // bought commodities are updated.
+        if (soldModified > 0) {
+            entityToUpdate.getConsumers().forEach(consumer -> updateScalingFactorForEntity(consumer, scalingFactor, updatedSet));
+        }
+
         // We need to propagate the scalingFactor update to the providers of certain entities to make
         // sure the changes of sold and bought commodities are consistent.
         // For example, for ContainerPod and WorkloadController, propagating scalingFactor is to
         // respect reseller logic so that VCPULimitQuota commodity sold by WorkloadController and
         // Namespace is consistent with VCPU commodity bought by ContainerPod.
-        if (ENTITIES_TO_UPDATE_PROVIDERS.contains(entityToUpdate.getEntityType())) {
+        // We only need to do this if we updated any bought commodities.
+        if (boughtModified > 0 && ENTITIES_TO_UPDATE_PROVIDERS.test(entityToUpdate.getEntityType())) {
             entityToUpdate.getProviders().forEach(
                 provider -> updateScalingFactorForEntity(provider, scalingFactor, updatedSet)
             );
@@ -131,14 +134,16 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
      *
      * @param entityToUpdate a TopologyEntity for which we should check for commodities to scale
      * @param scalingFactor the scaling factor to apply to any commodities that should scale
+     * @return The number of modified commodities.
      */
-    private void updateScalingFactorForSoldCommodities(@Nonnull final TopologyEntity entityToUpdate,
+    private long updateScalingFactorForSoldCommodities(@Nonnull final TopologyEntity entityToUpdate,
                                                        final double scalingFactor) {
-        Objects.requireNonNull(entityToUpdate)
+        return Objects.requireNonNull(entityToUpdate)
                 .getTopologyEntityDtoBuilder()
                 .getCommoditySoldListBuilderList().stream()
                 .filter(commoditySold -> commodityTypeShouldScale(commoditySold.getCommodityType()))
-                .forEach(commSold -> commSold.setScalingFactor(scalingFactor));
+                .peek(commSold -> commSold.setScalingFactor(scalingFactor))
+                .count();
     }
 
     /**
@@ -147,17 +152,19 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
      *
      * @param entityToUpdate a TopologyEntity for which we should check for commodities to scale
      * @param scalingFactor the scaling factor to apply to any commodities that should scale
+     * @return The number of modified commodities.
      */
-    private void updateScalingFactorForBoughtCommodities(@Nonnull final TopologyEntity entityToUpdate,
+    private long updateScalingFactorForBoughtCommodities(@Nonnull final TopologyEntity entityToUpdate,
                                                        final double scalingFactor) {
-        Objects.requireNonNull(entityToUpdate)
+        return Objects.requireNonNull(entityToUpdate)
                 .getTopologyEntityDtoBuilder()
                 .getCommoditiesBoughtFromProvidersBuilderList().stream()
                 .flatMap(commoditiesBoughtFromProvider ->
                         commoditiesBoughtFromProvider.getCommodityBoughtBuilderList().stream())
                 .filter(commodityBoughtFromProvider ->
                         commodityTypeShouldScale(commodityBoughtFromProvider.getCommodityType()))
-                .forEach(commBought -> commBought.setScalingFactor(scalingFactor));
+                .peek(commBought -> commBought.setScalingFactor(scalingFactor))
+                .count();
     }
 
     /**
@@ -188,6 +195,6 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
      * @return true iff this commodity should have a 'scaleFactor' applied, if one is found
      */
     private boolean commodityTypeShouldScale(@Nonnull TopologyDTO.CommodityType commodityType) {
-        return COMMODITIES_TO_SCALE.contains(Objects.requireNonNull(commodityType).getType());
+        return COMMODITIES_TO_SCALE.test(commodityType.getType());
     }
 }

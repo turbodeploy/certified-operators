@@ -10,15 +10,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import com.google.common.collect.Lists;
+
 import org.junit.Before;
 import org.junit.Test;
 
-import com.google.common.collect.Lists;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -208,7 +209,7 @@ public class CpuScalingFactorPostStitchingOperationTest {
         final CommoditySoldDTO expectedPodVcpuComm = vcpuComm.toBuilder()
             .build();
 
-        operation.updateScalingFactorForEntity(container.build(), CPU_SCALE_FACTOR, new HashSet<>());
+        operation.updateScalingFactorForEntity(container.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
 
         List<CommoditySoldDTO> containerCommSoldList = container.getEntityBuilder().getCommoditySoldListList();
         assertEquals(1, containerCommSoldList.size());
@@ -231,19 +232,23 @@ public class CpuScalingFactorPostStitchingOperationTest {
         final CommoditySoldDTO vcpuComm = makeCommoditySold(CommodityType.VCPU, CPU_CAPACITY);
         final CommoditySoldDTO vcpuLimitQuotaComm = makeCommoditySold(CommodityType.VCPU_LIMIT_QUOTA,
             CPU_CAPACITY);
+        final CommodityBoughtDTO vcpuBoughtComm = vcpuBoughtCommodity;
 
         final TopologyEntity.Builder container = makeTopologyEntityBuilder(1L,
             EntityType.CONTAINER_VALUE,
             Collections.singletonList(vcpuComm),
-            Collections.emptyList());
+            // Buying VCPU from pod.
+            Collections.singletonList(vcpuBoughtComm));
         final TopologyEntity.Builder pod = makeTopologyEntityBuilder(2L,
             EntityType.CONTAINER_POD_VALUE,
             Collections.singletonList(vcpuComm),
-            Collections.emptyList());
+            // Buying VCPU bought from workload controller.
+            Collections.singletonList(vcpuBoughtComm));
         final TopologyEntity.Builder wc = makeTopologyEntityBuilder(3L,
             EntityType.WORKLOAD_CONTROLLER_VALUE,
             Collections.singletonList(vcpuLimitQuotaComm),
-            Collections.emptyList());
+            // Buying VCPU bought from namespace.
+            Collections.singletonList(vcpuBoughtComm));
         final TopologyEntity.Builder ns = makeTopologyEntityBuilder(4L,
             EntityType.NAMESPACE_VALUE,
             Collections.singletonList(vcpuLimitQuotaComm),
@@ -265,8 +270,11 @@ public class CpuScalingFactorPostStitchingOperationTest {
         final CommoditySoldDTO expectedCcpuLimitQuotaComm = vcpuLimitQuotaComm.toBuilder()
             .setScalingFactor(CPU_SCALE_FACTOR)
             .build();
+        final CommodityBoughtDTO expectedVcpuBoughtComm = vcpuBoughtComm.toBuilder()
+                .setScalingFactor(CPU_SCALE_FACTOR)
+                .build();
 
-        operation.updateScalingFactorForEntity(pod.build(), CPU_SCALE_FACTOR, new HashSet<>());
+        operation.updateScalingFactorForEntity(pod.build(), CPU_SCALE_FACTOR, new LongOpenHashSet());
 
         List<CommoditySoldDTO> containerCommSoldList = container.getEntityBuilder().getCommoditySoldListList();
         assertEquals(1, containerCommSoldList.size());
