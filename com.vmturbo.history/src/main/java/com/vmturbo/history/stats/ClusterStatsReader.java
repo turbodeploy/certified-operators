@@ -767,7 +767,7 @@ public class ClusterStatsReader {
             // add extra current snapshot
             projectedStatSnapshots.addFirst(StatSnapshot.newBuilder()
                                                 .setStatEpoch(StatEpoch.CURRENT)
-                                                .setSnapshotDate(latestRecordDate)
+                                                .setSnapshotDate(System.currentTimeMillis())
                                                 .addAllStatRecords(headroomCommodityRecords)
                                                 .build());
 
