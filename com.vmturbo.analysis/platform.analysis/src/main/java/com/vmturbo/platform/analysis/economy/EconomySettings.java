@@ -26,10 +26,10 @@ public final class EconomySettings implements Serializable {
     // for parallel and sequential execution and finding their intersection.
     public static final int DEFAULT_MIN_SELLERS_FOR_PARALLELISM = 256;
 
-    // the maximum number of placements to be 10, when reaching this limit, we force stop
-    // the placements. 10 was chosen from experience of running M2 at various customers.
+    // the maximum number of placements to be 2, when reaching this limit, we force stop
+    // the placements. 2 was chosen from experience of running M2 at various customers.
     // This value can be overridden.
-    public static final int DEFAULT_MAX_PLACEMENT_ITERATIONS = 10;
+    public static final int DEFAULT_MAX_PLACEMENT_ITERATIONS = 2;
 
     /**
      * The value returned by {@link #getUseQuoteCacheDuringSNM()} when called on a newly

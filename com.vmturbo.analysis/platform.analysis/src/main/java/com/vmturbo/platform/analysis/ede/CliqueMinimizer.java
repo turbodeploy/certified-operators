@@ -7,8 +7,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -107,6 +107,8 @@ final class CliqueMinimizer {
     private @NonNull Map<ShoppingList, QuoteTracker> infiniteQuoteTrackers = Collections.emptyMap();
 
     private @Nullable QuoteCache cache_;
+
+    private boolean performOptimization_ = false;
     // Constructors
 
     /**
@@ -119,10 +121,11 @@ final class CliqueMinimizer {
      */
     CliqueMinimizer(@NonNull Economy economy, @NonNull @ReadOnly
             Collection<@NonNull Entry<@NonNull ShoppingList, @NonNull Market>> entries,
-            @Nullable QuoteCache cache) {
+            @Nullable QuoteCache cache, boolean performOptimization) {
         economy_ = economy;
         entries_ = entries;
         cache_ = cache;
+        performOptimization_ = performOptimization;
     }
 
     // Getters
@@ -233,7 +236,9 @@ final class CliqueMinimizer {
      */
     public void accept(long clique) {
         final @NonNull QuoteSummer quoteSummer = entries_.stream()
-            .collect(() -> new QuoteSummer(economy_, clique, cache_, entries_.size()), QuoteSummer::accept, QuoteSummer::combine);
+            .collect(() -> new QuoteSummer(economy_, clique, cache_, entries_.size(), performOptimization_),
+                    QuoteSummer::accept,
+                    QuoteSummer::combine);
 
         // keep the minimum between total quotes
         if (quoteSummer.getTotalQuote() < bestTotalQuote_) {

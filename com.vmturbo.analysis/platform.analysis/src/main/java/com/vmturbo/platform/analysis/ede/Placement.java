@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -777,6 +778,9 @@ public class Placement {
                 .map(Market::getActiveSellers)
                 .flatMap(List::stream)
                 .allMatch(t -> t.getSettings().getCostFunction() != null);
+        boolean performOptimization = movableSlByMarket.stream().map(sl -> sl.getKey().getSupplier())
+                .filter(Objects::nonNull)
+                .map(Trader::getType).distinct().count() > 1;
         Optional<Context> origContext = trader.getSettings().getContext();
         // when trader shop by budget, it could be a trader without any context(on prem/cloud workloads
         // shop for cloud provider, when no business account is assigned by plan configuration),
@@ -807,7 +811,7 @@ public class Placement {
                 // different buying context on same seller. 2. The number of cliques in cloud are a
                 // lot less than on prem because of the static infrastructure in AWS/Azure
                 CliqueMinimizer minimizer = commonCliques.stream()
-                        .collect(() -> new CliqueMinimizer(economy, movableSlByMarket, null),
+                        .collect(() -> new CliqueMinimizer(economy, movableSlByMarket, null, performOptimization),
                         CliqueMinimizer::accept, CliqueMinimizer::combine);
                 if (bestMinimizer == null || minimizer.getBestTotalQuote() < bestMinimizer.getBestTotalQuote()) {
                     bestMinimizer = minimizer;
@@ -834,7 +838,7 @@ public class Placement {
                     ? new QuoteCache(economy.getTraders().size(), economy.getMarketsAsBuyer(trader)
                             .values().stream().mapToInt(market -> market.getActiveSellers().size()).sum(),
                                     economy.getMarketsAsBuyer(trader).size()) : null;
-           return commonCliques.stream().collect(() -> new CliqueMinimizer(economy, movableSlByMarket, cache),
+           return commonCliques.stream().collect(() -> new CliqueMinimizer(economy, movableSlByMarket, cache, performOptimization),
                     CliqueMinimizer::accept, CliqueMinimizer::combine);
         }
     }

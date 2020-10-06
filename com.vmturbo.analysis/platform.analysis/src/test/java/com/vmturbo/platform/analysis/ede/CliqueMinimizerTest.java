@@ -39,7 +39,7 @@ public class CliqueMinimizerTest {
     @TestCaseName("Test #{index}: CliqueMinimizer({0},{1})")
     public final void testCliqueMinimizer_And_Getters(@NonNull Economy economy,
             @NonNull Collection<@NonNull Entry<@NonNull ShoppingList,@NonNull Market>> entries) {
-        CliqueMinimizer minimizer = new CliqueMinimizer(economy, entries, null);
+        CliqueMinimizer minimizer = new CliqueMinimizer(economy, entries, null, false);
 
         assertSame(economy, minimizer.getEconomy());
         assertSame(entries, minimizer.getEntries());

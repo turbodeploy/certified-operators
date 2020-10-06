@@ -71,6 +71,7 @@ final class QuoteSummer {
     private final QuoteCache cache_;
     private int shoppingListIndex_ = 0;
     private int numOfSLs_ = 0;
+    private boolean performOptimization_ = false;
 
     // Constructors
 
@@ -82,11 +83,12 @@ final class QuoteSummer {
      * @param cache See {@link QuoteCache}
      * @param numOfSLs number of shopping lists for this trader
      */
-    QuoteSummer(@NonNull Economy economy, long quality, QuoteCache cache, int numOfSLs) {
+    QuoteSummer(@NonNull Economy economy, long quality, QuoteCache cache, int numOfSLs, boolean performOptimization) {
         economy_ = economy;
         clique_ = quality;
         cache_ = cache;
         numOfSLs_ = numOfSLs;
+        performOptimization_ = performOptimization;
     }
 
     // Getters
@@ -200,7 +202,7 @@ final class QuoteSummer {
         // because for a VM, the last two shopping lists will correspond to the last storage shopping
         // list and the PM shopping list, and there are no further PM/Storage shopping lists which
         // will ask for quote.
-        if (shoppingListIndex_ <= numOfSLs_ - 2) {
+        if (!performOptimization_ || shoppingListIndex_ <= numOfSLs_ - 2) {
             simulate(minimizer, entry, bestSeller);
         }
     }

@@ -74,7 +74,7 @@ public class QuoteSummerTest {
     @Parameters
     @TestCaseName("Test #{index}: QuoteSummer({0},{1})")
     public final void testQuoteSummer_And_Getters(@NonNull Economy economy, long clique) {
-        QuoteSummer summer = new QuoteSummer(economy, clique, qc, 1000);
+        QuoteSummer summer = new QuoteSummer(economy, clique, qc, 1000, false);
 
         assertSame(economy, summer.getEconomy());
         assertSame(clique, summer.getClique());
@@ -96,12 +96,12 @@ public class QuoteSummerTest {
         QuoteMinimizer minimizer = new QuoteMinimizer(economy, sl, qc, 0);
 
         // Test for provider 1 which has canSimulate true
-        QuoteSummer quoteSummer1 = new QuoteSummer(economy, 5, qc, 1000);
+        QuoteSummer quoteSummer1 = new QuoteSummer(economy, 5, qc, 1000, false);
         quoteSummer1.simulate(minimizer, entry, provider1);
         assertEquals(1, quoteSummer1.getSimulatedActions().size());
 
         // Test for provider 2 which has canSimulate false
-        QuoteSummer quoteSummer2 = new QuoteSummer(economy, 5, qc, 1000);
+        QuoteSummer quoteSummer2 = new QuoteSummer(economy, 5, qc, 1000, false);
         quoteSummer2.simulate(minimizer, entry, provider2);
         assertEquals(0, quoteSummer2.getSimulatedActions().size());
     }
