@@ -19,6 +19,7 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
@@ -76,6 +77,9 @@ public class ActionDescriptionBuilder {
     private static final String ENTITY_NOT_FOUND_WARN_MSG = "{} {} Entity {} doesn't exist in the entities snapshot";
     private static final Map<CommodityType, String> CLOUD_SCALE_ACTION_COMMODITY_TYPE_DISPLAYNAME
             = ImmutableMap.of(CommodityType.STORAGE_ACCESS, "IOPS", CommodityType.STORAGE_AMOUNT, "Disk size");
+    // Entities which tracks additional commodity changes in their action descriptions.
+    private static final Set<Integer> ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES =
+            ImmutableSet.of(EntityType.DATABASE_VALUE);
 
     // Static patterns used for dynamically-constructed message contents.
     //
@@ -413,12 +417,16 @@ public class ActionDescriptionBuilder {
             long sourceEntityId = primaryChange.getSource().getId();
             ActionPartialEntity currentEntityDTO = entitiesSnapshot.getEntityFromOid(
                 sourceEntityId).get();
+            int sourceType = currentEntityDTO.getEntityType();
+            int destinationType = newEntityDTO.getEntityType();
             String currentLocation = currentEntityDTO.getDisplayName();
             String newLocation = newEntityDTO.getDisplayName();
 
             // We show scale if move is within same region. In cloud-to-cloud migration, there
             // is a region change, so we keep the action as MOVE, and don't change it to a SCALE.
-            String verb = SCALE;
+            String verb = (recommendation.getInfo().getActionTypeCase() == ActionTypeCase.SCALE
+                    || TopologyDTOUtil.isPrimaryTierEntityType(destinationType)
+                    && TopologyDTOUtil.isPrimaryTierEntityType(sourceType)) ? SCALE : MOVE;
             if (TopologyDTOUtil.isMigrationAction(recommendation)) {
                 verb = MOVE;
                 Pair<String, String> regions = getRegions(recommendation, entitiesSnapshot);
@@ -440,11 +448,65 @@ public class ActionDescriptionBuilder {
                     resource = beautifyEntityTypeAndName(resourceEntity.get()) + OF;
                 }
             }
-            return ActionMessageFormat.ACTION_DESCRIPTION_MOVE.format(verb, resource,
+            String actionMessage = ActionMessageFormat.ACTION_DESCRIPTION_MOVE.format(verb, resource,
                     beautifyEntityTypeAndName(targetEntityDTO),
                     currentLocation,
                     newLocation);
+            final Optional<String> additionalActionDescription;
+            if (ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES.contains(optTargetEntity.get().getEntityType())) {
+                additionalActionDescription =
+                        getResizeProvidersForAdditionalCommodity(recommendation, targetEntityDTO, newEntityDTO);
+            } else {
+                additionalActionDescription = Optional.empty();
+            }
+            // add additionalActionDescription to actionMessage if not empty.
+            return additionalActionDescription.map(actionMessage::concat).orElse(actionMessage);
         }
+    }
+
+    /**
+     * Helper method to retrieve additional action description involving additional
+     * commodities participating in an action. Only for entities in {@link #ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES}.
+     *
+     * @param recommendation  current action recommendation.
+     * @param targetEntityDTO target source entity.
+     * @param newEntityDTO    destination entity.
+     * @return Additional string for concat to action description.
+     */
+    private static Optional<String> getResizeProvidersForAdditionalCommodity(
+            @Nonnull final ActionDTO.Action recommendation,
+            @Nonnull final ActionPartialEntity targetEntityDTO,
+            @Nonnull final ActionPartialEntity newEntityDTO) {
+        if (recommendation.getInfo().hasScale()
+                && !recommendation.getInfo().getScale().getCommodityResizesList().isEmpty()) {
+            ResizeInfo resizeInfo = recommendation.getInfo().getScale().getCommodityResizesList().get(0);
+            return Optional.of(getAdditionalResizeCommodityMessage(resizeInfo, targetEntityDTO, newEntityDTO));
+        }
+        return Optional.empty();
+    }
+
+    @Nonnull
+    private static String getAdditionalResizeCommodityMessage(
+            @Nonnull ResizeInfo resizeInfo,
+            @Nonnull ActionPartialEntity targetEntityDTO,
+            @Nonnull ActionPartialEntity newEntityDTO) {
+        final String messageSeparator = ", ";
+        final CommodityDTO.CommodityType firstResizeInfoCommodityType = CommodityDTO.CommodityType
+                .forNumber(resizeInfo.getCommodityType().getType());
+        final String commodityTypeDisplayName = CLOUD_SCALE_ACTION_COMMODITY_TYPE_DISPLAYNAME
+                .getOrDefault(firstResizeInfoCommodityType, beautifyCommodityType(resizeInfo.getCommodityType()));
+        final String oldVal = formatResizeActionCommodityValue(firstResizeInfoCommodityType,
+                targetEntityDTO.getEntityType(), resizeInfo.getOldCapacity());
+        final String newVal = formatResizeActionCommodityValue(firstResizeInfoCommodityType,
+                newEntityDTO.getEntityType(), resizeInfo.getNewCapacity());
+        final String verb = resizeInfo.getNewCapacity() > resizeInfo.getOldCapacity() ? UP : DOWN;
+        return messageSeparator.concat(
+                ActionMessageFormat.ACTION_DESCRIPTION_SCALE_ADDITIONAL_COMMODITY_CHANGE.format(
+                commodityTypeDisplayName,
+                verb,
+                oldVal,
+                newVal
+        ));
     }
 
     private static String getScaleActionWithoutProviderChangeDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
@@ -466,30 +528,19 @@ public class ActionDescriptionBuilder {
                 .forNumber(firstResizeInfo.getCommodityType().getType());
         String commodityTypeDisplayName = CLOUD_SCALE_ACTION_COMMODITY_TYPE_DISPLAYNAME
                 .getOrDefault(firstResizeInfoCommodityType, beautifyCommodityType(firstResizeInfo.getCommodityType()));
-        String description = ActionMessageFormat.ACTION_DESCRIPTION_SCALE_COMMODITY_CHANGE.format(
+        StringBuilder description = new StringBuilder(ActionMessageFormat.ACTION_DESCRIPTION_SCALE_COMMODITY_CHANGE.format(
                 firstResizeInfo.getNewCapacity() > firstResizeInfo.getOldCapacity() ? UP : DOWN,
                 commodityTypeDisplayName, beautifyEntityTypeAndName(optTargetEntity),
                 formatResizeActionCommodityValue(firstResizeInfoCommodityType,
                         optTargetEntity.getEntityType(), firstResizeInfo.getOldCapacity()),
                 formatResizeActionCommodityValue(firstResizeInfoCommodityType,
-                        optTargetEntity.getEntityType(), firstResizeInfo.getNewCapacity()));
+                        optTargetEntity.getEntityType(), firstResizeInfo.getNewCapacity())));
         // Scaling more than one commodity
         for (int i = 1; i < resizeInfos.size(); i++) {
             ResizeInfo additionalResizeInfo = resizeInfos.get(i);
-            description += ", ";
-            final CommodityDTO.CommodityType additionalResizeInfoCommodityType = CommodityDTO.CommodityType
-                    .forNumber(additionalResizeInfo.getCommodityType().getType());
-            commodityTypeDisplayName = CLOUD_SCALE_ACTION_COMMODITY_TYPE_DISPLAYNAME
-                    .getOrDefault(additionalResizeInfoCommodityType,
-                            beautifyCommodityType(additionalResizeInfo.getCommodityType()));
-            description += ActionMessageFormat.ACTION_DESCRIPTION_SCALE_ADDITIONAL_COMMODITY_CHANGE.format(
-                    additionalResizeInfo.getNewCapacity() > additionalResizeInfo.getOldCapacity() ? UP : DOWN,
-                    commodityTypeDisplayName, formatResizeActionCommodityValue(additionalResizeInfoCommodityType,
-                            optTargetEntity.getEntityType(), additionalResizeInfo.getOldCapacity()),
-                    formatResizeActionCommodityValue(additionalResizeInfoCommodityType,
-                            optTargetEntity.getEntityType(), additionalResizeInfo.getNewCapacity()));
+            description.append(getAdditionalResizeCommodityMessage(additionalResizeInfo, optTargetEntity, optTargetEntity));
         }
-        return description;
+        return description.toString();
     }
 
     /**
@@ -791,7 +842,7 @@ public class ActionDescriptionBuilder {
         // with 1 significant figure in decimal, eg. 100.2 MB, 11.0 GB, etc.
         if (commodityTypeToDefaultUnits.containsKey(commodityType)) {
             long capacityInBytes = (long)(capacity * commodityTypeToDefaultUnits.get(commodityType) / Units.BYTE);
-            return getHumanReadableSize(capacityInBytes);
+            return StringUtil.getHumanReadableSize(capacityInBytes);
         } else if (entityType == EntityType.CONTAINER_VALUE
                 || entityType == EntityType.WORKLOAD_CONTROLLER_VALUE
                 || entityType == EntityType.CONTAINER_SPEC_VALUE) {
@@ -805,19 +856,4 @@ public class ActionDescriptionBuilder {
         }
     }
 
-    @VisibleForTesting
-    static String getHumanReadableSize(long capacityInBytes) {
-        // Reference:
-        // https://stackoverflow.com/questions/3758606/how-to-convert-byte-size-into-human-readable-format-in-java
-        if (capacityInBytes < 1024) {
-            return capacityInBytes + " Bytes";
-        }
-        long value = capacityInBytes;
-        CharacterIterator ci = new StringCharacterIterator("KMGTPE");
-        for (int i = 40; i >= 0 && capacityInBytes > 0xfffccccccccccccL >> i; i -= 10) {
-            value >>= 10;
-            ci.next();
-        }
-        return String.format("%.1f %cB", value / 1024.0, ci.current());
-    }
 }

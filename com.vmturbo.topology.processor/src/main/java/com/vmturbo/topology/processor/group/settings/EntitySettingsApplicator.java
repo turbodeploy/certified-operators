@@ -152,6 +152,8 @@ public class EntitySettingsApplicator {
                         CommodityType.DB_CACHE_HIT_RATE),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.VCPURequestUtilization,
                         CommodityType.VCPU_REQUEST),
+                new UtilizationThresholdApplicator(EntitySettingSpecs.DTUUtilization,
+                        CommodityType.DTU),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.PoolCpuUtilizationThreshold,
                         CommodityType.POOL_CPU),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.PoolMemoryUtilizationThreshold,
@@ -216,6 +218,18 @@ public class EntitySettingsApplicator {
                         CommodityType.NET_THROUGHPUT),
                 new ResizeTargetUtilizationCommodityBoughtApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationIops, CommodityType.STORAGE_ACCESS),
+                new ResizeTargetUtilizationCommodityBoughtApplicator(
+                        EntitySettingSpecs.DTUUtilization,
+                        CommodityType.DTU),
+                new ResizeTargetUtilizationCommodityBoughtApplicator(
+                        EntitySettingSpecs.StorageAmountUtilization,
+                        CommodityType.STORAGE_AMOUNT),
+                new ResizeTargetUtilizationCommoditySoldApplicator(
+                        EntitySettingSpecs.DTUUtilization,
+                        CommodityType.DTU),
+                new ResizeTargetUtilizationCommoditySoldApplicator(
+                        EntitySettingSpecs.StorageAmountUtilization,
+                        CommodityType.STORAGE_AMOUNT),
                 new ResizeTargetUtilizationCommoditySoldApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationVcpu, CommodityType.VCPU),
                 new ResizeTargetUtilizationCommoditySoldApplicator(

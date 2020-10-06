@@ -94,7 +94,7 @@ public class CloudEntitiesMap implements Map<String, Long> {
                             probeTypesForTargetIds.get(entity.getTargetId()));
                     if (cloudEntityOidByLocalId.containsKey(databaseTierName)) {
                         String databaseTierFullName = CloudCostUtils.databaseTierNameToFullId(
-                                entity.getDisplayName(),
+                                entity.getDisplayName() + entity.getLocalId(),
                                 probeTypesForTargetIds.get(entity.getTargetId()));
                         extraneousIdLookUps.compute(databaseTierName, (key, currentList) -> {
                             currentList = currentList == null ? new ArrayList<>() : currentList;

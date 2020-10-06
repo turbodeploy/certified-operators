@@ -52,7 +52,9 @@ public class TopologyConversionConstants {
                     // mapping for Azure Database commodities
                     .put(CommodityType.DB_MEM_VALUE, CommodityType.VMEM_VALUE)
                     .put(CommodityType.TRANSACTION_VALUE, CommodityType.VCPU_VALUE)
-                    // mapping for cloud volume commodities
+                    .put(CommodityType.DTU_VALUE, CommodityType.DTU_VALUE)
+                    .put(CommodityType.STORAGE_AMOUNT_VALUE, CommodityType.STORAGE_AMOUNT_VALUE)
+            // mapping for cloud volume commodities
                     .put(CommodityType.STORAGE_ACCESS_VALUE, CommodityType.STORAGE_ACCESS_VALUE)
                     .put(CommodityType.IO_THROUGHPUT_VALUE, CommodityType.IO_THROUGHPUT_VALUE)
                     .build();
@@ -65,18 +67,18 @@ public class TopologyConversionConstants {
         = ImmutableMap.<Integer, ImmutableMap<Integer, Integer>>builder()
             .put(EntityType.COMPUTE_TIER.getNumber(),
                     ImmutableMap.<Integer, Integer>builder()
-                    .put(CommodityType.VMEM_VALUE, CommodityType.MEM_VALUE)
-                    .put(CommodityType.VCPU_VALUE, CommodityType.CPU_VALUE)
-                    // retrieve the old capacity when converted
-                    .put(CommodityType.STORAGE_ACCESS_VALUE, CommodityType.STORAGE_ACCESS_VALUE).build())
+                            .put(CommodityType.VMEM_VALUE, CommodityType.MEM_VALUE)
+                            .put(CommodityType.VCPU_VALUE, CommodityType.CPU_VALUE)
+                            // retrieve the old capacity when converted
+                            .put(CommodityType.STORAGE_ACCESS_VALUE, CommodityType.STORAGE_ACCESS_VALUE).build())
             .put(EntityType.DATABASE_SERVER_TIER.getNumber(),
                     ImmutableMap.<Integer, Integer>builder()
-                    .put(CommodityType.VMEM_VALUE, CommodityType.VMEM_VALUE)
-                    .put(CommodityType.VCPU_VALUE, CommodityType.VCPU_VALUE).build())
+                            .put(CommodityType.VMEM_VALUE, CommodityType.VMEM_VALUE)
+                            .put(CommodityType.VCPU_VALUE, CommodityType.VCPU_VALUE).build())
             .put(EntityType.DATABASE_TIER.getNumber(),
                     ImmutableMap.<Integer, Integer>builder()
-                    .put(CommodityType.VMEM_VALUE, CommodityType.DB_MEM_VALUE)
-                    .put(CommodityType.VCPU_VALUE, CommodityType.TRANSACTION_VALUE).build())
+                            .put(CommodityType.VMEM_VALUE, CommodityType.DB_MEM_VALUE)
+                            .put(CommodityType.VCPU_VALUE, CommodityType.TRANSACTION_VALUE).build())
             .build();
 
     // TODO: the following constants will be from user settings once UI supports it

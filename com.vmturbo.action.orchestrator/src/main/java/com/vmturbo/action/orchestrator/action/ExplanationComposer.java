@@ -320,7 +320,7 @@ public class ExplanationComposer {
         return changeExplanations.stream().flatMap(changeExplanation -> {
             try {
                 return buildMoveChangeExplanation(optionalSourceEntity,
-                    ActionDTOUtil.getPrimaryEntity(action, false), changeExplanation,
+                    ActionDTOUtil.getPrimaryEntity(action), changeExplanation,
                     settingPolicyIdToSettingPolicyName, topology, keepItShort).stream();
             } catch (UnsupportedActionException e) {
                 logger.error("Cannot build action explanation", e);

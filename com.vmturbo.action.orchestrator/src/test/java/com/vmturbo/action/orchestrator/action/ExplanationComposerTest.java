@@ -644,13 +644,13 @@ public class ExplanationComposerTest {
 
         assertEquals("Container Resize - "
                 + "Resize UP VCPU Limit from 123 MHz to 456 MHz, "
-                + "Resize DOWN VMem Request from 890.0 KB to 567.0 KB"
+                + "Resize DOWN VMem Request from 890 KB to 567 KB"
                 + " in Container Spec {entity:1:displayName:}",
             ExplanationComposer.composeExplanation(action.build()));
 
         assertEquals("Container Resize - "
                         + "Resize UP VCPU Limit from 123 MHz to 456 MHz, "
-                        + "Resize DOWN VMem Request from 890.0 KB to 567.0 KB"
+                        + "Resize DOWN VMem Request from 890 KB to 567 KB"
                         + " in Container Spec Irene",
             ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
                 Optional.of(graphCreator.build()), null));
@@ -711,21 +711,21 @@ public class ExplanationComposerTest {
         String coreExplanation =  ExplanationComposer.buildAtomicResizeCoreExplanation(action.build());
         assertEquals("Controller Resize", coreExplanation);
         assertTrue(explanation.startsWith(coreExplanation));
-        assertTrue(explanation.contains("Resize DOWN VMem Limit from 890.0 KB to 567.0 KB, "
+        assertTrue(explanation.contains("Resize DOWN VMem Limit from 890 KB to 567 KB, "
                                          + "Resize UP VCPU Limit from 123 MHz to 456 MHz"
                                          + " in Container Spec {entity:2:displayName:}"));
         assertTrue(explanation.contains("Resize UP VCPU Limit from 123 MHz to 456 MHz, "
-                + "Resize DOWN VMem Limit from 890.0 KB to 567.0 KB"
+                + "Resize DOWN VMem Limit from 890 KB to 567 KB"
                 + " in Container Spec {entity:1:displayName:}"));
 
         String translatedExplanation = ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
                 Optional.of(graphCreator.build()), null);
         assertTrue(translatedExplanation.startsWith(coreExplanation));
-        assertTrue(translatedExplanation.contains("Resize DOWN VMem Limit from 890.0 KB to 567.0 KB, "
+        assertTrue(translatedExplanation.contains("Resize DOWN VMem Limit from 890 KB to 567 KB, "
                 + "Resize UP VCPU Limit from 123 MHz to 456 MHz"
                 + " in Container Spec John"));
         assertTrue(translatedExplanation.contains("Resize UP VCPU Limit from 123 MHz to 456 MHz, "
-                + "Resize DOWN VMem Limit from 890.0 KB to 567.0 KB"
+                + "Resize DOWN VMem Limit from 890 KB to 567 KB"
                 + " in Container Spec Irene"));
     }
 

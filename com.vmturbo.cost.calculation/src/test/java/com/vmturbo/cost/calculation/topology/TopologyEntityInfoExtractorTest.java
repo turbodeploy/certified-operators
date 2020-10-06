@@ -118,16 +118,20 @@ public class TopologyEntityInfoExtractorTest {
         .build();
 
     private static final TopologyEntityDTO DB = TopologyEntityDTO.newBuilder()
-        .setOid(DEFAULT_ID)
-        .setDisplayName(DEFAULT_DB_NAME)
-        .setEntityType(EntityType.DATABASE_VALUE)
-        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-            .setDatabase(DatabaseInfo.newBuilder()
-                .setEngine(DatabaseEngine.SQLSERVER)
-                .setEdition(DatabaseEdition.STANDARD)
-                .setLicenseModel(LicenseModel.LICENSE_INCLUDED)
-                .setDeploymentType(DeploymentType.SINGLE_AZ)))
-        .build();
+            .setOid(DEFAULT_ID)
+            .setDisplayName(DEFAULT_DB_NAME)
+            .setEntityType(EntityType.DATABASE_VALUE)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setDatabase(DatabaseInfo.newBuilder()
+                            .setEngine(DatabaseEngine.SQLSERVER)
+                            .setEdition(DatabaseEdition.STANDARD)
+                            .setLicenseModel(LicenseModel.LICENSE_INCLUDED)
+                            .setDeploymentType(DeploymentType.SINGLE_AZ)))
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber()))
+                    .setCapacity(STORAGE_AMOUNT_CAP))
+            .build();
 
     private static final TopologyEntityDTO EMPTY_DB = TopologyEntityDTO.newBuilder()
         .setOid(DEFAULT_ID)
@@ -210,6 +214,13 @@ public class TopologyEntityInfoExtractorTest {
         assertThat(dbConfig.getEdition(), is(DatabaseEdition.STANDARD));
         assertThat(dbConfig.getLicenseModel().get(), is(LicenseModel.LICENSE_INCLUDED));
         assertThat(dbConfig.getDeploymentType().get(), is(DeploymentType.SINGLE_AZ));
+    }
+
+    @Test
+    public void testExtractDatabaseStorageAmount() {
+        Optional<Float> dbStorageAmount = entityInfoExtractor.getDBStorageCapacity(DB);
+        assertTrue(dbStorageAmount.isPresent());
+        assertThat(dbStorageAmount.get(), is(STORAGE_AMOUNT_CAP));
     }
 
     @Test

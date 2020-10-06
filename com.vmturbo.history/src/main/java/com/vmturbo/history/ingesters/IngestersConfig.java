@@ -414,7 +414,9 @@ public class IngestersConfig {
                 "STORAGECLUSTERCommodity",
                 "VAPPAccessCommodity",
                 "VDCCommodity",
-                "VMPMAccessCommodity"
+                "VMPMAccessCommodity",
+                "ConcurrentWorker",
+                "ConcurrentSession"
         });
     }
 

@@ -213,12 +213,6 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                         .setOid(DATABASE_SERVER_OID)
                         .setEntityType(EntityType.DATABASE_SERVER_VALUE)).build()));
 
-        // Percentile should not be set for database entities
-        Assert.assertFalse(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
-            TopologyEntityDTO.newBuilder()
-                .setOid(DATABASE_OID)
-                .setEntityType(EntityType.DATABASE_VALUE)).build()));
-
         // Percentile should not be set for container entities
         Assert.assertFalse(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
             TopologyEntityDTO.newBuilder()

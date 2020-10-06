@@ -97,6 +97,19 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         }
     }
 
+    @Nonnull
+    @Override
+    public Optional<Float> getDBStorageCapacity(@Nonnull final TopologyEntityDTO entity) {
+        if (entity.getEntityType() != EntityType.DATABASE_VALUE) {
+            return Optional.empty();
+        }
+        if (entity.getTypeSpecificInfo().hasDatabase()) {
+            return Optional.of(
+                    getCommodityCapacity(entity, CommodityType.STORAGE_AMOUNT));
+        }
+        return Optional.empty();
+    }
+
     @Override
     @Nonnull
     public Optional<ComputeTierConfig> getComputeTierConfig(@Nonnull final TopologyEntityDTO entity) {
@@ -126,18 +139,18 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
     }
 
     private static float getCommodityCapacity(
-            @Nonnull final TopologyEntityDTO volume,
+            @Nonnull final TopologyEntityDTO topologyEntityDTO,
             @Nonnull final CommodityType commodityType) {
-        final Optional<Double> capacity = volume.getCommoditySoldListList().stream()
+        final Optional<Double> capacity = topologyEntityDTO.getCommoditySoldListList().stream()
                 .filter(commodity -> commodity.getCommodityType().getType()
                         == commodityType.getNumber())
                 .map(CommoditySoldDTO::getCapacity)
                 .findAny();
-        if (!capacity.isPresent() && !isEphemeralVolume(volume)) {
+        if (!capacity.isPresent() && !isEphemeralVolume(topologyEntityDTO)) {
             // This is not an error for AWS ephemeral (instance store) volumes because they have no
             // Storage Access and IO Throughput commodities.
-            logger.warn("Missing commodity {} for volume {} (OID: {})", commodityType,
-                    volume.getDisplayName(), volume.getOid());
+            logger.warn("Missing commodity {} for topologyEntityDTO {} (OID: {})", commodityType,
+                    topologyEntityDTO.getDisplayName(), topologyEntityDTO.getOid());
         }
         return capacity.orElse(0D).floatValue();
     }

@@ -133,6 +133,8 @@ public class HistoricalEditor {
             .add(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
             .add(CommonDTO.CommodityDTO.CommodityType.INSTANCE_DISK_SIZE_VALUE)
             .add(CommonDTO.CommodityDTO.CommodityType.INSTANCE_DISK_TYPE_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.CONCURRENT_SESSION_VALUE)
+            .add(CommonDTO.CommodityDTO.CommodityType.CONCURRENT_WORKER_VALUE)
             .build();
 
     public HistoricalEditor(HistoricalUtilizationDatabase historicalUtilizationDatabase, ExecutorService executorService) {

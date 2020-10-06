@@ -14,14 +14,14 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.ReservationNotificationDTO;
 import com.vmturbo.api.ReservationNotificationDTO.ReservationNotification;

@@ -83,10 +83,10 @@ public class PercentileEditor extends
                     CommodityDTO.CommodityType.VMEM);
     // percentile on a bought commodity will not add up unless there is no more than one
     // consumer per provider, so only certain commodity types are applicable
-    private static final Set<CommodityType> ENABLED_BOUGHT_COMMODITY_TYPES = Sets.immutableEnumSet(
-                    CommodityDTO.CommodityType.IMAGE_CPU,
-                    CommodityDTO.CommodityType.IMAGE_MEM,
-                    CommodityDTO.CommodityType.IMAGE_STORAGE);
+    private static final Set<CommodityType> ENABLED_BOUGHT_COMMODITY_TYPES =
+            Sets.immutableEnumSet(CommodityDTO.CommodityType.IMAGE_CPU,
+                    CommodityDTO.CommodityType.IMAGE_MEM, CommodityDTO.CommodityType.IMAGE_STORAGE,
+                    CommodityType.DTU, CommodityType.STORAGE_AMOUNT);
     // percentile may be calculated on a bought commodity if the provider has infinite capacity
     private static final Map<EntityType, Set<CommodityType>> ENABLED_BOUGHT_FROM_PROVIDER_TYPES =
         ImmutableMap.of(EntityType.COMPUTE_TIER,
@@ -99,7 +99,7 @@ public class PercentileEditor extends
      * {@link PercentileEditor#ENABLED_BOUGHT_COMMODITY_TYPES}
      */
     private static final Set<EntityType> NOT_APPLICABLE_ENTITY_TYPES =
-            ImmutableSet.of(EntityType.DATABASE_SERVER, EntityType.DATABASE, EntityType.CONTAINER,
+            ImmutableSet.of(EntityType.DATABASE_SERVER, EntityType.CONTAINER,
                 EntityType.CONTAINER_POD);
     private static final DataMetricSummary SETTINGS_CHANGE_SUMMARY_METRIC =
                 DataMetricSummary.builder()

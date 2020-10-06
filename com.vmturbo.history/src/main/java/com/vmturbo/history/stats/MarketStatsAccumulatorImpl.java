@@ -248,7 +248,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
             double peak,
             RelationType relationType) {
         String commodityKey = MessageFormat.format("{0}::{1}::{2}",
-                propertyType, propertySubtype, RelationType.METRICS.getValue());
+                propertyType, propertySubtype, relationType.getValue());
 
         synchronized (statsMap) {
             MarketStatsData statsData = statsMap.computeIfAbsent(commodityKey, key ->
