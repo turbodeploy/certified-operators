@@ -57,10 +57,11 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
             aspect.setPricingModel(pricingModel);
         }
 
-        String storageAmount = entity.getEntityPropertyMapOrDefault(STORAGE_AMOUNT, null);
-        if (storageAmount != null) {
-            aspect.setStorageAmount(storageAmount);
-        }
+        // TODO: Roop Storage amount is not part of aspect anymore.
+        // String storageAmount = entity.getEntityPropertyMapOrDefault(STORAGE_AMOUNT, null);
+        // if (storageAmount != null) {
+        //    aspect.setStorageAmount(storageAmount);
+        // }
 
         return aspect;
     }

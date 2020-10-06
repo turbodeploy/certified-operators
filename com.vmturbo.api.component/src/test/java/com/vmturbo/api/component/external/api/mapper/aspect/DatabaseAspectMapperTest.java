@@ -65,7 +65,6 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
         assertEquals(MAX_CONCURRENT_SESSION, dbAspect.getMaxConcurrentSessions());
         assertEquals(MAX_CONCURRENT_WORKER, dbAspect.getMaxConcurrentWorkers());
         assertEquals(PRICING_MODEL, dbAspect.getPricingModel());
-        assertEquals(STORAGE_AMOUNT, dbAspect.getStorageAmount());
 
     }
 }
