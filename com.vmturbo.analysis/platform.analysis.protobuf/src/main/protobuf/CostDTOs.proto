@@ -64,6 +64,23 @@ message CostDTO {
         // fees for a CBTP, in which the license fee is based on the matching TP of the buyer.
         optional int32 core_commodity_type = 6;
         map<int64, double> price_by_num_cores = 7;
+
+        // Dependent cost tuples
+        repeated DependentCostTuple dependent_cost_tuples = 8;
+        message DependentCostTuple {
+            // The resource type of the dependent cost tuple
+            optional int32 dependent_resource_type = 1;
+            // The resource options of the dependent cost tuple
+            repeated DependentResourceOption dependent_resource_options = 2;
+            message DependentResourceOption {
+                // The increment of the option
+                optional int64 increment = 1;
+                // The end range of the option
+                optional int64 end_range = 2;
+                // The price of the option
+                optional double price = 3;
+            }
+        }
     }
 
 

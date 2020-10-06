@@ -12,14 +12,14 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Table;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Table;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -38,6 +38,8 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple.DependentCostTuple;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple.DependentCostTuple.DependentResourceOption;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.DatabaseTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
@@ -47,6 +49,7 @@ import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.Capacit
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.RangeBasedResourceDependency;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.RatioBasedResourceDependency;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.CostUnavailableQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InfiniteDependentComputeCommodityQuote;
@@ -61,73 +64,8 @@ import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 public class CostFunctionFactory {
 
     private static final Logger logger = LogManager.getLogger();
+
     private static final double riCostDeprecationFactor = 0.00001;
-
-    /**
-     * A class represents the price information of a commodity
-     * NOTE: the PriceData comparator is overridden to make sure upperBound decides the order
-     * @author weiduan
-     *
-     */
-    @SuppressWarnings("rawtypes")
-    public static class PriceData implements Comparable {
-        private double upperBound_;
-        private double price_;
-        private boolean isUnitPrice_;
-        private boolean isAccumulative_;
-        private long regionId_;
-
-        public PriceData(double upperBound, double price, boolean isUnitPrice,
-                         boolean isAccumulative, long regionId) {
-            upperBound_ = upperBound;
-            price_ = price;
-            isUnitPrice_ = isUnitPrice;
-            isAccumulative_ = isAccumulative;
-            regionId_ = regionId;
-        }
-
-        /**
-         * Returns the upper bound limit of commodity
-         */
-        public double getUpperBound() {
-            return upperBound_;
-        }
-
-        /**
-         * Returns the price of commodity
-         */
-        public double getPrice() {
-            return price_;
-        }
-
-        /**
-         * Returns true if the price is a unit price
-         */
-        public boolean isUnitPrice() {
-            return isUnitPrice_;
-        }
-
-        /**
-         * Returns true if the cost should be accumulated
-         */
-        public boolean isAccumulative() {
-            return isAccumulative_;
-        }
-
-        /**
-         * Getter for the region id.
-         *
-         * @return the region id
-         */
-        public long getRegionId() {
-            return  regionId_;
-        }
-
-        @Override
-        public int compareTo(Object other) {
-            return Double.compare(upperBound_, ((PriceData)other).getUpperBound());
-        }
-    }
 
     /**
      * A utility method to extract base and dependent commodities.
@@ -648,11 +586,73 @@ public class CostFunctionFactory {
         }
 
         final Long regionId = costTuple.getRegionId();
-        final double cost = costTuple.getPrice();
+        // Cost plus the dependent options cost
+        double totalCost = costTuple.getPrice();
+        List<DependentCostTuple> dependentCostTuplesList = costTuple.getDependentCostTuplesList();
+        List<CommodityContext> commodityContexts = new ArrayList<>();
+        if (!dependentCostTuplesList.isEmpty()) {
+            for (DependentCostTuple dependentCostTuple : dependentCostTuplesList) {
+                List<DependentResourceOption> dependentResourceOptions =
+                        dependentCostTuple.getDependentResourceOptionsList();
+                if (!dependentResourceOptions.isEmpty()) {
+                    int dependentResourceType = dependentCostTuple.getDependentResourceType();
+                    int dependentResourceIndex = sl.getBasket().indexOf(dependentResourceType);
+                    // Skip if you can't find the index.
+                    if (dependentResourceIndex == -1) {
+                        continue;
+                    }
+                    double dependentResourceQuantity = sl.getQuantities()[dependentResourceIndex];
+                    long prevEndRange = 0;
+                    long endRange = 0;
+                    long increment = 0;
+                    double price = 0;
+                    // Find the right dependent option.
+                    for (DependentResourceOption dependentResourceOption : dependentResourceOptions) {
+                        prevEndRange = endRange;
+                        endRange = dependentResourceOption.getEndRange();
+                        increment = dependentResourceOption.getIncrement();
+                        price = dependentResourceOption.getPrice();
+                        if (increment <= 0) {
+                            logger.debug("Seller ID: {}, increment range for dependentResourceOption can never" +
+                                    "be less than equal to 0. {}", seller.getDebugInfoNeverUseInCode(), sl.getDebugInfoNeverUseInCode());
+                            return new CommodityCloudQuote(seller,
+                                    Double.POSITIVE_INFINITY, regionId, accountId, commodityContexts);
+                        }
+                        if (dependentResourceQuantity <= endRange) {
+                            break;
+                        } else {
+                            totalCost += (endRange - prevEndRange) * price;
+                        }
+                    }
+                    /*
+                    The bought quantity is less than the maximum endRange because
+                    insufficientCommodityWithinSellerCapacityQuote takes care of checking
+                    for bought quantity less than the sold commodity max.
+                     */
+                    long selectedAmount = prevEndRange;
+                    if (dependentResourceQuantity > endRange) {
+                        logger.debug("Dependent resources quantity was not met by seller {}. Returning infinite"
+                                + " cost for this template.", seller.getDebugInfoNeverUseInCode());
+                        return new CommodityCloudQuote(seller,
+                                Double.POSITIVE_INFINITY, regionId, accountId, commodityContexts);
+                    }
+                    // Add the increment in the current option to satisfy the demand.
+                    while (selectedAmount < dependentResourceQuantity) {
+                        selectedAmount += increment;
+                        totalCost += increment * price;
+                    }
+                    // Update the shopping list and keep the selected value
+                    commodityContexts.add(
+                            new CommodityContext(sl.getBasket().get(dependentResourceIndex),
+                                    selectedAmount, true));
+                }
+            }
+        }
         // NOTE: CostTable.NO_VALUE (-1) is the no license commodity type
-        return Double.isInfinite(cost) && licenseCommBoughtIndex != CostTable.NO_VALUE ?
+        return Double.isInfinite(totalCost) && licenseCommBoughtIndex != CostTable.NO_VALUE ?
                 new LicenseUnavailableQuote(seller, sl.getBasket().get(licenseCommBoughtIndex)) :
-                new CommodityCloudQuote(seller, cost * (groupFactor > 0 ? groupFactor : 1), regionId, accountId, null);
+                new CommodityCloudQuote(seller, totalCost * (groupFactor > 0 ? groupFactor : 1),
+                        regionId, accountId, commodityContexts);
     }
 
     /**
@@ -763,15 +763,15 @@ public class CostFunctionFactory {
         // the map to keep commodity to its min max capacity limitation
         final Map<CommoditySpecification, CapacityLimitation> commCapacityLimitation
                 = CostFunctionFactoryHelper.translateResourceCapacityLimitation(
-                        costDTO.getStorageResourceLimitationList(), commTypesWithConstraints);
+                costDTO.getStorageResourceLimitationList(), commTypesWithConstraints);
         // ratio capacity constraint between commodities
         final List<RatioBasedResourceDependency> ratioDependencyList
                 = CostFunctionFactoryHelper.translateStorageResourceRatioDependency(
-                        costDTO.getStorageResourceRatioDependencyList(), commTypesWithConstraints);
+                costDTO.getStorageResourceRatioDependencyList(), commTypesWithConstraints);
         // range capacity constraint between commodities
         final List<RangeBasedResourceDependency> rangeDependencyList
                 = CostFunctionFactoryHelper.translateStorageResourceRangeDependency(
-                        costDTO.getStorageResourceRangeDependencyList(), commTypesWithConstraints);
+                costDTO.getStorageResourceRangeDependencyList(), commTypesWithConstraints);
 
         CostFunction costFunction = new CostFunction() {
             @Override

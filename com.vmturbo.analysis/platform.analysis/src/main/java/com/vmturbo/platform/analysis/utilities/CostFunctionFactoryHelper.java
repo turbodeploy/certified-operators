@@ -37,7 +37,6 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRatioDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
-import com.vmturbo.platform.analysis.utilities.CostFunctionFactory.PriceData;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
 import com.vmturbo.platform.analysis.utilities.Quote.CostUnavailableQuote;

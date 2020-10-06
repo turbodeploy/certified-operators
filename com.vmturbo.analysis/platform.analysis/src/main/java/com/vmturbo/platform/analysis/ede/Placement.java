@@ -317,8 +317,8 @@ public class Placement {
                             .isEqualCoverages(minimizer.getBestQuote().getContext())) ||
                 // isScalingGroupConsistentlySized() is only meaningful for cloud providers.
                 // Anything else will return consistently sized.
-                (cheapestSeller != null && !economy.isScalingGroupConsistentlySized(shoppingList))
-                || anyDecisiveCommodityResized(minimizer.getBestQuote(), shoppingList)) {
+                (cheapestSeller != null && !economy.isScalingGroupConsistentlySized(shoppingList)
+                || anyDecisiveCommodityResized(minimizer.getBestQuote(), shoppingList))) {
             double savings = currentQuote - cheapestQuote;
             if (Double.isInfinite(savings)) {
                 savings = Double.MAX_VALUE;
