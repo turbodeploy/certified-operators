@@ -1,0 +1,113 @@
+{
+  "id": "284768755757298",
+  "info": {
+    "name": "Storage Defaults",
+    "settings": [{
+      "settingSpecName": "activate",
+      "enumSettingValue": {
+        "value": "MANUAL"
+      }
+    }, {
+      "settingSpecName": "hciSlackSpacePercentage",
+      "numericSettingValue": {
+        "value": 25.0
+      }
+    }, {
+      "settingSpecName": "iopsUtilization",
+      "numericSettingValue": {
+        "value": 100.0
+      }
+    }, {
+      "settingSpecName": "ignoreDirectories",
+      "stringSettingValue": {
+        "value": "\\.dvsData.*|\\.snapshot.*|\\.vSphere-HA.*|\\.naa.*|\\.etc.*|lost\\+found.*|stCtlVM-.*|\\.iSCSI-CONFIG.*|\\.vsan\\.stats.*|etc|targets"
+      }
+    }, {
+      "settingSpecName": "provision",
+      "enumSettingValue": {
+        "value": "MANUAL"
+      }
+    }, {
+      "settingSpecName": "hciHostCapacityReservation",
+      "numericSettingValue": {
+        "value": 1.0
+      }
+    }, {
+      "settingSpecName": "storageAmountUtilization",
+      "numericSettingValue": {
+        "value": 90.0
+      }
+    }, {
+      "settingSpecName": "delete",
+      "enumSettingValue": {
+        "value": "MANUAL"
+      }
+    }, {
+      "settingSpecName": "iopsCapacity",
+      "numericSettingValue": {
+        "value": 5000.0
+      }
+    }, {
+      "settingSpecName": "ignoreFiles",
+      "stringSettingValue": {
+        "value": "config\\.db|stats\\.db.*"
+      }
+    }, {
+      "settingSpecName": "move",
+      "enumSettingValue": {
+        "value": "MANUAL"
+      }
+    }, {
+      "settingSpecName": "storageOverprovisionedPercentage",
+      "numericSettingValue": {
+        "value": 200.0
+      }
+    }, {
+      "settingSpecName": "usedIncrement_StAmt",
+      "numericSettingValue": {
+        "value": 100.0
+      }
+    }, {
+      "settingSpecName": "latencyCapacity",
+      "numericSettingValue": {
+        "value": 100.0
+      }
+    }, {
+      "settingSpecName": "suspend",
+      "enumSettingValue": {
+        "value": "MANUAL"
+      }
+    }, {
+      "settingSpecName": "hciCompressionRatio",
+      "numericSettingValue": {
+        "value": 1.0
+      }
+    }, {
+      "settingSpecName": "hciUseCompression",
+      "booleanSettingValue": {
+        "value": false
+      }
+    }, {
+      "settingSpecName": "resize",
+      "enumSettingValue": {
+        "value": "MANUAL"
+      }
+    }, {
+      "settingSpecName": "hciHostIopsCapacity",
+      "numericSettingValue": {
+        "value": 50000.0
+      }
+    }, {
+      "settingSpecName": "latencyUtilization",
+      "numericSettingValue": {
+        "value": 100.0
+      }
+    }],
+    "entityType": 2,
+    "enabled": true,
+    "scope": {
+    },
+    "displayName": "Storage Defaults"
+  },
+  "settingPolicyType": "DEFAULT"
+}

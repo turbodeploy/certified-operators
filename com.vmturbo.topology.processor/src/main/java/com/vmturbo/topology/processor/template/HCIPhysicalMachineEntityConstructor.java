@@ -2,14 +2,14 @@ package com.vmturbo.topology.processor.template;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,21 +17,23 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageData.StoragePolicy;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageRedundancyMethod;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TopologyEntityConstructor.TemplateActionType;
@@ -46,19 +48,20 @@ public class HCIPhysicalMachineEntityConstructor {
     private final Template template;
     private final Map<Long, TopologyEntity.Builder> topology;
     private final IdentityProvider identityProvider;
-    private final SettingPolicyServiceBlockingStub settingPolicyService;
+    private final Collection<Setting> storageSettings;
     private final Map<String, String> templateValues;
 
     public HCIPhysicalMachineEntityConstructor(@Nonnull Template template,
             @Nonnull Map<Long, TopologyEntity.Builder> topology,
             @Nonnull IdentityProvider identityProvider,
-            @Nonnull SettingPolicyServiceBlockingStub settingPolicyService) {
+            @Nonnull SettingPolicyServiceBlockingStub settingPolicyService)
+            throws TopologyEntityConstructorException {
         this.template = template;
         this.topology = topology;
         this.identityProvider = identityProvider;
         this.templateValues = TopologyEntityConstructor.createFieldNameValueMap(template,
                 ResourcesCategoryName.Storage);
-        this.settingPolicyService = settingPolicyService;
+        this.storageSettings = getStorageSettings(settingPolicyService);
     }
 
     /**
@@ -81,13 +84,25 @@ public class HCIPhysicalMachineEntityConstructor {
         // All the hosts should belong to the same vSAN cluster. Get the first
         // one.
         TopologyEntity.Builder anyHost = hostsToReplace.iterator().next();
-        TopologyEntityDTO.Builder oldStorage = topology.get(getHCIStorageOid(anyHost))
-                .getEntityBuilder();
+        TopologyEntityDTO.Builder oldStorage = getHCIStorage(anyHost);
 
         // Create new storage
         TopologyEntityDTO.Builder newStorage = new StorageEntityConstructor()
                 .createTopologyEntityFromTemplate(template, topology, oldStorage,
                         TemplateActionType.REPLACE, identityProvider, null);
+
+        if (oldStorage == null) {
+            logger.info("Creating HCI storage '{}'", newStorage.getDisplayName());
+
+            // Create fake Storage cluster commodity
+            CommoditySoldDTO.Builder comm = TopologyEntityConstructor.createAccessCommodity(
+                    CommodityDTO.CommodityType.STORAGE_CLUSTER, newStorage.getOid(), null);
+            newStorage.addCommoditySoldList(comm);
+        } else {
+            logger.info("Replacing HCI storage '{}' with '{}'", oldStorage.getDisplayName(),
+                    newStorage.getDisplayName());
+        }
+
         setClusterCommodities(hostsToReplace, newStorage);
         setResizable(newStorage, CommodityType.STORAGE_AMOUNT);
         setResizable(newStorage, CommodityType.STORAGE_PROVISIONED);
@@ -95,11 +110,8 @@ public class HCIPhysicalMachineEntityConstructor {
         setReplacementId(oldStorage, newStorage.getOid(), planId);
         setStoragePolicy(newStorage);
         result.add(newStorage);
-        logger.info("Replacing HCI storage '{}' with '{}'", oldStorage.getDisplayName(),
-                newStorage.getDisplayName());
 
-        List<EntitySettingGroup> settings = getEntitySettings(oldStorage.getOid());
-        int reservedHostsCount = (int)getSettingValue(settings,
+        int reservedHostsCount = (int)getStorageSettingValue(
                 EntitySettingSpecs.HciHostCapacityReservation);
 
         for (int count = 0; count < 1 + reservedHostsCount; count++) {
@@ -138,8 +150,12 @@ public class HCIPhysicalMachineEntityConstructor {
         return result;
     }
 
-    private static void setReplacementId(@Nonnull TopologyEntityDTO.Builder entity, long id,
+    private static void setReplacementId(@Nullable TopologyEntityDTO.Builder entity, long id,
             long planId) {
+        if (entity == null) {
+            return;
+        }
+
         entity.getEditBuilder().getReplacedBuilder().setReplacementId(id).setPlanId(planId);
     }
 
@@ -178,15 +194,17 @@ public class HCIPhysicalMachineEntityConstructor {
     }
 
     /**
-     * Set the new vSAN storage commodities by the HCI settings.
+     * Set the new vSAN storage policy by the HCI settings.
      *
      * @param newStorage vSAN storage
      * @throws TopologyEntityConstructorException error in HCI processing
      */
     private void setStoragePolicy(@Nonnull TopologyEntityDTO.Builder newStorage)
             throws TopologyEntityConstructorException {
-        StoragePolicy.Builder policy = newStorage.getTypeSpecificInfoBuilder().getStorageBuilder()
-                .getPolicyBuilder();
+        StorageInfo.Builder storage = newStorage.getTypeSpecificInfoBuilder().getStorageBuilder();
+        storage.setStorageType(StorageType.VSAN);
+        storage.setIsLocal(false);
+        StoragePolicy.Builder policy = storage.getPolicyBuilder();
 
         int failuresToTolerate = TopologyEntityConstructor
                 .getTemplateValue(templateValues, "failuresToTolerate").intValue();
@@ -323,35 +341,35 @@ public class HCIPhysicalMachineEntityConstructor {
     @Nonnull
     private static String commodityToString(@Nonnull CommoditySoldDTO.Builder comm) {
         return "[" + comm.getCommodityType().getType() + "-"
-                + convertCommodityType(comm.getCommodityType()) + ", key: '"
-                + comm.getCommodityType().getKey() + "']";
+                + TopologyEntityConstructor.convertCommodityType(comm.getCommodityType())
+                + ", key: '" + comm.getCommodityType().getKey() + "']";
     }
 
-    @Nonnull
-    private static CommodityDTO.CommodityType convertCommodityType(
-            @Nonnull TopologyDTO.CommodityType commodityType) {
-        return CommodityType.internalGetValueMap().findValueByNumber(commodityType.getType());
-    }
-
-    private static long getHCIStorageOid(@Nonnull TopologyEntity.Builder hciHost)
+    @Nullable
+    private TopologyEntityDTO.Builder getHCIStorage(@Nonnull TopologyEntity.Builder hciHost)
             throws TopologyEntityConstructorException {
         List<TopologyEntity> storages = hciHost.getConsumers().stream()
                 .filter(consumer -> consumer.getEntityType() == EntityType.STORAGE_VALUE)
                 .collect(Collectors.toList());
+
+        if (storages.isEmpty()) {
+            return null;
+        }
 
         if (storages.size() != 1) {
             throw new TopologyEntityConstructorException("The HCI host '" + hciHost.getDisplayName()
                     + "' should have one Storage consumer, but has " + storages.size());
         }
 
-        return storages.get(0).getOid();
+        long storageOid = storages.get(0).getOid();
+        return topology.get(storageOid).getEntityBuilder();
     }
 
-    private float getSettingValue(@Nonnull List<EntitySettingGroup> settings,
-            @Nonnull EntitySettingSpecs settingSpec) throws TopologyEntityConstructorException {
-        for (EntitySettingGroup setting : settings) {
-            if (setting.getSetting().getSettingSpecName().equals(settingSpec.getSettingName())) {
-                return setting.getSetting().getNumericSettingValue().getValue();
+    private float getStorageSettingValue(@Nonnull EntitySettingSpecs settingSpec)
+            throws TopologyEntityConstructorException {
+        for (Setting setting : storageSettings) {
+            if (setting.getSettingSpecName().equals(settingSpec.getSettingName())) {
+                return setting.getNumericSettingValue().getValue();
             }
         }
 
@@ -359,27 +377,25 @@ public class HCIPhysicalMachineEntityConstructor {
     }
 
     @Nonnull
-    private List<EntitySettingGroup> getEntitySettings(Long vsanStorageOid)
+    private static List<Setting> getStorageSettings(
+            @Nonnull SettingPolicyServiceBlockingStub settingPolicyService)
             throws TopologyEntityConstructorException {
-        GetEntitySettingsRequest request = GetEntitySettingsRequest.newBuilder()
-                .setSettingFilter(EntitySettingFilter.newBuilder()
-                        .addAllEntities(Collections.singleton(vsanStorageOid)).build())
-                .setIncludeSettingPolicies(true).build();
+        ListSettingPoliciesRequest.Builder reqBuilder = ListSettingPoliciesRequest.newBuilder()
+                .setTypeFilter(Type.DEFAULT);
 
-        Iterator<GetEntitySettingsResponse> response = settingPolicyService
-                .getEntitySettings(request);
+        List<SettingPolicy> settingPolicies = new ArrayList<>();
+        settingPolicyService.listSettingPolicies(reqBuilder.build())
+                .forEachRemaining(settingPolicies::add);
 
-        if (!response.hasNext()) {
+        Optional<SettingPolicy> storageSettingPolicy = settingPolicies.stream()
+                .filter(p -> p.getInfo().getEntityType() == EntityType.STORAGE_VALUE).findFirst();
+
+        if (!storageSettingPolicy.isPresent()) {
             throw new TopologyEntityConstructorException(
-                    "Error retrieving the entity setting for the vSAN storage " + vsanStorageOid);
+                    "Error retrieving Storage setting policies. Setting policies size: "
+                            + settingPolicies.size());
         }
 
-        List<EntitySettingGroup> result = new ArrayList<>();
-
-        response.forEachRemaining(r ->
-            result.addAll(r.getSettingGroupList())
-        );
-
-        return result;
+        return storageSettingPolicy.get().getInfo().getSettingsList();
     }
 }

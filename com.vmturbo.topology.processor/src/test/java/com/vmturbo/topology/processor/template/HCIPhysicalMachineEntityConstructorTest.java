@@ -20,7 +20,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.io.Files;
-import com.google.protobuf.Internal.EnumLiteMap;
 import com.google.protobuf.util.JsonFormat;
 
 import org.junit.Assert;
@@ -32,15 +31,11 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.ResourcePath;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -76,8 +71,8 @@ public class HCIPhysicalMachineEntityConstructorTest {
                 .thenAnswer(invocationOnMock -> OIDS[oidCount++]);
         settingPolicyServiceClient = SettingPolicyServiceGrpc
                 .newBlockingStub(grpcServer.getChannel());
-        GetEntitySettingsResponse settings = loadSettings("StorageSettings.json");
-        when(testSettingPolicyService.getEntitySettings(any())).thenReturn(Arrays.asList(settings));
+        List<SettingPolicy> settings = loadStorageSettingPolicies();
+        when(testSettingPolicyService.listSettingPolicies(any())).thenReturn(settings);
     }
 
     /**
@@ -163,18 +158,6 @@ public class HCIPhysicalMachineEntityConstructorTest {
         }
     }
 
-    private static String printCommBought(CommodityBoughtDTO comm) {
-        return "[" + comm.getCommodityType().getType() + "-"
-                + getCommodityById(comm.getCommodityType()) + ", key: '"
-                + comm.getCommodityType().getKey() + "']";
-    }
-
-    private static CommodityDTO.CommodityType getCommodityById(
-            TopologyDTO.CommodityType commodityType) {
-        EnumLiteMap<CommodityType> s = CommodityType.internalGetValueMap();
-        return s.findValueByNumber(commodityType.getType());
-    }
-
     @Nonnull
     private Template loadTemplate(@Nonnull String jsonFileName) throws IOException {
         String str = readResourceFileAsString(jsonFileName);
@@ -195,13 +178,13 @@ public class HCIPhysicalMachineEntityConstructorTest {
     }
 
     @Nonnull
-    private GetEntitySettingsResponse loadSettings(@Nonnull String jsonFileName)
+    private List<SettingPolicy> loadStorageSettingPolicies()
             throws IOException {
-        String str = readResourceFileAsString(jsonFileName);
-        GetEntitySettingsResponse.Builder builder = GetEntitySettingsResponse.newBuilder();
+        String str = readResourceFileAsString("StorageSettingPolicy.json");
+        SettingPolicy.Builder builder = SettingPolicy.newBuilder();
         JsonFormat.parser().merge(str, builder);
 
-        return builder.build();
+        return Collections.singletonList(builder.build());
     }
 
     @Nonnull

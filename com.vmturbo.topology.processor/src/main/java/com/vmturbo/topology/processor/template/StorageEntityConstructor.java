@@ -3,9 +3,9 @@ package com.vmturbo.topology.processor.template;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.COMMODITY_KEY_SEPARATOR;
 import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName.Storage;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.DATASTORE;
-import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.DATASTORE_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.EXTENT;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.EXTENT_VALUE;
 
 import java.util.Collections;
@@ -24,7 +24,6 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -39,10 +38,6 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
  */
 public class StorageEntityConstructor extends TopologyEntityConstructor
         implements ITopologyEntityConstructor {
-
-    private static final String ZERO = "0";
-
-    static final String COMMODITY_KEY_PREFIX = "AddFromTemplate::";
 
     @Override
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
@@ -116,7 +111,7 @@ public class StorageEntityConstructor extends TopologyEntityConstructor
      *                 to point to the new entity along with the old entity.
      * @param topologyEntityBuilder builder of TopologyEntityDTO which could contains some setting already.
      */
-    private void addExtentCommodityBought(
+    private static void addExtentCommodityBought(
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
             @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder) {
         final CommoditiesBoughtFromProvider.Builder commoditiesBoughtGroup =
@@ -133,11 +128,10 @@ public class StorageEntityConstructor extends TopologyEntityConstructor
 
         // Add Extent commodity sold to disk arrays.
         topology.values().stream()
-            .filter(entity -> entity.getEntityType() == EntityType.DISK_ARRAY_VALUE)
-            .map(TopologyEntity.Builder::getEntityBuilder)
-            .forEach(entity -> entity.addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                .setCommodityType(CommodityType.newBuilder().setType(EXTENT_VALUE)
-                    .setKey(commodityKey))));
+                .filter(entity -> entity.getEntityType() == EntityType.DISK_ARRAY_VALUE)
+                .map(TopologyEntity.Builder::getEntityBuilder)
+                .forEach(entity -> entity
+                        .addCommoditySoldList(createAccessCommodity(EXTENT, 0, commodityKey)));
     }
 
     /**
@@ -149,7 +143,7 @@ public class StorageEntityConstructor extends TopologyEntityConstructor
      * @param topologyEntityBuilder builder of TopologyEntityDTO which could contains some setting already.
      * @return a set of DSPM_ACCESS commodity sold
      */
-    private Set<CommoditySoldDTO> addDSPMAccessCommoditySold(
+    private static Set<CommoditySoldDTO> addDSPMAccessCommoditySold(
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
             @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder) {
         // Find all hosts.
@@ -185,28 +179,24 @@ public class StorageEntityConstructor extends TopologyEntityConstructor
         }
 
         // Create a set of DSPM_ACCESS commodity sold that needs to be added to the added storage.
-        final Set<CommoditySoldDTO> commoditySoldConstraints = hostOidToCommodityKey.entrySet().stream()
-            .map(entry -> CommoditySoldDTO.newBuilder().setAccesses(entry.getKey())
-                .setCommodityType(CommodityType.newBuilder().setType(DSPM_ACCESS_VALUE)
-                    .setKey(entry.getValue())).build())
-            .collect(Collectors.toSet());
+        final Set<CommoditySoldDTO> commoditySoldConstraints = hostOidToCommodityKey.entrySet()
+                .stream()
+                .map(entry -> createAccessCommodity(DSPM_ACCESS, entry.getKey(), entry.getValue())
+                        .build())
+                .collect(Collectors.toSet());
         // Consider the case where a host is not connected to any existing storage.
         // Let the added storage connect to it.
-        commoditySoldConstraints.addAll(unvisitedHosts.stream().map(oid ->
-            CommoditySoldDTO.newBuilder().setAccesses(oid)
-                .setCommodityType(CommodityType.newBuilder().setType(DSPM_ACCESS_VALUE)
-                    .setKey(COMMODITY_KEY_PREFIX + DSPM_ACCESS.name() + COMMODITY_KEY_SEPARATOR + oid)).build())
-            .collect(Collectors.toList()));
+        commoditySoldConstraints.addAll(
+                unvisitedHosts.stream()
+                        .map(oid -> createAccessCommodity(DSPM_ACCESS, oid, null).build())
+                        .collect(Collectors.toList()));
 
         // Add a DATASTORE commodity sold to each host in order to connect to the added storage.
         Stream.concat(unvisitedHosts.stream(), hostOidToCommodityKey.keySet().stream())
-            .filter(topology::containsKey).map(topology::get)
-            .map(TopologyEntity.Builder::getEntityBuilder)
-            .forEach(entity -> entity.addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                .setAccesses(topologyEntityBuilder.getOid())
-                .setCommodityType(CommodityType.newBuilder().setType(DATASTORE_VALUE)
-                    .setKey(COMMODITY_KEY_PREFIX + DATASTORE.name() + COMMODITY_KEY_SEPARATOR +
-                        topologyEntityBuilder.getOid()))));
+                .filter(topology::containsKey).map(topology::get)
+                .map(TopologyEntity.Builder::getEntityBuilder)
+                .forEach(entity -> entity.addCommoditySoldList(
+                        createAccessCommodity(DATASTORE, topologyEntityBuilder.getOid(), null)));
 
         return commoditySoldConstraints;
     }

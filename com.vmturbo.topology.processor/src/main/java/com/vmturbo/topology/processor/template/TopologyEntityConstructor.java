@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.template;
 
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.COMMODITY_KEY_SEPARATOR;
 import static com.vmturbo.commons.analysis.AnalysisUtil.DSPM_OR_DATASTORE;
 
 import java.util.ArrayList;
@@ -24,6 +25,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesC
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -44,6 +46,10 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
  * constrains from the original topology entity.
  */
 public class TopologyEntityConstructor {
+
+    protected static final String COMMODITY_KEY_PREFIX = "AddFromTemplate::";
+    private static final double COMMODITY_ACCESS_CAPACITY = 1.0E9;
+    private static final double COMMODITY_ACCESS_USED = 1.0;
 
     /**
      * Action type for creating entities from templates.
@@ -543,9 +549,32 @@ public class TopologyEntityConstructor {
         // access the replacement. Keep the relation to the original as well because the original
         // remains in the topology until scoping happens in the market component.
         CommoditySoldDTO.Builder commodityAccessing = commodityAccessingOriginal.clone();
-        setKeyAndAccess(commodityAccessing, replacementEntity);
+        setKeyAndAccess(commodityAccessing, replacementEntity.getOid(), null);
 
         return commodityAccessing.build();
+    }
+
+    /**
+     * Create an access commodity.
+     *
+     * @param commType commodity type
+     * @param oid related entity OID. It's used to set the Accesses field for
+     *            DATASTORE and DSPM_ACCESS commodities.
+     * @param key commodity key. If not present, the key is auto-generated based
+     *            on OID
+     * @return access commodity
+     */
+    public static CommoditySoldDTO.Builder createAccessCommodity(
+            @Nonnull CommodityDTO.CommodityType commType, long oid, @Nullable String key) {
+        TopologyDTO.CommodityType.Builder commTypeBuilder = TopologyDTO.CommodityType.newBuilder()
+                .setType(commType.getNumber());
+        CommoditySoldDTO.Builder result = CommoditySoldDTO.newBuilder()
+                .setCommodityType(commTypeBuilder).setIsResizeable(false).setIsThin(true)
+                .setActive(true).setUsed(COMMODITY_ACCESS_USED)
+                .setCapacity(COMMODITY_ACCESS_CAPACITY);
+        setKeyAndAccess(result, oid, key);
+
+        return result;
     }
 
     /**
@@ -559,13 +588,28 @@ public class TopologyEntityConstructor {
      * both key and value should be unique.
      *
      * @param commodity commodity
-     * @param replacementEntity the entity doing the replacement
+     * @param accessesOid the entity being accessed
+     * @param key commodity key. If key is null, it's auto-generated.
      */
     private static void setKeyAndAccess(@Nonnull CommoditySoldDTO.Builder commodity,
-            @Nonnull TopologyEntityDTO.Builder replacementEntity) {
-        String newKey = replacementEntity.getDisplayName() + "::" + replacementEntity.getOid();
+            long accessesOid, @Nullable String key) {
+        CommodityDTO.CommodityType commType = convertCommodityType(commodity.getCommodityType());
+        String newKey = key != null ? key
+                : COMMODITY_KEY_PREFIX + commType.name() + COMMODITY_KEY_SEPARATOR
+                        + accessesOid;
         commodity.getCommodityTypeBuilder().setKey(newKey);
-        commodity.setAccesses(replacementEntity.getOid());
+
+        if (commType == CommodityDTO.CommodityType.DATASTORE
+                || commType == CommodityDTO.CommodityType.DSPM_ACCESS) {
+            commodity.setAccesses(accessesOid);
+        }
+    }
+
+    @Nonnull
+    protected static CommodityDTO.CommodityType convertCommodityType(
+            @Nonnull TopologyDTO.CommodityType commodityType) {
+        return CommodityDTO.CommodityType.internalGetValueMap()
+                .findValueByNumber(commodityType.getType());
     }
 
     protected static CommodityBoughtDTO createCommodityBoughtDTO(int commodityType, double used) {
@@ -574,7 +618,8 @@ public class TopologyEntityConstructor {
 
     protected static CommodityBoughtDTO createCommodityBoughtDTO(int commodityType,
             @Nullable String key, double used) {
-        final CommodityType.Builder commType = CommodityType.newBuilder().setType(commodityType);
+        final TopologyDTO.CommodityType.Builder commType = TopologyDTO.CommodityType.newBuilder()
+                .setType(commodityType);
 
         if (key != null) {
             commType.setKey(key);
@@ -595,7 +640,8 @@ public class TopologyEntityConstructor {
     public static CommoditySoldDTO createCommoditySoldDTO(int commodityType,
             @Nullable Double capacity, boolean isResizable) {
         final CommoditySoldDTO.Builder builder = CommoditySoldDTO.newBuilder();
-        builder.setActive(true).setCommodityType(CommodityType.newBuilder().setType(commodityType));
+        builder.setActive(true)
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(commodityType));
 
         if (capacity != null) {
             builder.setCapacity(capacity);
