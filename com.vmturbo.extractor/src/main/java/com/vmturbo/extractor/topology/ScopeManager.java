@@ -80,8 +80,13 @@ import com.vmturbo.sql.utils.jooq.JooqUtil.TempTable;
  */
 public class ScopeManager {
 
-    /** valid DB timestamp value that's far in the future. */
-    public static final OffsetDateTime MAX_TIMESTAMP = OffsetDateTime.parse("9999-12-31T23:59:59Z");
+    /** valid DB timestamp value that's far in the future.
+     *
+     * <p>We're specifying a day before end of 9999, since Postgres doesn't deal with larger years.
+     * The one-day gap ensures if jOOQ uses this value in a literal and expresses it in local
+     * time zone it won't get bumped into year-10000 in that literal.</p>
+     */
+    public static final OffsetDateTime MAX_TIMESTAMP = OffsetDateTime.parse("9999-12-31T00:00:00Z");
     static final OffsetDateTime EPOCH_TIMESTAMP = OffsetDateTime.ofInstant(Instant.EPOCH, ZoneOffset.UTC);
 
     private final DbEndpoint db;
@@ -335,7 +340,9 @@ public class ScopeManager {
     private void reloadPriorScope() {
         try (Stream<Record2<Long, Long>> stream =
                      dsl.select(SCOPE.ENTITY_OID, SCOPE.SCOPED_OID).from(SCOPE)
-                             .where(SCOPE.FINISH.eq(MAX_TIMESTAMP))
+                             // greater-than comparison because MAX_TIMESTAMP used to be the
+                             // end not the start of the day it falls in.
+                             .where(SCOPE.FINISH.ge(MAX_TIMESTAMP))
                              .stream()) {
             stream.forEach(r -> {
                 int eiid = entityIdManager.toIid(r.value1());
