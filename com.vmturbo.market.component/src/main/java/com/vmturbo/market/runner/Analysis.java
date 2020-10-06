@@ -592,11 +592,12 @@ public class Analysis {
                                     reservedCapacityAnalysis,
                                     wastedFilesAnalysis);
 
-                            // unplace projected entities in plan if an entity has a reconfigure action
                             if (topologyInfo.hasPlanInfo()) {
-                                unplaceProjectedEntityWithReason(projectedEntities, unplacedReasonMap);
                                 attachUnplacementReasons(unplacedReasonMap, projectedEntities);
                                 if (isMigrateToCloud) {
+                                    // detach the original provider from the migrating entities in
+                                    // projected topology only in MCP.
+                                    unplaceProjectedEntityWithReason(projectedEntities, unplacedReasonMap);
                                     // Do not show actions for unplaced traders in migration plans
                                     suppressActionsForOids.addAll(unplacedReasonMap.keySet());
                                 }
@@ -810,6 +811,7 @@ public class Analysis {
     /**
      * Detach the suppliers from {@link CommoditiesBoughtFromProvider} if there is an unplacement
      * reason associated with it.
+     * NOTE: currently it is only applied for migrate to cloud plan.
      *
      * @param projectedEntities A map of oid to {@link ProjectedTopologyEntity}s.
      * @param reasonMap A map of entity oid to a list of {@link UnplacementReason.Builder}s.

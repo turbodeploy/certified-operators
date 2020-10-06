@@ -283,17 +283,17 @@ public class MarketRunner {
                     // Send notification of Analysis SUCCESS
                     sendAnalysisStatus(analysis, AnalysisState.SUCCEEDED.ordinal());
 
-                    // log the projected entity with unplacement reasons
-                    logger.info("==== Start logging projected entity DTO with placement failure ====");
+                    // log the projected entity with infinite quote reasons
+                    logger.info("==== Start logging projected entity DTO with infinite quote ====");
                     analysis.getProjectedTopology().get().forEach(p -> {
                        if (!p.getEntity().getUnplacedReasonList().isEmpty()) {
-                           logger.info("Entity oid {}, displayName {} has unplacement reasons: {}",
+                           logger.info("Entity oid {}, displayName {} has infinite quote due to : {}",
                                    p.getEntity().getOid(), p.getEntity().getDisplayName(),
                                    printReason(p.getEntity().getUnplacedReasonList()));
                            logger.info("Protobuf in failure is {}", p.getEntity().getUnplacedReasonList());
                        }
                     });
-                    logger.info("==== End logging projected entity DTO with placement failure ====");
+                    logger.info("==== End logging projected entity DTO with infinite quote ====");
                     // Send projected topology before recommended actions, because some recommended
                     // actions will have OIDs that are only present in the projected topology, and we
                     // want to minimize the risk of the projected topology being unavailable.
