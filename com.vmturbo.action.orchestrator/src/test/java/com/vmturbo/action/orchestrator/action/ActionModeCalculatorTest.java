@@ -1,5 +1,8 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static com.vmturbo.components.common.setting.ConfigurableActionSettings.CloudComputeScale;
+import static com.vmturbo.components.common.setting.ConfigurableActionSettings.CloudComputeScaleForPerf;
+import static com.vmturbo.components.common.setting.ConfigurableActionSettings.CloudComputeScaleForSavings;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
@@ -12,14 +15,17 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
@@ -41,7 +47,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
@@ -66,6 +76,7 @@ import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
 /**
  * Test class for calculating Action Mode.
@@ -84,6 +95,11 @@ public class ActionModeCalculatorTest {
 
     private static final EnumSettingValue DISABLED = EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()).build();
     private static final EnumSettingValue AUTOMATIC = EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()).build();
+
+    private static final ConfigurableActionSettings[] ALL_SETTINGS =
+            {CloudComputeScale,
+                    CloudComputeScaleForSavings,
+                    CloudComputeScaleForSavings};
 
     private static final long VM_ID = 122L;
     private static final long SCHEDULE_ID = 505L;
@@ -268,7 +284,7 @@ public class ActionModeCalculatorTest {
                                 .setId(7L)
                                 .setType(1))))
                 .build();
-        final String settingName = ConfigurableActionSettings.CloudComputeScale.getSettingName();
+        final String settingName = CloudComputeScale.getSettingName();
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(settingName,
                         Setting.newBuilder()
@@ -897,12 +913,12 @@ public class ActionModeCalculatorTest {
 
         // VStorage commodities do not have a specific setting. We always return a RECOMMENDED
         // action mode
-        assertThat(actionModeCalculator.specsApplicableToAction(vStorageAction, settingsForEntity).toArray().length,
+        assertThat(actionModeCalculator.specsApplicableToAction(vStorageAction, settingsForEntity, Collections.emptySet()).toArray().length,
             is(0));
         // We have two action modes because and there is also an EnforceNonDisruptive.
         List<ActionSpecifications> actionSpecifications =
             actionModeCalculator.specsApplicableToAction(
-                memReservationAction, settingsForEntity).collect(Collectors.toList());
+                memReservationAction, settingsForEntity, Collections.emptySet()).collect(Collectors.toList());
         Assert.assertEquals(1, actionSpecifications.size());
         Assert.assertTrue(actionSpecifications.get(0).isNonDisruptiveEnforced());
     }
@@ -958,8 +974,9 @@ public class ActionModeCalculatorTest {
                         createActionModeSetting(ActionMode.MANUAL, moveSettingSpecName));
         settingsForTargetEntity.put(enforceNonDisruptiveSettingName, enableNonDisruptiveSetting);
         Assert.assertThat(actionModeCalculator
-                        .specsApplicableToAction(moveAction, settingsForTargetEntity).findAny()
+                        .specsApplicableToAction(moveAction, settingsForTargetEntity, Collections.emptySet()).findAny()
                         .get().getConfigurableActionSetting(), CoreMatchers.is(modeSettingSpecs));
+
     }
 
     @Nonnull
@@ -1004,7 +1021,7 @@ public class ActionModeCalculatorTest {
                                 .build())
                         .build()
         ).build();
-        List<ActionSpecifications> entitySpecs = actionModeCalculator.specsApplicableToAction(heapUpAction, settingsForEntity).collect(Collectors.toList());
+        List<ActionSpecifications> entitySpecs = actionModeCalculator.specsApplicableToAction(heapUpAction, settingsForEntity, Collections.emptySet()).collect(Collectors.toList());
         Assert.assertEquals(1, entitySpecs.size());
         Assert.assertEquals(ConfigurableActionSettings.ResizeUpHeap, entitySpecs.get(0).getConfigurableActionSetting());
 
@@ -1025,7 +1042,7 @@ public class ActionModeCalculatorTest {
                                 .build())
                         .build()
         ).build();
-        entitySpecs = actionModeCalculator.specsApplicableToAction(heapDownAction, settingsForEntity).collect(Collectors.toList());
+        entitySpecs = actionModeCalculator.specsApplicableToAction(heapDownAction, settingsForEntity, Collections.emptySet()).collect(Collectors.toList());
         Assert.assertEquals(1, entitySpecs.size());
         Assert.assertEquals(ConfigurableActionSettings.ResizeDownHeap, entitySpecs.get(0).getConfigurableActionSetting());
     }
@@ -1072,11 +1089,11 @@ public class ActionModeCalculatorTest {
         ).build();
 
         // Resize DBMem Up/Down for Database Server
-        List<ActionSpecifications> entitySpecs = actionModeCalculator.specsApplicableToAction(resizeUpDbMemAction, settingsForEntity).collect(Collectors.toList());
+        List<ActionSpecifications> entitySpecs = actionModeCalculator.specsApplicableToAction(resizeUpDbMemAction, settingsForEntity, Collections.emptySet()).collect(Collectors.toList());
         Assert.assertEquals(1, entitySpecs.size());
         Assert.assertEquals(ConfigurableActionSettings.ResizeUpDBMem, entitySpecs.get(0).getConfigurableActionSetting());
 
-        entitySpecs = actionModeCalculator.specsApplicableToAction(resizeDownDbMemAction, settingsForEntity).collect(Collectors.toList());
+        entitySpecs = actionModeCalculator.specsApplicableToAction(resizeDownDbMemAction, settingsForEntity, Collections.emptySet()).collect(Collectors.toList());
         Assert.assertEquals(1, entitySpecs.size());
         Assert.assertEquals(ConfigurableActionSettings.ResizeDownDBMem, entitySpecs.get(0).getConfigurableActionSetting());
     }
@@ -1103,7 +1120,7 @@ public class ActionModeCalculatorTest {
 
         // ACT
         final List<ActionSpecifications> entitySpecs = actionModeCalculator
-                .specsApplicableToAction(action, Collections.emptyMap())
+                .specsApplicableToAction(action, Collections.emptyMap(), Collections.emptySet())
                 .collect(Collectors.toList());
 
         // ASSERT
@@ -1134,7 +1151,7 @@ public class ActionModeCalculatorTest {
 
         // ACT
         final List<ActionSpecifications> entitySpecs = actionModeCalculator
-                .specsApplicableToAction(action, Collections.emptyMap())
+                .specsApplicableToAction(action, Collections.emptyMap(), Collections.emptySet())
                 .collect(Collectors.toList());
 
         // ASSERT
@@ -1165,7 +1182,7 @@ public class ActionModeCalculatorTest {
 
         // ACT
         final List<ActionSpecifications> entitySpecs = actionModeCalculator
-                .specsApplicableToAction(action, Collections.emptyMap())
+                .specsApplicableToAction(action, Collections.emptyMap(), Collections.emptySet())
                 .collect(Collectors.toList());
 
         // ASSERT
@@ -1196,7 +1213,7 @@ public class ActionModeCalculatorTest {
 
         // ACT
         final List<ActionSpecifications> entitySpecs = actionModeCalculator
-                .specsApplicableToAction(action, Collections.emptyMap())
+                .specsApplicableToAction(action,  Collections.emptyMap(), Collections.emptySet())
                 .collect(Collectors.toList());
 
         // ASSERT
@@ -1225,7 +1242,7 @@ public class ActionModeCalculatorTest {
 
         // ACT
         final List<ActionSpecifications> entitySpecs = actionModeCalculator
-                .specsApplicableToAction(action, Collections.emptyMap())
+                .specsApplicableToAction(action, Collections.emptyMap(), Collections.emptySet())
                 .collect(Collectors.toList());
 
         // ASSERT
@@ -1988,6 +2005,176 @@ public class ActionModeCalculatorTest {
         Assert.assertTrue(actual.containsKey(ActionState.READY));
         Assert.assertEquals(Arrays.asList(onGenWorkflowId),
             actual.get(ActionState.READY).getSortedSetOfOidSettingValue().getOidsList());
+    }
+
+    /**
+     * Test {@link ActionModeCalculator#getSpecsApplicableToScaleForPerf}.
+     */
+    @Test
+    public void testGetSpecsApplicableToScale() {
+
+        final ActionDTO.Action otherScale = actionBuilder.setInfo(ActionInfo.newBuilder()
+                .setScale(Scale.newBuilder()
+                        .setTarget(ActionEntity.newBuilder()
+                                .setId(7L)
+                                .setType(EntityType.COMPUTE_TIER_VALUE)))).build();
+
+        // regular scale for performance
+        final ActionDTO.Action perfScale = createScaleForPerformanceAction(-200.0);
+
+        // scale for performance with savings
+        final ActionDTO.Action perfWithSavingsScale = createScaleForPerformanceAction(100.0);
+
+        // regular scale for efficiency
+        final ActionDTO.Action effScale = createScaleForEfficiencyAction(100.0);
+
+        // scale for efficiency with investment
+        final ActionDTO.Action effScaleWithInvestment = createScaleForEfficiencyAction(-100.0);
+
+        final Setting recommend = Setting.newBuilder()
+                .setSettingSpecName("")
+                .setEnumSettingValue(
+                        EnumSettingValue.newBuilder().setValue(ActionMode.RECOMMEND.name()).build())
+                .build();
+
+        final Setting manual = Setting.newBuilder().setSettingSpecName("").setEnumSettingValue(
+                EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()).build()).build();
+
+        final Setting automatic = Setting.newBuilder()
+                .setSettingSpecName("")
+                .setEnumSettingValue(
+                        EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()).build())
+                .build();
+
+        final List<Setting> case1 = ImmutableList.of(manual, automatic, recommend);
+
+        // all 3 settings are defined only in default policy
+        final Set<String> defaultSettings = getDefaultPolicySettings();
+        doGetScaleSpecTest(otherScale, case1, defaultSettings, CloudComputeScale);
+        doGetScaleSpecTest(perfScale, case1, defaultSettings, CloudComputeScaleForPerf);
+        doGetScaleSpecTest(effScale, case1, defaultSettings, CloudComputeScaleForSavings);
+        doGetScaleSpecTest(perfWithSavingsScale, case1, defaultSettings, CloudComputeScaleForPerf);
+        doGetScaleSpecTest(effScaleWithInvestment, case1, defaultSettings, CloudComputeScale);
+
+        // all 3 settings are defined in custom policy
+        // if 'Scale All' is specified - it overrides all other settings
+        final Set<String> customSettings = Collections.emptySet();
+        doGetScaleSpecTest(otherScale, case1, customSettings, CloudComputeScale);
+        doGetScaleSpecTest(perfScale, case1, customSettings, CloudComputeScale);
+        doGetScaleSpecTest(effScale, case1, customSettings, CloudComputeScale);
+        doGetScaleSpecTest(perfWithSavingsScale, case1, customSettings, CloudComputeScale);
+        doGetScaleSpecTest(effScaleWithInvestment, case1, customSettings, CloudComputeScale);
+
+        // 'Scale for Performance' and 'Scale for Savings' are set
+        final Set<String> onlyAllIsDefault = getDefaultPolicySettings(
+                CloudComputeScaleForPerf, CloudComputeScaleForSavings);
+        doGetScaleSpecTest(otherScale, case1, onlyAllIsDefault, CloudComputeScale);
+        doGetScaleSpecTest(perfScale, case1, onlyAllIsDefault, CloudComputeScaleForPerf);
+        doGetScaleSpecTest(effScale, case1, onlyAllIsDefault, CloudComputeScaleForSavings);
+        doGetScaleSpecTest(perfWithSavingsScale, case1, onlyAllIsDefault, CloudComputeScaleForPerf);
+        doGetScaleSpecTest(effScaleWithInvestment, case1, onlyAllIsDefault, CloudComputeScale);
+
+        // 'Scale for Performance' is set in custom policy
+        final Set<String> perfIsOverridden = getDefaultPolicySettings(
+                CloudComputeScaleForPerf);
+        final List<Setting> case3 = ImmutableList.of(recommend, manual, automatic);
+        doGetScaleSpecTest(perfScale, case3, perfIsOverridden, CloudComputeScaleForPerf);
+        doGetScaleSpecTest(perfWithSavingsScale, case3, perfIsOverridden, CloudComputeScaleForPerf);
+        doGetScaleSpecTest(effScaleWithInvestment, case3, perfIsOverridden, CloudComputeScale);
+
+        // 'Scale for Savings' is set in custom policy
+        final Set<String> savingsIsOverridden = getDefaultPolicySettings(
+                CloudComputeScaleForSavings);
+        doGetScaleSpecTest(perfScale, case3, savingsIsOverridden, CloudComputeScaleForPerf);
+        doGetScaleSpecTest(perfWithSavingsScale, case3, savingsIsOverridden,
+                CloudComputeScaleForSavings);
+        doGetScaleSpecTest(effScaleWithInvestment, case3, savingsIsOverridden, CloudComputeScale);
+    }
+
+    /**
+     * Create scale for performance action mock.
+     *
+     * @param savings savings amount
+     * @return scale for performance action mock
+     */
+    private ActionDTO.Action createScaleForPerformanceAction(double savings) {
+        return createScaleAction(ChangeProviderExplanation.newBuilder()
+                .setCongestion(Congestion.newBuilder().build())
+                .build(), savings);
+    }
+
+    /**
+     * Create scale for efficiency action mock.
+     *
+     * @param savings savings amount
+     * @return scale for efficiency action mock
+     */
+    private ActionDTO.Action createScaleForEfficiencyAction(double savings) {
+        return createScaleAction(ChangeProviderExplanation.newBuilder()
+                .setEfficiency(Efficiency.newBuilder().build())
+                .build(), savings);
+    }
+
+    /**
+     * Create action mock.
+     *
+     * @param changeProviderExplanation scale explanation
+     * @param savings savings amount
+     * @return action mock
+     */
+    private ActionDTO.Action createScaleAction(ChangeProviderExplanation changeProviderExplanation,
+            double savings) {
+        return actionBuilder.setInfo(ActionInfo.newBuilder()
+                .setScale(Scale.newBuilder()
+                        .setTarget(ActionEntity.newBuilder()
+                                .setId(7L)
+                                .setType(EntityType.COMPUTE_TIER_VALUE))))
+                .setExplanation(Explanation.newBuilder()
+                        .setScale(ScaleExplanation.newBuilder()
+                                .addChangeProviderExplanation(changeProviderExplanation)))
+                .setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(savings).build())
+                .build();
+    }
+
+    /**
+     * Create a setting->default policy mapping, all settings that are not specified will be
+     * treated as default.
+     *
+     * @param settings settings that are specified in custom policy
+     * @return setting->default policy mapping
+     */
+    private Set<String> getDefaultPolicySettings(
+            ConfigurableActionSettings... settings) {
+
+        Set<ConfigurableActionSettings> temp = new HashSet<>(Arrays.asList(ALL_SETTINGS));
+        for (ConfigurableActionSettings setting : settings) {
+            temp.remove(setting);
+        }
+        Set<String> result = new HashSet<>();
+        for (ConfigurableActionSettings setting : temp) {
+            result.add(setting.getSettingName());
+        }
+
+        return result;
+    }
+
+    /**
+     * Get {@ActionSpecifications} applicable to action and compare it with expected value.
+     *
+     * @param action mocked action
+     * @param settings entity settings
+     * @param defaultSettings settings from default policies
+     * @param expected expected result.
+     */
+    private void doGetScaleSpecTest(ActionDTO.Action action, List<Setting> settings,
+            Set<String> defaultSettings, ConfigurableActionSettings expected) {
+        final Map<String, Setting> settingsForTargetEntity = new HashMap<>();
+        settingsForTargetEntity.put(CloudComputeScale.getSettingName(), settings.get(0));
+        settingsForTargetEntity.put(CloudComputeScaleForPerf.getSettingName(), settings.get(1));
+        settingsForTargetEntity.put(CloudComputeScaleForSavings.getSettingName(), settings.get(2));
+        ConfigurableActionSettings result = actionModeCalculator.getSpecsApplicableToScale(
+                action, settingsForTargetEntity, defaultSettings);
+        Assert.assertEquals(expected, result);
     }
 
     private static ImmutableMap.Builder<String, Setting> makeVmemResizeBoundSettings() {

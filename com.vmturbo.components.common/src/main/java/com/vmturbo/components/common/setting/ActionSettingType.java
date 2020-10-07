@@ -81,6 +81,10 @@ public enum ActionSettingType {
                     enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, null,
                             ActionMode.RECOMMEND, ActionMode.class);
                     break;
+                case CloudComputeScaleForPerf:
+                case CloudComputeScaleForSavings:
+                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, ActionMode.AUTOMATIC, ActionMode.RECOMMEND,  ActionMode.class);
+                    break;
                 case StorageMove:
                 case ResizeUpHeap:
                 case ResizeDownHeap:

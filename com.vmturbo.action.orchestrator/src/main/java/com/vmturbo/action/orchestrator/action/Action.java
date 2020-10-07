@@ -493,10 +493,12 @@ public class Action implements ActionView {
         }
         final Map<String, Collection<Long>> settingPoliciesForEntity =
                 entitiesSnapshot.getSettingPoliciesForEntity(primaryEntity);
+        final Set<String> defaultSettingsForEntity =
+                entitiesSnapshot.getDefaultSettingPoliciesForEntity(primaryEntity);
         final Set<Long> policiesAssociatedWithAction = new HashSet<>();
         final List<String> specApplicableToAction =
                 actionModeCalculator.specsApplicableToAction(translatedRecommendation.get(),
-                        entitiesSnapshot.getSettingsForEntity(primaryEntity))
+                        entitiesSnapshot.getSettingsForEntity(primaryEntity), defaultSettingsForEntity)
                         .map(ActionSpecifications::getConfigurableActionSetting)
                         .map(ConfigurableActionSettings::getSettingName)
                         .collect(Collectors.toList());

@@ -25,6 +25,7 @@ import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
@@ -200,6 +201,22 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
                     .entrySet()
                     .stream()
                     .collect(Collectors.toMap(Entry::getKey, v -> v.getValue().getPoliciesIds()));
+        }
+
+        /**
+         * Get the set of settings defined in default policies and associated with an entity.
+         * @param entityId the id of the entity
+         * @return set of settings defined in default policies and associated with an entity
+         */
+        @Nonnull
+        public Set<String> getDefaultSettingPoliciesForEntity(final long entityId) {
+            return settingAndPoliciesByEntityAndSpecName.getOrDefault(entityId,
+                    Collections.emptyMap())
+                    .entrySet()
+                    .stream()
+                    .filter(v -> !CollectionUtils.isEmpty(v.getValue().getDefaultPoliciesIds()))
+                    .map(Entry::getKey)
+                    .collect(Collectors.toSet());
         }
 
         @Nonnull
