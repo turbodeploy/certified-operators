@@ -44,12 +44,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle.ComputePrice;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
-import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
-import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.market.topology.conversions.ReservedInstanceKey;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -70,7 +70,7 @@ public class SMAInput {
     private static final Logger logger = LogManager.getLogger();
 
     //price table to compute on-demand cost
-    private final MarketPriceTable marketPriceTable;
+    private final CloudRateExtractor marketCloudRateExtractor;
 
     /**
      * List of input contexts.
@@ -89,7 +89,7 @@ public class SMAInput {
      */
     public SMAInput(@Nonnull final List<SMAInputContext> contexts) {
         this.inputContexts = Objects.requireNonNull(contexts, "contexts is null!");
-        this.marketPriceTable = null;
+        this.marketCloudRateExtractor = null;
     }
 
     /**
@@ -105,7 +105,7 @@ public class SMAInput {
      * @param providers     a map from VM ID  to list of compute tier ID s that are providers
      *                      for this VM.
      * @param cloudCostData what are the cloud costs.
-     * @param marketPriceTable used to figure out the discounts for business accounts
+     * @param marketCloudRateExtractor used to figure out the discounts for business accounts
      * @param consistentScalingHelper used to figure out the consistent scaling information.
      * @param isPlan is true if plan otherwise real time.
      */
@@ -113,15 +113,15 @@ public class SMAInput {
             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
             @Nonnull Map<Long, Set<Long>> providers,
             @Nonnull CloudCostData<TopologyEntityDTO> cloudCostData,
-            @Nonnull MarketPriceTable marketPriceTable,
+            @Nonnull CloudRateExtractor marketCloudRateExtractor,
             @Nonnull ConsistentScalingHelper consistentScalingHelper,
             boolean isPlan) {
         // check input parameters are not null
         Objects.requireNonNull(cloudTopology, "source cloud topology is null");
         Objects.requireNonNull(providers, "providers are null");
         Objects.requireNonNull(cloudCostData, "cloudCostData is null");
-        Objects.requireNonNull(marketPriceTable, "marketPriceTable is null");
-        this.marketPriceTable = marketPriceTable;
+        Objects.requireNonNull(marketCloudRateExtractor, "marketPriceTable is null");
+        this.marketCloudRateExtractor = marketCloudRateExtractor;
 
         final Stopwatch stopWatch = Stopwatch.createStarted();
         /*
@@ -582,8 +582,7 @@ public class SMAInput {
                                        long regionId,
                                        SMACSP csp,
                                        Table<Long, SMAContext, SMATemplate> computeTierOidToContextToTemplate,
-                                       Map<SMAContext, Set<SMATemplate>> smaContextToTemplates
-    ) {
+                                       Map<SMAContext, Set<SMATemplate>> smaContextToTemplates) {
         long oid = computeTier.getOid();
         String name = computeTier.getDisplayName();
         if (computeTier.getEntityType() != EntityType.COMPUTE_TIER_VALUE) {
@@ -675,7 +674,7 @@ public class SMAInput {
     private Set<OSType> computeOsTypes(TopologyEntityDTO entity) {
         return entity.getCommoditySoldListList().stream()
                 .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
-                .map(c -> MarketPriceTable.OS_TYPE_MAP.getOrDefault(c.getCommodityType().getKey(), OSType.UNKNOWN_OS))
+                .map(c -> CloudRateExtractor.OS_TYPE_MAP.getOrDefault(c.getCommodityType().getKey(), OSType.UNKNOWN_OS))
                 .collect(Collectors.toSet());
     }
 
@@ -691,7 +690,7 @@ public class SMAInput {
         final PriceTableKey key = new PriceTableKey(accountPricingData.getAccountPricingDataOid(),
                 regionOid, computeTier.getOid());
         return computePriceBundleMap.computeIfAbsent(key,
-                k -> marketPriceTable.getComputePriceBundle(computeTier, regionOid,
+                k -> marketCloudRateExtractor.getComputePriceBundle(computeTier, regionOid,
                         accountPricingData));
     }
 
@@ -707,7 +706,7 @@ public class SMAInput {
         final PriceTableKey key = new PriceTableKey(accountPricingData.getAccountPricingDataOid(),
                 region.getOid(), computeTier.getOid());
         return reservedLicenseBundleMap.computeIfAbsent(key,
-                k -> marketPriceTable.getReservedLicensePriceBundle(accountPricingData, region,
+                k -> marketCloudRateExtractor.getReservedLicensePriceBundle(accountPricingData, region.getOid(),
                         computeTier));
     }
 

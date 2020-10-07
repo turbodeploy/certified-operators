@@ -9,9 +9,11 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 
 /**
- * An interface used for resolving Business Account to AccountPricingData mapping.
+ *  * An interface used for resolving Business Account to AccountPricingData mapping.
+ *
+ * @param <ENTITY_TYPE> The entity type the pricing applies to.
  */
-public interface PricingResolver {
+public interface PricingResolver<ENTITY_TYPE> {
 
     /**
      * Returns the mapping of business account to the correct account pricing data object.
@@ -22,7 +24,7 @@ public interface PricingResolver {
      * @throws CloudCostDataRetrievalException A cloud cost data retrieval exception.
      */
     Map<Long, AccountPricingData<TopologyEntityDTO>> getAccountPricingDataByBusinessAccount(
-            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopo)
+            @Nonnull CloudTopology<ENTITY_TYPE> cloudTopo)
             throws CloudCostDataRetrievalException;
 }
 

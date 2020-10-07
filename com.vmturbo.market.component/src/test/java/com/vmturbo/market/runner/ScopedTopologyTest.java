@@ -42,6 +42,7 @@ import com.google.gson.stream.JsonReader;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -80,7 +81,6 @@ import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
@@ -128,8 +128,8 @@ public class ScopedTopologyTest {
     private final float discountedComputeCostFactor = 4f;
 
     private GroupServiceBlockingStub groupServiceClient;
-    private Analysis testAnalysis;
-    private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+    Analysis testAnalysis;
+    private CloudRateExtractor marketCloudRateExtractor = mock(CloudRateExtractor.class);
     private CloudCostData ccd = mock(CloudCostData.class);
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
 
@@ -180,7 +180,7 @@ public class ScopedTopologyTest {
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
         when(cloudCostCalculatorFactory.newCalculator(PLAN_TOPOLOGY_INFO, any())).thenReturn(topologyCostCalculator);
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
-        when(priceTableFactory.newPriceTable(any(), any())).thenReturn(mock(MarketPriceTable.class));
+        when(priceTableFactory.newPriceTable(any(), any())).thenReturn(mock(CloudRateExtractor.class));
         when(ccd.getExistingRiBought()).thenReturn(new ArrayList<>());
         final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
             mock(WastedFilesAnalysisFactory.class);
@@ -222,7 +222,7 @@ public class ScopedTopologyTest {
     public void testScopeTopologyCluster1() throws InvalidTopologyException {
 
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd,
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketCloudRateExtractor, ccd,
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
                     reversibilitySettingFetcher);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
@@ -245,7 +245,7 @@ public class ScopedTopologyTest {
     public void testScopeTopologyBusinessApp() throws InvalidTopologyException {
 
         final TopologyConverter converter =
-                new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd,
+                new TopologyConverter(PLAN_TOPOLOGY_INFO, marketCloudRateExtractor, ccd,
                     CommodityIndex.newFactory(), tierExcluderFactory,
                     consistentScalingHelperFactory, reversibilitySettingFetcher);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
@@ -265,7 +265,7 @@ public class ScopedTopologyTest {
     @Test
     public void testScopeTopologyOneHost() throws InvalidTopologyException {
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable,
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketCloudRateExtractor,
                 ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
@@ -286,7 +286,7 @@ public class ScopedTopologyTest {
     @Test
     public void testScopeTopologyTwoHosts() throws InvalidTopologyException {
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable,
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketCloudRateExtractor,
                 ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
@@ -308,7 +308,7 @@ public class ScopedTopologyTest {
     @Test
     public void testScopeTopologyUplacedEnities() throws InvalidTopologyException {
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable,
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketCloudRateExtractor,
                 ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
         // add an additional VM, which should be considered unplaced
@@ -381,7 +381,8 @@ public class ScopedTopologyTest {
                 configCustomizer.customize(configBuilder);
 
                 final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
-                when(priceTableFactory.newPriceTable(any(), any())).thenReturn(mock(MarketPriceTable.class));
+                when(priceTableFactory.newPriceTable(any(), any())).thenReturn(mock(
+                        CloudRateExtractor.class));
                 when(topologyCostCalculatorFactory.newCalculator(any(), any())).thenReturn(topologyCostCalculator);
                 final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
                 doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
@@ -448,7 +449,7 @@ public class ScopedTopologyTest {
         host12Builder.setEntityState(EntityState.MAINTENANCE);
 
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd,
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketCloudRateExtractor, ccd,
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
                 reversibilitySettingFetcher);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
@@ -469,7 +470,7 @@ public class ScopedTopologyTest {
     public void testScopeWithVMSeed() throws InvalidTopologyException {
 
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd,
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketCloudRateExtractor, ccd,
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
                 reversibilitySettingFetcher);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
@@ -496,7 +497,7 @@ public class ScopedTopologyTest {
         host12Builder.setEntityState(EntityState.MAINTENANCE);
 
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketPriceTable, ccd,
+            new TopologyConverter(PLAN_TOPOLOGY_INFO, marketCloudRateExtractor, ccd,
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
                 reversibilitySettingFetcher);
         final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);

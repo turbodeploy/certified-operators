@@ -8,6 +8,8 @@ import com.google.common.base.Preconditions;
 
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.CloudCommitmentInventoryResolverStage.CloudCommitmentInventoryResolverStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.InitializationStageFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.PricingResolverStage.PricingResolverStageFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.RecommendationSpecMatcherStage.RecommendationSpecMatcherStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCalculationStage.CoverageCalculationFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
@@ -34,6 +36,10 @@ public class AnalysisPipelineFactory {
 
     private final CoverageCalculationFactory coverageCalculationFactory;
 
+    private final RecommendationSpecMatcherStageFactory recommendationSpecMatcherStageFactory;
+
+    private final PricingResolverStageFactory pricingResolverStageFactory;
+
     /**
      * Constructs an analysis pipeline factory.
      * @param identityProvider The identity provider, used to assign IDs to individual stages.
@@ -49,6 +55,10 @@ public class AnalysisPipelineFactory {
      *                                    create the CloudCommitmentInventoryResolverStage.
      * @param coverageCalculationFactory  The {@link CoverageCalculationFactory} to create the coverage
      *                                    calculation stage after commitment inventory resolution.
+     * @param recommendationSpecMatcherStageFactory The {@link RecommendationSpecMatcherStageFactory} to
+     *                                    create the spec matcher recommendation stage.
+     * @param pricingResolverStageFactory The {@link PricingResolverStageFactory} to create the pricing
+     *                                    resolver stage after the spec recommendation stage.
      */
     public AnalysisPipelineFactory(@Nonnull IdentityProvider identityProvider,
                                    @Nonnull InitializationStageFactory initializationStageFactory,
@@ -56,7 +66,9 @@ public class AnalysisPipelineFactory {
                                    @Nonnull DemandClassificationFactory demandClassificationFactory,
                                    @Nonnull DemandTransformationFactory demandTransformationFactory,
             @Nonnull CloudCommitmentInventoryResolverStageFactory cloudCommitmentInventoryResolverStageFactory,
-                                   @Nonnull CoverageCalculationFactory coverageCalculationFactory) {
+            @Nonnull CoverageCalculationFactory coverageCalculationFactory,
+            @Nonnull RecommendationSpecMatcherStageFactory recommendationSpecMatcherStageFactory,
+            @Nonnull PricingResolverStageFactory pricingResolverStageFactory) {
 
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.initializationStageFactory = Objects.requireNonNull(initializationStageFactory);
@@ -65,6 +77,8 @@ public class AnalysisPipelineFactory {
         this.demandTransformationFactory = Objects.requireNonNull(demandTransformationFactory);
         this.cloudCommitmentInventoryResolverStageFactory = Objects.requireNonNull(cloudCommitmentInventoryResolverStageFactory);
         this.coverageCalculationFactory = Objects.requireNonNull(coverageCalculationFactory);
+        this.recommendationSpecMatcherStageFactory = recommendationSpecMatcherStageFactory;
+        this.pricingResolverStageFactory = pricingResolverStageFactory;
     }
 
     /**
@@ -110,6 +124,15 @@ public class AnalysisPipelineFactory {
                                 identityProvider.next(),
                                 analysisConfig,
                                 analysisContext))
+                .addStage(recommendationSpecMatcherStageFactory.createStage(
+                        identityProvider.next(),
+                        analysisConfig,
+                        analysisContext
+                )).addStage(pricingResolverStageFactory.createStage(
+                        identityProvider.next(),
+                        analysisConfig,
+                        analysisContext
+                ))
                 .build();
     }
 }

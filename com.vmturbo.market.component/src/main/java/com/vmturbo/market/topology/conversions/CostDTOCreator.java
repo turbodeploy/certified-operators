@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
@@ -25,15 +26,15 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle.ComputePrice;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.CoreBasedLicensePriceBundle;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.DatabasePriceBundle;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.DatabasePriceBundle.DatabasePrice;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.DatabasePriceBundle.DatabasePrice.StorageOption;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.StoragePriceBundle;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
-import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
-import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
-import com.vmturbo.market.runner.cost.MarketPriceTable.CoreBasedLicensePriceBundle;
-import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
-import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle.DatabasePrice;
-import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle.DatabasePrice.StorageOption;
-import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
@@ -58,13 +59,27 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 public class CostDTOCreator {
     private static final Logger logger = LogManager.getLogger();
-    private final MarketPriceTable marketPriceTable;
+    private final CloudRateExtractor marketCloudRateExtractor;
     private final CommodityConverter commodityConverter;
     private static final double riCostDeprecationFactor = 0.00001;
 
-    public CostDTOCreator(CommodityConverter commodityConverter, MarketPriceTable marketPriceTable) {
+    /**
+     * The license map.
+     */
+    private static final Map<LicenseModel, String> LICENSE_MODEL_MAP = ImmutableMap.<LicenseModel, String>builder()
+            .put(LicenseModel.BRING_YOUR_OWN_LICENSE, "BringYourOwnLicense")
+            .put(LicenseModel.LICENSE_INCLUDED, "LicenseIncluded")
+            .put(LicenseModel.NO_LICENSE_REQUIRED, "NoLicenseRequired").build();
+
+    /**
+     * Constructor for the cost dto creator.
+     *
+     * @param commodityConverter The commodity converter.
+     * @param marketCloudRateExtractor The market cloud rate info extractor.
+     */
+    public CostDTOCreator(CommodityConverter commodityConverter, CloudRateExtractor marketCloudRateExtractor) {
         this.commodityConverter = commodityConverter;
-        this.marketPriceTable = marketPriceTable;
+        this.marketCloudRateExtractor = marketCloudRateExtractor;
     }
 
     /**
@@ -99,7 +114,7 @@ public class CostDTOCreator {
         ComputeTierCostDTO.Builder computeTierDTOBuilder = ComputeTierCostDTO.newBuilder();
         for (AccountPricingData accountPricingData : uniqueAccountPricingData) {
             for (TopologyEntityDTO region: regions) {
-                ComputePriceBundle priceBundle = marketPriceTable.getComputePriceBundle(tier, region.getOid(), accountPricingData);
+                CloudRateExtractor.ComputePriceBundle priceBundle = marketCloudRateExtractor.getComputePriceBundle(tier, region.getOid(), accountPricingData);
                 Map<Long, Map<OSType, ComputePrice>> computePrices = Maps.newHashMap();
                 priceBundle.getPrices().forEach(price ->
                         computePrices.computeIfAbsent(price.getAccountId(), ba -> Maps.newHashMap())
@@ -117,7 +132,7 @@ public class CostDTOCreator {
                 for (CommodityType licenseCommodity : licenseCommoditySet) {
                     double price = Double.POSITIVE_INFINITY;
                     if (pricesForBa != null) {
-                        OSType osType = MarketPriceTable.OS_TYPE_MAP.get(licenseCommodity.getKey());
+                        OSType osType = CloudRateExtractor.OS_TYPE_MAP.get(licenseCommodity.getKey());
                         if (osType != null) {
                             ComputePrice computePrice = pricesForBa.get(osType);
                             if (computePrice != null) {
@@ -198,7 +213,7 @@ public class CostDTOCreator {
         DatabaseTierCostDTO.Builder dbTierDTOBuilder = DatabaseTierCostDTO.newBuilder();
         for (AccountPricingData accountPricingData : uniqueAccountPricingData) {
             for (TopologyEntityDTO region: regions) {
-                DatabasePriceBundle priceBundle = marketPriceTable.getDatabasePriceBundle(tier.getOid(),
+                DatabasePriceBundle priceBundle = marketCloudRateExtractor.getDatabasePriceBundle(tier.getOid(),
                         region.getOid(), accountPricingData);
                 Set<CommodityType> licenseCommoditySet = tier.getCommoditySoldListList().stream()
                         .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
@@ -224,10 +239,10 @@ public class CostDTOCreator {
                     // Keeps the storage options of the Azure DB tiers
                     List<StorageOption> storageOptions = new ArrayList<>();
                     // we support just LicenseIncluded and NoLicenseRequired
-                    if (licenseId.contains(MarketPriceTable.LICENSE_MODEL_MAP.get(LicenseModel.LICENSE_INCLUDED)) ||
-                            licenseId.contains(MarketPriceTable.LICENSE_MODEL_MAP.get(LicenseModel.NO_LICENSE_REQUIRED))) {
-                        licenseId = licenseId.replace(MarketPriceTable.LICENSE_MODEL_MAP.get(LicenseModel.LICENSE_INCLUDED), "");
-                        licenseId = licenseId.replace(MarketPriceTable.LICENSE_MODEL_MAP.get(LicenseModel.NO_LICENSE_REQUIRED), "");
+                    if (licenseId.contains(LICENSE_MODEL_MAP.get(LicenseModel.LICENSE_INCLUDED))
+                            || licenseId.contains(LICENSE_MODEL_MAP.get(LicenseModel.NO_LICENSE_REQUIRED))) {
+                        licenseId = licenseId.replace(LICENSE_MODEL_MAP.get(LicenseModel.LICENSE_INCLUDED), "");
+                        licenseId = licenseId.replace(LICENSE_MODEL_MAP.get(LicenseModel.NO_LICENSE_REQUIRED), "");
                         // lookup for license without LicenseModel in the priceMap
                         DatabasePrice databasePrice = pricesForBa.get(licenseId);
                         if (databasePrice != null) {
@@ -369,7 +384,7 @@ public class CostDTOCreator {
         // license rates to differentiate the RIs)
         for (TopologyEntityDTO computeTier : computeTiersInScope) {
 
-            final ComputePriceBundle computePriceBundle = marketPriceTable.getComputePriceBundle(computeTier,
+            final ComputePriceBundle computePriceBundle = marketCloudRateExtractor.getComputePriceBundle(computeTier,
                     region.getOid(), accountPricingData);
 
             computePriceBundle.getPrices().forEach(computePrice -> {
@@ -381,7 +396,7 @@ public class CostDTOCreator {
                     });
 
             final Set<CoreBasedLicensePriceBundle> reservedLicensePriceBundles =
-                    marketPriceTable.getReservedLicensePriceBundles(accountPricingData, computeTier)
+                    marketCloudRateExtractor.getReservedLicensePriceBundles(accountPricingData, computeTier)
                             .stream()
                             // If the RI supports a smaller set of OS types than the compute tiers in scope
                             // of the RI, we need to filter the license price bundles to only those supported
@@ -467,7 +482,7 @@ public class CostDTOCreator {
                 = new HashMap<>();
         for (TopologyEntityDTO region: connectedRegions) {
             for (AccountPricingData accountPricingData : uniqueAccountPricingData) {
-                StoragePriceBundle storageCostBundle = marketPriceTable
+                StoragePriceBundle storageCostBundle = marketCloudRateExtractor
                         .getStoragePriceBundle(tier.getOid(), region.getOid(), accountPricingData);
                 if (storageCostBundle == null) {
                     // This can happen in unit tests

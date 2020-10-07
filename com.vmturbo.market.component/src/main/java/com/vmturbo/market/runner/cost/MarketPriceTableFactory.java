@@ -9,12 +9,13 @@ import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 
 public interface MarketPriceTableFactory {
 
     @Nonnull
-    MarketPriceTable newPriceTable(@Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology,
-                                   @Nonnull final CloudCostData cloudCostData);
+    CloudRateExtractor newPriceTable(@Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
+                                   @Nonnull CloudCostData cloudCostData);
 
     class DefaultMarketPriceTableFactory implements MarketPriceTableFactory {
 
@@ -29,9 +30,9 @@ public interface MarketPriceTableFactory {
 
         @Nonnull
         @Override
-        public MarketPriceTable newPriceTable(@Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology,
+        public CloudRateExtractor newPriceTable(@Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology,
                                               @Nonnull final CloudCostData cloudCostData) {
-            return new MarketPriceTable(cloudCostData, cloudTopology, entityInfoExtractor);
+            return new CloudRateExtractor(cloudTopology, entityInfoExtractor);
         }
     }
 }

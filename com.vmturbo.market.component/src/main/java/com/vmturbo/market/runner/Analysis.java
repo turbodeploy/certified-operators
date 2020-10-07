@@ -69,6 +69,7 @@ import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
@@ -84,7 +85,6 @@ import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.topology.MarketTier;
@@ -337,14 +337,13 @@ public class Analysis {
         final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory
                 .newCalculator(topologyInfo, originalCloudTopology);
         // Use the cloud cost data we use for cost calculations for the price table.
-        final MarketPriceTable marketPriceTable = marketPriceTableFactory.newPriceTable(
+        final CloudRateExtractor marketCloudRateExtractor = marketPriceTableFactory.newPriceTable(
                 this.originalCloudTopology, topologyCostCalculator.getCloudCostData());
         final ReversibilitySettingFetcher reversibilitySettingFetcher
                 = reversibilitySettingFetcherFactory.newReversibilitySettingRetriever();
         this.converter = new TopologyConverter(topologyInfo, config.getIncludeVdc(),
                 config.getQuoteFactor(), config.getMarketMode(),
-                config.getLiveMarketMoveCostFactor(),
-                marketPriceTable, null, topologyCostCalculator.getCloudCostData(),
+                config.getLiveMarketMoveCostFactor(), marketCloudRateExtractor, null, topologyCostCalculator.getCloudCostData(),
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
                 originalCloudTopology, reversibilitySettingFetcher);
         this.smaConverter = new SMAConverter(converter);
@@ -497,8 +496,7 @@ public class Analysis {
                                 .equals(StringConstants.OPTIMIZE_CLOUD_PLAN));
                         SMAInput smaInput = new SMAInput(originalCloudTopology,
                                 cloudVmOidToProvidersOIDsMap,
-                                topologyCostCalculator.getCloudCostData(),
-                                marketPriceTable, converter.getConsistentScalingHelper(), isOptimizeCloudPlan);
+                                topologyCostCalculator.getCloudCostData(), marketCloudRateExtractor, converter.getConsistentScalingHelper(), isOptimizeCloudPlan);
                         saveSMADiags(smaInput);
                         smaConverter.setSmaOutput(StableMarriageAlgorithm.execute(smaInput));
                     }

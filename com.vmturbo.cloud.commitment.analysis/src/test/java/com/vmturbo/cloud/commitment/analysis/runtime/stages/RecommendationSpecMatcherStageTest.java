@@ -3,7 +3,10 @@ package com.vmturbo.cloud.commitment.analysis.runtime.stages;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -14,10 +17,14 @@ import org.junit.Test;
 
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
+import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
+import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
+import com.vmturbo.cloud.commitment.analysis.runtime.data.AnalysisTopology;
+import com.vmturbo.cloud.commitment.analysis.runtime.data.AnalysisTopologySegment;
 import com.vmturbo.cloud.commitment.analysis.runtime.data.CloudTierCoverageDemand;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.CCARecommendationSpecMatcherStage.CCARecommendationSpecMatcherStageFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.RecommendationSpecMatcherStage.RecommendationSpecMatcherStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassification;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.EntityInfo;
@@ -28,12 +35,18 @@ import com.vmturbo.cloud.commitment.analysis.spec.CommitmentSpecDemandSet;
 import com.vmturbo.cloud.commitment.analysis.spec.ImmutableReservedInstanceSpecData;
 import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecData;
 import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecMatcher;
+import com.vmturbo.cloud.commitment.analysis.spec.SpecMatcherOutput;
+import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
+import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.RecommendationSettings;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile.ReservedInstancePurchaseProfile;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -49,7 +62,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 /**
  * Class for testing the CCARecommendationSpecMatcherStage.
  */
-public class CCARecommendationSpecMatcherStageTest {
+public class RecommendationSpecMatcherStageTest {
 
     private final CloudCommitmentAnalysisContext analysisContext = mock(CloudCommitmentAnalysisContext.class);
 
@@ -93,10 +106,31 @@ public class CCARecommendationSpecMatcherStageTest {
             .setDisplayName("tier1")
             .build();
 
+    private final ReservedInstanceSpec spec1 = ReservedInstanceSpec.newBuilder()
+            .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder().setOs(OSType.LINUX).setTenancy(Tenancy.DEFAULT)
+                    .setRegionId(REGION_AWS).setTierId(12L).build()).build();
+
     Optional<ReservedInstanceSpecData> riSpecData = Optional.of(ImmutableReservedInstanceSpecData.builder()
-            .spec(ReservedInstanceSpec.newBuilder().setReservedInstanceSpecInfo(
-                    ReservedInstanceSpecInfo.newBuilder().setOs(OSType.LINUX).setTenancy(Tenancy.DEFAULT)
-                            .setRegionId(REGION_AWS).setTierId(12L).build()).build()).cloudTier(computeTier).build());
+            .spec(spec1).cloudTier(computeTier).build());
+
+    ReservedInstanceData cloudCommitmentData = ReservedInstanceData.builder().commitment(
+            ReservedInstanceBought.newBuilder().setReservedInstanceBoughtInfo(
+                    ReservedInstanceBoughtInfo.newBuilder().setBusinessAccountId(111L).setNumBought(4).setReservedInstanceSpec(45L)
+                            .setDisplayName("cloudCommitmentBoughtData1").setReservedInstanceBoughtCoupons(
+                            ReservedInstanceBoughtCoupons.newBuilder().setNumberOfCoupons(4).setNumberOfCouponsUsed(2).build())
+                            .build()).setId(10L).build()).spec(spec1).build();
+
+    AnalysisTopologySegment analysisSegment = AnalysisTopologySegment.builder().addAggregateCloudTierDemandSet(cloudTierDemand).timeInterval(
+            ImmutableTimeInterval.builder()
+                    .startTime(Instant.now().minusSeconds(700))
+                    .endTime(Instant.now())
+                    .build()).build();
+
+    TimeSeries<AnalysisTopologySegment> analysisSegmentTimeSeries = TimeSeries.newTimeSeries(analysisSegment);
+
+    Map<Long, CloudCommitmentData> cloudCommitmentsByOid = createCloudCommitmentDataByOidMap();
+
+    AnalysisTopology analysisTopology = AnalysisTopology.builder().cloudCommitmentsByOid(cloudCommitmentsByOid).segments(analysisSegmentTimeSeries).build();
 
 
     /**
@@ -128,18 +162,18 @@ public class CCARecommendationSpecMatcherStageTest {
                         .setRiPurchaseProfile(ReservedInstancePurchaseProfile.newBuilder().putAllRiTypeByRegionOid(purchaseConstraints).build())
                         .setRecommendationSettings(RecommendationSettings.newBuilder()))
                 .build();
-
         when(classifiedDemandSegment.aggregateCloudTierDemand()).thenReturn(Collections.singleton(cloudTierDemand));
         when(cloudTierCoverageDemand.demandSegment()).thenReturn(classifiedDemandSegment);
 
-        CCARecommendationSpecMatcherStageFactory ccaRecommendationSpecMatcherStageFactory = new CCARecommendationSpecMatcherStageFactory();
+        RecommendationSpecMatcherStageFactory
+                recommendationSpecMatcherStageFactory = new RecommendationSpecMatcherStageFactory();
         when(reservedInstanceSpecMatcher.matchDemandToSpecs(cloudTierDemand)).thenReturn(riSpecData);
-        final AnalysisStage ccaRecommendationSpecMatcherStage = ccaRecommendationSpecMatcherStageFactory
+        final AnalysisStage ccaRecommendationSpecMatcherStage = recommendationSpecMatcherStageFactory
                 .createStage(id, analysisConfig, analysisContext);
 
-        final AnalysisStage.StageResult<CommitmentSpecDemandSet> result = ccaRecommendationSpecMatcherStage.execute(cloudTierCoverageDemand);
-        CommitmentSpecDemandSet output = result.output();
-
+        final AnalysisStage.StageResult<SpecMatcherOutput> result = ccaRecommendationSpecMatcherStage.execute(analysisTopology);
+        SpecMatcherOutput specMatcherOutput = result.output();
+        CommitmentSpecDemandSet output = specMatcherOutput.commitmentSpecDemandSet();
         assert (!output.commitmentSpecDemand().isEmpty());
 
         Optional<CommitmentSpecDemand> commitmentSpecDemand = output.commitmentSpecDemand().stream().findFirst();
@@ -148,5 +182,11 @@ public class CCARecommendationSpecMatcherStageTest {
         assert (!aggregateCloudTierDemand.isEmpty());
         aggregateCloudTierDemand.iterator().next();
         assert (aggregateCloudTierDemand.iterator().next().equals(cloudTierDemand));
+    }
+
+    private Map<Long, CloudCommitmentData> createCloudCommitmentDataByOidMap() {
+        Map<Long, CloudCommitmentData> cloudCommitmentDataMap = new HashMap<>();
+        cloudCommitmentDataMap.put(10L, cloudCommitmentData);
+        return cloudCommitmentDataMap;
     }
 }

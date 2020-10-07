@@ -55,7 +55,7 @@ import com.vmturbo.sql.utils.DbException;
 /**
  * Context Configuration for this test class.
  */
-public class PriceTableKeyIdentityStoreTest {
+public class CloudRateExtractorKeyIdentityStoreTest {
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -296,9 +296,6 @@ public class PriceTableKeyIdentityStoreTest {
     @Test
     public void testCollectAndRestoreDiags() throws DbException, DiagnosticsException {
         insertAzurePriceTable();
-
-        Map<IdentityMatchingAttributes, Long> originalMap = testIdentityStore
-                .fetchAllOidMappings();
         final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
         testIdentityStore.collectDiags(appender);
         final ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
@@ -309,6 +306,8 @@ public class PriceTableKeyIdentityStoreTest {
         newPriceTableKeyIdentityStore.restoreDiags(captor.getAllValues(), null);
 
         Map<IdentityMatchingAttributes, Long> newMap = newPriceTableKeyIdentityStore.fetchAllOidMappings();
+        Map<IdentityMatchingAttributes, Long> originalMap = testIdentityStore
+                .fetchAllOidMappings();
         assertThat(originalMap, equalTo(newMap));
     }
 

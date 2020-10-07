@@ -43,13 +43,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle.ComputePrice;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
-import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
-import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -260,10 +260,10 @@ public class SMAInputTest {
         when(riPriceBundle1.getPrices()).thenReturn(ImmutableList.of(riPrice));
 
         // create MarketPriceTable
-        final MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
-        when(marketPriceTable.getComputePriceBundle(ct1Dto, regionId,
+        final CloudRateExtractor marketCloudRateExtractor = mock(CloudRateExtractor.class);
+        when(marketCloudRateExtractor.getComputePriceBundle(ct1Dto, regionId,
                 accountPricingData)).thenReturn(computePriceBundle1);
-        when(marketPriceTable.getReservedLicensePriceBundle(accountPricingData, regionDto,
+        when(marketCloudRateExtractor.getReservedLicensePriceBundle(accountPricingData, regionDto.getOid(),
                 ct1Dto)).thenReturn(riPriceBundle1);
 
         //create CloudCostData
@@ -284,7 +284,7 @@ public class SMAInputTest {
 
         //create SMAInput
         final SMAInput smaInput = new SMAInput(cloudTopology, providers, cloudCostData,
-                marketPriceTable, consistentScalingHelper, false);
+                marketCloudRateExtractor, consistentScalingHelper, false);
         Assert.assertEquals(1, smaInput.getContexts().size());
         final SMAInputContext smaContext = smaInput.getContexts().iterator().next();
         Assert.assertEquals(2, smaContext.getVirtualMachines().size());

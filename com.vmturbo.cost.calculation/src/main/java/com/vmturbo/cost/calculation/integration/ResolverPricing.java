@@ -20,7 +20,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 /**
  * Abstract class for resolving pricing of business accounts to account pricing data.
  */
-public abstract class ResolverPricing implements PricingResolver {
+public abstract class ResolverPricing implements PricingResolver<TopologyEntityDTO> {
     private final DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory;
     private final EntityInfoExtractor<TopologyEntityDTO> topologyEntityInfoExtractor;
 

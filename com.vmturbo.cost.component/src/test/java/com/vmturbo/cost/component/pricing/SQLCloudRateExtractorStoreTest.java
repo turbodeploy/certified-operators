@@ -49,7 +49,7 @@ import com.vmturbo.sql.utils.DbConfigurationRule;
 /**
  * Unit tests for {@link SQLPriceTableStore}.
  */
-public class SQLPriceTableStoreTest {
+public class SQLCloudRateExtractorStoreTest {
 
     private static final PriceTable MERGED_PRICE_TABLE = mockPriceTable(2L);
 
@@ -81,7 +81,7 @@ public class SQLPriceTableStoreTest {
      * We use a common price table merge results for all tests.
      * To look at the price tables actually retrieved from the SQL table
      * during {@link SQLPriceTableStore#getMergedPriceTable()} use the
-     * argument captor ({@link SQLPriceTableStoreTest#readTablesCaptor})
+     * argument captor ({@link SQLCloudRateExtractorStoreTest#readTablesCaptor})
      * on {@link PriceTableMerge#merge(Collection)}.
      */
     private PriceTableMerge merge = mock(PriceTableMerge.class);

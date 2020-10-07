@@ -52,13 +52,13 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.CoreBasedLicensePriceBundle;
+import com.vmturbo.cost.calculation.pricing.ImmutableCoreBasedLicensePriceBundle;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
-import com.vmturbo.market.runner.cost.ImmutableCoreBasedLicensePriceBundle;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
-import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
-import com.vmturbo.market.runner.cost.MarketPriceTable.CoreBasedLicensePriceBundle;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -92,7 +92,7 @@ public class ReservedInstanceConverterTest {
             TIER_ID_2, mockComputeTier(TIER_ID_2, false));
 
     private AccountPricingData accountPricingData = mock(AccountPricingData.class);
-    private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+    private CloudRateExtractor marketCloudRateExtractor = mock(CloudRateExtractor.class);
     private Map<Long, AccountPricingData> accountPricingDataByBusinessAccountMap;
     private Set<CoreBasedLicensePriceBundle> reservedLicenseBundle = ImmutableSet.of(
             ImmutableCoreBasedLicensePriceBundle
@@ -147,13 +147,13 @@ public class ReservedInstanceConverterTest {
                 false, new BiCliquer(), HashBasedTable.create(),
                 new ConversionErrorCounts(), mock(ConsistentScalingHelper.class));
         final CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter,
-                marketPriceTable);
+                marketCloudRateExtractor);
         final CloudTopology<TopologyEntityDTO> cloudTopology = createCloudTopologyMock();
         converter = new ReservedInstanceConverter(info, commodityConverter, costDTOCreator,
                 mock(TierExcluder.class), cloudTopology);
-        when(marketPriceTable.getComputePriceBundle(any(), anyLong(), any()))
+        when(marketCloudRateExtractor.getComputePriceBundle(any(), anyLong(), any()))
                 .thenReturn(ComputePriceBundle.newBuilder().build());
-        when(marketPriceTable.getReservedLicensePriceBundles(any(), any()))
+        when(marketCloudRateExtractor.getReservedLicensePriceBundles(any(), any()))
                 .thenReturn(Collections.singleton(ImmutableCoreBasedLicensePriceBundle.builder()
                         .licenseCommodityType(CommodityType.newBuilder()
                             .setType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
@@ -338,7 +338,7 @@ public class ReservedInstanceConverterTest {
     @Test
     public void testFractionalRICostInCbtpCostDtoWithoutReservedLicensePricing() {
         ComputePriceBundle bundle = ComputePriceBundle.newBuilder().addPrice(accountPricingOid, OSType.LINUX, 0.007, true).build();
-        when(marketPriceTable.getComputePriceBundle(mockComputeTier(), REGION_ID, accountPricingData)).thenReturn(bundle);
+        when(marketCloudRateExtractor.getComputePriceBundle(mockComputeTier(), REGION_ID, accountPricingData)).thenReturn(bundle);
         final List<TraderTO> traders = createMarketTierTraderTOs(true, false, false);
         final TraderTO traderTO = traders.iterator().next();
         final CostDTO costDTO = traderTO.getSettings().getQuoteFunction().getRiskBased().getCloudCost();
@@ -357,7 +357,7 @@ public class ReservedInstanceConverterTest {
      */
     @Test
     public void testRIPricingInCbtpCostDTOWithReservedLicensePricing() {
-        when(marketPriceTable.getReservedLicensePriceBundles(accountPricingData, mockComputeTier()))
+        when(marketCloudRateExtractor.getReservedLicensePriceBundles(accountPricingData, mockComputeTier()))
                 .thenReturn(reservedLicenseBundle);
         final List<TraderTO> traders = createMarketTierTraderTOs(true, false, false);
         final TraderTO traderTO = traders.iterator().next();
@@ -376,10 +376,10 @@ public class ReservedInstanceConverterTest {
      */
     @Test
     public void testRIPricingInCbtpCostDTOWithReservedLicenseandFractionalPricing() {
-        when(marketPriceTable.getReservedLicensePriceBundles(accountPricingData, mockComputeTier()))
+        when(marketCloudRateExtractor.getReservedLicensePriceBundles(accountPricingData, mockComputeTier()))
                 .thenReturn(reservedLicenseBundle);
         ComputePriceBundle bundle = ComputePriceBundle.newBuilder().addPrice(accountPricingOid, OSType.LINUX, 0.007, true).build();
-        when(marketPriceTable.getComputePriceBundle(mockComputeTier(), REGION_ID, accountPricingData)).thenReturn(bundle);
+        when(marketCloudRateExtractor.getComputePriceBundle(mockComputeTier(), REGION_ID, accountPricingData)).thenReturn(bundle);
         final List<TraderTO> traders = createMarketTierTraderTOs(true, false, false);
         final TraderTO traderTO = traders.iterator().next();
         final CostDTO costDTO = traderTO.getSettings().getQuoteFunction().getRiskBased().getCloudCost();

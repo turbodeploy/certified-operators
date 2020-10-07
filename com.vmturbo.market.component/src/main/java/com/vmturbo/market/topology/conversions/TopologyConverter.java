@@ -86,6 +86,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.group.api.GroupAndMembers;
@@ -94,7 +95,6 @@ import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.ReservedCapacityAnalysis;
 import com.vmturbo.market.runner.WastedFilesAnalysis;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.settings.EntitySettings;
 import com.vmturbo.market.settings.MarketSettings;
 import com.vmturbo.market.topology.MarketTier;
@@ -235,7 +235,7 @@ public class TopologyConverter {
      * A non-shop-together TopologyConverter.
      *
      * @param topologyInfo information about topology
-     * @param marketPriceTable market price table
+     * @param marketCloudRateExtractor market price table
      * @param cloudCostData cloud cost data
      * @param commodityIndexFactory commodity index factory
      * @param tierExcluderFactory tier excluder factory
@@ -244,7 +244,7 @@ public class TopologyConverter {
      */
     @VisibleForTesting
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
-                             @Nonnull final MarketPriceTable marketPriceTable,
+                             @Nonnull final CloudRateExtractor marketCloudRateExtractor,
                              @Nonnull final CloudCostData cloudCostData,
                              @Nonnull final CommodityIndexFactory commodityIndexFactory,
                              @Nonnull final TierExcluderFactory tierExcluderFactory,
@@ -263,7 +263,7 @@ public class TopologyConverter {
                 getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
-                marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
+                marketCloudRateExtractor, cloudCostData, tierExcluder, cloudTopology);
         // Lazy initialize commodityIndex through Suppliers#memoize. This ensures that all calls to
         // commmodityIndex#get after the first just return the lazy-initialized commodityIndex.
         this.commodityIndex = Suppliers.memoize(() -> this.createCommodityIndex(commodityIndexFactory));
@@ -411,7 +411,7 @@ public class TopologyConverter {
      * @param marketMode the market generates compute scaling action for could vms if false.
      *                  the SMA (Stable Marriage Algorithm)  library generates them if true.
      * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
-     * @param marketPriceTable market price table
+     * @param marketCloudRateExtractor market price table
      * @param incomingCommodityConverter the commodity converter
      * @param cloudCostData cloud cost data
      * @param commodityIndexFactory commodity index factory
@@ -425,7 +425,7 @@ public class TopologyConverter {
                              final float quoteFactor,
                              final MarketMode marketMode,
                              final float liveMarketMoveCostFactor,
-                             @Nonnull final MarketPriceTable marketPriceTable,
+                             @Nonnull final CloudRateExtractor marketCloudRateExtractor,
                              CommodityConverter incomingCommodityConverter,
                              final CloudCostData cloudCostData,
                              final CommodityIndexFactory commodityIndexFactory,
@@ -449,7 +449,7 @@ public class TopologyConverter {
                 getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap, businessAccounts,
-                marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
+                marketCloudRateExtractor, cloudCostData, tierExcluder, cloudTopology);
         this.commodityIndex = Suppliers.memoize(() -> this.createCommodityIndex(commodityIndexFactory));
         this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
             oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
@@ -490,7 +490,7 @@ public class TopologyConverter {
                              final float quoteFactor,
                              final MarketMode marketMode,
                              final float liveMarketMoveCostFactor,
-                             @Nonnull final MarketPriceTable marketPriceTable,
+                             @Nonnull final CloudRateExtractor marketCloudRateExtractor,
                              @Nonnull CommodityConverter incomingCommodityConverter,
                              @Nonnull final CommodityIndexFactory commodityIndexFactory,
                              @Nonnull final TierExcluderFactory tierExcluderFactory,
@@ -509,7 +509,7 @@ public class TopologyConverter {
             getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap,
-                businessAccounts, marketPriceTable, null, tierExcluder, cloudTopology);
+                businessAccounts, marketCloudRateExtractor, null, tierExcluder, cloudTopology);
         this.commodityIndex = Suppliers.memoize(() -> this.createCommodityIndex(commodityIndexFactory));
 
         this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
@@ -536,7 +536,7 @@ public class TopologyConverter {
      * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
      * @param quoteFactor to be used by move recommendations.
      * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
-     * @param marketPriceTable the market price table
+     * @param marketCloudRateExtractor the market price table
      * @param cloudCostData cloud cost data
      * @param commodityIndexFactory commodity index factory
      * @param tierExcluderFactory tier excluder factory
@@ -548,7 +548,7 @@ public class TopologyConverter {
                              final boolean includeGuaranteedBuyer,
                              final float quoteFactor,
                              final float liveMarketMoveCostFactor,
-                             @Nonnull final MarketPriceTable marketPriceTable,
+                             @Nonnull final CloudRateExtractor marketCloudRateExtractor,
                              @Nonnull final CloudCostData cloudCostData,
                              @Nonnull final CommodityIndexFactory commodityIndexFactory,
                              @Nonnull final TierExcluderFactory tierExcluderFactory,
@@ -557,7 +557,7 @@ public class TopologyConverter {
                              @Nonnull final ReversibilitySettingFetcher
                                      reversibilitySettingFetcher) {
         this(topologyInfo, includeGuaranteedBuyer, quoteFactor, MarketMode.M2Only, liveMarketMoveCostFactor,
-            marketPriceTable, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
+            marketCloudRateExtractor, null, cloudCostData, commodityIndexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, null, reversibilitySettingFetcher);
     }
 

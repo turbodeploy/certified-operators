@@ -17,15 +17,13 @@ import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandWr
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.entity.scope.SQLCloudScopeStore;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 
 /**
  * The Cloud Commitment Demand Stats Config class.
  */
 @Lazy
 @Import({CostDBConfig.class,
-        TopologyProcessorListenerConfig.class,
-        ReservedInstanceSpecConfig.class})
+        TopologyProcessorListenerConfig.class})
 public class CloudCommitmentAnalysisStoreConfig {
 
     @Autowired
@@ -59,7 +57,6 @@ public class CloudCommitmentAnalysisStoreConfig {
                 recordCommitBatchSize);
     }
 
-
     @Bean(destroyMethod = "shutdown")
     protected ThreadPoolTaskScheduler cloudScopeCleanupScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
@@ -81,10 +78,8 @@ public class CloudCommitmentAnalysisStoreConfig {
      */
     @Bean
     public SQLCloudScopeStore cloudScopeStore() {
-        return new SQLCloudScopeStore(dbConfig.dsl(),
-                cloudScopeCleanupScheduler(),
-                Duration.ofSeconds(cloudScopeCleanupPeriodSeconds),
-                recordCommitBatchSize);
+        return new SQLCloudScopeStore(dbConfig.dsl(), cloudScopeCleanupScheduler(),
+                Duration.ofSeconds(cloudScopeCleanupPeriodSeconds), recordCommitBatchSize);
     }
 
     /**

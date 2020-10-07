@@ -1,4 +1,4 @@
-package com.vmturbo.market.runner.cost;
+package com.vmturbo.cost.calculation.pricing;
 
 import static com.vmturbo.trax.Trax.trax;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -35,11 +35,11 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle.ComputePrice;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.StoragePriceBundle;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
-import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
-import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
-import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -54,9 +54,9 @@ import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList.StorageTierPrice;
 
 /**
- * Unit tests for {@link MarketPriceTable}.
+ * Unit tests for {@link PriceTable}.
  */
-public class MarketPriceTableTest {
+public class CloudRateExtractorTest {
 
     private static final long AWS_COMPUTE_TIER_ID = 95348;
     private static final long AZURE_COMPUTE_TIER_ID = 25387;
@@ -102,23 +102,25 @@ public class MarketPriceTableTest {
         .build();
 
     /**
-     * Create a ComputeTierConfigPrice instance
+     * Create a ComputeTierConfigPrice instance.
+     *
      * @param os the OS for which we want to create a ComputeTierConfigPrice
      * @param price the dollar/hour price
      * @return A ComputeTierConfigPrice object with the given fields
      */
     private static ComputeTierConfigPrice createComputeTierConfigPrice(OSType os, double price) {
         return ComputeTierConfigPrice.newBuilder()
-            .setGuestOsType(os)
-            .addPrices(createPrice(price))
-            .build();
+                .setGuestOsType(os)
+                .addPrices(createPrice(price))
+                .build();
     }
 
     /**
-     * Create a ComputeTierPriceList instance
-     * @param baseOS the base OS for the price list
-     * @param prices the prices for the price list
-     * @return A ComputeTierPriceList object with the given prices
+     * Create a ComputeTierPriceList instance.
+     *
+     * @param baseOS the base OS for the price list.
+     * @param prices the prices for the price list.
+     * @return A ComputeTierPriceList object with the given prices.
      */
     private static ComputeTierPriceList createComputeTierPriceList(OSType baseOS, List<ComputeTierConfigPrice> prices) {
         ComputeTierPriceList.Builder computePriceList =  ComputeTierPriceList.newBuilder();
@@ -135,9 +137,10 @@ public class MarketPriceTableTest {
     }
 
     /**
-     * Create a Price instance
-     * @param amount number of dollars
-     * @return A price object with the given fields
+     * Create a Price instance.
+     *
+     * @param amount number of dollars.
+     * @return A price object with the given fields.
      */
     private static Price createPrice(double amount) {
         return Price.newBuilder()
@@ -149,7 +152,8 @@ public class MarketPriceTableTest {
     }
 
     /**
-     * Create a CommoditySoldDTO instance
+     * Create a CommoditySoldDTO instance.
+     *
      * @param os the OS for which we want to create a license commodity
      * @return A CommoditySoldDTO object for the given OS
      */
@@ -238,6 +242,9 @@ public class MarketPriceTableTest {
     private DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory =
             mock(DiscountApplicatorFactory.class);
 
+    /**
+     * Setup the test.
+     */
     @Before
     public void setup() {
         when(cloudCostData.getAccountPricingData(BUSINESS_ACCOUNT_ID)).thenReturn(Optional.ofNullable(accountPricingData));
@@ -301,13 +308,15 @@ public class MarketPriceTableTest {
             .thenReturn(redHatLpPriceTuple);
     }
 
+    /**
+     * Test Aws compute prices with no discount.
+     */
     @Test
     public void testAWSComputePriceBundleNoDiscount() {
         final long baId = 7L;
         doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
             .when(topology).getEntities();
-        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor);
+        final CloudRateExtractor mktPriceTable = new CloudRateExtractor(topology, infoExtractor);
 
         AccountPricingData<TopologyEntityDTO> accountPricingData1 =
                 Mockito.mock(AccountPricingData.class);
@@ -324,17 +333,19 @@ public class MarketPriceTableTest {
             new ComputePrice(baId, OSType.LINUX, LINUX_PRICE, true),
             new ComputePrice(baId, OSType.WINDOWS, LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT,
                 false),
-            new ComputePrice(baId, OSType.WINDOWS_WITH_SQL_WEB, LINUX_PRICE +
-                WINDOWS_SQL_WEB_PRICE_ADJUSTMENT, false),
+            new ComputePrice(baId, OSType.WINDOWS_WITH_SQL_WEB, LINUX_PRICE
+                    + WINDOWS_SQL_WEB_PRICE_ADJUSTMENT, false),
             new ComputePrice(baId, OSType.RHEL, LINUX_PRICE + RHEL_PRICE_ADJUSTMENT,
                 false)));
     }
 
+    /**
+     * Test Azure compute with no discount.
+     */
     @Test
     public void testAzureComputePriceBundleNoDiscount() {
         final long baId = 7L;
-        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-            infoExtractor);
+        final CloudRateExtractor mktPriceTable = new CloudRateExtractor(topology, infoExtractor);
 
         AccountPricingData<TopologyEntityDTO> accountPricingData1 =
                 Mockito.mock(AccountPricingData.class);
@@ -351,12 +362,15 @@ public class MarketPriceTableTest {
             new ComputePrice(baId, OSType.LINUX, LINUX_PRICE, true),
             new ComputePrice(baId, OSType.WINDOWS, LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT,
                 false),
-            new ComputePrice(baId, OSType.WINDOWS_WITH_SQL_WEB, LINUX_PRICE +
-                WINDOWS_PRICE_ADJUSTMENT + WINDOWS_SQL_WEB_LICENSE_PRICE, false),
+            new ComputePrice(baId, OSType.WINDOWS_WITH_SQL_WEB, LINUX_PRICE
+                    + WINDOWS_PRICE_ADJUSTMENT + WINDOWS_SQL_WEB_LICENSE_PRICE, false),
             new ComputePrice(baId, OSType.RHEL, LINUX_PRICE + RHEL_LICENSE_PRICE,
                 false)));
     }
 
+    /**
+     * Test Azure compute with discount.
+     */
     @Test
     public void testAWSComputePriceBundleWithDiscount() {
         final long noDiscountBaId = 7L;
@@ -366,8 +380,7 @@ public class MarketPriceTableTest {
         final DiscountApplicator<TopologyEntityDTO> discount = mock(DiscountApplicator.class);
         when(discount.getDiscountPercentage(AWS_COMPUTE_TIER_ID)).thenReturn(trax(0.2));
 
-        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor);
+        final CloudRateExtractor mktPriceTable = new CloudRateExtractor(topology, infoExtractor);
 
         AccountPricingData<TopologyEntityDTO> accountPricingData1 =
                 Mockito.mock(AccountPricingData.class);
@@ -393,12 +406,12 @@ public class MarketPriceTableTest {
 
         assertThat(priceBundle1.getPrices(), containsInAnyOrder(
                 new ComputePrice(noDiscountBaId, OSType.LINUX, LINUX_PRICE, true),
-                new ComputePrice(noDiscountBaId, OSType.WINDOWS, LINUX_PRICE +
-                    WINDOWS_PRICE_ADJUSTMENT, false),
+                new ComputePrice(noDiscountBaId, OSType.WINDOWS, LINUX_PRICE
+                        + WINDOWS_PRICE_ADJUSTMENT, false),
                 new ComputePrice(noDiscountBaId, OSType.WINDOWS_WITH_SQL_WEB,
                     LINUX_PRICE + WINDOWS_SQL_WEB_PRICE_ADJUSTMENT, false),
-                new ComputePrice(noDiscountBaId, OSType.RHEL, LINUX_PRICE +
-                    RHEL_PRICE_ADJUSTMENT, false)));
+                new ComputePrice(noDiscountBaId, OSType.RHEL, LINUX_PRICE
+                        + RHEL_PRICE_ADJUSTMENT, false)));
 
         assertThat(priceBundle2.getPrices(), containsInAnyOrder(new ComputePrice(discountBaId, OSType.LINUX,
                         LINUX_PRICE * 0.8, true),
@@ -411,6 +424,9 @@ public class MarketPriceTableTest {
 
     }
 
+    /**
+     * Test Azure compute price with discount.
+     */
     @Test
     public void testAzureComputePriceBundleWithDiscount() {
         final long noDiscountBaId = 7L;
@@ -420,7 +436,7 @@ public class MarketPriceTableTest {
         final DiscountApplicator<TopologyEntityDTO> discount = mock(DiscountApplicator.class);
         when(discount.getDiscountPercentage(AZURE_COMPUTE_TIER_ID)).thenReturn(trax(0.2));
 
-        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology, infoExtractor);
+        final CloudRateExtractor mktPriceTable = new CloudRateExtractor(topology, infoExtractor);
 
         AccountPricingData<TopologyEntityDTO> accountPricingData1 =
                 Mockito.mock(AccountPricingData.class);
@@ -446,8 +462,8 @@ public class MarketPriceTableTest {
 
         assertThat(priceBundle1.getPrices(), containsInAnyOrder(
                 new ComputePrice(noDiscountBaId, OSType.LINUX, LINUX_PRICE, true),
-                new ComputePrice(noDiscountBaId, OSType.WINDOWS, LINUX_PRICE +
-                        WINDOWS_PRICE_ADJUSTMENT, false),
+                new ComputePrice(noDiscountBaId, OSType.WINDOWS, LINUX_PRICE
+                        + WINDOWS_PRICE_ADJUSTMENT, false),
                 new ComputePrice(noDiscountBaId, OSType.WINDOWS_WITH_SQL_WEB,
                         LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT + WINDOWS_SQL_WEB_LICENSE_PRICE,
                         false),
@@ -464,6 +480,9 @@ public class MarketPriceTableTest {
                         LINUX_PRICE * 0.8 + RHEL_LICENSE_PRICE, false)));
     }
 
+    /**
+     * Test storage price bundle per month.
+     */
     @Test
     public void testStoragePriceBundleGBMonth() {
         // $10 for the first 7 GB-month, $15 for the next 3, $20 afterwards. (Not accumulative)
@@ -489,8 +508,7 @@ public class MarketPriceTableTest {
                 .build())
             .build();
         final long baId = 7L;
-        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor);
+        final CloudRateExtractor mktPriceTable = new CloudRateExtractor(topology, infoExtractor);
         AccountPricingData accountPricingData =
                 new AccountPricingData<>(DiscountApplicator.noDiscount(), priceTable, baId);
         final StoragePriceBundle storagePriceBundle =
@@ -532,6 +550,9 @@ public class MarketPriceTableTest {
         assertThat(storagePriceBundle.getPrices(BAR_STORAGE_ACCESS_COMM), is(Collections.emptyList()));
     }
 
+    /**
+     * Test storage price for iops.
+     */
     @Test
     public void testStoragePriceBundleIOPSMonth() {
         // $10 for the first 7 million-iops, $15 afterwards. (Not accumulative)
@@ -555,8 +576,7 @@ public class MarketPriceTableTest {
         final long baId = 7L;
         doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
                 .when(topology).getEntities();
-        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor);
+        final CloudRateExtractor mktPriceTable = new CloudRateExtractor(topology, infoExtractor);
         AccountPricingData accountPricingData =
                 new AccountPricingData<>(DiscountApplicator.noDiscount(), priceTable, baId);
         final StoragePriceBundle storagePriceBundle =
@@ -589,6 +609,9 @@ public class MarketPriceTableTest {
         assertThat(storagePriceBundle.getPrices(BAR_STORAGE_AMOUNT_COMM), is(Collections.emptyList()));
     }
 
+    /**
+     * Test Storage price bundle flat cost.
+     */
     @Test
     public void testStoragePriceBundleFlatCost() {
         // $10/month straight-up.
@@ -610,8 +633,7 @@ public class MarketPriceTableTest {
         when(accountPricingData.getAccountPricingDataOid()).thenReturn(baId);
         doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
                 .when(topology).getEntities();
-        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor);
+        final CloudRateExtractor mktPriceTable = new CloudRateExtractor(topology, infoExtractor);
         final StoragePriceBundle storagePriceBundle =
                 mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID, accountPricingData);
 
@@ -631,6 +653,9 @@ public class MarketPriceTableTest {
         assertThat(storagePriceBundle.getPrices(BAR_STORAGE_ACCESS_COMM), is(Collections.emptyList()));
     }
 
+    /**
+     * Test Storage price bundle with flat cost ranges.
+     */
     @Test
     public void testStoragePriceBundleFlatCostRanges() {
         // $10/month for the first 7 GB, $15/month afterwards. (not accumulative)
@@ -654,8 +679,7 @@ public class MarketPriceTableTest {
         final long baId = 7L;
         doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
                 .when(topology).getEntities();
-        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor);
+        final CloudRateExtractor mktPriceTable = new CloudRateExtractor(topology, infoExtractor);
         AccountPricingData<TopologyEntityDTO> accountPricingData =
                 Mockito.mock(AccountPricingData.class);
         when(accountPricingData.getAccountPricingDataOid()).thenReturn(baId);
@@ -693,6 +717,9 @@ public class MarketPriceTableTest {
         assertThat(storagePriceBundle.getPrices(BAR_STORAGE_ACCESS_COMM), is(Collections.emptyList()));
     }
 
+    /**
+     * Test storage price per month with a discount.
+     */
     @Test
     public void testStoragePriceBundleGBMonthWithDiscount() {
         // $10 for the first 7 GB-month, $15 afterwards. (Not accumulative)
@@ -718,8 +745,7 @@ public class MarketPriceTableTest {
         final DiscountApplicator<TopologyEntityDTO> discount = mock(DiscountApplicator.class);
         when(discount.getDiscountPercentage(STORAGE_TIER_ID)).thenReturn(trax(0.2));
 
-        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor);
+        final CloudRateExtractor mktPriceTable = new CloudRateExtractor(topology, infoExtractor);
         AccountPricingData<TopologyEntityDTO> accountPricingData
                 = Mockito.mock(AccountPricingData.class);
         when(cloudCostData.getAccountPricingData(baId)).thenReturn(Optional.of(accountPricingData));

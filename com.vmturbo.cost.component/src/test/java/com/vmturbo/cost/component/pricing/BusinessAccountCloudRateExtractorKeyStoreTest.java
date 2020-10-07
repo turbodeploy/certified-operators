@@ -40,7 +40,7 @@ import com.vmturbo.sql.utils.DbException;
 /**
  * Context Configuration for this test class.
  */
-public class BusinessAccountPriceTableKeyStoreTest {
+public class BusinessAccountCloudRateExtractorKeyStoreTest {
     /**
      * Rule to create the DB schema and migrate it.
      */

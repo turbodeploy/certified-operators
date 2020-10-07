@@ -29,7 +29,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -57,7 +57,7 @@ public class TopologyConverterGuaranteedTest {
             .build();
     private static Map<Long, TopologyEntityDTO> entities;
 
-    private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+    private CloudRateExtractor marketCloudRateExtractor = mock(CloudRateExtractor.class);
 
     private CloudCostData ccd = mock(CloudCostData.class);
 
@@ -130,7 +130,7 @@ public class TopologyConverterGuaranteedTest {
     public void testExcludeVDCs() {
         // includeVDC is false
         TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketPriceTable, ccd,
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketCloudRateExtractor, ccd,
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
                     reversibilitySettingFetcher);
         Set<TraderTO> traders = converter.convertToMarket(entities);
@@ -154,7 +154,7 @@ public class TopologyConverterGuaranteedTest {
         TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         assertEquals(6, traders.size());

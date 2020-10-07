@@ -86,12 +86,12 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.ReservedCapacityAnalysis;
 import com.vmturbo.market.runner.WastedFilesAnalysis;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.conversions.CommodityIndex.CommodityIndexFactory;
@@ -145,7 +145,7 @@ public class TopologyConverterFromMarketTest {
     private static final float THRUGHPUT_USED = 30;
     private static final double VMEM_USAGE = 10;
 
-    private final MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+    private final CloudRateExtractor marketCloudRateExtractor = mock(CloudRateExtractor.class);
     private final CommodityConverter mockCommodityConverter = mock(CommodityConverter.class);
     private final CloudCostData mockCCD = mock(CloudCostData.class);
     private TopologyConverter converter;
@@ -229,7 +229,7 @@ public class TopologyConverterFromMarketTest {
                 MarketAnalysisUtils.QUOTE_FACTOR,
                 MarketMode.M2Only,
                 MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable,
+                marketCloudRateExtractor,
                 mockCommodityConverter,
                 mockCCD,
                 commodityIndexFactory,
@@ -752,7 +752,7 @@ public class TopologyConverterFromMarketTest {
         // converter under test
         TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                 false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, mockCommodityConverter, indexFactory, tierExcluderFactory,
+                marketCloudRateExtractor, mockCommodityConverter, indexFactory, tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher));
 
         // warning: introspection follows...
@@ -898,7 +898,7 @@ public class TopologyConverterFromMarketTest {
         TopologyConverter converter = Mockito.spy(new TopologyConverter(
                         TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(), false,
                         MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                        marketPriceTable, mockCommodityConverter, mockCCD, indexFactory,
+                marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory,
                         tierExcluderFactory,
                         consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
 
@@ -1447,7 +1447,7 @@ public class TopologyConverterFromMarketTest {
                 .setTopologyType(TopologyType.PLAN).build();
         TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
+                marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
             consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
         converter.setCloudTc(mockCloudTc);
 
@@ -1549,7 +1549,7 @@ public class TopologyConverterFromMarketTest {
                 .setTopologyType(TopologyType.PLAN).build();
         TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
+                marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
                 consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
         converter.setCloudTc(mockCloudTc);
 
@@ -2309,7 +2309,7 @@ public class TopologyConverterFromMarketTest {
         DiscountApplicator discountApplicator = mock(DiscountApplicator.class);
         converter.getCloudTc().insertIntoAccountPricingDataByBusinessAccountOidMap(baOid,
                 new AccountPricingData(discountApplicator,
-                        PriceTable.newBuilder().getDefaultInstanceForType(),
+                        com.vmturbo.common.protobuf.cost.Pricing.PriceTable.newBuilder().getDefaultInstanceForType(),
                         baOid));
         Map<Long, Set<ConnectedEntity>> businessAccountsToNewlyOwnedEntities =
                 converter.getCloudTc().getBusinessAccountsToNewlyOwnedEntities(

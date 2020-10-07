@@ -17,15 +17,24 @@ import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.IpPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
 
-public class PriceTableMergeTest {
+/**
+ * Class for testing merging price tables in cloud rate extractor.
+ */
+public class CloudRateExtractorMergeTest {
 
     private PriceTableMerge merge = PriceTableMerge.newFactory().newMerge();
 
+    /**
+     * Testing empty merge.
+     */
     @Test
     public void testMergeEmpty() {
         assertThat(merge.merge(Collections.emptyList()), is(PriceTable.getDefaultInstance()));
     }
 
+    /**
+     * Testing merges for single price tables.
+     */
     @Test
     public void testMergeSinglePriceTable() {
         final PriceTable priceTable = PriceTable.newBuilder()
@@ -34,6 +43,9 @@ public class PriceTableMergeTest {
         assertThat(merge.merge(Collections.singleton(priceTable)), is(priceTable));
     }
 
+    /**
+     * Testing merges for multiple on demand tables.
+     */
     @Test
     public void testMergeOnDemandTables() {
         final long region1Id = 7L;
@@ -59,6 +71,9 @@ public class PriceTableMergeTest {
         assertThat(merge.merge(Arrays.asList(priceTable1, priceTable2)), is(mergedPriceTable));
     }
 
+    /**
+     * Testing merges for on demand tables with duplicate regions.
+     */
     @Test
     public void testMergeOnDemandTablesDropDuplicateRegion() {
         final long region1Id = 7L;
@@ -83,6 +98,9 @@ public class PriceTableMergeTest {
         assertThat(merge.merge(Arrays.asList(priceTable1, priceTable2)), is(mergedPriceTable));
     }
 
+    /**
+     * Testing merging spot tables.
+     */
     @Test
     public void testMergeSpotTables() {
         final long region1Id = 7L;
@@ -108,6 +126,9 @@ public class PriceTableMergeTest {
         assertThat(merge.merge(Arrays.asList(priceTable1, priceTable2)), is(mergedPriceTable));
     }
 
+    /**
+     * Test merging spot tables with duplicate regions.
+     */
     @Test
     public void testMergeSpotTablesDropDuplicateRegion() {
         final long region1Id = 7L;
@@ -132,11 +153,17 @@ public class PriceTableMergeTest {
         assertThat(merge.merge(Arrays.asList(priceTable1, priceTable2)), is(mergedPriceTable));
     }
 
+    /**
+     * Test merging RI price table with empty list.
+     */
     @Test
     public void testMergeRiEmpty() {
         assertThat(merge.mergeRi(Collections.emptyList()), is(ReservedInstancePriceTable.getDefaultInstance()));
     }
 
+    /**
+     * Test merging single RI price table.
+     */
     @Test
     public void testMergeSingleRiPriceTable() {
         final ReservedInstancePriceTable priceTable = ReservedInstancePriceTable.newBuilder()
@@ -145,6 +172,9 @@ public class PriceTableMergeTest {
         assertThat(merge.mergeRi(Collections.singleton(priceTable)), is(priceTable));
     }
 
+    /**
+     * Test merging multiple RI price tables.
+     */
     @Test
     public void testMergeRiTables() {
         final ReservedInstancePriceTable priceTable1 = ReservedInstancePriceTable.newBuilder()
@@ -160,6 +190,9 @@ public class PriceTableMergeTest {
                     .build()));
     }
 
+    /**
+     * Test merging RI price tables with duplicate specs.
+     */
     @Test
     public void testMergeRiTablesDuplicateSpecs() {
         final ReservedInstancePriceTable priceTable1 = ReservedInstancePriceTable.newBuilder()

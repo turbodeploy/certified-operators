@@ -41,8 +41,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
@@ -92,7 +92,7 @@ public class CloudTopologyConverter {
      * @param commodityConverter commodity converter
      * @param azToRegionMap mapping of AZs to Regions
      * @param businessAccounts The set of business accounts
-     * @param marketPriceTable The market price table
+     * @param marketCloudRateExtractor The market price table
      * @param cloudCostData Cloud Cost data
      * @param tierExcluder tier exclusion applicator which is used to apply tier
      *                                exclusion settings
@@ -107,7 +107,7 @@ public class CloudTopologyConverter {
              @Nonnull CommodityConverter commodityConverter,
              @Nonnull Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap,
              @Nonnull Set<TopologyEntityDTO> businessAccounts,
-             @Nonnull MarketPriceTable marketPriceTable,
+             @Nonnull CloudRateExtractor marketCloudRateExtractor,
              @Nonnull CloudCostData cloudCostData,
              @Nonnull TierExcluder tierExcluder,
              @Nullable CloudTopology<TopologyEntityDTO> cloudTopology) {
@@ -115,7 +115,8 @@ public class CloudTopologyConverter {
          this.pmBasedBicliquer = pmBasedBicliquer;
          this.dsBasedBicliquer = dsBasedBicliquer;
          this.azToRegionMap = azToRegionMap;
-         CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter, marketPriceTable);
+         CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter,
+                 marketCloudRateExtractor);
          this.computeTierConverter = new ComputeTierConverter(topologyInfo, commodityConverter, costDTOCreator, tierExcluder);
          this.storageTierConverter = new StorageTierConverter(topologyInfo, commodityConverter, costDTOCreator);
          this.riConverter = new ReservedInstanceConverter(topologyInfo, commodityConverter,

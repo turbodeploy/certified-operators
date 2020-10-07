@@ -27,11 +27,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.DatabasePriceBundle;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.DatabasePriceBundle.DatabasePrice.StorageOption;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
-import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
-import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
-import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle.DatabasePrice.StorageOption;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
@@ -75,7 +75,7 @@ public class CostDTOCreatorTest {
     public static final int DB_TIER_REGION_ID = 772;
 
     private static List<TopologyEntityDTO> REGIONS;
-    private MarketPriceTable marketPriceTable;
+    private CloudRateExtractor marketCloudRateExtractor;
     private CommodityConverter converter;
 
     /**
@@ -83,7 +83,7 @@ public class CostDTOCreatorTest {
      */
     @Before
     public void setup() {
-        marketPriceTable = mock(MarketPriceTable.class);
+        marketCloudRateExtractor = mock(CloudRateExtractor.class);
         converter = mock(CommodityConverter.class);
     }
 
@@ -94,7 +94,7 @@ public class CostDTOCreatorTest {
     @Test
     public void testOSTypeMappings() {
         List<OSType> osWithoutMapping = new ArrayList<>();
-        Map<OSType, String> inversedOSTypeMapping = MarketPriceTable.OS_TYPE_MAP.entrySet().stream().collect(
+        Map<OSType, String> inversedOSTypeMapping = CloudRateExtractor.OS_TYPE_MAP.entrySet().stream().collect(
                 Collectors.toMap(Entry::getValue, Entry::getKey));
         for (OSType os : OSType.values()) {
             if (os != OSType.WINDOWS_SERVER && os != OSType.WINDOWS_SERVER_BURST &&
@@ -153,7 +153,7 @@ public class CostDTOCreatorTest {
                         DeploymentType.MULTI_AZ, LicenseModel.BRING_YOUR_OWN_LICENSE, 0.4,
                         Collections.emptyList())
                 .build();
-        when(marketPriceTable.getDatabasePriceBundle(TIER_ID, REGION_ID, accountPricingData)).thenReturn(databasePriceBundle);
+        when(marketCloudRateExtractor.getDatabasePriceBundle(TIER_ID, REGION_ID, accountPricingData)).thenReturn(databasePriceBundle);
         ComputePriceBundle computeBundle = ComputePriceBundle.newBuilder()
                 .addPrice(BA_ID, OSType.LINUX, 0.5, true)
                 .build();
@@ -185,7 +185,7 @@ public class CostDTOCreatorTest {
                         .build())
                 .build();
 
-        when(marketPriceTable.getComputePriceBundle(tier, REGION_ID, accountPricingData))
+        when(marketCloudRateExtractor.getComputePriceBundle(tier, REGION_ID, accountPricingData))
             .thenReturn(computeBundle);
         return tier;
     }
@@ -199,10 +199,10 @@ public class CostDTOCreatorTest {
         Set<TopologyEntityDTO> bas = new HashSet<>();
         bas.add(BA);
         Map<Long, AccountPricingData> accountPricingDatabyBusinessAccountMap = new HashMap<>();
-        CostDTOCreator costDTOCreator = new CostDTOCreator(converter, marketPriceTable);
+        CostDTOCreator costDTOCreator = new CostDTOCreator(converter, marketCloudRateExtractor);
         AccountPricingData accountPricingData = mock(AccountPricingData.class);
         for (TopologyEntityDTO region: REGIONS) {
-            when(marketPriceTable.getComputePriceBundle(tier, region.getOid(), accountPricingData)).thenReturn(ComputePriceBundle.newBuilder().build());
+            when(marketCloudRateExtractor.getComputePriceBundle(tier, region.getOid(), accountPricingData)).thenReturn(ComputePriceBundle.newBuilder().build());
         }
         accountPricingDatabyBusinessAccountMap.put(BA_ID, accountPricingData);
         HashSet<AccountPricingData> uniqueAccountPricingData = new HashSet<>(accountPricingDatabyBusinessAccountMap.values());
@@ -220,7 +220,7 @@ public class CostDTOCreatorTest {
     @Test
     public void testCreateStorageTierCostDTO() {
         TopologyEntityDTO storageTier = createStorageTier();
-        CostDTO costDTO = new CostDTOCreator(converter, marketPriceTable)
+        CostDTO costDTO = new CostDTOCreator(converter, marketCloudRateExtractor)
                 .createStorageTierCostDTO(storageTier, Collections.emptyList(), Collections.emptySet());
         StorageTierCostDTO storageTierCostDTO = costDTO.getStorageTierCost();
         assertNotNull(storageTierCostDTO);
@@ -259,9 +259,9 @@ public class CostDTOCreatorTest {
                         DeploymentType.MULTI_AZ, LicenseModel.NO_LICENSE_REQUIRED, 0.4,
                         storageOptions)
                 .build();
-        when(marketPriceTable.getDatabasePriceBundle(DB_TIER_ID, DB_TIER_REGION_ID,
+        when(marketCloudRateExtractor.getDatabasePriceBundle(DB_TIER_ID, DB_TIER_REGION_ID,
                 accountPricingData)).thenReturn(databasePriceBundle);
-        CostDTOCreator costDTOCreator = new CostDTOCreator(converter, marketPriceTable);
+        CostDTOCreator costDTOCreator = new CostDTOCreator(converter, marketCloudRateExtractor);
         Set<AccountPricingData> accountPricingDataSet = new HashSet<>();
         accountPricingDataSet.add(accountPricingData);
         List<TopologyEntityDTO> regions = new ArrayList<>();

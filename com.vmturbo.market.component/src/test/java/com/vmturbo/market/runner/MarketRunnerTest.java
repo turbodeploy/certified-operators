@@ -29,6 +29,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import org.junit.After;
 import org.junit.Before;
@@ -64,7 +65,6 @@ import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
@@ -161,7 +161,8 @@ public class MarketRunnerTest {
             final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
             when(cloudCostCalculatorFactory.newCalculator(topologyInfo, any())).thenReturn(cloudCostCalculator);
             final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
-            when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
+            when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(
+                    CloudRateExtractor.class));
             when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
             final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
                 mock(WastedFilesAnalysisFactory.class);

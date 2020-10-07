@@ -76,8 +76,8 @@ import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
-import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
@@ -138,7 +138,7 @@ public class TopologyConverterToMarketTest {
     private CommodityType topologyCommodity1;
     private CommoditySpecificationTO economyCommodity2;
     private CommodityType topologyCommodity2;
-    private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+    private CloudRateExtractor marketCloudRateExtractor = mock(CloudRateExtractor.class);
     private CloudCostData ccd = spy(new CloudCostData<>(new HashMap<>(), new HashMap<>(), new HashMap<>(),
             new HashMap<>(), new HashMap<>(), new HashMap<>()));
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
@@ -187,8 +187,7 @@ public class TopologyConverterToMarketTest {
         TopologyDTO.TopologyEntityDTO entityDto = DTOWithProvisionedAndCloneWithNewTypeComm();
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
             MarketAnalysisUtils.QUOTE_FACTOR,
-            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-            marketPriceTable,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, marketCloudRateExtractor,
             ccd,
             CommodityIndex.newFactory(),
             tierExcluderFactory,
@@ -221,7 +220,7 @@ public class TopologyConverterToMarketTest {
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
             MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-            marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+            marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher);
         TraderTO traderTO = converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto)).iterator().next();
         assertFalse(traderTO.getCommoditiesSold(0).getSettings().getResizable());
@@ -436,8 +435,7 @@ public class TopologyConverterToMarketTest {
         // as the implementation of the ID allocator doesn't change.
         final TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable,
+                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, marketCloudRateExtractor,
                 ccd,
                 CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
@@ -478,8 +476,7 @@ public class TopologyConverterToMarketTest {
 
         final TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable,
+                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, marketCloudRateExtractor,
                 ccd,
                 CommodityIndex.newFactory(),
                 tierExcluderFactory,
@@ -517,7 +514,7 @@ public class TopologyConverterToMarketTest {
                                          @Nonnull final TopologyInfo topologyInfo) {
         return new TopologyConverter(topologyInfo, true, MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-            marketPriceTable,
+            marketCloudRateExtractor,
             ccd, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher)
             .convertToMarket(topology.stream()
@@ -539,7 +536,7 @@ public class TopologyConverterToMarketTest {
         Set<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
             MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-            marketPriceTable,
+            marketCloudRateExtractor,
             ccd, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher)
             .convertToMarket(topologyDTOs);
@@ -649,7 +646,7 @@ public class TopologyConverterToMarketTest {
         TopologyDTO.TopologyEntityDTO unknownStorage = TopologyDTO.TopologyEntityDTO.newBuilder()
             .setOid(1005L).setEntityType(2).setEntityState(TopologyDTO.EntityState.UNKNOWN).build();
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-            marketPriceTable,
+            marketCloudRateExtractor,
             ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
             reversibilitySettingFetcher);
         assertEquals(4, converter.convertToMarket(
@@ -864,7 +861,7 @@ public class TopologyConverterToMarketTest {
 
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
         final List<CommodityBoughtTO> boughtTOs = converter.createAndValidateCommBoughtTO(entityDTO,
                 boughtCommodityDTO, 1005L, Optional.empty());
@@ -930,7 +927,7 @@ public class TopologyConverterToMarketTest {
                 .build();
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
             MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-            marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+            marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher);
         Map<Long, TopologyEntityDTO> topology = new HashMap<>();
         topology.put(pmEntityDTO.getOid(), pmEntityDTO);
@@ -1219,8 +1216,7 @@ public class TopologyConverterToMarketTest {
         final TopologyConverter converter =
                 new TopologyConverter(topologyInfo, true,
                     MarketAnalysisUtils.QUOTE_FACTOR,
-                    MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                    marketPriceTable,
+                    MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, marketCloudRateExtractor,
                     ccd,
                     CommodityIndex.newFactory(), tierExcluderFactory,
                     consistentScalingHelperFactory, reversibilitySettingFetcher);
@@ -1382,7 +1378,7 @@ public class TopologyConverterToMarketTest {
                 null);
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
 
         final Set<TraderTO> traders =
@@ -1425,7 +1421,7 @@ public class TopologyConverterToMarketTest {
                 null);
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
 
         final Set<TraderTO> traders =
@@ -1464,7 +1460,7 @@ public class TopologyConverterToMarketTest {
                 null);
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
 
         final Set<TraderTO> traders =
@@ -1563,7 +1559,7 @@ public class TopologyConverterToMarketTest {
                 .build();
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
         Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
         entityMap.put(entityDTO.getOid(), entityDTO);
@@ -1599,7 +1595,7 @@ public class TopologyConverterToMarketTest {
             .build();
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
         Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
         entityMap.put(entityDTO.getOid(), entityDTO);
@@ -1633,7 +1629,7 @@ public class TopologyConverterToMarketTest {
             .build();
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
         Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
         entityMap.put(entityDTO.getOid(), entityDTO);
@@ -1791,7 +1787,7 @@ public class TopologyConverterToMarketTest {
 
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
 
         final List<CommodityBoughtTO> boughtTOs = converter.createAndValidateCommBoughtTO(user, boughtCommodityDTO, 1005L, Optional.empty());
@@ -1834,7 +1830,7 @@ public class TopologyConverterToMarketTest {
         Set<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
             MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-            marketPriceTable,
+            marketCloudRateExtractor,
             ccd, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher)
             .convertToMarket(topologyDTOs);
@@ -1888,7 +1884,7 @@ public class TopologyConverterToMarketTest {
         final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
             MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-            marketPriceTable,
+            marketCloudRateExtractor,
             ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
         final CommoditiesResizeTracker resizeTracker = Mockito.mock(CommoditiesResizeTracker.class);
@@ -1936,7 +1932,7 @@ public class TopologyConverterToMarketTest {
         Set<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
             MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-            marketPriceTable,
+            marketCloudRateExtractor,
             ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher)
             .convertToMarket(topologyDTOs);
@@ -2009,7 +2005,7 @@ public class TopologyConverterToMarketTest {
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
             MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-            marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+            marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher);
 
         final Map<Long, Map<CommodityType, Pair<Double, Double>>> result =
@@ -2040,7 +2036,7 @@ public class TopologyConverterToMarketTest {
         final TopologyConverter topologyConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
                 MarketAnalysisUtils.QUOTE_FACTOR,
                 MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable,
+                marketCloudRateExtractor,
                 ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
         final long computeTierOid = 111111L;
@@ -2131,7 +2127,7 @@ public class TopologyConverterToMarketTest {
                 false,
                 MarketAnalysisUtils.QUOTE_FACTOR,
                 MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable,
+                marketCloudRateExtractor,
                 ccd,
                 CommodityIndex.newFactory(),
                 tierExcluderFactory,
