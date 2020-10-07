@@ -516,12 +516,9 @@ public class LiveActionStore implements ActionStore {
                 .forEach(action -> action.receive(new NotRecommendedEvent(planId)));
 
             // Creating the atomic action DTOs and action views, the process above is repeated
-            if (!aggregatedActions.isEmpty()) {
-                logger.info("{} market actions will be merged from total {}",
-                                            mergedActionViews.size(), marketActions.size());
-                populateAtomicActions(planId, aggregatedActions, mergedActionViews,
+            // Any previously created atomic actions that are not re-generated will be removed
+            populateAtomicActions(planId, aggregatedActions, mergedActionViews,
                                         lastExecutedRecommendationsTracker, snapshot);
-            }
 
             // Record the action stats.
             // TODO (roman, Nov 15 2018): For actions completed since the last snapshot, it may make

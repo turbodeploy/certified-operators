@@ -1342,6 +1342,41 @@ public class LiveActionStoreTest {
     }
 
     /**
+     * Test that atomic actions that are not re-created, when the resizes are disabled in the
+     * subsequent market action plans, are removed from the action store.
+     *
+     * @throws Exception thrown by the LiveActionStore if the current thread has been interrupted
+     */
+    @Test
+    public void testRemovalOfAtomicActionsForDisabledResizes() throws Exception {
+        ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
+        ActionDTO.Action.Builder resize1 = resize(container1);
+        ActionDTO.Action.Builder resize2 = resize(container2);
+
+        ActionPlan firstPlan = ActionPlan.newBuilder()
+                .setInfo(actionPlanInfo)
+                .setId(firstPlanId)
+                .addAction(firstMove)
+                .addAction(resize1).addAction(resize2)
+                .build();
+
+        actionStore.populateRecommendedActions(firstPlan);
+
+        assertEquals(3, actionStore.size());
+        assertActionCount(1, 2);
+
+        ActionPlan secondPlan = ActionPlan.newBuilder()
+                .setInfo(actionPlanInfo)
+                .setId(secondPlanId)
+                .build();
+
+        actionStore.populateRecommendedActions(secondPlan);
+
+        // check action count
+        assertActionCount(0, 0);
+    }
+
+    /**
      * Test atomic resize action OIDs when they contain resizes for multiple de-duplication targets.
      * First plan contains resizes for container1
      * 2 Atomic Resize actions created for targets
