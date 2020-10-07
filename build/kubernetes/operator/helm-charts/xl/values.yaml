@@ -40,7 +40,7 @@ global:
 #  dbSecretName: foo
   # The above specifies the name of the Kubernetes secret holding the MariaDB credentials
   # - Relevant components are: action-orchestrator, auth, clustermgr, cost, group, history,
-  #   plan-orchestrator and topology-processor.
+  #   plan-orchestrator, repository and topology-processor.
   # - Secret name is customizable for each component (by placing the same var under the
   #   component's section).
   # Secret format in yaml:
