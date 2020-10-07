@@ -69,11 +69,12 @@ public class GroupDiagnosticsConfig {
     @Bean
     public DiagnosticsHandlerImportable diagsHandler() {
         return new TransactionalDiagnosticsHandlerImportable(recursiveZipReaderFactory(),
-                Lists.newArrayList(groupStoreDiagnostics(), policyConfig.policyStore(),
+                Lists.newArrayList(groupStoreDiagnostics(), scheduleConfig.scheduleStore(),
+                        policyConfig.policyStore(),
                         settingConfig.settingStore(),
                         topologyDataDefConfig.topologyDataDefinitionStore(),
                         topologyDataDefConfig.persistentTopologyDataDefinitionIdentityStore(),
-                        scheduleConfig.scheduleStore(), prometheusDiagnisticsProvider()),
+                        prometheusDiagnisticsProvider()),
                 databaseConfig.dsl());
     }
 
