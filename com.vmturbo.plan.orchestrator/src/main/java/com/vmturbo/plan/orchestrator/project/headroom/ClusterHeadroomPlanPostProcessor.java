@@ -22,6 +22,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.turbonomic.cpucapacity.CPUCapacityEstimator;
@@ -274,6 +275,9 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     }
 
     private void doHeadroomCalculation(@Nonnull final Map<Long, HeadroomEntity> entitiesById) {
+        logger.info("Starting cluster headroom calculation on {} entities.", entitiesById.size());
+        final Stopwatch stopwatch = Stopwatch.createStarted();
+
         // Group headroom entities by cluster and entity type.
         final Map<Long, Map<Integer, List<HeadroomEntity>>> entityOidsByClusterAndType =
             groupHeadroomEntities(entitiesById);
@@ -308,6 +312,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         }
 
         saveClusterHeadroomInfo(clusterHeadroomInfos);
+        logger.info("Completed headroom calculation in {} seconds.", stopwatch.elapsed(TimeUnit.SECONDS));
+        stopwatch.stop();
     }
 
     /**
@@ -511,13 +517,13 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         Map<Set<Integer>, Map<Integer, Double>> commoditiesBoughtByTemplate =
             getCommoditiesBoughtByTemplate(template.get());
 
-        CommodityHeadroom cpuHeadroom = calculateHeadroom(cluster,
+        CommodityHeadroom cpuHeadroom = calculateHeadroom(
             headroomEntities.get(EntityType.PHYSICAL_MACHINE_VALUE),
             commoditiesBoughtByTemplate.get(CPU_HEADROOM_COMMODITIES), vmDailyGrowth);
-        CommodityHeadroom memHeadroom = calculateHeadroom(cluster,
+        CommodityHeadroom memHeadroom = calculateHeadroom(
             headroomEntities.get(EntityType.PHYSICAL_MACHINE_VALUE),
             commoditiesBoughtByTemplate.get(MEM_HEADROOM_COMMODITIES), vmDailyGrowth);
-        CommodityHeadroom storageHeadroom = calculateHeadroom(cluster,
+        CommodityHeadroom storageHeadroom = calculateHeadroom(
             headroomEntities.get(EntityType.STORAGE_VALUE),
             commoditiesBoughtByTemplate.get(STORAGE_HEADROOM_COMMODITIES), vmDailyGrowth);
 
@@ -614,14 +620,12 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      *                     for given commodity when cluster is empty.
      * 3) DaysToExhaustion : calculated based on calculated headroom and given vmGrowth.
      *
-     * @param cluster calculate headroom for this cluster
      * @param entities relevant for headroom calculation
      * @param headroomCommodities for which headroom is calculated
      * @param vmDailyGrowth the averaged number of daily added VMs since past lookBackDays
      * @return computed headroom data
      */
     private CommodityHeadroom calculateHeadroom(
-        @Nonnull final Grouping cluster,
         @Nonnull final Collection<HeadroomEntity> entities,
         @Nonnull final Map<Integer, Double> headroomCommodities,
         final float vmDailyGrowth) {
@@ -655,6 +659,9 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                     continue;
                 }
                 if (!comm.hasCapacity() || comm.getCapacity() <= 0) {
+                    logger.error("Commodity sold {} of {} ({}) doesn't have capacity or has non-positive capacity.",
+                        CommodityDTO.CommodityType.forNumber(commType).name(),
+                        entity.getDisplayName(), entity.getOid());
                     continue;
                 }
                 // Set effective capacity
@@ -664,9 +671,9 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 double availableAmount =  capacity - used;
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Commodity sold {} of {} has used/capacity ({}/{}) with scaling factor {}",
+                    logger.trace("Commodity sold {} of {} ({}) has used/capacity ({}/{}) with scaling factor {}",
                         CommodityDTO.CommodityType.forNumber(commType).name(),
-                        entity.getDisplayName(), used, capacity, comm.getScalingFactor());
+                        entity.getDisplayName(), entity.getOid(), used, capacity, comm.getScalingFactor());
                 }
 
                 double headroomAvailable = availableAmount > 0
@@ -676,8 +683,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                     minAvailableCommodity = commType;
                 }
 
-                double headroomCapacity  = 0d;
-                headroomCapacity = Math.floor(capacity / templateCommodityUsed);
+                double headroomCapacity = Math.floor(capacity / templateCommodityUsed);
                 if (headroomCapacity < headroomCapacityForCurrentEntity) {
                     headroomCapacityForCurrentEntity = headroomCapacity;
                     minCapacityCommodity = commType;
@@ -685,8 +691,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             }
 
             if (minAvailableCommodity == -1 || minCapacityCommodity == -1) {
-                logger.error("Template has used value 0 for some commodities in cluster : "
-                    + cluster.getDefinition().getDisplayName() + " and id " + cluster.getId());
+                logger.info("Commodities {} of template are 0", headroomCommodities.keySet());
                 return CommodityHeadroom.getDefaultInstance();
             }
 
@@ -710,6 +715,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 totalHeadroomCapacity += headroomCapacityForCurrentEntity;
             }
         }
+
         return CommodityHeadroom.newBuilder()
             .setHeadroom(totalHeadroomAvailable)
             .setCapacity(totalHeadroomCapacity)
