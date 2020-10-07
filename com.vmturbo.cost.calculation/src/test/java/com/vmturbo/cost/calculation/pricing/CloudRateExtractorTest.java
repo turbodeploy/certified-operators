@@ -5,6 +5,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -63,6 +64,7 @@ public class CloudRateExtractorTest {
     private static final int NUM_OF_CORES = 4;
 
     private static final long STORAGE_TIER_ID = 77;
+    private static final long IO2_TIER_ID = 78;
 
     private static final long REGION_ID = 8;
 
@@ -225,6 +227,16 @@ public class CloudRateExtractorTest {
                     .setCommodityType(BAR_STORAGE_AMOUNT_COMM))
             .build();
 
+    private static final TopologyEntityDTO IO2_STORAGE_TIER = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.STORAGE_TIER_VALUE)
+            .setDisplayName("IO2")
+            .setOid(IO2_TIER_ID)
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(FOO_STORAGE_ACCESS_COMM))
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(FOO_STORAGE_AMOUNT_COMM))
+            .build();
+
     private static final TopologyEntityDTO REGION = TopologyEntityDTO.newBuilder()
         .setEntityType(EntityType.REGION_VALUE)
         .setOid(REGION_ID)
@@ -253,6 +265,7 @@ public class CloudRateExtractorTest {
         when(topology.getEntity(AWS_COMPUTE_TIER_ID)).thenReturn(Optional.of(AWS_COMPUTE_TIER));
         when(topology.getEntity(AZURE_COMPUTE_TIER_ID)).thenReturn(Optional.of(AZURE_COMPUTE_TIER));
         when(topology.getEntity(STORAGE_TIER_ID)).thenReturn(Optional.of(STORAGE_TIER));
+        when(topology.getEntity(IO2_TIER_ID)).thenReturn(Optional.of(IO2_STORAGE_TIER));
         /*initializeAWSLicensePriceTuples();
         initializeAzureLicensePriceTuples();*/
     }
@@ -781,6 +794,48 @@ public class CloudRateExtractorTest {
         assertThat(storagePriceBundle.getPrices(BAR_STORAGE_AMOUNT_COMM), contains(expectedData.toArray()));
         assertThat(storagePriceBundle.getPrices(FOO_STORAGE_ACCESS_COMM), is(Collections.emptyList()));
         assertThat(storagePriceBundle.getPrices(BAR_STORAGE_ACCESS_COMM), is(Collections.emptyList()));
+    }
+
+    /**
+     * Test that IO2 storageTier cost price has a tiny decrease.
+     */
+    @Test
+    public void testIO2StorageTierPriceWithTinyDecrease() {
+        final double stAmountHourlyPrice = 2E-4;
+        final double iopsHourlyPrice = 1E-4;
+        final PriceTable priceTable = PriceTable.newBuilder()
+                .putOnDemandPriceByRegionId(REGION_ID, OnDemandPriceTable.newBuilder()
+                        .putCloudStoragePricesByTierId(IO2_TIER_ID, StorageTierPriceList.newBuilder()
+                                .addCloudStoragePrice(StorageTierPrice.newBuilder()
+                                        .addPrices(Price.newBuilder()
+                                                .setPriceAmount(CurrencyAmount.newBuilder()
+                                                        .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.GB_MONTH, stAmountHourlyPrice)))
+                                                .setUnit(Unit.GB_MONTH))
+                                        .addPrices(Price.newBuilder()
+                                                .setPriceAmount(CurrencyAmount.newBuilder()
+                                                        .setAmount(CostProtoUtil.getUnitPriceAmount(Unit.MILLION_IOPS, iopsHourlyPrice)))
+                                                .setUnit(Unit.MILLION_IOPS)))
+                                .build())
+                        .build())
+                .build();
+        final long baId = 7L;
+        final CloudRateExtractor mktPriceTable = new CloudRateExtractor(topology, infoExtractor);
+        AccountPricingData accountPricingData =
+                new AccountPricingData<>(DiscountApplicator.noDiscount(), priceTable, baId);
+        final StoragePriceBundle storagePriceBundle =
+                mktPriceTable.getStoragePriceBundle(IO2_TIER_ID, REGION_ID, accountPricingData);
+        final double tinyDecrease = Math.ulp(1.0);
+        assertEquals(1, storagePriceBundle.getPrices(FOO_STORAGE_AMOUNT_COMM).size());
+        StorageTierPriceData stAmountPriceData = storagePriceBundle.getPrices(FOO_STORAGE_AMOUNT_COMM).get(0);
+        assertEquals(1, stAmountPriceData.getCostTupleListCount());
+        CostTuple stAmountCostTuple = stAmountPriceData.getCostTupleList(0);
+        assertEquals(stAmountHourlyPrice - tinyDecrease, stAmountCostTuple.getPrice(), 1E16);
+
+        assertEquals(1, storagePriceBundle.getPrices(FOO_STORAGE_ACCESS_COMM).size());
+        StorageTierPriceData iopsPriceData = storagePriceBundle.getPrices(FOO_STORAGE_ACCESS_COMM).get(0);
+        assertEquals(1, iopsPriceData.getCostTupleListCount());
+        CostTuple iopsCostTuple = iopsPriceData.getCostTupleList(0);
+        assertEquals(iopsHourlyPrice - tinyDecrease, iopsCostTuple.getPrice(), 1E16);
     }
 
     private TopologyEntityDTO makeBusinessAccount(final long id,

@@ -16,6 +16,7 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
@@ -64,6 +65,8 @@ public class CloudRateExtractor {
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
     private final EntityInfoExtractor<TopologyEntityDTO> entityInfoExtractor;
+
+    private static final Set<String> TIERS_WITH_PRIORITY = ImmutableSet.of("IO2");
 
     /**
      * The DB engine map.
@@ -396,6 +399,16 @@ public class CloudRateExtractor {
                     tierId, regionId);
             return priceBuilder.build();
         }
+
+        // Some tiers within the same region provides the same price and we would like to define their priority.
+        // For example, IO1 and IO2 tiers have the same pricing, and IO2 can provide higher durability and larger
+        // IOPS capability. Currently, analysis engine makes decision based on price, and when two tiers provide
+        // the same price, a random one is chosen.
+        // Decrease a tiny value for the price of the tier with higher priority, so analysis engine prefers it.
+        // The decrease is tiny enough comparing with the actual price. Math.ulp(1.0) = 2.220446049250313E-16
+        final double tinyDecreaseForPreferredTiers
+                = TIERS_WITH_PRIORITY.contains(storageTier.getDisplayName()) ? Math.ulp(1.0) : 0;
+
         DiscountApplicator<TopologyEntityDTO> discountApplicator = accountPricingData.getDiscountApplicator();
         tierPriceList.getCloudStoragePriceList().forEach(storagePrice -> {
             // Group the prices by unit. The unit will determine whether a price is for the
@@ -425,7 +438,10 @@ public class CloudRateExtractor {
                     // Note: We probably don't need to normalize to hours in month because currently
                     // storage prices are monthly. But it's technically possible to get hourly
                     // storage price, so we do this to be safe.
-                    final double hourlyPriceAmount = CostProtoUtil.getHourlyPriceAmount(price);
+                    double hourlyPriceAmount = CostProtoUtil.getHourlyPriceAmount(price);
+                    if (hourlyPriceAmount > tinyDecreaseForPreferredTiers) {
+                        hourlyPriceAmount -= tinyDecreaseForPreferredTiers;
+                    }
 
                     final StorageTierPriceData.Builder priceDataBuilder = StorageTierPriceData.newBuilder()
                             .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(accountPricingData.getAccountPricingDataOid()).setRegionId(regionId)
