@@ -623,6 +623,22 @@ public class ActionDescriptionBuilder {
         ActionPartialEntity region = entitiesSnapshot.getEntityFromOid(regionId).get();
         final String regionName = (region != null) ? region.getDisplayName() : "";
 
+        if (buyRI.hasTargetEntity()) {
+            // If the BuyRI has a virtual machine then this is a BuyRI action from the MPC plan. We want to show the
+            // virtual machine name in the action description instead of the account name: OM-62857
+            long targetEntityId = buyRI.getTargetEntity().getId();
+            if (!entitiesSnapshot.getEntityFromOid(targetEntityId).isPresent()) {
+                logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getRIBuyActionDescription", "targetEntityId", targetEntityId);
+                return "";
+            }
+            ActionPartialEntity targetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId).get();
+            final String targetEntityName = (targetEntity != null) ? targetEntity.getDisplayName() : "";
+
+            // Return the description with the virtual machine name instead of the master account name
+            return ActionMessageFormat.ACTION_DESCRIPTION_BUYRI.format(count, computeTierName,
+                    targetEntityName, regionName);
+        }
+
         return ActionMessageFormat.ACTION_DESCRIPTION_BUYRI.format(count, computeTierName,
             masterAccountName, regionName);
     }

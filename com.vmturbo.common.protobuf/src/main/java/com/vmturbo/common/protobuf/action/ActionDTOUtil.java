@@ -596,6 +596,9 @@ public class ActionDTOUtil {
             actionEntities.add(buyRi.getComputeTier());
             actionEntities.add(buyRi.getRegion());
             actionEntities.add(buyRi.getMasterAccount());
+            if (buyRi.hasTargetEntity()) {
+                actionEntities.add(buyRi.getTargetEntity());
+            }
         }
         return actionEntities;
     }
