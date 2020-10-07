@@ -1185,7 +1185,7 @@ public class ScenarioMapper {
 
     @Nonnull
     private List<ScenarioChange> getTopologyChanges(@Nonnull final TopologyChangesApiDTO topoChanges,
-                                                    @Nullable final ConfigChangesApiDTO configChanges,
+                                                    @Nonnull final ConfigChangesApiDTO configChanges,
                                                     @Nonnull final Set<Long> templateIds,
                                                     PlanScope planScope)
             throws IllegalArgumentException, UnknownObjectException {
@@ -1208,10 +1208,8 @@ public class ScenarioMapper {
         if (CollectionUtils.isNotEmpty(migrateObjects)) {
             // 1. Create the migration change
             changes.add(getTopologyMigrationChange(migrateObjects, configChanges));
-            // 2. Create the RI Buy configuration if none exist in configuration
-            if (configChanges == null || CollectionUtils.isEmpty(configChanges.getRiSettingList())) {
-                changes.add(getRiSettings(planScope));
-            }
+            // 2. Create the RI Buy configuration
+            changes.add(getRiSettings(planScope));
         }
 
         return changes.build();
@@ -1375,7 +1373,7 @@ public class ScenarioMapper {
      */
     public static ScenarioChange getTopologyMigrationChange(
         @Nonnull final List<MigrateObjectApiDTO> migrateObjects,
-        @Nullable final ConfigChangesApiDTO configChanges) throws IllegalArgumentException {
+        @Nonnull final ConfigChangesApiDTO configChanges) throws IllegalArgumentException {
             Set<MigrationReference> sources = Sets.newHashSet();
             Set<MigrationReference> destinations = Sets.newHashSet();
             migrateObjects.forEach(migrateObject -> {
