@@ -829,13 +829,13 @@ public class CloudRateExtractorTest {
         StorageTierPriceData stAmountPriceData = storagePriceBundle.getPrices(FOO_STORAGE_AMOUNT_COMM).get(0);
         assertEquals(1, stAmountPriceData.getCostTupleListCount());
         CostTuple stAmountCostTuple = stAmountPriceData.getCostTupleList(0);
-        assertEquals(stAmountHourlyPrice - tinyDecrease, stAmountCostTuple.getPrice(), 1E16);
+        assertEquals(stAmountHourlyPrice - tinyDecrease, stAmountCostTuple.getPrice(), 1E-16);
 
         assertEquals(1, storagePriceBundle.getPrices(FOO_STORAGE_ACCESS_COMM).size());
         StorageTierPriceData iopsPriceData = storagePriceBundle.getPrices(FOO_STORAGE_ACCESS_COMM).get(0);
         assertEquals(1, iopsPriceData.getCostTupleListCount());
         CostTuple iopsCostTuple = iopsPriceData.getCostTupleList(0);
-        assertEquals(iopsHourlyPrice - tinyDecrease, iopsCostTuple.getPrice(), 1E16);
+        assertEquals(iopsHourlyPrice - tinyDecrease, iopsCostTuple.getPrice(), 1E-16);
     }
 
     private TopologyEntityDTO makeBusinessAccount(final long id,
