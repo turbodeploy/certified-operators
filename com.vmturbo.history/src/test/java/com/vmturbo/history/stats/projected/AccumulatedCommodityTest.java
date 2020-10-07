@@ -46,14 +46,14 @@ public class AccumulatedCommodityTest {
     @Test
     public void testAccumulatedSoldCommodityEmpty() {
         final AccumulatedSoldCommodity commodity =
-                new AccumulatedSoldCommodity("commodity");
+                new AccumulatedSoldCommodity("commodity", null);
         assertFalse(commodity.toStatRecord().isPresent());
     }
 
     @Test
     public void testAccumulatedSoldCommodity() {
         final AccumulatedSoldCommodity commodity =
-                new AccumulatedSoldCommodity(COMMODITY);
+                new AccumulatedSoldCommodity(COMMODITY, null);
         SoldCommodity soldCommodity = new SoldCommodity(CommoditySoldDTO.newBuilder()
                 .setCommodityType(MEM_COMMODITY_TYPE)
                 .setUsed(3)

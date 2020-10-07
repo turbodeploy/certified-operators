@@ -24,12 +24,12 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
-import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
-import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
+
+import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
+import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -65,7 +65,7 @@ public class TopologyCommoditiesSnapshotTest {
     public void setup() {
         soldCommoditiesInfo = mock(SoldCommoditiesInfo.class);
         when(soldCommoditiesInfo.getAccumulatedRecords(any(), any()))
-               .thenReturn(Optional.empty());
+               .thenReturn(Collections.emptyList());
         boughtCommoditiesInfo = mock(BoughtCommoditiesInfo.class);
         when(boughtCommoditiesInfo.getAccumulatedRecord(any(), any(), any()))
                 .thenReturn(Optional.empty());
@@ -209,7 +209,7 @@ public class TopologyCommoditiesSnapshotTest {
 
         when(soldCommoditiesInfo.getAccumulatedRecords(
                     Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet())))
-               .thenReturn(Optional.of(DUMMY_1));
+               .thenReturn(Collections.singletonList(DUMMY_1));
 
         final List<StatRecord> records =
                 snapshot.getRecords(Collections.singleton("Mem"),
@@ -245,7 +245,7 @@ public class TopologyCommoditiesSnapshotTest {
 
         when(soldCommoditiesInfo.getAccumulatedRecords(
                 Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet())))
-                .thenReturn(Optional.of(DUMMY_1));
+                .thenReturn(Collections.singletonList(DUMMY_1));
         when(boughtCommoditiesInfo.getAccumulatedRecord(
                 Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet()), Mockito.eq(Collections.emptySet())))
                 .thenReturn(Optional.of(DUMMY_2));

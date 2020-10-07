@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtilizationValue;
@@ -29,11 +30,19 @@ abstract class AccumulatedCommodity {
     private StatsAccumulator percentileUsage = new StatsAccumulator();
 
     private final String commodityName;
+    private final String commodityKey;
 
     private boolean empty = true;
 
-    protected AccumulatedCommodity(@Nonnull final String commodityName) {
+    /**
+     * Constructor for {@link AccumulatedCommodity} class.
+     *
+     * @param commodityName commodity name
+     * @param commodityKey commodity key
+     */
+    protected AccumulatedCommodity(@Nonnull final String commodityName, @Nullable final String commodityKey) {
         this.commodityName = commodityName;
+        this.commodityKey = commodityKey;
     }
 
     @Nonnull
@@ -47,6 +56,9 @@ abstract class AccumulatedCommodity {
 
         final StatRecord.Builder builder = StatRecord.newBuilder();
         builder.setName(commodityName);
+        if (commodityKey != null && !commodityKey.isEmpty()) {
+            builder.setStatKey(commodityKey);
+        }
         final StatValue capacityStatValue = capacity.toStatValue();
         builder.setCapacity(capacityStatValue);
         builder.setUsed(statValue);
@@ -105,7 +117,7 @@ abstract class AccumulatedCommodity {
         private Set<Long> providers = new HashSet<>();
 
         AccumulatedBoughtCommodity(@Nonnull final String commodityName) {
-            super(commodityName);
+            super(commodityName, null);
         }
 
         /**
@@ -149,8 +161,9 @@ abstract class AccumulatedCommodity {
      */
     static class AccumulatedSoldCommodity extends AccumulatedCommodity {
 
-        AccumulatedSoldCommodity(@Nonnull final String commodityName) {
-            super(commodityName);
+        AccumulatedSoldCommodity(@Nonnull final String commodityName,
+                @Nullable final String commodityKey) {
+            super(commodityName, commodityKey);
         }
 
         /**
@@ -183,8 +196,9 @@ abstract class AccumulatedCommodity {
      */
     static class AccumulatedCalculatedCommodity extends AccumulatedCommodity {
 
-        AccumulatedCalculatedCommodity(@Nonnull final String commodityName) {
-            super(commodityName);
+        AccumulatedCalculatedCommodity(@Nonnull final String commodityName,
+                @Nullable final String commodityKey) {
+            super(commodityName, commodityKey);
         }
 
         /**

@@ -192,10 +192,10 @@ class TopologyCommoditiesSnapshot {
                 .orElse(Collections.emptyList());
         } else {
             // This is probably a "regular" commodity.
-            final List<StatRecord> retList = new ArrayList<>();
 
-            soldCommoditiesInfo.getAccumulatedRecords(commodityName, targetEntities)
-                    .ifPresent(retList::add);
+            List<StatRecord> soldAccumulatedRecords =
+                    soldCommoditiesInfo.getAccumulatedRecords(commodityName, targetEntities);
+            final List<StatRecord> retList = new ArrayList<>(soldAccumulatedRecords);
 
             boughtCommoditiesInfo.getAccumulatedRecord(commodityName, targetEntities, providerOids)
                     .ifPresent(retList::add);

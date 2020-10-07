@@ -87,7 +87,7 @@ public class ProjectedPriceIndexSnapshot {
     @Nonnull
     public Optional<StatRecord> getRecord(@Nonnull final Set<Long> targetEntities) {
         final AccumulatedCalculatedCommodity priceIndexCommodity =
-                new AccumulatedCalculatedCommodity(StringConstants.PRICE_INDEX);
+                new AccumulatedCalculatedCommodity(StringConstants.PRICE_INDEX, null);
 
         if (targetEntities.isEmpty()) {
             for (double val : priceIndexMap.values()) {

@@ -13,12 +13,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -84,40 +84,69 @@ class SoldCommoditiesInfo {
     }
 
     /**
-     * Get the accumulated information about a particular commodity sold by a set of entities.
+     * Get a list of {@link StatRecord}s which have accumulated information about a particular
+     * commodity sold by a set of entities. The commodities with the same name but different
+     * keys won't be accumulated: different {@link StatRecord} for each of them.
      *
      * @param commodityName The name of the commodity. The names are derived from
      *           {@link CommodityType}. This is not ideal - we should consider using the
      *           {@link CommodityType} enum directly.
      * @param targetEntities The entities to get the information from. If empty, accumulate
      *                       information from the whole topology.
-     * @return An optional containing the accumulated {@link StatRecord}, or an empty optional
-     *         if there is no information for the commodity over the target entities.
+     * @return A list of the accumulated {@link StatRecord}, or an empty list
+     *         if there is no information for the commodity over the target entities
+     *         or this commodity is not sold.
      */
     @Nonnull
-    Optional<StatRecord> getAccumulatedRecords(@Nonnull final String commodityName,
+    List<StatRecord> getAccumulatedRecords(@Nonnull final String commodityName,
                                                @Nonnull final Set<Long> targetEntities) {
+        Map<String, AccumulatedSoldCommodity> accumulatedSoldCommodities = new HashMap<>();
         final Long2ObjectMap<List<SoldCommodity>> soldByEntityId =
                 soldCommodities.get(commodityName);
-        final AccumulatedSoldCommodity overallCommoditySold =
-                new AccumulatedSoldCommodity(commodityName);
         if (soldByEntityId == null) {
-            // If this commodity is not sold, we don't return anything.
+            return Collections.emptyList();
         } else if (targetEntities.isEmpty()) {
-            soldByEntityId.forEach((entityId, commoditySoldList) ->
-                    commoditySoldList.forEach(overallCommoditySold::recordSoldCommodity));
+            soldByEntityId.forEach(
+                    (entityId, commoditySoldList) -> accumulateCommoditiesByKey(commoditySoldList,
+                            commodityName, accumulatedSoldCommodities));
         } else {
             // We have some number of entities, and we accumulate the stats from all the entities.
             targetEntities.forEach(entityId -> {
                 final Collection<SoldCommodity> commoditySoldDTOs = soldByEntityId.get(entityId);
                 if (commoditySoldDTOs != null) {
-                    commoditySoldDTOs.forEach(overallCommoditySold::recordSoldCommodity);
+                    accumulateCommoditiesByKey(commoditySoldDTOs, commodityName,
+                            accumulatedSoldCommodities);
                 } else {
-                    logger.warn("Requested commodity {} not sold by entity {}", commodityName, entityId);
+                    logger.warn("Requested commodity {} not sold by entity {}", commodityName,
+                            entityId);
                 }
             });
         }
-        return overallCommoditySold.toStatRecord();
+        return accumulatedSoldCommodities.values()
+                .stream()
+                .map(AccumulatedSoldCommodity::toStatRecord)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Accumulate sold commodities with the same name by key.
+     *
+     * @param commoditySoldList sold commodity list
+     * @param commodityName commodity name
+     * @param accumulatedSoldCommodities the map to collect accumulated commodities by key
+     */
+    private void accumulateCommoditiesByKey(Collection<SoldCommodity> commoditySoldList, String commodityName,
+            Map<String, AccumulatedSoldCommodity> accumulatedSoldCommodities) {
+        commoditySoldList.forEach(commoditySoldDTO -> {
+            final String commodityKey = commoditySoldDTO.getCommodityType().getKey();
+            AccumulatedSoldCommodity accumulatedSoldCommodity =
+                    accumulatedSoldCommodities.computeIfAbsent(
+                            commodityKey == null ? "empty_key" : commodityKey,
+                            k -> new AccumulatedSoldCommodity(commodityName, commodityKey));
+            accumulatedSoldCommodity.recordSoldCommodity(commoditySoldDTO);
+        });
     }
 
     /**
@@ -142,6 +171,7 @@ class SoldCommoditiesInfo {
      * large topologies.
      */
     static class SoldCommodity {
+        private final CommodityType commodityType;
         private final double used;
         private final double peak;
         private final double capacity;
@@ -149,11 +179,16 @@ class SoldCommoditiesInfo {
         private final boolean hasUsedPercentile;
 
         SoldCommodity(CommoditySoldDTO sold) {
+            this.commodityType = sold.getCommodityType();
             this.used = sold.getUsed();
             this.peak = sold.getPeak();
             this.capacity = sold.getCapacity();
             this.usedPercentile = sold.getHistoricalUsed().getPercentile();
             this.hasUsedPercentile = sold.getHistoricalUsed().hasPercentile();
+        }
+
+        public CommodityType getCommodityType() {
+            return commodityType;
         }
 
         public double getUsed() {
