@@ -33,20 +33,8 @@ public enum ConfigurableActionSettings {
     /**
      * Cloud compute scale action automation mode.
      */
-    CloudComputeScale("cloudComputeScale", "Scale All",
+    CloudComputeScale("cloudComputeScale", "Cloud Compute Scale",
         EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER)),
-
-    /**
-     * Cloud compute scale for savings action automation mode.
-     */
-    CloudComputeScaleForSavings("cloudComputeScaleForSavings", "Scale for Savings",
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER)),
-
-    /**
-     * Cloud compute scale for performance action automation mode.
-     */
-    CloudComputeScaleForPerf("cloudComputeScaleForPerf", "Scale for Performance",
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER)),
 
     /**
      * Storage Move action automation mode.

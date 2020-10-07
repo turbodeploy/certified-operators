@@ -13,22 +13,18 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
  */
 public class SettingAndPolicies {
 
-    private final Setting setting;
-    private final Collection<Long> policiesIds;
-    private final Collection<Long> defaultPoliciesIds;
+    private Setting setting;
+    private Collection<Long> policiesIds;
 
     /**
      * Constructor of {@link SettingAndPolicies}.
      *
      * @param setting setting
      * @param policiesIds collection of policies associated with setting
-     * @param defaultPoliciesIds collection of default policies associated with setting
      */
-    public SettingAndPolicies(@Nonnull Setting setting, @Nonnull Collection<Long> policiesIds,
-            @Nonnull Collection<Long> defaultPoliciesIds) {
+    public SettingAndPolicies(@Nonnull Setting setting, @Nonnull Collection<Long> policiesIds) {
         this.setting = setting;
         this.policiesIds = policiesIds;
-        this.defaultPoliciesIds = defaultPoliciesIds;
     }
 
     /**
@@ -49,15 +45,5 @@ public class SettingAndPolicies {
     @Nonnull
     public Collection<Long> getPoliciesIds() {
         return policiesIds;
-    }
-
-    /**
-     * Return default policies associated with setting {@link SettingAndPolicies#setting}.
-     *
-     * @return default policies associated with setting.
-     */
-    @Nonnull
-    public Collection<Long> getDefaultPoliciesIds() {
-        return defaultPoliciesIds;
     }
 }

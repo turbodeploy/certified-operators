@@ -37,7 +37,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
@@ -80,17 +79,12 @@ public final class SettingDTOUtil {
                     .stream()
                     .map(SettingPolicyId::getPolicyId)
                     .collect(Collectors.toList());
-            final List<Long> associatedDefaultPolicies = settingGroup.getPolicyIdList()
-                    .stream()
-                    .filter(p -> p.getType() == Type.DEFAULT)
-                    .map(SettingPolicyId::getPolicyId)
-                    .collect(Collectors.toList());
             settingGroup.getEntityOidsList().forEach(entityId -> {
                 final Map<String, SettingAndPolicies> settingsForEntity =
                     settingsAndPoliciesByEntityAndName.computeIfAbsent(entityId, k -> new HashMap<>());
                 final SettingAndPolicies existingSettingAndPolicies = settingsForEntity.putIfAbsent(
                     setting.getSettingSpecName(), new SettingAndPolicies(setting,
-                                associatedPolicies, associatedDefaultPolicies));
+                                associatedPolicies));
                 if (existingSettingAndPolicies != null) {
                     entitiesWithMultipleSettings.computeIfAbsent(entityId, k -> new HashSet<>())
                         .add(setting.getSettingSpecName());
