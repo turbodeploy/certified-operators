@@ -99,10 +99,7 @@ public interface ActionAggregatorFactory<AGGREGATOR_TYPE extends ActionAggregato
 
         /**
          * Check if a given action is "new", i.e. not previously recommended, given a set of
-         * action IDs for new actions. This will return false in the case the component just
-         * started or restarted. In these situations we do not have information to tell whether
-         * an action had already been recommended, and we want to avoid the risk of counting it
-         * twice.
+         * action IDs for new actions.
          *
          * @param action the action to be checkted
          * @param previousBroadcastActions a mapping from action id to its old {@link ActionGroupKey}

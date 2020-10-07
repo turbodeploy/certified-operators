@@ -422,11 +422,6 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                         .setType(CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE)
                         .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
                         .build())
-                .setTargetEntity(ActionDTO.ActionEntity.newBuilder()
-                        .setId(placement.getVirtualMachine().getOid())
-                        .setType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
-                        .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
-                        .build())
                 .build();
 
         // Build our explanation
