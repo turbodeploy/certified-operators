@@ -28,10 +28,8 @@ public class ARMEntityUtil {
      */
     public static final List<Integer> PROPAGATED_ARM_ENTITY_TYPES = Arrays.asList(
             ApiEntityType.APPLICATION_COMPONENT.typeNumber(),
-            ApiEntityType.CONTAINER.typeNumber(),
-            ApiEntityType.CONTAINER_POD.typeNumber(),
-            ApiEntityType.CONTAINER_SPEC.typeNumber(),
             ApiEntityType.WORKLOAD_CONTROLLER.typeNumber(),
+            ApiEntityType.CONTAINER_POD.typeNumber(),
             ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
             ApiEntityType.DATABASE_SERVER.typeNumber(),
             ApiEntityType.VIRTUAL_VOLUME.typeNumber(),
@@ -44,7 +42,6 @@ public class ARMEntityUtil {
     public static final Set<Integer> ARM_ENTITY_TYPE = ImmutableSet.of(
             ApiEntityType.BUSINESS_APPLICATION.typeNumber(),
             ApiEntityType.BUSINESS_TRANSACTION.typeNumber(),
-            ApiEntityType.NAMESPACE.typeNumber(),
             ApiEntityType.SERVICE.typeNumber());
 
     /**

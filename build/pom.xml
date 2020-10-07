@@ -256,7 +256,6 @@
         <profile>
             <id>action-orchestrator</id>
             <modules>
-                <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.action.orchestrator.api</module>
                 <module>../com.vmturbo.action.orchestrator</module>
             </modules>
