@@ -518,6 +518,9 @@ message BuyRI {
 
     // The region in which we are buying this RI.
     optional ActionEntity region = 5;
+
+    // MPC Buy RI Actions should be purchased for a target entity, not by an account
+    optional ActionEntity targetEntity = 6;
 }
 
 // Reserved instance reallocation action (aka Accounting action). These actions are generated
