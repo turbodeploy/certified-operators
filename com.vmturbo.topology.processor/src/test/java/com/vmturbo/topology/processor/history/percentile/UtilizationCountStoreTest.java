@@ -64,12 +64,18 @@ public class UtilizationCountStoreTest {
         store.addPoints(ImmutableList.of(Double.NaN, Double.NaN), 1000d, 100);
         Assert.assertTrue(store.isEmpty());
         store.addPoints(ImmutableList.of(10d, 10d, 10d, 10d, 10d), 100d, 100);
-        Assert.assertEquals(10, store.getPercentile(90));
+        Integer percentile90 = store.getPercentile(90);
+        Assert.assertNotNull(percentile90);
+        Assert.assertEquals(10, (int)percentile90);
         // adding for the same time should have no effect
         store.addPoints(ImmutableList.of(20d, 20d, 20d, 20d, 20d), 100d, 100);
-        Assert.assertEquals(10, store.getPercentile(90));
+        percentile90 = store.getPercentile(90);
+        Assert.assertNotNull(percentile90);
+        Assert.assertEquals(10, (int)percentile90);
         store.addPoints(ImmutableList.of(20d, 20d, 20d, 20d, 20d), 100d, 200);
-        Assert.assertEquals(20, store.getPercentile(80));
+        final Integer percentile80 = store.getPercentile(80);
+        Assert.assertNotNull(percentile80);
+        Assert.assertEquals(20, (int)percentile80);
     }
 
     /**

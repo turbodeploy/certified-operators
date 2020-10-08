@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import it.unimi.dsi.fastutil.floats.FloatArrayList;
 import it.unimi.dsi.fastutil.floats.FloatList;
@@ -270,18 +271,22 @@ public class UtilizationCountArray {
      * Calculate the percentile score for a given rank.
      *
      * @param rank must be between 0 and 100
-     * @return percentile score of previously stored points
+     * @return percentile score of previously stored points, null if no counts have been recorded
      * @throws HistoryCalculationException when rank value is invalid
      */
-    public int getPercentile(float rank) throws HistoryCalculationException {
+    @Nullable
+    public Integer getPercentile(float rank) throws HistoryCalculationException {
         if (rank < 0 || rank > 100) {
             throw new HistoryCalculationException("Requested invalid percentile rank " + rank);
         }
         int total = Arrays.stream(counts).sum();
-        int rankIndex = (int)(total * rank / 100);
+        if (total == 0) {
+            return null;
+        }
+        int rankIndex = (int)Math.ceil(total * rank / 100);
         int score = 0;
         int countToRankIndex = counts[score];
-        while (countToRankIndex < rankIndex && score < counts.length) {
+        while (countToRankIndex < rankIndex) {
             countToRankIndex += counts[++score];
         }
         return (int)Math.ceil(buckets.average(score));

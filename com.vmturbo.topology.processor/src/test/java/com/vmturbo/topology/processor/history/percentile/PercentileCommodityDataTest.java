@@ -89,9 +89,12 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
 
         PercentileCommodityData pcd = new PercentileCommodityData();
         pcd.init(field, dbValue.build(), config, context);
-
-        Assert.assertEquals(0, pcd.getUtilizationCountStore().getPercentile(0));
-        Assert.assertEquals(used, pcd.getUtilizationCountStore().getPercentile(100));
+        final Integer percentile0 = pcd.getUtilizationCountStore().getPercentile(0);
+        Assert.assertNotNull(percentile0);
+        Assert.assertEquals(0, (int)percentile0);
+        final Integer percentile100 = pcd.getUtilizationCountStore().getPercentile(100);
+        Assert.assertNotNull(percentile100);
+        Assert.assertEquals(used, (int)percentile100);
         PercentileRecord record = pcd.getUtilizationCountStore().getLatestCountsRecord().build();
         Assert.assertEquals(101, record.getUtilizationCount());
         Assert.assertEquals(1, record.getUtilization(used));
@@ -120,7 +123,7 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
                         entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
                                         .get(0);
         Assert.assertTrue(commSold.hasHistoricalUsed());
-        Assert.assertEquals(used3 / cap, commSold.getHistoricalUsed().getPercentile(), DELTA);
+        Assert.assertEquals(used2 / cap, commSold.getHistoricalUsed().getPercentile(), DELTA);
     }
 
     /**
