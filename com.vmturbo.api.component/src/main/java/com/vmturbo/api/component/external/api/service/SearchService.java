@@ -58,6 +58,7 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -87,7 +88,6 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeveri
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.search.Search;
@@ -416,7 +416,8 @@ public class SearchService implements ISearchService {
             Set<String> scopeServiceEntityIds = groupsService.expandUuids(Sets.newHashSet(scopes),
                 types, environmentType).stream().map(String::valueOf).collect(Collectors.toSet());
 
-            final boolean isGlobalScope = containsGlobalScope(Sets.newHashSet(scopes));
+            final boolean isGlobalScope = ApiUtils.containsGlobalScope(
+                    Sets.newHashSet(scopes), groupExpander);
 
             // Check if the scope is not global and the set of scope ids is empty.
             // This means there is an invalid scope.
@@ -584,34 +585,39 @@ public class SearchService implements ISearchService {
             @Nonnull SearchPaginationRequest paginationRequest, @Nullable List<String> aspectNames)
                 throws OperationFailedException, ConversionException, InterruptedException {
         final String updatedQuery = escapeSpecialCharactersInSearchQueryPattern(nameQuery);
-        final List<String> entityTypes = getEntityTypes(inputDTO.getClassName());
+        final List<String> relatedTypes = getRelatedEntityTypes(inputDTO.getClassName());
         List<SearchParameters> searchParameters = entityFilterMapper.convertToSearchParameters(
-                inputDTO.getCriteriaList(), entityTypes, updatedQuery).stream()
+                inputDTO.getCriteriaList(), relatedTypes, updatedQuery).stream()
                 // Convert any cluster membership filters to property filters.
                 .map(filterResolver::resolveExternalFilters)
                 .collect(Collectors.toList());
 
         // match only the entity uuids which are part of the group or cluster
         // defined in the scope
-        final Set<String> scopeList = Optional.ofNullable(inputDTO.getScope())
+        final Set<String> scopeSet = Optional.ofNullable(inputDTO.getScope())
                 .map(ImmutableSet::copyOf)
                 .orElse(ImmutableSet.of());
-        final boolean isGlobalScope = containsGlobalScope(scopeList);
+        // if no scope is provided, or it's a market scope, or it's a global temp group with the
+        // same type as the related type, then consider this a global scope
+        final boolean isGlobalScope = scopeSet.isEmpty()
+                || scopeSet.stream().anyMatch(UuidMapper::isRealtimeMarket)
+                || ApiUtils.isGlobalTempGroupWithSameEntityType(scopeSet, groupExpander, relatedTypes);
         // collect the superset of entities that should be used in search rpc service
         final Set<Long> allEntityOids;
-        if (scopeList.isEmpty() || isGlobalScope) {
-            // if no scope provided, or it's global scope, then use empty set so it tries all
+        if (isGlobalScope) {
+            // if this is a global scope, then use empty set to avoid passing a long list of oids
+            // over grpc
             allEntityOids = Collections.emptySet();
             // add environment filter to all search parameters if requested
             if (inputDTO.getEnvironmentType() != null) {
                 searchParameters = addEnvironmentTypeFilter(inputDTO.getEnvironmentType(), searchParameters);
             }
         } else {
-            final Set<Long> expandedIds = groupsService.expandUuids(scopeList, entityTypes,
+            final Set<Long> expandedIds = groupsService.expandUuids(scopeSet, relatedTypes,
                     inputDTO.getEnvironmentType());
             if (expandedIds.isEmpty()) {
                 // checking if the scope is valid
-                Stream<ApiPartialEntity> scopeEntities = repositoryApi.entitiesRequest(scopeList.stream()
+                Stream<ApiPartialEntity> scopeEntities = repositoryApi.entitiesRequest(scopeSet.stream()
                     .map(Long::parseLong).collect(Collectors.toSet()))
                     .getEntities();
                 if (scopeEntities == null || scopeEntities.count() == 0) {
@@ -699,7 +705,7 @@ public class SearchService implements ISearchService {
         return searchParameters;
     }
 
-    private List<String> getEntityTypes(String className) {
+    private List<String> getRelatedEntityTypes(String className) {
         if (className == null) {
             return Collections.emptyList();
         } else if (className.equals(WORKLOAD)) {
@@ -809,35 +815,6 @@ public class SearchService implements ISearchService {
                         (List<BaseApiDTO>) results, nexCursor, paginationResponse.getTotalRecordCount()))
                 .orElseGet(() -> paginationRequest.finalPageResponse(
                         (List<BaseApiDTO>) results, paginationResponse.getTotalRecordCount()));
-    }
-
-    /**
-     * Check if input scopes contains global scope or not.
-     *
-     * @param scopes a set of scopes ids.
-     * @return true if input parameter contains global scope.
-     */
-    private boolean containsGlobalScope(@Nonnull final Set<String> scopes) {
-        if (scopes.isEmpty()) {
-            // if there is no specified scopes, it means it is a global scope.
-            return true;
-        }
-        // if the scope list size is larger than default scope size, it will log a warn message.
-        final int DEFAULT_MAX_SCOPE_SIZE = 50;
-        if (scopes.size() >= DEFAULT_MAX_SCOPE_SIZE) {
-            logger.warn("Search scope list size is too large: {}" + scopes.size());
-        }
-        return scopes.stream()
-                .anyMatch(scope -> {
-                    final boolean isMarket = UuidMapper.isRealtimeMarket(scope);
-                    final Optional<Grouping> group = groupExpander.getGroup(scope);
-                    return isMarket || (group.isPresent()
-                                    && group.get().getDefinition().getIsTemporary()
-                                    && group.get().getDefinition().hasOptimizationMetadata()
-                                    && group.get().getDefinition()
-                                        .getOptimizationMetadata()
-                                        .getIsGlobalScope());
-                });
     }
 
     @Override

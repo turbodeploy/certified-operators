@@ -3,9 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getStatsByUuidsQuery;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
@@ -67,7 +65,6 @@ import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScope
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -1066,53 +1063,4 @@ public class StatsServiceTest {
         request.setPeriod(period);
         return request;
     }
-
-    /**
-     * Test globalTempGroup of environmentType Hyrid returns non empty optional of relatedType.
-     */
-    @Test
-    public void testGetGlobalTempGroupEntityTypeWithTempGlobalHybridGroup() {
-        //GIVEN
-        Grouping grouping = Grouping.newBuilder()
-                .setDefinition(GroupDefinition.newBuilder().setIsTemporary(true)
-                        .setOptimizationMetadata(OptimizationMetadata.newBuilder()
-                                .setIsGlobalScope(true)
-                        .setEnvironmentType(EnvironmentType.HYBRID))
-                        .setStaticGroupMembers(StaticMembers.newBuilder()
-                                .addMembersByType(StaticMembersByType
-                                        .newBuilder()
-                                        .setType(MemberType
-                                                .newBuilder()
-                                                .setEntity(ApiEntityType.PHYSICAL_MACHINE
-                                                        .typeNumber())))))
-                .build();
-
-        //THEN
-        assertTrue(statsService.getGlobalTempGroupEntityType(Optional.of(grouping)).isPresent());
-    }
-
-    /**
-     * Test globalTempGroup of environmentType non Hybrid returns empty optional.
-     */
-    @Test
-    public void testGetGlobalTempGroupEntityTypeWithTempGlobalGroupWithNonHybridGroup() {
-        //GIVEN
-        Grouping grouping = Grouping.newBuilder()
-                .setDefinition(GroupDefinition.newBuilder().setIsTemporary(true)
-                        .setOptimizationMetadata(OptimizationMetadata.newBuilder()
-                                .setIsGlobalScope(true)
-                                .setEnvironmentType(EnvironmentType.ON_PREM))
-                        .setStaticGroupMembers(StaticMembers.newBuilder()
-                                .addMembersByType(StaticMembersByType
-                                        .newBuilder()
-                                        .setType(MemberType
-                                                .newBuilder()
-                                                .setEntity(ApiEntityType.PHYSICAL_MACHINE
-                                                        .typeNumber())))))
-                .build();
-
-        //THEN
-        assertFalse(statsService.getGlobalTempGroupEntityType(Optional.of(grouping)).isPresent());
-    }
-
 }

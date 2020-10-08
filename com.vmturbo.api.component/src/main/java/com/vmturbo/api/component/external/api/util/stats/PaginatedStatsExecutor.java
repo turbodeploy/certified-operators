@@ -23,7 +23,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -38,6 +37,7 @@ import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.StatsService;
+import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudCostsStatsSubQuery;
@@ -70,8 +70,6 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
@@ -193,15 +191,6 @@ public class PaginatedStatsExecutor {
          * This variable will be set to the pagination response.
          */
         private EntityStatsPaginationResponse entityStatsPaginationResponse;
-
-        /**
-         * Map Entity types to be expanded to the RelatedEntityType to retrieve. For example,
-         * replace requests for stats for a DATACENTER entity with the PHYSICAL_MACHINEs
-         * in that DATACENTER.
-         */
-        private final Map<ApiEntityType, ApiEntityType> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
-                ApiEntityType.DATACENTER, ApiEntityType.PHYSICAL_MACHINE
-        );
 
         /**
          * Entity types that don't support historical stats.
@@ -721,10 +710,11 @@ public class PaginatedStatsExecutor {
                     // Otherwise, just set the entityType field on the stats scope.
                     entityStatsScope.setEntityType(relatedType.get().typeNumber());
                 }
-            } else if (inputDto.getScopes().size() == 1) {
+            } else {
                 // Check if we can do the global entity type optimization.
+                final Set<String> scopeSet = ImmutableSet.copyOf(inputDto.getScopes());
                 final Optional<Integer> globalEntityType =
-                        getGlobalTempGroupEntityType(groupExpander.getGroup(inputDto.getScopes().get(0)));
+                        ApiUtils.getGlobalTempGroupEntityType(scopeSet, groupExpander);
                 final Optional<Integer> relatedTypeInt = relatedType.map(ApiEntityType::typeNumber);
                 if (globalEntityType.isPresent()
                         // We can only do the global entity type optimization if the related type
@@ -749,9 +739,6 @@ public class PaginatedStatsExecutor {
                     entityStatsScope.setEntityList(
                             EntityList.newBuilder().addAllEntities(this.getExpandedScope(this.inputDto)));
                 }
-            } else {
-                entityStatsScope.setEntityList(
-                        EntityList.newBuilder().addAllEntities(this.getExpandedScope(this.inputDto)));
             }
             Preconditions.checkArgument(
                     entityStatsScope.hasEntityList() || entityStatsScope.hasEntityType());
@@ -777,50 +764,6 @@ public class PaginatedStatsExecutor {
          */
         public void setEntityStatsPaginationResponse(EntityStatsPaginationResponse response) {
             this.entityStatsPaginationResponse = response;
-        }
-
-        /**
-         * Check if group is a temporary group with global scope. And if temp group entity need to expand,
-         * it should use expanded entity type instead of group entity type. If it is a temporary group
-         * with global scope, we can speed up query using pre-aggregate market stats table.
-         *
-         * @param groupOptional a optional of group need to check.
-         * @return return a optional of entity type, if input group is a temporary global scope group,
-         *         otherwise return empty option.
-         */
-        @VisibleForTesting
-        protected Optional<Integer> getGlobalTempGroupEntityType(@Nonnull final Optional<Grouping> groupOptional) {
-            if (!groupOptional.isPresent() || !groupOptional.get().getDefinition().getIsTemporary()
-                    || !groupOptional.get().getDefinition().hasStaticGroupMembers()
-                    || groupOptional.get().getDefinition()
-                    .getStaticGroupMembers().getMembersByTypeCount() != 1) {
-                return Optional.empty();
-            }
-
-            final GroupDefinition tempGroup = groupOptional.get().getDefinition();
-            final boolean isGlobalTempGroup = tempGroup.hasOptimizationMetadata()
-                    && tempGroup.getOptimizationMetadata().getIsGlobalScope()
-                    // the global scope optimization.
-                    && (!tempGroup.getOptimizationMetadata().hasEnvironmentType()
-                    || tempGroup.getOptimizationMetadata().getEnvironmentType()
-                    == EnvironmentType.HYBRID);
-
-            int entityType = tempGroup.getStaticGroupMembers()
-                    .getMembersByType(0)
-                    .getType()
-                    .getEntity();
-
-            // if it is global temp group and need to expand, should return target expand entity type.
-            if (isGlobalTempGroup && ENTITY_TYPES_TO_EXPAND.containsKey(
-                    ApiEntityType.fromType(entityType))) {
-                return Optional.of(ENTITY_TYPES_TO_EXPAND.get(
-                        ApiEntityType.fromType(entityType)).typeNumber());
-            } else if (isGlobalTempGroup) {
-                // if it is global temp group and not need to expand.
-                return Optional.of(entityType);
-            } else {
-                return Optional.empty();
-            }
         }
 
         /**
