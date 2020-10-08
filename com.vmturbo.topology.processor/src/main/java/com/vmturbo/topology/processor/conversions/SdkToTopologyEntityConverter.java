@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
@@ -757,10 +758,15 @@ public class SdkToTopologyEntityConverter {
      * <p/>For cloud targets the key looks like PhysicalMachine::aws::us-west-2::PM::us-west-2b
      *
      * @param key original key
-     * @return the uuid part of the key
+     * @return the uuid part of the key. Returns null if the key does not match the access key format.
      */
+    @Nullable
     public static String keyToUuid(String key) {
-        return key.split(ActionDTOUtil.COMMODITY_KEY_SEPARATOR, 2)[1];
+        int index = key.indexOf(ActionDTOUtil.COMMODITY_KEY_SEPARATOR);
+        if (index >= 0) {
+            return key.substring(index + ActionDTOUtil.COMMODITY_KEY_SEPARATOR_LENGTH);
+        }
+        return null;
     }
 
     /**

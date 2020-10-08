@@ -33,13 +33,15 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState.Builder;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
@@ -311,20 +313,27 @@ public class EntityStore {
 
         synchronized (topologyUpdateLock) {
             stitchingDataMap = new TargetStitchingDataMap(targetEntities);
+            final Long2ObjectOpenHashMap<TargetCacheEntry> cache = new Long2ObjectOpenHashMap<>();
 
             // This will populate the stitching data map.
             entityMap.forEach((oid, entity) ->
                 entity.getPerTargetInfo().stream()
                     .map(targetInfoEntry -> {
                         final long targetId = targetInfoEntry.getKey();
+                        final EntityDTO.Builder entityBuilder = targetInfoEntry.getValue().getEntityInfo().toBuilder();
+                        final TargetCacheEntry cacheEntry = cache.computeIfAbsent(targetId,
+                            id -> new TargetCacheEntry(targetId));
                         // apply changes of cached entities from incremental discovery
-                        final EntityDTO.Builder entityDTO = applyIncrementalChanges(
-                            targetInfoEntry.getValue().getEntityInfo().toBuilder(), oid, targetId);
+                        final EntityDTO.Builder entityDTO = cacheEntry.incrementalEntities.map(
+                            incrementalEntities -> applyIncrementalChanges(
+                                entityBuilder, oid, targetId,
+                                incrementalEntities))
+                            .orElse(entityBuilder);
                         return StitchingEntityData.newBuilder(entityDTO)
                             .oid(oid)
                             .targetId(targetId)
-                            .lastUpdatedTime(getTargetLastUpdatedTime(targetId).orElse(0L))
-                            .supportsConnectedTo(supportsConnectedTo(targetId))
+                            .lastUpdatedTime(cacheEntry.lastUpdatedTime)
+                            .supportsConnectedTo(cacheEntry.supportsConnectedTo)
                             .build();
                     }).forEach(stitchingDataMap::put));
         }
@@ -359,17 +368,13 @@ public class EntityStore {
      * @param entityDTO the builder of the EntityDTO to apply incremental changes on
      * @param entityOid assigned oid for the entity
      * @param targetId id of the target where this entity comes from
+     * @param incrementalEntities Incremental entities for the target that discovered the entityDTO
      * @return the updated EntityDTO builder
      */
     @GuardedBy("topologyUpdateLock")
     private EntityDTO.Builder applyIncrementalChanges(@Nonnull EntityDTO.Builder entityDTO,
-                                                      long entityOid, long targetId) {
-        final Optional<TargetIncrementalEntities> incrementalEntities = getIncrementalEntities(targetId);
-        if (!incrementalEntities.isPresent()) {
-            // nothing to apply
-            return entityDTO;
-        }
-
+                                                      long entityOid, long targetId,
+                                                      @Nonnull final TargetIncrementalEntities incrementalEntities) {
         final List<BiConsumer<EntityDTO.Builder, EntityDTO>> updateFunctions =
             INCREMENTAL_ENTITY_UPDATE_FUNCTIONS.get(entityDTO.getEntityType().getNumber());
         if (updateFunctions == null) {
@@ -379,7 +384,7 @@ public class EntityStore {
             return entityDTO;
         }
 
-        incrementalEntities.get().applyEntitiesInDiscoveryOrder(entityOid,
+        incrementalEntities.applyEntitiesInDiscoveryOrder(entityOid,
             (messageId, incrementalEntity) -> {
                 switch (incrementalEntity.getUpdateType()) {
                     case UPDATED:
@@ -910,7 +915,7 @@ public class EntityStore {
      * A helper class that retains a map of targetId -> Map<localId, StitchingEntityData>
      */
     private static class TargetStitchingDataMap {
-        private final Map<Long, Map<String, StitchingEntityData>> targetDataMap;
+        private final Long2ObjectOpenHashMap<Map<String, StitchingEntityData>> targetDataMap;
 
         /**
          * Create a new TargetStitchingDataMap given the original mapping of targets to their data.
@@ -918,9 +923,10 @@ public class EntityStore {
          * @param sourceMap the original mapping of targets to their discovered data.
          */
         public TargetStitchingDataMap(@Nonnull final Map<Long, TargetEntityIdInfo> sourceMap) {
-            targetDataMap = new HashMap<>(sourceMap.size());
+            targetDataMap = new Long2ObjectOpenHashMap<>(sourceMap.size());
             sourceMap.entrySet().forEach(entry ->
-                targetDataMap.put(entry.getKey(), new HashMap<>(entry.getValue().getDiscoveredEntitiesCount())));
+                targetDataMap.put(entry.getKey().longValue(),
+                    new HashMap<>(entry.getValue().getDiscoveredEntitiesCount())));
         }
 
         public void put(@Nonnull final StitchingEntityData entityData) {
@@ -930,7 +936,7 @@ public class EntityStore {
             stitchingDataByLocalId.put(entityData.getEntityDtoBuilder().getId(), entityData);
         }
 
-        public Map<String, StitchingEntityData> getTargetIdToStitchingDataMap(final Long targetId) {
+        public Map<String, StitchingEntityData> getTargetIdToStitchingDataMap(final long targetId) {
             return targetDataMap.get(targetId);
         }
 
@@ -946,12 +952,8 @@ public class EntityStore {
      * @param stitchingContext The topology stitching context containing entity related information.
      */
     public void sendMetricsEntityAndTargetData(StitchingContext stitchingContext) {
-        ENTITY_COUNT_GAUGE.getLabeledMetrics().forEach((key, val) -> {
-            val.setData(0.0);
-        });
-        TARGET_COUNT_GAUGE.getLabeledMetrics().forEach((key, val) -> {
-            val.setData(0.0);
-        });
+        ENTITY_COUNT_GAUGE.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
+        TARGET_COUNT_GAUGE.getLabeledMetrics().forEach((key, val) -> val.setData(0.0));
         stitchingContext.getEntitiesByEntityTypeAndTarget().forEach((entityType, values) -> {
             values.forEach((target, entitiesList) -> {
                 if (entitiesList.size() > 0) {
@@ -970,5 +972,20 @@ public class EntityStore {
             String targetType = target.getProbeInfo().getProbeType();
             TARGET_COUNT_GAUGE.labels(targetType).increment();
         });
+    }
+
+    /**
+     * Small helper cache when building StitchingContext.
+     */
+    private class TargetCacheEntry {
+        public final boolean supportsConnectedTo;
+        public final long lastUpdatedTime;
+        public final Optional<TargetIncrementalEntities> incrementalEntities;
+
+        private TargetCacheEntry(final long targetId) {
+            this.supportsConnectedTo = supportsConnectedTo(targetId);
+            this.lastUpdatedTime = getTargetLastUpdatedTime(targetId).orElse(0L);
+            this.incrementalEntities = getIncrementalEntities(targetId);
+        }
     }
 }

@@ -32,7 +32,7 @@ public class CopyActionEligibility {
      * @param bought            CommoditiesBought corresponding to this CommodityBought
      */
     public static void transferActionEligibilitySettingsFromEntityDTO(
-            @Nonnull CommonDTO.EntityDTO.CommodityBought commodityBought,
+            @Nonnull CommonDTO.EntityDTO.CommodityBoughtOrBuilder commodityBought,
             @Nonnull CommoditiesBought bought) {
 
         transferActionEligibilitySettingsFromEntityDTO(commodityBought,
@@ -68,7 +68,7 @@ public class CopyActionEligibility {
      * @param scalableConsumer  Consumer that will accept the scalable setting
      */
     private static void transferActionEligibilitySettingsFromEntityDTO(
-            @Nonnull CommonDTO.EntityDTO.CommodityBought commodityBought,
+            @Nonnull CommonDTO.EntityDTO.CommodityBoughtOrBuilder commodityBought,
             Consumer<Boolean> movableConsumer,
             Consumer<Boolean> startableConsumer,
             Consumer<Boolean> scalableConsumer) {

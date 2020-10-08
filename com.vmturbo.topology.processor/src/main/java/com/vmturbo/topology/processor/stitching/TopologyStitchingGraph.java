@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -33,6 +34,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.ConnectedEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
@@ -158,8 +160,12 @@ public class TopologyStitchingGraph {
 
         if (!entityDtoBuilder.getCommoditiesBoughtList().isEmpty()) {
             final List<Integer> invalidCommBought = new ArrayList<>();
-            for (int i = 0; i < entityDtoBuilder.getCommoditiesBoughtCount(); ++i) {
-                final EntityDTO.CommodityBought commodityBought = entityDtoBuilder.getCommoditiesBought(i);
+            Iterator<CommodityBought.Builder> iterator;
+            int i;
+
+            for (iterator = entityDtoBuilder.getCommoditiesBoughtBuilderList().iterator(), i = 0;
+                iterator.hasNext(); i++) {
+                final CommodityBought.Builder commodityBought = iterator.next();
                 final String providerId = commodityBought.getProviderId();
                 final StitchingEntityData providerData = entityMap.get(providerId);
                 if (providerData == null) {
@@ -213,9 +219,8 @@ public class TopologyStitchingGraph {
                 }
 
                 CommoditiesBought bought = new CommoditiesBought(
-                        commodityBought.getBoughtList().stream()
-                                .map(CommodityDTO::toBuilder)
-                                .collect(Collectors.toList()), volumeId);
+                        commodityBought.getBoughtBuilderList(), volumeId);
+
                 // Pass on the action eligibility settings that are provided in the
                 // CommodityBought section of the SDK's EntityDTO
                 CopyActionEligibility.transferActionEligibilitySettingsFromEntityDTO(
@@ -235,8 +240,13 @@ public class TopologyStitchingGraph {
 
         if (!entityDtoBuilder.getCommoditiesSoldList().isEmpty()) {
             final List<Integer> invalidCommSold = new ArrayList<>();
-            for (int i = 0; i < entityDtoBuilder.getCommoditiesSoldCount(); ++i) {
-                final CommodityDTO commoditySold = entityDtoBuilder.getCommoditiesSold(i);
+            Iterator<CommodityDTO.Builder> iterator;
+            int i;
+
+            for (iterator = entityDtoBuilder.getCommoditiesSoldBuilderList().iterator(), i = 0;
+                iterator.hasNext(); ++i) {
+                final CommodityDTO.Builder commoditySold = iterator.next();
+
                 final Optional<String> accessingIdOpt =
                     SdkToTopologyEntityConverter.parseAccessKey(commoditySold);
                 final TopologyStitchingEntity accessingEntity;
@@ -275,7 +285,8 @@ public class TopologyStitchingGraph {
                 }
 
                 entity.getTopologyCommoditiesSold()
-                    .add(new CommoditySold(commoditySold.toBuilder(), accessingEntity));
+                    .add(new CommoditySold(commoditySold, accessingEntity));
+
             }
 
             for (final Integer invalidIdx : Lists.reverse(invalidCommSold)) {
@@ -284,7 +295,8 @@ public class TopologyStitchingGraph {
         }
 
         // add connected entities
-            addConnections(entityData, entityMap, entity, entityDtoBuilder, errorsByCategory);
+        addConnections(entityData, entityMap, entity, entityDtoBuilder, errorsByCategory);
+
         if (entityData.supportsDeprecatedConnectedTo()) {
             // A deprecated mode for expressing entity connections overloaded other relationships
             // such as "LayeredOver" and "ConsistsOf". Deprecated in favor of the SDK ConnectedEntity
@@ -484,8 +496,8 @@ public class TopologyStitchingGraph {
         final @Nonnull TopologyStitchingEntity entity,
         final @Nonnull Map<StitchingErrorCode, MutableInt> errorsByCategory,
         final @Nonnull ConnectedEntity connection) {
-        final StitchingEntityData connectedEntity = entityMap.get(connection.getConnectedEntityId());
-        if (connectedEntity == null) {
+        final StitchingEntityData connectedEntityData = entityMap.get(connection.getConnectedEntityId());
+        if (connectedEntityData == null) {
             // The final list of invalid entities gets printed at error-level
             // below, so this can be at debug.
             logger.debug("Entity {} (local id: {}) - connection {} "
@@ -495,21 +507,21 @@ public class TopologyStitchingGraph {
             return null;
         }
 
-        final TopologyStitchingEntity consistsOfEntity = getOrCreateStitchingEntity(connectedEntity);
-        if (!consistsOfEntity.getLocalId().equals(connection.getConnectedEntityId())) {
+        final TopologyStitchingEntity connectedEntity = getOrCreateStitchingEntity(connectedEntityData);
+        if (!connectedEntity.getLocalId().equals(connection.getConnectedEntityId())) {
             // The final list of invalid entities gets printed at error-level
             // below, so this can be at debug.
             logger.debug("Entity {} (local id: {}) - Map key {} does not "
                     + "match connection localId value {}", entityData.getOid(),
                 entityData.getLocalId(), connection.getConnectedEntityId(),
-                consistsOfEntity.getLocalId());
+                connectedEntity.getLocalId());
             errorsByCategory.computeIfAbsent(stitchingErrorCodeFor(connection.getConnectionType()),
                 k -> new MutableInt()).increment();
             errorsByCategory.computeIfAbsent(StitchingErrorCode.INCONSISTENT_KEY,
                 k -> new MutableInt()).increment();
             return null;
         }
-        return consistsOfEntity;
+        return connectedEntity;
     }
 
     static StitchingErrorCode stitchingErrorCodeFor(final @Nonnull ConnectedEntity.ConnectionType type) {
@@ -662,11 +674,8 @@ public class TopologyStitchingGraph {
      * @return The retrieved or newly created {@link TopologyStitchingEntity} for the entity.
      */
     public TopologyStitchingEntity getOrCreateStitchingEntity(@Nonnull final StitchingEntityData entityData) {
-        return getEntity(entityData.getEntityDtoBuilder()).orElseGet(() -> {
-            final TopologyStitchingEntity newStitchingEntity = new TopologyStitchingEntity(entityData);
-            stitchingEntities.put(newStitchingEntity.getEntityBuilder(), newStitchingEntity);
-            return newStitchingEntity;
-        });
+        return stitchingEntities.computeIfAbsent(entityData.getEntityDtoBuilder(),
+            builder -> new TopologyStitchingEntity(entityData));
     }
 
     private static class Metrics {

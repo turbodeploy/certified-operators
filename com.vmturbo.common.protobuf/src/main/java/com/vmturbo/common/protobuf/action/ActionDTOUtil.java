@@ -75,6 +75,10 @@ public class ActionDTOUtil {
     // FIXME Embed semantics in the commodity key string is an hack. We need to have a better way to
     // express those relations
     public static final String COMMODITY_KEY_SEPARATOR = "::";
+    /**
+     * Length of the COMMODITY_KEY_SEPARATOR field.
+     */
+    public static final int COMMODITY_KEY_SEPARATOR_LENGTH = COMMODITY_KEY_SEPARATOR.length();
 
     // Some port channel commodities have keys with this prefix. If they do have this as a prefix,
     // we need to remove it before displaying it in the UI.
