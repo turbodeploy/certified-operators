@@ -978,10 +978,19 @@ public class TopologyFilterFactoryTest {
                                            .setRegex("O.*=.*A.*"))
                     .build();
 
+        final Search.PropertyFilter searchFilterWithOnlyKey = Search.PropertyFilter
+                .newBuilder()
+                .setPropertyName(SearchableProperties.TAGS_TYPE_PROPERTY_NAME)
+                .setMapFilter(
+                        MapFilter
+                                .newBuilder()
+                                .setKey("KEY")
+                ).build();
+
         final PropertyFilter<TestGraphEntity> positiveFilter = filterFactory.filterFor(positiveSearchFilter);
         final PropertyFilter<TestGraphEntity> negativeFilter = filterFactory.filterFor(negativeSearchFilter);
-        final PropertyFilter<TestGraphEntity> filterWithRegex =
-                filterFactory.filterFor(searchFilterWithRegex);
+        final PropertyFilter<TestGraphEntity> filterWithRegex = filterFactory.filterFor(searchFilterWithRegex);
+        final PropertyFilter<TestGraphEntity> filterWithOnlyKey = filterFactory.filterFor(searchFilterWithOnlyKey);
 
         // entity has no tags
         final TestGraphEntity noTagsEntity = TestGraphEntity.newBuilder(120L, ApiEntityType.VIRTUAL_MACHINE)
@@ -989,6 +998,7 @@ public class TopologyFilterFactoryTest {
         assertFalse(positiveFilter.test(noTagsEntity, graph));
         assertTrue(negativeFilter.test(noTagsEntity, graph));
         assertFalse(filterWithRegex.test(noTagsEntity, graph));
+        assertFalse(filterWithOnlyKey.test(noTagsEntity, graph));
 
         // entity does not have the key
         final TestGraphEntity noKeyEntity = TestGraphEntity.newBuilder(121L, ApiEntityType.VIRTUAL_MACHINE)
@@ -997,6 +1007,7 @@ public class TopologyFilterFactoryTest {
         assertFalse(positiveFilter.test(noKeyEntity, graph));
         assertTrue(negativeFilter.test(noKeyEntity, graph));
         assertTrue(filterWithRegex.test(noKeyEntity, graph));
+        assertFalse(filterWithOnlyKey.test(noKeyEntity, graph));
 
         // entity has the key, but not one of the values
         final TestGraphEntity wrongValueEntity = TestGraphEntity.newBuilder(122L, ApiEntityType.VIRTUAL_MACHINE)
@@ -1006,6 +1017,7 @@ public class TopologyFilterFactoryTest {
         assertFalse(positiveFilter.test(wrongValueEntity, graph));
         assertTrue(negativeFilter.test(wrongValueEntity, graph));
         assertTrue(filterWithRegex.test(wrongValueEntity, graph));
+        assertTrue(filterWithOnlyKey.test(wrongValueEntity, graph));
 
         // entity has the key, and one of the values
         final TestGraphEntity rightValueEntity = TestGraphEntity.newBuilder(123L, ApiEntityType.VIRTUAL_MACHINE)
@@ -1014,6 +1026,7 @@ public class TopologyFilterFactoryTest {
         assertTrue(positiveFilter.test(rightValueEntity, graph));
         assertFalse(negativeFilter.test(rightValueEntity, graph));
         assertFalse(filterWithRegex.test(rightValueEntity, graph));
+        assertTrue(filterWithOnlyKey.test(rightValueEntity, graph));
     }
 
     @Test

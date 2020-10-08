@@ -256,6 +256,9 @@ public interface TagIndex {
                             retSet.addAll(entities);
                         }
                     });
+                } else {
+                    // no values or regex provided, look for all values for the given key
+                    valuesMap.values().forEach(retSet::addAll);
                 }
             }
             return retSet;
