@@ -57,6 +57,7 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterHeadroomInfo;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
@@ -869,70 +870,83 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                                     @Nonnull StreamObserver<Stats.SaveClusterHeadroomResponse> responseObserver) {
         logger.debug("Got request to save cluster headroom: {}", request);
 
-        Timestamp today = Timestamp.from(Instant.now().truncatedTo(ChronoUnit.DAYS));
+        final Timestamp today = Timestamp.from(Instant.now().truncatedTo(ChronoUnit.DAYS));
 
-        try {
+        for (ClusterHeadroomInfo headroomInfo : request.getClusterHeadroomInfoList()) {
             // Table represents : <PropertyType, SubPropertyType, Value>
             com.google.common.collect.Table<String, String, Double> headroomData =
-                    HashBasedTable.create();
+                HashBasedTable.create();
 
             headroomData.put(StringConstants.HEADROOM_VMS, StringConstants.HEADROOM_VMS,
-                    (double)request.getHeadroom());
+                (double) headroomInfo.getHeadroom());
             headroomData.put(StringConstants.VM_GROWTH, StringConstants.VM_GROWTH,
-                    (double)request.getMonthlyVMGrowth());
+                (double) headroomInfo.getMonthlyVMGrowth());
+
             // CPU related headroom stats.
             headroomData.put(StringConstants.CPU_HEADROOM, StringConstants.USED,
-                    (double)request.getCpuHeadroomInfo().getHeadroom());
+                (double) headroomInfo.getCpuHeadroomInfo().getHeadroom());
             headroomData.put(StringConstants.CPU_HEADROOM, StringConstants.CAPACITY,
-                    (double)request.getCpuHeadroomInfo().getCapacity());
+                (double) headroomInfo.getCpuHeadroomInfo().getCapacity());
             // Don't save days to exhaustion when headroom capacity is 0,
             // because it doesn't make sense to have days to exhaustion in this case.
-            if (request.getCpuHeadroomInfo().getCapacity() != 0) {
+            if (headroomInfo.getCpuHeadroomInfo().getCapacity() != 0) {
                 headroomData.put(StringConstants.CPU_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
-                        (double)request.getCpuHeadroomInfo().getDaysToExhaustion());
+                    (double) headroomInfo.getCpuHeadroomInfo().getDaysToExhaustion());
             }
 
             // Memory related headroom stats.
             headroomData.put(StringConstants.MEM_HEADROOM, StringConstants.USED,
-                    (double)request.getMemHeadroomInfo().getHeadroom());
+                (double) headroomInfo.getMemHeadroomInfo().getHeadroom());
             headroomData.put(StringConstants.MEM_HEADROOM, StringConstants.CAPACITY,
-                    (double)request.getMemHeadroomInfo().getCapacity());
-            if (request.getMemHeadroomInfo().getCapacity() != 0) {
+                (double) headroomInfo.getMemHeadroomInfo().getCapacity());
+            if (headroomInfo.getMemHeadroomInfo().getCapacity() != 0) {
                 headroomData.put(StringConstants.MEM_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
-                        (double)request.getMemHeadroomInfo().getDaysToExhaustion());
+                    (double) headroomInfo.getMemHeadroomInfo().getDaysToExhaustion());
             }
 
             // Storage related headroom stats.
             headroomData.put(StringConstants.STORAGE_HEADROOM, StringConstants.USED,
-                    (double)request.getStorageHeadroomInfo().getHeadroom());
+                (double) headroomInfo.getStorageHeadroomInfo().getHeadroom());
             headroomData.put(StringConstants.STORAGE_HEADROOM, StringConstants.CAPACITY,
-                    (double)request.getStorageHeadroomInfo().getCapacity());
-            if (request.getStorageHeadroomInfo().getCapacity() != 0) {
+                (double) headroomInfo.getStorageHeadroomInfo().getCapacity());
+            if (headroomInfo.getStorageHeadroomInfo().getCapacity() != 0) {
                 headroomData.put(StringConstants.STORAGE_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
-                        (double)request.getStorageHeadroomInfo().getDaysToExhaustion());
+                    (double) headroomInfo.getStorageHeadroomInfo().getDaysToExhaustion());
             }
-            // save computed headrooms tats to cluster_stats_by_day table
+
+
+            // save computed headroom stats to cluster_stats_by_day table
             for (Cell<String, String, Double> cell : headroomData.cellSet()) {
                 ClusterStatsByDayRecord record = CLUSTER_STATS_BY_DAY.newRecord();
                 record.setRecordedOn(today);
-                record.setInternalName(Long.toString(request.getClusterId()));
+                record.setInternalName(Long.toString(headroomInfo.getClusterId()));
                 record.setPropertyType(cell.getRowKey());
                 record.setPropertySubtype(cell.getColumnKey());
                 record.setValue(cell.getValue());
                 record.setSamples(1);
-                clusterStatsByDayLoader.insert(record);
+                try {
+                    clusterStatsByDayLoader.insert(record);
+                } catch (InterruptedException e) {
+                    logger.error("Failed to save cluster headroom data in database for cluster {}: {}",
+                        headroomInfo.getClusterId(), e);
+                    responseObserver.onError(Status.INTERNAL.withDescription(
+                        "Failed to save cluster headroom data in database.")
+                        .withCause(e)
+                        .asException());
+                }
             }
-            clusterStatsByDayLoader.flush(true);
-            responseObserver.onNext(Stats.SaveClusterHeadroomResponse.getDefaultInstance());
-            responseObserver.onCompleted();
-        } catch (InterruptedException e) {
-            logger.error("Failed to save cluster headroom data in database for cluster {}: {}",
-                    request.getClusterId(), e);
-            responseObserver.onError(Status.INTERNAL.withDescription(
-                    "Failed to save cluster headroom data in database.")
-                    .withCause(e)
-                    .asException());
         }
+
+        try {
+            clusterStatsByDayLoader.flush(true);
+        } catch (InterruptedException e) {
+            responseObserver.onError(Status.INTERNAL.withDescription(
+                "Failed to save cluster headroom data in database.")
+                .withCause(e)
+                .asException());
+        }
+        responseObserver.onNext(Stats.SaveClusterHeadroomResponse.getDefaultInstance());
+        responseObserver.onCompleted();
     }
 
     /**

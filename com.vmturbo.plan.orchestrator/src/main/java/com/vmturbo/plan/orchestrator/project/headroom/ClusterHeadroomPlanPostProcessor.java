@@ -23,6 +23,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterators;
 import com.turbonomic.cpucapacity.CPUCapacityEstimator;
 
 import io.grpc.Channel;
@@ -56,6 +57,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterHeadroomInfo;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequestForHeadroomPlan;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityHeadroom;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
@@ -280,6 +282,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         final Map<Long, Float> clusterIdToVMDailyGrowth =
             getVMDailyGrowth(entityOidsByClusterAndType.keySet());
 
+        final List<ClusterHeadroomInfo> clusterHeadroomInfos = new ArrayList<>(clusters.size());
+
         // Calculate headroom for each cluster.
         for (Grouping cluster : clusters) {
             if (!entityOidsByClusterAndType.containsKey(cluster.getId())) {
@@ -295,13 +299,15 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                     type -> entitiesByType.put(type, Collections.emptyList()));
 
                 // Calculate headroom for this cluster.
-                calculateHeadroomPerCluster(cluster, entitiesByType,
-                    clusterIdToVMDailyGrowth.get(cluster.getId()));
+                calculateHeadroomPerCluster(cluster, entitiesByType, clusterIdToVMDailyGrowth.get(cluster.getId()))
+                    .ifPresent(clusterHeadroomInfos::add);
             } catch (RuntimeException e) {
                 logger.error("Error in calculating headroom for cluster "
                     + cluster.getDefinition().getDisplayName() + "(" + cluster.getId() + ")", e);
             }
         }
+
+        saveClusterHeadroomInfo(clusterHeadroomInfos);
     }
 
     /**
@@ -481,8 +487,9 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @param cluster calculate headroom for this cluster
      * @param headroomEntities the VMs, hosts and Storages in this cluster
      * @param vmDailyGrowth the averaged number of daily added VMs since past lookBackDays
+     * @return cluster headroom info
      */
-    private void calculateHeadroomPerCluster(
+    private Optional<ClusterHeadroomInfo> calculateHeadroomPerCluster(
             @Nonnull final Grouping cluster,
             @Nonnull final Map<Integer, List<HeadroomEntity>> headroomEntities,
             final float vmDailyGrowth) {
@@ -496,7 +503,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         } else {
             logger.error("Template not found for cluster {} ({}).",
                 cluster.getDefinition().getDisplayName(), cluster.getId());
-            return;
+            return Optional.empty();
         }
 
         // Map of commodities bought by template per relevant headroom commodities
@@ -514,8 +521,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             headroomEntities.get(EntityType.STORAGE_VALUE),
             commoditiesBoughtByTemplate.get(STORAGE_HEADROOM_COMMODITIES), vmDailyGrowth);
 
-        createStatsRecords(cluster.getId(),
-            cpuHeadroom, memHeadroom, storageHeadroom, getMonthlyVMGrowth(vmDailyGrowth));
+        return Optional.of(createStatsRecord(cluster.getId(),
+            cpuHeadroom, memHeadroom, storageHeadroom, getMonthlyVMGrowth(vmDailyGrowth)));
     }
 
     /**
@@ -756,15 +763,16 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     }
 
     /**
-     * Save the headroom value.
+     * Create headroom record.
      *
      * @param clusterId cluster id
      * @param cpuHeadroomInfo headroom values for CPU
      * @param memHeadroomInfo headroom values for Memory
      * @param storageHeadroomInfo headroom values for Storage
      * @param monthlyVMGrowth the number of monthly added VMs
+     * @return cluster headroom info
      */
-    private void createStatsRecords(final long clusterId,
+    private ClusterHeadroomInfo createStatsRecord(final long clusterId,
                                     CommodityHeadroom cpuHeadroomInfo,
                                     CommodityHeadroom memHeadroomInfo,
                                     CommodityHeadroom storageHeadroomInfo,
@@ -773,19 +781,35 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             .min(Comparator.comparing(Long::valueOf))
             // Ideally this should never happen but if it does we are logging it before writing to db.
             .orElse(-1L);
-        // Save the headroom in the history component.
-        try {
-            statsHistoryService.saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
-                .setClusterId(clusterId)
-                .setHeadroom(minHeadroom)
-                .setCpuHeadroomInfo(cpuHeadroomInfo)
-                .setMemHeadroomInfo(memHeadroomInfo)
-                .setStorageHeadroomInfo(storageHeadroomInfo)
-                .setMonthlyVMGrowth(monthlyVMGrowth)
-                .build());
-        } catch (StatusRuntimeException e) {
-            logger.error("Failed to save cluster headroom: {}", e.getMessage());
-        }
+        return ClusterHeadroomInfo.newBuilder()
+            .setClusterId(clusterId)
+            .setHeadroom(minHeadroom)
+            .setCpuHeadroomInfo(cpuHeadroomInfo)
+            .setMemHeadroomInfo(memHeadroomInfo)
+            .setStorageHeadroomInfo(storageHeadroomInfo)
+            .setMonthlyVMGrowth(monthlyVMGrowth)
+            .build();
+    }
+
+    /**
+     * Save cluster headroom in the history component.
+     *
+     * @param clusterHeadroomInfos a list of cluster headroom info
+     */
+    private void saveClusterHeadroomInfo(final List<ClusterHeadroomInfo> clusterHeadroomInfos) {
+        // Chunking messages in order not to exceed gRPC message maximum size,
+        // which is 4MB by default. The size of each record is around 0.3KB.
+        Iterators.partition(clusterHeadroomInfos.iterator(), 200)
+            .forEachRemaining(chunkRecords -> {
+                final SaveClusterHeadroomRequest.Builder request = SaveClusterHeadroomRequest.newBuilder();
+                chunkRecords.forEach(request::addClusterHeadroomInfo);
+                logger.info("Sending {} cluster headroom results to history.", chunkRecords.size());
+                try {
+                    statsHistoryService.saveClusterHeadroom(request.build());
+                } catch (StatusRuntimeException e) {
+                    logger.error("Failed to save cluster headroom with status: " + e.getStatus(), e);
+                }
+            });
     }
 
     @Override
@@ -816,7 +840,6 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
 
     /**
      * Set onFailureHandler.
-     * 
      * @param onFailureHandler the handler that handles failure
      */
     void setOnFailureHandler(final Runnable onFailureHandler) {

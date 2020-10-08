@@ -411,6 +411,10 @@ message CommodityHeadroom {
 }
 
 message SaveClusterHeadroomRequest {
+    repeated ClusterHeadroomInfo cluster_headroom_info = 1;
+}
+
+message ClusterHeadroomInfo {
     // The ID of the cluster
     optional int64 cluster_id = 1;
 

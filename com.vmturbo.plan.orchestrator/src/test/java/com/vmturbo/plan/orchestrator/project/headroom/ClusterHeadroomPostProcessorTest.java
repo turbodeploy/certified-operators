@@ -53,6 +53,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterHeadroomInfo;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityHeadroom;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
@@ -152,17 +153,17 @@ public class ClusterHeadroomPostProcessorTest {
         processor.handleProjectedTopology(100, TopologyInfo.getDefaultInstance(), topologyIt);
 
         // VmGrowth = 0 (because we don't have data in the past)
-        verify(historyServiceMole).saveClusterHeadroom(getExpectedSaveClusterHeadroomRequest()
-            // Template Value CPU_SPEED = 10, consumedFactor = 0.5, effectiveUsed = 5
-            // PM CPU value : used = 50 * 2 (scalingFactor), capacity = 100 * 2 (scalingFactor)
-            // CPU headroom calculation :
-            // headroomCapacity = capacity / effectiveUsed = 40, headroomAvailable = (capacity - used) / effectiveUsed = 20
-            // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
-            .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
-                .setHeadroom(20)
-                .setCapacity(40)
-                .setDaysToExhaustion(MORE_THAN_A_YEAR))
-            .build());
+        verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
+            .addClusterHeadroomInfo(getExpectedSaveClusterHeadroomRequest()
+                // Template Value CPU_SPEED = 10, consumedFactor = 0.5, effectiveUsed = 5
+                // PM CPU value : used = 50 * 2 (scalingFactor), capacity = 100 * 2 (scalingFactor)
+                // CPU headroom calculation :
+                // headroomCapacity = capacity / effectiveUsed = 40, headroomAvailable = (capacity - used) / effectiveUsed = 20
+                // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
+                .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
+                    .setHeadroom(20)
+                    .setCapacity(40)
+                    .setDaysToExhaustion(MORE_THAN_A_YEAR))).build());
     }
 
     /**
@@ -178,6 +179,7 @@ public class ClusterHeadroomPostProcessorTest {
         processor.handleProjectedTopology(100, TopologyInfo.getDefaultInstance(), topologyIt);
 
         verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
+            .addClusterHeadroomInfo(ClusterHeadroomInfo.newBuilder()
             .setClusterId(CLUSTER_ID)
             .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
                             .setHeadroom(20)
@@ -191,11 +193,11 @@ public class ClusterHeadroomPostProcessorTest {
             .setStorageHeadroomInfo(CommodityHeadroom.getDefaultInstance())
             .setMonthlyVMGrowth(0) // (vmGrowth * daysInMonth) / PeakLookback days = (0 * 30)/7 = 0
             .setHeadroom(0) // minimum of mem, cpu and storage headroom values : min(10, 4, 0)
-            .build());
+            .build()).build());
     }
 
-    private SaveClusterHeadroomRequest.Builder getExpectedSaveClusterHeadroomRequest() {
-        return SaveClusterHeadroomRequest.newBuilder()
+    private ClusterHeadroomInfo.Builder getExpectedSaveClusterHeadroomRequest() {
+        return ClusterHeadroomInfo.newBuilder()
             .setClusterId(CLUSTER_ID)
             // Template Value MEMORY_SIZE = 100, consumedFactor = 0.4, effectiveUsed = 40
             // PM MEM value : used = 40, capacity = 200
@@ -232,7 +234,8 @@ public class ClusterHeadroomPostProcessorTest {
         // no cpu model
         processor.handleProjectedTopology(100, TopologyInfo.getDefaultInstance(), topologyIt);
         // VmGrowth = 0 (because we don't have data in the past)
-        verify(historyServiceMole).saveClusterHeadroom(getExpectedSaveClusterHeadroomRequest()
+        verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
+            .addClusterHeadroomInfo(getExpectedSaveClusterHeadroomRequest()
             // Template Value CPU_SPEED = 10, consumedFactor = 0.5, effectiveUsed = 5
             // PM CPU value : used = 50 * 2 (scalingFactor), capacity = 100 * 2 (scalingFactor)
             // CPU headroom calculation :
@@ -241,7 +244,7 @@ public class ClusterHeadroomPostProcessorTest {
             .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
                 .setHeadroom(20)
                 .setCapacity(40)
-                .setDaysToExhaustion(MORE_THAN_A_YEAR))
+                .setDaysToExhaustion(MORE_THAN_A_YEAR)))
             .build());
 
         // empty cpu model
@@ -249,7 +252,8 @@ public class ClusterHeadroomPostProcessorTest {
             .thenReturn(Optional.of(getTemplateForHeadroom(true, "")));
         processor.handleProjectedTopology(100, TopologyInfo.getDefaultInstance(), topologyIt);
         // VmGrowth = 0 (because we don't have data in the past)
-        verify(historyServiceMole).saveClusterHeadroom(getExpectedSaveClusterHeadroomRequest()
+        verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
+            .addClusterHeadroomInfo(getExpectedSaveClusterHeadroomRequest()
             // Template Value CPU_SPEED = 10, consumedFactor = 0.5, effectiveUsed = 5
             // PM CPU value : used = 50 * 2 (scalingFactor), capacity = 100 * 2 (scalingFactor)
             // CPU headroom calculation :
@@ -258,7 +262,7 @@ public class ClusterHeadroomPostProcessorTest {
             .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
                 .setHeadroom(20)
                 .setCapacity(40)
-                .setDaysToExhaustion(MORE_THAN_A_YEAR))
+                .setDaysToExhaustion(MORE_THAN_A_YEAR)))
             .build());
     }
 
@@ -279,7 +283,8 @@ public class ClusterHeadroomPostProcessorTest {
 
         processor.handleProjectedTopology(100, TopologyInfo.getDefaultInstance(), topologyIt);
         // VmGrowth = 0 (because we don't have data in the past)
-        verify(historyServiceMole).saveClusterHeadroom(getExpectedSaveClusterHeadroomRequest()
+        verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
+            .addClusterHeadroomInfo(getExpectedSaveClusterHeadroomRequest()
             // Template Value CPU_SPEED = 10, consumedFactor = 0.5, scalingFactor = 0.5
             // effectiveUsed = CPU_SPEED * consumedFactor * scalingFactor = 10
             // PM CPU value : used = 50 * 2 (scalingFactor), capacity = 100 * 2 (scalingFactor)
@@ -290,7 +295,7 @@ public class ClusterHeadroomPostProcessorTest {
             .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
                 .setHeadroom(10)
                 .setCapacity(20)
-                .setDaysToExhaustion(MORE_THAN_A_YEAR))
+                .setDaysToExhaustion(MORE_THAN_A_YEAR)))
             .build());
     }
 
@@ -311,7 +316,8 @@ public class ClusterHeadroomPostProcessorTest {
 
         processor.handleProjectedTopology(100, TopologyInfo.getDefaultInstance(), topologyIt);
         // VmGrowth = 0 (because we don't have data in the past)
-        verify(historyServiceMole).saveClusterHeadroom(getExpectedSaveClusterHeadroomRequest()
+        verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
+            .addClusterHeadroomInfo(getExpectedSaveClusterHeadroomRequest()
             // Template Value CPU_SPEED = 10, consumedFactor = 0.5, scalingFactor = 0.5
             // effectiveUsed = CPU_SPEED * consumedFactor * scalingFactor = 2.5
             // PM CPU value : used = 50 * 2 (scalingFactor), capacity = 100 * 2 (scalingFactor)
@@ -322,7 +328,7 @@ public class ClusterHeadroomPostProcessorTest {
             .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
                 .setHeadroom(40)
                 .setCapacity(80)
-                .setDaysToExhaustion(MORE_THAN_A_YEAR))
+                .setDaysToExhaustion(MORE_THAN_A_YEAR)))
             .build());
     }
 
@@ -340,6 +346,7 @@ public class ClusterHeadroomPostProcessorTest {
 
         // VmGrowth = 0 (because we don't have data in the past)
         verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
+            .addClusterHeadroomInfo(ClusterHeadroomInfo.newBuilder()
             .setClusterId(CLUSTER_ID)
             // No active host
             .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
@@ -362,7 +369,7 @@ public class ClusterHeadroomPostProcessorTest {
                 .setDaysToExhaustion(MORE_THAN_A_YEAR))
             .setMonthlyVMGrowth(0) // (vmGrowth * daysInMonth) / PeakLookback days = (0 * 30)/7 = 0
             .setHeadroom(0) // minimum of mem, cpu and storage headroom values : min(0, 0, 2)
-            .build());
+            .build()).build());
     }
 
     /**

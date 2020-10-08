@@ -64,6 +64,7 @@
  import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
  import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
  import com.vmturbo.common.protobuf.stats.Stats;
+ import com.vmturbo.common.protobuf.stats.Stats.ClusterHeadroomInfo;
  import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
  import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequestForHeadroomPlan;
  import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsResponse;
@@ -585,9 +586,10 @@ public class StatsHistoryRpcServiceTest {
         long headroom = 20L;
         long numVMs = 25L;
         SaveClusterHeadroomRequest request = SaveClusterHeadroomRequest.newBuilder()
+            .addClusterHeadroomInfo(ClusterHeadroomInfo.newBuilder()
                 .setClusterId(clusterId)
-                .setHeadroom(headroom)
-                .build();
+                .setHeadroom(headroom))
+            .build();
         clientStub.saveClusterHeadroom(request);
         verify(mockLoader, atLeastOnce()).insert(any());
         verify(mockLoader).flush(true);
