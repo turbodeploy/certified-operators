@@ -2091,6 +2091,11 @@ public class ActionModeCalculatorTest {
         // 'Scale for Performance' is set in custom policy
         final Set<String> perfIsOverridden = getDefaultPolicySettings(
                 CloudComputeScaleForPerf);
+        //scale for perf and scale for savings set to automatic
+        //we have perf action with savings, CloudComputeScaleForPerf is expected
+        final List<Setting> case2 = ImmutableList.of(recommend, automatic, automatic);
+        doGetScaleSpecTest(perfWithSavingsScale, case2, perfIsOverridden, CloudComputeScaleForPerf);
+
         final List<Setting> case3 = ImmutableList.of(recommend, manual, automatic);
         doGetScaleSpecTest(perfScale, case3, perfIsOverridden, CloudComputeScaleForPerf);
         doGetScaleSpecTest(zeroPerfScale, case3, perfIsOverridden, CloudComputeScaleForPerf);

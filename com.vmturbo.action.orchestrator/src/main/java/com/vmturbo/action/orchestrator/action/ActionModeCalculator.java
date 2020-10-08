@@ -1050,7 +1050,7 @@ public class ActionModeCalculator {
                         .getEnumSettingValue(),
                 settingsForTargetEntity.get(effActionSetting.getSettingName())
                         .getEnumSettingValue(), CLOUD_SCALE_SETTING_ENUM_TYPE);
-        if (comparison > 0) {
+        if (comparison >= 0) {
             return perfActionSetting;
         } else {
             return effActionSetting;
