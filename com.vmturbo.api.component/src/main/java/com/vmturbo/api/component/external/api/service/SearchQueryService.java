@@ -16,6 +16,7 @@ import com.vmturbo.api.dto.searchquery.SearchCountRecordApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
 import com.vmturbo.api.pagination.searchquery.SearchQueryPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.ISearchQueryService;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.search.IApiQueryEngine;
 
 /**
@@ -39,9 +40,12 @@ import com.vmturbo.search.IApiQueryEngine;
 public class SearchQueryService implements ISearchQueryService {
 
     private IApiQueryEngine apiQueryEngine;
+    private UserSessionContext userSessionContext;
 
-    public SearchQueryService(final IApiQueryEngine apiQueryEngine) {
+    public SearchQueryService(final IApiQueryEngine apiQueryEngine,
+                              final UserSessionContext userSessionContext) {
         this.apiQueryEngine = apiQueryEngine;
+        this.userSessionContext = userSessionContext;
     }
 
     /**
@@ -54,6 +58,7 @@ public class SearchQueryService implements ISearchQueryService {
     @Nonnull
     public SearchQueryPaginationResponse<SearchQueryRecordApiDTO> searchEntities(
             @Nonnull EntityQueryApiDTO input) throws Exception {
+        preventScopedUser();
         return apiQueryEngine.processEntityQuery(input);
     }
 
@@ -68,6 +73,7 @@ public class SearchQueryService implements ISearchQueryService {
     @Nonnull
     public SearchQueryPaginationResponse<SearchQueryRecordApiDTO> searchGroups(
             @Nonnull GroupQueryApiDTO input) throws Exception {
+        preventScopedUser();
         return apiQueryEngine.processGroupQuery(input);
     }
 
@@ -82,11 +88,9 @@ public class SearchQueryService implements ISearchQueryService {
     @Nonnull
     public SearchQueryPaginationResponse<SearchQueryRecordApiDTO> searchAll(
             @Nonnull SearchAllQueryApiDTO input) throws Exception {
+        preventScopedUser();
         return apiQueryEngine.processSearchAllQuery(input);
     }
-
-
-
 
     /**
      * Count entities.  Endpoint: POST /entities/count
@@ -99,6 +103,7 @@ public class SearchQueryService implements ISearchQueryService {
     @Nonnull
     public List<SearchCountRecordApiDTO> countEntities(@Nonnull EntityCountRequestApiDTO input)
             throws Exception {
+        preventScopedUser();
         return apiQueryEngine.countEntities(input);
     }
 
@@ -114,6 +119,7 @@ public class SearchQueryService implements ISearchQueryService {
     @Nonnull
     public List<SearchCountRecordApiDTO> countGroups(@Nonnull GroupCountRequestApiDTO input)
             throws Exception {
+        preventScopedUser();
         return apiQueryEngine.countGroups(input);
     }
 
@@ -129,6 +135,7 @@ public class SearchQueryService implements ISearchQueryService {
     @Nonnull
     public List<FieldValueTypeApiDTO> entityFields(@Nonnull EntityMetadataRequestApiDTO input)
             throws Exception {
+        preventScopedUser();
         return apiQueryEngine.entityFields(input);
     }
 
@@ -143,6 +150,16 @@ public class SearchQueryService implements ISearchQueryService {
     @Override
     @Nonnull
     public List<FieldValueTypeApiDTO> groupFields(@Nonnull GroupMetadataRequestApiDTO input) throws Exception {
+        preventScopedUser();
         return apiQueryEngine.groupFields(input);
+    }
+
+    /**
+     * Do not allow scoped user from using new search for now.
+     */
+    private void preventScopedUser() {
+        if (userSessionContext.isUserScoped()) {
+            throw new UnsupportedOperationException("New search is not supported for scoped user");
+        }
     }
 }

@@ -514,7 +514,7 @@ public class ServiceConfig {
 
     @Bean
     public SearchQueryService searchQueryService() throws UnsupportedDialectException {
-        return new SearchQueryService(this.searchDBConfig.apiQueryEngine());
+        return new SearchQueryService(this.searchDBConfig.apiQueryEngine(), userSessionContext());
     }
 
     /**
