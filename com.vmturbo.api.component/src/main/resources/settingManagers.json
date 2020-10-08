@@ -28,6 +28,8 @@
         "cloudComputeScale",
         "cloudDBScale",
         "cloudDBServerScale",
+        "cloudComputeScaleForSavings",
+        "cloudComputeScaleForPerf",
         "suspend",
         "suspendIsDisabled",
         "delete",

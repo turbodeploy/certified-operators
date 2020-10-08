@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -42,6 +43,7 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
@@ -51,6 +53,7 @@ import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -67,6 +70,11 @@ public class ActionModeCalculator {
                 EntityType.DESKTOP_POOL_VALUE, ConfigurableActionSettings.Move);
 
     private static final Logger logger = LogManager.getLogger();
+
+    private static final EnumSettingValueType CLOUD_SCALE_SETTING_ENUM_TYPE =
+            ActionSettingSpecs.getSettingSpec(ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                    ConfigurableActionSettings.CloudComputeScaleForPerf,
+                    ActionSettingType.ACTION_MODE)).getEnumSettingValueType();
 
     private final RangeAwareSpecCalculator rangeAwareSpecCalculator;
 
@@ -166,7 +174,10 @@ public class ActionModeCalculator {
                 final Map<String, Setting> settingsForTargetEntity = entitiesCache == null
                     ? Collections.emptyMap() : entitiesCache.getSettingsForEntity(targetEntityId);
 
-                result = specsApplicableToAction(actionDto, settingsForTargetEntity)
+                final Set<String> defaultSettingsForEntity = entitiesCache == null
+                        ? Collections.emptySet() : entitiesCache.getDefaultSettingPoliciesForEntity(targetEntityId);
+
+                result = specsApplicableToAction(actionDto, settingsForTargetEntity, defaultSettingsForEntity)
                     .flatMap(spec -> {
                         List<Pair<ActionMode, List<Long>>> modeResults = new ArrayList<>(2);
                         if (spec.isNonDisruptiveEnforced()) {
@@ -606,6 +617,9 @@ public class ActionModeCalculator {
             final Map<String, Setting> settingsForActionTarget = entitySettingsCache
                     .getSettingsForEntity(actionTargetEntityId);
 
+            final Set<String> defaultSettingsForEntity = entitySettingsCache
+                    .getDefaultSettingPoliciesForEntity(actionTargetEntityId);
+
             Optional<Action> translatedActionOpt = action.getActionTranslation()
                 .getTranslatedRecommendation();
             if (!translatedActionOpt.isPresent()) {
@@ -613,7 +627,7 @@ public class ActionModeCalculator {
             }
 
             // determine all the action modes related to the action
-            return specsApplicableToAction(translatedActionOpt.get(), settingsForActionTarget)
+            return specsApplicableToAction(translatedActionOpt.get(), settingsForActionTarget, defaultSettingsForEntity)
                 .map(ActionSpecifications::getConfigurableActionSetting)
                 // Is there a replace setting for this Workflow override for the current entity?
                 // note: the value of the workflowSettingSpec is the OID of the workflow, only used during
@@ -677,7 +691,9 @@ public class ActionModeCalculator {
             // get a map of all the settings (settingName  -> setting) specific to this entity
             final Map<String, Setting> settingsForActionTarget =
                 snapshot.getSettingsForEntity(actionTargetEntityId);
-            return getSettingForState(recommendation, settingsForActionTarget);
+            final Set<String> defaultSettingsForEntity =
+                    snapshot.getDefaultSettingPoliciesForEntity(actionTargetEntityId);
+            return getSettingForState(recommendation, settingsForActionTarget, defaultSettingsForEntity);
         } catch (UnsupportedActionException e) {
             logger.error("Unable to calculate complex action mode.", e);
             return Collections.emptyMap();
@@ -687,10 +703,11 @@ public class ActionModeCalculator {
     @Nonnull
     private Map<ActionState, String> getActionStateSettings(
             @Nonnull final ActionDTO.Action recommendation,
-            @Nonnull Map<String, Setting> actionSettings) {
+            @Nonnull Map<String, Setting> actionSettings,
+            @Nonnull Set<String> defaultSettingsForEntity) {
         final Map<ActionState, String> actionStateSettings = new HashMap<>();
         Optional<ConfigurableActionSettings> configurableActionSettingOptional =
-            getActionModeSettingSpec(recommendation, actionSettings);
+            getActionModeSettingSpec(recommendation, actionSettings, defaultSettingsForEntity);
         if (configurableActionSettingOptional.isPresent()) {
             ConfigurableActionSettings configurableActionSetting = configurableActionSettingOptional.get();
             // action workflows
@@ -753,8 +770,9 @@ public class ActionModeCalculator {
     @Nonnull
     private Optional<ConfigurableActionSettings> getActionModeSettingSpec(
         @Nonnull final ActionDTO.Action action,
-        @Nonnull Map<String, Setting> settingsForTargetEntity) {
-        return specsApplicableToAction(action, settingsForTargetEntity)
+        @Nonnull Map<String, Setting> settingsForTargetEntity,
+        @Nonnull Set<String> defaultSettingsForEntity) {
+        return specsApplicableToAction(action, settingsForTargetEntity, defaultSettingsForEntity)
             // there potentially be setting unrelated to action mode like
             // EntitySettingSpecs.EnforceNonDisruptive. Take a look at specsApplicableToAction
             // for more details. Here we only need action mode settings.
@@ -765,9 +783,10 @@ public class ActionModeCalculator {
     @Nonnull
     private Map<ActionState, Setting> getSettingForState(
             @Nonnull final ActionDTO.Action recommendation,
-            @Nonnull Map<String, Setting> actionSettings) {
+            @Nonnull Map<String, Setting> actionSettings,
+            @Nonnull Set<String> defaultSettingsForEntity) {
         final Map<ActionState, String> actionStateSettings = getActionStateSettings(
-            recommendation, actionSettings);
+            recommendation, actionSettings, defaultSettingsForEntity);
         final Map<ActionState, Setting> result = new EnumMap<>(ActionState.class);
         for (Entry<ActionState, String> settingEntry: actionStateSettings.entrySet()) {
             final ActionState actionState = settingEntry.getKey();
@@ -813,13 +832,16 @@ public class ActionModeCalculator {
      *
      * @param action The protobuf representation of the action.
      * @param settingsForTargetEntity The settings for the target entity
+     * @param defaultSettingsForEntity settings for the target entity defined in default
+     *         policies
      * @return The stream of applicable {@link EntitySettingSpecs}. This will be a stream of
      *         size one in most cases.
      */
     @VisibleForTesting
     @Nonnull
     Stream<ActionSpecifications> specsApplicableToAction(
-            @Nonnull final ActionDTO.Action action, Map<String, Setting> settingsForTargetEntity) {
+            @Nonnull final ActionDTO.Action action, Map<String, Setting> settingsForTargetEntity,
+            @Nonnull Set<String> defaultSettingsForEntity) {
         final ActionTypeCase type = action.getInfo().getActionTypeCase();
         switch (type) {
             case MOVE:
@@ -846,7 +868,8 @@ public class ActionModeCalculator {
                         cas = getVolumeScaleActionSetting(action);
                     break;
                     default:
-                        cas = ConfigurableActionSettings.CloudComputeScale;
+                        cas = getVmScaleActionSetting(action, settingsForTargetEntity,
+                                defaultSettingsForEntity);
 
                 }
                 return Stream.of(new ActionSpecifications(cas));
@@ -923,6 +946,117 @@ public class ActionModeCalculator {
         // By default use generic setting for Scale actions
         return ConfigurableActionSettings.CloudComputeScale;
     }
+
+    /**
+     * Get the setting specs applicable to a VM scale action.
+     *
+     * @param action The protobuf representation of the action.
+     * @param settingsForTargetEntity The settings for the target entity
+     * @param defaultSettingsForEntity settings for the target entity defined in default
+     *         policies
+     * @return The stream of applicable {@link EntitySettingSpecs}.
+     */
+    @VisibleForTesting
+    @Nonnull
+    ConfigurableActionSettings getVmScaleActionSetting(@Nonnull final ActionDTO.Action action,
+            @Nonnull Map<String, Setting> settingsForTargetEntity,
+            @Nonnull Set<String> defaultSettingsForEntity) {
+        final boolean hasCongestion = action.getExplanation()
+                .getScale()
+                .getChangeProviderExplanationList()
+                .stream()
+                .anyMatch(c -> c.hasCongestion());
+
+        final boolean hasEfficiency = action.getExplanation()
+                .getScale()
+                .getChangeProviderExplanationList()
+                .stream()
+                .anyMatch(c -> c.hasEfficiency());
+
+        final boolean scaleAllisOverridden = !defaultSettingsForEntity.contains(
+                ConfigurableActionSettings.CloudComputeScale.getSettingName());
+        final ConfigurableActionSettings actionSetting;
+        final double savings = action.getSavingsPerHour().getAmount();
+        if (hasCongestion) {
+            if (Double.compare(savings, 0.0) == 1) {
+                // Performance actions with Savings use-case
+                // in this case, the "Automation Mode" for performance actions with savings should
+                // be auto-configured based on the less conservative automation mode hierarchy
+                // between "Scale for Savings" and "Scale for Performance" options.
+                actionSetting = getSpecsApplicableToScaleForPerfWithSavings(scaleAllisOverridden,
+                        settingsForTargetEntity, defaultSettingsForEntity);
+            } else {
+                // Performance actions with investment use-case (or with 0 savings)
+                actionSetting = scaleAllisOverridden ? ConfigurableActionSettings.CloudComputeScale
+                        : ConfigurableActionSettings.CloudComputeScaleForPerf;
+            }
+        } else if (hasEfficiency) {
+
+            if (Double.compare(savings, 0.0) == -1) {
+                // Efficiency actions with an investment use-case
+                // in this case, the “Automation Mode” should be auto-configured and matched to the “Scale All” setting
+                actionSetting = ConfigurableActionSettings.CloudComputeScale;
+            } else {
+                // Efficiency actions with savings use-case  (or with 0 savings)
+                actionSetting = scaleAllisOverridden ? ConfigurableActionSettings.CloudComputeScale
+                        : ConfigurableActionSettings.CloudComputeScaleForSavings;
+            }
+        } else {
+            // actions that are not Performance or Efficiency, e.g. Compliance
+            actionSetting = ConfigurableActionSettings.CloudComputeScale;
+        }
+        return actionSetting;
+    }
+
+    /**
+     * Get the setting specs applicable to a scale for performance with Savings action.
+     *
+     * @param scaleAllisOverridden is 'Scale All' is overriden in custom policy.
+     * @param settingsForTargetEntity The settings for the target entity
+     * @param defaultSettingsForEntity settings for the target entity defined in default
+     *         policies
+     * @return applicable setting spec
+     */
+    @Nonnull
+    private ConfigurableActionSettings getSpecsApplicableToScaleForPerfWithSavings(
+            boolean scaleAllisOverridden, @Nonnull Map<String, Setting> settingsForTargetEntity,
+            @Nonnull Set<String> defaultSettingsForEntity) {
+
+        final ConfigurableActionSettings perfActionSetting;
+        final ConfigurableActionSettings effActionSetting;
+
+        if (scaleAllisOverridden) {
+            perfActionSetting = ConfigurableActionSettings.CloudComputeScale;
+            effActionSetting = ConfigurableActionSettings.CloudComputeScale;
+        } else {
+            final boolean scaleForPerfisOverridden = !defaultSettingsForEntity.contains(
+                    ConfigurableActionSettings.CloudComputeScaleForPerf.getSettingName());
+            final boolean scaleForSavingsisOverridden = !defaultSettingsForEntity.contains(
+                    ConfigurableActionSettings.CloudComputeScaleForSavings.getSettingName());
+            if (scaleForPerfisOverridden && !scaleForSavingsisOverridden) {
+                perfActionSetting =
+                        effActionSetting = ConfigurableActionSettings.CloudComputeScaleForPerf;
+            } else if (!scaleForPerfisOverridden && scaleForSavingsisOverridden) {
+                perfActionSetting =
+                        effActionSetting = ConfigurableActionSettings.CloudComputeScaleForSavings;
+            } else {
+                perfActionSetting = ConfigurableActionSettings.CloudComputeScaleForPerf;
+                effActionSetting = ConfigurableActionSettings.CloudComputeScaleForSavings;
+            }
+        }
+
+        final int comparison = SettingDTOUtil.compareEnumSettingValues(
+                settingsForTargetEntity.get(perfActionSetting.getSettingName())
+                        .getEnumSettingValue(),
+                settingsForTargetEntity.get(effActionSetting.getSettingName())
+                        .getEnumSettingValue(), CLOUD_SCALE_SETTING_ENUM_TYPE);
+        if (comparison > 0) {
+            return perfActionSetting;
+        } else {
+            return effActionSetting;
+        }
+    }
+
 
     /**
      * It keeps the settings of the range-aware resize.

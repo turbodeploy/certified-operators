@@ -419,7 +419,7 @@ public class ActionTest {
 
         doAnswer(invocationOnMock -> Stream.of(new ActionSpecifications(ConfigurableActionSettings.Resize)))
             .when(actionModeCalculator)
-            .specsApplicableToAction(any(), any());
+            .specsApplicableToAction(any(), any(), any());
 
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
             .thenReturn(settings);
