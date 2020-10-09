@@ -1,11 +1,13 @@
 package com.vmturbo.platform.analysis.ede;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -15,6 +17,9 @@ import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.commons.ITracer;
+import com.vmturbo.commons.ITracer.ITracerScope;
+import com.vmturbo.commons.ITracer.NoopTracer;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionCollapse;
 import com.vmturbo.platform.analysis.actions.ActionType;
@@ -107,7 +112,7 @@ public final class Ede {
             String mktName) {
         return generateActions(economy, classifyActions, isProvision, isSuspension,
                                isResize, false, false, new ReplayActions(), mktName,
-                               SuspensionsThrottlingConfig.DEFAULT);
+                               SuspensionsThrottlingConfig.DEFAULT, Optional.empty());
     }
 
     /**
@@ -129,7 +134,7 @@ public final class Ede {
             boolean classifyActions, boolean isProvision, boolean isSuspension, boolean isResize) {
         return generateActions(economy, classifyActions, isProvision, isSuspension,
                                isResize, false, false, new ReplayActions(), "unspecified|",
-                               SuspensionsThrottlingConfig.DEFAULT);
+                               SuspensionsThrottlingConfig.DEFAULT, Optional.empty());
     }
 
     /**
@@ -151,6 +156,8 @@ public final class Ede {
      * @param suspensionsThrottlingConfig level of Suspension throttling.
      *         CLUSTER: Make co sellers of suspended seller suspendable false.
      *         DEFAULT: Unlimited suspensions.
+     * @param optTracer An optional tracer. If present, we generate a trace of how long each
+     *                  phase of market analysis takes.
      * @return A list of actions suggested by the economic decisions engine.
      *
      * @see ActionCollapse#collapsed(List)
@@ -159,14 +166,16 @@ public final class Ede {
                     boolean classifyActions, boolean isProvision, boolean isSuspension,
                     boolean isResize, boolean collapse, boolean isReplay,
                     @NonNull ReplayActions seedActions, String mktData,
-                    SuspensionsThrottlingConfig suspensionsThrottlingConfig) {
+                    SuspensionsThrottlingConfig suspensionsThrottlingConfig,
+                    Optional<ITracer> optTracer) {
         @NonNull List<Action> actions = new ArrayList<>();
         try {
             String analysisLabel = "Analysis ";
             logger.info(analysisLabel + "Started.");
             ActionStats actionStats = new ActionStats(actions, M2Utils.getTopologyId(economy));
             ActionClassifier classifier = null;
-            try {
+            final ITracer tracer = optTracer.orElseGet(NoopTracer::new);
+            try (ITracerScope tracerScope = tracer.trace("create_action_classifier")) {
                 if (classifyActions) {
                     classifier = new ActionClassifier(economy);
                 }
@@ -175,32 +184,35 @@ public final class Ede {
                     EconomyConstants.CLASSIFY_PHASE + " initialization ", e.getMessage(), e);
             }
             //Parse market stats data coming from Market1, add prepare to write to stats file.
-            String data[] = StatsUtils.getTokens(mktData, "|");
-            if (data.length <= 1) {
-                // XL file name is in contextid-topologyid format
-                data = StatsUtils.getTokens(mktData, "-");
-                if (data.length < 1 || !data[0].equals("777777")) { // Real market context id
-                    data = new String[1];
-                    data[0] = "plan";
+            StatsUtils statsUtils;
+            try (ITracerScope tracerScope = tracer.trace("market_stats")) {
+                String data[] = StatsUtils.getTokens(mktData, "|");
+                if (data.length <= 1) {
+                    // XL file name is in contextid-topologyid format
+                    data = StatsUtils.getTokens(mktData, "-");
+                    if (data.length < 1 || !data[0].equals("777777")) { // Real market context id
+                        data = new String[1];
+                        data[0] = "plan";
+                    }
+                }
+                statsUtils = new StatsUtils("m2stats-" + data[0], false);
+                if (data.length == 3) {
+                    statsUtils.append(data[1]); // date, Time, topo name , topo send time from M1
+                    statsUtils.after(Instant.parse(data[2]));
+                } else {
+                    statsUtils.appendHeader("Date, Time,Topology,Topo Send Time,"
+                        + "Bootstrap Time, Initial Place Time,Resize Time,"
+                        + "Placement Time,Provisioning Time,Suspension Time,"
+                        + "Total Plan Time,Total Actions");
+                    //currently 4 columns for topology related data
+                    statsUtils.appendDate(true, false);
+                    statsUtils.appendTime(false, false);
+                    statsUtils.append(mktData); // if not in expected parse format, should contain
+                    // contextid-topologyid, different for each plan
+                    statsUtils.append("NA"); // topology send time if unavailable
                 }
             }
-            StatsUtils statsUtils = new StatsUtils("m2stats-" + data[0], false);
-            if (data.length == 3) {
-                statsUtils.append(data[1]); // date, Time, topo name , topo send time from M1
-                statsUtils.after(Instant.parse(data[2]));
-            } else {
-                statsUtils.appendHeader("Date, Time,Topology,Topo Send Time,"
-                                        + "Bootstrap Time, Initial Place Time,Resize Time,"
-                                        + "Placement Time,Provisioning Time,Suspension Time,"
-                                        + "Total Plan Time,Total Actions");
-                //currently 4 columns for topology related data
-                statsUtils.appendDate(true, false);
-                statsUtils.appendTime(false, false);
-                statsUtils.append(mktData); // if not in expected parse format, should contain
-                                            // contextid-topologyid, different for each plan
-                statsUtils.append("NA"); // topology send time if unavailable
-            }
-            try {
+            try (ITracerScope tracerScope = tracer.trace("sort_buyers")) {
                 // Sort the buyers of each market based on the current quote (on-prem) or
                 // current cost (cloud) sorted high to low.
                 if (economy.getSettings().getSortShoppingLists()) {
@@ -208,21 +220,28 @@ public final class Ede {
                 }
 
                 // create a subset list of markets that have at least one buyer that can move
-                economy.composeMarketSubsetForPlacement();
+                try (ITracerScope subScope = tracer.trace("composeMarketSubsetForPlacement")) {
+                    economy.composeMarketSubsetForPlacement();
+                }
             } catch (Exception e) {
                 logger.error(EconomyConstants.EXCEPTION_MESSAGE,
-                        EconomyConstants.SORT_PHASE, e.getMessage(), e);
+                    EconomyConstants.SORT_PHASE, e.getMessage(), e);
             }
 
-            Ledger ledger = new Ledger(economy);
+            Ledger ledger;
+            try (ITracerScope tracerScope = tracer.trace("create_ledger")) {
+                ledger = new Ledger(economy);
+            }
 
-            try {
-                logBasketSoldOfTradersWithDebugEnabled(economy.getTraders());
+            try (ITracerScope tracerScope = tracer.trace(EconomyConstants.SORT_PHASE)) {
+                try (ITracerScope subScope = tracer.trace("logBasketSoldOfTradersWithDebugEnabled")) {
+                    logBasketSoldOfTradersWithDebugEnabled(economy.getTraders());
 
-                if (logger.isTraceEnabled()) {
-                    logger.trace("PSL relinquished VMs:");
-                    for(ShoppingList shoppingList : economy.getPreferentialShoppingLists()){
-                        logger.trace("PSL: " + shoppingList.toString());
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("PSL relinquished VMs:");
+                        for (ShoppingList shoppingList : economy.getPreferentialShoppingLists()) {
+                            logger.trace("PSL: " + shoppingList.toString());
+                        }
                     }
                 }
 
@@ -234,17 +253,17 @@ public final class Ede {
                 long end = System.currentTimeMillis();
                 if (logger.isTraceEnabled()) {
                     logger.trace("PSL Execution time of sortShoppingLists of size: "
-                            + economy.getPreferentialShoppingLists().size() + " is: " + (end - start) + " milliseconds");
+                        + economy.getPreferentialShoppingLists().size() + " is: " + (end - start) + " milliseconds");
                 }
             } catch (Exception e) {
                 logger.error(EconomyConstants.EXCEPTION_MESSAGE,
-                        EconomyConstants.SORT_PHASE, e.getMessage(), e);
+                    EconomyConstants.SORT_PHASE, e.getMessage(), e);
             }
 
-            try {
+            try (ITracerScope tracerScope = tracer.trace(EconomyConstants.PREFERENTIAL_PLACEMENT_PHASE)) {
                 // generate moves for preferential shoppingLists
                 List<Action> preferentialActions = new ArrayList<>(Placement.prefPlacementDecisions(economy,
-                        economy.getPreferentialShoppingLists()).getActions());
+                    economy.getPreferentialShoppingLists()).getActions());
 
                 if (logger.isTraceEnabled()) {
                     logger.trace("PSL Actions: ");
@@ -260,9 +279,9 @@ public final class Ede {
                         .forEach(action -> {
                             Move moveAction = (Move) action;
                             logger.trace("PSL Action: Destination is " +
-                                            moveAction.getDestination() +
-                                            " for the VM: " +
-                                            moveAction.getTarget());
+                                moveAction.getDestination() +
+                                " for the VM: " +
+                                moveAction.getTarget());
                         });
                 }
 
@@ -274,34 +293,40 @@ public final class Ede {
 
             // Save first call to before() to calculate total plan time
             Instant begin = statsUtils.before();
-            try {
+            try (ITracerScope tracerScope = tracer.trace(EconomyConstants.BOOTSTRAP_SUPPLY_PHASE)) {
                 // Start by provisioning enough traders to satisfy all the demand
                 if (isProvision) {
-                    actions.addAll(seedActions.replayActions(economy));
-                    logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "provision replay");
-                    // time to run provision replay
-                    statsUtils.after();
+                    try (ITracerScope subScope = tracer.trace("provision_replay")) {
+                        actions.addAll(seedActions.replayActions(economy));
+                        logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "provision replay");
+                        // time to run provision replay
+                        statsUtils.after();
+                    }
 
-                    statsUtils.before();
-                    actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
-                    ledger = new Ledger(economy);
-                    logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "bootstrap");
-                    // time to run bootstrap
-                    statsUtils.after();
+                    try (ITracerScope subScope = tracer.trace("bootstrap")) {
+                        statsUtils.before();
+                        actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
+                        ledger = new Ledger(economy);
+                        logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "bootstrap");
+                        // time to run bootstrap
+                        statsUtils.after();
+                    }
 
-                    statsUtils.before();
-                    // run placement algorithm to balance the environment
-                    actions.addAll(Placement.runPlacementsTillConverge(
-                        economy, ledger, EconomyConstants.PLACEMENT_PHASE).getActions());
-                    logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "placement");
-                    // time to run initial placement
-                    statsUtils.after();
+                    try (ITracerScope subScope = tracer.trace("post_bootstrap_placement")) {
+                        statsUtils.before();
+                        // run placement algorithm to balance the environment
+                        actions.addAll(Placement.runPlacementsTillConverge(
+                            economy, ledger, EconomyConstants.PLACEMENT_PHASE).getActions());
+                        logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "placement");
+                        // time to run initial placement
+                        statsUtils.after();
+                    }
                 }
             } catch (Exception e) {
                 logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.BOOTSTRAP_SUPPLY_PHASE, e.getMessage(), e);
             }
 
-            try {
+            try (ITracerScope tracerScope = tracer.trace(EconomyConstants.RESIZE_PHASE)) {
                 statsUtils.before();
                 if (isResize) {
                     actions.addAll(Resizer.resizeDecisions(economy, ledger));
@@ -313,7 +338,7 @@ public final class Ede {
                 logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.RESIZE_PHASE, e.getMessage(), e);
             }
 
-            try {
+            try (ITracerScope tracerScope = tracer.trace(EconomyConstants.REPLAY_PHASE)) {
                 if (isReplay) {
                     actions.addAll(seedActions.tryReplayDeactivateActions(economy, ledger, suspensionsThrottlingConfig));
                     logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "replaying");
@@ -323,7 +348,7 @@ public final class Ede {
             }
 
             PlacementResults placementResults = PlacementResults.empty();
-            try {
+            try (ITracerScope tracerScope = tracer.trace(EconomyConstants.PLACEMENT_PHASE)) {
                 statsUtils.before();
                 placementResults = Placement.runPlacementsTillConverge(economy, ledger,
                     EconomyConstants.PLACEMENT_PHASE);
@@ -335,7 +360,7 @@ public final class Ede {
                 logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.PLACEMENT_PHASE, e.getMessage(), e);
             }
 
-            try {
+            try (ITracerScope tracerScope = tracer.trace(EconomyConstants.PROVISION_PHASE)) {
                 statsUtils.before();
                 // trigger provision, suspension and resize algorithm only when needed
                 int oldActionCount = actions.size();
@@ -344,10 +369,12 @@ public final class Ede {
                     logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "provisioning");
                     // if provision generated some actions, run placements
                     if (actions.size() > oldActionCount) {
-                        placementResults = Placement.runPlacementsTillConverge(economy, ledger,
-                            EconomyConstants.PLACEMENT_PHASE);
-                        actions.addAll(placementResults.getActions());
-                        logger.info(actionStats.phaseLogEntry("post provisioning placement"));
+                        try (ITracerScope subScope = tracer.trace("post_provisioning_placement")) {
+                            placementResults = Placement.runPlacementsTillConverge(economy, ledger,
+                                EconomyConstants.PLACEMENT_PHASE);
+                            actions.addAll(placementResults.getActions());
+                            logger.info(actionStats.phaseLogEntry("post provisioning placement"));
+                        }
                     }
                 }
                 // provisioning time
@@ -356,7 +383,7 @@ public final class Ede {
                 logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.PROVISION_PHASE, e.getMessage(), e);
             }
 
-            try {
+            try (ITracerScope tracerScope = tracer.trace(EconomyConstants.SUSPENSION_PHASE)) {
                 statsUtils.before();
                 if (isSuspension) {
                     Suspension suspension = new Suspension(suspensionsThrottlingConfig);
@@ -372,7 +399,7 @@ public final class Ede {
                 logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.SUSPENSION_PHASE, e.getMessage(), e);
             }
 
-            try {
+            try (ITracerScope tracerScope = tracer.trace(EconomyConstants.ACTION_COLLAPSE_PHASE)) {
                 if (collapse && !economy.getForceStop()) {
                     List<@NonNull Action> collapsed = ActionCollapse.collapsed(actions);
                     // Reorder actions by type.
@@ -383,7 +410,7 @@ public final class Ede {
                 logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.ACTION_COLLAPSE_PHASE, e.getMessage(), e);
             }
 
-            try {
+            try (ITracerScope tracerScope = tracer.trace(EconomyConstants.CLASSIFY_PHASE)) {
                 // mark non-executable actions
                 if (classifyActions && classifier != null) {
                     classifier.classify(actions, economy);
@@ -402,19 +429,21 @@ public final class Ede {
             if (logger.isDebugEnabled()) {
                 // Log number of actions by type
                 actions.stream()
-                                .collect(Collectors.groupingBy(Action::getClass))
-                                .forEach((k, v) -> logger
-                                                .debug("    " + k.getSimpleName() + " : " + v.size()));
+                    .collect(Collectors.groupingBy(Action::getClass))
+                    .forEach((k, v) -> logger
+                        .debug("    " + k.getSimpleName() + " : " + v.size()));
             }
             // Reconfigures generated within Placement or Bootstrap do not have a quoteTracker.
             // We can not create quoteTrackers at the moment when reconfigure was created, especially in
             // the Bootstrap reconfigure case, because PlacementResults is not available. In order to
             // keep quoteTrackers in PlacementResults for reconfigure traders, at the end of Ede, we
             // call addQuoteTrackerForEmptyReconfigures.
-            placementResults.createQuoteTrackerForReconfigures(actions);
-            placementResults.populateExplanationForInfinityQuoteTraders();
-            logInfiniteQuoteTraders(placementResults);
-            this.edePlacementResults = placementResults;
+            try (ITracerScope tracerScope = tracer.trace("unplaced_traders")) {
+                placementResults.createQuoteTrackerForReconfigures(actions);
+                placementResults.populateExplanationForInfinityQuoteTraders();
+                logInfiniteQuoteTraders(placementResults);
+                this.edePlacementResults = placementResults;
+            }
         } catch (Exception e) {
             logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.EDE_GENERATE_ACTIONS, e.getMessage(), e);
         } finally {
@@ -422,6 +451,7 @@ public final class Ede {
         }
         return actions;
     }
+
 
     /**
      * Create a new set of actions for a realtime-snapshot of the economy.
@@ -439,6 +469,8 @@ public final class Ede {
      * @param suspensionsThrottlingConfig level of Suspension throttling.
      *         CLUSTER: Make co sellers of suspended seller suspendable false.
      *         DEFAULT: Unlimited suspensions.
+     * @param optTracer An optional tracer. If present, we generate a trace of how long each
+     *                  phase of market analysis takes.
      * @return A list of actions suggested by the economic decisions engine.
      *
      * @see ActionCollapse#collapsed(List)
@@ -446,7 +478,8 @@ public final class Ede {
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
             boolean classifyActions, boolean isProvision, boolean isSuspension, boolean isResize,
             boolean collapse, @NonNull ReplayActions seedActions, String mktData,
-            boolean isRealTime, SuspensionsThrottlingConfig suspensionsThrottlingConfig) {
+            boolean isRealTime, SuspensionsThrottlingConfig suspensionsThrottlingConfig,
+            Optional<ITracer> optTracer) {
         @NonNull List<Action> actions = new ArrayList<>();
         // only run replay in first sub round for realTime market.
         if (isRealTime) {
@@ -454,11 +487,11 @@ public final class Ede {
             // run a round of analysis without provisions.
             actions.addAll(generateActions(economy, classifyActions, false, isSuspension,
                             isResize, collapse, true, seedActions, mktData,
-                            suspensionsThrottlingConfig));
+                            suspensionsThrottlingConfig, optTracer));
         } else {
             actions.addAll(generateActions(economy, classifyActions, isProvision,
                             isSuspension, isResize, collapse, false, new ReplayActions(), mktData,
-                            suspensionsThrottlingConfig));
+                            suspensionsThrottlingConfig, optTracer));
         }
 
         return actions;

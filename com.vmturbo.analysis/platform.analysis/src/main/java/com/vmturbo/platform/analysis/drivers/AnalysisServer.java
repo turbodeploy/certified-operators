@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -386,7 +387,7 @@ public class AnalysisServer implements AutoCloseable {
             actions = ede.generateActions(economy, instInfo.isClassifyActions(),
                 instInfo.isProvisionEnabled(), instInfo.isSuspensionEnabled(),
                 instInfo.isResizeEnabled(), true, seedActions, mktData, instInfo.isRealTime(),
-                instInfo.getSuspensionsThrottlingConfig());
+                instInfo.getSuspensionsThrottlingConfig(), Optional.empty());
             if (instInfo.isBalanceDeploy()) {
                 Set<Trader> placedVMSet = economy.getPlacementEntities().stream()
                     .filter(vm -> economy.getMarketsAsBuyer(vm).keySet().stream()
@@ -404,7 +405,8 @@ public class AnalysisServer implements AutoCloseable {
                     actions = ede.generateActions(economy, instInfo.isClassifyActions(),
                         instInfo.isProvisionEnabled(), instInfo.isSuspensionEnabled(),
                         instInfo.isResizeEnabled(), true, seedActions, mktData,
-                        instInfo.isRealTime(), instInfo.getSuspensionsThrottlingConfig());
+                        instInfo.isRealTime(), instInfo.getSuspensionsThrottlingConfig(),
+                        Optional.empty());
                 }
             }
             long stop = System.nanoTime();
@@ -428,7 +430,7 @@ public class AnalysisServer implements AutoCloseable {
                 secondRoundActions.addAll(
                     ede.generateActions(economy, instInfo.isClassifyActions(), true, true,
                                         false, true, false, new ReplayActions(), mktData,
-                                        instInfo.getSuspensionsThrottlingConfig())
+                                        instInfo.getSuspensionsThrottlingConfig(), Optional.empty())
                         .stream().filter(action -> action instanceof ProvisionBase
                                       || action instanceof Activate
                                         // Extract resizes that explicitly set extractAction to true as part
