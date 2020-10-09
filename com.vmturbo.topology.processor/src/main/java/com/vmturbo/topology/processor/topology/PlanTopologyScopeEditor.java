@@ -83,9 +83,15 @@ public class PlanTopologyScopeEditor {
      * We don't include potential providers of the following entities into scope.
      * Current provider will still be included in the scope.
      */
-    private static final Set<Integer> ENTITY_TYPES_TO_SKIP =
+    private static final Set<Integer> PROVIDER_ENTITY_TYPES_TO_SKIP =
             ImmutableSet.of(EntityType.BUSINESS_APPLICATION_VALUE, EntityType.BUSINESS_TRANSACTION_VALUE,
                 EntityType.SERVICE_VALUE, EntityType.APPLICATION_COMPONENT_VALUE);
+
+    /**
+     * We don't include consumers of the following entities into scope.
+     */
+    private static final Set<Integer> CONSUMER_ENTITY_TYPES_TO_SKIP =
+            ImmutableSet.of(EntityType.VIRTUAL_DATACENTER_VALUE);
 
     private final GroupServiceBlockingStub groupServiceClient;
 
@@ -401,6 +407,12 @@ public class PlanTopologyScopeEditor {
                 logger.trace("expand OID {}: {}", traderOid, optionalEntity.get().getDisplayName());
             }
             final TopologyEntity entity = optionalEntity.get();
+            // Skip VDC to avoid bringing its consumers to plan scope so that plan doesn't contain
+            // extra workloads from VDC that spanning across clusters. The VDC itself would still
+            // be brought into the scope while we expand the topology by traversing down buyersToSatisfy.
+            if (CONSUMER_ENTITY_TYPES_TO_SKIP.contains(entity.getEntityType())) {
+                continue;
+            }
             // remember the trader for this OID in the scoped topology & continue expanding "up"
             scopedTopologyOIDs.add(traderOid);
 
@@ -455,7 +467,7 @@ public class PlanTopologyScopeEditor {
         while (!buyersToSatisfy.isEmpty()) {
             final long traderOid = buyersToSatisfy.remove();
             final TopologyEntity buyer = topology.getEntity(traderOid).get();
-            final boolean skipEntityType = ENTITY_TYPES_TO_SKIP.contains(buyer.getEntityType());
+            final boolean skipEntityType = PROVIDER_ENTITY_TYPES_TO_SKIP.contains(buyer.getEntityType());
             providersExpanded.add(traderOid);
             // build list of potential sellers for the commodities this Trader buys; omit Traders already expanded
             // also omit traders of the type pulled in as seed members

@@ -78,6 +78,12 @@ public class PlanTopologyScopeEditorTest {
     private static final TopologyDTO.CommodityType POWER = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.POWER_VALUE).build();
     private static final TopologyDTO.CommodityType EXTENT1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.EXTENT_VALUE)
             .setKey("DA1").build();
+    private static final TopologyDTO.CommodityType CPU_ALLOC_SOLD = TopologyDTO.CommodityType.newBuilder().setType(
+            CommodityType.CPU_ALLOCATION_VALUE).setKey("VDCinDC1").build();
+    private static final TopologyDTO.CommodityType CPU_ALLOC_PM1 = TopologyDTO.CommodityType.newBuilder().setType(
+            CommodityType.CPU_ALLOCATION_VALUE).setKey("PM1").build();
+    private static final TopologyDTO.CommodityType CPU_ALLOC_PM2 = TopologyDTO.CommodityType.newBuilder().setType(
+            CommodityType.CPU_ALLOCATION_VALUE).setKey("PM2").build();
     private static final TopologyDTO.CommodityType DC1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATACENTER_VALUE)
             .setKey("DC1").build();
     private static final TopologyDTO.CommodityType DC2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATACENTER_VALUE)
@@ -86,6 +92,8 @@ public class PlanTopologyScopeEditorTest {
             .setKey("SC1").build();
     private static final TopologyDTO.CommodityType SC2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.CLUSTER_VALUE)
             .setKey("SC2").build();
+    private static final TopologyDTO.CommodityType APP = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
+            .setKey("APP").build();
     private static final TopologyDTO.CommodityType APP1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
             .setKey("APP1").build();
     private static final TopologyDTO.CommodityType APP2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.APPLICATION_VALUE)
@@ -106,12 +114,18 @@ public class PlanTopologyScopeEditorTest {
             .setKey("DS2").build();
     private static final TopologyDTO.CommodityType ST_AMT = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build();
 
-    private static final List<TopologyDTO.CommodityType> basketSoldByPMinDC1 = Lists.newArrayList(DC1, CPU, DS1);
-    private static final List<TopologyDTO.CommodityType> basketSoldByPMinDC2 = Lists.newArrayList(DC2, CPU, DS1, DS2);
+    private static final List<TopologyDTO.CommodityType> basketSoldByPMToVMinDC1 = Lists.newArrayList(DC1, CPU, DS1);
+    private static final List<TopologyDTO.CommodityType> basketSoldByPMToVMinDC2 = Lists.newArrayList(DC2, CPU, DS1, DS2);
+    private static final List<TopologyDTO.CommodityType> basketSoldByPM1inDC1 = Lists.newArrayList(DC1, CPU, DS1, CPU_ALLOC_PM1);
+    private static final List<TopologyDTO.CommodityType> basketSoldByPM2inDC1 = Lists.newArrayList(DC1, CPU, DS1, CPU_ALLOC_PM2);
+    private static final List<TopologyDTO.CommodityType> basketSoldByVDCinDC1 = Lists.newArrayList(CPU_ALLOC_SOLD);
+    private static final List<TopologyDTO.CommodityType> basketSoldByPM1toVDC = Lists.newArrayList(CPU_ALLOC_PM1);
+    private static final List<TopologyDTO.CommodityType> basketSoldByPM2toVDC = Lists.newArrayList(CPU_ALLOC_PM2);
     private static final List<TopologyDTO.CommodityType> basketSoldByDC1 = Lists.newArrayList(DC1, POWER);
     private static final List<TopologyDTO.CommodityType> basketSoldByDC2 = Lists.newArrayList(DC2, POWER);
     private static final List<TopologyDTO.CommodityType> basketSoldByVM1 = Lists.newArrayList(VCPU, APP1);
     private static final List<TopologyDTO.CommodityType> basketSoldByVM2 = Lists.newArrayList(VCPU, APP2);
+    private static final List<TopologyDTO.CommodityType> basketSoldByVM = Lists.newArrayList(VCPU, APP);
     private static final List<TopologyDTO.CommodityType> basketSoldByDA = Lists.newArrayList(EXTENT1, ST_AMT);
     private static final List<TopologyDTO.CommodityType> basketSoldByDS1 = Lists.newArrayList(ST_AMT, SC1, DSPM1, DSPM2);
     private static final List<TopologyDTO.CommodityType> basketSoldByDS2 = Lists.newArrayList(ST_AMT, SC2, DSPM2);
@@ -119,18 +133,20 @@ public class PlanTopologyScopeEditorTest {
     private static final List<TopologyDTO.CommodityType> basketSoldByAS2 = Lists.newArrayList(BAPP2);
     private static final List<TopologyDTO.CommodityType> basketSoldByVMInUSEast = Lists.newArrayList(APP3);
 
-    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByVMinDC1PM1DS1 = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
-        put(20001L, basketSoldByPMinDC1);
+    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByVMinDC1PM1DS1VDC = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
+        put(20001L, basketSoldByPMToVMinDC1);
         put(40001L, basketSoldByDS1);
+        put(100001L, basketSoldByVDCinDC1);
     }};
 
-    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByVMinDC1PM2DS1 = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
-        put(20002L, basketSoldByPMinDC1);
+    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByVMinDC1PM2DS1VDC = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
+        put(20002L, basketSoldByPMToVMinDC1);
         put(40001L, basketSoldByDS1);
+        put(100001L, basketSoldByVDCinDC1);
     }};
 
     private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByVMinDC2PMDS2 = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
-        put(20003L, basketSoldByPMinDC2);
+        put(20003L, basketSoldByPMToVMinDC2);
         put(40002L, basketSoldByDS2);
     }};
 
@@ -143,8 +159,13 @@ public class PlanTopologyScopeEditorTest {
     }};
 
     private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByApp1Comp1 = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
-        put(30001L, basketSoldByVM1);
-        put(30003L, basketSoldByVM2);
+            put(30001L, basketSoldByVM1);
+            put(30003L, basketSoldByVM2);
+    }};
+
+    private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByVDCinDC1 = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
+        put(20001L, basketSoldByPM1toVDC);
+        put(20002L, basketSoldByPM2toVDC);
     }};
 
     private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByApp1 = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
@@ -152,7 +173,7 @@ public class PlanTopologyScopeEditorTest {
     }};
 
     private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByApp2 = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
-        put(30003L, basketSoldByVM2);
+        put(30003L, basketSoldByVM);
     }};
 
     private static final Map<Long, List<TopologyDTO.CommodityType>> commBoughtByDSinDA1 = new HashMap<Long, List<TopologyDTO.CommodityType>>() {{
@@ -185,17 +206,23 @@ public class PlanTopologyScopeEditorTest {
     private final TopologyEntity.Builder st2 = createHypervisorTopologyEntity(40002L, "st2", EntityType.STORAGE, commBoughtByDSinDA1, basketSoldByDS2);
     private final TopologyEntity.Builder dc1 = createHypervisorTopologyEntity(10001L, "dc1", EntityType.DATACENTER, new HashMap<>(), basketSoldByDC1);
     private final TopologyEntity.Builder dc2 = createHypervisorTopologyEntity(10002L, "dc2", EntityType.DATACENTER, new HashMap<>(), basketSoldByDC2);
-    private final TopologyEntity.Builder pm1InDc1 = createHypervisorHost(20001L, "pm1InDc1", EntityType.PHYSICAL_MACHINE, commBoughtByPMinDC1, basketSoldByPMinDC1, Arrays.asList(40001L));
-    private final TopologyEntity.Builder pm2InDc1 = createHypervisorHost(20002L, "pm2InDc1", EntityType.PHYSICAL_MACHINE, commBoughtByPMinDC1, basketSoldByPMinDC1, Arrays.asList(40001L));
-    private final TopologyEntity.Builder pmInDc2 = createHypervisorTopologyEntity(20003L, "pmInDc2", EntityType.PHYSICAL_MACHINE, commBoughtByPMinDC2, basketSoldByPMinDC2);
+    private final TopologyEntity.Builder pm1InDc1 = createHypervisorHost(20001L, "pm1InDc1", EntityType.PHYSICAL_MACHINE, commBoughtByPMinDC1,
+            basketSoldByPM1inDC1, Arrays.asList(40001L));
+    private final TopologyEntity.Builder pm2InDc1 = createHypervisorHost(20002L, "pm2InDc1", EntityType.PHYSICAL_MACHINE, commBoughtByPMinDC1,
+            basketSoldByPM2inDC1, Arrays.asList(40001L));
+    private final TopologyEntity.Builder pmInDc2 = createHypervisorTopologyEntity(20004L, "pmInDc2", EntityType.PHYSICAL_MACHINE, commBoughtByPMinDC2,
+            basketSoldByPMToVMinDC2);
     private final TopologyEntity.Builder virtualVolume = TopologyEntityUtils.connectedTopologyEntity(25001L, HYPERVISOR_TARGET, 0, "virtualVolume", EntityType.VIRTUAL_VOLUME, st1.getOid());
-    private final TopologyEntity.Builder vm1InDc1 = createHypervisorTopologyEntity(30001L, "vm1InDc1", EntityType.VIRTUAL_MACHINE, commBoughtByVMinDC1PM1DS1, basketSoldByVM1, virtualVolume.getOid());
-    private final TopologyEntity.Builder vm2InDc1 = createHypervisorTopologyEntity(30002L, "vm2InDc1", EntityType.VIRTUAL_MACHINE, commBoughtByVMinDC1PM2DS1, basketSoldByVM1);
-    private final TopologyEntity.Builder vmInDc2 = createHypervisorTopologyEntity(30003L, "vmInDc2", EntityType.VIRTUAL_MACHINE, commBoughtByVMinDC2PMDS2, basketSoldByVM2);
-    private final TopologyEntity.Builder appc1 = createHypervisorTopologyEntity(60001L, "appc1", EntityType.APPLICATION_COMPONENT, commBoughtByApp1Comp1, new ArrayList<>());
+    private final TopologyEntity.Builder vm1InDc1 = createHypervisorTopologyEntity(30001L, "vm1InDc1", EntityType.VIRTUAL_MACHINE,
+            commBoughtByVMinDC1PM1DS1VDC, basketSoldByVM1, virtualVolume.getOid());
+    private final TopologyEntity.Builder vm2InDc1 = createHypervisorTopologyEntity(30002L, "vm2InDc1", EntityType.VIRTUAL_MACHINE,
+            commBoughtByVMinDC1PM2DS1VDC, basketSoldByVM2);
+    private final TopologyEntity.Builder vmInDc2 = createHypervisorTopologyEntity(30003L, "vmInDc2", EntityType.VIRTUAL_MACHINE, commBoughtByVMinDC2PMDS2, basketSoldByVM);
+    private final TopologyEntity.Builder appc1 = createHypervisorTopologyEntity(60001L, "appc1", EntityType.APPLICATION_COMPONENT, commBoughtByApp1, new ArrayList<>());
     private final TopologyEntity.Builder as1 = createHypervisorTopologyEntity(70001L, "as1", EntityType.APPLICATION_SERVER, commBoughtByApp1, basketSoldByAS1);
     private final TopologyEntity.Builder as2 = createHypervisorTopologyEntity(70002L, "as2", EntityType.APPLICATION_SERVER, commBoughtByApp2, basketSoldByAS2);
     private final TopologyEntity.Builder bapp1 = createHypervisorTopologyEntity(80001L, "bapp1", EntityType.BUSINESS_APPLICATION, commBoughtByBA, new ArrayList<>());
+    private final TopologyEntity.Builder vdcInDc1 = createHypervisorTopologyEntity(100001L, "vdcInDc1", EntityType.VIRTUAL_DATACENTER, commBoughtByVDCinDC1, basketSoldByVDCinDC1);
 
     private static final long VIRTUAL_VOLUME_IN_OHIO_ID = 6001L;
     private static final long VIRTUAL_VOLUME_IN_LONDON_ID = 6002L;
@@ -364,6 +391,7 @@ public class PlanTopologyScopeEditorTest {
                          pm2    /
                            \   /
                             vm2
+     NOTE: there is a VDC(not shown in graph) buying cpu allocation from pm1 and pm2, selling to vm1 and vm2.
 
      */
     private final TopologyGraph<TopologyEntity> emptyClusterGraph = TopologyEntityUtils
@@ -468,7 +496,7 @@ public class PlanTopologyScopeEditorTest {
             .newBlockingStub(grpcServer.getChannel()));
         graph = TopologyEntityUtils
             .topologyGraphOf(bt, s1, s2, vmInUSEast, azUSEast, vvInUSEast, regionUSEast,
-                bapp1, appc1, vm1InDc1, vm2InDc1, vmInDc2, virtualVolume, pm1InDc1,
+                bapp1, appc1, vm1InDc1, vm2InDc1, vmInDc2, virtualVolume, vdcInDc1, pm1InDc1,
                 pm2InDc1, pmInDc2, dc1, dc2, st1, st2, da1, as1,
                 as2, az1London, az2London, azOhio,
                 az1HongKong, az2HongKong, regionLondon, regionOhio,
@@ -634,8 +662,54 @@ public class PlanTopologyScopeEditorTest {
     }
 
     /**
+     * Scenario: scope on cluster 1 with only contains pm1.
+     * Expected: the workloads in scope should have vm1 not vm2.
+     *
+     * @throws Exception An exception thrown when a stage of the pipeline fails.
+     */
+    @Test
+    public void testScopeOnpremTopologyWithVDCAcrossClusters() throws Exception {
+        // group only contains pm1 in it
+        Grouping g = Grouping.newBuilder()
+                .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(MemberType.newBuilder()
+                                                .setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
+                                        .addMembers(pm1InDc1.getOid())
+                                )))
+                .build();
+
+        List<Grouping> groups = Arrays.asList(g);
+        when(groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder().addId(25001L))
+                .setReplaceGroupPropertyWithGroupMembershipFilter(true)
+                .build())).thenReturn(groups);
+        when(groupResolver.resolve(eq(g), eq(graph))).thenReturn(
+                new ResolvedGroup(g, Collections.singletonMap(ApiEntityType.PHYSICAL_MACHINE,
+                        Sets.newHashSet(pm1InDc1.getOid()))));
+
+        final PlanScope planScope = PlanScope.newBuilder()
+                .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("Cluster")
+                        .setScopeObjectOid(25001L).setDisplayName("PM1 cluster/dc1").build()).build();
+        // populate InvertedIndex
+        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+                index = planTopologyScopeEditor.createInvertedIndex();
+        graph.entities().forEach(entity -> index.add(entity));
+        // scope using inverted index
+        TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
+                .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
+        Set<Long> vms = result.entities().filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .map(TopologyEntity::getOid).collect(
+                Collectors.toSet());
+        assertTrue(vms.contains(30001L));
+        assertFalse(vms.contains(30002L));
+    }
+
+    /**
      * Scenario: scope on pm1 and pm2 which consumes on dc1.
-     * Expected: the entities in scope should be vm1, vm2, pm1, pm2, dc1, vv, st1, da1, appc1, as1, ba, bt, s2
+     * Expected: the entities in scope should be vm1, vm2, pm1, pm2, vdc, dc1, vv, st1, da1, appc1, as1, ba, bt, s2
      *
      * @throws Exception An exception thrown when a stage of the pipeline fails.
      */
@@ -672,12 +746,12 @@ public class PlanTopologyScopeEditorTest {
         // scope using inverted index
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
                 .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
-        assertEquals(13, result.size());
+        assertEquals(14, result.size());
     }
 
     /**
      * Scenario: scope on pm1 and pm2 which consumes on dc1.
-     * Expected: the entities in scope should be vm1, vm2, pm1, pm2, dc1, vv, st1, da1, appc1, as1, ba, s2, bt
+     * Expected: the entities in scope should be vm1, vm2, pm1, pm2, vdc, dc1, vv, st1, da1, appc1, as1, ba, s2, bt
      * Because ds1 is shared across pm1, pm2, and (pm3 which is not in the cluster) via dspm, datastore
      * Accesses relationship, we still should not pull in pm3 and its related entities like st2 into
      * the scope.
@@ -731,7 +805,7 @@ public class PlanTopologyScopeEditorTest {
         // scope using inverted index
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
                 .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
-        assertEquals(13, result.size());
+        assertEquals(14, result.size());
     }
 
     private static TopologyEntity.Builder createHypervisorHost(long oid,
@@ -775,7 +849,7 @@ public class PlanTopologyScopeEditorTest {
 
     /**
      * Scenario: scope on st2 which hosts vm on dc2.
-     * Expected: the entities in scope should be ba, as2, vm3, pm3, st2, dc2, da1, appc1
+     * Expected: the entities in scope should be ba, as2, vm3, pm3, st2, dc2, da1
      *
      * @throws Exception An exception thrown when a stage of the pipeline fails.
      */
@@ -792,12 +866,12 @@ public class PlanTopologyScopeEditorTest {
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
                 .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
         result.entities().forEach(e -> System.out.println(e.getOid() + " "));
-        assertEquals(8, result.size());
+        assertEquals(7, result.size());
     }
 
     /**
      * Scenario: scope on vm2 which consumes pm2 on dc1, st1 on da1. The vm2 hosts no application at all.
-     * Expected: the entities in scope should be dc1, da1, pm1, pm2, st1, vm2, and virtualVolume
+     * Expected: the entities in scope should be dc1, da1, pm1, pm2, vdc, st1, vm2, and virtualVolume
      *           who st1 is providing.
      *
      * @throws Exception An exception thrown when a stage of the pipeline fails.
@@ -815,7 +889,7 @@ public class PlanTopologyScopeEditorTest {
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
                 .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
         result.entities().forEach(e -> System.out.println(e.getOid() + " "));
-        assertEquals(7, result.size());
+        assertEquals(8, result.size());
 
         // Ensure virtual volume is included in scope due to storage.
         assertEquals(1, result.entities()
