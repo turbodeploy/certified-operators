@@ -834,7 +834,22 @@ public class ActionModeCalculator {
                         .distinct()
                         .map(ActionSpecifications::new);
             case SCALE:
-                return Stream.of(new ActionSpecifications(getScaleActionSetting(action)));
+                final ConfigurableActionSettings cas;
+                switch (action.getInfo().getScale().getTarget().getType()) {
+                    case EntityType.DATABASE_VALUE:
+                        cas = ConfigurableActionSettings.CloudDBScale;
+                    break;
+                    case EntityType.DATABASE_SERVER_VALUE:
+                        cas = ConfigurableActionSettings.CloudDBServerScale;
+                        break;
+                    case EntityType.VIRTUAL_VOLUME_VALUE:
+                        cas = getVolumeScaleActionSetting(action);
+                    break;
+                    default:
+                        cas = ConfigurableActionSettings.CloudComputeScale;
+
+                }
+                return Stream.of(new ActionSpecifications(cas));
             case RECONFIGURE:
                 return Stream.of(new ActionSpecifications(ConfigurableActionSettings.Reconfigure));
             case PROVISION:
@@ -881,7 +896,7 @@ public class ActionModeCalculator {
         }
     }
 
-    private static ConfigurableActionSettings getScaleActionSetting(
+    private static ConfigurableActionSettings getVolumeScaleActionSetting(
             @Nonnull final ActionDTO.Action action) {
         // If probe provided information about disruptiveness/reversibility then use
         // appropriate settings.

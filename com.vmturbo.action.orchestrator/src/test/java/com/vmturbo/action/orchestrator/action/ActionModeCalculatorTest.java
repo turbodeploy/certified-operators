@@ -1206,33 +1206,40 @@ public class ActionModeCalculatorTest {
     }
 
     /**
-     * Tests {@link ActionModeCalculator#specsApplicableToAction} method for Scale action without
-     * disruptiveness/reversibility flags.
+     * Tests {@link ActionModeCalculator#specsApplicableToAction} method.
      */
     @Test
     public void testSpecsApplicableToActionForScale() {
+        //Volume Scale action without disruptiveness/reversibility flags.
+        doTestSpecApplicableToActionForScale(EntityType.VIRTUAL_VOLUME_VALUE,
+                ConfigurableActionSettings.CloudComputeScale);
+        // DB scale action
+        doTestSpecApplicableToActionForScale(EntityType.DATABASE_VALUE,
+                ConfigurableActionSettings.CloudDBScale);
+        // DB server action
+        doTestSpecApplicableToActionForScale(EntityType.DATABASE_SERVER_VALUE,
+                ConfigurableActionSettings.CloudDBServerScale);
+    }
+
+    private void doTestSpecApplicableToActionForScale(int entityType,
+            ConfigurableActionSettings expectedValue) {
         // ARRANGE
-        final ActionDTO.Action action = actionBuilder
-                .setInfo(ActionInfo.newBuilder()
-                        .setScale(Scale.newBuilder()
-                                .setTarget(ActionEntity.newBuilder()
-                                        .setId(1L)
-                                        .setType(EntityType.VIRTUAL_VOLUME_VALUE)
-                                        .build())
-                                .build())
-                        .build())
-                .build();
+        final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
+                .setScale(Scale.newBuilder().setTarget(ActionEntity.newBuilder()
+                        .setId(1L)
+                        .setType(entityType)
+                        .build()).build())
+                .build()).build();
 
         // ACT
-        final List<ActionSpecifications> entitySpecs = actionModeCalculator
-                .specsApplicableToAction(action, Collections.emptyMap())
-                .collect(Collectors.toList());
+        final List<ActionSpecifications> entitySpecs = actionModeCalculator.specsApplicableToAction(
+                action, Collections.emptyMap()).collect(Collectors.toList());
 
         // ASSERT
         Assert.assertEquals(1, entitySpecs.size());
-        Assert.assertEquals(ConfigurableActionSettings.CloudComputeScale,
-                entitySpecs.get(0).getConfigurableActionSetting());
+        Assert.assertEquals(expectedValue, entitySpecs.get(0).getConfigurableActionSetting());
     }
+
 
     private Action getResizeDownAction(long vmId) {
         ActionDTO.Action.Builder actionBuilder = ActionDTO.Action.newBuilder()

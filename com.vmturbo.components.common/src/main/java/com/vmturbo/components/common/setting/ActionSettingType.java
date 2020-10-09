@@ -62,6 +62,8 @@ public enum ActionSettingType {
                     break;
                 case Move:
                 case CloudComputeScale:
+                case CloudDBScale:
+                case CloudDBServerScale:
                 case Resize:
                 case ResizeUpDBMem:
                 case ResizeDownDBMem:
