@@ -166,7 +166,7 @@ public class Tracing {
         }
 
         /**
-         * Tag the trace  in the scope with a key-value pair.
+         * Tag the trace in the scope with a key-value pair.
          * Noop if there is no trace in the scope or if the {@link TracingScope} has been closed.
          *
          * @param key The tag key.

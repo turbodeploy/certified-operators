@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -31,7 +32,7 @@ import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.analysis.UpdateFunction;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
-import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.tracing.ClassicTracer;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
@@ -62,7 +63,6 @@ import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -227,6 +227,7 @@ public class TopologyEntitiesHandler {
             startPriceStatement.computePriceIndex(economy);
             buildTimer.observe();
 
+            final ClassicTracer classicTracer = new ClassicTracer();
             final boolean isRealtime = topologyInfo.getTopologyType() == TopologyType.REALTIME;
             final String scopeType = topologyInfo.getScopeSeedOidsCount() > 0 ?
                 SCOPED_ANALYSIS_LABEL :
@@ -237,39 +238,43 @@ public class TopologyEntitiesHandler {
             AnalysisResults results;
 
             // Generate actions
-        final String marketId = topologyInfo.getTopologyType() + "-"
-            + Long.toString(topologyInfo.getTopologyContextId()) + "-"
-            + Long.toString(topologyInfo.getTopologyId());
-        // Set replay actions.
-        final @NonNull ReplayActions seedActions = isRealtime ? analysis.getReplayActions()
-                                                              : new ReplayActions();
+            final String marketId = topologyInfo.getTopologyType() + "-"
+                + Long.toString(topologyInfo.getTopologyContextId()) + "-"
+                + Long.toString(topologyInfo.getTopologyId());
+            // Set replay actions.
+            final @NonNull ReplayActions seedActions = isRealtime ? analysis.getReplayActions()
+                : new ReplayActions();
 
-        boolean isCloudMigrationPlan = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
-        // Set isResize to false for migration to cloud use case. Set isResize to true otherwise.
-        boolean isResize = !isCloudMigrationPlan;
-        // trigger suspension throttling in XL
-        List<Action> actions = ede.generateActions(economy, true, true, true, isResize,
-                true, seedActions, marketId, isRealtime,
-                isRealtime ? analysisConfig.getSuspensionsThrottlingConfig() : SuspensionsThrottlingConfig.DEFAULT);
-        final long stop = System.nanoTime();
-        results = AnalysisToProtobuf.analysisResults(actions,
-            topology.getShoppingListOids(), stop - start,
-            topology, startPriceStatement);
-        if (isRealtime) {
-            // run another round of analysis on the new state of the economy with provisions enabled
-            // and resize disabled. We add only the provision recommendations to the list of actions generated.
-            // We neglect suspensions since there might be associated moves that we dont want to include
-            //
-            // This is done because in a real-time scenario, we assume that provision actions cannot be
-            // automated and in order to be executed manually require a physical hardware purchase (this
-            // seems like a bad assumption to hardcode for an entire category of actions rather than
-            // provide a mechanism to convey the information on a per-entity basis). Given this assumption,
-            // we want to do the best job of getting the customer's environment to a desired state WITHOUT
-            // provision actions (market subcycle 1) and then if there are still insufficient resources
-            // to meet demand, add any necessary provision actions on top of the recommendations without
-            // provisions (market subcycle 2).
-            AnalysisResults.Builder builder = results.toBuilder();
-            economy.getSettings().setResizeDependentCommodities(false);
+            boolean isCloudMigrationPlan = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
+            // Set isResize to false for migration to cloud use case. Set isResize to true otherwise.
+            boolean isResize = !isCloudMigrationPlan;
+            // trigger suspension throttling in XL
+            List<Action> actions;
+            try (TracingScope ignored = Tracing.trace("first_round_analysis")) {
+                actions = ede.generateActions(economy, true, true, true, isResize,
+                    true, seedActions, marketId, isRealtime,
+                    isRealtime ? analysisConfig.getSuspensionsThrottlingConfig() : SuspensionsThrottlingConfig.DEFAULT,
+                    Optional.of(classicTracer));
+            }
+            final long stop = System.nanoTime();
+            results = AnalysisToProtobuf.analysisResults(actions,
+                topology.getShoppingListOids(), stop - start,
+                topology, startPriceStatement);
+            if (isRealtime) {
+                // run another round of analysis on the new state of the economy with provisions enabled
+                // and resize disabled. We add only the provision recommendations to the list of actions generated.
+                // We neglect suspensions since there might be associated moves that we dont want to include
+                //
+                // This is done because in a real-time scenario, we assume that provision actions cannot be
+                // automated and in order to be executed manually require a physical hardware purchase (this
+                // seems like a bad assumption to hardcode for an entire category of actions rather than
+                // provide a mechanism to convey the information on a per-entity basis). Given this assumption,
+                // we want to do the best job of getting the customer's environment to a desired state WITHOUT
+                // provision actions (market subcycle 1) and then if there are still insufficient resources
+                // to meet demand, add any necessary provision actions on top of the recommendations without
+                // provisions (market subcycle 2).
+                AnalysisResults.Builder builder = results.toBuilder();
+                economy.getSettings().setResizeDependentCommodities(false);
 
                 // Make sure clones and only clones are suspendable. Currently suspend actions generated
                 // in the second sub-cycle are discarded and only useful when collapsed with a provision
@@ -290,18 +295,21 @@ public class TopologyEntitiesHandler {
                 // actions themselves in the results. Note that if we are to ever include any of the move/start
                 // actions on the newly provisioned entities, excluding the provisioned entities will cause those
                 // actions to reference entities not actually in the projected topology.
-                @NonNull List<Action> secondRoundActions = ede.generateActions(economy, true, true,
-                    true, false, true, false,
-                    analysisConfig.getReplayProvisionsForRealTime() ? seedActions : new ReplayActions(),
-                    marketId, SuspensionsThrottlingConfig.DEFAULT).stream()
-                    .filter(action -> (action instanceof ProvisionByDemand
-                        || action instanceof ProvisionBySupply
-                        || action instanceof Activate)
-                        // Extract resize actions that explicitly set extractAction
-                        // to true as part of resizeThroughSupplier
-                        // provision actions.
-                        || action instanceof Resize && action.isExtractAction())
-                    .collect(Collectors.toList());
+                @NonNull List<Action> secondRoundActions;
+                try (TracingScope unused = Tracing.trace("second_round_analysis")) {
+                    secondRoundActions = ede.generateActions(economy, true, true,
+                        true, false, true, false,
+                        analysisConfig.getReplayProvisionsForRealTime() ? seedActions : new ReplayActions(),
+                        marketId, SuspensionsThrottlingConfig.DEFAULT, Optional.of(classicTracer)).stream()
+                        .filter(action -> (action instanceof ProvisionByDemand
+                            || action instanceof ProvisionBySupply
+                            || action instanceof Activate)
+                            // Extract resize actions that explicitly set extractAction
+                            // to true as part of resizeThroughSupplier
+                            // provision actions.
+                            || action instanceof Resize && action.isExtractAction())
+                        .collect(Collectors.toList());
+                }
                 List<Trader> provisionedTraders = Lists.newArrayList();
                 Set<Trader> resizeThroughSuppliers = Sets.newHashSet();
                 for (Action action : secondRoundActions) {
