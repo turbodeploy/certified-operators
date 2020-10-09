@@ -1013,6 +1013,7 @@ message CloudCostStatsQuery {
     optional EntityTypeFilter entity_type_filter = 7;
 
     // A property names to aggregate stats over, as in an SQL 'group by' clause.
+    // Returns only fields used for grouping.
     repeated GroupBy group_by = 8;
 
     // Filter associated cost based on its source, return cost from all sources if empty.

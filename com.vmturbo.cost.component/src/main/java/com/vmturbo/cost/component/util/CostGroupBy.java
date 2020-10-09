@@ -27,10 +27,16 @@ import com.vmturbo.cost.component.db.Tables;
  */
 public class CostGroupBy {
     /**
-     * {@link Tables#ENTITY_COST #CREATED_TIME} constant used in DB.
+     * Created time field name.
      */
     public static final String CREATED_TIME = ENTITY_COST.CREATED_TIME.getName();
+    /**
+     * Associated entity id field name.
+     */
     public static final String ENTITY = ENTITY_COST.ASSOCIATED_ENTITY_ID.getName();
+    /**
+     * Associated entity type field name.
+     */
     public static final String ENTITY_TYPE = ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName();
 
     private final Collection<String> groupByFields;
@@ -55,9 +61,9 @@ public class CostGroupBy {
      * @param realtimeTopologyContextId RT topology context Id
      */
     public CostGroupBy(@Nonnull final Set<String> items, @Nonnull final TimeFrame timeFrame,
-            long realtimeTopologyContextId) {
+            final long realtimeTopologyContextId) {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
-        Set<String> listOfFields = Sets.newHashSet(items);
+        final Set<String> listOfFields = Sets.newHashSet(items);
         listOfFields.add(CREATED_TIME);
         groupByFields = listOfFields.stream().map(field -> GROUP_FIELD_CONVERTER.getOrDefault(field, field))
                 .collect(Collectors.toSet());

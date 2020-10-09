@@ -4,7 +4,6 @@ import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_SPEC;
 import static org.jooq.impl.DSL.sum;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -13,8 +12,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Record1;
 import org.jooq.Record2;
@@ -41,8 +38,6 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore imp
         TableDiagsRestorable<Void, PlanReservedInstanceBoughtRecord> {
 
     private static final String planReservedInstanceDumpFile = "planReservedInstance_dump";
-
-    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Creates {@link PlanReservedInstanceStore} instance.
@@ -114,21 +109,13 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore imp
      * @return a Map which key is reservedInstance spec ID (Long) and value is the sum count
      * of reserved instance bought which belong to this spec.
      */
-    public Map<Long, Long> getPlanReservedInstanceCountByRISpecIdMap(Long planId) {
-        final Result<Record2<ReservedInstanceBoughtInfo, BigDecimal>> riCountMap =
-                        getDsl().select(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_BOUGHT_INFO,
-                                        (sum(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.COUNT)).as(RI_SUM_COUNT))
-                                        .from(Tables.PLAN_RESERVED_INSTANCE_BOUGHT)
-                                        .where(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.PLAN_ID.eq(planId))
-                                        .groupBy(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID).fetch();
-        final Map<Long, Long> countsByTemplate = new HashMap<>();
-        for (Record2<ReservedInstanceBoughtInfo, BigDecimal> record : riCountMap) {
-            final ReservedInstanceBoughtInfo riInfo = record.value1();
-            final long key = riInfo.getReservedInstanceSpec();
-            final long count = record.value2().longValue();
-            countsByTemplate.compute(key, (k, v) -> v == null ? count : v + count);
-        }
-        return countsByTemplate;
+    public Map<Long, Long> getPlanReservedInstanceCountByRISpecIdMap(final Long planId) {
+        return getDsl().select(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID,
+                sum(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.COUNT).cast(Long.class))
+                .from(Tables.PLAN_RESERVED_INSTANCE_BOUGHT)
+                .where(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.PLAN_ID.eq(planId))
+                .groupBy(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID)
+                .fetchStream().collect(Collectors.toMap(Record2::value1, Record2::value2));
     }
 
     /**
@@ -137,12 +124,12 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore imp
      * @param planId plan ID.
      * @return count of deleted rows.
      */
-    public int deletePlanReservedInstanceStats(Long planId) {
-        getLogger().info("Deleting data from plan reserved instance bought for planId : " + planId);
-        final int rowsDeleted = getDsl().deleteFrom(Tables.PLAN_RESERVED_INSTANCE_BOUGHT)
+    public int deletePlanReservedInstanceStats(final Long planId) {
+        getLogger().info("Deleting data from plan reserved instance bought for planId: {}.",
+                planId);
+        return getDsl().deleteFrom(Tables.PLAN_RESERVED_INSTANCE_BOUGHT)
                         .where(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.PLAN_ID
                                         .eq(planId)).execute();
-        return rowsDeleted;
 
     }
 
@@ -168,8 +155,7 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore imp
                                  .where(planRIBoughtTable.PLAN_ID.eq(planId))
                                  .fetch();
 
-        final Cost.ReservedInstanceCostStat reservedInstanceCostStat = convertToRICostStat(riAggregatedCostResult);
-        return reservedInstanceCostStat;
+        return convertToRICostStat(riAggregatedCostResult);
     }
 
     /**

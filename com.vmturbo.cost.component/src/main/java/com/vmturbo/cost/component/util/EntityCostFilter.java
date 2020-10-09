@@ -89,7 +89,7 @@ public class EntityCostFilter extends CostFilter {
 
     @Nullable
     private CostGroupBy createGroupByFieldString(@Nonnull Set<String> items ) {
-        Set<String> listOfFields = Sets.newHashSet(items);
+        final Set<String> listOfFields = Sets.newHashSet(items);
         listOfFields.add(getTable().field(CREATED_TIME).getName());
         return items.isEmpty()
             ? null

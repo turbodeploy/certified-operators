@@ -59,16 +59,16 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.MultiStoreDiagnosable;
-import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityCostByDayRecord;
 import com.vmturbo.cost.component.db.tables.records.EntityCostByHourRecord;
 import com.vmturbo.cost.component.db.tables.records.EntityCostByMonthRecord;
-import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.db.tables.records.EntityCostRecord;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.CostGroupBy;
@@ -76,9 +76,6 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
 import com.vmturbo.trax.TraxNumber;
 
-/**
- * {@inheritDoc}
- */
 public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosable {
 
     private static final Logger logger = LogManager.getLogger();
@@ -275,53 +272,40 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public Map<Long, Collection<StatRecord>> getEntityCostStats(@Nonnull final CostFilter entityCostFilter)
-            throws DbException {
+    public Map<Long, Collection<StatRecord>> getEntityCostStats(
+            @Nonnull final CostFilter entityCostFilter) throws DbException {
         try {
             if (entityCostFilter.getCostGroupBy() != null) {
-                //queries based on groupBy + filter. Returns only fields used for grouping.
+                // Queries based on filter and groupBy. Returns only fields used for grouping.
                 return fetchStatRecordsByGroup(entityCostFilter);
             } else {
-                //queries based on filter only. Returns all fields.
+                // Queries based on filter only. Returns all fields.
                 return constructStatRecordsMap(fetchRecords(entityCostFilter));
             }
-        } catch (DataAccessException e) {
+        } catch (final DataAccessException e) {
             throw new DbException("Failed to get entity costs from DB", e);
         }
     }
 
     @Nonnull
-    private Map<Long, Collection<StatRecord>> fetchStatRecordsByGroup(@Nonnull final CostFilter entityCostFilter) {
+    private Map<Long, Collection<StatRecord>> fetchStatRecordsByGroup(
+            @Nonnull final CostFilter entityCostFilter) {
         final CostGroupBy costGroupBy = entityCostFilter.getCostGroupBy();
         final Set<Field<?>> groupByFields = costGroupBy.getGroupByFields();
         final Table<?> table = costGroupBy.getTable();
-        final Field<LocalDateTime> createdTimeField = getField(table, ENTITY_COST.CREATED_TIME);
-        final Field<Integer> entityType = getField(table, ENTITY_COST.ASSOCIATED_ENTITY_TYPE);
-        final Field<Integer> costType = getField(table, ENTITY_COST.COST_TYPE);
         final Set<Field<?>> selectableFields = Sets.newHashSet(groupByFields);
-        if (nonProjectedEntityCostTables.contains(table)) {
-            final Field<Integer> costSource = getField(table, ENTITY_COST.COST_SOURCE);
-            selectableFields.add(costSource);
-        }
-        selectableFields.add(createdTimeField);
-        selectableFields.add(entityType);
-        selectableFields.add(costType);
         selectableFields.add(sum(costGroupBy.getAmountFieldInTable()));
         selectableFields.add(max(costGroupBy.getAmountFieldInTable()));
         selectableFields.add(min(costGroupBy.getAmountFieldInTable()));
         selectableFields.add(avg(costGroupBy.getAmountFieldInTable()));
-        final org.jooq.Select<Record> select = dsl
-                .select(selectableFields)
+        final Result<Record> result = dsl.select(selectableFields)
                 .from(table)
                 .where(Arrays.asList(entityCostFilter.getConditions()))
-                .and(getConditionForEntityCost(dsl, entityCostFilter, createdTimeField, table))
-                .groupBy(groupByFields);
-        final Result<Record> res = select.fetch();
-        return createGroupByStatRecords(res, selectableFields);
+                .and(getConditionForEntityCost(dsl, entityCostFilter, table))
+                .groupBy(groupByFields)
+                .fetch();
+        return createGroupByStatRecords(result, selectableFields);
     }
 
     @Nonnull
@@ -343,7 +327,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                 .select(modifiableList)
                 .from(table)
                 .where(Arrays.asList(entityCostFilter.getConditions()))
-                .and(getConditionForEntityCost(dsl, entityCostFilter, createdTime, table))
+                .and(getConditionForEntityCost(dsl, entityCostFilter, table))
                 .fetch();
     }
 
@@ -389,13 +373,17 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     private StatRecord mapToEntityCost(@Nonnull final Record item,
             @Nonnull final Set<Field<?>> selectableFields) {
         final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder();
-        statRecordBuilder.setCategory(CostCategory.forNumber(item.get(ENTITY_COST.COST_TYPE)));
+        if (selectableFields.contains(ENTITY_COST.COST_TYPE)) {
+            statRecordBuilder.setCategory(CostCategory.forNumber(item.get(ENTITY_COST.COST_TYPE)));
+        }
         if (selectableFields.contains(ENTITY_COST.COST_SOURCE)) {
             statRecordBuilder.setCostSource(
                     CostSource.forNumber(item.get(ENTITY_COST.COST_SOURCE)));
         }
-        statRecordBuilder.setAssociatedEntityType(
-                item.getValue(ENTITY_COST.ASSOCIATED_ENTITY_TYPE));
+        if (selectableFields.contains(ENTITY_COST.ASSOCIATED_ENTITY_TYPE)) {
+            statRecordBuilder.setAssociatedEntityType(
+                    item.getValue(ENTITY_COST.ASSOCIATED_ENTITY_TYPE));
+        }
         if (selectableFields.contains(ENTITY_COST.ASSOCIATED_ENTITY_ID)) {
             statRecordBuilder.setAssociatedEntityId(
                     item.getValue(ENTITY_COST.ASSOCIATED_ENTITY_ID));
@@ -486,7 +474,6 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
      *
      * @param dsl      dslContext used.
      * @param entityCostFilter Filter for requested entity costs.
-     * @param createdTime FieldName for created_Time.
      * @param table table to be used in condition.
      * @return {@link Condition}. This is used in the query.
      */
@@ -494,8 +481,8 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     private Condition getConditionForEntityCost(
             @Nonnull final DSLContext dsl,
             @Nonnull final CostFilter entityCostFilter,
-            @Nonnull final Field<LocalDateTime> createdTime,
             @Nonnull final Table<?> table) {
+        final Field<LocalDateTime> createdTime = getField(table, ENTITY_COST.CREATED_TIME);
         if (entityCostFilter.isLatest() && !entityCostFilter.hasPlanTopologyContextId()) {
             return createdTime.eq(dsl.select(max(createdTime)).from(table));
         } else {
@@ -524,10 +511,9 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
     /**
      * Remove plan entity cost snapshot that was created by a plan.
      * @param planId the ID of the plan for which to remove cost data.
-     * @throws DbException if there was an error removing the plan cost data.
      */
-    public void deleteEntityCosts(final long planId) throws DbException {
-        logger.info("Deleting data from plan entity costs for planId : " + planId);
+    public void deleteEntityCosts(final long planId) {
+        logger.info("Deleting data from plan entity costs for planId: {}", planId);
         final int rowsDeleted = dsl
                 .deleteFrom(PLAN_ENTITY_COST)
                 .where(Tables.PLAN_ENTITY_COST.PLAN_ID.eq(planId))

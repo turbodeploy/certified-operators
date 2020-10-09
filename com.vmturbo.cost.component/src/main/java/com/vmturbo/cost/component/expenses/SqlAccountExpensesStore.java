@@ -21,8 +21,7 @@ import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record6;
 import org.jooq.Result;
-import org.jooq.SelectJoinStep;
-import org.jooq.SelectSelectStep;
+import org.jooq.SelectConditionStep;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -194,39 +193,18 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
             final Field<BigDecimal> amount = (Field<BigDecimal>)table
                     .field(ACCOUNT_EXPENSES.AMOUNT.getName());
 
-            SelectSelectStep<Record6<Long, LocalDate, Long, Integer, Integer, BigDecimal>> select = dsl
-                .select(accountId, expenseDate, entityId, entityType, currency, amount);
-
-            SelectJoinStep<Record6<Long, LocalDate, Long, Integer, Integer, BigDecimal>> selectFrom;
-
-            // Since the information about different account can have different expense date, we
-            // find the latest expense date for each account and inner join it original select
-            // results. That way, we get latest info for each account.
+            final SelectConditionStep<Record6<Long, LocalDate, Long, Integer, Integer, BigDecimal>>
+                    query = dsl.select(accountId, expenseDate, entityId, entityType, currency,
+                    amount).from(table).where(filter.getConditions());
             if (filter.isLatestTimeStampRequested()) {
-                selectFrom =
-                    select.from(table.innerJoin(dsl
-                    .select(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID,
-                                    ACCOUNT_EXPENSES.EXPENSE_DATE)
-                    .from(table)
-                                    .where(ACCOUNT_EXPENSES.EXPENSE_DATE.eq(dsl.select(DSL.max(ACCOUNT_EXPENSES.EXPENSE_DATE)).from(table)))
-                    .groupBy(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID))
-                    .using(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID,
-                        ACCOUNT_EXPENSES.EXPENSE_DATE));
-            } else {
-                selectFrom = select.from(table);
+                query.and(expenseDate.eq(dsl.select(DSL.max(expenseDate)).from(table)));
             }
-
-            final Result<Record6<Long, LocalDate, Long, Integer, Integer, BigDecimal>> records =
-                selectFrom.where(filter.getConditions()).fetch();
-            return constructExpensesMap(records);
+            return constructExpensesMap(query.fetch());
         } catch (DataAccessException e) {
             throw new DbException("Failed to get entity costs from DB", e);
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Nonnull
     @Override
     public List<Cost.AccountExpenses> getAllAccountExpenses() throws DbException {

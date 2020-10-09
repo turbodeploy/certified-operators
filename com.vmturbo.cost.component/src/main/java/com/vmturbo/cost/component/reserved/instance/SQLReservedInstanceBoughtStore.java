@@ -29,8 +29,6 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record2;
@@ -69,8 +67,6 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
 
     private static final String reservedInstanceBoughtDumpFile = "reservedInstanceBought_dump";
 
-    private static final Logger logger = LogManager.getLogger();
-
     private static final String RI_AMORTIZED_COST = "ri_amortized_cost";
 
     private static final String RI_RECURRING_COST = "ri_recurring_cost";
@@ -85,8 +81,6 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
     private final PriceTableStore priceTableStore;
 
     private final Set<Runnable> updateCallbacks = new HashSet<>();
-
-
 
     @Override
     public DSLContext getDSLContext() {
@@ -173,8 +167,7 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
                             .where(filter.generateConditions())
                             .fetch();
 
-        final Cost.ReservedInstanceCostStat reservedInstanceCostStat = convertToRICostStat(riAggregatedCostResult);
-        return reservedInstanceCostStat;
+        return convertToRICostStat(riAggregatedCostResult);
     }
 
     /**
@@ -229,38 +222,25 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
         } else if (Cost.GetReservedInstanceCostStatsRequest.GroupBy.NONE == groupBy) {
             return getReservedInstanceCostStats(reservedInstanceCostFilter);
         }
-        return Collections.EMPTY_LIST;
+        return Collections.emptyList();
     }
 
+    @Nonnull
     @Override
-    public Map<Long, Long> getReservedInstanceCountByRISpecIdMap(ReservedInstanceBoughtFilter filter) {
-        final SelectJoinStep<Record2<ReservedInstanceBoughtInfo, BigDecimal>> from =
-                getDsl().select(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_BOUGHT_INFO,
-                (sum(RESERVED_INSTANCE_BOUGHT.COUNT)).as(RI_SUM_COUNT))
+    public Map<Long, Long> getReservedInstanceCountByRISpecIdMap(
+            final ReservedInstanceBoughtFilter filter) {
+        final SelectJoinStep<Record2<Long, Long>> query = getDsl()
+                .select(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID,
+                        sum(RESERVED_INSTANCE_BOUGHT.COUNT).cast(Long.class))
                 .from(RESERVED_INSTANCE_BOUGHT);
-
         if (filter.isJoinWithSpecTable()) {
-            from.join(RESERVED_INSTANCE_SPEC)
+            query.join(RESERVED_INSTANCE_SPEC)
                     .on(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID
                             .eq(RESERVED_INSTANCE_SPEC.ID));
         }
-
-        from.where(filter.generateConditions()).groupBy(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID);
-
-        final Result<Record2<ReservedInstanceBoughtInfo, BigDecimal>> riCountMap = from.fetch();
-
-        final Map<ReservedInstanceBoughtInfo, Long> riSpecMap = new HashMap<>();
-        riCountMap.forEach(record -> riSpecMap.put(record.value1(), record.value2().longValue()));
-        final Map<Long, Long> countsByTemplate = new HashMap<>();
-        for (ReservedInstanceBoughtInfo riInfo: riSpecMap.keySet()) {
-            final long key = riInfo.getReservedInstanceSpec();
-            if (countsByTemplate.containsKey(key)) {
-                countsByTemplate.put(key, countsByTemplate.get(key) + riSpecMap.get(riInfo));
-            } else {
-                countsByTemplate.put(key, riSpecMap.get(riInfo));
-            }
-        }
-        return countsByTemplate;
+        return query.where(filter.generateConditions())
+                .groupBy(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID)
+                .fetchStream().collect(Collectors.toMap(Record2::value1, Record2::value2));
     }
 
     @Override
