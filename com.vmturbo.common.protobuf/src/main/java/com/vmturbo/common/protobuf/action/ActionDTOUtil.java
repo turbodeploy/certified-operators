@@ -101,6 +101,11 @@ public class ActionDTOUtil {
     private static final ImmutableMap<Integer, String> CLOUD_SCALE_ACTION_ENTITY_TYPE_DISPLAYNAME
             = ImmutableMap.of(EntityType.VIRTUAL_VOLUME_VALUE, "Volume");
 
+    /*Entities which tracks additional commodity changes in their action descriptions.
+    eg: Cloud DB shows both DTU and Storage amount changes.*/
+    public static final Set<Integer> ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES =
+            ImmutableSet.of(EntityType.DATABASE_VALUE);
+
     private ActionDTOUtil() {}
 
     /**

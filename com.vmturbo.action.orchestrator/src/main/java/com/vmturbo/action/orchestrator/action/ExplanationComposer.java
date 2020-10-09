@@ -1,7 +1,9 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyAtomicActionsCommodityType;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.getCommodityDisplayName;
+import static java.util.stream.Collectors.toList;
 
 import java.text.MessageFormat;
 import java.text.SimpleDateFormat;
@@ -10,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -78,7 +81,9 @@ public class ExplanationComposer {
     private static final String MOVE_PERFORMANCE_EXPLANATION =
         "Improve overall performance";
     private static final String IMPROVE_OVERALL_EFFICIENCY =
-        "Improve overall efficiency";
+            "Improve overall efficiency";
+    private static final String NO_COST_SCALING_COMMODITY_TYPE =
+            "Scaling to free {0}";
     private static final String ACTIVATE_EXPLANATION_WITH_REASON_COMM =
         "Address high utilization of ";
     private static final String ACTIVATE_EXPLANATION_WITHOUT_REASON_COMM =
@@ -296,7 +301,7 @@ public class ExplanationComposer {
         List<ActionEntity> source_entities = ActionDTOUtil.getChangeProviderList(action)
             .stream()
             .map(ChangeProvider::getSource)
-            .collect(Collectors.toList());
+            .collect(toList());
         Optional<ActionEntity> optionalSourceEntity = source_entities.size() == 1
             ? Optional.of(source_entities.get(0))
             : Optional.empty();
@@ -312,7 +317,7 @@ public class ExplanationComposer {
         // Use primary change explanations if available
         List<ChangeProviderExplanation> primaryChangeExplanation = changeExplanations.stream()
             .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation)
-            .collect(Collectors.toList());
+            .collect(toList());
         if (!primaryChangeExplanation.isEmpty()) {
             changeExplanations = primaryChangeExplanation;
         }
@@ -404,7 +409,7 @@ public class ExplanationComposer {
             case PERFORMANCE:
                 return Collections.singleton(buildPerformanceExplanation());
             case EFFICIENCY:
-                return buildEfficiencyExplanation(changeProviderExplanation.getEfficiency(), keepItShort);
+                return buildEfficiencyExplanation(target, changeProviderExplanation.getEfficiency(), keepItShort);
             default:
                 return Collections.singleton(keepItShort ? ACTION_ERROR_CATEGORY : ACTION_TYPE_ERROR);
         }
@@ -529,22 +534,36 @@ public class ExplanationComposer {
      *      Set("Wasted Cost") or
      *      Set("Improve overall efficiency")
      *
-     * @param efficiency the efficiency change provider explanation
-     * @param keepItShort compose a short explanation if true
+     * @param actionEntity the action entity.
+     * @param efficiency   the efficiency change provider explanation.
+     * @param keepItShort  compose a short explanation if true.
      * @return a set of explanation sentences
      */
     private static Set<String> buildEfficiencyExplanation(
+            @Nonnull final ActionEntity actionEntity,
             @Nonnull final Efficiency efficiency, final boolean keepItShort) {
+        Set<String> result = new LinkedHashSet<>();
         if (efficiency.getIsRiCoverageIncreased()) {
-            return Collections.singleton(INCREASE_RI_UTILIZATION);
+            result.add(INCREASE_RI_UTILIZATION);
         } else if (!efficiency.getUnderUtilizedCommoditiesList().isEmpty()) {
-            return buildCommodityUtilizationExplanation(efficiency.getUnderUtilizedCommoditiesList(),
-                ChangeProviderExplanationTypeCase.EFFICIENCY, keepItShort);
+            result.addAll(buildCommodityUtilizationExplanation(efficiency.getUnderUtilizedCommoditiesList(),
+                    ChangeProviderExplanationTypeCase.EFFICIENCY, keepItShort));
         } else if (efficiency.getIsWastedCost()) {
-            return Collections.singleton(WASTED_COST);
-        } else {
-            return Collections.singleton(IMPROVE_OVERALL_EFFICIENCY);
+            result.add(WASTED_COST);
         }
+        if (ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES.contains(actionEntity.getType())) {
+            if (!efficiency.getScaleUpCommodityList().isEmpty()) {
+                Collection<String> scalingUpCommodities = efficiency.getScaleUpCommodityList().stream().map(
+                        scalingUpCommodity -> commodityDisplayName(scalingUpCommodity, keepItShort)
+                ).collect(toList());
+                String concatenatedCommodityNames = String.join(", ", scalingUpCommodities);
+                result.add(MessageFormat.format(NO_COST_SCALING_COMMODITY_TYPE, concatenatedCommodityNames));
+            }
+        }
+        if (result.isEmpty()) {
+            result.add(IMPROVE_OVERALL_EFFICIENCY);
+        }
+        return result;
     }
 
     /**

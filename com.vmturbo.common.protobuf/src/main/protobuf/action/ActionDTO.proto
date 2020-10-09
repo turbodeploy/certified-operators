@@ -133,6 +133,10 @@ message Explanation {
 
             // If the action was purely because destination was cheaper
             optional bool is_wasted_cost = 6;
+
+            // In many scenario even with an efficiency action, the destination commodity scales up.
+            // This list captures those commodities.
+            repeated topology.CommodityType scale_up_commodity = 7;
         }
     }
 

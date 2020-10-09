@@ -1,13 +1,12 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyAtomicActionsCommodityType;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodityType;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodityTypes;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyEntityTypeAndName;
 
-import java.text.CharacterIterator;
 import java.text.MessageFormat;
-import java.text.StringCharacterIterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -16,10 +15,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
@@ -77,9 +74,6 @@ public class ActionDescriptionBuilder {
     private static final String ENTITY_NOT_FOUND_WARN_MSG = "{} {} Entity {} doesn't exist in the entities snapshot";
     private static final Map<CommodityType, String> CLOUD_SCALE_ACTION_COMMODITY_TYPE_DISPLAYNAME
             = ImmutableMap.of(CommodityType.STORAGE_ACCESS, "IOPS", CommodityType.STORAGE_AMOUNT, "Disk size");
-    // Entities which tracks additional commodity changes in their action descriptions.
-    private static final Set<Integer> ENTITY_WITH_ADDITIONAL_COMMODITY_CHANGES =
-            ImmutableSet.of(EntityType.DATABASE_VALUE);
 
     // Static patterns used for dynamically-constructed message contents.
     //

@@ -1417,19 +1417,44 @@ public class ActionInterpreter {
         ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
         final long actionTargetId = slInfo.getCollapsedBuyerId().orElse(slInfo.getBuyerId());
         long sellerId = slInfo.getSellerId();
+        Set<CommodityType> underutilizedCommodityTypes = commoditiesResizeTracker.getUnderutilizedCommodityTypes(actionTargetId, sellerId);
+        // Pair[LowerCapacity, HigherCapacity].
+        Pair<Set<CommodityType>, Set<CommodityType>> lowerAndHigherCapacityPair =
+                calculateCommWithChangingProjectedCapacity(
+                        actionTargetId,
+                        underutilizedCommodityTypes,
+                        projectedTopology);
+
+        // Collection of commodities with lower projected capacity in projected topology.
+        // Also include commodities with unknown capacity.
+        final Set<CommodityType> lowerProjectedCapacity = lowerAndHigherCapacityPair.first;
+        // Collection of commodities with higher projected capacity in projected topology.
+        final Set<CommodityType> higherProjectedCapacity = lowerAndHigherCapacityPair.second;
+
         Optional<ChangeProviderExplanation.Builder> explanation =
-                //Check if this SE has congested commodities pre-stored.
+                // Check if this SE has congested commodities pre-stored.
                 Optional.ofNullable(getCongestedExplanationFromTracker(actionTargetId, sellerId)
-                        //If this SE is cloud and has RI change.
-                .orElseGet(() -> getRIIncreaseExplanation(actionTargetId, moveTO)
-                        //If this SE has underutilized commodities pre-stored.
-                        .orElseGet(() -> getUnderUtilizedExplanationFromTracker(actionTargetId, sellerId, projectedTopology)
-                                //Get from savings
-                                .orElseGet(() -> getExplanationFromSaving(savings)
-                                        //Default move explanation
-                                        .orElseGet(() -> getDefaultExplanationForCloud(actionTargetId, moveTO).orElse(null)
-                        )))));
-        return explanation;
+                        // If this SE is cloud and has RI change.
+                        .orElseGet(() -> getRIIncreaseExplanation(actionTargetId, moveTO)
+                                // If this SE has underutilized commodities pre-stored.
+                                .orElseGet(() -> getUnderUtilizedExplanationFromTracker(actionTargetId, sellerId, lowerProjectedCapacity)
+                                        // Get from savings
+                                        .orElseGet(() -> getExplanationFromSaving(savings)
+                                                    .orElse(null)))));
+        // To add commodities whose projected capacities are higher than current capacities,
+        // if changeProviderExplanation is Efficiency.
+        boolean isEfficiencyOrNoChange = !explanation.isPresent() ||
+                explanation.get().hasEfficiency();
+        if (isEfficiencyOrNoChange  && !higherProjectedCapacity.isEmpty()) {
+            ChangeProviderExplanation.Builder changeProviderExplanation = explanation.orElseGet(ChangeProviderExplanation::newBuilder);
+            // Add commodities which are scaling up to Efficiency. scaleUpCommodity.
+            explanation = Optional.of(changeProviderExplanation.setEfficiency(changeProviderExplanation.getEfficiencyBuilder()
+                    .addAllScaleUpCommodity(higherProjectedCapacity)));
+        }
+        // Default move explanation.
+        return Optional.ofNullable(explanation
+                .orElseGet(() -> getDefaultExplanationForCloud(actionTargetId, moveTO)
+                        .orElse(null)));
     }
 
     private Optional<ChangeProviderExplanation.Builder> getCongestedExplanationFromTracker(long actionTargetId, long sellerId) {
@@ -1446,17 +1471,44 @@ public class ActionInterpreter {
         return Optional.empty();
     }
 
+    @Nonnull
     private Optional<ChangeProviderExplanation.Builder> getUnderUtilizedExplanationFromTracker(
             long actionTargetId,
             long sellerId,
-            final Map<Long, ProjectedTopologyEntity> projectedTopology) {
-        Set<CommodityType> underutilizedCommodityTypes = commoditiesResizeTracker.getUnderutilizedCommodityTypes(actionTargetId, sellerId);
+            @Nonnull Set<CommodityType> underutilizedCommodityTypes) {
+        if (!underutilizedCommodityTypes.isEmpty()) {
+            Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder()
+                    .addAllUnderUtilizedCommodities(commTypes2ReasonCommodities(underutilizedCommodityTypes));
+            logger.debug("Underutilized Commodities from tracker for buyer:{}, seller: {} : [{}]",
+                    actionTargetId, sellerId,
+                    underutilizedCommodityTypes.stream().map(AbstractMessage::toString).collect(Collectors.joining()));
+            return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+                    efficiencyBuilder));
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Commodities with either lower projected capacity values or higher projected values compared to original topology.
+     * If a underutilizedCommodityType is not found in either  projectedCommoditySoldMap or originalCommoditySoldMap,
+     * then it is anyways accepted as an underUtilizedCommodityType.
+     *
+     * @param actionTargetId   current action.
+     * @param underutilizedCommodityTypes set of underutilized {@link CommodityType}.
+     * @param projectedTopology    projected topology indexed by id.
+     * @return Pair set of lower projected commodities and higher projected commodity.
+     */
+    @Nonnull
+    private Pair<Set<CommodityType>, Set<CommodityType>> calculateCommWithChangingProjectedCapacity(
+            final long actionTargetId,
+            @Nonnull final Set<CommodityType> underutilizedCommodityTypes,
+            @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
 
         // Get projected commoditySold for entity indexed by underutilizedCommodityTypes.
         final Map<CommodityType, CommoditySoldDTO> projectedCommoditySoldMap = projectedTopology.containsKey(actionTargetId) ?
                 projectedTopology.get(actionTargetId).getEntity()
                         .getCommoditySoldListList().stream()
-                        .filter(commoditySoldDTO -> underutilizedCommodityTypes.contains( commoditySoldDTO.getCommodityType()))
+                        .filter(commoditySoldDTO -> underutilizedCommodityTypes.contains(commoditySoldDTO.getCommodityType()))
                         .collect(Collectors.toMap(CommoditySoldDTO::getCommodityType, Function.identity()))
                 : Collections.emptyMap();
 
@@ -1464,36 +1516,32 @@ public class ActionInterpreter {
         final Map<CommodityType, CommoditySoldDTO> originalCommoditySoldMap = originalTopology.containsKey(actionTargetId) ?
                 originalTopology.get(actionTargetId)
                         .getCommoditySoldListList().stream()
-                        .filter(commoditySoldDTO -> underutilizedCommodityTypes.contains( commoditySoldDTO.getCommodityType()))
+                        .filter(commoditySoldDTO -> underutilizedCommodityTypes.contains(commoditySoldDTO.getCommodityType()))
                         .collect(Collectors.toMap(CommoditySoldDTO::getCommodityType, Function.identity()))
                 : Collections.emptyMap();
 
-        // Commodities with actual lower projected capacity values.
-        Set<CommodityType> commodityTypesWithLowerProjectedUtilization = underutilizedCommodityTypes.stream()
-                .filter(underutilizedCommodityType -> {
+        // map of commodities with lower or unknown projected capacity values.
+        Set<CommodityType> lowerProjectedCapacity = Sets.newHashSet();
+        Set<CommodityType> higherProjectedCapacity = Sets.newHashSet();
+        underutilizedCommodityTypes
+                .forEach(underutilizedCommodityType -> {
                     if (projectedCommoditySoldMap.containsKey(underutilizedCommodityType) &&
                             originalCommoditySoldMap.containsKey(underutilizedCommodityType) &&
                             projectedCommoditySoldMap.get(underutilizedCommodityType).hasCapacity() &&
                             originalCommoditySoldMap.get(underutilizedCommodityType).hasCapacity()) {
-                        return projectedCommoditySoldMap.get(underutilizedCommodityType).getCapacity() <
+                        final double projectedCapacity =
+                                projectedCommoditySoldMap.get(underutilizedCommodityType).getCapacity();
+                        final double currentCapacity =
                                 originalCommoditySoldMap.get(underutilizedCommodityType).getCapacity();
-                    } else {
-                        // Do not filter commodity if not found in topology sold list.
-                        logger.debug("{} commodity type was not found in {}", underutilizedCommodityType,
-                                originalTopology.get(actionTargetId));
-                        return true;
+                        // capture the change to projected Capacity in Set.
+                        if (projectedCapacity > currentCapacity) {
+                            higherProjectedCapacity.add(underutilizedCommodityType);
+                        } else if (projectedCapacity < currentCapacity) {
+                            lowerProjectedCapacity.add(underutilizedCommodityType);
+                        }
                     }
-                }).collect(Collectors.toSet());
-        if (!commodityTypesWithLowerProjectedUtilization.isEmpty()) {
-            Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder()
-                    .addAllUnderUtilizedCommodities(commTypes2ReasonCommodities(commodityTypesWithLowerProjectedUtilization));
-            logger.debug("Underutilized Commodities from tracker for buyer:{}, seller: {} : [{}]",
-                    actionTargetId, sellerId,
-                    commodityTypesWithLowerProjectedUtilization.stream().map(AbstractMessage::toString).collect(Collectors.joining()));
-            return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
-                    efficiencyBuilder));
-        }
-        return Optional.empty();
+                });
+        return new Pair<>(lowerProjectedCapacity, higherProjectedCapacity);
     }
 
     private Optional<ChangeProviderExplanation.Builder> getRIIncreaseExplanation(long id, @Nonnull final MoveTO moveTO) {

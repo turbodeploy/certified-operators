@@ -211,11 +211,36 @@ public class InterpretCloudExplanationTest {
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(Optional.empty());
         projectedRiCoverage.put(VM1_OID, null);
 
-        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
+        Builder vmemSoldCommodity = CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder().setType(VMEM_VALUE));
+        Map<Long, ProjectedTopologyEntity> projectedTopologyMap = new HashMap<>();
+        Map<Long, TopologyEntityDTO> originalTopologyMap = new HashMap<>();
+        TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
+                .setOid(VM1_OID)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addCommoditySoldList(vmemSoldCommodity.setCapacity(100L)
+                        .build())
+                .build();
+        originalTopologyMap.put(VM1_OID, topologyEntityDTO);
+        topologyEntityDTO = TopologyEntityDTO.newBuilder()
+                .setOid(VM1_OID)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addCommoditySoldList(vmemSoldCommodity.setCapacity(10L)
+                        .build())
+                .build();
+        ProjectedTopologyEntity projectedTopology = ProjectedTopologyEntity.newBuilder()
+                .setEntity(topologyEntityDTO)
+                .build();
+        projectedTopologyMap.put(VM1_OID, projectedTopology);
+        ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
+                cloudTc, originalTopologyMap, oidToTraderTOMap, commoditiesResizeTracker, riCoverageCalculator, tierExcluder,
+                CommodityIndex.newFactory()::newIndex, null));
+        doReturn(Optional.of(interpretedMoveAction)).when(ai).interpretMoveAction(move.getMove(), projectedTopologyMap, originalCloudTopology);
+        List<Action> actions = ai.interpretAction(move, projectedTopologyMap, originalCloudTopology, projectedCosts, topologyCostCalculator);
 
-        assertTrue(!actions.isEmpty());
+        assertFalse(actions.isEmpty());
         Efficiency efficiency = actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
-        assertTrue(!efficiency.getUnderUtilizedCommoditiesList().isEmpty());
+        assertFalse(efficiency.getUnderUtilizedCommoditiesList().isEmpty());
         assertFalse(efficiency.getIsRiCoverageIncreased());
         assertFalse(efficiency.getIsWastedCost());
     }
