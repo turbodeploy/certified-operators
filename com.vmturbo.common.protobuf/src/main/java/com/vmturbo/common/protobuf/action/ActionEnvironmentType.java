@@ -36,6 +36,11 @@ public enum ActionEnvironmentType {
 
     /**
      * Get the {@link ActionEnvironmentType} for a particular action.
+     * If an action has only on prem entities the environment type will be on prem.
+     * If an action has only cloud entities the environment type will be cloud.
+     * If an action has at least one hybrid entity the environment type will be ON_PREM_AND_CLOUD.
+     * If an action has both on prem and cloud entities the environment type will be
+     * ON_PREM_AND_CLOUD.
      *
      * @param action The action recommended by the market.
      * @return The {@link ActionEnvironmentType}.
@@ -47,13 +52,18 @@ public enum ActionEnvironmentType {
         boolean isCloud = false;
         boolean isOnPrem = false;
         for (ActionEntity involvedEntity : ActionDTOUtil.getInvolvedEntities(action)) {
-            if (involvedEntity.getEnvironmentType() == EnvironmentType.CLOUD) {
-                isCloud = true;
-            } else {
-                isOnPrem = true;
+            switch(involvedEntity.getEnvironmentType()) {
+                case HYBRID:
+                    isCloud = true;
+                    isOnPrem = true;
+                    break;
+                case CLOUD:
+                    isCloud = true;
+                    break;
+                default:
+                    isOnPrem = true;
             }
         }
-
         if (isCloud && isOnPrem) {
             return ActionEnvironmentType.ON_PREM_AND_CLOUD;
         } else if (isCloud) {
@@ -64,7 +74,7 @@ public enum ActionEnvironmentType {
             // The default option is ON_PREM, but this should never be reached because we always
             // have involved entities, and we always infer SOME entity type from involved
             // entities.
-            logger.warn("Action {} not cloud or on-prem. Defaulting to on-prem.", action);
+            logger.error("Action {} not cloud or on-prem. Defaulting to on-prem.", action);
             return ActionEnvironmentType.ON_PREM;
         }
     }

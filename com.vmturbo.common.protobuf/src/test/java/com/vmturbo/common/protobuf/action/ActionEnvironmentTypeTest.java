@@ -79,6 +79,29 @@ public class ActionEnvironmentTypeTest {
             .build();
 
         assertThat(ActionEnvironmentType.forAction(action), is(ActionEnvironmentType.ON_PREM_AND_CLOUD));
+
+        final ActionDTO.Action hybridAction = ActionDTO.Action.newBuilder()
+            .setId(7)
+            .setInfo(ActionInfo.newBuilder()
+                .setMove(Move.newBuilder()
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(1)
+                        .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setEnvironmentType(EnvironmentType.HYBRID))
+                    .addChanges(ChangeProvider.newBuilder()
+                        .setSource(ActionEntity.newBuilder()
+                            .setId(2)
+                            .setType(EntityType.PHYSICAL_MACHINE_VALUE)
+                            .setEnvironmentType(EnvironmentType.HYBRID))
+                        .setDestination(ActionEntity.newBuilder()
+                            .setId(3)
+                            .setType(EntityType.COMPUTE_TIER_VALUE)
+                            .setEnvironmentType(EnvironmentType.HYBRID)))))
+            .setDeprecatedImportance(1)
+            .setExplanation(Explanation.getDefaultInstance())
+            .build();
+
+        assertThat(ActionEnvironmentType.forAction(hybridAction), is(ActionEnvironmentType.ON_PREM_AND_CLOUD));
     }
 
     @Test
