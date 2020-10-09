@@ -332,6 +332,40 @@ public class ActionInfoModelCreatorTest {
         Assert.assertNotEquals(model1, model3);
     }
 
+    /**
+     * Test for the Delete action info mode.
+     */
+    @Test
+    public void testDeleteActionInfo() {
+        final String filePath1 = "/test/path1/file1";
+        final String filePath2 = "/test/path2/file2";
+
+        final ActionInfo delete1 = ActionInfo.newBuilder()
+            .setDelete(Delete.newBuilder()
+                .setTarget(createActionEntity(1))
+                .setFilePath(filePath1))
+            .build();
+
+        final ActionInfo delete2 = ActionInfo.newBuilder()
+                .setDelete(Delete.newBuilder()
+                    .setTarget(createActionEntity(1))
+                    .setFilePath(filePath2))
+                .build();
+
+        final ActionInfo delete3 = ActionInfo.newBuilder()
+                .setDelete(Delete.newBuilder()
+                    .setTarget(createActionEntity(1))
+                    .setFilePath(filePath1))
+                .build();
+
+        final ActionInfoModel model1 = modelCreator.apply(delete1);
+        final ActionInfoModel model2 = modelCreator.apply(delete2);
+        final ActionInfoModel model3 = modelCreator.apply(delete3);
+
+        Assert.assertEquals(model1, model3);
+        Assert.assertNotEquals(model1, model2);
+    }
+
     @Nonnull
     private ActionInfo createMove() {
         return ActionInfo.newBuilder()
