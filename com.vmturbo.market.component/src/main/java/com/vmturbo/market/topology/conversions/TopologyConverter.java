@@ -2876,6 +2876,15 @@ public class TopologyConverter {
                                 providerTypeAfterCollapsing, directProviderId);
                         continue;
                     }
+                    if (isCloudMigration) {
+                        // Volume may not be movable for real-time, but for plans, make it
+                        // movable if commBoughtGrouping b/w VM -> Volume is set so.
+                        CommoditiesBoughtFromProvider.Builder cbgBuilder
+                            = CommoditiesBoughtFromProvider.newBuilder(commBoughtGroupingForSL);
+                        cbgBuilder.setMovable(commBoughtGrouping.hasMovable()
+                            && commBoughtGrouping.getMovable());
+                        commBoughtGroupingForSL = cbgBuilder.build();
+                    }
                     entityForSL = directProvider;
                 }
                 Pair<Long, Class> providerId;
