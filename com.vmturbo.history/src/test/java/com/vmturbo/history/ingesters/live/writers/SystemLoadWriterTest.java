@@ -1,28 +1,29 @@
-
 package com.vmturbo.history.ingesters.live.writers;
 
 import static com.vmturbo.history.schema.abstraction.Tables.SYSTEM_LOAD;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.MoreExecutors;
 
 import io.grpc.ManagedChannel;
 import io.grpc.inprocess.InProcessChannelBuilder;
@@ -30,23 +31,21 @@ import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcCleanupRule;
 
-import org.jooq.Condition;
-import org.jooq.CreateIndexIncludeStep;
-import org.jooq.CreateIndexStep;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.h2.jdbcx.JdbcDataSource;
 import org.jooq.DSLContext;
-import org.jooq.DeleteConditionStep;
-import org.jooq.DeleteWhereStep;
-import org.jooq.InsertOnDuplicateStep;
-import org.jooq.InsertSetStep;
-import org.jooq.OrderField;
+import org.jooq.Query;
 import org.jooq.Record;
-import org.jooq.Select;
-import org.jooq.SelectWhereStep;
+import org.jooq.SQLDialect;
 import org.jooq.Table;
+import org.jooq.impl.DSL;
+import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.Matchers;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -65,12 +64,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
-import com.vmturbo.history.db.bulk.BulkLoaderMock;
-import com.vmturbo.history.db.bulk.DbMock;
+import com.vmturbo.history.db.bulk.BulkInserterConfig;
+import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
-import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -79,6 +78,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
  * Tests of the {@link SystemLoadWriter} class.
  */
 public class SystemLoadWriterTest {
+    private static final Logger logger = LogManager.getLogger();
+
     private static final String DAY1_245PM = "2020-01-01T14:25:00Z";
     private static final String DAY1_345PM = "2020-01-01T15:25:00Z";
 
@@ -136,42 +137,92 @@ public class SystemLoadWriterTest {
 
     private static final String TOPOLOGY_SUMMARY = "test topology";
 
-    private DbMock db = new DbMock();
-    private SimpleBulkLoaderFactory loaders = new BulkLoaderMock(db).getFactory();
-    private HistorydbIO historydbIO = mock(HistorydbIO.class);
-    private DSLContext dsl = mock(DSLContext.class);
-    private SystemLoadReader systemLoadReader = mock(SystemLoadReader.class);
-    private GroupServiceBlockingStub groupService;
     private SystemLoadWriter.Factory writerFactory;
 
+    private static DSLContext dsl;
+    private static HistorydbIO historydbIO;
+    private static final ExecutorService threadPool = MoreExecutors.newDirectExecutorService();
+    private SimpleBulkLoaderFactory loaders;
+
+    private static final BulkInserterConfig config = ImmutableBulkInserterConfig.builder()
+            .batchSize(2)
+            .maxPendingBatches(2)
+            .maxBatchRetries(3)
+            .maxRetryBackoffMsec(1000)
+            .build();
+
     /**
-     * Set up mocks required for tests, as well as dummy group service.
+     * Set up for tests, including establishing an in-memory H2 database that will be resued for all
+     * tests.
      *
-     * @throws IOException    if there's an error setting up group service
-     * @throws VmtDbException not really possible - required by some mocked methods
+     * <p>By using jOOQ's internal schema netadata to build the schema, we avoid the growing cost
+     * of doing that using Flyway migrations. And of course we get a big speed boost by using an
+     * in-memory DB.</p>
+     *
+     * <p>We also set up a HistorydbIO mock that's customized to skip its normal initialization and
+     * and deliver H2 connections via its various connection-providing methods.</p>
+     *
+     * @throws SQLException   if we have a DB problem
+     * @throws VmtDbException thrown by some mocked HistorydbIO methods
+     */
+    @BeforeClass
+    public static void beforeClass() throws SQLException, VmtDbException {
+        final JdbcDataSource ds = new JdbcDataSource();
+        ds.setUrl("jdbc:h2:mem:testdb;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1");
+        ds.setUser("sa");
+        ds.setPassword("sa");
+        dsl = DSL.using(ds, SQLDialect.H2);
+        Stopwatch w = Stopwatch.createStarted();
+        dsl.ddl(Vmtdb.VMTDB).forEach(Query::execute);
+        logger.info("Created in {}", w);
+        historydbIO = mock(HistorydbIO.class);
+        HistorydbIO.setSharedInstance(historydbIO);
+        when(historydbIO.connection()).thenAnswer(i -> ds.getConnection());
+        when(historydbIO.transConnection()).thenAnswer(i -> ds.getConnection());
+        when(historydbIO.unpooledConnection()).thenAnswer(i -> ds.getConnection());
+        when(historydbIO.unpooledTransConnection()).thenAnswer(i -> ds.getConnection());
+        when(historydbIO.using(any(Connection.class))).thenReturn(dsl);
+    }
+
+    /**
+     * Set up temporary database for use in tests.
+     *
+     * <p>We only do this for the first test that runs, even though it's in the @Before method.
+     * Tables that are actually changed by any given tests are cleared out after that test, which is
+     * much lest costly than tearing the database down and recreating it.</p>
+     *
+     * @throws IOException if there's a problem starting up group service
      */
     @Before
-    public void before() throws IOException, VmtDbException {
-        this.groupService = createGroupService();
-        this.writerFactory = new SystemLoadWriter.Factory(groupService, systemLoadReader, historydbIO);
-        final Connection conn = mock(Connection.class);
-        when(historydbIO.transConnection()).thenReturn(conn);
-        when(historydbIO.using(any())).thenReturn(dsl);
-        final DeleteWhereStep deleteWhere = mock(DeleteWhereStep.class);
-        when(dsl.deleteFrom(any())).thenReturn((DeleteWhereStep<Record>)deleteWhere);
-        final DeleteConditionStep deleteCond = mock(DeleteConditionStep.class);
-        when(deleteWhere.where(any(Condition.class))).thenReturn(deleteCond);
-        when(deleteCond.and(any(Condition.class))).thenReturn(deleteCond);
-        final InsertSetStep insertInto = mock(InsertSetStep.class);
-        when(dsl.insertInto(any())).thenReturn(insertInto);
-        final InsertOnDuplicateStep insertSelect = mock(InsertOnDuplicateStep.class);
-        when(insertInto.select(any(Select.class))).thenReturn(insertSelect);
-        final CreateIndexStep indexStep = mock(CreateIndexStep.class);
-        when(dsl.createIndex(anyString())).thenReturn(indexStep);
-        doReturn(mock(CreateIndexIncludeStep.class))
-                .when(indexStep).on(any(Table.class), Matchers.<OrderField<?>>anyVararg());
-        final SelectWhereStep selectWhereStep = mock(SelectWhereStep.class);
-        when(dsl.selectFrom(any(Table.class))).thenReturn(selectWhereStep);
+    public void before() throws IOException {
+        final GroupServiceBlockingStub groupService = createGroupService();
+        Stopwatch w = Stopwatch.createStarted();
+        dsl.connection(c -> {
+            DSL.using(c).execute("SET REFERENTIAL_INTEGRITY=false");
+            Vmtdb.VMTDB.tableStream().forEach(t -> DSL.using(c).truncateTable(t).execute());
+        });
+        logger.info("Truncated all in {}", w);
+        loaders = new SimpleBulkLoaderFactory(historydbIO, config, threadPool);
+        this.writerFactory = new SystemLoadWriter.Factory(groupService, historydbIO);
+    }
+
+    /**
+     * Make sure all our bulk loaders are closed and flushed after each test.
+     *
+     * @throws InterruptedException if interrupted
+     */
+    @After
+    public void after() throws InterruptedException {
+        loaders.close();
+    }
+
+    /**
+     * Shut down the threadpool and destroy the test database when finished.
+     */
+    @AfterClass
+    public static void afterClass() {
+        threadPool.shutdownNow();
+        dsl.dropSchema(Vmtdb.VMTDB);
     }
 
     /** manages release of grpc test resources at end of tests. */
@@ -305,20 +356,14 @@ public class SystemLoadWriterTest {
                 createTopoInfo(DAY1_245PM), loaders).get();
         systemLoadWriter.processEntities(createChunk(PM1, PM2, PM3, STG1, STG2, VM1, VM2, VM3), TOPOLOGY_SUMMARY);
         systemLoadWriter.finish(1, false, TOPOLOGY_SUMMARY);
-        // now get clean db and bulk loader mocks, set up the system load reader mock to return prior
-        // values, and rerun with a topology that will boost cluster 2 usages
-        db = new DbMock();
-        loaders = new BulkLoaderMock(db).getFactory();
-        when(systemLoadReader.getSystemLoadValues(any(), any())).thenReturn(ImmutableMap.of(
-                CLUSTER1_ID, 2.0,
-                CLUSTER2_ID, 4.0));
+        // now we run another cycle, using VM4 instead of VM3 - only difference is higher usages,
+        // so utilization for cluster 2 should go up
         systemLoadWriter = (SystemLoadWriter)writerFactory.getChunkProcessor(
                 createTopoInfo(DAY1_345PM), loaders).get();
-        // use VM4 instead of VM3 - only difference is higher usages
         systemLoadWriter.processEntities(createChunk(PM1, PM2, PM3, STG1, STG2, VM1, VM2, VM4), TOPOLOGY_SUMMARY);
         systemLoadWriter.finish(1, false, TOPOLOGY_SUMMARY);
         // make sure we had utilization records written for cluster 2 but not cluster 1
-        assertThat(getUtilizationRecordClusters(), is(ImmutableSet.of(CLUSTER2_ID)));
+        assertThat(getUtilizationRecordClusters(DAY1_345PM), is(ImmutableSet.of(CLUSTER2_ID)));
         // there's no similar check we can take re commodity records, cuz those are written for all
         //  clusters to the transient table before the writer determins which slices need to be recorded
     }
@@ -326,11 +371,17 @@ public class SystemLoadWriterTest {
     /**
      * Get the set of cluster ids from which utilization records were produced.
      *
+     * @param snapshotTime timestamp of records to include
      * @return set of cluster ids
      */
-    private Set<Long> getUtilizationRecordClusters() {
-        return db.getRecords(SYSTEM_LOAD).stream()
-                .map(r -> Long.valueOf(r.getSlice()))
+    private Set<Long> getUtilizationRecordClusters(final String snapshotTime) {
+        Timestamp t = Timestamp.from(Instant.parse(snapshotTime));
+        return dsl.selectDistinct(SYSTEM_LOAD.SLICE)
+                .from(SYSTEM_LOAD)
+                .where(SYSTEM_LOAD.SNAPSHOT_TIME.eq(t))
+                .fetch(SYSTEM_LOAD.SLICE)
+                .stream()
+                .map(Long::parseLong)
                 .collect(Collectors.toSet());
     }
 
@@ -528,19 +579,25 @@ public class SystemLoadWriterTest {
     private void checkEntityCommodityRecords(String time, long clusterId, long entityId,
             double baseUsed, double basePeak, double baseCapacity) {
         // get the transient table - it's the only table we wrote to other than SYSTEM_LOAD
-        final Table<SystemLoadRecord> transTable = (Table<SystemLoadRecord>)(
-                db.getTables()
-                        .stream()
-                        .filter(t -> !t.getName().equals(SYSTEM_LOAD.getName()))
-                        .findFirst()
-                        .get());
-        final List<SystemLoadRecord> recordsStream = db.getRecords(transTable).stream()
-                .filter(r -> r.getSnapshotTime().equals(Timestamp.from(Instant.parse(time))))
-                .filter(r -> r.getSlice().equals(Long.toString(clusterId)))
-                .filter(r -> r.getUuid().equals(Long.toString(entityId)))
-                .collect(Collectors.toList());
-        checkBoughtCommodities(recordsStream, baseUsed, basePeak);
-        checkSoldCommodities(recordsStream, baseUsed, basePeak, baseCapacity);
+        final Optional<String> transTableName = dsl.fetchValues("SHOW TABLES").stream()
+                .map(value -> (String)value)
+                .filter(t -> t.startsWith(SYSTEM_LOAD.getName()))
+                .filter(t -> !t.equals(SYSTEM_LOAD.getName()))
+                .findFirst();
+        if (transTableName.isPresent()) {
+            final Table<Record> transTable = DSL.table(transTableName.get());
+            final List<SystemLoadRecord> recordsStream = dsl.selectFrom(transTable).stream()
+                    .map(r -> r.into(SystemLoadRecord.class))
+                    .filter(r -> r.getSnapshotTime().equals(Timestamp.from(Instant.parse(time))))
+                    .filter(r -> r.getSlice().equals(Long.toString(clusterId)))
+                    .filter(r -> r.getUuid().equals(Long.toString(entityId)))
+                    .collect(Collectors.toList());
+            checkBoughtCommodities(recordsStream, baseUsed, basePeak);
+            checkSoldCommodities(recordsStream, baseUsed, basePeak, baseCapacity);
+        } else {
+            fail("Unable to locate transient system-load table");
+        }
+
     }
 
     /**
@@ -652,7 +709,7 @@ public class SystemLoadWriterTest {
      */
     private List<SystemLoadRecord> getUtilizationRecords(String time, long clusterId) {
         Timestamp timestamp = Timestamp.from(Instant.parse(time));
-        return db.getRecords(SYSTEM_LOAD).stream()
+        return dsl.selectFrom(SYSTEM_LOAD).stream()
                 .filter(r -> r.getSnapshotTime().equals(timestamp))
                 .filter(r -> r.getSlice().equals(Long.toString(clusterId)))
                 .filter(r -> r.getPropertyType().equals(StringConstants.SYSTEM_LOAD))
@@ -672,10 +729,12 @@ public class SystemLoadWriterTest {
      * @return the overall system load value
      */
     private Double getSystemLoad(String time, long clusterId) {
-        SystemLoadRecord record = db.getRecord(SYSTEM_LOAD, Lists.newArrayList(
-                Long.toString(clusterId), Timestamp.from(Instant.parse(time)), null, null,
-                StringConstants.SYSTEM_LOAD, StringConstants.SYSTEM_LOAD, null,
-                RelationType.COMMODITIES));
+        SystemLoadRecord record = dsl.selectFrom(SYSTEM_LOAD)
+                .where(SYSTEM_LOAD.SLICE.eq(Long.toString(clusterId)))
+                .and(SYSTEM_LOAD.SNAPSHOT_TIME.eq(Timestamp.from(Instant.parse(time))))
+                .and(SYSTEM_LOAD.PROPERTY_TYPE.eq(StringConstants.SYSTEM_LOAD))
+                .and(SYSTEM_LOAD.PROPERTY_SUBTYPE.eq(StringConstants.SYSTEM_LOAD))
+                .and(SYSTEM_LOAD.RELATION.eq(RelationType.COMMODITIES)).fetchOne();
         return record != null ? record.getAvgValue() : null;
     }
 }

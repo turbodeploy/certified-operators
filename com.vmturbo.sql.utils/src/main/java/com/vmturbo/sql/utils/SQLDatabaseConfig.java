@@ -300,7 +300,7 @@ public abstract class SQLDatabaseConfig {
                 dataSource(getSQLConfigObject().getDbRootUrl(), dbRootUsername,
                         getDBRootPassword());
         try (Connection rootConnection = rootDataSource.getConnection()) {
-            if (hasGrantPrivilege(rootConnection, dbRootUsername, dbRootPassword, schemaName)) {
+            if (hasGrantPrivilege(rootConnection, dbRootUsername, getDBRootPassword(), schemaName)) {
                 // Run flyway migration under root credentials.
                 flyway(schemaName, rootDataSource);
                 // Allow given user to access the database (= grants.sql):

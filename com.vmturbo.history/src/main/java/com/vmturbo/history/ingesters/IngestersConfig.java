@@ -220,7 +220,6 @@ public class IngestersConfig {
                         ),
                         new SystemLoadWriter.Factory(
                                 groupServiceBlockingStub(),
-                                statsConfig.systemLoadReader(),
                                 historyDbConfig.historyDbIO()
                         ),
                         new EntitiesWriter.Factory(

@@ -1,38 +1,40 @@
 package com.vmturbo.history.ingesters.live.writers;
 
 import static com.vmturbo.history.schema.abstraction.Tables.SYSTEM_LOAD;
-import static gnu.trove.impl.Constants.DEFAULT_CAPACITY;
-import static gnu.trove.impl.Constants.DEFAULT_LOAD_FACTOR;
 
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.Map;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import it.unimi.dsi.fastutil.longs.Long2LongMap;
+import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongArrayList;
+import it.unimi.dsi.fastutil.longs.LongList;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
+import it.unimi.dsi.fastutil.longs.LongSets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.BatchBindStep;
 import org.jooq.DSLContext;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
-
-import gnu.trove.TCollections;
-import gnu.trove.map.TLongLongMap;
-import gnu.trove.map.TLongObjectMap;
-import gnu.trove.map.hash.TLongLongHashMap;
-import gnu.trove.map.hash.TLongObjectHashMap;
-import gnu.trove.set.TLongSet;
-import gnu.trove.set.hash.TLongHashSet;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -56,7 +58,6 @@ import com.vmturbo.history.ingesters.common.IChunkProcessor;
 import com.vmturbo.history.ingesters.common.writers.TopologyWriterBase;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
-import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -65,9 +66,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
  * Update system load data based on the content of a new live topology.
  */
 public class SystemLoadWriter extends TopologyWriterBase {
-    private static final long TROVE_MISSING_LONG = -1L;
-    private static final TLongSet EMPTY_LONG_SET = TCollections.unmodifiableSet(new TLongHashSet());
-    private static Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     private static final int SYSTEM_LOAD_COMMODITIES_COUNT = SystemLoadCommodity.values().length;
 
@@ -88,36 +87,33 @@ public class SystemLoadWriter extends TopologyWriterBase {
      * <p>At present every slice is just a compute-cluster, but other types of slice may be added
      * in the future.</p>
      */
-    private final TLongLongMap hostToSliceMap;
+    private final Long2LongMap hostToSliceMap;
     /** all the slices. */
-    private final TLongSet sliceSet;
-    private final SystemLoadReader systemLoadReader;
+    private final LongSet sliceSet;
 
     /**
-     * Capacities for system load commodities, aggregated across all PMs and STORAGES in each slice.
+     * Capacities for system load commodities, aggregated across all PMs and STORAGES in each
+     * slice.
      *
-     * <p>The map relates slice id (i.e. compute cluster id, at least for now) to per-commodity-type
-     * aggregataed values for that slice, represented as arrays of doubles.. The commodity types
-     * of interest are the members of the {@link SystemLoadCommodity} enum, and the ordinals of the
-     * enum members are used to index into the arrays.</p>
+     * <p>The map relates slice id (i.e. compute cluster id, at least for now) to
+     * per-commodity-type aggregated values for that slice, represented as arrays of doubles.. The
+     * commodity types of interest are the members of the {@link SystemLoadCommodity} enum, and the
+     * ordinals of the enum members are used to index into the arrays.</p>
      */
-    private TLongObjectMap<double[]> sliceCapacities = new TLongObjectHashMap<>(
-            DEFAULT_CAPACITY, DEFAULT_LOAD_FACTOR, TROVE_MISSING_LONG);
+    private final Long2ObjectMap<double[]> sliceCapacities = new Long2ObjectOpenHashMap<>();
 
     /**
-     *  Usages for system load commodities, aggregated VMs in each slice.
+     * Usages for system load commodities, aggregated VMs in each slice.
      *
-     *  <p>Form is identical to {@link #sliceCapacities} above.</p>
+     * <p>Form is identical to {@link #sliceCapacities} above.</p>
      */
-    private TLongObjectMap<double[]> sliceUsages = new TLongObjectHashMap<>(
-            DEFAULT_CAPACITY, DEFAULT_LOAD_FACTOR, TROVE_MISSING_LONG);
+    private final Long2ObjectMap<double[]> sliceUsages = new Long2ObjectOpenHashMap<>();
 
     /**
      * Create a new instance.
      *
      * @param groupService     group service endpoint
      * @param basedbIO         access to DB stuff
-     * @param systemLoadReader for reading prior system load values
      * @param loaders          for writing records to tables
      * @param info             info about the topology being processed
      * @throws SQLException           if there's a database exception
@@ -127,27 +123,24 @@ public class SystemLoadWriter extends TopologyWriterBase {
      */
     SystemLoadWriter(GroupServiceBlockingStub groupService,
             BasedbIO basedbIO,
-            SystemLoadReader systemLoadReader,
             SimpleBulkLoaderFactory loaders,
             TopologyInfo info) throws SQLException, InstantiationException, VmtDbException, IllegalAccessException {
         this.hostToSliceMap = loadClusterInfo(groupService);
-        this.sliceSet = new TLongHashSet(DEFAULT_CAPACITY, DEFAULT_LOAD_FACTOR, TROVE_MISSING_LONG);
-        this.sliceSet.addAll(hostToSliceMap.valueCollection());
+        this.sliceSet = new LongOpenHashSet(hostToSliceMap.values());
         this.basedbIO = basedbIO;
-        this.systemLoadReader = systemLoadReader;
         this.loader = loaders.getLoader(SYSTEM_LOAD);
         try {
             this.transientLoader = loaders.getTransientLoader(SYSTEM_LOAD, table -> {
                 try (Connection conn = basedbIO.connection()) {
                     basedbIO.using(conn)
-                            .createIndex("slice")
+                            .createIndexIfNotExists("slice")
                             .on(table, SYSTEM_LOAD.SLICE)
                             .execute();
                 }
             });
         } catch (IllegalAccessException | SQLException | InstantiationException | VmtDbException e) {
-            logger.error("Failed to instantiate transient table based on {}; " +
-                    "cannot produce system load data", SYSTEM_LOAD.getName(), e);
+            logger.error("Failed to instantiate transient table based on {}; "
+                    + "cannot produce system load data", SYSTEM_LOAD.getName(), e);
             throw e;
         }
         Instant snapshotTime = Instant.ofEpochMilli(info.getCreationTime());
@@ -165,20 +158,19 @@ public class SystemLoadWriter extends TopologyWriterBase {
      * @param groupService group service endpoint
      * @return map of host OID -> cluster id
      */
-    private TLongLongMap loadClusterInfo(GroupServiceBlockingStub groupService) {
+    private Long2LongMap loadClusterInfo(GroupServiceBlockingStub groupService) {
         GetGroupsRequest groupsRequest = GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder()
                         .setGroupType(GroupType.COMPUTE_HOST_CLUSTER)
                         .build())
                 .build();
         final Iterator<Grouping> groupIterator = groupService.getGroups(groupsRequest);
-        TLongLongMap result = new TLongLongHashMap(
-                DEFAULT_CAPACITY, DEFAULT_LOAD_FACTOR, TROVE_MISSING_LONG, TROVE_MISSING_LONG);
+        Long2LongMap result = new Long2LongOpenHashMap();
         while (groupIterator.hasNext()) {
             Grouping group = groupIterator.next();
             final long clusterId = group.getId();
             GroupProtoUtil.getAllStaticMembers(group.getDefinition())
-                    .forEach(hostId -> result.put(hostId, clusterId));
+                    .forEach(hostId -> result.put(hostId.longValue(), clusterId));
         }
         return result;
     }
@@ -212,7 +204,7 @@ public class SystemLoadWriter extends TopologyWriterBase {
                     recordSoldCapacityForSlices(entity, getSlicesForEntity(entity));
                     break;
                 case EntityType.VIRTUAL_MACHINE_VALUE: {
-                    final TLongSet slices = getSlicesForEntity(entity);
+                    final LongSet slices = getSlicesForEntity(entity);
                     recordBoughtUsageForSlices(entity, slices);
                     writeCommodities(entity, slices);
                     break;
@@ -244,20 +236,17 @@ public class SystemLoadWriter extends TopologyWriterBase {
     @Override
     public void finish(final int objectCount, final boolean expedite, final String infoSummary)
             throws InterruptedException {
+        LongList updatedSlices = new LongArrayList();
         // make sure all system-load inserts have completed before we wrap up
         loader.flush(true);
         transientLoader.flush(true);
-        final Map<Long, Double> priorSystemLoads = getPriorSystemLoads();
-        for (long slice : sliceSet.toArray()) {
-            // get all the existing system-load values, if any, for today
-            Optional<Double> priorSystemLoad = Optional.ofNullable(priorSystemLoads.get(slice));
-            double systemLoad = calculateSystemLoad(slice);
-            if (priorSystemLoad.map(prior -> prior < systemLoad).orElse(true)) {
-                // newly calculated value is today's new high, so... out with the old,
-                // in with the new
-                logger.info("Updating system load with new daily high for slice {}", slice);
-                writeSystemLoadData(slice, systemLoad);
+        for (long slice : sliceSet.toLongArray()) {
+            if (writeSystemLoadDataIfNewHigh(slice)) {
+                updatedSlices.add(slice);
             }
+        }
+        if (updatedSlices.size() > 0) {
+            logger.info("Updated system load with new daily highs for slices {}", updatedSlices);
         }
     }
 
@@ -269,7 +258,7 @@ public class SystemLoadWriter extends TopologyWriterBase {
      * @param entity the entity
      * @return the slices it belongs to
      */
-    private TLongSet getSlicesForEntity(TopologyEntityDTO entity) {
+    private LongSet getSlicesForEntity(TopologyEntityDTO entity) {
         // start by figuring out which host(s) this entity relates to for system-load calculation
         Set<Long> relatedHosts;
         switch (entity.getEntityType()) {
@@ -282,8 +271,8 @@ public class SystemLoadWriter extends TopologyWriterBase {
                 // for a VM to buy from multiple hosts, so this is a singleton
                 relatedHosts = entity.getCommoditiesBoughtFromProvidersList().stream()
                         // look for hosts that sell any system-load commodities to this VM
-                        .filter(fromProvder ->
-                                fromProvder.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                        .filter(fromProvider ->
+                                fromProvider.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
                         .filter(fromProvider -> fromProvider.getCommodityBoughtList().stream()
                                 // check that at least one commodity from this provider is a
                                 // system-load commodity
@@ -303,13 +292,15 @@ public class SystemLoadWriter extends TopologyWriterBase {
                         .collect(Collectors.toSet());
                 break;
             default:
-                return EMPTY_LONG_SET;
+                return LongSets.EMPTY_SET;
         }
-        // now collect all the clusters that contain any of the related hotsts
-        return new TLongHashSet(relatedHosts.stream()
+        // now collect all the clusters that contain any of the related hosts
+        final LongOpenHashSet results = new LongOpenHashSet();
+        relatedHosts.stream()
+                .mapToLong(Long::longValue)
                 .map(hostToSliceMap::get)
-                .filter(slice -> slice != TROVE_MISSING_LONG)
-                .collect(Collectors.toSet()));
+                .forEach(results::add);
+        return results;
     }
 
     /**
@@ -318,7 +309,7 @@ public class SystemLoadWriter extends TopologyWriterBase {
      * @param entity entity to record
      * @param slices slices to record it for
      */
-    private void recordSoldCapacityForSlices(TopologyEntityDTO entity, TLongSet slices) {
+    private void recordSoldCapacityForSlices(TopologyEntityDTO entity, LongSet slices) {
         for (final CommoditySoldDTO soldCommodity : entity.getCommoditySoldListList()) {
             SystemLoadCommodity.fromSdkCommodityType(soldCommodity.getCommodityType().getType())
                     .ifPresent(slType -> recordSoldCapacityForSlices(soldCommodity, slType, slices));
@@ -334,7 +325,7 @@ public class SystemLoadWriter extends TopologyWriterBase {
      * @param slices        the slices to aggregate for
      */
     private void recordSoldCapacityForSlices(
-            CommoditySoldDTO soldCommodity, SystemLoadCommodity slType, TLongSet slices) {
+            CommoditySoldDTO soldCommodity, SystemLoadCommodity slType, LongSet slices) {
         recordValueForSlices(soldCommodity.getCapacity(), slType.ordinal(), sliceCapacities, slices);
     }
 
@@ -344,7 +335,7 @@ public class SystemLoadWriter extends TopologyWriterBase {
      * @param entity the entity to record
      * @param slices the slices to record it for
      */
-    private void recordBoughtUsageForSlices(TopologyEntityDTO entity, TLongSet slices) {
+    private void recordBoughtUsageForSlices(TopologyEntityDTO entity, LongSet slices) {
         for (final CommoditiesBoughtFromProvider boughtFromProvider
                 : entity.getCommoditiesBoughtFromProvidersList()) {
             for (final CommodityBoughtDTO boughtCommodity : boughtFromProvider.getCommodityBoughtList()) {
@@ -363,7 +354,7 @@ public class SystemLoadWriter extends TopologyWriterBase {
      * @param slices          the slices to accumulate for
      */
     private void recordBoughtUsageForSlices(
-            CommodityBoughtDTO boughtCommodity, SystemLoadCommodity slType, TLongSet slices) {
+            CommodityBoughtDTO boughtCommodity, SystemLoadCommodity slType, LongSet slices) {
         recordValueForSlices(boughtCommodity.getUsed(), slType.ordinal(), sliceUsages, slices);
     }
 
@@ -376,7 +367,7 @@ public class SystemLoadWriter extends TopologyWriterBase {
      * @param slices the slices it belongs to
      * @throws InterruptedException if we're interrupted
      */
-    private void writeCommodities(TopologyEntityDTO entity, TLongSet slices) throws InterruptedException {
+    private void writeCommodities(TopologyEntityDTO entity, LongSet slices) throws InterruptedException {
         // write records for all sold system-load commodities
         for (final CommoditySoldDTO soldCommodity : entity.getCommoditySoldListList()) {
             final Optional<SystemLoadCommodity> slType =
@@ -387,26 +378,27 @@ public class SystemLoadWriter extends TopologyWriterBase {
                         slices);
             }
         }
-        // record records for all bought system-load commodities from all providerss
-        for (final CommoditiesBoughtFromProvider boughtFromProvider :
-                entity.getCommoditiesBoughtFromProvidersList()) {
+        // record records for all bought system-load commodities from all providers
+        for (final CommoditiesBoughtFromProvider boughtFromProvider
+                : entity.getCommoditiesBoughtFromProvidersList()) {
             writeCommodities(entity, boughtFromProvider, slices);
 
         }
     }
 
     /**
-     * Write commodities bought from a single provider by the given (VM) entity to the transient table,
-     * for copying into the system load table if the slice's overall system load is a new maximum for
-     * the day.
+     * Write commodities bought from a single provider by the given (VM) entity to the transient
+     * table, for copying into the system load table if the slice's overall system load is a new
+     * maximum for the day.
      *
      * @param entity             the (VM) entity
-     * @param boughtFromProvider structure listing all commodities bought from a particular provider
+     * @param boughtFromProvider structure listing all commodities bought from a particular
+     *                           provider
      * @param slices             the slices this VM belongs to
      * @throws InterruptedException if we're interrupted
      */
     private void writeCommodities(TopologyEntityDTO entity,
-            CommoditiesBoughtFromProvider boughtFromProvider, TLongSet slices) throws InterruptedException {
+            CommoditiesBoughtFromProvider boughtFromProvider, LongSet slices) throws InterruptedException {
         for (final CommodityBoughtDTO boughtCommodity : boughtFromProvider.getCommodityBoughtList()) {
             final Optional<SystemLoadCommodity> slType =
                     SystemLoadCommodity.fromSdkCommodityType(boughtCommodity.getCommodityType().getType());
@@ -435,8 +427,8 @@ public class SystemLoadWriter extends TopologyWriterBase {
      */
     private void writeSoldCommodity(final TopologyEntityDTO entity, final SystemLoadCommodity slType,
             final String commodityKey, final double capacity, final double used, final double peak,
-            final TLongSet slices) throws InterruptedException {
-        for (final long slice : slices.toArray()) {
+            final LongSet slices) throws InterruptedException {
+        for (final long slice : slices.toLongArray()) {
             transientLoader.insert(createRecord(slice, entity.getOid(), null,
                     slType.name(), StringConstants.USED, commodityKey,
                     capacity, used, peak, RelationType.COMMODITIES));
@@ -457,8 +449,8 @@ public class SystemLoadWriter extends TopologyWriterBase {
      */
     private void writeBoughtCommodity(final TopologyEntityDTO entity, final SystemLoadCommodity slType,
             final String commodityKey, final Long producer, final double used, final double peak,
-            final TLongSet slices) throws InterruptedException {
-        for (final long slice : slices.toArray()) {
+            final LongSet slices) throws InterruptedException {
+        for (final long slice : slices.toLongArray()) {
             transientLoader.insert(createRecord(slice, entity.getOid(), producer,
                     slType.name(), StringConstants.USED, commodityKey,
                     null, used, peak, RelationType.COMMODITIESBOUGHT));
@@ -474,8 +466,8 @@ public class SystemLoadWriter extends TopologyWriterBase {
      * @param slices        slices that should accumulate this value
      */
     private void recordValueForSlices(
-            double value, int slTypeOrdinal, TLongObjectMap<double[]> sliceMap, TLongSet slices) {
-        for (long slice : slices.toArray()) {
+            double value, int slTypeOrdinal, Long2ObjectMap<double[]> sliceMap, LongSet slices) {
+        for (long slice : slices.toLongArray()) {
             double[] values = sliceMap.get(slice);
             if (values == null) {
                 sliceMap.put(slice, new double[SYSTEM_LOAD_COMMODITIES_COUNT]);
@@ -507,59 +499,86 @@ public class SystemLoadWriter extends TopologyWriterBase {
     }
 
     /**
-     * Call out to {@link SystemLoadReader} to retrieve today's highest recorded system load
-     * values for all slices.
+     * Write out the new data for the given slice, replacing whatever is currently in the database.
      *
-     * @return map of slice id to today's high value
+     * <p>We perform all the operations for each slice in a transaction so that we get all-or-none
+     * semantics. This means we cannot use the bulk loader for these operations.</p>
+     *
+     * <p>We also use SERIALIZABLE isolation level to ensure that we never end up with records from
+     * two different topologies in the database for any slice on any given date. Lesser levels would
+     * all permit records inserted by one execution to be missed by the delete step in another
+     * concurrent execution.</p>
+     *
+     * @param slice slice to record
+     * @return true if the slice was updated in the database
      */
-    private Map<Long, Double> getPriorSystemLoads() {
-        return systemLoadReader.getSystemLoadValues(startOfDay, endOfDay);
+    private boolean writeSystemLoadDataIfNewHigh(final long slice) {
+        try (Connection conn = basedbIO.unpooledTransConnection()) {
+            conn.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            DSLContext dsl = basedbIO.using(conn);
+            // obtain this slice's current high-water for this day, if any
+            Optional<Double> priorLoad = getPriorSystemLoad(slice, dsl);
+            double currentLoad = calculateSystemLoad(slice);
+            // replace with current data if this is first for the day or we hit a new high
+            if (priorLoad.map(prior -> prior < currentLoad).orElse(true)) {
+                // remove all current data for this slice from database
+                deleteCurrentRecords(slice, dsl);
+                // copy VM bought/sold commodity records from the transient data
+                copyTransientRecords(slice, dsl);
+                // create records with aggregated capacity and usage values for all SystemLoadCommodity
+                // types for this slice
+                if (!sliceCapacities.containsKey(slice)) {
+                    logger.warn("Did not accumulate any slice capacities for cluster {}; using zeros", slice);
+                }
+                if (!sliceUsages.containsKey(slice)) {
+                    logger.warn("Did not accumulate any slice usages for cluster {}; using zeros", slice);
+                }
+                final double[] capacities = sliceCapacities.containsKey(slice)
+                        ? sliceCapacities.get(slice) : new double[SYSTEM_LOAD_COMMODITIES_COUNT];
+                final double[] usages = sliceUsages.containsKey(slice)
+                        ? sliceUsages.get(slice) : new double[SYSTEM_LOAD_COMMODITIES_COUNT];
+                writeUtilizationRecords(capacities, usages, slice, dsl);
+                // and one last record for the overall system load value for this slice
+                writeSystemLoadRecords(slice, currentLoad, dsl);
+                conn.commit();
+                return true;
+            }
+        } catch (SQLException | DataAccessException e) {
+            logger.error("Failed to write system log data", e);
+        }
+        return false;
     }
 
     /**
-     * Write out the new data for the given slice, replacing whatever is currently in the database.
+     * Obtain prior system load for this slice on this day, if any.
      *
-     * @param slice      slice to record
-     * @param systemLoad current overall system load value
-     * @throws InterruptedException if interrupted
+     * @param dsl   DSL context for db operations
+     * @param slice slice
+     * @return current value for slice if found
      */
-    private void writeSystemLoadData(final long slice, double systemLoad) throws InterruptedException {
-        try (Connection conn = basedbIO.transConnection()) {
-            // remove all current data for this slice from database
-            deleteCurrentRecords(slice, conn);
-            // copy VM bought/sold commodity records from the transient data
-            copyTransientRecords(slice, conn);
-            // create records with aggregated capacity and usage values for all SystemLoadCommodity
-            // types for this slice
-            if (!sliceCapacities.containsKey(slice)) {
-                logger.warn("Did not accumluate any slice capacities for cluster {}; using zeros", slice);
-            }
-            if (!sliceUsages.containsKey(slice)) {
-                logger.warn("Did not accumluate any slice usages for cluster {}; using zeros", slice);
-            }
-            final double[] capacities = sliceCapacities.containsKey(slice)
-                    ? sliceCapacities.get(slice) : new double[SYSTEM_LOAD_COMMODITIES_COUNT];
-            final double[] usages = sliceUsages.containsKey(slice)
-                    ? sliceUsages.get(slice) : new double[SYSTEM_LOAD_COMMODITIES_COUNT];
-            writeUtilizationRecords(capacities, usages, slice);
-            // and one last record for the overall system load value for this slice
-            writeSystemLoadRecords(slice, systemLoad);
-            conn.commit();
-        } catch (VmtDbException | SQLException | DataAccessException e) {
-            logger.error("Failed to write system log data", e);
+    private Optional<Double> getPriorSystemLoad(final long slice, final DSLContext dsl) {
+        final List<Double> priorLoads = dsl.selectFrom(SYSTEM_LOAD)
+                .where(SYSTEM_LOAD.SLICE.eq(Long.toString(slice)))
+                .and(SYSTEM_LOAD.PROPERTY_TYPE.eq(StringConstants.SYSTEM_LOAD))
+                .and(SYSTEM_LOAD.PROPERTY_SUBTYPE.eq(StringConstants.SYSTEM_LOAD))
+                .and(SYSTEM_LOAD.SNAPSHOT_TIME.between(startOfDay, endOfDay))
+                .fetch(SYSTEM_LOAD.AVG_VALUE);
+        if (priorLoads.size() > 1) {
+            logger.warn("Multiple prior system loads available for slice {}; choosing highest", slice);
         }
+        return priorLoads.stream().max(Double::compare);
     }
 
     /**
      * Create any system load records for today for the given slice from the database.
      *
      * @param slice slice to remove
-     * @param conn  database connection
+     * @param dsl   DSL context to use
      * @throws DataAccessException if there's a database error
      */
-    private void deleteCurrentRecords(final long slice, Connection conn)
+    private void deleteCurrentRecords(final long slice, DSLContext dsl)
             throws DataAccessException {
-        basedbIO.using(conn).deleteFrom(SYSTEM_LOAD)
+        dsl.deleteFrom(SYSTEM_LOAD)
                 .where(SYSTEM_LOAD.SLICE.eq(Long.toString(slice)))
                 .and(SYSTEM_LOAD.SNAPSHOT_TIME.between(startOfDay, endOfDay))
                 .execute();
@@ -570,13 +589,13 @@ public class SystemLoadWriter extends TopologyWriterBase {
      * system_load table.
      *
      * @param slice slice to copy
-     * @param conn  database connection
+     * @param dsl   DSL context to use
      * @throws DataAccessException if there's a database error
      */
-    private void copyTransientRecords(final long slice, Connection conn)
+    private void copyTransientRecords(final long slice, DSLContext dsl)
             throws DataAccessException {
+        @SuppressWarnings("unchecked")
         Table<SystemLoadRecord> transientTable = (Table<SystemLoadRecord>)transientLoader.getOutTable();
-        final DSLContext dsl = basedbIO.using(conn);
         dsl.insertInto(SYSTEM_LOAD)
                 .select(dsl.selectFrom(DSL.table(transientTable.getName()))
                         .where(JooqUtils.getStringField(transientTable, SYSTEM_LOAD.SLICE.getName())
@@ -590,16 +609,21 @@ public class SystemLoadWriter extends TopologyWriterBase {
      * @param capacities capacity values for all system-load commodities
      * @param usages     usage values for all system-load commodities
      * @param slice      slice for these values
-     * @throws InterruptedException if interrupted
+     * @param dsl        DSL context for db operations
      */
-    private void writeUtilizationRecords(double[] capacities, double[] usages, long slice)
-            throws InterruptedException {
+    private void writeUtilizationRecords(
+            double[] capacities, double[] usages, long slice, DSLContext dsl) {
+        final BatchBindStep batch = dsl.batch(
+                dsl.insertInto(SYSTEM_LOAD, SYSTEM_LOAD.fields())
+                        .values(Arrays.stream(SYSTEM_LOAD.fields()).map(f -> null).toArray()));
         for (final SystemLoadCommodity slType : SystemLoadCommodity.values()) {
-            loader.insert(createRecord(slice, null, null,
+            final SystemLoadRecord record = createRecord(slice, null, null,
                     StringConstants.SYSTEM_LOAD, slType.name(), null,
                     capacities[slType.ordinal()], usages[slType.ordinal()], usages[slType.ordinal()],
-                    RelationType.COMMODITIESBOUGHT));
+                    RelationType.COMMODITIESBOUGHT);
+            batch.bind(record.intoList().toArray());
         }
+        batch.execute();
     }
 
     /**
@@ -607,12 +631,15 @@ public class SystemLoadWriter extends TopologyWriterBase {
      *
      * @param slice      the slice
      * @param systemLoad the calculated system load for the slice
-     * @throws InterruptedException if interrupted
+     * @param dsl        DSL context to use for db ops
      */
-    private void writeSystemLoadRecords(long slice, double systemLoad) throws InterruptedException {
-        loader.insert(createRecord(slice, null, null,
+    private void writeSystemLoadRecords(long slice, double systemLoad, DSLContext dsl) {
+        final SystemLoadRecord record = createRecord(slice, null, null,
                 StringConstants.SYSTEM_LOAD, StringConstants.SYSTEM_LOAD, null,
-                null, systemLoad, systemLoad, RelationType.COMMODITIES));
+                null, systemLoad, systemLoad, RelationType.COMMODITIES);
+        dsl.insertInto(SYSTEM_LOAD)
+                .values(record.intoList())
+                .execute();
     }
 
     /**
@@ -665,23 +692,19 @@ public class SystemLoadWriter extends TopologyWriterBase {
      * Factory that creates {@link SystemLoadWriter} instances.
      */
     public static class Factory extends TopologyWriterBase.Factory {
-        private static Logger logger = LogManager.getLogger();
+        private static final Logger logger = LogManager.getLogger();
 
         private final GroupServiceBlockingStub groupService;
         private final HistorydbIO historydbIO;
-        private final SystemLoadReader systemLoadReader;
 
         /**
          * Create a new factory instance.
          *
-         * @param groupService     group service endpoint
-         * @param systemLoadReader system load reader instance
-         * @param historydbIO      access to history DB helpers
+         * @param groupService group service endpoint
+         * @param historydbIO  access to history DB helpers
          */
-        public Factory(GroupServiceBlockingStub groupService,
-                SystemLoadReader systemLoadReader, HistorydbIO historydbIO) {
+        public Factory(GroupServiceBlockingStub groupService, HistorydbIO historydbIO) {
             this.groupService = groupService;
-            this.systemLoadReader = systemLoadReader;
             this.historydbIO = historydbIO;
         }
 
@@ -689,10 +712,10 @@ public class SystemLoadWriter extends TopologyWriterBase {
         public Optional<IChunkProcessor<DataSegment>> getChunkProcessor(
                 final TopologyInfo topologyInfo, final SimpleBulkLoaderFactory loaders) {
             try {
-                return Optional.of(new SystemLoadWriter(
-                        groupService, historydbIO, systemLoadReader, loaders, topologyInfo));
+                return Optional.of(
+                        new SystemLoadWriter(groupService, historydbIO, loaders, topologyInfo));
             } catch (SQLException | InstantiationException | VmtDbException | IllegalAccessException e) {
-                // the non-DB exceptions can happen if the reflective table intance creation required
+                // the non-DB exceptions can happen if the reflective table instance creation required
                 // for the transient record loader fails
                 logger.error("Failed to instantiate {} instance to process topology",
                         SystemLoadWriter.class.getSimpleName(), e);
