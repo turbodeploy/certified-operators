@@ -15,6 +15,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -193,7 +194,6 @@ class CurrentQueryMapper {
                 @Nonnull final EntityAccessScope userScope) throws OperationFailedException {
 
             Map<Long, Set<Long>> responseNoAggregatedExpansion = new HashMap<>(oidGroupList.size());
-            Map<Long, Set<Long>> buyRIEntities = new HashMap<>(0);
 
             for (Entry<ApiId, Set<ApiId>> oidGroup : oidGroupList.entrySet()) {
                 Set<ApiId> oids = oidGroup.getValue();
@@ -237,10 +237,7 @@ class CurrentQueryMapper {
                             memberList -> memberList.getMemberOidsList().stream()).collect(
                             Collectors.toSet());
                 }
-                Set<Long> buyRi = buyRiScopeHandler.extractBuyRiEntities(oids, relatedEntityTypes);
-                if (!CollectionUtils.isEmpty(buyRi)) {
-                    buyRIEntities.put(oidGroup.getKey().oid(), buyRi);
-                }
+                allEntitiesInScope.addAll(buyRiScopeHandler.extractBuyRiEntities(oids, relatedEntityTypes));
                 responseNoAggregatedExpansion.put(oidGroup.getKey().oid(), allEntitiesInScope);
             }
 
@@ -249,10 +246,78 @@ class CurrentQueryMapper {
                     supplyChainFetcherFactory.bulkExpandAggregatedEntities(responseNoAggregatedExpansion);
             final Map<ApiId, Set<Long>> finalResponse = new HashMap<>(withAggregatedExpansion.size());
             withAggregatedExpansion.forEach((id, vals) -> {
-                vals.addAll(buyRIEntities.getOrDefault(id, Collections.emptySet()));
                 finalResponse.put(uuidMapper.fromOid(id), userScope.filter(vals));
             });
             return finalResponse;
+        }
+
+        /**
+         * Create an {@link EntityScope} to use in a current action stats query.
+         *
+         * @param oids The OIDs of entities in the scope.
+         * @param relatedEntityTypes The entity types related to the oids that should be in the
+         *                           scope. If this is not empty, we need to do a supply chain
+         *                           query to figure out what's ACTUALLY in the scope.
+         * @param environmentType The environment type to restrict the scope to.
+         * @param userScope The {@link EntityAccessScope} object for the current user.
+         * @param buyRiEntities Additional entities that must be added to the request to return
+         * Buy RI actions in the scope.
+         * @return The {@link EntityScope} to use for the query.
+         * @throws OperationFailedException If one of the underlying RPC calls goes wrong.
+         */
+        @Nonnull
+        EntityScope createEntityScope(@Nonnull final Set<ApiId> oids,
+                  @Nonnull final Set<Integer> relatedEntityTypes,
+                  @Nonnull final Optional<EnvironmentType> environmentType,
+                  @Nonnull final EntityAccessScope userScope,
+                  @Nonnull final Set<Long> buyRiEntities) throws OperationFailedException {
+            final Set<Long> allEntitiesInScope;
+            if (relatedEntityTypes.isEmpty()) {
+                // Expand groups that are in scope
+                // And then filter entities by environment type
+                Set<Long> unFilteredEntities = groupExpander.expandOids(oids);
+                if (environmentType.isPresent() && environmentType.get() != EnvironmentType.HYBRID) {
+                    // Need to get repos data to get the environment type to allow filtering
+                    allEntitiesInScope = repositoryApi.entitiesRequest(unFilteredEntities)
+                            .getMinimalEntities()
+                            .filter(minimalEntity -> minimalEntity.getEnvironmentType() == environmentType.get())
+                            .map(minimalEntity -> minimalEntity.getOid())
+                            .collect(Collectors.toSet());
+                } else {
+                    allEntitiesInScope = unFilteredEntities;
+                }
+            } else {
+                // TODO (roman, Feb 14 2019): The scope object is being expanded to allow
+                // looking up in-scope entities by type, so we can avoid the supply
+                // chain query here in the future if userScope is not "global."
+
+                // We need to get entities related to the scope, so we use the supply chain
+                // fetcher.
+                final SupplyChainNodeFetcherBuilder builder =
+                    supplyChainFetcherFactory.newNodeFetcher()
+                        .entityTypes(relatedEntityTypes.stream()
+                            .map(ApiEntityType::fromType)
+                            .map(ApiEntityType::apiStr)
+                            .collect(Collectors.toList()));
+                oids.stream()
+                    .map(ApiId::uuid)
+                    .forEach(builder::addSeedUuid);
+
+                environmentType.ifPresent(builder::environmentType);
+
+                allEntitiesInScope = builder.fetch().values().stream()
+                    .flatMap(node -> node.getMembersByStateMap().values().stream())
+                    .flatMap(memberList -> memberList.getMemberOidsList().stream())
+                    .collect(Collectors.toSet());
+            }
+
+            // if there are grouping entity like DataCenter, we should expand it to PMs to show
+            // all actions for PMs in this DataCenter
+            final Set<Long> entitiesInUserScope = userScope.filter(
+                supplyChainFetcherFactory.expandAggregatedEntities(allEntitiesInScope));
+            return EntityScope.newBuilder()
+                .addAllOids(Sets.union(entitiesInUserScope, buyRiEntities))
+                .build();
         }
     }
 

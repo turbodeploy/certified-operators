@@ -29,6 +29,7 @@ import org.junit.Test;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -61,6 +62,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -141,41 +143,6 @@ public class CurrentQueryMapperTest {
         verify(groupExpander).expandOids(originalScope);
         verify(userScope).filter(expandedScope);
         assertThat(scope, containsInAnyOrder(expandedScope.toArray()));
-    }
-
-    /**
-     * Test that BuyRI entities get included in the entity scope.
-     *
-     * @throws OperationFailedException To satisfy compiler.
-     */
-    @Test
-    public void testEntityScopeFactoryBuyRiEntities() throws OperationFailedException {
-        final EntityAccessScope userScope = mock(EntityAccessScope.class);
-        when(userScope.filter(anySet()))
-                .thenAnswer(invocation -> invocation.getArgumentAt(0, Set.class));
-
-        final EntityScopeFactory scopeFactory = new EntityScopeFactory(groupExpander, supplyChainFetcherFactory, repositoryApi, buyRiScopeHandler, uuidMapper);
-        ApiId id = ApiTestUtils.mockGroupId("1", uuidMapper);
-        final Set<ApiId> originalScope = Collections.singleton(id);
-        final Set<Long> expandedScope = Sets.newHashSet(3L, 4L);
-        final Set<Long> buyRiEntities = Sets.newHashSet(5L);
-
-        when(groupExpander.expandOids(originalScope)).thenReturn(expandedScope);
-        when(supplyChainFetcherFactory.bulkExpandAggregatedEntities(Collections.singletonMap(1L, expandedScope)))
-                .thenReturn(Collections.singletonMap(1L, expandedScope));
-        when(buyRiScopeHandler.extractBuyRiEntities(originalScope, Collections.emptySet()))
-                .thenReturn(buyRiEntities);
-
-        final Map<ApiId, Set<Long>> entityScope = scopeFactory.bulkExpandScopes(Collections.singletonMap(id, originalScope),
-                Collections.emptySet(), Optional.empty(), userScope);
-        Set<Long> scope = entityScope.get(id);
-
-        Set<Long> expectedScope = Sets.union(expandedScope, buyRiEntities);
-        verify(buyRiScopeHandler).extractBuyRiEntities(originalScope, Collections.emptySet());
-        verify(userScope).filter(expectedScope);
-
-        assertThat(scope, is(expectedScope));
-
     }
 
     /**

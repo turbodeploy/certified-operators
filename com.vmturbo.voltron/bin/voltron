@@ -16,16 +16,13 @@ setup_autocomplete() {
 
    case ${COMP_CWORD} in
      1)
-       COMPREPLY=($(compgen -W "grpc restore_topology restore_groups restore_cost send_topology set_broadcast_interval help" -- ${cur}));;
+       COMPREPLY=($(compgen -W "grpc restore_topology restore_groups send_topology set_broadcast_interval help" -- ${cur}));;
      2)
        case ${prev} in
             grpc)
                 COMPREPLY=($(compgen -W "ls call type parse help" -- ${cur}))
                 ;;
             restore_topology)
-                compopt -o default;COMPREPLY=()
-                ;;
-            restore_cost)
                 compopt -o default;COMPREPLY=()
                 ;;
             restore_groups)
@@ -47,7 +44,6 @@ print_help() {
    echo "voltron grpc                   ...    ; Interact with Voltron's gRPC services."
    echo "voltron restore_topology       ...    ; Load topology processor from a ZIP file."
    echo "voltron restore_groups         ...    ; Load groups from a ZIP file."
-   echo "voltron restore_cost           ...    ; Load cost diags from a ZIP file."
    echo "voltron send_topology          ...    ; Broadcast topology."
    echo "voltron set_broadcast_interval ...    ; Set broadcast schedule."
    echo "voltron help                   ...    ; Print this message"
@@ -71,24 +67,10 @@ send_topology() {
   curl -X POST --header 'Content-Type: application/json' --header 'Accept: application/json' http://localhost:${HTTP_PORT}/topology-processor/topology/send
 }
 
-restore_cost() {
-  if [ "$#" -lt 1 ]
-  then
-    echo "voltron restore_cost <path to cost diags ZIP file>"
-  else
-    pathToFile="$( cd "$( dirname "$1" )" && pwd )"
-    fileName=$(basename $1)
-    fullPath=${pathToFile}/${fileName}
-
-    echo "Restoring from: ${fullPath}"
-    curl --header 'Content-Type: application/zip' --data-binary @${fullPath} http://localhost:${HTTP_PORT}/cost/internal-state
-  fi
-}
-
 restore_groups() {
   if [ "$#" -lt 1 ]
   then
-    echo "voltron restore_groups <path to group ZIP file>"
+    echo "voltron restore_groups <path to topology processor ZIP file>"
   else
     pathToFile="$( cd "$( dirname "$1" )" && pwd )"
     fileName=$(basename $1)
@@ -155,8 +137,6 @@ restore_topology)
   restore_topology ${@:2};;
 restore_groups)
   restore_groups ${@:2};;
-restore_cost)
-  restore_cost ${@:2};;
 send_topology)
   send_topology;;
 set_broadcast_interval)
