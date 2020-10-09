@@ -140,6 +140,8 @@ public class EntitySettingsApplicator {
                         CommodityType.QN_VCPU),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.StorageAmountUtilization,
                         CommodityType.STORAGE_AMOUNT),
+                new UtilizationThresholdApplicator(EntitySettingSpecs.StorageProvisionedUtilization,
+                        CommodityType.STORAGE_PROVISIONED),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.IopsUtilization,
                         CommodityType.STORAGE_ACCESS),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.LatencyUtilization,

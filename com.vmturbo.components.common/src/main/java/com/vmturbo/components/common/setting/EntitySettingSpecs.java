@@ -162,7 +162,7 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 50f), true),
 
     /**
-     * Storage utilization threshold.
+     * Storage amount utilization threshold.
      */
     StorageAmountUtilization("storageAmountUtilization", "Storage Amount Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
@@ -170,6 +170,13 @@ public enum EntitySettingSpecs {
                     EntityType.DATABASE),
             numeric(0f, 100f, 90f),
             true),
+
+    /**
+     * Storage provisioned utilization threshold.
+     */
+    StorageProvisionedUtilization("storageProvisionedUtilization", "Storage Provisioned Utilization",
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f), true),
 
     /**
      * VCPURequest utilization threshold.

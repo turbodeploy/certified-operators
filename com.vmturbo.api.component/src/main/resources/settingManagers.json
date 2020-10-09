@@ -142,6 +142,7 @@
         "swappingUtilization",
         "readyQueueUtilization",
         "storageAmountUtilization",
+        "storageProvisionedUtilization",
         "iopsUtilization",
         "latencyUtilization",
         "cpuOverprovisionedPercentage",

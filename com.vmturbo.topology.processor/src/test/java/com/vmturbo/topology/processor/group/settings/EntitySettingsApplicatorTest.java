@@ -75,7 +75,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.template.TemplateConverterTestUtil;
 import com.vmturbo.topology.processor.template.TopologyEntityConstructor.TemplateActionType;
 import com.vmturbo.topology.processor.template.VirtualMachineEntityConstructor;
@@ -1448,6 +1447,8 @@ public class EntitySettingsApplicatorTest {
 
         testUtilizationSettings(EntityType.STORAGE, CommodityType.STORAGE_AMOUNT,
                 EntitySettingSpecs.StorageAmountUtilization);
+        testUtilizationSettings(EntityType.STORAGE, CommodityType.STORAGE_PROVISIONED,
+                EntitySettingSpecs.StorageProvisionedUtilization);
         testUtilizationSettings(EntityType.STORAGE, CommodityType.STORAGE_ACCESS,
                 EntitySettingSpecs.IopsUtilization);
         testUtilizationSettings(EntityType.STORAGE, CommodityType.STORAGE_LATENCY,
