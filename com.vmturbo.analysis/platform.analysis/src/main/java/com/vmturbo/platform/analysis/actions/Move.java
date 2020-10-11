@@ -5,6 +5,7 @@ import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 import static com.vmturbo.platform.analysis.ede.Placement.initiateQuoteMinimizer;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -51,7 +52,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     private final Optional<Context> context_;
     // Contains new assigned capacities for bought commodities, generated in Quote, which is used
     // to update shoppingList's assigned capacities when action is taken
-    private final List<CommodityContext> commodityContexts_;
+    private final Collection<CommodityContext> commodityContexts_;
     // Contains old and new values for assigned capacities for bought commodities in the
     // shoppingList that need to be resized as a part of the action
     private final List<MoveTO.CommodityContext> resizeCommodityContexts_ = new ArrayList<>();
@@ -121,7 +122,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      */
     public Move(@NonNull Economy economy, @NonNull ShoppingList target,
                 @Nullable Trader source, @Nullable Trader destination,
-                Optional<Context> context, @Nullable List<CommodityContext> commodityContexts) {
+                Optional<Context> context, @Nullable Collection<CommodityContext> commodityContexts) {
         super(economy, target, source);
         destination_ = destination;
         context_ = context;

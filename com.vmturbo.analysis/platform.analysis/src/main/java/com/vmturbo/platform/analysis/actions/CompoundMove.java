@@ -15,6 +15,8 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
@@ -28,6 +30,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
+import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
 
 /**
  * An action to group multiple {@link Move}s that should happen atomically by {@link ShoppingList}s
@@ -64,7 +67,8 @@ public class CompoundMove extends ActionImpl {
                 destinations,
                 shoppingLists.stream()
                         .map(ShoppingList::getContext)
-                        .collect(Collectors.toList()));
+                        .collect(Collectors.toList()),
+                new HashMap<>());
     }
 
     private CompoundMove(@NonNull Economy economy, @NonNull Collection<@NonNull ShoppingList> shoppingLists,
@@ -76,7 +80,8 @@ public class CompoundMove extends ActionImpl {
                 destinations,
                 shoppingLists.stream()
                         .map(ShoppingList::getContext)
-                        .collect(Collectors.toList()));
+                        .collect(Collectors.toList()),
+                new HashMap<>());
     }
 
     /**
@@ -97,6 +102,7 @@ public class CompoundMove extends ActionImpl {
      *                {@link Economy#getMarketsAsBuyer(Trader)}.
      *                Must be the same size as <b>destinations</b> and not empty.
      * @param destinations Same as for {@link #CompoundMove(Economy, Collection, Collection)}.
+     * @param slToCommodityContextsMap shopping list map to commodity context list
      * @param contexts ShoppingList Context objects
      */
     private CompoundMove(
@@ -104,7 +110,8 @@ public class CompoundMove extends ActionImpl {
             @NonNull Collection<@NonNull ShoppingList> shoppingLists,
             @NonNull Collection<@Nullable Trader> sources,
             @NonNull Collection<@Nullable Trader> destinations,
-            @NonNull Collection<Optional<Context>> contexts) {
+            @NonNull Collection<Optional<Context>> contexts,
+            @Nonnull Map<ShoppingList, List<CommodityContext>> slToCommodityContextsMap) {
         super(economy);
 
         checkArgument(shoppingLists.size() == destinations.size(), "shoppingLists.size() = "
@@ -126,7 +133,7 @@ public class CompoundMove extends ActionImpl {
             if ((context.isPresent() && !sl.getContext().equals(context)) || (destination != null
                     && !destination.equals(source))) {
                 moves.add(context.isPresent()
-                        ? new Move(economy, sl, source, destination, context)
+                        ? new Move(economy, sl, source, destination, context, slToCommodityContextsMap.get(sl))
                         : new Move(economy, sl, source, destination));
             }
         }
@@ -352,6 +359,7 @@ public class CompoundMove extends ActionImpl {
      *                     {@link shoppingLists}.
      * @param contextList a list of contexts. The order of {@link contextList} should match with
      *                    the order of {@link shoppingLists}.
+     * @param slToCommodityContextsMap shopping list map to commodity context list
      * @return a CompoundMove.
      */
     public static @Nullable CompoundMove
@@ -359,9 +367,10 @@ public class CompoundMove extends ActionImpl {
                                                           @NonNull Collection<@Nullable ShoppingList> shoppingLists,
                                                           @NonNull Collection<@Nullable Trader> sources,
                                                           @NonNull Collection<@Nullable Trader> destinations,
-                                                          @NonNull Collection<Optional<Context>> contextList) {
+                                                          @NonNull Collection<Optional<Context>> contextList,
+                                                          @Nonnull Map<ShoppingList, List<CommodityContext>> slToCommodityContextsMap) {
 
-        CompoundMove compoundMove = new CompoundMove(economy, shoppingLists, sources, destinations, contextList);
+        CompoundMove compoundMove = new CompoundMove(economy, shoppingLists, sources, destinations, contextList, slToCommodityContextsMap);
         return validateCompoundMove(compoundMove, sources, destinations);
     }
 

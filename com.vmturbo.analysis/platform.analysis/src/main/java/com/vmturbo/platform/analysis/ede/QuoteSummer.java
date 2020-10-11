@@ -25,6 +25,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
+import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
 import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import com.vmturbo.platform.analysis.utilities.QuoteCacheUtils;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
@@ -68,6 +69,9 @@ final class QuoteSummer {
     // we could populate a map for Quote by shopping list, but only "context" is needed
     // outside of CliqueMinimizer, hence we can directly store the context for efficiency.
     private final Map<ShoppingList, Optional<Context>> shoppingListContextMap = new HashMap<>();
+
+    private final Map<ShoppingList, List<CommodityContext>> shoppingListCommodityContextMap = new HashMap<>();
+
     private final QuoteCache cache_;
     private int shoppingListIndex_ = 0;
     private int numOfSLs_ = 0;
@@ -151,6 +155,10 @@ final class QuoteSummer {
         return shoppingListContextMap;
     }
 
+    public @NonNull Map<ShoppingList, List<CommodityContext>> getShoppingListCommodityContextMap() {
+        return shoppingListCommodityContextMap;
+    }
+
     /**
      * Returns an list of the Move actions to the sellers that offered the minimum quote per
      * (shopping list, market) pair seen by {@code this} summer.
@@ -189,6 +197,10 @@ final class QuoteSummer {
         if (context.isPresent()) {
             shoppingListContextMap.put(entry.getKey(), minimizer.getBestQuote().getContext());
         }
+        List<CommodityContext> commodityContexts = minimizer.getBestQuote().getCommodityContexts();
+        if (!commodityContexts.isEmpty()) {
+            shoppingListCommodityContextMap.put(entry.getKey(), commodityContexts);
+        }
         totalQuote_ += minimizer.getTotalBestQuote();
         bestSellers_.add(minimizer.getBestSeller());
         economy_.getPlacementStats().incrementQuoteSummerCount();
@@ -222,6 +234,8 @@ final class QuoteSummer {
         other.getShoppingListContextMap().entrySet().forEach(e -> {
             shoppingListContextMap.put(e.getKey(), e.getValue());
         });
+
+        shoppingListCommodityContextMap.putAll(other.getShoppingListCommodityContextMap());
 
         other.getUnplacedShoppingListQuoteTrackers().forEach((sl, otherQuoteTracker) -> {
             final QuoteTracker thisQuoteTracker = unplacedShoppingListQuoteTrackers.get(sl);

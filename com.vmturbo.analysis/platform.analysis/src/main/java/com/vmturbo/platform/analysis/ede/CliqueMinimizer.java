@@ -30,6 +30,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
+import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
 import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
 
@@ -98,6 +99,8 @@ final class CliqueMinimizer {
     // a map which contains shopping lists and the each shopping list's best quote
     // associated context. It is used to help generating actions.
     private Map<ShoppingList, Optional<Context>> shoppingListContextMap = new HashMap<>();
+
+    private Map<ShoppingList, List<CommodityContext>> shoppingListCommodityContextMap = new HashMap<>();
     // valid placement. i.e. the one with minimum total quote
     private double bestTotalQuote_ = Double.POSITIVE_INFINITY; // will host the best-so-far total
     // quote. i.e. the minimum one.
@@ -169,6 +172,10 @@ final class CliqueMinimizer {
      */
     public Map<ShoppingList, Optional<Context>> getShoppingListContextMap() {
         return shoppingListContextMap;
+    }
+
+    public Map<ShoppingList, List<CommodityContext>> getShoppingListCommodityContextMap() {
+        return shoppingListCommodityContextMap;
     }
 
     /**
@@ -249,6 +256,10 @@ final class CliqueMinimizer {
             if (!map.isEmpty()) {
                 shoppingListContextMap = map;
             }
+            Map<ShoppingList, List<CommodityContext>> commContextMap = quoteSummer.getShoppingListCommodityContextMap();
+            if (!commContextMap.isEmpty()) {
+                shoppingListCommodityContextMap = commContextMap;
+            }
             infiniteQuoteTrackers = Collections.emptyMap();
         }
 
@@ -278,6 +289,7 @@ final class CliqueMinimizer {
             bestTotalQuote_ = other.bestTotalQuote_;
             bestSellers_ = other.bestSellers_;
             shoppingListContextMap = other.getShoppingListContextMap();
+            shoppingListCommodityContextMap = other.getShoppingListCommodityContextMap();
             infiniteQuoteTrackers = Collections.emptyMap();
         } else if (Double.isInfinite(other.bestTotalQuote_) && Double.isInfinite(bestTotalQuote_)) {
             combineQuoteTrackers(other.getInfiniteQuoteTrackers());

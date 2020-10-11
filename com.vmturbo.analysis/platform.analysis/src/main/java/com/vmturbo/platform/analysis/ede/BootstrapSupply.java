@@ -648,7 +648,7 @@ public class BootstrapSupply {
                     economy, slList, currentSuppliers, traderList, provisionedRelatedActions, 0.0d,
                     // there is no context because trader buys in cloud market should not reach here
                     // it should return when reaches shouldConsiderForBootstrap()
-                    new ArrayList<>());
+                    new ArrayList<>(), new HashMap<>());
             }
         }
         return provisionedRelatedActions;

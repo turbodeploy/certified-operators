@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
@@ -41,6 +43,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
 import com.vmturbo.platform.analysis.utilities.Quote;
+import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
 import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
 
@@ -541,6 +544,15 @@ public class Placement {
         if (!minimizer.getShoppingListContextMap().isEmpty()) {
             shoppingLists.forEach(sl -> contextList.add(minimizer.getShoppingListContextMap().get(sl)));
         }
+        final Map<ShoppingList, List<CommodityContext>> slToCommodityContextsMap = new HashMap<>();
+        if (!minimizer.getShoppingListCommodityContextMap().isEmpty()) {
+            shoppingLists.forEach(sl -> {
+                if (minimizer.getShoppingListCommodityContextMap().get(sl) != null) {
+                    slToCommodityContextsMap.put(sl, minimizer.getShoppingListCommodityContextMap().get(sl));
+                }
+            });
+        }
+
         final List<Trader> bestSellers = minimizer.getBestSellers();
 
         // get the RI coverage from minimizer, compare it with the current RI coverage on buyer,
@@ -566,7 +578,8 @@ public class Placement {
                             * firstSL.getBuyer().getSettings().getQuoteFactor()) {
                 double importance = currentTotalQuote - minimizer.getBestTotalQuote();
                 generateCompoundMoveOrMoveAction(
-                    economy, shoppingLists, currentSuppliers, bestSellers, actions, importance, contextList);
+                    economy, shoppingLists, currentSuppliers, bestSellers, actions, importance, contextList,
+                        slToCommodityContextsMap);
             }
         }
         return actions;
@@ -627,10 +640,12 @@ public class Placement {
      * @param actions list of actions
      * @param importance importance of the action
      * @param contextList list of contexts associated with each shopping list
+     * @param slToCommodityContextsMap shopping list map to commodity context list
      */
     public static void generateCompoundMoveOrMoveAction(Economy economy, List<ShoppingList> shoppingLists,
         List<Trader> currentSuppliers, List<Trader> bestSellers, List<Action> actions, double importance,
-        List<Optional<EconomyDTOs.Context>> contextList) {
+        List<Optional<EconomyDTOs.Context>> contextList,
+        Map<ShoppingList, List<CommodityContext>> slToCommodityContextsMap) {
         // step 1
         int numOfOriginalActions = actions.size();
         List<Integer> slsWithCommonCliques = new ArrayList<>(bestSellers.size());
@@ -679,7 +694,8 @@ public class Placement {
             if (slsWithoutCommonCliques.size() == 0 || generateMoveAction) {
                 actions.add(new Move(economy, shoppingLists.get(i), currentSuppliers.get(i),
                         bestSellers.get(i), contextList.isEmpty() ? Optional.empty()
-                                : contextList.get(i)).take().setImportance(importance));
+                                : contextList.get(i), slToCommodityContextsMap.get(shoppingLists.get(i)))
+                        .take().setImportance(importance));
                 numOfMoveActions++;
             } else {
                 compoundMoveCandidates.add(i);
@@ -702,14 +718,15 @@ public class Placement {
                         slsWithoutCommonCliques.stream().map(shoppingLists::get).collect(Collectors.toList()),
                         slsWithoutCommonCliques.stream().map(currentSuppliers::get).collect(Collectors.toList()),
                         slsWithoutCommonCliques.stream().map(bestSellers::get).collect(Collectors.toList()),
-                        contextList);
+                        contextList, slToCommodityContextsMap);
             }
             actions.add(compoundMove.take().setImportance(importance));
             numOfCompoundMoveActions++;
         } else if (slsWithoutCommonCliques.size() == 1) {
             int i = slsWithoutCommonCliques.get(0);
             actions.add(new Move(economy, shoppingLists.get(i), currentSuppliers.get(i),
-                    bestSellers.get(i), contextList.isEmpty() ? Optional.empty() : contextList.get(i))
+                    bestSellers.get(i), contextList.isEmpty() ? Optional.empty() : contextList.get(i),
+                    slToCommodityContextsMap.get(shoppingLists.get(i)))
                             .take().setImportance(importance));
             numOfMoveActions++;
         }
