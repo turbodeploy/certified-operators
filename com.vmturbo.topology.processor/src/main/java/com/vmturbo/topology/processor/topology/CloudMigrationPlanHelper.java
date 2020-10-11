@@ -67,6 +67,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -75,6 +76,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.mediation.hybrid.cloud.common.OsType;
@@ -94,7 +96,6 @@ import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.group.settings.SettingPolicyEditor;
-import com.vmturbo.topology.processor.topology.CloudStorageMigrationHelper.IopsToStorageRatios;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 /**
@@ -141,6 +142,21 @@ public class CloudMigrationPlanHelper {
     private static final String AWS_IO2_DISPLAY_NAME = "IO2";
 
     private static final String CSP_AWS_DISPLAY_NAME = "AWS";
+
+    // Maximum amount of IOPS that GPS can support.
+    private static final int GP2_IOPS_AMOUNT_MAX_CAPACITY = 16000;
+
+    // Maximum amount of IOPS that Managed Premium supports.
+    private static final int MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY = 20000;
+
+    // Min storage capacity for AWS GP2 in GB
+    private static final int GP2_STORAGE_AMOUNT_MIN_CAPACITY = 1;
+
+    // Max storage capacity for AWS GP2 in GB.
+    private static final int GP2_STORAGE_AMOUNT_MAX_CAPACITY = 16384;
+
+    // Max storage capacity for Azure Managed Premium in GB.
+    private static final int MANAGED_PREMIUM_STORAGE_AMOUNT_MAX_CAPACITY = 32767;
 
     /**
      * Which commodities don't apply to cloud. During cloud migration, if an on-prem VM is buying
@@ -221,11 +237,6 @@ public class CloudMigrationPlanHelper {
             STORAGE);
 
     /**
-     * IOPS to Storage ratios: used for adjusting storage amount based on IOPS.
-     */
-    private IopsToStorageRatios iopsToStorageRatios = new IopsToStorageRatios();
-
-    /**
      * Volume to storage amount map: The volume amount may be adjusted based on IOPS. The adjusted
      * value is initially set in the commodity of the VM. Keep the updated storage amount value
      * together with the volume provider ID in this map. It will be used when preparing the
@@ -292,8 +303,6 @@ public class CloudMigrationPlanHelper {
         // Set the migration destination.
         boolean isDestinationAws = isDestinationAws(context, inputGraph);
         // Prepare source entities for migration.
-        iopsToStorageRatios = CloudStorageMigrationHelper.populateMaxIopsRatioAndCapacity(inputGraph,
-                isDestinationAws);
         prepareEntities(context, outputGraph, migrationChange, sourceToProducerToMaxStorageAccess,
                 isDestinationAws);
         prepareProviders(outputGraph, context.getTopologyInfo(), sourceToProducerToMaxStorageAccess,
@@ -820,7 +829,7 @@ public class CloudMigrationPlanHelper {
                         // Need to set movable/scalable true for provider commBought.
                         prepareBoughtCommodities(providerDtoBuilder, topologyInfo,
                                 sourceToProducerToMaxStorageAccess, isDestinationAws, false);
-                        prepareSoldCommodities(providerDtoBuilder, providerToMaxStorageAccessMap);
+                        prepareSoldCommodities(providerDtoBuilder, providerToMaxStorageAccessMap, topologyInfo, isDestinationAws);
                     }
                 });
     }
@@ -858,27 +867,65 @@ public class CloudMigrationPlanHelper {
      *
      * @param dtoBuilder Provider DTO being updated.
      * @param providerToMaxStorageAccessMap A map that maps provider to historical Max IOPS
+     * @param topologyInfo topology info
+     * @param isDestinationAws boolean to indicate if destination is AWS
      */
     void prepareSoldCommodities(@Nonnull final TopologyEntityDTO.Builder dtoBuilder,
-                                @Nonnull final Map<Long, Double> providerToMaxStorageAccessMap) {
+                                @Nonnull final Map<Long, Double> providerToMaxStorageAccessMap,
+                                @Nonnull final TopologyInfo topologyInfo,
+                                final boolean isDestinationAws) {
         fixZeroCapacity(dtoBuilder);
         if (dtoBuilder.getEntityType() == VIRTUAL_VOLUME_VALUE) {
             dtoBuilder.getCommoditySoldListBuilderList().stream()
                     .filter(c -> c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE)
-                    .forEach(c -> {
-                        Double histMaxIops = providerToMaxStorageAccessMap.get(dtoBuilder.getOid());
-                        if (histMaxIops != null) {
-                            // Make sure historical max value is larger than 0 because TC will use the
-                            // capacity instead of the used value if value is 0.
-                            histMaxIops = Math.max(0.1, histMaxIops);
-                            c.setUsed(histMaxIops);
-                            c.setPeak(histMaxIops);
-                            c.setHistoricalUsed(HistoricalValues.newBuilder()
-                                    .setHistUtilization(histMaxIops).build());
-                            c.setHistoricalPeak(HistoricalValues.newBuilder()
-                                    .setHistUtilization(histMaxIops).build());
-                        }
-                    });
+                    .forEach(c -> updateStorageAccessSoldCommodity(c, dtoBuilder.getOid(),
+                            providerToMaxStorageAccessMap, topologyInfo, isDestinationAws));
+        }
+    }
+
+    /**
+     * Set historical max value for storage access sold commodity of a volume.
+     * Also make sure storage access capacity does not exceed max amount for AWS GP2 and Azure
+     * Managed Premium for Lift and Shift plan.
+     *
+     * @param commSoldBuilder storage access commodity sold builder
+     * @param providerOid OID of the provider for the volume shopping list
+     * @param providerToMaxStorageAccessMap A map that maps provider to historical Max IOPS
+     * @param topologyInfo topology info
+     * @param isDestinationAws boolean to indicate if destination is AWS
+     */
+    private void updateStorageAccessSoldCommodity(final CommoditySoldDTO.Builder commSoldBuilder,
+                                                  final long providerOid,
+                                                  @Nonnull final Map<Long, Double> providerToMaxStorageAccessMap,
+                                                  @Nonnull final TopologyInfo topologyInfo,
+                                                  final boolean isDestinationAws) {
+        if (commSoldBuilder.getCommodityType().getType() != CommodityType.STORAGE_ACCESS_VALUE) {
+            return;
+        }
+        // Set historical max IOPS value in the commodity sold value.
+        Double histMaxIops = providerToMaxStorageAccessMap.get(providerOid);
+        if (histMaxIops != null) {
+            // Make sure historical max value is larger than 0 because TC will use the
+            // capacity instead of the used value if value is 0.
+            histMaxIops = Math.max(0.1, histMaxIops);
+            commSoldBuilder.setUsed(histMaxIops);
+            commSoldBuilder.setPeak(histMaxIops);
+            commSoldBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
+                    .setHistUtilization(histMaxIops).build());
+            commSoldBuilder.setHistoricalPeak(HistoricalValues.newBuilder()
+                    .setHistUtilization(histMaxIops).build());
+        }
+        // For L&S in cloud-to-cloud migration, IOPS capacity of volume is used as
+        // demand for IOPS.
+        // If source demand is higher than the max of GP2 or Managed Premium,
+        // cap the capacity to the max value of the target tier to make sure it can
+        // be placed with GP2 or Managed Premium.
+        if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
+            if (isDestinationAws && commSoldBuilder.getCapacity() > GP2_IOPS_AMOUNT_MAX_CAPACITY) {
+                commSoldBuilder.setCapacity(GP2_IOPS_AMOUNT_MAX_CAPACITY);
+            } else if (!isDestinationAws && commSoldBuilder.getCapacity() > MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY) {
+                commSoldBuilder.setCapacity(MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY);
+            }
         }
     }
 
@@ -1002,43 +1049,40 @@ public class CloudMigrationPlanHelper {
                     }
                     double historicalMaxIOP = getHistoricalMaxIOPSValue(commBoughtGrouping, entityOid,
                             sourceToProducerToMaxStorageAccess);
-                    if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo) && !isDestinationAws) {
-                        // Lift and Shift for Azure: cap the IOPS value to max of managed premium if it exceeds the max value
-                        // We can't disable the IOPS commodity like AWS because we need it to adjust the storage amount value.
-                        if (historicalMaxIOP > CloudStorageMigrationHelper.MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY) {
-                            historicalMaxIOP = CloudStorageMigrationHelper.MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY;
+                    if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
+                        // Lift and Shift: cap the IOPS value to max value supported by the L&S tier if it exceeds the max value
+                        if (!isDestinationAws && historicalMaxIOP > MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY) {
+                            historicalMaxIOP = MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY;
+                        }
+                        if (isDestinationAws && historicalMaxIOP > GP2_IOPS_AMOUNT_MAX_CAPACITY) {
+                            historicalMaxIOP = GP2_IOPS_AMOUNT_MAX_CAPACITY;
                         }
                     }
-                    commodityBoughtDTO =
-                            CloudStorageMigrationHelper.getHistoricalMaxIOPS(dtoBought, historicalMaxIOP);
+                    commodityBoughtDTO = getHistoricalMaxIOPS(dtoBought, historicalMaxIOP);
                 } else {
                     commodityBoughtDTO = dtoBought.toBuilder();
-                }
-
-                if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo) && isDestinationAws) {
-                    // Lift and shift plan for AWS
-                    // Disable Storage Access commodity for Lift and Shift plan so it can always
-                    // fit in GP2.
-                    commodityBoughtDTO.setActive(false);
                 }
                 commoditiesToInclude.add(commodityBoughtDTO.build());
             } else if (commodityType == CommodityType.STORAGE_AMOUNT) {
                 if (isConsumer) {
+                    float storageAmountInMB;
                     if (TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
-                        // Assign storage provisioned used value for storage amount.
-                        // Also adjust storage amount based on IOPS value if necessary.
-                        final double historicalMaxIOP = getHistoricalMaxIOPSValue(commBoughtGrouping, entityOid,
-                                sourceToProducerToMaxStorageAccess);
-                        CommodityBoughtDTO storageAmountCommodity = CloudStorageMigrationHelper
-                                .adjustStorageAmountForCloudMigration(dtoBought, commBoughtGrouping,
-                                        iopsToStorageRatios, entityOid, historicalMaxIOP, isDestinationAws);
-                        volumeToStorageAmountMap.put(commBoughtGrouping.getProviderId(), storageAmountCommodity.getUsed());
-                        commoditiesToInclude.add(storageAmountCommodity);
+                        // Optimize Plan: Assign provisioned used value for storage amount.
+                        storageAmountInMB = getStorageProvisionedAmount(commBoughtGrouping);
                     } else {
+                        // Lift and Shift plan:
                         // Assign storage provisioned used value for storage amount
-                        commoditiesToInclude.add(CloudStorageMigrationHelper
-                                .updateStorageAmountCommodityBought(dtoBought, commBoughtGrouping, isDestinationAws));
+                        // Also make sure storage amount is within the range for the Lift&Shift tier
+                        storageAmountInMB = getStorageAmountForLiftAndShift(commBoughtGrouping, isDestinationAws);
                     }
+                    // Make sure storage amount is non-zero.
+                    storageAmountInMB = Math.max(1, storageAmountInMB);
+                    CommodityBoughtDTO storageAmountCommodity = dtoBought.toBuilder()
+                            .setUsed(storageAmountInMB)
+                            .setPeak(storageAmountInMB)
+                            .build();
+                    commoditiesToInclude.add(storageAmountCommodity);
+                    volumeToStorageAmountMap.put(commBoughtGrouping.getProviderId(), storageAmountCommodity.getUsed());
                 } else {
                     if (TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)
                             && dtoBuilder.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
@@ -1062,6 +1106,69 @@ public class CloudMigrationPlanHelper {
             }
         }
         return commoditiesToInclude;
+    }
+
+    /**
+     * Create commodity bought for IOPS.
+     *
+     * @param commodityBoughtDTO the storage access commodity DTO
+     * @param histMaxIOPS the maximum StorageAccess bought value of the last 30 days
+     * @return the updated storage access commodity DTO
+     */
+    static CommodityBoughtDTO.Builder getHistoricalMaxIOPS(
+            @Nonnull CommodityBoughtDTO commodityBoughtDTO,
+            double histMaxIOPS) {
+        CommodityBoughtDTO.Builder commodityBoughtBuilder = commodityBoughtDTO.toBuilder();
+        commodityBoughtBuilder.setUsed(histMaxIOPS);
+        commodityBoughtBuilder.setPeak(histMaxIOPS);
+        commodityBoughtBuilder.setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(histMaxIOPS).build());
+        commodityBoughtBuilder.setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(histMaxIOPS).build());
+        return commodityBoughtBuilder;
+    }
+
+    /**
+     * Get storage provisioned used in MB.
+     *
+     * @param commBoughtGroupingForSL commodity bought grouping for shopping list
+     * @return storage provisioned used in MB
+     */
+    private float getStorageProvisionedAmount(
+            @Nonnull final CommoditiesBoughtFromProvider commBoughtGroupingForSL) {
+        List<CommodityBoughtDTO> commodityList = commBoughtGroupingForSL.getCommodityBoughtList();
+        Optional<CommodityBoughtDTO> storageProvisionCommodityBoughtOpt = commodityList.stream()
+                .filter(s -> s.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE)
+                .findAny();
+
+        return storageProvisionCommodityBoughtOpt.map(
+                storageProvisioned -> (float)(storageProvisioned.getUsed())).orElse(0f);
+    }
+
+    /**
+     * Assign storage provisioned "used" value to storage amount bought.
+     * This method is used for List&Shift only.
+     *
+     * @param commBoughtGroupingForSL commodity bought list
+     * @param isDestinationAws boolean that indicates if destination is AWS
+     * @return storage amount commodity, value in MB
+     */
+    private float getStorageAmountForLiftAndShift(
+            @Nonnull final CommoditiesBoughtFromProvider commBoughtGroupingForSL,
+            boolean isDestinationAws) {
+        float diskSizeInMB = getStorageProvisionedAmount(commBoughtGroupingForSL);
+
+        // Cap storage amount to the maximum supported storage amount value to guarantee a placement.
+        // For AWS, also make sure storage amount is not less than the minimum amount for GP2.
+        // For Azure, there is no need to adjust the minimum amount because we recommend the upper
+        // bound of a range in the dependency list which is always larger than the original value
+        // and non-zero.
+        if (isDestinationAws) {
+            if (diskSizeInMB > GP2_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI) {
+                diskSizeInMB = (float)(GP2_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI);
+            }
+        } else if (diskSizeInMB > MANAGED_PREMIUM_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI) {
+            diskSizeInMB = (float)(MANAGED_PREMIUM_STORAGE_AMOUNT_MAX_CAPACITY * Units.KIBI);
+        }
+        return diskSizeInMB;
     }
 
     @Nonnull

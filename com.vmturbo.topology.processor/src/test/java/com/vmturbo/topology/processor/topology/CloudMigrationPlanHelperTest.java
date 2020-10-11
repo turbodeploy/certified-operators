@@ -368,7 +368,7 @@ public class CloudMigrationPlanHelperTest {
         settings.movable = true;
         settings.totalSkipped = 0;
         settings.totalAccess = 0;
-        settings.totalInactive = 3;
+        settings.totalInactive = 2;
         settings.countsByProvider.put(settings.hostProviderId, 4L);
         settings.countsByProvider.put(settings.storageProviderId1, 4L);
 
@@ -414,7 +414,7 @@ public class CloudMigrationPlanHelperTest {
         settings.movable = true;
         settings.totalSkipped = 0;
         settings.totalAccess = 0;
-        settings.totalInactive = 6;
+        settings.totalInactive = 4;
         settings.countsByProvider.put(settings.hostProviderId, 3L);
         settings.countsByProvider.put(settings.storageProviderId1, 5L);
         settings.countsByProvider.put(settings.storageProviderId2, 5L);
@@ -442,7 +442,7 @@ public class CloudMigrationPlanHelperTest {
                         .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                                 .setType(CommodityType.STORAGE_ACCESS_VALUE).build()));
 
-        cloudMigrationPlanHelper.prepareSoldCommodities(volumeDtoBuild, providerToMaxStorageAccessMap);
+        cloudMigrationPlanHelper.prepareSoldCommodities(volumeDtoBuild, providerToMaxStorageAccessMap, allocationTopologyInfo, true);
         double iopsValue = volumeDtoBuild.getCommoditySoldListBuilderList().stream()
                 .filter(c -> c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE)
                 .findFirst().map(c -> c.getUsed()).orElse(-1d);
@@ -482,7 +482,7 @@ public class CloudMigrationPlanHelperTest {
         settings.movable = true;
         settings.totalSkipped = 0;
         settings.totalAccess = 0;
-        settings.totalInactive = 4;
+        settings.totalInactive = 3;
         settings.countsByProvider.put(settings.hostProviderId, 5L);
         settings.countsByProvider.put(settings.storageProviderId1, 5L);
 
