@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -113,7 +114,8 @@ public class EntitySeverityCache {
             .add(new TraversalConfig(EntityType.WORKLOAD_CONTROLLER, true, false, false, true))
             .add(new TraversalConfig(EntityType.NAMESPACE, true, true, false, true))
             .add(new TraversalConfig(EntityType.CONTAINER_SPEC, true, false, false))
-            .add(new TraversalConfig(EntityType.CONTAINER, true, false, true))
+            .add(new TraversalConfig(EntityType.CONTAINER, true, false, true, false,
+                    Collections.singleton(EntityType.CONTAINER_SPEC)))
             .add(new TraversalConfig(EntityType.DATABASE_SERVER, true, false, true))
             // A database can be an instance running on a database server
             .add(new TraversalConfig(EntityType.DATABASE, true, false, true))
@@ -354,7 +356,10 @@ public class EntitySeverityCache {
                 }
 
                 if (!traversalConfig.connectedEntities.isEmpty()) {
-                    for (ActionGraphEntity connectedEntity : entity.getOutboundAssociatedEntities()) {
+                    final Set<ActionGraphEntity> connectedEntitiesToCheck = new HashSet<>();
+                    connectedEntitiesToCheck.addAll(entity.getOutboundAssociatedEntities());
+                    connectedEntitiesToCheck.addAll(entity.getAggregators());
+                    for (ActionGraphEntity connectedEntity : connectedEntitiesToCheck) {
                         if (traversalConfig.connectedEntities.contains(EntityType.forNumber(connectedEntity.getEntityType()))) {
                             severityBreakdown.combine(temporarySeverities.get(connectedEntity.getOid()));
                         }
