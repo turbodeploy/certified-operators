@@ -16,7 +16,7 @@ import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander.InvolvedEntitiesFilter;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
-import com.vmturbo.common.protobuf.action.ARMEntityUtil;
+import com.vmturbo.common.protobuf.action.InvolvedEntityExpansionUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ActionGroupFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter;
@@ -58,12 +58,12 @@ public class QueryInfoFactory {
         this.involvedEntitiesExpander = involvedEntitiesExpander;
     }
 
-    private boolean isGlobalTempGroupOfARMEntityTypes(@Nonnull final SingleQuery query) {
+    private boolean isGlobalTempGroupOfExpansionRequiredEntityTypes(@Nonnull final SingleQuery query) {
         if (query.hasQuery() && query.getQuery().hasScopeFilter()
                 && query.getQuery().getScopeFilter().hasGlobal()
                 && !query.getQuery().getScopeFilter().getGlobal().getEntityTypeList().isEmpty()) {
             return query.getQuery().getScopeFilter().getGlobal().getEntityTypeList().stream()
-                    .allMatch(ARMEntityUtil::isARMEntityType);
+                    .allMatch(InvolvedEntityExpansionUtil::expansionRequiredEntityType);
         }
         return false;
     }
@@ -87,7 +87,7 @@ public class QueryInfoFactory {
                 involvedEntitiesExpander.expandInvolvedEntitiesFilter(oids);
             desiredEntities = filter.getEntities();
             immutableQueryInfo.involvedEntityCalculation(filter.getCalculationType());
-        } else if (isGlobalTempGroupOfARMEntityTypes(query)) {
+        } else if (isGlobalTempGroupOfExpansionRequiredEntityTypes(query)) {
             desiredEntities = null;
             immutableQueryInfo.involvedEntityCalculation(
                     InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS);
@@ -152,12 +152,13 @@ public class QueryInfoFactory {
                 final Predicate<ActionEntity> entityTypePredicate;
                 if (desiredEntityTypes.isEmpty()) {
                     entityTypePredicate = entity -> true;
-                } else if (desiredEntityTypes.stream().anyMatch(ARMEntityUtil::isARMEntityType)) {
-                    // If the scope is a global temp group of ARM entity, the predicate should be
-                    // true for entities that should be propagated to ARM entity types.
+                } else if (desiredEntityTypes.stream().anyMatch(InvolvedEntityExpansionUtil::expansionRequiredEntityType)) {
+                    // If the scope is a global temp group of expansion-required entities, the
+                    // predicate should be true for entities that should be propagated to
+                    // expansion-required entity types.
                     entityTypePredicate = actionEntity ->
                             desiredEntityTypes.contains(actionEntity.getType())
-                                    || involvedEntitiesExpander.isBelowARMEntityType(
+                                    || involvedEntitiesExpander.shouldPropagateAction(
                                             actionEntity.getId(), desiredEntityTypes);
                 } else {
                     // Note - we don't expect to hit this condition if the scope case is "entity list."

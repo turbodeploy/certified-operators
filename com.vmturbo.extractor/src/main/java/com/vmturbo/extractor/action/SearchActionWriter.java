@@ -33,7 +33,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 
-import com.vmturbo.common.protobuf.action.ARMEntityUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.TypeInfoCase;
@@ -41,6 +40,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
+import com.vmturbo.common.protobuf.action.InvolvedEntityExpansionUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.severity.SeverityMap;
 import com.vmturbo.common.protobuf.severity.SeverityMapper;
@@ -201,7 +201,7 @@ class SearchActionWriter implements IActionWriter {
         // calculate related entities for ARM entities first
         // TODO (OM-63758): maybe only calculate the supply chains from the top ARM entities
         timer.start("Calculate related entities for ARM entities");
-        ARMEntityUtil.ARM_ENTITY_TYPE.forEach(type -> {
+        InvolvedEntityExpansionUtil.EXPANSION_REQUIRED_ENTITY_TYPES.forEach(type -> {
             topology.entitiesOfType(type).parallel().forEach(entity ->
                     SupplyChainFetcher.calculateFullSupplyChain(entity, topology, syncEntityToRelated));
         });
@@ -263,8 +263,8 @@ class SearchActionWriter implements IActionWriter {
             InvolvedEntityCalculation calcType, SupplyChain supplyChain) {
         // check if we need to expand to related types
         final Set<Integer> expandedEntityTypes;
-        if (ARMEntityUtil.isARMEntityType(entityType)) {
-            expandedEntityTypes = ARMEntityUtil.ENTITY_TYPES_BELOW_ARM;
+        if (InvolvedEntityExpansionUtil.expansionRequiredEntityType(entityType)) {
+            expandedEntityTypes = InvolvedEntityExpansionUtil.EXPANSION_ALL_ENTITY_TYPES;
         } else {
             expandedEntityTypes = ApiEntityType.PROTO_ENTITY_TYPES_TO_EXPAND.getOrDefault(
                     entityType, Collections.emptySet());
@@ -318,13 +318,13 @@ class SearchActionWriter implements IActionWriter {
     private int getActionCountForGroup(List<Long> leafEntities,
             TopologyGraph<SupplyChainEntity> graph, SupplyChain supplyChain) {
         // for groups, we need to check if all members are ARM entities
-        final boolean areAllARMEntities = leafEntities.stream()
+        final boolean areAllEntitiesRequiringExpansion = leafEntities.stream()
                 .map(graph::getEntity)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .map(SupplyChainEntity::getEntityType)
-                .allMatch(ARMEntityUtil::isARMEntityType);
-        final InvolvedEntityCalculation calcType = getInvolvedEntityCalculation(areAllARMEntities);
+                .allMatch(InvolvedEntityExpansionUtil::expansionRequiredEntityType);
+        final InvolvedEntityCalculation calcType = getInvolvedEntityCalculation(areAllEntitiesRequiringExpansion);
         return (int)leafEntities.stream()
                 .flatMap(entityId -> graph.getEntity(entityId)
                         .map(entity -> getActionsForEntity(entityId, entity.getEntityType(),
@@ -336,13 +336,13 @@ class SearchActionWriter implements IActionWriter {
     }
 
     /**
-     * Get InvolvedEntityCalculation based on whether this is arm entity.
+     * Get InvolvedEntityCalculation based on whether this is an entity that requires expansion.
      *
-     * @param isARMEntity whether this is arm entity
+     * @param isExpansionRequiredEntity whether this is arm entity
      * @return InvolvedEntityCalculation
      */
-    private static InvolvedEntityCalculation getInvolvedEntityCalculation(boolean isARMEntity) {
-        return isARMEntity ? InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS
+    private static InvolvedEntityCalculation getInvolvedEntityCalculation(boolean isExpansionRequiredEntity) {
+        return isExpansionRequiredEntity ? InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS
                 : InvolvedEntityCalculation.INCLUDE_ALL_STANDARD_INVOLVED_ENTITIES;
     }
 
@@ -353,6 +353,6 @@ class SearchActionWriter implements IActionWriter {
      * @return InvolvedEntityCalculation
      */
     private static InvolvedEntityCalculation getInvolvedEntityCalculation(int entityType) {
-        return getInvolvedEntityCalculation(ARMEntityUtil.isARMEntityType(entityType));
+        return getInvolvedEntityCalculation(InvolvedEntityExpansionUtil.expansionRequiredEntityType(entityType));
     }
 }

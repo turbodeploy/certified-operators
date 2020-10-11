@@ -1,8 +1,8 @@
 package com.vmturbo.action.orchestrator.store;
 
-import static com.vmturbo.common.protobuf.action.ARMEntityUtil.ARM_ENTITY_TYPE;
-import static com.vmturbo.common.protobuf.action.ARMEntityUtil.ENTITY_TYPES_BELOW_ARM;
-import static com.vmturbo.common.protobuf.action.ARMEntityUtil.isARMEntityType;
+import static com.vmturbo.common.protobuf.action.InvolvedEntityExpansionUtil.EXPANSION_ALL_ENTITY_TYPES;
+import static com.vmturbo.common.protobuf.action.InvolvedEntityExpansionUtil.EXPANSION_REQUIRED_ENTITY_TYPES;
+import static com.vmturbo.common.protobuf.action.InvolvedEntityExpansionUtil.expansionRequiredEntityType;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -35,7 +35,7 @@ import com.vmturbo.topology.graph.supplychain.TraversalRulesLibrary;
  */
 public class InvolvedEntitiesExpander {
 
-    private final Map<Integer, LongSet> expandedEntitiesPerARMEntityType = new HashMap<>();
+    private final Map<Integer, LongSet> expandedEntitiesByRequiredEntityType = new HashMap<>();
 
     private static Logger logger = LogManager.getLogger();
 
@@ -56,15 +56,15 @@ public class InvolvedEntitiesExpander {
     }
 
     /**
-     * Check if an entity's actions should be propagated to the required ARM entity type.
+     * Check if an entity's actions should be propagated to the expansion-required entity type.
      *
      * @param involvedEntityId the involved entity ID.
-     * @param desiredEntityTypes the ARM entity types in the query.
-     * @return true if this entity's actions should be propagated to the required ARM entity types.
+     * @param desiredEntityTypes the entity types in the query that require expansion.
+     * @return true if this entity's actions should be propagated to the required entity types.
      */
-    public boolean isBelowARMEntityType(long involvedEntityId, Set<Integer> desiredEntityTypes) {
-        return desiredEntityTypes.stream().anyMatch(entityType -> isARMEntityType(entityType)
-                && expandedEntitiesPerARMEntityType.get(entityType).contains(involvedEntityId));
+    public boolean shouldPropagateAction(long involvedEntityId, Set<Integer> desiredEntityTypes) {
+        return desiredEntityTypes.stream().anyMatch(entityType -> expansionRequiredEntityType(entityType)
+                && expandedEntitiesByRequiredEntityType.get(entityType).contains(involvedEntityId));
     }
 
     /**
@@ -80,8 +80,8 @@ public class InvolvedEntitiesExpander {
         Optional<ActionRealtimeTopology> topology = actionTopologyStore.getSourceTopology();
         if (topology.isPresent()) {
             TopologyGraph<ActionGraphEntity> graph = topology.get().entityGraph();
-            if (areAllARMEntities(involvedEntities, graph)) {
-                return new InvolvedEntitiesFilter(expandARMEntities(involvedEntities, graph),
+            if (areAllExpansionRequiredEntities(involvedEntities, graph)) {
+                return new InvolvedEntitiesFilter(expandEntities(involvedEntities, graph),
                         InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS);
             }
         }
@@ -92,14 +92,14 @@ public class InvolvedEntitiesExpander {
 
     /**
      * Queries repositoryService to see if we need to expand these entities. If the entire list
-     * contains ARM entities, then the involved entities will need to be expanded.
+     * contains expansion-required entities, then the involved entities will need to be expanded.
      *
      * @param involvedEntities the entities to search if we need expansion.
      * @param graph The topology graph to use to look up the entities.
      * @return true if we need expansion.
      */
-    private boolean areAllARMEntities(@Nonnull final Collection<Long> involvedEntities,
-                                      TopologyGraph<ActionGraphEntity> graph) {
+    private boolean areAllExpansionRequiredEntities(@Nonnull final Collection<Long> involvedEntities,
+                                                    TopologyGraph<ActionGraphEntity> graph) {
         if (involvedEntities.isEmpty()) {
             return false;
         }
@@ -110,23 +110,23 @@ public class InvolvedEntitiesExpander {
                 .map(Optional::get)
                 .map(ActionGraphEntity::getEntityType)
                 // Make sure all entities are ARM.
-                .allMatch(ARM_ENTITY_TYPE::contains);
+                .allMatch(EXPANSION_REQUIRED_ENTITY_TYPES::contains);
     }
 
     /**
-     * Expand all ARM entities by type and save the mapping for later use.
+     * Expand all required entities by type and save the mapping for later use.
      */
-    public void expandAllARMEntities() {
-        expandedEntitiesPerARMEntityType.clear();
+    public void expandAllRequiredEntities() {
+        expandedEntitiesByRequiredEntityType.clear();
         Optional<ActionRealtimeTopology> topology = actionTopologyStore.getSourceTopology();
         if (topology.isPresent()) {
             TopologyGraph<ActionGraphEntity> graph = topology.get().entityGraph();
-            ARM_ENTITY_TYPE.forEach(armEntityType -> {
+            EXPANSION_REQUIRED_ENTITY_TYPES.forEach(armEntityType -> {
                 final Set<Long> entitiesOfType = graph.entitiesOfType(armEntityType)
                         .map(ActionGraphEntity::getOid)
                         .collect(Collectors.toSet());
-                expandedEntitiesPerARMEntityType.put(armEntityType,
-                        expandARMEntities(entitiesOfType, graph));
+                expandedEntitiesByRequiredEntityType.put(armEntityType,
+                        expandEntities(entitiesOfType, graph));
             });
         }
     }
@@ -140,7 +140,7 @@ public class InvolvedEntitiesExpander {
      * @return the expanded entities.
      */
     @Nonnull
-    private LongSet expandARMEntities(Collection<Long> involvedEntities, TopologyGraph<ActionGraphEntity> graph) {
+    private LongSet expandEntities(Collection<Long> involvedEntities, TopologyGraph<ActionGraphEntity> graph) {
         final LongOpenHashSet retSet = new LongOpenHashSet();
         Map<Integer, SupplyChainNode> supplyChain = supplyChainCalculator.getSupplyChainNodes(graph, involvedEntities,
                 e -> true, new TraversalRulesLibrary<>());
@@ -149,7 +149,7 @@ public class InvolvedEntitiesExpander {
             return new LongOpenHashSet(involvedEntities);
         }
         supplyChain.forEach((type, node) -> {
-            if (ENTITY_TYPES_BELOW_ARM.contains(type)) {
+            if (EXPANSION_ALL_ENTITY_TYPES.contains(type)) {
                 retSet.addAll(RepositoryDTOUtil.getAllMemberOids(node));
             }
         });

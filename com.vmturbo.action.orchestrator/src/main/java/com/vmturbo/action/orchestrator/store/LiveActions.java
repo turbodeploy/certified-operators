@@ -246,7 +246,7 @@ class LiveActions implements QueryableActionViews {
         actionsLock.writeLock().lock();
         try {
             actionsByEntityIdx.clear();
-            involvedEntitiesExpander.expandAllARMEntities();
+            involvedEntitiesExpander.expandAllRequiredEntities();
             addInvolvedEntitiesToIndex(marketActions.values());
             addInvolvedEntitiesToIndex(atomicActions.values());
             addInvolvedEntitiesToIndex(riActions.values());

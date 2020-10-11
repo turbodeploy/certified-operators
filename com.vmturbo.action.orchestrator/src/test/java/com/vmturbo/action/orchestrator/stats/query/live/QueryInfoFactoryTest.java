@@ -208,15 +208,16 @@ public class QueryInfoFactoryTest {
     }
 
     @Test
-    public void testQueryMarketGlobalScopeARMEntityType() {
+    public void testQueryMarketGlobalScopeExpansionRequiredEntityType() {
 
-        long belowARMEntityId = 1L;
-        long notBelowARMEntityId = 2L;
+        long expansionInvolvedEntityId = 1L;
+        long notExpansionInvolvedEntityId = 2L;
 
-        when(involvedEntitiesExpander.isBelowARMEntityType(belowARMEntityId,
+        when(involvedEntitiesExpander.shouldPropagateAction(expansionInvolvedEntityId,
                 Collections.singleton(EntityType.SERVICE_VALUE))).thenReturn(true);
-        when(involvedEntitiesExpander.isBelowARMEntityType(notBelowARMEntityId,
+        when(involvedEntitiesExpander.shouldPropagateAction(notExpansionInvolvedEntityId,
                 Collections.singleton(EntityType.SERVICE_VALUE))).thenReturn(false);
+
 
         final QueryInfo queryInfo = queryInfoFactory.extractQueryInfo(SingleQuery.newBuilder()
                 .setQuery(CurrentActionStatsQuery.newBuilder()
@@ -226,13 +227,13 @@ public class QueryInfoFactoryTest {
                 .build());
 
         assertTrue(queryInfo.entityPredicate().test(ActionEntity.newBuilder()
-                .setId(belowARMEntityId)
+                .setId(expansionInvolvedEntityId)
                 .setType(VM)
                 .setEnvironmentType(EnvironmentType.ON_PREM)
                 .build()));
 
         assertFalse(queryInfo.entityPredicate().test(ActionEntity.newBuilder()
-                .setId(notBelowARMEntityId)
+                .setId(notExpansionInvolvedEntityId)
                 .setType(EntityType.RESERVED_INSTANCE_VALUE)
                 .setEnvironmentType(EnvironmentType.ON_PREM)
                 .build()));
@@ -434,7 +435,7 @@ public class QueryInfoFactoryTest {
 
     /**
      * QueryInfoFactory should populate the desired entities and the predicate with the expanded
-     * entities when using all ARM entities.
+     * entities when using all entities require expansion.
      */
     @Test
     public void testExpandedFilter() {

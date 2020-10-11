@@ -44,8 +44,12 @@ public class InvolvedEntitiesExpanderTest {
     private static final long BUSINESS_APP_OID = 1L;
     private static final long BUSINESS_TRANS_OID = 2L;
     private static final long SERVICE_OID = 3L;
-    private static final long WORKLOAD_CONTROLLER_OID = 5L;
-    private static final long VM_OID = 7L;
+    private static final long CONTAINER_OID = 10L;
+    private static final long CONTAINER_POD_OID = 11L;
+    private static final long CONTAINER_SPEC_OID = 12L;
+    private static final long WORKLOAD_CONTROLLER_OID = 13L;
+    private static final long NAMESPACE_OID = 18L;
+    private static final long VM_OID = 20L;
 
     private ActionTopologyStore actionTopologyStore = mock(ActionTopologyStore.class);
 
@@ -61,7 +65,7 @@ public class InvolvedEntitiesExpanderTest {
     }
 
     /**
-     * A an empty set and a set containing at least one non-arm entity should not be expanded.
+     * An empty set and a set containing at least one non-arm entity should not be expanded.
      */
     @Test
     public void testNoExpandNeeded() {
@@ -111,11 +115,13 @@ public class InvolvedEntitiesExpanderTest {
         makeGraphEntity(BUSINESS_APP_OID, EntityType.BUSINESS_APPLICATION, mockGraph);
         makeGraphEntity(BUSINESS_TRANS_OID, EntityType.BUSINESS_TRANSACTION, mockGraph);
         makeGraphEntity(SERVICE_OID, EntityType.SERVICE, mockGraph);
+        makeGraphEntity(NAMESPACE_OID, EntityType.NAMESPACE, mockGraph);
         final ActionRealtimeTopology realtimeTopology = mock(ActionRealtimeTopology.class);
         when(realtimeTopology.entityGraph()).thenReturn(mockGraph);
         when(actionTopologyStore.getSourceTopology()).thenReturn(Optional.of(realtimeTopology));
 
-        Set<Long> inputOids = ImmutableSet.of(BUSINESS_APP_OID, BUSINESS_TRANS_OID, SERVICE_OID);
+        Set<Long> inputOids = ImmutableSet.of(BUSINESS_APP_OID, BUSINESS_TRANS_OID, SERVICE_OID,
+                NAMESPACE_OID);
         when(supplyChainCalculator.getSupplyChainNodes(any(), any(), any(), any()))
                 .thenReturn(Collections.emptyMap());
         InvolvedEntitiesFilter actualFilter =
@@ -128,7 +134,6 @@ public class InvolvedEntitiesExpanderTest {
             InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS,
             actualFilter.getCalculationType());
 
-        final long ba2Oid = 123111;
         final long networkOid = 77123111177L;
         when(supplyChainCalculator.getSupplyChainNodes(any(), any(), any(), any()))
             .thenReturn(ImmutableMap.of(
@@ -150,13 +155,23 @@ public class InvolvedEntitiesExpanderTest {
                                     .addMemberOids(networkOid)
                                     .buildPartial())
                             .build(),
-                    3, SupplyChainNode.newBuilder()
+                    EntityType.NAMESPACE.getValue(), SupplyChainNode.newBuilder()
+                            .putMembersByState(0, MemberList.newBuilder()
+                                    .addMemberOids(NAMESPACE_OID)
+                                    .addMemberOids(WORKLOAD_CONTROLLER_OID)
+                                    .addMemberOids(CONTAINER_SPEC_OID)
+                                    .addMemberOids(CONTAINER_POD_OID)
+                                    .addMemberOids(CONTAINER_OID)
+                                    .buildPartial())
+                            .build(),
+                    EntityType.SERVICE.getValue(), SupplyChainNode.newBuilder()
                         // empty state map
                         .build()));
 
         actualFilter = involvedEntitiesExpander.expandInvolvedEntitiesFilter(inputOids);
         Assert.assertEquals("Supply chain response should be filtered by entity type.",
-            ImmutableSet.of(BUSINESS_APP_OID, BUSINESS_TRANS_OID, WORKLOAD_CONTROLLER_OID),
+            ImmutableSet.of(BUSINESS_APP_OID, BUSINESS_TRANS_OID, NAMESPACE_OID, CONTAINER_OID,
+                    CONTAINER_POD_OID, CONTAINER_SPEC_OID, WORKLOAD_CONTROLLER_OID),
             actualFilter.getEntities());
 
         verify(supplyChainCalculator, times(2))
