@@ -334,6 +334,8 @@ public class Analysis {
         final boolean isMigrateToCloud = (topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().getPlanType()
                 .equals(StringConstants.CLOUD_MIGRATION_PLAN));
         final boolean isM2AnalysisEnabled = analysisTypeList.contains(AnalysisType.MARKET_ANALYSIS);
+        //SMA is not supported for Migrate to Cloud plan
+        final boolean isSMAEnabled = config.isEnableSMA() && !isMigrateToCloud;
         final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory
                 .newCalculator(topologyInfo, originalCloudTopology);
         // Use the cloud cost data we use for cost calculations for the price table.
@@ -471,7 +473,7 @@ public class Analysis {
                     Map<Trader, List<InfiniteQuoteExplanation>> infiniteQuoteTraderMap = ede
                             .getPlacementResults().getExplanations();
                     unplacedReasonMap = generateUnplacedReason(infiniteQuoteTraderMap, converter);
-                    if (config.isEnableSMA()) {
+                    if (isSMAEnabled) {
                         // Cloud VM OID to a set of provider OIDs: i.e. compute tier OIDs that the VM can fit in.
                         Map<Long, Set<Long>> cloudVmOidToProvidersOIDsMap = new HashMap<>();
                         // Cloud VM OID to traderTO
@@ -566,7 +568,8 @@ public class Analysis {
                             } else {
                                 projectedTraderDTO = results.getProjectedTopoEntityTOList();
                             }
-                            if (config.isSMAOnly()) {
+                            //SMA is not supported for Migrate to Cloud plan
+                            if (config.isSMAOnly() && isSMAEnabled) {
                                 // update projectedTraderTO and generate actions.
                                 smaConverter.updateWithSMAOutput(projectedTraderDTO);
                                 projectedTraderDTO = smaConverter.getProjectedTraderDTOsWithSMA();
@@ -665,26 +668,29 @@ public class Analysis {
                             .setMarket(MarketActionPlanInfo.newBuilder()
                                 .setSourceTopologyInfo(topologyInfo)))
                         .setAnalysisStartTimestamp(startTime.toEpochMilli());
-                List<Action> actions = converter.interpretAllActions(actionsList, projectedEntities,
-                     originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
+                    List<Action> actions = converter.interpretAllActions(actionsList, projectedEntities,
+                         originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
 
-                actions.removeIf(action -> {
-                    try {
-                        return suppressActionsForOids.contains(ActionDTOUtil.getPrimaryEntityId(action));
-                    } catch (UnsupportedActionException e) {
-                        // If it's somehow not recognized, leave the action alone
-                        return false;
-                    }
-                });
+                    actions.removeIf(action -> {
+                        try {
+                            return suppressActionsForOids.contains(ActionDTOUtil.getPrimaryEntityId(action));
+                        } catch (UnsupportedActionException e) {
+                            // If it's somehow not recognized, leave the action alone
+                            return false;
+                        }
+                    });
 
-                actions.forEach(actionPlanBuilder::addAction);
-                if (config.isSMAOnly()) {
-                    actions = converter.interpretAllActions(smaConverter.getSmaActions(), projectedEntities,
-                        originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
-                        actions.forEach(actionPlanBuilder::addAction);
+                    actions.forEach(actionPlanBuilder::addAction);
+                    //SMA is not supported for Migrate to Cloud plan
+                    if (config.isSMAOnly() && isSMAEnabled) {
+                        actions = converter.interpretAllActions(smaConverter.getSmaActions(), projectedEntities,
+                         originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
+                            actions.forEach(actionPlanBuilder::addAction);
                     }
-                    writeActionsToLog(actions, config, originalCloudTopology, projectedCloudTopology,
-                        converter, topologyCostCalculator.getCloudCostData());
+                    if (!isMigrateToCloud) {
+                        writeActionsToLog(actions, config, originalCloudTopology,
+                                projectedCloudTopology, converter, topologyCostCalculator.getCloudCostData());
+                    }
                     // clear the state only after interpretAllActions is called for both M2 and SMA.
                     converter.clearStateNeededForActionInterpretation();
                     // TODO move wasted files action out of main analysis once we have a framework

@@ -3074,7 +3074,7 @@ public class TopologyConverter {
                 createDCCommodityBoughtForCloudEntity(providerOid, entityForSLOid)
                         .ifPresent(values::add);
             }
-            if (marketMode != MarketMode.SMAOnly) {
+            if (marketMode != MarketMode.SMAOnly || isCloudMigration) {
                 // Create Coupon Comm
                 Optional<CommodityBoughtTO> coupon = createCouponCommodityBoughtForCloudEntity(
                         providerOid, entityForSLOid);
@@ -3130,7 +3130,8 @@ public class TopologyConverter {
                         provider.getAnalysisSettings().getControllable()));
         isMovable = isMovable && isControllable;
 
-        final boolean addShoppingListToSMA = MarketMode.isEnableSMA(marketMode)
+        //SMA is not supported for Migrate to Cloud plan
+        final boolean addShoppingListToSMA = MarketMode.isEnableSMA(marketMode) && !isCloudMigration
                 && includeByType(commBoughtGroupingForSL.getProviderEntityType())
                 && commBoughtGroupingForSL.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE;
 
