@@ -173,37 +173,34 @@ public class ActionStateUpdater implements ActionExecutionListener {
 
             failedCloudVMGroupProcessor.handleActionSuccess(action);
             writeSuccessActionToAudit(action);
-            if (action.isFinished()) {
-                // Store the updated action and update the audit log
-                saveToDb(action);
-            } else {
-                logger.debug("Action {} completed state {} successfully and transitioned to state {}.",
-                        action::getId, transitionResult::getBeforeState, action::getState);
-                if (action.hasPendingExecution()) {
-                    continueActionExecution(action);
-                }
-            }
+            processActionState(action, transitionResult, true);
 
             // Multiple SuccessEvents can also be triggered for a single action that has PRE
             // and POST states. If the action does not transition to the succeeded state, then
             // this is a partial completion, which does not indicate that the overall action has
             // completed yet.
-            if (transitionResult.getAfterState() == ActionState.SUCCEEDED) {
+            final ActionState actionStateAfterTransition = transitionResult.getAfterState();
+            if (actionStateAfterTransition == ActionState.SUCCEEDED) {
                 // If the action transitions to the SUCCEEDED state, notify the rest of the system
                 logger.info("Action executed successfully: {}", action);
                 removeAcceptanceForSuccessfullyExecutedAction(action);
-                try {
-                    auditSender.sendActionEvents(Collections.singleton(action));
-                    notificationSender.notifyActionSuccess(actionSuccess);
-                    sendStateUpdateIfNeeded(action, actionSuccess.hasSuccessDescription()
-                            ? actionSuccess.getSuccessDescription()
-                            : action.getRecommendationOid() + " executed successfully", 100);
-                } catch (CommunicationException | InterruptedException e) {
-                    logger.error("Unable to send notification for success of " + actionSuccess, e);
-                }
+                notifySystemAboutSuccessfulActionExecution(actionSuccess, action);
             }
         } else {
             logger.error("Unable to mark success for " + actionSuccess);
+        }
+    }
+
+    private void notifySystemAboutSuccessfulActionExecution(@Nonnull ActionSuccess actionSuccess,
+            @Nonnull Action action) {
+        try {
+            auditSender.sendActionEvents(Collections.singleton(action));
+            notificationSender.notifyActionSuccess(actionSuccess);
+            sendStateUpdateIfNeeded(action,
+                    actionSuccess.hasSuccessDescription() ? actionSuccess.getSuccessDescription()
+                            : action.getRecommendationOid() + " executed successfully", 100);
+        } catch (CommunicationException | InterruptedException e) {
+            logger.error("Unable to send notification for success of " + actionSuccess, e);
         }
     }
 
@@ -292,7 +289,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
                         : action.getId() + " failed execution";
         // Notify the action of the failure, possibly triggering a transition
         // within the action's state machine.
-        action.receive(new FailureEvent(errorDescription));
+        final TransitionResult<ActionState> transitionResult =
+                action.receive(new FailureEvent(errorDescription));
         logger.info("Action execution failed for action: {}", action);
 
         if (action.getMode() == ActionMode.EXTERNAL_APPROVAL) {
@@ -300,20 +298,48 @@ public class ActionStateUpdater implements ActionExecutionListener {
         }
 
         failedCloudVMGroupProcessor.handleActionFailure(action);
-        saveToDb(action);
         writeFailActionToAudit(action, actionFailure);
+        processActionState(action, transitionResult, false);
 
-        // Allow the action to initate a post-execution workflow, if one is defined
-        if (ActionState.POST_IN_PROGRESS == action.getState() && action.hasPendingExecution()) {
-            // There is a POST workflow defined, which needs to be run even after a failure
-            continueActionExecution(action);
+        final ActionState actionStateAfterTransition = transitionResult.getAfterState();
+        // if IN_PROGRESS execution was failed for action then general execution result will
+        // be FAILED for action regardless of results of POST_IN_PROGRESS execution
+        if (actionStateAfterTransition == ActionState.FAILED || actionStateAfterTransition == ActionState.POST_IN_PROGRESS) {
+            notifySystemAboutFailedActionExecution(action, actionFailure, errorDescription);
+        }
+    }
+
+    private void notifySystemAboutFailedActionExecution(@Nonnull Action action,
+            @Nonnull ActionFailure actionFailure, @Nonnull String errorDescription) {
+        try {
+            auditSender.sendActionEvents(Collections.singleton(action));
+            notificationSender.notifyActionFailure(actionFailure);
+            sendStateUpdateIfNeeded(action, errorDescription, 100);
+        } catch (CommunicationException | InterruptedException e) {
+            logger.error("Unable to send notification for failure of " + actionFailure, e);
+        }
+    }
+
+    /**
+     * If action in terminal state then store execution results in DB otherwise continue
+     * execution (i.g. executing POST workflow).
+     *
+     * @param action the action
+     * @param transitionResult the transition results for this action
+     * @param isSuccessful if true then action completed state successfully otherwise
+     * unsuccessfully
+     */
+    private void processActionState(@Nonnull final Action action,
+            @Nonnull final TransitionResult<ActionState> transitionResult, boolean isSuccessful) {
+        if (action.isFinished()) {
+            saveToDb(action);
         } else {
-            try {
-                auditSender.sendActionEvents(Collections.singleton(action));
-                notificationSender.notifyActionFailure(actionFailure);
-                sendStateUpdateIfNeeded(action, errorDescription, 100);
-            } catch (CommunicationException | InterruptedException e) {
-                logger.error("Unable to send notification for failure of " + actionFailure, e);
+            final String stateCompleteResult = isSuccessful ? "successfully" : "failed";
+            logger.debug("Action {} {} completed state {} and transitioned to state {}.",
+                    action::getId, () -> stateCompleteResult, transitionResult::getBeforeState,
+                    action::getState);
+            if (action.hasPendingExecution()) {
+                continueActionExecution(action);
             }
         }
     }

@@ -56,6 +56,7 @@ import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Active;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -246,6 +247,36 @@ public class ActionOrchestratorTestUtils {
                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                         .setValue(mode.toString()).build())
                 .build());
+    }
+
+    /**
+     * Creates action mode with related workflow (i.g. PRE) settings.
+     *
+     * @param actionSettings action mode setting
+     * @param mode action mode value
+     * @param actionSettingType type of related workflow setting
+     * @param workflowId workflow setting value
+     * @return map of settings
+     */
+    public static Map<String, Setting> makeActionModeAndWorkflowSettings(
+            @Nonnull ConfigurableActionSettings actionSettings, @Nonnull ActionMode mode,
+            @Nonnull ActionSettingType actionSettingType, long workflowId) {
+        final ImmutableMap.Builder<String, Setting> settingMap = new ImmutableMap.Builder<>();
+        settingMap.put(actionSettings.name(), Setting.newBuilder()
+                .setSettingSpecName(actionSettings.name())
+                .setEnumSettingValue(
+                        EnumSettingValue.newBuilder().setValue(mode.toString()).build())
+                .build());
+        final String preWorkflowSettingName =
+                ActionSettingSpecs.getSubSettingFromActionModeSetting(actionSettings,
+                        actionSettingType);
+        settingMap.put(preWorkflowSettingName, Setting.newBuilder()
+                .setSettingSpecName(preWorkflowSettingName)
+                .setStringSettingValue(StringSettingValue.newBuilder()
+                        .setValue(String.valueOf(workflowId))
+                        .build())
+                .build());
+        return settingMap.build();
     }
 
     /**
