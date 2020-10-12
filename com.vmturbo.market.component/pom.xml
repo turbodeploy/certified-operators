@@ -149,11 +149,6 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>topology-processor</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
             <artifactId>components-api-test</artifactId>
             <scope>test</scope>
         </dependency>
@@ -168,6 +163,12 @@
         <dependency>
             <groupId>pl.pragmatists</groupId>
             <artifactId>JUnitParams</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.mediation.hybrid.cloud.common</artifactId>
+            <version>${vmturbo.mt.branch.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

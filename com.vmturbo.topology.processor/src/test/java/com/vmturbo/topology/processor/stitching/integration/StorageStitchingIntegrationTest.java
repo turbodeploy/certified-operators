@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.stitching.integration;
 
-import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.matchesEntityIgnoringOrigin;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.sdkDtosFromFile;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -21,21 +20,19 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.junit.Test;
-import org.mockito.Matchers;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
+import org.junit.Test;
+import org.mockito.Matchers;
+
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -45,22 +42,20 @@ import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityFi
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingMetadata;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.stitching.StringsToStringsDataDrivenStitchingOperation;
-import com.vmturbo.stitching.StringsToStringsStitchingMatchingMetaData;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
+import com.vmturbo.stitching.StringsToStringsDataDrivenStitchingOperation;
+import com.vmturbo.stitching.StringsToStringsStitchingMatchingMetaData;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
 import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
-import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingIntegrationTest;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.StitchingTestUtils;
-import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory.ConfigurableStitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.Target;
@@ -75,50 +70,6 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
     private final long vcTargetId = 2222L;
     private final long netAppProbeId = 1234L;
     private final long netAppTargetId = 1235L;
-
-    @Test
-    public void testVcAlone() throws Exception {
-        final Map<Long, EntityDTO> hypervisorEntities =
-                sdkDtosFromFile(getClass(), "protobuf/messages/vcenter_data.json.zip", 1L);
-
-        final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
-                preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore,
-                cpuCapacityStore);
-        final Target netAppTarget = mock(Target.class);
-        final Target vcTarget = mock(Target.class);
-        when(netAppTarget.getId()).thenReturn(netAppTargetId);
-
-        when(targetStore.getProbeTargets(netAppProbeId))
-                .thenReturn(Collections.singletonList(netAppTarget));
-        when(targetStore.getTarget(netAppTargetId))
-            .thenReturn(Optional.of(netAppTarget));
-        when(targetStore.getTarget(vcTargetId))
-            .thenReturn(Optional.of(vcTarget));
-
-        addEntities(hypervisorEntities, vcTargetId);
-
-        setOperationsForProbe(vcProbeId, Collections.emptyList());
-
-        final StitchingContext stitchingContext = entityStore.constructStitchingContext();
-        stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
-        final TopologyGraph<TopologyEntity> topoGraph = TopologyEntityTopologyGraphCreator.newGraph(stitchingContext.constructTopology());
-
-        final TopologyGraph<TopologyEntity> otherGraph = TopologyEntityTopologyGraphCreator.newGraph(entityStore.constructTopology());
-
-        final Map<Long, TopologyEntityDTO> stitchedEntities = topoGraph.entities()
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                .map(TopologyEntityDTO.Builder::build)
-                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-        final Map<Long, TopologyEntityDTO> unstitchedEntities = otherGraph.entities()
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                .map(TopologyEntityDTO.Builder::build)
-                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-
-        stitchedEntities.forEach((oid, stitched) -> {
-            final TopologyEntityDTO unstitched = unstitchedEntities.get(oid);
-            assertThat(stitched, matchesEntityIgnoringOrigin(unstitched));
-        });
-    }
 
     private static Collection<CommodityType> boughtDataFromDiskArrayToStorage =
             ImmutableList.of(CommodityType.STORAGE_AMOUNT,

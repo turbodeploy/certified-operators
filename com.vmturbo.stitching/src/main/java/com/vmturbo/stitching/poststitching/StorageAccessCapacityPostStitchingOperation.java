@@ -64,17 +64,31 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
         |}"
     */
 
+    /**
+     * The name of the iops compute data for disk array.
+     */
+    public static final String DISK_ARRAY_PROP = DiskArrayData.getDefaultInstance().getDescriptorForType()
+            .findFieldByNumber(DiskArrayData.IOPSCOMPUTEDATA_FIELD_NUMBER).getFullName();
+
+    /**
+     * The name of the iops compute data for logical pool.
+     */
+    public static final String LOGICAL_POOL_PROP = DiskArrayData.getDefaultInstance().getDescriptorForType()
+            .findFieldByNumber(LogicalPoolData.IOPSCOMPUTEDATA_FIELD_NUMBER).getFullName();
+
+    /**
+     * The name of the iops compute data for storage controller.
+     */
+    public static final String STORAGE_CONTROLLER_PROP = DiskArrayData.getDefaultInstance().getDescriptorForType()
+            .findFieldByNumber(StorageControllerData.IOPSCOMPUTEDATA_FIELD_NUMBER).getFullName();
+
     // map from entity type to the diskCounts key (which will be used to look up property string
     // value from the entity properties map), for example: for storage controller the key is:
     // "common_dto.EntityDTO.StorageControllerData.diskCounts"
     public static final Map<Integer, String> DISK_COUNTS_KEY_BY_ENTITY_TYPE = ImmutableMap.of(
-            EntityType.DISK_ARRAY_VALUE, DiskArrayData.getDefaultInstance().getDescriptorForType()
-                    .findFieldByNumber(DiskArrayData.IOPSCOMPUTEDATA_FIELD_NUMBER).getFullName(),
-            EntityType.LOGICAL_POOL_VALUE, LogicalPoolData.getDefaultInstance().getDescriptorForType()
-                    .findFieldByNumber(LogicalPoolData.IOPSCOMPUTEDATA_FIELD_NUMBER).getFullName(),
-            EntityType.STORAGE_CONTROLLER_VALUE, StorageControllerData.getDefaultInstance().getDescriptorForType()
-                    .findFieldByNumber(StorageControllerData.IOPSCOMPUTEDATA_FIELD_NUMBER).getFullName()
-    );
+            EntityType.DISK_ARRAY_VALUE, DISK_ARRAY_PROP,
+            EntityType.LOGICAL_POOL_VALUE, LOGICAL_POOL_PROP,
+            EntityType.STORAGE_CONTROLLER_VALUE, STORAGE_CONTROLLER_PROP);
 
     private Predicate<CommoditySoldDTOOrBuilder> IS_STORAGE_ACCESS = commodity ->
         commodity.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE;

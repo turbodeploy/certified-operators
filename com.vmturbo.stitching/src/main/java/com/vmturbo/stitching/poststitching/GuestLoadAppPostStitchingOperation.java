@@ -39,8 +39,10 @@ public class GuestLoadAppPostStitchingOperation implements PostStitchingOperatio
 
     private static final Logger logger = LogManager.getLogger();
 
-    @VisibleForTesting
-    static final String APPLICATION_TYPE_PATH = "common_dto.EntityDTO.ApplicationData.type";
+    /**
+     * Key for the entity property map where we expect the application type to be.
+     */
+    public static final String APPLICATION_TYPE_PATH = "common_dto.EntityDTO.ApplicationData.type";
 
     @Nonnull
     @Override

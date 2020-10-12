@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.conversions.typespecific;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -35,6 +37,8 @@ import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
 
     private static final Logger logger = LogManager.getLogger();
+
+    private static final Map<String, OS> OS_BY_NAME = Collections.synchronizedMap(new HashMap<>());
 
     @Override
     public TypeSpecificInfo mapEntityDtoToTypeSpecificInfo(@Nonnull final EntityDTOOrBuilder sdkEntity,
@@ -143,19 +147,24 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
     }
 
     @Nonnull
-    protected static OS.Builder parseGuestName(@Nonnull final String guestName) {
-        final OsDetails osDetails = OsDetailParser.parseOsDetails(guestName);
-        final String osType = osDetails.getOsType().toString();
-        final String osName = osDetails.getOsName();
-        final OS.Builder os = OS.newBuilder();
-        try {
-            return os.setGuestOsType(OSType.valueOf(osType)).setGuestOsName(osName);
-        } catch (IllegalArgumentException e) {
-            // for On-prem OS type, we pass the OS name with UNKNOWN Cloud type
-            return os.setGuestOsType(OSType.UNKNOWN_OS).setGuestOsName(
+    protected static OS parseGuestName(@Nonnull final String guestName) {
+        return OS_BY_NAME.computeIfAbsent(guestName, k -> {
+            final OsDetails osDetails = OsDetailParser.parseOsDetails(guestName);
+            final String osType = osDetails.getOsType().toString();
+            final String osName = osDetails.getOsName();
+            final OS.Builder os = OS.newBuilder();
+            try {
+                return os.setGuestOsType(OSType.valueOf(osType))
+                        .setGuestOsName(osName)
+                        .build();
+            } catch (IllegalArgumentException e) {
+                // for On-prem OS type, we pass the OS name with UNKNOWN Cloud type
+                return os.setGuestOsType(OSType.UNKNOWN_OS)
                     // it's possible that probe doesn't return guestName which is empty string by
                     // default, we should set it to Unknown so it's searchable from UI
-                    guestName.isEmpty() ? StringConstants.UNKNOWN : guestName);
-        }
+                    .setGuestOsName(guestName.isEmpty() ? StringConstants.UNKNOWN : guestName)
+                    .build();
+            }
+        });
     }
 }

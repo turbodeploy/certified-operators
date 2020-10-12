@@ -1,9 +1,7 @@
 package com.vmturbo.topology.processor.conversions;
 
-import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.loadEntityDTO;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
@@ -17,33 +15,23 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.tag.Tag;
-import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.RangeTuple;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ApplicationData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
@@ -53,8 +41,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ProviderPolicy;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.TagValues;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.topology.processor.stitching.ResoldCommodityCache;
@@ -66,13 +52,7 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
  */
 public class SdkToTopologyEntityConverterTest {
 
-    private static final long PM_POWEREDON_OID = 102L;
-    private static final long PM_MAINTENANCE_OID = 103L;
-    private static final long PM_FAILOVER_OID = 104L;
     private static final long VM_OID = 100L;
-    private static final long DS_OID = 205L;
-    private static final long POD_OID = 105L;
-    private static final long APPLICATION_OID = 305L;
 
     private static final double DELTA = 1e-8;
 
@@ -87,244 +67,20 @@ public class SdkToTopologyEntityConverterTest {
             Mockito.anyInt(), Mockito.anyInt())).thenReturn(Optional.empty());
     }
 
-    /**
-     * Convert entities test.
-     *
-     * @throws IOException
-     *      reading from file exception
-     */
-    @Test
-    public void testConverter() throws IOException {
-        CommonDTO.EntityDTO vmProbeDTO = loadEntityDTO("vm-1.dto.json");
-        CommonDTO.EntityDTO pmPoweredonProbeDTO = loadEntityDTO("pm-1.dto.json");
-        CommonDTO.EntityDTO pmMaintenanceProbeDTO = loadEntityDTO("pm-2-maintenance.dto.json");
-        CommonDTO.EntityDTO pmFailoverProbeDTO = loadEntityDTO("pm-3-failover.dto.json");
-        CommonDTO.EntityDTO dsProbeDTO = loadEntityDTO("ds-1.dto.json");
-        Map<Long, CommonDTO.EntityDTO> probeDTOs = Maps.newLinkedHashMap(); // preserve the order
-        // The entities are placed in the map so that there are forward references (from the VM to the other two)
-        probeDTOs.put(VM_OID, vmProbeDTO);
-        probeDTOs.put(PM_POWEREDON_OID, pmPoweredonProbeDTO);
-        probeDTOs.put(PM_MAINTENANCE_OID, pmMaintenanceProbeDTO);
-        probeDTOs.put(PM_FAILOVER_OID, pmFailoverProbeDTO);
-        probeDTOs.put(DS_OID, dsProbeDTO);
-        final List<TopologyEntityDTO> topologyDTOs =
-                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(probeDTOs).stream()
-                        .map(TopologyEntityDTO.Builder::build)
-                        .collect(Collectors.toList());
-        assertEquals(5, topologyDTOs.size());
-        // OIDs match
-        TopologyEntityDTO vmTopologyDTO = findEntity(topologyDTOs, VM_OID);
-        assertEquals(vmProbeDTO.getDisplayName(), vmTopologyDTO.getDisplayName());
-        assertEquals(3, vmTopologyDTO.getCommoditySoldListCount()); // 2xVCPU, 1xVMem
-        assertEquals(2, vmTopologyDTO.getCommoditiesBoughtFromProvidersCount()); // buying from two providers
-
-        assertFalse(vmTopologyDTO.getAnalysisSettings().hasSuspendable());
-        assertFalse(vmTopologyDTO.getAnalysisSettings().hasCloneable());
-
-        for (CommoditiesBoughtFromProvider bought : vmTopologyDTO.getCommoditiesBoughtFromProvidersList()) {
-            assertFalse(bought.hasMovable());
-        }
-
-        // check that vcpu P2 sold has the effective capacity limited
-        Optional<CommoditySoldDTO> P2VCPUCommoditySold = vmTopologyDTO.getCommoditySoldListList().stream()
-                .filter(commoditySoldDTO -> "P2".equals(commoditySoldDTO.getCommodityType().getKey()))
-                .findFirst();
-        assertTrue(P2VCPUCommoditySold.isPresent());
-        // vcpu p2 effective capacity % should be 50%
-        assertEquals(50.0, P2VCPUCommoditySold.get().getEffectiveCapacityPercentage(), DELTA);
-
-        // check tags of the VM
-        final Map<String, TagValuesDTO> vmTags = vmTopologyDTO.getTags().getTagsMap();
-        assertEquals(3, vmTags.size());
-        final List<String> valuesForKey1 = vmTags.get("key1").getValuesList();
-        final List<String> valuesForKey2 = vmTags.get("key2").getValuesList();
-        final List<String> valuesForKey3 = vmTags.get("key3").getValuesList();
-        assertEquals(4, valuesForKey1.size());
-        for (int i = 1; i <= 4; i++) {
-            assertTrue(valuesForKey1.contains("value" + i));
-        }
-        assertEquals(1, valuesForKey2.size());
-        assertEquals("value3", valuesForKey2.get(0));
-        assertEquals(1, valuesForKey3.size());
-        assertEquals("value5", valuesForKey3.get(0));
-
-        CommoditiesBoughtFromProvider vmCommBoughtGrouping = vmTopologyDTO.getCommoditiesBoughtFromProvidersList().stream()
-            .filter(commodityBoughtGrouping -> commodityBoughtGrouping.getProviderId() == PM_POWEREDON_OID)
-            .findFirst()
-            .get();
-
-        assertNotNull(vmCommBoughtGrouping);
-        assertEquals(3, vmCommBoughtGrouping.getCommodityBoughtCount()); // Mem, CPU, Ballooning
-        assertTrue(isActive(vmCommBoughtGrouping.getCommodityBoughtList(), CommodityType.CPU_VALUE));
-        assertFalse(isActive(vmCommBoughtGrouping.getCommodityBoughtList(), CommodityType.BALLOONING_VALUE));
-        TypeSpecificInfo typeSpecificInfo = vmTopologyDTO.getTypeSpecificInfo();
-        assertNotNull(typeSpecificInfo);
-        assertTrue(typeSpecificInfo.hasVirtualMachine());
-        VirtualMachineInfo vmInfo = typeSpecificInfo.getVirtualMachine();
-        assertNotNull(vmInfo);
-        assertEquals(Tenancy.DEFAULT, vmInfo.getTenancy());
-        assertEquals(OSType.LINUX, vmInfo.getGuestOsInfo().getGuestOsType());
-        assertEquals(OSType.LINUX.name(), vmInfo.getGuestOsInfo().getGuestOsName());
-        List<IpAddress> ipAddress = vmInfo.getIpAddressesList();
-        assertEquals(1, ipAddress.size());
-        assertEquals("10.0.1.15", ipAddress.get(0).getIpAddress());
-        assertFalse(ipAddress.get(0).getIsElastic());
-
-        // check powered on pm
-        TopologyEntityDTO pmPoweredOnTopologyDTO = findEntity(topologyDTOs, PM_POWEREDON_OID);
-        assertTrue(isActive(pmPoweredOnTopologyDTO, CommodityType.CPU_VALUE));
-        assertFalse(isActive(pmPoweredOnTopologyDTO, CommodityType.BALLOONING_VALUE));
-        assertTrue(pmPoweredOnTopologyDTO.getEntityState() == EntityState.POWERED_ON);
-
-        // check maintenance pm
-        TopologyEntityDTO pmMaintenanceTopologyDTO = findEntity(topologyDTOs, PM_MAINTENANCE_OID);
-        assertTrue(pmMaintenanceTopologyDTO.getEntityState() == EntityState.MAINTENANCE);
-
-        // check failover pm
-        TopologyEntityDTO pmFailoverTopologyDTO = findEntity(topologyDTOs, PM_FAILOVER_OID);
-        assertTrue(pmFailoverTopologyDTO.getEntityState() == EntityState.FAILOVER);
-
-        TopologyEntityDTO stTopologyDTO = findEntity(topologyDTOs, DS_OID);
-        // check for storageTier ratio constraint
-        stTopologyDTO.getCommoditySoldListList().forEach(c -> {
-            if (c.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE) {
-                assertEquals(10000, c.getMaxAmountForConsumer(), DELTA);
-                assertEquals(100, c.getMinAmountForConsumer(), DELTA);
-                assertEquals(3, c.getRatioDependency().getMaxRatio(), DELTA);
-            }
-        });
-        // check for storageTier storageAmount checkMin true constraint
-        stTopologyDTO.getCommoditySoldListList().forEach(c -> {
-            if (c.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT_VALUE) {
-                assertEquals(1024, c.getMaxAmountForConsumer(), DELTA);
-                assertEquals(1, c.getMinAmountForConsumer(), DELTA);
-                assertTrue(c.getCheckMinAmountForConsumer());
-            }
-        });
-        // check for storageTier ranged capacity constraint
-        stTopologyDTO.getCommoditySoldListList().forEach(c -> {
-            if (c.getCommodityType().getType() == CommodityType.IO_THROUGHPUT_VALUE) {
-                CommodityDTO.RangeDependency rangeDependency = c.getRangeDependency();
-                assertEquals(2, rangeDependency.getRangeTupleCount());
-                RangeTuple amount1 = rangeDependency.getRangeTuple(0);
-                assertEquals(170, amount1.getBaseMaxAmountForConsumer(), DELTA);
-                assertEquals(128, amount1.getDependentMaxAmountForConsumer(), DELTA);
-                RangeTuple amount2 = rangeDependency.getRangeTuple(1);
-                assertEquals(16384, amount2.getBaseMaxAmountForConsumer(), DELTA);
-                assertEquals(250, amount2.getDependentMaxAmountForConsumer(), DELTA);
-            }
-        });
-    }
-
-    private TopologyEntityDTO findEntity(List<TopologyEntityDTO> dtos, long oid) {
-        return dtos.stream().filter(entity -> entity.getOid() == oid).findFirst().get();
-    }
-
-    private boolean isActive(List<CommodityBoughtDTO> list, int commodityType) {
-        return list.stream()
-            .filter(comm -> comm.getCommodityType().getType() == commodityType)
-            .findFirst().get()
-            .getActive();
-    }
-
-    private boolean isActive(TopologyEntityDTO dto, int commSoldType) {
-        return dto.getCommoditySoldListList().stream()
-                        .filter(comm -> comm.getCommodityType().getType() == commSoldType)
-                        .findFirst().get()
-                        .getActive();
-    }
-
-    private static final long VDC_OID = 100L;
-
-    @Test
-    public void testVDC() throws IOException {
-        CommonDTO.EntityDTO vdcProbeDTO = loadEntityDTO("vdc-1.dto.json");
-        Map<Long, CommonDTO.EntityDTO> probeDTOs = Maps.newLinkedHashMap(); // preserve the order
-        probeDTOs.put(VDC_OID, vdcProbeDTO);
-        final List<TopologyEntityDTO> topologyDTOs =
-                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(probeDTOs).stream()
-                        .map(TopologyEntityDTO.Builder::build)
-                        .collect(Collectors.toList());
-        assertEquals(1, topologyDTOs.size());
-        TopologyEntityDTO vdcTopologyDTO = topologyDTOs.get(0);
-        assertEquals(EntityType.VIRTUAL_DATACENTER_VALUE, vdcTopologyDTO.getEntityType());
-        assertEquals(CommodityType.MEM_ALLOCATION_VALUE,
-                vdcTopologyDTO.getCommoditySoldList(0).getCommodityType().getType());
-        // property map contains related field entries
-        Map<String, String> vdcPropertiesMap = vdcTopologyDTO.getEntityPropertyMap();
-        // Probe DTO properties map copied to topology DTO properties map
-        for (EntityProperty property : vdcProbeDTO.getEntityPropertiesList()) {
-            assertEquals(vdcPropertiesMap.get(property.getName()), property.getValue());
-        }
-        // In case someone changes the test file
-        assertEquals("A Value", vdcPropertiesMap.get("A Key"));
-        assertFalse(vdcTopologyDTO.getAnalysisSettings().getIsAvailableAsProvider());
-        assertTrue(vdcTopologyDTO.getAnalysisSettings().getShopTogether());
-    }
-
     @Test
     public void testDuplicateEntityPropertiesDoesNotThrowException() {
-        final EntityDTO entityDTO = EntityBuilders.virtualMachine("foo")
+        final EntityDTO.Builder entityDTO = EntityBuilders.virtualMachine("foo")
             .property(EntityBuilders.entityProperty().named("duplicateProperty").withValue("value"))
             .property(EntityBuilders.entityProperty().named("duplicateProperty").withValue("value"))
-            .build();
+            .build().toBuilder();
 
-        final Map<Long, EntityDTO> probeDTOs = ImmutableMap.of(VM_OID, entityDTO);
+        TopologyStitchingEntity e = new TopologyStitchingEntity(entityDTO, 1L, TARGET_OID, 1L);
         // This should generate warning messages in the log about duplicate properties.
-        SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(probeDTOs);
+        SdkToTopologyEntityConverter.newTopologyEntityDTO(e, resoldCommodityCache);
     }
 
-    /**
-     * Load a small topology with one of each: VM, PM, Storage, Datacenter and verify that the
-     * accesses property is set properly when needed and not set when not needed.
-     * @throws IOException if the test file can't be loaded properly
-     */
-    @Test
-    public void testAccesses() throws IOException {
-        CommonDTO.EntityDTO vm = loadEntityDTO("accesses-vm.json");
-        CommonDTO.EntityDTO pm = loadEntityDTO("accesses-pm.json");
-        CommonDTO.EntityDTO dc = loadEntityDTO("accesses-dc.json");
-        CommonDTO.EntityDTO st = loadEntityDTO("accesses-st.json");
-        Map<Long, CommonDTO.EntityDTO> probeDTOs = Maps.newHashMap();
-        long VM_ID = 10;
-        long PM_ID = 20;
-        long DC_ID = 30;
-        long ST_ID = 40;
-        probeDTOs.put(VM_ID, vm);
-        probeDTOs.put(PM_ID, pm);
-        probeDTOs.put(DC_ID, dc);
-        probeDTOs.put(ST_ID, st);
-        final List<TopologyEntityDTO> topologyDTOs =
-                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(probeDTOs).stream()
-                        .map(TopologyEntityDTO.Builder::build)
-                        .collect(Collectors.toList());
+    private static final long TARGET_OID = 99888;
 
-        // Assert that for all commodities sold that are not DSPM_ACCESS or DATASTORE
-        // the accesses property is not set
-        List<CommoditySoldDTO> commsSold = topologyDTOs.stream()
-                        .map(TopologyEntityDTO::getCommoditySoldListList)
-                        .flatMap(List::stream)
-                        .filter(SdkToTopologyEntityConverterTest::isNotAccessCommodity)
-                        .filter(CommoditySoldDTO::hasAccesses)
-                        .collect(Collectors.toList());
-        assertTrue(commsSold.isEmpty());
-
-        // This is the accesses property of the DATASTORE commodity that the PM sells
-        long pmAccesses = topologyDTOs.stream().filter(dto -> dto.getOid() == PM_ID).findFirst().get()
-                        .getCommoditySoldListList().stream()
-                        .filter(SdkToTopologyEntityConverterTest::isAccessCommodity)
-                        .findFirst().get()
-                        .getAccesses();
-        assertEquals(ST_ID, pmAccesses);
-
-        // This is the accesses property of the DSPM_ACCESS commodity that the ST sells
-        long stAccesses = topologyDTOs.stream().filter(dto -> dto.getOid() == ST_ID).findFirst().get()
-                        .getCommoditySoldListList().stream()
-                        .filter(SdkToTopologyEntityConverterTest::isAccessCommodity)
-                        .findFirst().get()
-                        .getAccesses();
-        assertEquals(PM_ID, stAccesses);
-    }
 
     @Test
     public void testDiscoveredEntitySuspendability() {
@@ -836,85 +592,6 @@ public class SdkToTopologyEntityConverterTest {
         return type == CommodityType.DSPM_ACCESS_VALUE || type == CommodityType.DATASTORE_VALUE;
     }
 
-    private static boolean isNotAccessCommodity(CommoditySoldDTO comm) {
-        return !isAccessCommodity(comm);
-    }
-
-    /**
-     * Test that the action eligibility settings from the SDK DTO
-     * are transferred to the TopologyEntity DTO.
-     * @throws IOException
-     *      reading from file exception
-     */
-    @Test
-    public void testNodeAndPodWithActionEligibility() throws IOException {
-        // VM DTO containing suspendable = false
-        CommonDTO.EntityDTO vmProbeDTO = loadEntityDTO("kube-master-node-1.dto.json");
-        // Pod DTO containing suspendable = false, cloneable = false, movable across providers = false
-        CommonDTO.EntityDTO podProbeDTO = loadEntityDTO("kube-daemon-pod-1.dto.json");
-
-        Map<Long, CommonDTO.EntityDTO> probeDTOs = Maps.newLinkedHashMap(); // preserve the order
-        // The entities are placed in the map so that there are forward references (from the VM to the other two)
-        probeDTOs.put(VM_OID, vmProbeDTO);
-        probeDTOs.put(POD_OID, podProbeDTO);
-        final List<TopologyEntityDTO> topologyDTOs =
-                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(probeDTOs).stream()
-                        .map(TopologyEntityDTO.Builder::build)
-                        .collect(Collectors.toList());
-
-        // VM
-        TopologyEntityDTO vmTopologyDTO = findEntity(topologyDTOs, VM_OID);
-        // has suspendable setting and is disabled
-        assertTrue(vmTopologyDTO.getAnalysisSettings().hasSuspendable());
-        assertFalse(vmTopologyDTO.getAnalysisSettings().getSuspendable());
-
-        // Pod
-        TopologyEntityDTO podTopologyDTO = findEntity(topologyDTOs, POD_OID);
-        // has suspendable setting and is disabled
-        assertTrue(podTopologyDTO.getAnalysisSettings().hasSuspendable());
-        assertFalse(podTopologyDTO.getAnalysisSettings().getSuspendable());
-        // has cloneable setting and is disabled
-        assertTrue(podTopologyDTO.getAnalysisSettings().hasCloneable());
-        assertFalse(podTopologyDTO.getAnalysisSettings().getCloneable());
-
-        // has movable setting for each provider and is disabled
-          for (CommoditiesBoughtFromProvider bought : podTopologyDTO.getCommoditiesBoughtFromProvidersList()) {
-              if (bought.getProviderEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                  assertTrue(bought.hasMovable());
-                  assertFalse(bought.getMovable());
-              }
-              if (bought.getProviderEntityType() == EntityType.VIRTUAL_DATACENTER_VALUE) {
-                  assertTrue(bought.hasMovable());
-                  assertFalse(bought.getMovable());
-              }
-          }
-    }
-
-    /**
-     * Test when application DTO does not provided action eligibility, the suspendable flag should
-     * be respected to the definition of `checkAppSuspendability`.
-     * @throws IOException
-     *      reading from file exception
-     */
-    @Test
-    public void testApplicationSuspendWithoutActionEligibility() throws IOException {
-        // Application DTO containing no info
-        CommonDTO.EntityDTO applicationProbeDTO = loadEntityDTO("aws_engineering_entity_application.dto.json");
-
-        Map<Long, CommonDTO.EntityDTO> probeDTOs = Maps.newLinkedHashMap();
-        probeDTOs.put(APPLICATION_OID, applicationProbeDTO);
-        final List<TopologyEntityDTO> topologyDTOs =
-            SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(probeDTOs).stream()
-                .map(TopologyEntityDTO.Builder::build)
-                .collect(Collectors.toList());
-
-        // APPICATION
-        TopologyEntityDTO applicationTopologyDTO = findEntity(topologyDTOs, APPLICATION_OID);
-        // has suspendable setting and is disabled
-        assertTrue(applicationTopologyDTO.getAnalysisSettings().hasSuspendable());
-        assertFalse(applicationTopologyDTO.getAnalysisSettings().getSuspendable());
-    }
-
     /**
      * Test that GuestLoad Applications are flagged as daemons.
      */
@@ -928,8 +605,9 @@ public class SdkToTopologyEntityConverterTest {
             .setEntityType(EntityType.APPLICATION_COMPONENT)
             .setApplicationData(ApplicationData.newBuilder().setType("GuestLoad"))
             .setId("id");
+        TopologyStitchingEntity topologyStitchingEntity = new TopologyStitchingEntity(builder, 1L, TARGET_OID, 1L);
         TopologyDTO.TopologyEntityDTO.Builder topologyEntityDTO =
-            SdkToTopologyEntityConverter.newTopologyEntityDTO(builder, 1L, new HashMap<>());
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(topologyStitchingEntity, resoldCommodityCache);
 
         assertTrue(topologyEntityDTO.hasAnalysisSettings());
         assertTrue(topologyEntityDTO.getAnalysisSettings().hasDaemon());
@@ -938,7 +616,7 @@ public class SdkToTopologyEntityConverterTest {
         // No longer a GuestLoad
         builder.clearApplicationData();
         topologyEntityDTO =
-            SdkToTopologyEntityConverter.newTopologyEntityDTO(builder, 1L, new HashMap<>());
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(topologyStitchingEntity, resoldCommodityCache);
         assertTrue(topologyEntityDTO.hasAnalysisSettings());
         assertFalse(topologyEntityDTO.getAnalysisSettings().hasDaemon());
         assertFalse(topologyEntityDTO.getAnalysisSettings().getDaemon());
@@ -948,7 +626,7 @@ public class SdkToTopologyEntityConverterTest {
             .setDaemon(false)
             .build());
         topologyEntityDTO =
-            SdkToTopologyEntityConverter.newTopologyEntityDTO(builder, 1L, new HashMap<>());
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(topologyStitchingEntity, resoldCommodityCache);
         assertTrue(topologyEntityDTO.hasAnalysisSettings());
         assertTrue(topologyEntityDTO.getAnalysisSettings().hasDaemon());
         assertFalse(topologyEntityDTO.getAnalysisSettings().getDaemon());
@@ -961,7 +639,7 @@ public class SdkToTopologyEntityConverterTest {
             .setDaemon(true)
             .build());
         topologyEntityDTO =
-            SdkToTopologyEntityConverter.newTopologyEntityDTO(builder, 1L, new HashMap<>());
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(topologyStitchingEntity, resoldCommodityCache);
         assertTrue(topologyEntityDTO.hasAnalysisSettings());
         assertTrue(topologyEntityDTO.getAnalysisSettings().hasDaemon());
         assertTrue(topologyEntityDTO.getAnalysisSettings().getDaemon());

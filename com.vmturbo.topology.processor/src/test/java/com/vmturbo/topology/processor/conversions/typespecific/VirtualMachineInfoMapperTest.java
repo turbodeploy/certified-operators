@@ -127,16 +127,16 @@ public class VirtualMachineInfoMapperTest {
      */
     @Test
     public void testParseGuestName() {
-        final Builder unknown = VirtualMachineInfoMapper.parseGuestName("ABCD");
+        final OS unknown = VirtualMachineInfoMapper.parseGuestName("ABCD");
         assertEquals(OSType.UNKNOWN_OS, unknown.getGuestOsType());
-        final Builder linuxSqlEnterprise = VirtualMachineInfoMapper
+        final OS linuxSqlEnterprise = VirtualMachineInfoMapper
                 .parseGuestName("LINuX_WitH_SQL_ENTErpriSE");
         assertEquals(OSType.LINUX_WITH_SQL_ENTERPRISE, linuxSqlEnterprise.getGuestOsType());
-        final Builder windowsByol = VirtualMachineInfoMapper.parseGuestName("WINDOWS_BYOL");
+        final OS windowsByol = VirtualMachineInfoMapper.parseGuestName("WINDOWS_BYOL");
         assertEquals(OSType.WINDOWS_BYOL, windowsByol.getGuestOsType());
-        final Builder linuxOS = VirtualMachineInfoMapper.parseGuestName("LINUX");
+        final OS linuxOS = VirtualMachineInfoMapper.parseGuestName("LINUX");
         assertEquals(OSType.LINUX, linuxOS.getGuestOsType());
-        final Builder emptyOS = VirtualMachineInfoMapper.parseGuestName("");
+        final OS emptyOS = VirtualMachineInfoMapper.parseGuestName("");
         assertEquals(OSType.UNKNOWN_OS, emptyOS.getGuestOsType());
         assertEquals(StringConstants.UNKNOWN, emptyOS.getGuestOsName());
     }

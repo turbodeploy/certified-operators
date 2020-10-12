@@ -9,12 +9,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 
 /**
  * Represents an entity that exists in the topology. The information for the
@@ -125,33 +124,6 @@ public class Entity {
         return "Entity OID: " + id + "\n" + perTargetInfo.entrySet().stream()
             .map(entry -> "Target " + entry.getKey() + ": " + entry.getValue())
             .collect(Collectors.joining("\n"));
-    }
-
-    /**
-     * Create the {@link TopologyEntityDTO} representing this entity across all targets that discovered it.
-     *
-     * @param entityStore The {@link EntityStore} all entities are stored in.
-     * @return The {@link TopologyEntityDTO} representing this entity, or an empty optional if this entity
-     *         doesn't exist in the current topology.
-     *
-     *  This method is obsolete after stitching was addedd. Remove this.
-     */
-    @Nonnull
-    public Optional<TopologyEntityDTO.Builder> constructTopologyDTO(
-            @Nonnull final EntityStore entityStore) {
-        if (perTargetInfo.isEmpty()) {
-            return Optional.empty();
-        }
-        // TODO (roman, Aug 2016): Combine information from multiple EntityDTOs
-        // For now just pick the first target, and use that EntityDTO for conversion.
-        final Entry<Long, PerTargetInfo> targetAndEntityDTO =
-                perTargetInfo.entrySet().iterator().next();
-
-        return entityStore.getTargetEntityIdMap(targetAndEntityDTO.getKey())
-            .map(entityIdMap -> SdkToTopologyEntityConverter.newTopologyEntityDTO(
-                    targetAndEntityDTO.getValue().entityInfo,
-                    id,
-                    entityIdMap));
     }
 
     /**

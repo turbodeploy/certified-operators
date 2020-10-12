@@ -295,29 +295,6 @@ public class EntityStore {
     }
 
     /**
-     * Constructs the topology based on the entities currently in
-     * the repository.
-     *
-     * @return A map of oid -> {@link TopologyEntityDTO}s representing the entities
-     *  in the topology.
-     */
-    @Nonnull
-    public Map<Long, TopologyEntity.Builder> constructTopology() {
-        // TODO (roman, July 2016): Investigate the performance
-        // effects of doing this synchronously as discovery results come
-        // in. Right now assuming the simplicity of implementation makes
-        // the intermittent performance hit acceptable.
-        synchronized (topologyUpdateLock) {
-            return entityMap.values().stream()
-                    .map(entity -> entity.constructTopologyDTO(this))
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .collect(Collectors.toMap(TopologyEntityDTO.Builder::getOid,
-                        TopologyEntity::newBuilder));
-        }
-    }
-
-    /**
      * Construct a graph suitable for stitching composed of a forest of disconnected graphs consisting
      * of the entities discovered by each individual target. See {@link TopologyStitchingGraph} for
      * further details.

@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.api;
 
+import static org.mockito.Mockito.mock;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -42,7 +44,6 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -67,6 +68,8 @@ import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
 import com.vmturbo.topology.processor.probes.AccountValueAdaptor;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.stitching.ResoldCommodityCache;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
@@ -111,7 +114,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         entityStore = integrationTestServer.getBean(EntityStore.class);
         identityProviderSpy = integrationTestServer.getBean(IdentityProvider.class);
         repositoryClientFake = integrationTestServer.getBean(FakeRepositoryClient.class);
-        groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
+        groupScopeResolver = mock(GroupScopeResolver.class);
         Mockito.when(groupScopeResolver.processGroupScope(Matchers.any(), Matchers.any(), Matchers.any()))
                 .then(AdditionalAnswers.returnsSecondArg());
     }
@@ -213,7 +216,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
     public void testAddTarget() throws Exception {
         final long probeId = createProbe();
         final AccountValue original = new InputField(FIELD_NAME, "fieldValue", Optional.empty());
-        final TargetData data = Mockito.mock(TargetData.class);
+        final TargetData data = mock(TargetData.class);
         Mockito.when(data.getAccountData()).thenReturn(Collections.singleton(original));
         final long targetId = getTopologyProcessor().addTarget(probeId, data);
         final Optional<Target> target = targetStore.getTarget(targetId);
@@ -232,7 +235,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         final long probeId = createProbe();
         final AccountValue field1 = new InputField(FIELD_NAME + 1, "fieldValue", Optional.empty());
         final AccountValue field2 = new InputField(FIELD_NAME + 2, "fieldValue", Optional.empty());
-        final TargetData data = Mockito.mock(TargetData.class);
+        final TargetData data = mock(TargetData.class);
         Mockito.when(data.getAccountData())
                         .thenReturn(new HashSet<>(Arrays.asList(field1, field2)));
         expectedException.expect(TopologyProcessorException.class);
@@ -317,7 +320,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         final long probeId = createProbe();
         final long targetId = createTarget(probeId, "1");
         Assert.assertTrue(targetStore.getTarget(targetId).isPresent());
-        final TargetData targetData = Mockito.mock(TargetData.class);
+        final TargetData targetData = mock(TargetData.class);
         final InputField field = new InputField(FIELD_NAME, "2", Optional.empty());
         Mockito.when(targetData.getAccountData()).thenReturn(Collections.singleton(field));
 
@@ -335,7 +338,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
      */
     @Test
     public void testUpdateNonExistingTarget() throws Exception {
-        final TargetData targetData = Mockito.mock(TargetData.class);
+        final TargetData targetData = mock(TargetData.class);
         final InputField field = new InputField(FIELD_NAME, "2", Optional.empty());
         Mockito.when(targetData.getAccountData()).thenReturn(Collections.singleton(field));
 
@@ -525,7 +528,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
                     .build())
                 .build();
 
-        final ActionExecutionListener listener = Mockito.mock(ActionExecutionListener.class);
+        final ActionExecutionListener listener = mock(ActionExecutionListener.class);
         getTopologyProcessor().addActionListener(listener);
 
         // No exceptions - successfully started!
@@ -553,7 +556,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
                 integrationTestServer.getBean(FakeRemoteMediation.class);
         final ActionMessageHandler messageHandler = remoteMediation.getActionMessageHandler();
 
-        final ActionExecutionListener listener = Mockito.mock(ActionExecutionListener.class);
+        final ActionExecutionListener listener = mock(ActionExecutionListener.class);
         getTopologyProcessor().addActionListener(listener);
 
         messageHandler.onReceive(MediationClientMessage.newBuilder()
@@ -584,7 +587,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
                 integrationTestServer.getBean(FakeRemoteMediation.class);
         final ActionMessageHandler messageHandler = remoteMediation.getActionMessageHandler();
 
-        final ActionExecutionListener listener = Mockito.mock(ActionExecutionListener.class);
+        final ActionExecutionListener listener = mock(ActionExecutionListener.class);
         getTopologyProcessor().addActionListener(listener);
 
         messageHandler.onReceive(MediationClientMessage.newBuilder()
@@ -658,6 +661,8 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
                 probeInfo.getAccountDefinitions().get(1).getDependencyField());
     }
 
+    private ResoldCommodityCache resoldCommodityCache = mock(ResoldCommodityCache.class);
+
     // Add entities to the appropriate data stores so that they will be found when tests access them.
     private void addEntities(final long probeId,
                              final long targetId,
@@ -670,14 +675,16 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         // Add the entities to the entity store, which houses the raw discovered entity data
         entityStore.entitiesDiscovered(probeId, targetId, 0, DiscoveryType.FULL,
             new ArrayList<>(entities.values()));
+
         // Also update the repository client mock to respond appropriately when queried about these
         // entities. This simulates these entities also being found in the repository (where
         // stitched data is found).
-        List<TopologyEntityDTO> convertedEntities =
-                SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(entities)
-                        .stream()
-                        .map(Builder::build)
-                        .collect(Collectors.toList());
+        List<TopologyEntityDTO> convertedEntities = entities.entrySet().stream()
+                .map(entry -> {
+                    TopologyStitchingEntity se = new TopologyStitchingEntity(entry.getValue().toBuilder(), entry.getKey(), targetId, 1L);
+                    return SdkToTopologyEntityConverter.newTopologyEntityDTO(se, resoldCommodityCache).build();
+                })
+                .collect(Collectors.toList());
         repositoryClientFake.addEntities(convertedEntities);
     }
 

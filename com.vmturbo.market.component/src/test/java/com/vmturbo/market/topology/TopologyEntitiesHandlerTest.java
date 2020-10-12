@@ -30,13 +30,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
@@ -106,11 +104,9 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 
 /**
  * Unit tests for {@link TopologyEntitiesHandler}.
@@ -412,14 +408,10 @@ public class TopologyEntitiesHandlerTest {
      */
     @Test
     public void replayActionsTestForRealTime() throws IOException, InvalidTopologyException {
-        List<CommonDTO.EntityDTO> probeDTOs = messagesFromJsonFile(
-                        "protobuf/messages/discoveredEntities.json", EntityDTO::newBuilder);
+        List<TopologyEntityDTO> probeDTOs = messagesFromJsonFile(
+                "protobuf/messages/discoveredEntities.json", TopologyEntityDTO::newBuilder);
 
-        Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
-        IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
-        Map<Long, TopologyEntityDTO> topoDTOs = SdkToTopologyEntityConverter
-                        .convertToTopologyEntityDTOs(map).stream()
-                        .map(TopologyEntityDTO.Builder::build)
+        Map<Long, TopologyEntityDTO> topoDTOs = probeDTOs.stream()
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                         MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
@@ -497,21 +489,15 @@ public class TopologyEntitiesHandlerTest {
      */
     @Test
     public void bicliquesTest() throws IOException, InvalidTopologyException {
-        List<CommonDTO.EntityDTO> probeDTOs =
-                        messagesFromJsonFile("protobuf/messages/small.json", EntityDTO::newBuilder);
+        List<TopologyEntityDTO> topoDTOs =
+                        messagesFromJsonFile("protobuf/messages/small.json", TopologyEntityDTO::newBuilder);
 
-        Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
-        IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
-
-        List<TopologyEntityDTO.Builder> topoDTOs =
-                        SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map);
         TopologyConverter topoConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                         MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                         consistentScalingHelperFactory, reversibilitySettingFetcher);
 
         Set<TraderTO> traderDTOs = topoConverter.convertToMarket(topoDTOs.stream()
-                        .map(TopologyEntityDTO.Builder::build)
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
         Set<String> debugInfos = traderDTOs.stream().map(TraderTO::getCommoditiesSoldList)
                         .flatMap(List::stream).map(CommoditySoldTO::getSpecification)
@@ -542,23 +528,14 @@ public class TopologyEntitiesHandlerTest {
      */
     @Test
     public void bcKeysTests() throws IOException, InvalidTopologyException {
-        List<CommonDTO.EntityDTO> probeDTOs = messagesFromJsonFile(
-                        "protobuf/messages/entities.json", EntityDTO::newBuilder);
-
-        Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
-        IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
-
-        List<TopologyEntityDTO.Builder> topoDTOs =
-                        SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map);
+        List<TopologyEntityDTO> topoDTOs = messagesFromJsonFile(
+                        "protobuf/messages/entities.json", TopologyEntityDTO::newBuilder);
 
         Set<TraderTO> traderDTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                marketCloudRateExtractor,
-                        ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+            marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher).convertToMarket(
-                                        topoDTOs.stream().map(TopologyEntityDTO.Builder::build)
-                                                        .collect(Collectors.toMap(
-                                                                        TopologyEntityDTO::getOid,
-                                                                        Function.identity())));
+                topoDTOs.stream()
+                    .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
 
         for (TraderTO traderTO : traderDTOs) {
             if (traderTO.getDebugInfoNeverUseInCode().startsWith("STORAGE")) {
@@ -594,16 +571,11 @@ public class TopologyEntitiesHandlerTest {
      */
     @Test
     public void shopTogetherTest() throws IOException, InvalidTopologyException {
-        List<CommonDTO.EntityDTO> nonShopTogetherProbeDTOs = messagesFromJsonFile(
-                        "protobuf/messages/nonShopTogetherEntities.json", EntityDTO::newBuilder);
-        Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
-        IntStream.range(0, nonShopTogetherProbeDTOs.size())
-                        .forEach(i -> map.put((long)i, nonShopTogetherProbeDTOs.get(i)));
+        List<TopologyEntityDTO> nonShopTogetherProbeDTOs = messagesFromJsonFile(
+                        "protobuf/messages/nonShopTogetherEntities.json", TopologyEntityDTO::newBuilder);
 
-        Map<Long, TopologyEntityDTO> nonShopTogetherTopoDTOs = SdkToTopologyEntityConverter
-                        .convertToTopologyEntityDTOs(map).stream()
-                        .map(TopologyEntityDTO.Builder::build)
-                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        Map<Long, TopologyEntityDTO> nonShopTogetherTopoDTOs = nonShopTogetherProbeDTOs.stream()
+                    .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
         TopologyConverter togetherConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                         marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
@@ -632,16 +604,11 @@ public class TopologyEntitiesHandlerTest {
         checkBicliques(traderDTOs, false);
 
         // ====== shop together ======
-        List<CommonDTO.EntityDTO> shopTogetherProbeDTOs = messagesFromJsonFile(
-                        "protobuf/messages/shopTogetherEntities.json", EntityDTO::newBuilder);
-        Map<Long, CommonDTO.EntityDTO> shopTogetherMap = Maps.newHashMap();
-        IntStream.range(0, shopTogetherProbeDTOs.size())
-                        .forEach(i -> shopTogetherMap.put((long)i, shopTogetherProbeDTOs.get(i)));
+        List<TopologyEntityDTO> shopTogetherProbeDTOs = messagesFromJsonFile(
+                        "protobuf/messages/shopTogetherEntities.json", TopologyEntityDTO::newBuilder);
 
-        Map<Long, TopologyEntityDTO> shopTogetherTopoDTOs = SdkToTopologyEntityConverter
-                        .convertToTopologyEntityDTOs(shopTogetherMap).stream()
-                        .map(TopologyEntityDTO.Builder::build)
-                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        Map<Long, TopologyEntityDTO> shopTogetherTopoDTOs = shopTogetherProbeDTOs.stream()
+                    .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
         TopologyConverter shopTogetherConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                         marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
@@ -680,21 +647,14 @@ public class TopologyEntitiesHandlerTest {
      */
     @Test
     public void testInvalidTopology() throws IOException {
-        List<CommonDTO.EntityDTO> probeDTOs = messagesFromJsonFile(
-                        "protobuf/messages/invalid-topology.json", EntityDTO::newBuilder);
+        List<TopologyEntityDTO> topoDTOs = messagesFromJsonFile(
+                        "protobuf/messages/invalid-topology.json", TopologyEntityDTO::newBuilder);
 
-        Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
-        IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
-
-        List<TopologyEntityDTO.Builder> topoDTOs =
-                        SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map);
         new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketCloudRateExtractor, ccd,
-                        CommodityIndex.newFactory(), tierExcluderFactory,
-            consistentScalingHelperFactory, reversibilitySettingFetcher).convertToMarket(
-                                        topoDTOs.stream().map(TopologyEntityDTO.Builder::build)
-                                                        .collect(Collectors.toMap(
-                                                                        TopologyEntityDTO::getOid,
-                                                                        Function.identity())));
+                CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory, reversibilitySettingFetcher)
+            .convertToMarket(topoDTOs.stream()
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
     }
 
     @Test
@@ -1046,14 +1006,10 @@ public class TopologyEntitiesHandlerTest {
      */
     private AnalysisResults generateEnd2EndActions(Analysis analysis, String fileName)
                     throws IOException, InvalidTopologyException {
-        List<CommonDTO.EntityDTO> probeDTOs = messagesFromJsonFile(
-                        fileName, EntityDTO::newBuilder);
+        List<TopologyEntityDTO> probeDTOs = messagesFromJsonFile(
+                        fileName, TopologyEntityDTO::newBuilder);
 
-        Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
-        IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
-        Map<Long, TopologyEntityDTO> topoDTOs = SdkToTopologyEntityConverter
-                        .convertToTopologyEntityDTOs(map).stream()
-                        .map(TopologyEntityDTO.Builder::build)
+        Map<Long, TopologyEntityDTO> topoDTOs = probeDTOs.stream()
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
         // Edit topology DTOs as if this is a TP pipeline
@@ -1234,6 +1190,7 @@ public class TopologyEntitiesHandlerTest {
             @Nonnull final String fileName,
             @Nonnull final Supplier<AbstractMessage.Builder> builderSupplier)
             throws IOException {
+
         File file = ResourcePath.getTestResource(TopologyEntitiesHandlerTest.class, fileName).toFile();
 
         List<String> jsons = balancedList(new String(Files.readAllBytes(file.toPath())));
