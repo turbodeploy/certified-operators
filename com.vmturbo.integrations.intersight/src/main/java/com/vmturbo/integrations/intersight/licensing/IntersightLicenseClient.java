@@ -157,6 +157,21 @@ public class IntersightLicenseClient {
         logger.info("Response license: traceid {} moid {} license count {}}",
                 IntersightLicenseUtils.getTraceIdHeader(responseInfo.getHeaders()),
                 licenseInfo.getMoid(), licenseInfo.getLicenseCount());
+
+        // Following codes should be uncommented after intersight license deserialization works with new SDK
+        // Currently it only works with 0.0.1.19903. Contact Cisco YanYing Ma for details.
+        /*
+        final LicenseIwoLicenseCount licenseCount = new LicenseIwoLicenseCount();
+        licenseCount.setClassId("license.IwoLicenseCount");
+        licenseCount.setVmLicenseCount(updatedLicenseInfo.getLicenseCount());
+        final ApiResponse<LicenseIwoLicenseCount> responseLicenseCount =
+                licenseApi.patchLicenseIwoLicenseCountWithHttpInfo(moid, licenseCount, null);
+        final LicenseIwoLicenseCount licenseCountResponse = responseLicenseCount.getData();
+        logger.info("Response LicenseIwoLicenseCount: traceid {} moid {} license count {}}",
+                IntersightLicenseUtils.getTraceIdHeader(responseLicenseCount.getHeaders()),
+                licenseCountResponse.getMoid(), licenseCountResponse.getVmLicenseCount());
+        */
+
         return licenseInfo;
     }
 

@@ -34,6 +34,7 @@ public class IntersightLicenseCountUpdaterTest {
     private final IntersightLicenseSyncService licenseSyncService = mock(IntersightLicenseSyncService.class);
 
     private IntersightLicenseCountUpdater licenseCountUpdater;
+    private boolean isLicenseUpdated = true;
 
     /**
      * A setup.
@@ -58,7 +59,7 @@ public class IntersightLicenseCountUpdaterTest {
         List<LicenseLicenseInfo> targetLicenses = Collections.singletonList(validLicense);
 
         assertTrue(licenseCountUpdater.shouldUpdateWorkloadCounts(latestCountInfo, lastPublishedCountInfo,
-            lastMoid, targetLicenses));
+            lastMoid, targetLicenses, isLicenseUpdated));
     }
 
     /**
@@ -74,7 +75,7 @@ public class IntersightLicenseCountUpdaterTest {
         List<LicenseLicenseInfo> targetLicenses = Collections.singletonList(validLicense);
 
         assertFalse(licenseCountUpdater.shouldUpdateWorkloadCounts(lastPublishedCountInfo, lastPublishedCountInfo,
-                lastMoid, targetLicenses));
+                lastMoid, targetLicenses, isLicenseUpdated));
     }
 
     /**
@@ -90,7 +91,7 @@ public class IntersightLicenseCountUpdaterTest {
         List<LicenseLicenseInfo> targetLicenses = Collections.singletonList(validLicense);
 
         assertTrue(licenseCountUpdater.shouldUpdateWorkloadCounts(lastPublishedCountInfo, lastPublishedCountInfo,
-                lastMoid, targetLicenses));
+                lastMoid, targetLicenses, isLicenseUpdated));
     }
 
     /**
@@ -107,12 +108,12 @@ public class IntersightLicenseCountUpdaterTest {
 
         // test a null count object
         assertFalse(licenseCountUpdater.shouldUpdateWorkloadCounts(null, lastPublishedCountInfo,
-                lastMoid, targetLicenses));
+                lastMoid, targetLicenses, isLicenseUpdated));
 
         // also check a count with no generation date
         WorkloadCountInfo newCountInfo = new WorkloadCountInfo(2, null);
         assertFalse(licenseCountUpdater.shouldUpdateWorkloadCounts(newCountInfo, lastPublishedCountInfo,
-                lastMoid, targetLicenses));
+                lastMoid, targetLicenses, isLicenseUpdated));
     }
 
     /**
@@ -130,7 +131,7 @@ public class IntersightLicenseCountUpdaterTest {
 
         // waa-wuh. The tree fell in the forest with noone there to hear it.
         assertFalse(licenseCountUpdater.shouldUpdateWorkloadCounts(newCountInfo, lastPublishedCountInfo,
-                lastMoid, targetLicenses));
+                lastMoid, targetLicenses, isLicenseUpdated));
 
     }
 

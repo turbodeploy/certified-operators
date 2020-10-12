@@ -200,6 +200,8 @@ public class IntersightLicenseCountUpdater {
      */
     protected void syncLicenseCounts() throws InterruptedException {
         logger.info("Starting license count synchronization thread.");
+        // we want to keep trying if license update failed.
+        boolean isLicenseUpdated = false;
         // we're just going to loop forever
         while (true) {
             try {
@@ -208,7 +210,7 @@ public class IntersightLicenseCountUpdater {
                 if (shouldUpdateWorkloadCounts(workloadCountInfo,
                         lastPublishedWorkloadCountInfo,
                         lastPublishedWorkloadLicenseMoid,
-                        targetLicenses)) {
+                        targetLicenses, isLicenseUpdated)) {
                     logger.info("License count changes detected -- uploading changes.");
                     // we will iterate through the list of target licenses. The first item in the list is
                     // the "primary" license and will have all of the workload set as it's "license count".
@@ -219,12 +221,15 @@ public class IntersightLicenseCountUpdater {
                         int newCount = (x == 0) ? workloadCountInfo.getWorkloadCount() : 0;
                         try {
                             uploadWorkloadCount(license, newCount);
+                            isLicenseUpdated = true;
                         } catch (ApiException ae) {
+                            isLicenseUpdated = false;
                             // log some additional info specific to the Intersight API errors that may help
                             // debugging.
                             logger.error("API error while {} uploading workload count.",
                                     IntersightLicenseUtils.describeApiError(ae), ae);
                         } catch (Exception e) {
+                            isLicenseUpdated = false;
                             logger.error("Error while uploading workload count.", e);
                         }
                     }
@@ -254,16 +259,20 @@ public class IntersightLicenseCountUpdater {
      * @return true, if the conditions above are true.
      */
     protected boolean shouldUpdateWorkloadCounts(WorkloadCountInfo latestCountInfo,
-                                                WorkloadCountInfo lastPublishedCountInfo,
-                                                String lastPublishedTargetLicenseMoid,
-                                                List<LicenseLicenseInfo> currentTargetLicenses) {
+            WorkloadCountInfo lastPublishedCountInfo, String lastPublishedTargetLicenseMoid,
+            List<LicenseLicenseInfo> currentTargetLicenses, final boolean isLicenseUpdated) {
         boolean hasWorkloadCount = (latestCountInfo != null && latestCountInfo.getGeneratedTime() != null);
         boolean workloadCountHasChanged = (hasWorkloadCount
                 && latestCountInfo.getWorkloadCount() != lastPublishedCountInfo.getWorkloadCount());
         boolean hasTargetLicense = (currentTargetLicenses != null && currentTargetLicenses.size() > 0);
         boolean licenseHasChanged = hasTargetLicense
                 && (!StringUtils.equals(currentTargetLicenses.get(0).getMoid(), lastPublishedTargetLicenseMoid));
-        return hasTargetLicense && hasWorkloadCount && (workloadCountHasChanged || licenseHasChanged);
+        logger.debug("has Workload Count?: {}", hasWorkloadCount);
+        logger.debug("has Target License?: {}", hasTargetLicense);
+        logger.debug("Workload Count has Changed?: {}", workloadCountHasChanged);
+        logger.debug("License has Changed?: {}", licenseHasChanged);
+        logger.debug("Is License Updated?: {}", isLicenseUpdated);
+        return hasTargetLicense && hasWorkloadCount && (workloadCountHasChanged || licenseHasChanged || !isLicenseUpdated);
     }
 
     /**

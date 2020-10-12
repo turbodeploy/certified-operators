@@ -60,12 +60,12 @@ public class IntersightLicenseSyncConfig {
     private boolean intersightLicenseSyncEnabled;
 
     // turns the license count sync on and off
-    @Value("${intersightLicenseCountSyncEnabled:false}")
+    @Value("${intersightLicenseCountSyncEnabled:true}")
     private boolean intersightLicenseCountSyncEnabled;
 
     // the default query filter to use when retrieving the licenses for syncing. We will target the
     // "IWO-*" license types.
-    @Value("${intersightLicenseQueryFilter:startswith(LicenseType,'IWO-Essential')}")
+    @Value("${intersightLicenseQueryFilter:startswith(LicenseType,'IWO-')}")
     private String intersightLicenseQueryFilter;
 
     @Bean

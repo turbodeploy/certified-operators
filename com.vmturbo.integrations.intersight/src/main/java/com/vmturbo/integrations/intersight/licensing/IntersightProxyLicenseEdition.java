@@ -58,6 +58,10 @@ public enum IntersightProxyLicenseEdition {
                 return IWO_PREMIER;
             case IWO_ESSENTIAL:
                 return IWO_ESSENTIALS;
+            case IWO_ADVANTAGE:
+                return IWO_ADVANTAGE;
+            case IWO_PREMIER:
+                return IWO_PREMIER;
             default:
                 // unrecognized license type. We will map this to essentials for now and log a warning.
                 // in the future we may not want to map it to a license edition at all.
