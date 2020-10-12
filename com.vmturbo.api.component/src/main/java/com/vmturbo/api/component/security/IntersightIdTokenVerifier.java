@@ -6,11 +6,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.StringTokenizer;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList.Builder;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
@@ -39,6 +41,16 @@ public class IntersightIdTokenVerifier implements IdTokenVerifier {
                     .add("Workload Optimizer Advisor")
                     .add("Workload Optimizer Observer")
                     .build();
+    private final String permissionTag;
+
+    /**
+     * Constructor.
+     *
+     * @param permissionTag JWT token claim tag
+     */
+    public IntersightIdTokenVerifier(@Nonnull final String permissionTag) {
+        this.permissionTag = permissionTag;
+    }
 
     /**
      * Get the role from JWT claim. It supports two cases.
@@ -53,11 +65,35 @@ public class IntersightIdTokenVerifier implements IdTokenVerifier {
     private static String getRole(@Nonnull final Object claim) {
         // Is single role?
         if (claim instanceof String) {
-            return (String)claim;
+            return getMatchedRole((String)claim).orElse("");
         } else if (claim instanceof ArrayList) { // multiple roles, return the one based on agreement
             return getMatchedRole((ArrayList<String>)claim).orElse("");
         }
         return "";
+    }
+
+    /**
+     * Input could be:
+     * "Device Technician,Workload Optimizer Administrator"
+     * or
+     * "Workload Optimizer Administrator"
+     * Output: matched roles
+     *
+     * @param claim JWT claim
+     * @return matched roles
+     */
+    @NotNull
+    private static Optional<String> getMatchedRole(@Nonnull final String claim) {
+        final StringTokenizer tokenizer = new StringTokenizer(claim, ",");
+        if (tokenizer.countTokens() > 1) {
+            final Builder listBuilder = ImmutableList.<String>builder();
+
+            while (tokenizer.hasMoreTokens()) {
+                listBuilder.add(tokenizer.nextToken().trim());
+            }
+            return getMatchedRole(listBuilder.build());
+        }
+        return Optional.ofNullable(claim);
     }
 
     // Role priority is descending order in INNTERSIGHT_ROLES list.
@@ -98,7 +134,7 @@ public class IntersightIdTokenVerifier implements IdTokenVerifier {
     // Helper to get claim
     @NotNull
     private Pair getClaims(@Nonnull final Jws<Claims> claimsJws) {
-        final String roles = getRole(claimsJws.getBody().get(INTERSIGHT, Map.class).get("roles"));
+        final String roles = getRole(claimsJws.getBody().get(INTERSIGHT, Map.class).get(permissionTag));
         final String sub = claimsJws.getBody().get(SUB, String.class);
         return new Pair(sub, roles);
     }

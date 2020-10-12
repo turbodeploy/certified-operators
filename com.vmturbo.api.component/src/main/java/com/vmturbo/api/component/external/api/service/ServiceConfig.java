@@ -144,6 +144,10 @@ public class ServiceConfig {
     @Value("${clockSkewSecond:600}")
     private String clockSkewSecond;
 
+    // permission tag
+    @Value("${permissionTag:roles}")
+    private String permissionTag;
+
     // maximum placement count.
     @Value("${maximumPlacementCount:100}")
     private int maximumPlacementCount;
@@ -264,7 +268,8 @@ public class ServiceConfig {
     public HeaderAuthenticationProvider headerAuthorizationProvider() {
         return new HeaderAuthenticationProvider(authConfig.getAuthHost(), authConfig.getAuthPort(),
                 authConfig.getAuthRoute(), communicationConfig.serviceRestTemplate(),
-                securityConfig.verifier(), targetStore(), new IntersightIdTokenVerifier(), Integer.parseInt(clockSkewSecond));
+                securityConfig.verifier(), targetStore(), new IntersightIdTokenVerifier(permissionTag),
+                Integer.parseInt(clockSkewSecond));
     }
 
     /**

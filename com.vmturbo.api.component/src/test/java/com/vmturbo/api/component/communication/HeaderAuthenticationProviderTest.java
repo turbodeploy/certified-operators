@@ -110,7 +110,7 @@ public class HeaderAuthenticationProviderTest {
                 getRestTemplate("http://localhost:8080/users/authorize/", "user1", Optional.of("group1"), "127.0.0.1");
         provider =
                 new HeaderAuthenticationProvider("localhost", 8080, "auth", restTemplate, verifier,
-                        componentJwtStore, new IntersightIdTokenVerifier(),
+                        componentJwtStore, new IntersightIdTokenVerifier("privilegeSet_names"),
                         60 * 60 * 24 * 365 * 30);
         UsernamePasswordAuthenticationToken auth =
                 (UsernamePasswordAuthenticationToken)provider.authenticate(authentication);
@@ -129,7 +129,7 @@ public class HeaderAuthenticationProviderTest {
                 "http://localhost:8080/users/authorize/", "devops-admin@local", Optional.of("group1"), "127.0.0.1");
         provider =
                 new HeaderAuthenticationProvider("localhost", 8080, "auth", restTemplate, verifier,
-                        componentJwtStore, new IntersightIdTokenVerifier(),
+                        componentJwtStore, new IntersightIdTokenVerifier("privilegeSet_names"),
                         60 * 60 * 24 * 365 * 30);
         HeaderMapper mapper = mock(HeaderMapper.class);
         when(mapper.getAuthGroup("System Administrator")).thenReturn("group1");

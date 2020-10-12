@@ -73,6 +73,7 @@ public class IntersightIdTokenVerifierTest {
     private static final String READ_ONLY = "Read-Only";
     private static final String SECRET_KEY =
             "oeRaYY7Wo24sDqKSX3IM9ASGmdGPmkTd9jo1QTy4b7P9Ze5_9hKolVX8xNrQDcNRfVEdTZNOuOyqEGhXEbdJI-ZQ19k_o9MI0y3eZN2lp9jow55FfXMiINEdt1XR85VipRLSOkT6kSpzs2x-jbLDiz9iFVzkd81YKxMgPA7VfZeQUm4n-mOmnWMaVX30zGFU4L3oPBctYKkl4dYfqYWqRNfrgPJVi5DGFjywgxx0ASEiJHtV72paI3fDR2XwlSkyhhmY-ICjCRmsJN4fX1pdoL8a18-aQrvyu4j0Os6dVPYIoPvvY0SAZtWYKHfM15g7A3HD4cVREf9cUsprCRK93w";
+    private static final String PERMISSION_TAG = "roles";
     //The JWT signature algorithm we will be using to sign the token
     private static SignatureAlgorithm signatureAlgorithm = SignatureAlgorithm.HS256;
     private static long nowMillis = System.currentTimeMillis();
@@ -86,9 +87,19 @@ public class IntersightIdTokenVerifierTest {
             new IntersightHeaderMapper(Collections.emptyMap(), "", "", "", "");
 
     //Sample method to construct a JWT
-    private static String createJWT(ImmutableList<String> list) {
+    private static String createJWT(final ImmutableList<String> list) {
         //Let's set the JWT Claims
-        final ImmutableMap<String, List<String>> value = ImmutableMap.of("roles", list);
+        final ImmutableMap<String, List<String>> value = ImmutableMap.of(PERMISSION_TAG, list);
+        return buildJWT(value);
+    }
+
+    private static String createJWT(final String roles) {
+        //Let's set the JWT Claims
+        final ImmutableMap<String, String> value = ImmutableMap.of(PERMISSION_TAG, roles);
+        return buildJWT(value);
+    }
+
+    private static String buildJWT(ImmutableMap<String, ?> value) {
         JwtBuilder builder = Jwts.builder()
                 .setId("SOMEID1234")
                 .setIssuedAt(now)
@@ -110,7 +121,7 @@ public class IntersightIdTokenVerifierTest {
      */
     @Before
     public void setup() {
-        verifier = new IntersightIdTokenVerifier();
+        verifier = new IntersightIdTokenVerifier(PERMISSION_TAG);
     }
 
     /**
@@ -185,12 +196,17 @@ public class IntersightIdTokenVerifierTest {
      */
     @Test
     public void testGetAcccountAdministratorRoles() throws AuthenticationException {
-        String jwt = createJWT(
+        final ImmutableList<String> list =
                 ImmutableList.of("Account Administrator", WORKLOAD_OPTIMIZER_ADMINISTRATOR,
                         READ_ONLY, WORKLOAD_OPTIMIZER_AUTOMATOR, WORKLOAD_OPTIMIZER_DEPLOYER,
-                        WORKLOAD_OPTIMIZER_ADVISOR, WORKLOAD_OPTIMIZER_OBSERVER));
+                        WORKLOAD_OPTIMIZER_ADVISOR, WORKLOAD_OPTIMIZER_OBSERVER);
+        String jwt = createJWT(list);
         Pair<String, String> pair =
                 verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
+        assertEquals("Role should be Account Administrator", "Account Administrator", pair.second);
+
+        jwt = createJWT(String.join(",", list));
+        pair = verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
         assertEquals("Role should be Account Administrator", "Account Administrator", pair.second);
     }
 
@@ -203,12 +219,17 @@ public class IntersightIdTokenVerifierTest {
      */
     @Test
     public void testGetAdministratorRoles() throws AuthenticationException {
-        String jwt = createJWT(
+        final ImmutableList<String> list =
                 ImmutableList.of(WORKLOAD_OPTIMIZER_ADMINISTRATOR, WORKLOAD_OPTIMIZER_AUTOMATOR,
                         WORKLOAD_OPTIMIZER_DEPLOYER, WORKLOAD_OPTIMIZER_ADVISOR,
-                        WORKLOAD_OPTIMIZER_OBSERVER));
+                        WORKLOAD_OPTIMIZER_OBSERVER);
+        String jwt = createJWT(list);
         Pair<String, String> pair =
                 verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
+        assertEquals("Role should be Workload Optimizer Administrator",
+                WORKLOAD_OPTIMIZER_ADMINISTRATOR, pair.second);
+        jwt = createJWT(String.join(", ", list));
+        pair = verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
         assertEquals("Role should be Workload Optimizer Administrator",
                 WORKLOAD_OPTIMIZER_ADMINISTRATOR, pair.second);
     }
@@ -222,12 +243,17 @@ public class IntersightIdTokenVerifierTest {
      */
     @Test
     public void testGetAdministratorRole() throws AuthenticationException {
-        String jwt = createJWT(
+        final ImmutableList<String> list =
                 ImmutableList.of(WORKLOAD_OPTIMIZER_ADMINISTRATOR, DEVICE_ADMINISTRATOR,
                         WORKLOAD_OPTIMIZER_AUTOMATOR, WORKLOAD_OPTIMIZER_DEPLOYER,
-                        WORKLOAD_OPTIMIZER_ADVISOR, WORKLOAD_OPTIMIZER_OBSERVER));
+                        WORKLOAD_OPTIMIZER_ADVISOR, WORKLOAD_OPTIMIZER_OBSERVER);
+        String jwt = createJWT(list);
         Pair<String, String> pair =
                 verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
+        assertEquals("Role should be Workload Optimizer Administrator",
+                WORKLOAD_OPTIMIZER_ADMINISTRATOR, pair.second);
+        jwt = createJWT(String.join(", ", list));
+        pair = verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
         assertEquals("Role should be Workload Optimizer Administrator",
                 WORKLOAD_OPTIMIZER_ADMINISTRATOR, pair.second);
     }
@@ -241,13 +267,18 @@ public class IntersightIdTokenVerifierTest {
      */
     @Test
     public void testGetReadOnlyRole() throws AuthenticationException {
-        String jwt = createJWT(
+        final ImmutableList<String> list =
                 ImmutableList.of(DEVICE_ADMINISTRATOR, READ_ONLY, WORKLOAD_OPTIMIZER_AUTOMATOR,
                         WORKLOAD_OPTIMIZER_DEPLOYER, WORKLOAD_OPTIMIZER_ADVISOR,
-                        WORKLOAD_OPTIMIZER_OBSERVER));
+                        WORKLOAD_OPTIMIZER_OBSERVER);
+        String jwt = createJWT(list);
         Pair<String, String> pair =
                 verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
         assertEquals("Role should be Read-Only", READ_ONLY, pair.second);
+        jwt = createJWT(String.join(",", list));
+        pair = verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
+        assertEquals("Role should be Read-Only", READ_ONLY, pair.second);
+
     }
 
     /**
@@ -259,11 +290,17 @@ public class IntersightIdTokenVerifierTest {
      */
     @Test
     public void testGetAutomatorRole() throws AuthenticationException {
-        String jwt = createJWT(ImmutableList.of(DEVICE_ADMINISTRATOR, WORKLOAD_OPTIMIZER_AUTOMATOR,
-                WORKLOAD_OPTIMIZER_DEPLOYER, WORKLOAD_OPTIMIZER_ADVISOR,
-                WORKLOAD_OPTIMIZER_OBSERVER));
+        final ImmutableList<String> list =
+                ImmutableList.of(DEVICE_ADMINISTRATOR, WORKLOAD_OPTIMIZER_AUTOMATOR,
+                        WORKLOAD_OPTIMIZER_DEPLOYER, WORKLOAD_OPTIMIZER_ADVISOR,
+                        WORKLOAD_OPTIMIZER_OBSERVER);
+        String jwt = createJWT(list);
         Pair<String, String> pair =
                 verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
+        assertEquals("Role should be Workload Optimizer Automator", WORKLOAD_OPTIMIZER_AUTOMATOR,
+                pair.second);
+        jwt = createJWT(String.join(",", list));
+        pair = verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
         assertEquals("Role should be Workload Optimizer Automator", WORKLOAD_OPTIMIZER_AUTOMATOR,
                 pair.second);
     }
@@ -276,10 +313,16 @@ public class IntersightIdTokenVerifierTest {
      */
     @Test
     public void testGetDeployerRole() throws AuthenticationException {
-        String jwt = createJWT(ImmutableList.of(DEVICE_ADMINISTRATOR, WORKLOAD_OPTIMIZER_DEPLOYER,
-                WORKLOAD_OPTIMIZER_ADVISOR, WORKLOAD_OPTIMIZER_OBSERVER));
+        final ImmutableList<String> list =
+                ImmutableList.of(DEVICE_ADMINISTRATOR, WORKLOAD_OPTIMIZER_DEPLOYER,
+                        WORKLOAD_OPTIMIZER_ADVISOR, WORKLOAD_OPTIMIZER_OBSERVER);
+        String jwt = createJWT(list);
         Pair<String, String> pair =
                 verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
+        assertEquals("Role should be Workload Optimizer Deployer", WORKLOAD_OPTIMIZER_DEPLOYER,
+                pair.second);
+        jwt = createJWT(String.join(",", list));
+        pair = verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
         assertEquals("Role should be Workload Optimizer Deployer", WORKLOAD_OPTIMIZER_DEPLOYER,
                 pair.second);
     }
@@ -292,26 +335,51 @@ public class IntersightIdTokenVerifierTest {
      */
     @Test
     public void testGetAdvisorRole() throws AuthenticationException {
-        String jwt = createJWT(ImmutableList.of(DEVICE_ADMINISTRATOR, WORKLOAD_OPTIMIZER_ADVISOR,
-                WORKLOAD_OPTIMIZER_OBSERVER));
+        final ImmutableList<String> list =
+                ImmutableList.of(DEVICE_ADMINISTRATOR, WORKLOAD_OPTIMIZER_ADVISOR,
+                        WORKLOAD_OPTIMIZER_OBSERVER);
+        String jwt = createJWT(list);
         Pair<String, String> pair =
                 verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
+        assertEquals("Role should be Workload Optimizer Advisor", WORKLOAD_OPTIMIZER_ADVISOR,
+                pair.second);
+        jwt = createJWT(String.join(",", list));
+        pair = verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
         assertEquals("Role should be Workload Optimizer Advisor", WORKLOAD_OPTIMIZER_ADVISOR,
                 pair.second);
     }
 
     /**
-     * input: "Device Administrator", "Workload Optimizer Observer". output: "Workload Optimizer
-     * Advisor".
-     *  output: "Workload Optimizer Observer"
+     * input: "Device Administrator", "Workload Optimizer Observer".
+     * output: "Workload Optimizer Observer"
      *
      * @throws AuthenticationException if verification failed.
      */
     @Test
     public void testGetObserverRole() throws AuthenticationException {
-        String jwt = createJWT(ImmutableList.of(DEVICE_ADMINISTRATOR, WORKLOAD_OPTIMIZER_OBSERVER));
+        final ImmutableList<String> list =
+                ImmutableList.of(DEVICE_ADMINISTRATOR, WORKLOAD_OPTIMIZER_OBSERVER);
+        String jwt = createJWT(list);
         Pair<String, String> pair =
                 verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
+        assertEquals("Role should be Workload Optimizer Observer", WORKLOAD_OPTIMIZER_OBSERVER,
+                pair.second);
+        jwt = createJWT(String.join(",", list));
+        pair = verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
+        assertEquals("Role should be Workload Optimizer Observer", WORKLOAD_OPTIMIZER_OBSERVER,
+                pair.second);
+    }
+
+    /**
+     * input: "Workload Optimizer Observer"
+     *  output: "Workload Optimizer Observer"
+     *
+     * @throws AuthenticationException if verification failed.
+     */
+    @Test
+    public void testGetSingleCustomRole() throws AuthenticationException {
+        String jwt = createJWT(WORKLOAD_OPTIMIZER_OBSERVER);
+        Pair<String, String> pair = verifier.verifyLatest(Optional.of(signingKey), Optional.of(jwt), CLOCK_SKEW_SECOND);
         assertEquals("Role should be Workload Optimizer Observer", WORKLOAD_OPTIMIZER_OBSERVER,
                 pair.second);
     }
