@@ -81,6 +81,8 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -280,15 +282,23 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             final List<StatSnapshotApiDTO> statSnapshots = new ArrayList<>();
             final List<StatApiDTO> numWorkloadStats = new ArrayList<>();
             if (!isGenericGroupBy) {
-                final Set<Long> volumeOids = cloudCostStatRecords.stream()
-                    .flatMap(cloudCostStatRecord ->
-                        cloudCostStatRecord.getStatRecordsList().stream()
-                            .filter(sr -> sr.getAssociatedEntityType() ==
-                                EntityType.VIRTUAL_VOLUME.getNumber())
-                            .map(StatRecord::getAssociatedEntityId))
-                    .collect(Collectors.toSet());
-                final Set<TopologyEntityDTO> volumeEntities = repositoryApi.entitiesRequest(volumeOids)
-                    .getFullEntities().collect(toSet());
+                Set<TopologyEntityDTO> volumeEntities = new HashSet<>();
+                if (!CollectionUtils.isEmpty(cloudEntityOids)) {
+                    // Including all cloud volumes, with cost and without cost(AWS ephemeral disks have no cost)
+                    volumeEntities = repositoryApi.entitiesRequest(cloudEntityOids)
+                            .getFullEntities().filter(t -> t.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                            .collect(toSet());
+                } else if (globalScope.isPresent() && globalScope.get().entityTypes().contains(ApiEntityType.VIRTUAL_VOLUME)
+                        && globalScope.get().environmentType().orElse(null) == EnvironmentType.CLOUD) {
+                    // For Cloud tab, global scope of all cloud volumes.
+                    final SearchParameters searchParameters = SearchProtoUtil
+                            .makeSearchParameters(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_VOLUME))
+                            .addSearchFilter(SearchFilter.newBuilder()
+                                    .setPropertyFilter(SearchProtoUtil.environmentTypeFilter(EnvironmentType.CLOUD))
+                                    .build())
+                            .build();
+                    volumeEntities = repositoryApi.newSearchRequest(searchParameters).getFullEntities().collect(toSet());
+                }
                 if (!groupByAttachmentInputs.isEmpty()) {
                     final Set<Long> attachedOids = volumeEntities.stream()
                         .filter(topologyEntityDTO -> topologyEntityDTO.hasTypeSpecificInfo() &&
@@ -305,7 +315,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     if (!countInputs.isEmpty()) {
                         final Map<String, Long> countMap = ImmutableMap.of(
                             StringConstants.ATTACHED, (long)attachedOids.size(),
-                            StringConstants.UNATTACHED, (long)volumeOids.size() - attachedOids.size());
+                            StringConstants.UNATTACHED, (long)volumeEntities.size() - attachedOids.size());
                         countInputs.forEach(inputDTO -> numWorkloadStats.addAll(
                             toCountStatApiDtos(inputDTO, StringConstants.ATTACHMENT, countMap)));
                     }
