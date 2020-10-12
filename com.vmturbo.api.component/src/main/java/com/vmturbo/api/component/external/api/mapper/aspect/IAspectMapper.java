@@ -54,13 +54,17 @@ public interface IAspectMapper {
     }
 
     /**
-     * Map a single {@link ApiPartialEntity} into one entity aspect object.
-     *
-     * @param entity the {@link ApiPartialEntity} to get aspect for
-     * @return the entity aspect for the given entity, or null if no aspect for this entity
+     * Map a list of partial entities to aspect.
+     * @param entities List of entities for conversion.
+     * @return optional: a map containing aspects, keyed by oid
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
-    @Nullable
-    EntityAspect mapEntityToAspect(@Nonnull ApiPartialEntity entity);
+    @Nonnull
+    default Optional<Map<Long, EntityAspect>> mapEntityToAspectBatchPartial(@Nonnull List<ApiPartialEntity> entities)
+            throws InterruptedException, ConversionException {
+        return Optional.empty();
+    }
 
     /**
      * Map a list of entities into a single entity aspect object. This needs to be implemented if

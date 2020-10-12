@@ -1379,6 +1379,12 @@ public class SearchServiceTest {
         when(serviceEntityMapper.toServiceEntityApiDTO(e2)).thenReturn(mappedE2);
         when(serviceEntityMapper.toServiceEntityApiDTO(e3)).thenReturn(mappedE3);
 
+        Map<Long, ServiceEntityApiDTO> seMap = new HashMap<>();
+        seMap.put(Long.parseLong(mappedE1.getUuid()), mappedE1);
+        seMap.put(Long.parseLong(mappedE2.getUuid()), mappedE2);
+        seMap.put(Long.parseLong(mappedE3.getUuid()), mappedE3);
+        when(serviceEntityMapper.toServiceEntityApiDTOMap(any())).thenReturn(seMap);
+
         final List<ApiPartialEntity> entities = Arrays.asList(e1, e2, e3);
         return entities;
     }

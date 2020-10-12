@@ -303,7 +303,7 @@ public class MapperConfig {
     @Bean
     public CloudAspectMapper cloudAspectMapper() {
         return new CloudAspectMapper(communicationConfig.repositoryApi(), communicationConfig
-                .reservedInstanceUtilizationCoverageServiceBlockingStub(), communicationConfig.groupRpcService());
+                .reservedInstanceUtilizationCoverageServiceBlockingStub(), communicationConfig.groupRpcService(), executorService());
     }
 
     @Bean

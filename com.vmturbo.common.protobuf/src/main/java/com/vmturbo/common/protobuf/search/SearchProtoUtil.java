@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -13,16 +14,22 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.Hop;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.RequestNode;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.Search.ResponseNode;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -512,4 +519,59 @@ public class SearchProtoUtil {
     public static SearchParameters.Builder makeSearchParameters(PropertyFilter startFilter) {
         return SearchParameters.newBuilder().setStartingFilter(startFilter);
     }
+
+    private static Hop hop(TraversalDirection direction, EntityType type) {
+        return Hop.newBuilder().setTraversalDirection(direction).setTargetEntityType(type.ordinal()).build();
+    }
+
+    /**
+     * Create a search node with one hop.
+     * @param returnType type of target object (full, minimal etc)
+     * @param dir direction of jump
+     * @param type entity type of target
+     * @return a request node builder
+     */
+    public static RequestNode.Builder node(Type returnType, TraversalDirection dir, EntityType type) {
+        return RequestNode.newBuilder().addHops(hop(dir, type)).setReturnType(returnType);
+    }
+
+    /**
+     * Create a search node with two hops.
+     * @param returnType type of target object (full, minimal etc)
+     * @param dir direction of first jump
+     * @param type target entity type of first jump
+     * @param dir2 direction of second jump
+     * @param type2 target entity type fo second jump
+     * @return a request node builder
+     */
+    public static RequestNode.Builder node(Type returnType, TraversalDirection dir, EntityType type, TraversalDirection dir2, EntityType type2) {
+        return RequestNode.newBuilder().addHops(hop(dir, type)).addHops(hop(dir2, type2)).setReturnType(returnType);
+    }
+
+    /**
+     * Helper function to convert a graph search response to map.
+     * @param response response
+     * @return a map of entities keyed by seed oid
+     */
+    public static Map<Long, List<MinimalEntity>> getMapMinimal(ResponseNode response) {
+        Map<Long, PartialEntity> entityMap = response.getEntitiesMap();
+
+        return response.getOidMapMap().entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().getOidsList().stream().map(oid -> entityMap.get(oid).getMinimal()).collect(Collectors.toList())));
+    }
+
+    /**
+     * Helper function to convert a graph search response to map with the first entity chosen.
+     * useful if there is only one entity in the result.
+     * @param response graph search response object
+     * @return a map from seed oid to entity object.
+     */
+    public static Map<Long, MinimalEntity> getMapMinimalWithFirst(ResponseNode response) {
+        Map<Long, PartialEntity> entityMap = response.getEntitiesMap();
+
+        return response.getOidMapMap().entrySet().stream()
+                .filter(e -> e.getValue().getOidsCount() > 0)
+                .collect(Collectors.toMap(e -> e.getKey(), e -> entityMap.get(e.getValue().getOids(0)).getMinimal()));
+    }
+
 }

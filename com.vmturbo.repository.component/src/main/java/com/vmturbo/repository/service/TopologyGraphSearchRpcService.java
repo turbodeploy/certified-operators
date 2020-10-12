@@ -1,6 +1,7 @@
 package com.vmturbo.repository.service;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -9,6 +10,7 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -37,7 +39,12 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.EntityCountResponse;
+import com.vmturbo.common.protobuf.search.Search.GraphRequest;
+import com.vmturbo.common.protobuf.search.Search.GraphResponse;
+import com.vmturbo.common.protobuf.search.Search.OidList;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.RequestNode;
+import com.vmturbo.common.protobuf.search.Search.ResponseNode;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
@@ -60,6 +67,7 @@ import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.search.filter.TraversalFilter.TraversalToDepthFilter;
 import com.vmturbo.topology.graph.util.BaseGraphEntity;
 
 /**
@@ -491,5 +499,111 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             }
         }
 
+    }
+
+    /**
+     * Do a graph search on the topology according to the instructions in query.
+     * This function is recursive.
+     *
+     * @param query the query
+     * @param seeds seed oids to start the query
+     * @param graph the response graph
+     * @return responseNode object
+     */
+    public ResponseNode graphSearch(RequestNode query,
+            Set<RepoGraphEntity> seeds,
+            TopologyGraph<RepoGraphEntity> graph) {
+
+        // Compose a jumpFn that will fetch the child entities from seed entities.
+        Function<Stream<RepoGraphEntity>, Stream<RepoGraphEntity>> jump = query.getHopsList().stream()
+                .map(hop -> {
+                    int entityType = hop.getTargetEntityType();
+                    TraversalToDepthFilter filter = new TraversalToDepthFilter<>(hop.getTraversalDirection(), 1, null);
+                    Function<RepoGraphEntity, Stream<RepoGraphEntity>> func = filter.neighborLookup(graph);
+
+                    Function<Stream<RepoGraphEntity>, Stream<RepoGraphEntity>> jumpFn = s -> s.flatMap(e -> func.apply(e).filter(x -> x.getEntityType() == entityType));
+                    return jumpFn;
+                })
+                .reduce(null, (aggrFn, jumpFn) -> aggrFn != null ? jumpFn.compose(aggrFn) : jumpFn);
+
+        // Add scope filtering
+        if (userSessionContext.isUserScoped()) {
+            EntityAccessScope entityAccessScope = userSessionContext.getUserAccessScope();
+            final Function<Stream<RepoGraphEntity>, Stream<RepoGraphEntity>> scopeFn = s -> s.filter(e -> entityAccessScope.contains(e.getOid()));
+            jump = scopeFn.compose(jump);
+        }
+
+        Set<RepoGraphEntity> allChildren = new HashSet<>();
+        ResponseNode.Builder response = ResponseNode.newBuilder();
+
+        // For each seed, get child entities, put them in a map
+        for (RepoGraphEntity entity: seeds) {
+            Set<RepoGraphEntity> children = jump.apply(Stream.of(entity)).collect(Collectors.toSet());
+
+            allChildren.addAll(children);
+
+            Set<Long> childIds = children.stream().map(e -> e.getOid()).collect(Collectors.toSet());
+
+            // populate map of seed id -> child ids
+            response.putOidMap(entity.getOid(), OidList.newBuilder().addAllOids(childIds).build());
+        }
+
+        // if query has return type, load the child entities into the map
+        if (query.hasReturnType()) {
+            response.putAllEntities(allChildren.stream()
+                    .collect(Collectors.toMap(RepoGraphEntity::getOid,
+                            entity -> partialEntityConverter.createPartialEntity(entity.getTopologyEntity(), query.getReturnType()))));
+        }
+
+        // call the child queries recursively.
+        query.getNodesMap().forEach((name, childQuery) -> {
+            response.putNodes(name, graphSearch(childQuery, allChildren, graph));
+        });
+
+        return response.build();
+    }
+
+    /**
+     * Search topology graph based on a request.
+     *
+     * @param request a request to query topology graph
+     * @param responseObserver response observer.
+     */
+    public void graphSearch(GraphRequest request,
+            StreamObserver<GraphResponse> responseObserver) {
+        if (!liveTopologyStore.getSourceTopology().isPresent()) {
+            logger.warn("No real-time topology exists for searching request");
+            responseObserver.onNext(GraphResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+            return;
+        }
+
+        final SourceRealtimeTopology realtimeTopology = liveTopologyStore.getSourceTopology().get();
+        final TopologyGraph<RepoGraphEntity> graph = realtimeTopology.entityGraph();
+
+        final Set<Long> oidsInScope;
+        if (userSessionContext.isUserScoped()) {
+            EntityAccessScope entityAccessScope = userSessionContext.getUserAccessScope();
+            oidsInScope = request.getOidsList().stream().filter(id -> entityAccessScope.contains(id)).collect(Collectors.toSet());
+        } else {
+            oidsInScope = new HashSet<>(request.getOidsList());
+        }
+
+        Set<RepoGraphEntity> seeds = graph.getEntities(oidsInScope).collect(Collectors.toSet());
+
+        GraphResponse.Builder response = GraphResponse.newBuilder();
+        request.getNodesMap().forEach((name, node) -> {
+            response.putNodes(name, graphSearch(node, seeds, graph));
+        });
+
+        if (request.hasReturnType()) {
+            Set<PartialEntity> entities = seeds.stream()
+                    .map(entity -> partialEntityConverter.createPartialEntity(entity.getTopologyEntity(), request.getReturnType()))
+                    .collect(Collectors.toSet());
+            response.addAllEntities(entities);
+        }
+
+        responseObserver.onNext(response.build());
+        responseObserver.onCompleted();
     }
 }

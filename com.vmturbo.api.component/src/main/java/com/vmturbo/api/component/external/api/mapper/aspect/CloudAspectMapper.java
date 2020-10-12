@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -40,14 +42,15 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServi
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.search.Search.GraphRequest;
+import com.vmturbo.common.protobuf.search.Search.GraphResponse;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
@@ -73,20 +76,24 @@ public class CloudAspectMapper extends AbstractAspectMapper {
     private final RepositoryApi repositoryApi;
     private final ReservedInstanceUtilizationCoverageServiceBlockingStub riCoverageService;
     private final GroupServiceGrpc.GroupServiceBlockingStub groupServiceBlockingStub;
+    private final ExecutorService executorService;
 
     /**
      * Constructor.
      *
      * @param repositoryApi the {@link RepositoryApi}
      * @param riCoverageService service to retrieve entity RI coverage information.
+     * @param executorService service for executing.
      * @param groupServiceBlockingStub do resource group reverse lookups (member to containing group)
      */
     public CloudAspectMapper(@Nonnull final RepositoryApi repositoryApi,
                              @Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riCoverageService,
-                             @Nonnull final GroupServiceGrpc.GroupServiceBlockingStub groupServiceBlockingStub) {
+                             @Nonnull final GroupServiceGrpc.GroupServiceBlockingStub groupServiceBlockingStub,
+                             @Nonnull final ExecutorService executorService) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.riCoverageService = Objects.requireNonNull(riCoverageService);
         this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
+        this.executorService = Objects.requireNonNull(executorService);
     }
 
     /**
@@ -95,103 +102,149 @@ public class CloudAspectMapper extends AbstractAspectMapper {
      * Since getting an extended list of properties that are not necessary to describe an action
      * affects performance.
      *
-     * @param entity the {@link TopologyEntityDTO}
+     * @param entities the {@link ApiPartialEntity}
      * @return the {@link CloudAspectApiDTO}
      */
     @Nullable
     @Override
-    public EntityAspect mapEntityToAspect(@Nonnull final ApiPartialEntity entity) {
-        // this aspect only applies to cloud service entities
-        if (!isCloudEntity(entity)) {
-            return null;
-        }
-        final CloudAspectApiDTO aspect = new CloudAspectApiDTO();
-        searchConnectedFromEntity(entity.getOid(), ApiEntityType.BUSINESS_ACCOUNT).ifPresent(
-                e -> aspect.setBusinessAccount(ServiceEntityMapper.toBaseApiDTO(e)));
-        return aspect;
+    public Optional<Map<Long, EntityAspect>> mapEntityToAspectBatchPartial(@Nonnull final List<ApiPartialEntity> entities) {
+        List<Long> cloudEntities = entities.stream()
+                .filter(e -> isCloudEntity(e))
+                .map(e -> e.getOid())
+                .collect(Collectors.toList());
+
+        GraphRequest request = GraphRequest.newBuilder().addAllOids(cloudEntities)
+                        .putNodes("account", SearchProtoUtil.node(Type.MINIMAL, TraversalDirection.OWNED_BY, EntityType.BUSINESS_ACCOUNT).build())
+                        .build();
+        GraphResponse response = repositoryApi.graphSearch(request);
+
+        Map<Long, EntityAspect> retMap = new HashMap<>();
+        SearchProtoUtil.getMapMinimal(response.getNodesOrThrow("account")).forEach((oid, accounts) -> {
+            final CloudAspectApiDTO aspect = new CloudAspectApiDTO();
+            if (accounts != null && !accounts.isEmpty()) {
+                aspect.setBusinessAccount(ServiceEntityMapper.toBaseApiDTO(accounts.get(0)));
+            }
+            retMap.put(oid, aspect);
+        });
+
+        return Optional.of(retMap);
     }
 
     @Override
     @Nullable
     public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
-        // this aspect only applies to cloud service entities
-        if (!isCloudEntity(entity)) {
-            return null;
+        Optional<Map<Long, EntityAspect>> result = mapEntityToAspectBatch(Collections.singletonList(entity));
+        if (result.isPresent()) {
+            return result.get().get(entity.getOid());
         }
-        final CloudAspectApiDTO aspect = new CloudAspectApiDTO();
-        final Set<Long> oids = new HashSet<>();
-        final Optional<Long> templateOid = getTemplateOid(entity);
-        templateOid.ifPresent(oids::add);
-        final Optional<ConnectedEntity> connectedAvailabilityZoneOrRegion =
-                getConnectedAvailabilityZoneOrRegion(entity);
-        connectedAvailabilityZoneOrRegion.ifPresent(e -> oids.add(e.getConnectedEntityId()));
-
-        // Aspect will be empty, return null.
-        if (!templateOid.isPresent() && !connectedAvailabilityZoneOrRegion.isPresent()) {
-            return null;
-        }
-        final Map<Long, MinimalEntity> oidToMinimalEntity = repositoryApi.entitiesRequest(oids)
-                .getMinimalEntities()
-                .collect(Collectors.toMap(MinimalEntity::getOid, e -> e));
-        final Long entityOid = entity.getOid();
-        Map<Long, Grouping> entityToResourceGroup = retrieveResourceGroupsForEntities(Sets.newHashSet(entityOid));
-        if (!CollectionUtils.isEmpty(entityToResourceGroup) && entityToResourceGroup.containsKey(entityOid)) {
-            final Grouping resourceGroup = entityToResourceGroup.get(entityOid);
-            if (resourceGroup != null) {
-                aspect.setResourceGroup(GroupMapper.toBaseApiDTO(resourceGroup));
-            }
-        }
-
-        templateOid.ifPresent(oid -> {
-            final MinimalEntity template = oidToMinimalEntity.get(oid);
-            if (template != null) {
-                aspect.setTemplate(ServiceEntityMapper.toBaseApiDTO(template));
-            } else {
-                logger.error(
-                        "Failed to get template by oid {} from repository for entity with oid {}",
-                        oid, entity.getOid());
-            }
-        });
-
-        connectedAvailabilityZoneOrRegion.ifPresent(connectedEntity -> {
-            final MinimalEntity availabilityZoneOrRegion =
-                    oidToMinimalEntity.get(connectedEntity.getConnectedEntityId());
-            if (availabilityZoneOrRegion != null) {
-                final BaseApiDTO baseApiDTO = ServiceEntityMapper.toBaseApiDTO(
-                        availabilityZoneOrRegion);
-                if (availabilityZoneOrRegion.getEntityType() ==
-                        EntityType.AVAILABILITY_ZONE_VALUE) {
-                    // AWS case
-                    searchConnectedFromEntity(availabilityZoneOrRegion.getOid(),
-                            ApiEntityType.REGION).ifPresent(
-                            e -> aspect.setRegion(ServiceEntityMapper.toBaseApiDTO(e)));
-                    aspect.setZone(baseApiDTO);
-                } else if (availabilityZoneOrRegion.getEntityType() == EntityType.REGION_VALUE) {
-                    // Azure case
-                    aspect.setRegion(baseApiDTO);
-                }
-            } else {
-                logger.error("Failed to get {} by oid {} from repository for entity with oid {}",
-                        EntityType.forNumber(connectedEntity.getConnectedEntityType()),
-                        connectedEntity.getConnectedEntityId(), entity.getOid());
-            }
-        });
-
-        searchConnectedFromEntity(entity.getOid(), ApiEntityType.BUSINESS_ACCOUNT).ifPresent(
-                e -> aspect.setBusinessAccount(ServiceEntityMapper.toBaseApiDTO(e)));
-
-        if (entity.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
-            return aspect;
-        }
-        setVirtualMachineSpecificInfo(entity, aspect);
-        final boolean riCoverageApplicable = entity.getTypeSpecificInfo().getVirtualMachine()
-                .getBillingType() != VirtualMachineData.VMBillingType.BIDDING;
-        if (riCoverageApplicable) {
-            setRiCoverageRelatedInformation(entity.getOid(), aspect);
-        }
-        return aspect;
+        return null;
     }
 
+    /**
+     * Create aspects for a list of entities.
+     * @param entities the list of {@link TopologyEntityDTO} to get aspects for
+     * @return map containing aspect
+     */
+    @Override
+    @Nullable
+    public Optional<Map<Long, EntityAspect>> mapEntityToAspectBatch(@Nonnull List<TopologyEntityDTO> entities) {
+        // this aspect only applies to cloud service entities
+        List<TopologyEntityDTO> cloudEntities = entities.stream().filter(CloudAspectMapper::isCloudEntity)
+                .collect(Collectors.toList());
+        Set<Long> entityIds = cloudEntities.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
+        Set<Long> riEntityIds = cloudEntities.stream().filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .filter(entity -> entity.getTypeSpecificInfo().getVirtualMachine().getBillingType() != VirtualMachineData.VMBillingType.BIDDING)
+                .map(entity -> entity.getOid())
+                .collect(Collectors.toSet());
+
+        GraphRequest request = GraphRequest.newBuilder().addAllOids(entityIds)
+                .putNodes("account", SearchProtoUtil.node(Type.MINIMAL, TraversalDirection.OWNED_BY, EntityType.BUSINESS_ACCOUNT).build())
+                .putNodes("region", SearchProtoUtil.node(Type.MINIMAL, TraversalDirection.AGGREGATED_BY, EntityType.REGION).build())
+                .putNodes("zone", SearchProtoUtil.node(Type.MINIMAL, TraversalDirection.AGGREGATED_BY, EntityType.AVAILABILITY_ZONE).build())
+                .putNodes("regionByZone", SearchProtoUtil.node(Type.MINIMAL, TraversalDirection.AGGREGATED_BY, EntityType.AVAILABILITY_ZONE, TraversalDirection.AGGREGATED_BY, EntityType.REGION).build())
+                .build();
+
+        Set<Long> templateIds = cloudEntities.stream().map(CloudAspectMapper::getTemplateOid)
+                .filter(Optional::isPresent).map(Optional::get)
+                .collect(Collectors.toSet());
+
+        Future<GraphResponse> graphResponseF = executorService.submit(() -> repositoryApi.graphSearch(request));
+        Future<Map<Long, MinimalEntity>> templatesF = executorService.submit(() -> repositoryApi.entitiesRequest(templateIds).getMinimalEntities().collect(Collectors.toMap(MinimalEntity::getOid, e -> e)));
+        Future<Map<Long, Grouping>> resourceGroupMapF = executorService.submit(() -> retrieveResourceGroupsForEntities(entityIds));
+        Future<Map<Long, EntityReservedInstanceCoverage>> riMapF = executorService.submit(() -> getRiCoverageRelatedInformation(riEntityIds));
+
+        Map<Long, EntityAspect> resp = new HashMap<>();
+        try {
+            // calls - begin
+            GraphResponse graphResponse = graphResponseF.get();
+            Map<Long, Grouping> resourceGroupMap = resourceGroupMapF.get();
+            Map<Long, MinimalEntity> templateMap = templatesF.get();
+            Map<Long, EntityReservedInstanceCoverage> riMap = riMapF.get();
+            // calls - end
+
+            Map<Long, MinimalEntity> regions = SearchProtoUtil.getMapMinimalWithFirst(graphResponse.getNodesOrThrow("region"));
+            Map<Long, MinimalEntity> zones = SearchProtoUtil.getMapMinimalWithFirst(graphResponse.getNodesOrThrow("zone"));
+            Map<Long, MinimalEntity> regionByZone = SearchProtoUtil.getMapMinimalWithFirst(graphResponse.getNodesOrThrow("regionByZone"));
+            Map<Long, MinimalEntity> accounts = SearchProtoUtil.getMapMinimalWithFirst(graphResponse.getNodesOrThrow("account"));
+
+            cloudEntities.forEach(entity -> {
+                CloudAspectApiDTO aspect = new CloudAspectApiDTO();
+                resp.put(entity.getOid(), aspect);
+
+                final Grouping resourceGroup = resourceGroupMap.get(entity.getOid());
+                if (resourceGroup != null) {
+                    aspect.setResourceGroup(GroupMapper.toBaseApiDTO(resourceGroup));
+                }
+
+                getTemplateOid(entity).ifPresent(templateOid -> {
+                    final MinimalEntity template = templateMap.get(templateOid);
+                    if (template != null) {
+                        aspect.setTemplate(ServiceEntityMapper.toBaseApiDTO(template));
+                    } else {
+                        logger.error(
+                                "Failed to get template by oid {} from repository for entity with oid {}",
+                                templateOid, entity.getOid());
+                    }
+                });
+
+                MinimalEntity zone = zones.get(entity.getOid());
+                if (zone != null) {
+                    aspect.setZone(ServiceEntityMapper.toBaseApiDTO(zone));
+                }
+
+                MinimalEntity region = regions.get(entity.getOid());
+                if (region == null) {
+                    region = regionByZone.get(entity.getOid());
+                }
+                if (region != null) {
+                    aspect.setRegion(ServiceEntityMapper.toBaseApiDTO(region));
+                }
+
+                MinimalEntity account = accounts.get(entity.getOid());
+                if (account != null) {
+                    aspect.setBusinessAccount(ServiceEntityMapper.toBaseApiDTO(account));
+                }
+
+                if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                    setVirtualMachineSpecificInfo(entity, aspect);
+                    EntityReservedInstanceCoverage entityRiCoverage = riMap.get(entity.getOid());
+                    if (entityRiCoverage != null) {
+                        setRiCoverage(entity.getOid(), entityRiCoverage, aspect);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+
+        return Optional.of(resp);
+    }
+
+    /**
+     * Retrieve resource groups for a list of entities.
+     * @param entities list of oids
+     * @return map containing resourcegroups, indexed by oid
+     */
     @Nonnull
     private Map<Long, Grouping> retrieveResourceGroupsForEntities(@Nonnull Set<Long> entities) {
         final GroupDTO.GetGroupsForEntitiesResponse response = groupServiceBlockingStub.getGroupsForEntities(
@@ -225,48 +278,52 @@ public class CloudAspectMapper extends AbstractAspectMapper {
         return Collections.unmodifiableMap(containedEntityToContainingGrouping);
     }
 
-    private void setRiCoverageRelatedInformation(final long oid, final CloudAspectApiDTO aspect) {
+    /**
+     * Get RI coverage information for a list of oids.
+     * @param oids list of oids
+     * @return map containing RI information indexed by oid
+     */
+    private Map<Long, EntityReservedInstanceCoverage> getRiCoverageRelatedInformation(final Set<Long> oids) {
         final GetEntityReservedInstanceCoverageRequest entityRiCoverageRequest =
                 GetEntityReservedInstanceCoverageRequest.newBuilder()
                         .setEntityFilter(EntityFilter.newBuilder()
-                                .addEntityId(oid)
+                                .addAllEntityId(oids)
                                 .build())
                         .build();
 
-        final GetEntityReservedInstanceCoverageResponse entityRiCoverageResponse = riCoverageService
-                .getEntityReservedInstanceCoverage(entityRiCoverageRequest);
+        final GetEntityReservedInstanceCoverageResponse entityRiCoverageResponse = riCoverageService.getEntityReservedInstanceCoverage(entityRiCoverageRequest);
 
-        final EntityReservedInstanceCoverage entityRiCoverage = entityRiCoverageResponse
-                .getCoverageByEntityIdMap().get(oid);
+        return entityRiCoverageResponse.getCoverageByEntityIdMap();
+    }
+
+    private void setRiCoverage(Long oid, EntityReservedInstanceCoverage entityRiCoverage, CloudAspectApiDTO aspect) {
         logger.trace("Setting RI Coverage info for  with VM oid: {}, entityRiCoverage: {}",
                 () -> oid, () -> entityRiCoverage);
-        if (entityRiCoverage != null) {
-            final int couponCapacity = entityRiCoverage.getEntityCouponCapacity();
-            final double couponsUsed = entityRiCoverage.getCouponsCoveredByRiMap().values()
-                    .stream()
-                    .reduce(Double::sum)
-                    .orElse(0D);
+        final int couponCapacity = entityRiCoverage.getEntityCouponCapacity();
+        final double couponsUsed = entityRiCoverage.getCouponsCoveredByRiMap().values()
+                .stream()
+                .reduce(Double::sum)
+                .orElse(0D);
 
-            float percentageCovered;
-            if (couponsUsed == 0) {
-                percentageCovered = 0f;
-            } else {
-                percentageCovered = (float)couponsUsed * 100 / couponCapacity;
-            }
+        float percentageCovered;
+        if (couponsUsed == 0) {
+            percentageCovered = 0f;
+        } else {
+            percentageCovered = (float)couponsUsed * 100 / couponCapacity;
+        }
 
-            aspect.setRiCoveragePercentage(percentageCovered);
-            final StatApiDTO riCoverageStatsDto = createRiCoverageStatsDto((float)couponsUsed,
-                    (float)couponCapacity);
-            aspect.setRiCoverage(riCoverageStatsDto);
+        aspect.setRiCoveragePercentage(percentageCovered);
+        final StatApiDTO riCoverageStatsDto = createRiCoverageStatsDto((float)couponsUsed,
+                (float)couponCapacity);
+        aspect.setRiCoverage(riCoverageStatsDto);
 
-            // Set Billing Type based on percentageCovered
-            if (Math.abs(100 - percentageCovered) < 0.1) {
-                aspect.setBillingType(VMBillingType.RESERVED.name());
-            } else if (percentageCovered > 0) {
-                aspect.setBillingType(VMBillingType.HYBRID.name());
-            } else {
-                aspect.setBillingType(VMBillingType.ONDEMAND.name());
-            }
+        // Set Billing Type based on percentageCovered
+        if (Math.abs(100 - percentageCovered) < 0.1) {
+            aspect.setBillingType(VMBillingType.RESERVED.name());
+        } else if (percentageCovered > 0) {
+            aspect.setBillingType(VMBillingType.HYBRID.name());
+        } else {
+            aspect.setBillingType(VMBillingType.ONDEMAND.name());
         }
     }
 
@@ -340,52 +397,6 @@ public class CloudAspectMapper extends AbstractAspectMapper {
             }
         }
         return Optional.empty();
-    }
-
-    @Nonnull
-    private static Optional<ConnectedEntity> getConnectedAvailabilityZoneOrRegion(
-            @Nonnull TopologyEntityDTO entity) {
-        final List<ConnectedEntity> connectedAvailabilityZoneOrRegionEntities =
-                entity.getConnectedEntityListList()
-                        .stream()
-                        .filter(e -> AVAILABILITY_ZONE_AND_REGION.contains(
-                                e.getConnectedEntityType()))
-                        .collect(Collectors.toList());
-        if (connectedAvailabilityZoneOrRegionEntities.isEmpty()) {
-            return Optional.empty();
-        } else {
-            if (connectedAvailabilityZoneOrRegionEntities.size() > 1) {
-                logger.warn(
-                        "Found availability zone or region entities {} connected to entity with oid {}, return first",
-                        () -> connectedAvailabilityZoneOrRegionEntities, entity::getOid);
-            }
-            return Optional.of(connectedAvailabilityZoneOrRegionEntities.iterator().next());
-        }
-    }
-
-    /**
-     * Search connected from {@code entityType} for a entity.
-     *
-     * @param entityOid oid of the entity
-     * @param entityType type of the entity
-     * @return {@link MinimalEntity} describing a entity with {@code entityType}
-     */
-    @Nonnull
-    private Optional<MinimalEntity> searchConnectedFromEntity(final long entityOid,
-            @Nonnull ApiEntityType entityType) {
-        final List<MinimalEntity> entities = repositoryApi.newSearchRequest(
-                SearchProtoUtil.neighborsOfType(entityOid, TraversalDirection.CONNECTED_FROM,
-                        entityType)).getMinimalEntities().collect(Collectors.toList());
-        if (entities.isEmpty()) {
-            return Optional.empty();
-        } else {
-            if (entities.size() > 1) {
-                logger.warn(
-                        "Found {} connected from entities with type {} for entity with oid {}, return first",
-                        entities::size, entityType::displayName, () -> entityOid);
-            }
-            return Optional.of(entities.iterator().next());
-        }
     }
 
     @Override

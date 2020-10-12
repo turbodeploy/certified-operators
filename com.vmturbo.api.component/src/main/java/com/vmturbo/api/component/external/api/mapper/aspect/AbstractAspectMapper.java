@@ -13,12 +13,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
  */
 public abstract class AbstractAspectMapper implements IAspectMapper {
 
-    @Override
-    @Nullable
-    public EntityAspect mapEntityToAspect(@Nonnull ApiPartialEntity entity) {
-        return null;
-    }
-
     /**
      * Determine if the entity belongs to a cloud service.
      *

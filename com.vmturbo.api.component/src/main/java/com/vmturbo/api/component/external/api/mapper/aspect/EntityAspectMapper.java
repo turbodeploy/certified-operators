@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -154,22 +156,6 @@ public class EntityAspectMapper {
      */
     @Nullable
     public EntityAspect getAspectByEntity(@Nonnull TopologyEntityDTO entity,
-            @Nonnull AspectName aspectName) throws InterruptedException, ConversionException {
-        return getAspectByEntity(entity.getEntityType(), mapper -> mapper.mapEntityToAspect(entity),
-                aspectName);
-    }
-
-    /**
-     * Get a specific aspect for a given entity.
-     *
-     * @param entity the entity to get aspect for
-     * @param aspectName the name of the aspect to get
-     * @return {@link EntityAspect} for the given entity and aspect name
-     * @throws InterruptedException if thread has been interrupted
-     * @throws ConversionException if errors faced during converting data to API DTOs
-     */
-    @Nullable
-    public EntityAspect getAspectByEntity(@Nonnull ApiPartialEntity entity,
             @Nonnull AspectName aspectName) throws InterruptedException, ConversionException {
         return getAspectByEntity(entity.getEntityType(), mapper -> mapper.mapEntityToAspect(entity),
                 aspectName);
@@ -346,6 +332,83 @@ public class EntityAspectMapper {
                         aspects.get(entity.getOid()).put(mapper.getAspectName(), aspect);
                     }
                 }
+            }
+        }
+
+        return aspects;
+    }
+
+    /**
+     * Convert a list of partial entities to aspect.
+     * @param entities list of partial entities.
+     * @param aspectName name of the aspect
+     * @return map containing aspects with key as oid
+     * @throws InterruptedException if thread is interrupted
+     * @throws ConversionException if there is error in conversion of DTOs.
+     */
+    @Nonnull
+    public Map<Long, EntityAspect> getAspectsByEntitiesPartial(
+            @Nonnull Collection<ApiPartialEntity> entities, AspectName aspectName)
+            throws InterruptedException, ConversionException {
+
+        Map<Long, EntityAspect> ret = new HashMap<>();
+        getAspectsByEntitiesPartial(entities, Collections.singletonList(aspectName.getApiName()))
+                .entrySet().stream()
+                .forEach(entry -> {
+                    EntityAspect aspect = entry.getValue().get(aspectName);
+                    if (aspect != null) {
+                        ret.put(entry.getKey(), aspect);
+                    }
+                });
+        return ret;
+
+    }
+
+    /**
+     * Get aspects for a list of arbitrary {@link TopologyEntityDTO} and return as
+     * a mapping from OID to aspect name to aspect DTO.
+     *
+     * @param entities the entities for which to return aspects
+     * @param aspectsList the {@link IAspectMapper}s to apply to each entity provided
+     * @return A map of entity OID, to a map of aspect name to EntityAspect DTO
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
+     */
+    @Nonnull
+    public Map<Long, Map<AspectName, EntityAspect>> getAspectsByEntitiesPartial(
+            @Nonnull Collection<ApiPartialEntity> entities, @Nullable Collection<String> aspectsList)
+            throws InterruptedException, ConversionException {
+        // a mapping from aspectMapper -> list of entity types supported by that aspect mapper.
+        Map<IAspectMapper, List<Integer>> mappers = getMappersAndEntityTypes(aspectsList);
+        Map<IAspectMapper, List<ApiPartialEntity>> entitiesByMapper = new HashMap<>();
+        Set<ApiPartialEntity> entitySet = new HashSet<>(entities);
+
+        entitySet.forEach(entity -> {
+            mappers.forEach((mapper, supportedEntityTypes) -> {
+                if (supportedEntityTypes.contains(entity.getEntityType())) {
+                    entitiesByMapper.computeIfAbsent(mapper, x -> new ArrayList<>()).add(entity);
+                }
+            });
+        });
+
+        // initialize the map that we will return
+        Map<Long, Map<AspectName, EntityAspect>> aspects = entitySet.stream()
+                .collect(Collectors.toMap(ApiPartialEntity::getOid, e -> new HashMap<>()));
+
+        // iterate through aspect mappers, and feed each mapper all entities supported by that mapper.
+        for (Map.Entry<IAspectMapper, List<ApiPartialEntity>> entry : entitiesByMapper.entrySet()) {
+            IAspectMapper mapper = entry.getKey();
+            List<ApiPartialEntity> matchingEntities = entry.getValue();
+
+            // We will first call mapper.mapEntityToAspectBatch(), which handles entities in bulk.
+            // If mapEntityToAspectBatch() is not implemented for this mapper, it will return an empty Optional.
+            // In that case, revert to mapper.mapEntityToAspect(), which handles entities one at a time.
+
+            Optional<Map<Long, EntityAspect>> aspectMap = mapper.mapEntityToAspectBatchPartial(matchingEntities);
+            if (aspectMap.isPresent()) {
+                aspectMap.get().forEach((oid, aspect) -> {
+                    aspects.get(oid).put(mapper.getAspectName(), aspect);
+                });
             }
         }
 

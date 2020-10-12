@@ -412,6 +412,40 @@ service SearchService {
     rpc SearchTags(SearchTagsRequest) returns (SearchTagsResponse);
 
     rpc SearchTagValues(SearchTagValuesRequest) returns (SearchTagValuesResponse);
+
+    rpc graphSearch(GraphRequest) returns (GraphResponse);
+}
+
+message Hop {
+    required TraversalFilter.TraversalDirection traversal_direction = 1;
+    required int32 target_entity_type = 2;
+}
+
+message RequestNode {
+    repeated Hop hops = 1;
+    optional .topology.PartialEntity.Type return_type = 2;
+    map<string, RequestNode> nodes = 3;
+}
+
+message GraphRequest {
+    repeated int64 oids = 1;
+    optional .topology.PartialEntity.Type return_type = 2;
+    map<string, RequestNode> nodes = 3;
+}
+
+message OidList {
+    repeated int64 oids = 1;
+}
+
+message ResponseNode {
+    map<int64, OidList> oid_map = 1;
+    map<int64, .topology.PartialEntity> entities = 2;
+    map<string, ResponseNode> nodes = 3;
+}
+
+message GraphResponse {
+    repeated .topology.PartialEntity entities = 1;
+    map<string, ResponseNode> nodes = 2;
 }
 
 message SearchTargetsResponse {

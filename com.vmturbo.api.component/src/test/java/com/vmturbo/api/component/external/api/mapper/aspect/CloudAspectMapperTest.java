@@ -8,8 +8,11 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -36,8 +39,12 @@ import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.search.Search.GraphResponse;
+import com.vmturbo.common.protobuf.search.Search.OidList;
+import com.vmturbo.common.protobuf.search.Search.ResponseNode;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -84,9 +91,12 @@ public class CloudAspectMapperTest {
             spy(GroupDTOMoles.GroupServiceMole.class);
     private GrpcTestServer testServer = GrpcTestServer.newServer(riCoverageServiceMole, groupServiceMole);
     private final RepositoryApi repositoryApi = mock(RepositoryApi.class);
+    private final ExecutorService executorService =  Executors.newCachedThreadPool(new ThreadFactoryBuilder().build());
+
     private CloudAspectMapper cloudAspectMapper;
     private TopologyEntityDTO.Builder topologyEntityBuilder;
     private ApiPartialEntity.Builder apiPartialEntityBuilder;
+
 
     /**
      * Objects initialization necessary for a unit test.
@@ -101,7 +111,7 @@ public class CloudAspectMapperTest {
                         .newBlockingStub(testServer.getChannel());
         final GroupServiceGrpc.GroupServiceBlockingStub groupServiceBlockingStub = GroupServiceGrpc.newBlockingStub(
                 testServer.getChannel());
-        cloudAspectMapper = new CloudAspectMapper(repositoryApi, riCoverageService, groupServiceBlockingStub);
+        cloudAspectMapper = new CloudAspectMapper(repositoryApi, riCoverageService, groupServiceBlockingStub, executorService);
         topologyEntityBuilder = TopologyEntityDTO.newBuilder()
                 .setOid(VIRTUAL_MACHINE_OID)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -196,6 +206,15 @@ public class CloudAspectMapperTest {
         when(groupServiceMole.getGroupsForEntities(request.addEntityId(VIRTUAL_MACHINE_NULL_RG_RESPONSE_OID).build()))
                 .thenReturn(null);
 
+        long accountOid = 123L;
+        Mockito.when(repositoryApi.graphSearch(any())).thenReturn(GraphResponse.newBuilder()
+                .putNodes("account", ResponseNode.newBuilder().putOidMap(VIRTUAL_MACHINE_OID, OidList.newBuilder().addOids(accountOid).build())
+                        .putEntities(accountOid, PartialEntity.newBuilder().setMinimal(businessAccount).build()).build())
+                .putNodes("region", ResponseNode.newBuilder().putOidMap(VIRTUAL_MACHINE_OID, OidList.newBuilder().addOids(REGION_OID).build())
+                        .putEntities(REGION_OID, PartialEntity.newBuilder().setMinimal(region).build()).build())
+                .putNodes("regionByZone", ResponseNode.newBuilder().build())
+                .putNodes("zone", ResponseNode.newBuilder().putOidMap(VIRTUAL_MACHINE_OID, OidList.newBuilder().addOids(ZONE_OID).build())
+                        .putEntities(ZONE_OID, PartialEntity.newBuilder().setMinimal(zone).build()).build()).build());
     }
 
     /**
@@ -203,6 +222,7 @@ public class CloudAspectMapperTest {
      */
     @Test
     public void testMapEntityToAspectTopologyEntity() {
+
         // Act
         final CloudAspectApiDTO aspect = (CloudAspectApiDTO)cloudAspectMapper.mapEntityToAspect(
                 topologyEntityBuilder.build());
@@ -310,23 +330,6 @@ public class CloudAspectMapperTest {
     }
 
     /**
-     * Test for {@link CloudAspectMapper#mapEntityToAspect(com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity)}
-     * method.
-     *
-     * @throws OperationFailedException in case of API mapper failure.
-     */
-    @Test
-    public void testMapEntityToAspectApiPartialEntity() {
-        final TopologyEntityDTO topologyEntityDTO = topologyEntityBuilder.build();
-        final SingleEntityRequest topologyEntity =
-                ApiTestUtils.mockSingleEntityRequest(topologyEntityDTO);
-        Mockito.when(repositoryApi.entityRequest(VIRTUAL_MACHINE_OID)).thenReturn(topologyEntity);
-        final EntityAspect entityAspect =
-                cloudAspectMapper.mapEntityToAspect(apiPartialEntityBuilder.build());
-        Assert.assertNotNull(entityAspect);
-    }
-
-    /**
      * Test for {@link CloudAspectMapper#mapEntityToAspect(TopologyEntityDTO)} method.
      * AWS case - when both availability zone and region are present.
      */
@@ -368,7 +371,6 @@ public class CloudAspectMapperTest {
         Assert.assertEquals(String.valueOf(REGION_OID), aspect.getRegion().getUuid());
         Assert.assertEquals(REGION_NAME, aspect.getRegion().getDisplayName());
         Assert.assertEquals(ApiEntityType.REGION.apiStr(), aspect.getRegion().getClassName());
-        Assert.assertNull(aspect.getZone());
     }
 
     /**

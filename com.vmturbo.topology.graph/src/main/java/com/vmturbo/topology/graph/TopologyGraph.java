@@ -289,7 +289,7 @@ public class TopologyGraph<E extends TopologyGraphEntity<E>> {
      */
     @Nonnull
     public Stream<E> getOwnedOrAggregatedEntities(@Nonnull final E topologyEntity) {
-        return topologyEntity.getAggregatedAndOwnedEntities().stream();
+        return Stream.concat(topologyEntity.getOwnedEntities().stream(), topologyEntity.getAggregatedEntities().stream());
     }
 
     /**
@@ -301,7 +301,7 @@ public class TopologyGraph<E extends TopologyGraphEntity<E>> {
      */
     @Nonnull
     public Stream<E> getOwnersOrAggregators(@Nonnull final E topologyEntity) {
-        return topologyEntity.getAggregatorsAndOwner().stream();
+        return Stream.concat(topologyEntity.getAggregators().stream(), getOwner(topologyEntity));
     }
 
     /**

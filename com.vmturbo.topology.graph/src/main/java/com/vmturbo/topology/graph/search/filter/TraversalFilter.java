@@ -58,7 +58,7 @@ public abstract class TraversalFilter<E extends TopologyGraphSearchableEntity<E>
      * @param graph The graph on which to perform lookups.
      * @return A method that can be used to lookup neighbors for a particular vertex in the graph.
      */
-    protected Function<E, Stream<E>> neighborLookup(@Nonnull final TopologyGraph<E> graph) {
+    public Function<E, Stream<E>> neighborLookup(@Nonnull final TopologyGraph<E> graph) {
         // Note the difference between noun and verb here.
         // Following the CONSUMES relation is done by fetching producers,
         // and following the PRODUCES relation is done by fetching consumers.

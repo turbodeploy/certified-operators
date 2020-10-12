@@ -641,7 +641,7 @@ public class SearchService implements ISearchService {
                     .addAllEntityOid(allEntityOids)
                     .build();
                 return getServiceEntityPaginatedWithUtilization(inputDTO, updatedQuery, paginationRequest,
-                        allEntityOids, searchOidsRequest, isGlobalScope);
+                        allEntityOids, searchOidsRequest, isGlobalScope, aspectNames);
             }
         } catch (RuntimeException e) {
             if (e instanceof StatusRuntimeException) {
@@ -664,10 +664,10 @@ public class SearchService implements ISearchService {
             .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
             .build();
         final SearchEntitiesResponse response = searchServiceRpc.searchEntities(searchEntitiesRequest);
-        List<ServiceEntityApiDTO> entities = response.getEntitiesList().stream()
-                .map(PartialEntity::getApi)
-                .map(serviceEntityMapper::toServiceEntityApiDTO)
-                .collect(Collectors.toList());
+        List<ApiPartialEntity> partialEntities = response.getEntitiesList().stream()
+                .map(PartialEntity::getApi).collect(Collectors.toList());
+        List<ServiceEntityApiDTO> entities = serviceEntityMapper.toServiceEntityApiDTOMap(partialEntities)
+                .values().stream().collect(Collectors.toList());
         severityPopulator.populate(realtimeContextId, entities);
         return buildPaginationResponse(entities,
                 response.getPaginationResponse(), paginationRequest);
@@ -723,6 +723,7 @@ public class SearchService implements ISearchService {
      * @param expandedIds a list of entity oids after expanded.
      * @param searchRequest {@link Search.SearchEntityOidsRequest}.
      * @param isGlobalScope a boolean represents if search scope is global scope or not.
+     * @param aspectNames aspect names
      * @return pagination response
      * @throws InterruptedException if thread has been interrupted
      * @throws ConversionException if errors faced during converting data to API DTOs
@@ -733,7 +734,8 @@ public class SearchService implements ISearchService {
             @Nonnull final SearchPaginationRequest paginationRequest,
             @Nonnull final Set<Long> expandedIds,
             @Nonnull final Search.SearchEntityOidsRequest searchRequest,
-            @Nonnull final boolean isGlobalScope) throws ConversionException, InterruptedException {
+            @Nonnull final boolean isGlobalScope,
+            @Nullable Collection<String> aspectNames) throws ConversionException, InterruptedException {
         // if it is global scope and there is no other search criteria, it means all service entities
         // of same entity type are search candidates.
         final boolean isGlobalEntities =
@@ -760,9 +762,14 @@ public class SearchService implements ISearchService {
         final List<Long> nextPageIds = response.getEntityStatsList().stream()
                 .map(EntityStats::getOid)
                 .collect(Collectors.toList());
-        final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
-            repositoryApi.entitiesRequest(Sets.newHashSet(nextPageIds))
-                .getSEMap();
+        final RepositoryApi.MultiEntityRequest entityRequest =
+                repositoryApi.entitiesRequest(Sets.newHashSet(nextPageIds));
+
+        if (CollectionUtils.isNotEmpty(aspectNames)) {
+            entityRequest.useAspectMapper(entityAspectMapper, aspectNames);
+        }
+
+        final Map<Long, ServiceEntityApiDTO> serviceEntityMap = entityRequest.getSEMap();
         // It is important to keep the order of entityIdsList, because they have already sorted by
         // utilization.
         final List<ServiceEntityApiDTO> entities = nextPageIds.stream()

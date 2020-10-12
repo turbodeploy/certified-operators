@@ -397,19 +397,7 @@ public class ActionSpecMappingContextFactory {
         // For Cloud Aspect, we can get certain information from the ApiPartialEntity
         // at this time, we don't need the full Api DTO
         if (aspectName == AspectName.CLOUD) {
-            for (ApiPartialEntity entity : entities) {
-                if (entity.getEnvironmentType() == EnvironmentType.ON_PREM ||
-                    (allEntityTypes && entityTypes.contains(ApiEntityType.fromType(entity.getEntityType())))) {
-                    continue;
-                }
-                final EntityAspect cloudAspect =
-                    entityAspectMapper.getAspectByEntity(entity, AspectName.CLOUD);
-                if (cloudAspect != null) {
-                    oidToAspectMap.put(entity.getOid(), cloudAspect);
-                }
-            }
-
-            return oidToAspectMap;
+            return entityAspectMapper.getAspectsByEntitiesPartial(entities, AspectName.CLOUD);
         }
 
         // For other Aspect types, we need to get the full API DTO so that it can be extracted.

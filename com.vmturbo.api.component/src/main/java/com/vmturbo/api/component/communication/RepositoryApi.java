@@ -40,12 +40,15 @@ import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.Builder;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceStub;
 import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.GraphRequest;
+import com.vmturbo.common.protobuf.search.Search.GraphResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
@@ -128,6 +131,15 @@ public class RepositoryApi {
         return newSearchRequestMulti(Collections.singleton(params));
     }
 
+    /**
+     * Do a search of the topology graph.
+     * @param lookupRequest request
+     * @return response object
+     */
+    @Nonnull
+    public GraphResponse graphSearch(GraphRequest lookupRequest) {
+        return this.searchServiceBlockingStub.graphSearch(lookupRequest);
+    }
     /**
      * Create a new search request.
      *
