@@ -382,7 +382,9 @@ public class SearchService implements ISearchService {
                 return paginationRequest.allResultsResponse(Lists.newArrayList(targets));
             } else if (typesHashSet.contains(ApiEntityType.BUSINESS_ACCOUNT.apiStr())) {
                 final Collection<BusinessUnitApiDTO> businessAccounts =
-                        businessAccountRetriever.getBusinessAccountsInScope(scopes, null);
+                        businessAccountRetriever.getBusinessAccountsInScope(scopes,
+                            addNameMatcher(query, Collections.emptyList(),
+                                EntityFilterMapper.ACCOUNT_NAME));
                 return paginationRequest.allResultsResponse(Lists.newArrayList(businessAccounts));
             } else if (typesHashSet.contains(StringConstants.BILLING_FAMILY)) {
                 return paginationRequest.allResultsResponse(
@@ -487,7 +489,8 @@ public class SearchService implements ISearchService {
         } else if (BUSINESS_ACCOUNT.equals(className)) {
             return paginationRequest.allResultsResponse(Lists.newArrayList(
                     businessAccountRetriever.getBusinessAccountsInScope(inputDTO.getScope(),
-                            inputDTO.getCriteriaList())));
+                            addNameMatcher(query, inputDTO.getCriteriaList(),
+                                EntityFilterMapper.ACCOUNT_NAME))));
         } else if (WORKLOAD.equals(className)) {
             List<String> scope = inputDTO.getScope();
 

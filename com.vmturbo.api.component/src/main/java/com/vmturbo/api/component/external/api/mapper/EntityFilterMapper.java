@@ -73,6 +73,9 @@ public class EntityFilterMapper {
     // "groupBuilderUseCases.json". If not, "/criteria/{elements}/options" will not be called
     // since UI gets all criteria from "groupBuilderUseCases.json" and check if the criteria
     // matches that inside "groupBuilderUseCases.json".
+    /** Key of the criteria to query business accounts by Name. */
+    public static final String ACCOUNT_NAME = "businessAccountByName";
+    /** Key of the criteria to query business accounts by OID. */
     public static final String ACCOUNT_OID = "BusinessAccount:oid:OWNS:1";
     /** Key of the criteria to query resource groups by ids. */
     public static final String MEMBER_OF_RESOURCE_GROUP_OID = "MemberOf:ResourceGroup:uuid";

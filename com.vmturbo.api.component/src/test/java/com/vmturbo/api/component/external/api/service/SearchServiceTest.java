@@ -289,7 +289,7 @@ public class SearchServiceTest {
         verify(targetsService).getTargets(null);
 
         getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD, null, null);
-        verify(businessAccountRetriever).getBusinessAccountsInScope(null, null);
+        verify(businessAccountRetriever).getBusinessAccountsInScope(null, Collections.emptyList());
 
         final SearchRequest mockSearchRequest = mock(SearchRequest.class);
         when(repositoryApi.newSearchRequest(any())).thenReturn(mockSearchRequest);
@@ -677,7 +677,7 @@ public class SearchServiceTest {
         final List<String> types = ImmutableList.of(ApiEntityType.BUSINESS_ACCOUNT.apiStr());
         Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes,
             null, null, null, null, null);
-        verify(businessAccountRetriever).getBusinessAccountsInScope(scopes, null);
+        verify(businessAccountRetriever).getBusinessAccountsInScope(scopes, Collections.emptyList());
     }
 
     @Test
