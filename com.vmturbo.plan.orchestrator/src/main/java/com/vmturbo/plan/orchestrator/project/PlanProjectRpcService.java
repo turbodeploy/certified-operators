@@ -136,7 +136,7 @@ public class PlanProjectRpcService extends PlanProjectServiceImplBase {
                                StreamObserver<RunPlanProjectResponse> responseObserver) {
         final Optional<PlanProject> planProject = planProjectDao.getPlanProject(request.getId());
         if (planProject.isPresent()) {
-            planProjectExecutor.executePlan(planProject.get());
+            planProjectExecutor.executePlan(planProject.get(), request.getHandleFailure());
             responseObserver.onNext(RunPlanProjectResponse.getDefaultInstance());
             responseObserver.onCompleted();
         } else {

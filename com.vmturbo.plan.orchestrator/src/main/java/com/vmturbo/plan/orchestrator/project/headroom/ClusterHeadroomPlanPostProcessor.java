@@ -143,6 +143,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
 
     private Consumer<ProjectPlanPostProcessor> onCompleteHandler;
 
+    private Runnable onFailureHandler;
+
     /**
      * A constant holding a big number of days when exhaustion days is infinite.
      */
@@ -230,6 +232,10 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             if (plan.getStatus() == PlanStatus.FAILED) {
                 logger.error("Cluster headroom plan for cluster {} failed! Error: {}",
                     displayName, plan.getStatusMessage());
+                if (onFailureHandler != null) {
+                    logger.info("Start to rerun cluster headroom plan");
+                    onFailureHandler.run();
+                }
             } else if (plan.getStatus() == PlanStatus.STOPPED) {
                 logger.info("Cluster headroom plan for cluster {} was stopped!", displayName);
             } else {
@@ -806,6 +812,15 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 .forEach(entity -> entities.put(entity.getOid(), entity));
         }
         doHeadroomCalculation(entities);
+    }
+
+    /**
+     * Set onFailureHandler.
+     * 
+     * @param onFailureHandler the handler that handles failure
+     */
+    void setOnFailureHandler(final Runnable onFailureHandler) {
+        this.onFailureHandler = onFailureHandler;
     }
 
     /**

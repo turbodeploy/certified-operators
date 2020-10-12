@@ -3,6 +3,7 @@ package com.vmturbo.plan.orchestrator.project.headroom;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,7 @@ import io.grpc.StatusRuntimeException;
 import org.apache.commons.lang3.time.StopWatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -68,7 +70,6 @@ import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.project.PlanProjectExecutor;
-import com.vmturbo.plan.orchestrator.project.ProjectPlanPostProcessor;
 import com.vmturbo.plan.orchestrator.project.ProjectPlanPostProcessorRegistry;
 import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadCalculatedProfile.Operation;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
@@ -112,9 +113,15 @@ public class ClusterHeadroomPlanProjectExecutor {
 
     private final CPUCapacityEstimator cpuCapacityEstimator;
 
+    private final ThreadPoolTaskScheduler taskScheduler;
+
+    private boolean handleFailure;
+
     // If true, calculate headroom for all clusters in one plan instance.
     // If false, calculate headroom for restricted number of clusters in multiple plan instances.
     private final boolean headroomCalculationForAllClusters;
+
+    private final long headroomPlanRerunDelayInSecond;
 
     // Number of days for which system load was considered in history.
     private static final int LOOP_BACK_DAYS = 10;
@@ -130,8 +137,10 @@ public class ClusterHeadroomPlanProjectExecutor {
      * @param templatesDao templates DAO
      * @param historyChannel history channel
      * @param headroomCalculationForAllClusters specifies how to run cluster headroom plan
+     * @param headroomPlanRerunDelayInSecond specifies when to rerun headroom plan
      * @param topologyProcessor a REST call to get target info
      * @param cpuCapacityEstimator estimates the scaling factor of a cpu model.
+     * @param taskScheduler a taskScheduler used for scheduled plan executions
      */
     public ClusterHeadroomPlanProjectExecutor(@Nonnull final PlanDao planDao,
                                               @Nonnull final Channel groupChannel,
@@ -141,8 +150,10 @@ public class ClusterHeadroomPlanProjectExecutor {
                                               @Nonnull final TemplatesDao templatesDao,
                                               @Nonnull final Channel historyChannel,
                                               final boolean headroomCalculationForAllClusters,
+                                              final long headroomPlanRerunDelayInSecond,
                                               @Nonnull final TopologyProcessor topologyProcessor,
-                                              @Nonnull final CPUCapacityEstimator cpuCapacityEstimator) {
+                                              @Nonnull final CPUCapacityEstimator cpuCapacityEstimator,
+                                              @Nonnull final ThreadPoolTaskScheduler taskScheduler) {
         this.groupChannel = Objects.requireNonNull(groupChannel);
         this.planService = Objects.requireNonNull(planRpcService);
         this.projectPlanPostProcessorRegistry = Objects.requireNonNull(processorRegistry);
@@ -152,13 +163,14 @@ public class ClusterHeadroomPlanProjectExecutor {
         this.templatesDao = Objects.requireNonNull(templatesDao);
         this.historyChannel = Objects.requireNonNull(historyChannel);
         this.headroomCalculationForAllClusters = headroomCalculationForAllClusters;
-
+        this.headroomPlanRerunDelayInSecond = headroomPlanRerunDelayInSecond;
         this.groupRpcService = GroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
         this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
         this.statsHistoryService =
             StatsHistoryServiceGrpc.newBlockingStub(Objects.requireNonNull(historyChannel));
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.cpuCapacityEstimator = Objects.requireNonNull(cpuCapacityEstimator);
+        this.taskScheduler = taskScheduler;
     }
 
     /**
@@ -167,12 +179,20 @@ public class ClusterHeadroomPlanProjectExecutor {
      * they will be processed during plan execution.
      *
      * @param planProject a plan project
+     * @param handleFailure handle failure or not
      */
-    public void executePlanProject(@Nonnull final PlanProject planProject) {
-        logger.debug("Running cluster headroom plan project: {} (name: {})",
-                planProject.getPlanProjectId(), planProject.getPlanProjectInfo().getName());
+    public void executePlanProject(@Nonnull final PlanProject planProject,
+                                   final boolean handleFailure) {
+        if (!planProject.getPlanProjectInfo().getType().equals(PlanProjectType.CLUSTER_HEADROOM)) {
+            logger.warn("Plan project type {} cannot be executed by ClusterHeadroomPlanProjectExecutor",
+                planProject.getPlanProjectInfo().getType());
+            return;
+        }
 
-        PlanProjectType type = planProject.getPlanProjectInfo().getType();
+        this.handleFailure = handleFailure;
+        logger.info("Running cluster headroom plan project: {} (name: {})",
+            planProject.getPlanProjectId(), planProject.getPlanProjectInfo().getName());
+
         if (headroomCalculationForAllClusters) {
             runPlanInstanceAllCluster(planProject);
         } else {
@@ -251,18 +271,17 @@ public class ClusterHeadroomPlanProjectExecutor {
             }
 
             // Register post process handler
-            ProjectPlanPostProcessor planProjectPostProcessor = null;
-            if (planProject.getPlanProjectInfo().getType().equals(PlanProjectType.CLUSTER_HEADROOM)) {
-                planProjectPostProcessor = new ClusterHeadroomPlanPostProcessor(planInstance.getPlanId(),
+            final ClusterHeadroomPlanPostProcessor headroomPlanPostProcessor =
+                new ClusterHeadroomPlanPostProcessor(planInstance.getPlanId(),
                     clusters.stream().map(Grouping::getId).collect(Collectors.toSet()),
                     repositoryChannel, historyChannel, planDao, groupChannel, templatesDao,
                     cpuCapacityEstimator);
-            }
-            if (planProjectPostProcessor != null) {
-                projectPlanPostProcessorRegistry.registerPlanPostProcessor(planProjectPostProcessor);
-            } else {
-                continue;
-            }
+            headroomPlanPostProcessor.setOnFailureHandler(handleFailure ? () ->
+                taskScheduler.schedule(() -> this.executePlanProject(planProject, false),
+                    new Date(System.currentTimeMillis() + 1000 * headroomPlanRerunDelayInSecond))
+                : null);
+
+            projectPlanPostProcessorRegistry.registerPlanPostProcessor(headroomPlanPostProcessor);
 
             logger.info("Starting plan instance for plan project {}",
                 planProject.getPlanProjectInfo().getName());

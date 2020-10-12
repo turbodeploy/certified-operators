@@ -8,10 +8,11 @@
           }
         },
         "timeOfRun": {
-          "hour": 5
+          "hour": 2
         }
       },
       "type": "CLUSTER_HEADROOM",
+      "handleFailure": true,
       "scenarios":
       [
         {

@@ -119,6 +119,9 @@ message PlanProjectInfo {
 
     // Ids of related plans. 1 (Lift & Shift) plan in case of migration project.
     repeated int64 related_plan_ids = 13;
+
+    // If true, handle plan failure
+    optional bool handle_failure = 14 [default = false];
 }
 
 message PlanProjectStatusNotification {
@@ -222,6 +225,9 @@ message GetAllPlanProjectsResponse {
 
 message RunPlanProjectRequest {
     optional int64 id = 1;
+
+    // If true, handle plan failure
+    optional bool handle_failure = 2 [default = false];
 }
 
 message RunPlanProjectResponse {

@@ -10,6 +10,7 @@ import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -45,8 +46,10 @@ public class PlanProjectExecutor {
      * @param historyChannel history channel
      * @param projectNotifier Used to send plan project related notification updates.
      * @param headroomCalculationForAllClusters specifies how to run cluster headroom plan
+     * @param headroomPlanRerunDelayInSecond specifies when to rerun headroom plan
      * @param topologyProcessor a REST call to get target info
      * @param cpuCapacityEstimator estimates the scaling factor of a cpu model.
+     * @param taskScheduler a taskScheduler used for scheduled plan executions
      */
     PlanProjectExecutor(@Nonnull final PlanDao planDao,
                         @Nonnull final PlanProjectDao planProjectDao,
@@ -58,12 +61,15 @@ public class PlanProjectExecutor {
                         @Nonnull final Channel historyChannel,
                         @Nonnull final PlanProjectNotificationSender projectNotifier,
                         final boolean headroomCalculationForAllClusters,
+                        final long headroomPlanRerunDelayInSecond,
                         @Nonnull final TopologyProcessor topologyProcessor,
-                        @Nonnull final CPUCapacityEstimator cpuCapacityEstimator) {
+                        @Nonnull final CPUCapacityEstimator cpuCapacityEstimator,
+                        @Nonnull final ThreadPoolTaskScheduler taskScheduler) {
 
         headroomExecutor = new ClusterHeadroomPlanProjectExecutor(planDao, groupChannel,
                 planRpcService, projectPlanPostProcessorRegistry, repositoryChannel, templatesDao, historyChannel,
-                headroomCalculationForAllClusters, topologyProcessor, cpuCapacityEstimator);
+                headroomCalculationForAllClusters, headroomPlanRerunDelayInSecond,
+                topologyProcessor, cpuCapacityEstimator, taskScheduler);
 
         cloudMigrationExecutor = new CloudMigrationPlanProjectExecutor(planDao, planProjectDao,
                 planRpcService, projectPlanPostProcessorRegistry, projectNotifier);
@@ -86,15 +92,17 @@ public class PlanProjectExecutor {
      * they will be processed during plan execution.
      *
      * @param planProject a plan project
+     * @param handleFailure handle failure or not
      */
-    public void executePlan(@Nonnull final PlanProject planProject) {
+    public void executePlan(@Nonnull final PlanProject planProject,
+                            final boolean handleFailure) {
         logger.info("Executing plan project: {} (name: {})",
                 planProject.getPlanProjectId(), planProject.getPlanProjectInfo().getName());
 
         PlanProjectType type = planProject.getPlanProjectInfo().getType();
         switch (type) {
             case CLUSTER_HEADROOM:
-                headroomExecutor.executePlanProject(planProject);
+                headroomExecutor.executePlanProject(planProject, handleFailure);
                 break;
             case CLOUD_MIGRATION:
                 cloudMigrationExecutor.executePlanProject(planProject);

@@ -31,6 +31,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -152,8 +153,8 @@ public class PlanProjectExecutorTest {
             .thenReturn(1.0);
         planProjectExecutor = new PlanProjectExecutor(planDao, planProjectDao, grpcServer.getChannel(),
                 planRpcService, registry, grpcServer.getChannel(), templatesDao, grpcServer.getChannel(),
-                projectNotificationSender, true, topologyProcessor,
-                cpuCapacityEstimator);
+                projectNotificationSender, true, 10, topologyProcessor,
+                cpuCapacityEstimator, mock(ThreadPoolTaskScheduler.class));
         headroomExecutor = planProjectExecutor.getHeadroomExecutor();
         when(templatesDao.getFilteredTemplates(any()))
             .thenReturn(Collections.singleton(Template.newBuilder()
@@ -210,7 +211,7 @@ public class PlanProjectExecutorTest {
         when(templatesDao.getClusterHeadroomTemplateForGroup(anyLong())).thenReturn(Optional.empty());
 
         ReflectionTestUtils.setField(headroomExecutor, "headroomCalculationForAllClusters", false);
-        planProjectExecutor.executePlan(planProject);
+        planProjectExecutor.executePlan(planProject, false);
 
         // 2 clusters, with 2 scenarios each.  So there are 4 plan instances created.
         verify(planDao, Mockito.times(4))
@@ -248,7 +249,7 @@ public class PlanProjectExecutorTest {
         when(templatesDao.getClusterHeadroomTemplateForGroup(anyLong())).thenReturn(Optional.empty());
 
         PlanProjectOuterClass.PlanProject planProject = createHeadroomPlanProjectWithTwoScenarios();
-        planProjectExecutor.executePlan(planProject);
+        planProjectExecutor.executePlan(planProject, false);
 
         // 3 clusters, with 2 scenarios each. So there are 2 plan instances created.
         verify(planDao, Mockito.times(2))

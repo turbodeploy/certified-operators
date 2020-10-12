@@ -204,7 +204,7 @@ public class PlanProjectScheduler {
      */
     @VisibleForTesting
     void executePlan(final PlanProject planProject) {
-        planProjectExecutor.executePlan(planProject);
+        planProjectExecutor.executePlan(planProject, planProject.getPlanProjectInfo().getHandleFailure());
     }
 
 }

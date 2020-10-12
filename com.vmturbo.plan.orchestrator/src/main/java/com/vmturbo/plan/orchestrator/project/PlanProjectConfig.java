@@ -1,15 +1,19 @@
 package com.vmturbo.plan.orchestrator.project;
 
+import java.util.concurrent.ThreadFactory;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.plan.PlanProjectREST.PlanProjectServiceController;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
@@ -69,6 +73,9 @@ public class PlanProjectConfig {
 
     @Value("${headroomCalculationForAllClusters:true}")
     private boolean headroomCalculationForAllClusters;
+
+    @Value("${headroomPlanRerunDelayInSecond:3600}")
+    private long headroomPlanRerunDelayInSecond;
 
     @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
@@ -146,17 +153,27 @@ public class PlanProjectConfig {
                 historyClientConfig.historyChannel(),
                 planProjectNotificationSender(),
                 headroomCalculationForAllClusters,
+                headroomPlanRerunDelayInSecond,
                 globalConfig.tpNotificationClient(),
-                cpuCapacityConfig.cpuCapacityEstimator());
+                cpuCapacityConfig.cpuCapacityEstimator(),
+                taskScheduler());
     }
 
     /**
-     * Returns the bean for accessing the history service.
+     * Create a {@link TaskScheduler} to use for scheduled plan executions.
      *
-     * @return the bean for accessing the history service.
+     * @return a {@link TaskScheduler} to use for scheduled executions
      */
-    @Bean
-    public StatsHistoryServiceBlockingStub historyRpcService() {
-        return StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel());
+    @Bean(name = "taskScheduler")
+    public ThreadPoolTaskScheduler taskScheduler() {
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(5);
+        scheduler.setThreadFactory(threadFactory());
+        scheduler.setWaitForTasksToCompleteOnShutdown(true);
+        return scheduler;
+    }
+
+    private ThreadFactory threadFactory() {
+        return new ThreadFactoryBuilder().setNameFormat("plan-project-%d").build();
     }
 }
