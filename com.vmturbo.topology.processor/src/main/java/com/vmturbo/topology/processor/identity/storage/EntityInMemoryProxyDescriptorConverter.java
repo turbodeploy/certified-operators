@@ -4,13 +4,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.Converter;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,6 +13,10 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.Converter;
 
 import com.vmturbo.topology.processor.identity.PropertyDescriptor;
 
@@ -121,18 +120,16 @@ public class EntityInMemoryProxyDescriptorConverter implements Converter<String,
         final ObjectNode objectNode = mapper.createObjectNode();
         objectNode.put(CUR_OID_PROP_NAME, userObject.getOID());
 
-        final List<String> heuristicProps = userObject.getHeuristicProperties().stream()
-                .map(IdentityServiceInMemoryUnderlyingStore::propertyAsString)
-                .collect(Collectors.toList());
 
         final ArrayNode heuristicNode = objectNode.putArray(CUR_HEURISTIC_PROPS_PROP_NAME);
-        heuristicProps.forEach(heuristicNode::add);
+        userObject.getHeuristicProperties().stream()
+                .map(IdentityServiceInMemoryUnderlyingStore::propertyAsString)
+                .forEach(heuristicNode::add);
 
         final ArrayNode idProps = objectNode.putArray(CUR_ID_PROPS_PROP_NAME);
-        userObject.getQueryPropertySet().stream()
-                .filter(prop -> !heuristicProps.contains(prop))
+        userObject.getIdentifyingProperties().stream()
+                .map(IdentityServiceInMemoryUnderlyingStore::propertyAsString)
                 .forEach(idProps::add);
-
 
         return objectNode.toString();
     }

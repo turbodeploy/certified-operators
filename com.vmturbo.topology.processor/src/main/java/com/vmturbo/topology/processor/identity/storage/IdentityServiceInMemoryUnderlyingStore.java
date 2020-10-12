@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -421,13 +420,9 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
         checkInitialized();
 
         Collection<EntityProxyDescriptor> array = new ArrayList<>();
-        Set<String> incoming = new HashSet<>();
-        for (PropertyDescriptor pd : properties) {
-            incoming.add(propertyAsString(pd));
-        }
         // Query
         for (EntityInMemoryProxyDescriptor desc : oid2Dto_.values()) {
-            if (desc.getQueryPropertySet().containsAll(incoming)) {
+            if (desc.containsAll(properties)) {
                 array.add(desc);
             }
         }

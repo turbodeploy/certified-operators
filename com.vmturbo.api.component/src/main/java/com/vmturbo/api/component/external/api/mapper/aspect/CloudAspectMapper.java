@@ -113,6 +113,10 @@ public class CloudAspectMapper extends AbstractAspectMapper {
                 .map(e -> e.getOid())
                 .collect(Collectors.toList());
 
+        if (cloudEntities.isEmpty()) {
+            return Optional.empty();
+        }
+
         GraphRequest request = GraphRequest.newBuilder().addAllOids(cloudEntities)
                         .putNodes("account", SearchProtoUtil.node(Type.MINIMAL, TraversalDirection.OWNED_BY, EntityType.BUSINESS_ACCOUNT).build())
                         .build();

@@ -1,13 +1,10 @@
 package com.vmturbo.topology.processor.identity.storage;
 
 import static com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore.composeKeyFromProperties;
-import static com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore.propertyAsString;
 
 import java.util.Collection;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -38,11 +35,6 @@ public class EntityInMemoryProxyDescriptor implements EntityProxyDescriptor {
     private final String key;
 
     /**
-     * The query properties.
-     */
-    private final Set<String> queryPropertySet;
-
-    /**
      * The identifying properties.
      * Includes volatile and non-volatile properties.
      */
@@ -66,34 +58,9 @@ public class EntityInMemoryProxyDescriptor implements EntityProxyDescriptor {
             @Nonnull final List<PropertyDescriptor> identifyingProperties,
             @Nonnull final List<PropertyDescriptor> heuristicProperties) {
         this.oid = oid;
-        this.queryPropertySet = composeQuerySet(identifyingProperties, heuristicProperties);
         this.identifyingProperties = identifyingProperties;
         this.heuristicProperties = ImmutableList.copyOf(heuristicProperties);
         this.key = composeKeyFromProperties(identifyingProperties);
-    }
-
-    /**
-     * Composes the query set. Adds all the properties with their ranks. Since each property type
-     * will have its unique rank, this will work.
-     *
-     * @param identifyingProperties The identifying properties.
-     * @param heuristicProperties   The heuristic properties.
-     * @return The query set.
-     */
-    private @Nonnull Set<String> composeQuerySet(
-            Collection<PropertyDescriptor> identifyingProperties,
-            Collection<PropertyDescriptor> heuristicProperties) {
-        // The values must be stored in the same order they are added.
-        Set<String> queryPropertySet = new LinkedHashSet<>();
-        for (PropertyDescriptor pd : identifyingProperties) {
-            String propertyString = propertyAsString(pd);
-            queryPropertySet.add(propertyString);
-        }
-        for (PropertyDescriptor pd : heuristicProperties) {
-            String propertyString = propertyAsString(pd);
-            queryPropertySet.add(propertyString);
-        }
-        return queryPropertySet;
     }
 
     public long getOID() {
@@ -104,8 +71,21 @@ public class EntityInMemoryProxyDescriptor implements EntityProxyDescriptor {
         return key;
     }
 
-    public Set<String> getQueryPropertySet() {
-        return queryPropertySet;
+    /**
+     * Return whether or not this descriptor contains all the input property descriptors.
+     *
+     * @param properties The input property descriptors.
+     * @return True if each of the input descriptors matches a descriptor for this entity.
+     */
+    public boolean containsAll(Iterable<PropertyDescriptor> properties) {
+        // Note - the only time we use this we actually don't care about the heuristic properties
+        // OR the volatile properties, because we are only looking up by non-volatile identifying properties.
+        for (PropertyDescriptor pd : properties) {
+            if (!(identifyingProperties.contains(pd) || heuristicProperties.contains(pd))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public Collection<PropertyDescriptor> getIdentifyingProperties() {
@@ -126,15 +106,14 @@ public class EntityInMemoryProxyDescriptor implements EntityProxyDescriptor {
             return false;
         }
 
-        @Nonnull EntityInMemoryProxyDescriptor that = (EntityInMemoryProxyDescriptor)obj;
-        return (oid == that.oid &&
-                key.equals(that.key) &&
-                queryPropertySet.equals(that.queryPropertySet) &&
-                heuristicProperties.equals(that.heuristicProperties));
+        EntityInMemoryProxyDescriptor that = (EntityInMemoryProxyDescriptor)obj;
+        return (oid == that.oid
+            && key.equals(that.key)
+            && heuristicProperties.equals(that.heuristicProperties));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(oid, key, queryPropertySet, heuristicProperties);
+        return Objects.hash(oid, key, identifyingProperties, heuristicProperties);
     }
 }
