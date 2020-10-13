@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.market.diagnostics.MarketComponentDiagnosticsHandler;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -189,6 +190,16 @@ public class MarketRunnerConfig {
                 consistentResizerFactory(),
                 reversibilitySettingFetcherFactory(),
                 migratedWorkloadCloudCommitmentAnalysisService());
+    }
+
+
+    /**
+     * creates a handler for analysis diagnostics collection.
+     * @return a new MarketComponentDiagnosticsHandler
+     */
+    @Bean
+    public MarketComponentDiagnosticsHandler diagsHandler() {
+        return new MarketComponentDiagnosticsHandler();
     }
 
     /**
