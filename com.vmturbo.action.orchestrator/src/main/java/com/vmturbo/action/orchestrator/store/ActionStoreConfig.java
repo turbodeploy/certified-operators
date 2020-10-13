@@ -161,6 +161,12 @@ public class ActionStoreConfig {
     @Value("${actionSettingsStrictTopologyIdMatch:false}")
     private boolean actionSettingsStrictTopologyIdMatch;
 
+    /**
+     * Enable 'Scale for Performance' and 'Scale for Savings' settings.
+     */
+    @Value("${enableCloudScaleEnhancement:false}")
+    private boolean enableCloudScaleEnhancement;
+
     @Bean
     public IActionFactory actionFactory() {
         return new ActionFactory(actionModeCalculator());
@@ -200,7 +206,7 @@ public class ActionStoreConfig {
 
     @Bean
     public ActionModeCalculator actionModeCalculator() {
-        return new ActionModeCalculator();
+        return new ActionModeCalculator(enableCloudScaleEnhancement);
     }
 
     @Bean

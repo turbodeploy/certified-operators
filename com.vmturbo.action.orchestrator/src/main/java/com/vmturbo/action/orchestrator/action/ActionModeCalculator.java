@@ -77,12 +77,25 @@ public class ActionModeCalculator {
                     ActionSettingType.ACTION_MODE)).getEnumSettingValueType();
 
     private final RangeAwareSpecCalculator rangeAwareSpecCalculator;
+    private final boolean enableCloudScaleEnhancement;
 
     /**
      * Constructs a ActionModeCalculator with the default RangeAwareSpecCalculator.
      */
     public ActionModeCalculator() {
         this.rangeAwareSpecCalculator = new RangeAwareSpecCalculator();
+        this.enableCloudScaleEnhancement = false;
+    }
+
+    /**
+     * Constructs a ActionModeCalculator with the default RangeAwareSpecCalculator.
+     *
+     * @param enableCloudScaleEnhancement private preview flag for 'Scale for Performance' and
+     * 'Scale for Savings' settings.
+     */
+    public ActionModeCalculator(boolean enableCloudScaleEnhancement) {
+        this.rangeAwareSpecCalculator = new RangeAwareSpecCalculator();
+        this.enableCloudScaleEnhancement = enableCloudScaleEnhancement;
     }
 
     /**
@@ -868,9 +881,9 @@ public class ActionModeCalculator {
                         cas = getVolumeScaleActionSetting(action);
                     break;
                     default:
-                        cas = getVmScaleActionSetting(action, settingsForTargetEntity,
-                                defaultSettingsForEntity);
-
+                        cas = (enableCloudScaleEnhancement) ? getVmScaleActionSetting(action,
+                                settingsForTargetEntity, defaultSettingsForEntity)
+                                : ConfigurableActionSettings.CloudComputeScale;
                 }
                 return Stream.of(new ActionSpecifications(cas));
             case RECONFIGURE:
