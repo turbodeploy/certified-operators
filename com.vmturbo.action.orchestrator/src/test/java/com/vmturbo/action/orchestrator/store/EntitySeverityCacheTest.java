@@ -245,16 +245,44 @@ public class EntitySeverityCacheTest {
      *                                 |                    |
      *                                 +--------------------+
      * </pre>
-     * Note that risk propagation around the container block is as follows and there's no
-     * propagation between ContainerSpec and WorkloadController; they essentially have the same
-     * set of actions.
+     *
+     * <p>Traversal over Container area towards Service is as follows:
+     * <pre>
+     *
      *  Container <-------- ContainerSpec
-     *      ^                      X
-     *      |                      X
-     * ContainerPod ----> WorkloadController
-     *                             |
-     *                             V
-     *                         Namespace
+     *      ^                     X
+     *      |                     X
+     * ContainerPod <--- WorkloadController
+     *                            ^
+     *                            |
+     *                        Namespace
+     *
+     * </pre>
+     * Note: No traversal/accumulation between ContainerSpec and WorkloadController to
+     * avoid double counting; they essentially have the same actions: the
+     * WorkloadController's actions are the aggregates of the ContainerSpec's.
+     *
+     * <p>On the other hand, traversal across the Container area towards the Namespace is as
+     * follows:
+     * <pre>
+     *
+     *   Service
+     *      |
+     *      V
+     * AppComponent
+     *      |
+     *      V
+     *  Container   X X X   ContainerSpec
+     *      |                     |
+     *      V                     V
+     * ContainerPod ---> WorkloadController
+     *                            |
+     *                            V
+     *                        Namespace
+     *
+     * </pre>
+     * Note: No traversal/accumulation between Container and ContainerSpec to
+     * avoid double counting.
      */
     @Test
     public void testSeverityBreakdownAndSeverityCounts() {
@@ -372,56 +400,60 @@ public class EntitySeverityCacheTest {
 
         // Service on containers
         //
-        // Service6 ----> App6a1 -> Container6a1 -----> Pod6a ---> VM1 ----> PM1
-        //           \    Minor        Minor       \    Minor     Minor \   Minor
-        //           \                              \-> Spec61           \-> Storage1
-        //           \                                  Minor                 Major
-        //           \--> App6a2 -> Container6a2 -----> Pod6a ---> VM1 ----> PM1
-        //           \                             \    Minor     Minor \   Minor
-        //           \                              \-> Spec62           \-> Storage1
-        //           \                                  Major                 Major
-        //           \--> App6b1 -> Container6b1 -----> Pod6b ---> VM5 ------> Storage4
-        //           \                             \    Major           \       Major
-        //           \                             \                     \---> PM4
-        //           \                             \                      \   Minor
-        //           \                             \                       \-> Vol5
-        //           \                             \
-        //           \                             \--> Spec61
-        //           \                                  Minor
-        //           \--> App6b2 -> Container6b2 -----> Pod6b ---> VM5 ------> Storage4
-        //                                         \    Major           \       Major
-        //                                         \                     \---> PM4
-        //                                         \                      \   Minor
-        //                                         \                       \-> Vol5
-        //                                         \
-        //                                         \--> Spec62
-        //                                              Major
+        // Service6 ----> App6a1 -> Container6a1 -----> Pod6a ----> Workload6 ----> NamespaceFoo
+        //           \    Minor        Minor       \    Minor   \     Major
+        //           \                              \-> Spec61   \--> VM1 ------------> PM1
+        //           \                                  Minor         Minor     \       Minor
+        //           \                                                          \---> Storage1
+        //           \                                                                 Major
+        //           \--> App6a2 -> Container6a2 -----> Pod6a ----> Workload6 ----> NamespaceFoo
+        //           \                             \    Minor   \     Major
+        //           \                              \-> Spec62   \--> VM1 ------------> PM1
+        //           \                                  Major         Minor     \       Minor
+        //           \                                                          \---> Storage1
+        //           \                                                                 Major
+        //           \--> App6b1 -> Container6b1 -----> Pod6b ----> Workload6 ----> NamespaceFoo
+        //           \                             \    Major   \     Major
+        //           \                              \-> Spec61   \-> VM5 ------> Storage4
+        //           \                                  Minor              \       Major
+        //           \                                                      \---> PM4
+        //           \                                                       \   Minor
+        //           \                                                        \-> Vol5
+        //           \--> App6b2 -> Container6b2 -----> Pod6b ----> Workload6 ----> NamespaceFoo
+        //                                         \    Major   \     Major
+        //                                          \-> Spec62   \-> VM5 ------> Storage4
+        //                                              Major              \       Major
+        //                                                                  \---> PM4
+        //                                                                   \   Minor
+        //                                                                    \-> Vol5
         //
         checkSeverityBreakdown(severityBreakdownScenario.service6Oid,
                 ImmutableMap.of(
-                        Severity.MAJOR, 8L,
+                        Severity.MAJOR, 12L,
                         Severity.MINOR, 12L,
-                        Severity.NORMAL, 10L));
+                        Severity.NORMAL, 14L));
 
         // Namespace of containers
         //
-        // NamespaceFoo ----> WorkloadController6 -------> Pod6a ---> VM1 -----> PM1
-        //                           Major         \       Minor     Minor  \   Minor
-        //                                          \                        \-> Storage1
-        //                                           \                           Major
-        //                                            \--> Pod6b ---> VM5 -------> Storage4
-        //                                                 Major            \       Major
-        //                                                                   \---> PM4
-        //                                                                    \   Minor
-        //                                                                     \-> Vol5
-        //
+        // NamespaceFoo ----> Workload6 ----------> Pod6a -----> Container6a1 -> App6a1 -> Service6
+        //                      Major     \         Minor   \       Minor        Minor
+        //                                 \                 \-> Container6a2 -> App6a2 -> Service6
+        //                                  \
+        //                                   \----> Pod6b -----> Container6b1 -> App6b1 -> Service6
+        //                                    \     Major   \
+        //                                     \             \-> Container6a2 -> App6a2 -> Service6
+        //                                      \
+        //                                       \---> Spec61
+        //                                        \    Minor
+        //                                         \-> Spec62
+        //                                             Major
         // Note: Namespace has "includeSelf" true; in the future it will have actions.
         //
         checkSeverityBreakdown(severityBreakdownScenario.namespaceFooOid,
                 ImmutableMap.of(
-                        Severity.MAJOR, 4L,
+                        Severity.MAJOR, 3L,
                         Severity.MINOR, 4L,
-                        Severity.NORMAL, 3L));
+                        Severity.NORMAL, 11L));
     }
 
     /**

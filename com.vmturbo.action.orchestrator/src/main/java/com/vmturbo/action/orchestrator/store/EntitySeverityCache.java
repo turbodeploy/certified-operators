@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -69,61 +70,100 @@ import com.vmturbo.topology.graph.TopologyGraph;
 @ThreadSafe
 public class EntitySeverityCache {
     /**
-     * We calculate risk in the order of this list. As a result, any dependant risks like producers or consumers must come earlier in the list than the entity type that depends on them. For example, we must calculate PHYSICAL_MACHINE before VIRTUAL_MACHINE because VIRTUAL_MACHINE depends on its producers.
+     * We calculate risk in the order of this list. As a result, any dependant risks like
+     * producers or consumers must come earlier in the list than the entity type that depends on
+     * them. For example, we must calculate PHYSICAL_MACHINE before VIRTUAL_MACHINE because
+     * VIRTUAL_MACHINE depends on its producers.
      */
-    private static final List<TraversalConfig> RETRIEVAL_ORDER =
+    private static final List<TraversalConfig> REGULAR_RETRIEVAL_ORDER =
         ImmutableList.<TraversalConfig>builder()
-            // entityType, includeSelf, persist, traverseProducers
-            .add(new TraversalConfig(EntityType.STORAGE, true, false, false))
+            .add(new TraversalStarterConfig(EntityType.STORAGE))
             // Do not traverse producers. A physical machine's producers has ALL storages useD by all
             // VMs hosted on that PM. As a result, unrelated storages would get counted if we
             // traversed the PM's producers.
-            .add(new TraversalConfig(EntityType.PHYSICAL_MACHINE, true, false, false))
+            .add(new TraversalStarterConfig(EntityType.PHYSICAL_MACHINE))
             // Storage must be processed before Virtual Volume, because Virtual Volume uses storage.
             // Do not traverse the producers because the storage producer will already be connected
             // to the VM. This double count doesn't make sense.
-            .add(new TraversalConfig(EntityType.VIRTUAL_VOLUME, true, false, false))
+            .add(new TraversalStarterConfig(EntityType.VIRTUAL_VOLUME))
             // VIRTUAL_DATACENTER not needed because it double counts.
             // There is always a link between VM->VDC->PM and VM->PM
             // Virtual Machine must process after STORAGE, PHYSICAL_MACHINE, and VIRTUAL_VOLUME
             // because those results are used in the Virtual Machine's calculation.
-            .add(new TraversalConfig(EntityType.VIRTUAL_MACHINE, true, false, true, false,
+            .add(new TraverseOverProducersConfig(EntityType.VIRTUAL_MACHINE, true, false,
                 // VIRTUAL_VOLUME producer is not available in the producers list from the repository.
                 // It's in the connected to list. All other entity types have the needed producers
                 // in the api producers list.
                 ImmutableSet.of(EntityType.VIRTUAL_VOLUME)))
             //
-            // Traversal across the Container "square" is as follows:
+            // Traversal across the Container area is as follows:
             //
             //  Container <-------- ContainerSpec
-            //      ^                      X
-            //      |                      X
-            // ContainerPod ----> WorkloadController
-            //                             |
-            //                             V
-            //                         Namespace
+            //      ^                     X
+            //      |                     X
+            // ContainerPod <--- WorkloadController
+            //                            ^
+            //                            |
+            //                        Namespace
             //
-            // Notes:
-            // 1. No traversal/accumulation between ContainerSpec and WorkloadController; they
-            //    essentially have the same actions: the WorkloadController's actions are the
-            //    aggregates of the ContainerSpec's.
-            // 2. ContainerPod -> WorkloadController -> Namespace is traversing the consumers
-            //    relationship. This way we get desired accumulation towards the Namespace.
+            // Note: No traversal/accumulation between ContainerSpec and WorkloadController to
+            // avoid double counting; they essentially have the same actions: the
+            // WorkloadController's actions are the aggregates of the ContainerSpec's.
             //
-            .add(new TraversalConfig(EntityType.CONTAINER_POD, true, false, true))
-            .add(new TraversalConfig(EntityType.WORKLOAD_CONTROLLER, true, false, false, true))
-            .add(new TraversalConfig(EntityType.NAMESPACE, true, true, false, true))
-            .add(new TraversalConfig(EntityType.CONTAINER_SPEC, true, false, false))
-            .add(new TraversalConfig(EntityType.CONTAINER, true, false, true, false,
-                    Collections.singleton(EntityType.CONTAINER_SPEC)))
-            .add(new TraversalConfig(EntityType.DATABASE_SERVER, true, false, true))
+            .add(new TraversalStarterConfig(EntityType.NAMESPACE))
+            .add(new TraverseOverProducersConfig(EntityType.WORKLOAD_CONTROLLER, true, false))
+            .add(new TraverseOverProducersConfig(EntityType.CONTAINER_POD, true, false))
+            .add(new TraversalStarterConfig(EntityType.CONTAINER_SPEC))
+            .add(new TraverseOverProducersConfig(EntityType.CONTAINER, true, false,
+                    ImmutableSet.of(EntityType.CONTAINER_SPEC)))
+            .add(new TraverseOverProducersConfig(EntityType.DATABASE_SERVER, true, false))
             // A database can be an instance running on a database server
-            .add(new TraversalConfig(EntityType.DATABASE, true, false, true))
+            .add(new TraverseOverProducersConfig(EntityType.DATABASE, true, false))
             // Application can have Database/Database Server as a producer
-            .add(new TraversalConfig(EntityType.APPLICATION_COMPONENT, true, false, true))
-            .add(new TraversalConfig(EntityType.SERVICE, false, true, true))
-            .add(new TraversalConfig(EntityType.BUSINESS_TRANSACTION, false, true, true))
-            .add(new TraversalConfig(EntityType.BUSINESS_APPLICATION, false, true, true))
+            .add(new TraverseOverProducersConfig(EntityType.APPLICATION_COMPONENT, true, false))
+            .add(new TraverseOverProducersConfig(EntityType.SERVICE, false, true))
+            .add(new TraverseOverProducersConfig(EntityType.BUSINESS_TRANSACTION, false, true))
+            .add(new TraverseOverProducersConfig(EntityType.BUSINESS_APPLICATION, false, true))
+            .build();
+
+    /**
+     * Top-down retrieval order for accumulation for Namespace.  Namespace should include risks
+     * over the containers/apps running in the Namespace, but not those in the underlying
+     * infrastructure.  As a result, we need two traversal orders: one with infrastructure, the
+     * other without.
+     *
+     * <p>Traversal across the Container area is as follows:
+     * <pre>
+     *
+     *   Service
+     *      |
+     *      V
+     * AppComponent
+     *      |
+     *      V
+     *  Container   X X X   ContainerSpec
+     *      |                     |
+     *      V                     V
+     * ContainerPod ---> WorkloadController
+     *                            |
+     *                            V
+     *                        Namespace
+     *
+     * </pre>
+     * Note: No traversal/accumulation between Container and ContainerSpec to
+     * avoid double counting.
+     */
+    private static final List<TraversalConfig> NAMESPACE_RETRIEVAL_ORDER =
+        ImmutableList.<TraversalConfig>builder()
+            .add(new TraversalStarterConfig(EntityType.BUSINESS_APPLICATION))
+            .add(new TraverseOverConsumersConfig(EntityType.BUSINESS_TRANSACTION, true, false))
+            .add(new TraverseOverConsumersConfig(EntityType.SERVICE, true, false))
+            .add(new TraverseOverConsumersConfig(EntityType.APPLICATION_COMPONENT, true, false))
+            .add(new TraverseOverConsumersConfig(EntityType.CONTAINER, true, false))
+            .add(new TraverseOverConsumersConfig(EntityType.CONTAINER_POD, true, false))
+            .add(new TraversalStarterConfig(EntityType.CONTAINER_SPEC))
+            .add(new TraverseOverConsumersConfig(EntityType.WORKLOAD_CONTROLLER, true, false))
+            .add(new TraverseOverConsumersConfig(EntityType.NAMESPACE, true, true))
             .build();
 
     private final Logger logger = LogManager.getLogger();
@@ -300,10 +340,15 @@ public class EntitySeverityCache {
         if (isCalculatingBreakdowns) {
             StopWatch stopWatch = new StopWatch();
             stopWatch.start();
-            final Long2ObjectMap<SeverityCount> temporarySeverities = new Long2ObjectOpenHashMap<>();
             Optional<ActionRealtimeTopology> curTopology = actionTopologyStore.getSourceTopology();
             if (curTopology.isPresent()) {
-                for (TraversalConfig traversalConfig : RETRIEVAL_ORDER) {
+                final Long2ObjectMap<SeverityCount> temporarySeverities = new Long2ObjectOpenHashMap<>();
+                for (TraversalConfig traversalConfig : REGULAR_RETRIEVAL_ORDER) {
+                    accumulateCounts(temporarySeverities, curTopology.get().entityGraph(),
+                            traversalConfig, entitySeverities, retMap);
+                }
+                temporarySeverities.clear();
+                for (TraversalConfig traversalConfig : NAMESPACE_RETRIEVAL_ORDER) {
                     accumulateCounts(temporarySeverities, curTopology.get().entityGraph(),
                             traversalConfig, entitySeverities, retMap);
                 }
@@ -452,13 +497,56 @@ public class EntitySeverityCache {
             this(entityType, includeSelf, persist, traverseProducers, traverseConsumers,
                     Collections.emptySet());
         }
+    }
 
-        private TraversalConfig(
-                final EntityType entityType,
+    /**
+     * A {@link TraversalConfig} for traversal over producers.
+     */
+    private static class TraverseOverProducersConfig extends TraversalConfig {
+        private TraverseOverProducersConfig(
+                @Nonnull final EntityType entityType,
                 final boolean includeSelf,
                 final boolean persist,
-                final boolean traverseProducers) {
-            this(entityType, includeSelf, persist, traverseProducers, false);
+                @Nonnull Set<EntityType> connectedEntities) {
+            super(Objects.requireNonNull(entityType), includeSelf, persist, true, false,
+                    Objects.requireNonNull(connectedEntities));
+        }
+
+        private TraverseOverProducersConfig(
+                @Nonnull final EntityType entityType,
+                final boolean includeSelf,
+                final boolean persist) {
+            this(entityType, includeSelf, persist, Collections.emptySet());
+        }
+    }
+
+    /**
+     * A {@link TraversalConfig} for traversal over consumers.
+     */
+    private static class TraverseOverConsumersConfig extends TraversalConfig {
+        private TraverseOverConsumersConfig(
+                @Nonnull final EntityType entityType,
+                final boolean includeSelf,
+                final boolean persist,
+                @Nonnull Set<EntityType> connectedEntities) {
+            super(Objects.requireNonNull(entityType), includeSelf, persist, false, true,
+                    Objects.requireNonNull(connectedEntities));
+        }
+
+        private TraverseOverConsumersConfig(
+                @Nonnull final EntityType entityType,
+                final boolean includeSelf,
+                final boolean persist) {
+            this(entityType, includeSelf, persist, Collections.emptySet());
+        }
+    }
+
+    /**
+     * A {@link TraversalConfig} for starting nodes.
+     */
+    private static class TraversalStarterConfig extends TraversalConfig {
+        private TraversalStarterConfig(@Nonnull final EntityType entityType) {
+            super(Objects.requireNonNull(entityType), true, false, false, false, Collections.emptySet());
         }
     }
 
