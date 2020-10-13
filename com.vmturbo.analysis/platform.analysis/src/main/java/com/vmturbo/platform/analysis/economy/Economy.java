@@ -97,6 +97,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private Map<String, Set<Trader>> scalingGroupToMembers = new HashMap<>();
     // Map of trader to its context list
     private Map<Trader, List<Context>> traderWithContext = new HashMap<>();
+    private Set<Long> exceptionTraders = new HashSet<>();
 
     // Cached data
 
@@ -1295,5 +1296,9 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             }
             info.setConsistentlySized(matched);
         }
+    }
+
+    public Set<Long> getExceptionTraders() {
+        return exceptionTraders;
     }
 } // end class Economy

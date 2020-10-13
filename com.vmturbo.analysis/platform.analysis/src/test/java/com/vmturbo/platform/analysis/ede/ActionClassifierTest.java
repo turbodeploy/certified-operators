@@ -178,7 +178,7 @@ public class ActionClassifierTest {
         actions.add(new Deactivate(first, container1, container1.getBasketSold()));
         actions.add(new Deactivate(first, pod1, pod1.getBasketSold()));
 
-        classifier.classify(actions);
+        classifier.classify(actions, first);
         assertTrue(actions.get(0).isExecutable());
         assertFalse(actions.get(1).isExecutable());
         assertFalse(actions.get(2).isExecutable());  // app1 suspend

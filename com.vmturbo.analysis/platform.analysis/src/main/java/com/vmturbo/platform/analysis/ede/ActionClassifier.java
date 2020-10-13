@@ -46,8 +46,9 @@ public class ActionClassifier {
      * Mark actions as non-executable
      *
      * @param actions The list of actions to be classified.
+     * @param economy The economy the actions belong to.
      */
-    public void classify(@NonNull List<Action> actions) {
+    public void classify(@NonNull List<Action> actions, Economy economy) {
         // Step 1 - mark actions we know to be non-executable
         markSuspensionsNonEmptyTradersNonExecutable(actions);
 
@@ -61,6 +62,10 @@ public class ActionClassifier {
         // Step 3 - determine if move actions are executable or not
         classifyAndMarkMoves(actions);
 
+        if (!economy.getExceptionTraders().isEmpty()) {
+            logger.error("There were {} entities with exceptions during analysis",
+                economy.getExceptionTraders().size());
+        }
         stats(actions);
     }
 

@@ -35,6 +35,7 @@ import com.vmturbo.platform.analysis.actions.Utility;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -70,6 +71,8 @@ public class BootstrapSupply {
     private BootstrapSupply() {}
 
     static final Logger logger = LogManager.getLogger(BootstrapSupply.class);
+    public static int exceptionCounterShopAlone = 0;
+    public static int exceptionCounterShopTogether = 0;
 
     /**
      * Guarantee enough supply to place all demand at utilization levels that comply to user-set
@@ -136,144 +139,154 @@ public class BootstrapSupply {
             new ArrayDeque<>(slsThatNeedProvBySupply.entrySet());
         while (!shoppingListsToProcess.isEmpty()) {
             Entry<ShoppingList, Long> entry = shoppingListsToProcess.removeFirst();
-            ShoppingList sl = entry.getKey();
-            long cliqueId = entry.getValue();
-            Trader traderToBePlaced = sl .getBuyer();
-            if (traderPlaced.contains(traderToBePlaced)) {
-                continue;
-            }
-
-            boolean isDebugBuyer = traderToBePlaced.isDebugEnabled();
-            String buyerDebugInfo = traderToBePlaced.getDebugInfoNeverUseInCode();
-
-            // we first compute quote with current supply to check if the trader can be
-            // placed, then we provision/activate seller one at a time to see if with
-            // additional supply the trader can be placed
-            CliqueMinimizer minimizerWithoutSupply = Placement.computeBestQuote(economy, traderToBePlaced);
-            List<Action> move = new ArrayList<>();
-            if (minimizerWithoutSupply != null &&
-                            Double.isInfinite(minimizerWithoutSupply.getBestTotalQuote())) {
-                // there is a need to add some supply, we will add one trader to accommodate
-                // the current sl
-                if (logger.isTraceEnabled() || isDebugBuyer) {
-                    logger.info("We have to add some supply to accommodate the trader "
-                                + buyerDebugInfo + ".");
+            try {
+                ShoppingList sl = entry.getKey();
+                long cliqueId = entry.getValue();
+                Trader traderToBePlaced = sl .getBuyer();
+                if (traderPlaced.contains(traderToBePlaced)) {
+                    continue;
                 }
-                Market mkt = economy.getMarket(sl.getBasket());
-                List<Trader> sellers = mkt.getCliques().get(cliqueId).stream()
-                                .filter(t -> mkt.getActiveSellersAvailableForPlacement().contains(t))
-                                .collect(Collectors.toList());
-                Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, mkt, economy, Optional.of(cliqueId));
-                if (sellerThatFits != null) {
-                    Trader newSeller;
-                    boolean isDebugSeller = sellerThatFits.isDebugEnabled();
-                    String sellerDebugInfo = sellerThatFits.getDebugInfoNeverUseInCode();
-                    // Obtain list of commodity specs causing infinite quote for the shopping list
-                    List<CommoditySpecification> commSpecs = findCommSpecsWithInfiniteQuote(sellerThatFits, sl, economy);
-                    if (sellerThatFits.getSettings().isResizeThroughSupplier()) {
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("SellerThatFits is ResizeThroughSupplier: {}",
-                                            sellerThatFits.getDebugInfoNeverUseInCode());
-                        }
-                        // If the trader is resizeThroughSupplier then generate supply provisions
-                        // to provide enough capacity for the sellerThatFits to be able to host the
-                        // shopping list.
-                        List<Trader> newSellers = Utility.provisionSufficientSupplyForResize(economy,
-                                        sellerThatFits, commSpecs, sl, allActions);
-                        if (newSellers.isEmpty()) {
-                            return allActions;
-                        }
-                        // Obtain the first provisioned seller since they are all the same.
-                        newSeller = newSellers.get(0);
-                    } else {
-                        CommoditySpecification commSpec = commSpecs.isEmpty() ? null
-                                        : commSpecs.get(0);
-                        newSeller = provisionOrActivateTrader(sellerThatFits, sl.getBasket(),
-                                                                allActions, economy, commSpec);
-                    }
-                    if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
-                        logger.info("The seller " + sellerDebugInfo + " was"
-                                + (newSeller == sellerThatFits? " activated"
-                                : " cloned (provision by supply)")
-                                + " to accommodate " + buyerDebugInfo + ".");
-                    }
-                    CliqueMinimizer minimizerWithSupply = Placement
-                                    .computeBestQuote(economy, traderToBePlaced);
-                    // if minimizerWithSupply is finite, we can place the current buyer with
-                    // provision/activate a seller, otherwise, it indicates that more than one
-                    // sl from the current buyer needs additional supply and we need to continue
-                    // iterating slsThatNeedProvBySupply until all sl from the same buyer
-                    // has finite quote
-                    if (minimizerWithSupply != null &&
-                                    Double.isFinite(minimizerWithSupply.getBestTotalQuote())) {
-                        if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
-                            logger.info("{" + buyerDebugInfo + "} is placed on the"
-                                    + " activated/provisioned "
-                                    + newSeller.getDebugInfoNeverUseInCode() + ".");
-                        }
-                        move = Placement.checkAndGenerateCompoundMoveActions(economy, traderToBePlaced,
-                                minimizerWithSupply);
-                    } else {
-                        // One of the shopping list for the trader has an infinite quote.
-                        // Find this shopping list and add it to the processing list.
-                        // These shopping lists are missed in the initial slsThatNeedProvBySupply
-                        // list because in the case of shop together we don't actually place the
-                        // trader when creating the slsThatNeedProvBySupply list.
-                        boolean hasSlWithInfiniteQuote = false;
-                        for (Entry<ShoppingList, Market> slEntry :
-                                    economy.getMarketsAsBuyer(traderToBePlaced).entrySet()) {
-                            ShoppingList shoppingList = slEntry.getKey();
-                            if (shoppingList.equals(sl) || !shoppingList.isMovable()) {
-                                continue;
-                            }
-                            // We add it to the front of the queue for efficiency reasons. For e.g.
-                            // consider the case where we are placing huge number of VMs. All the
-                            // PMs are highly utilized and the attached storages' have low
-                            // utilization. Since we don't actually place the traders while creating
-                            // the slsThatNeedProvBySupply list, the storage will still show low
-                            // utilization and will not be added to the slsThatNeedProvBySupply
-                            // list. The slsThatNeedProvBySupply will only have PMs. If we add at
-                            // the storage shopping list at the end of the shoppingListsToProcess
-                            // queue, we will have sequence of PM SLs followed by ST SLs. If we add
-                            // it at the front of the queue, the SL which was getting infinite quote
-                            // will get provisioned and hence it would be able to satisfy
-                            // the next set of VMs.
-                            Market slMarket = slEntry.getValue();
-                            if (hasSlInfiniteQuote(economy,  shoppingList, slMarket, newSeller)) {
-                                hasSlWithInfiniteQuote = true;
-                                shoppingListsToProcess.addFirst(
-                                    new AbstractMap.SimpleImmutableEntry<>(shoppingList,
-                                        cliqueId));
-                                // We only add one of the SLs to prevent adding duplicate SLs
-                                // to the processing queue.
-                                break;
-                            }
-                        }
-                        if (!hasSlWithInfiniteQuote) {
-                            // Should be an assert or an exception.
-                            logger.error("No shopping list with infinite quote for trader {}", traderToBePlaced);
-                        }
-                    } //end looking for infiniteQuote SL.
-                } else {
-                    @NonNull Trader buyer = entry.getKey().getBuyer();
+
+                boolean isDebugBuyer = traderToBePlaced.isDebugEnabled();
+                String buyerDebugInfo = traderToBePlaced.getDebugInfoNeverUseInCode();
+
+                // we first compute quote with current supply to check if the trader can be
+                // placed, then we provision/activate seller one at a time to see if with
+                // additional supply the trader can be placed
+                CliqueMinimizer minimizerWithoutSupply = Placement.computeBestQuote(economy, traderToBePlaced);
+                List<Action> move = new ArrayList<>();
+                if (minimizerWithoutSupply != null &&
+                                Double.isInfinite(minimizerWithoutSupply.getBestTotalQuote())) {
+                    // there is a need to add some supply, we will add one trader to accommodate
+                    // the current sl
                     if (logger.isTraceEnabled() || isDebugBuyer) {
-                        logger.info("Quote is infinity, and unable to find a seller that"
-                                + " will fit the trader {}.", buyerDebugInfo);
-                    } else {
-                        logger.debug("Quote is infinity, and unable to find a seller that"
-                                    + " will fit the trader {}.", buyerDebugInfo);
+                        logger.info("We have to add some supply to accommodate the trader "
+                                    + buyerDebugInfo + ".");
                     }
+                    Market mkt = economy.getMarket(sl.getBasket());
+                    List<Trader> sellers = mkt.getCliques().get(cliqueId).stream()
+                                    .filter(t -> mkt.getActiveSellersAvailableForPlacement().contains(t))
+                                    .collect(Collectors.toList());
+                    Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, mkt, economy, Optional.of(cliqueId));
+                    if (sellerThatFits != null) {
+                        Trader newSeller;
+                        boolean isDebugSeller = sellerThatFits.isDebugEnabled();
+                        String sellerDebugInfo = sellerThatFits.getDebugInfoNeverUseInCode();
+                        // Obtain list of commodity specs causing infinite quote for the shopping list
+                        List<CommoditySpecification> commSpecs = findCommSpecsWithInfiniteQuote(sellerThatFits, sl, economy);
+                        if (sellerThatFits.getSettings().isResizeThroughSupplier()) {
+                            if (logger.isDebugEnabled()) {
+                                logger.debug("SellerThatFits is ResizeThroughSupplier: {}",
+                                                sellerThatFits.getDebugInfoNeverUseInCode());
+                            }
+                            // If the trader is resizeThroughSupplier then generate supply provisions
+                            // to provide enough capacity for the sellerThatFits to be able to host the
+                            // shopping list.
+                            List<Trader> newSellers = Utility.provisionSufficientSupplyForResize(economy,
+                                            sellerThatFits, commSpecs, sl, allActions);
+                            if (newSellers.isEmpty()) {
+                                return allActions;
+                            }
+                            // Obtain the first provisioned seller since they are all the same.
+                            newSeller = newSellers.get(0);
+                        } else {
+                            CommoditySpecification commSpec = commSpecs.isEmpty() ? null
+                                            : commSpecs.get(0);
+                            newSeller = provisionOrActivateTrader(sellerThatFits, sl.getBasket(),
+                                                                    allActions, economy, commSpec);
+                        }
+                        if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
+                            logger.info("The seller " + sellerDebugInfo + " was"
+                                    + (newSeller == sellerThatFits? " activated"
+                                    : " cloned (provision by supply)")
+                                    + " to accommodate " + buyerDebugInfo + ".");
+                        }
+                        CliqueMinimizer minimizerWithSupply = Placement
+                                        .computeBestQuote(economy, traderToBePlaced);
+                        // if minimizerWithSupply is finite, we can place the current buyer with
+                        // provision/activate a seller, otherwise, it indicates that more than one
+                        // sl from the current buyer needs additional supply and we need to continue
+                        // iterating slsThatNeedProvBySupply until all sl from the same buyer
+                        // has finite quote
+                        if (minimizerWithSupply != null &&
+                                        Double.isFinite(minimizerWithSupply.getBestTotalQuote())) {
+                            if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
+                                logger.info("{" + buyerDebugInfo + "} is placed on the"
+                                        + " activated/provisioned "
+                                        + newSeller.getDebugInfoNeverUseInCode() + ".");
+                            }
+                            move = Placement.checkAndGenerateCompoundMoveActions(economy, traderToBePlaced,
+                                    minimizerWithSupply);
+                        } else {
+                            // One of the shopping list for the trader has an infinite quote.
+                            // Find this shopping list and add it to the processing list.
+                            // These shopping lists are missed in the initial slsThatNeedProvBySupply
+                            // list because in the case of shop together we don't actually place the
+                            // trader when creating the slsThatNeedProvBySupply list.
+                            boolean hasSlWithInfiniteQuote = false;
+                            for (Entry<ShoppingList, Market> slEntry :
+                                        economy.getMarketsAsBuyer(traderToBePlaced).entrySet()) {
+                                ShoppingList shoppingList = slEntry.getKey();
+                                if (shoppingList.equals(sl) || !shoppingList.isMovable()) {
+                                    continue;
+                                }
+                                // We add it to the front of the queue for efficiency reasons. For e.g.
+                                // consider the case where we are placing huge number of VMs. All the
+                                // PMs are highly utilized and the attached storages' have low
+                                // utilization. Since we don't actually place the traders while creating
+                                // the slsThatNeedProvBySupply list, the storage will still show low
+                                // utilization and will not be added to the slsThatNeedProvBySupply
+                                // list. The slsThatNeedProvBySupply will only have PMs. If we add at
+                                // the storage shopping list at the end of the shoppingListsToProcess
+                                // queue, we will have sequence of PM SLs followed by ST SLs. If we add
+                                // it at the front of the queue, the SL which was getting infinite quote
+                                // will get provisioned and hence it would be able to satisfy
+                                // the next set of VMs.
+                                Market slMarket = slEntry.getValue();
+                                if (hasSlInfiniteQuote(economy,  shoppingList, slMarket, newSeller)) {
+                                    hasSlWithInfiniteQuote = true;
+                                    shoppingListsToProcess.addFirst(
+                                        new AbstractMap.SimpleImmutableEntry<>(shoppingList,
+                                            cliqueId));
+                                    // We only add one of the SLs to prevent adding duplicate SLs
+                                    // to the processing queue.
+                                    break;
+                                }
+                            }
+                            if (!hasSlWithInfiniteQuote) {
+                                // Should be an assert or an exception.
+                                logger.error("No shopping list with infinite quote for trader {}", traderToBePlaced);
+                            }
+                        } //end looking for infiniteQuote SL.
+                    } else {
+                        @NonNull Trader buyer = entry.getKey().getBuyer();
+                        if (logger.isTraceEnabled() || isDebugBuyer) {
+                            logger.info("Quote is infinity, and unable to find a seller that"
+                                    + " will fit the trader {}.", buyerDebugInfo);
+                        } else {
+                            logger.debug("Quote is infinity, and unable to find a seller that"
+                                        + " will fit the trader {}.", buyerDebugInfo);
+                        }
+                    }
+                } else if (minimizerWithoutSupply != null &&
+                                Double.isFinite(minimizerWithoutSupply.getBestTotalQuote())) {
+                    // if minimizerWithoutSupply if finite, we may have provision actions from earlier
+                    // iteration that adds enough supply to place the current buyer
+                    move = Placement.checkAndGenerateCompoundMoveActions(economy, traderToBePlaced,
+                                                                 minimizerWithoutSupply);
                 }
-            } else if (minimizerWithoutSupply != null &&
-                            Double.isFinite(minimizerWithoutSupply.getBestTotalQuote())) {
-                // if minimizerWithoutSupply if finite, we may have provision actions from earlier
-                // iteration that adds enough supply to place the current buyer
-                move = Placement.checkAndGenerateCompoundMoveActions(economy, traderToBePlaced,
-                                                             minimizerWithoutSupply);
-            }
-            if (!move.isEmpty()) {
-                allActions.addAll(move);
-                traderPlaced.add(traderToBePlaced);
+                if (!move.isEmpty()) {
+                    allActions.addAll(move);
+                    traderPlaced.add(traderToBePlaced);
+                }
+            } catch (Exception e) {
+                if (exceptionCounterShopTogether < EconomyConstants.EXCEPTION_PRINT_LIMIT) {
+                    logger.error(EconomyConstants.EXCEPTION_MESSAGE,
+                        entry.getKey().getDebugInfoNeverUseInCode(),
+                            e.getMessage(), e);
+                    exceptionCounterShopTogether++;
+                }
+                economy.getExceptionTraders().add(entry.getKey().getBuyer().getOid());
             }
         }
         return allActions;
@@ -332,45 +345,55 @@ public class BootstrapSupply {
                                                             Map<ShoppingList,
                                                                     Long> slsThatNeedProvBySupply) {
         List<Action> allActions = new ArrayList<>();
-        boolean isDebugTrader = buyingTrader.isDebugEnabled();
-        String buyerDebugInfo = buyingTrader.getDebugInfoNeverUseInCode();
-        if (!Placement.shouldConsiderTraderForShopTogether(economy, buyingTrader)) {
-            return allActions;
-        }
-        if (!shouldConsiderForBootstrap(economy, buyingTrader)) {
-            return allActions;
-        }
-        Set<Long> commonCliques = economy.getCommonCliques(buyingTrader);
-        CliqueMinimizer minimizer =
-                        Placement.computeBestQuote(economy, buyingTrader);
-        if (minimizer == null) {
-            if (logger.isTraceEnabled() || isDebugTrader) {
-                logger.info("{" + buyerDebugInfo + "} can't be placed in any provider.");
+        try {
+            boolean isDebugTrader = buyingTrader.isDebugEnabled();
+            String buyerDebugInfo = buyingTrader.getDebugInfoNeverUseInCode();
+            if (!Placement.shouldConsiderTraderForShopTogether(economy, buyingTrader)) {
+                return allActions;
+            }
+            if (!shouldConsiderForBootstrap(economy, buyingTrader)) {
+                return allActions;
+            }
+            Set<Long> commonCliques = economy.getCommonCliques(buyingTrader);
+            CliqueMinimizer minimizer =
+                            Placement.computeBestQuote(economy, buyingTrader);
+            if (minimizer == null) {
+                if (logger.isTraceEnabled() || isDebugTrader) {
+                    logger.info("{" + buyerDebugInfo + "} can't be placed in any provider.");
+                }
+                return allActions;
+            }
+            if (!Double.isFinite(minimizer.getBestTotalQuote())) {
+                // if the best quote is not finite then we should provision sellers to accommodate
+                // shopping lists' requests
+                // TODO: we now use the first clique in the commonCliques set, it may not be
+                // the best decision
+                if (logger.isTraceEnabled() || isDebugTrader) {
+                    logger.info("New sellers have to be provisioned to accommodate the trader "
+                                + buyerDebugInfo + ".");
+                }
+                if(commonCliques.isEmpty()){
+                    logger.error("No clique for Buyer: ", buyingTrader.getDebugInfoNeverUseInCode());
+                }
+                else {
+                    Long commonClique = bestCliqueForProvisioning(economy, buyingTrader, commonCliques);
+                    List<Action> provisionAndSubsequentMove = checkAndApplyProvisionForShopTogether(economy,
+                            buyingTrader, commonClique,
+                            slsThatNeedProvBySupply);
+                    allActions.addAll(provisionAndSubsequentMove);
+                }
+            } else {
+                allActions.addAll(Placement.checkAndGenerateCompoundMoveActions(economy, buyingTrader,
+                                                                        minimizer));
             }
             return allActions;
-        }
-        if (!Double.isFinite(minimizer.getBestTotalQuote())) {
-            // if the best quote is not finite then we should provision sellers to accommodate
-            // shopping lists' requests
-            // TODO: we now use the first clique in the commonCliques set, it may not be
-            // the best decision
-            if (logger.isTraceEnabled() || isDebugTrader) {
-                logger.info("New sellers have to be provisioned to accommodate the trader "
-                            + buyerDebugInfo + ".");
+        } catch (Exception e) {
+            if (exceptionCounterShopTogether < EconomyConstants.EXCEPTION_PRINT_LIMIT) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE, buyingTrader.getDebugInfoNeverUseInCode(),
+                        e.getMessage(), e);
+                exceptionCounterShopTogether++;
             }
-            if(commonCliques.isEmpty()){
-                logger.error("No clique for Buyer: ", buyingTrader.getDebugInfoNeverUseInCode());
-            }
-            else {
-                Long commonClique = bestCliqueForProvisioning(economy, buyingTrader, commonCliques);
-                List<Action> provisionAndSubsequentMove = checkAndApplyProvisionForShopTogether(economy,
-                        buyingTrader, commonClique,
-                        slsThatNeedProvBySupply);
-                allActions.addAll(provisionAndSubsequentMove);
-            }
-        } else {
-            allActions.addAll(Placement.checkAndGenerateCompoundMoveActions(economy, buyingTrader,
-                                                                    minimizer));
+            economy.getExceptionTraders().add(buyingTrader.getOid());
         }
         return allActions;
     }
@@ -741,86 +764,94 @@ public class BootstrapSupply {
                                                       Map<ShoppingList, Long>
                                                       slsThatNeedProvBySupply) {
         List<Action> allActions = new ArrayList<>();
+        try {
+            boolean isDebugBuyer = shoppingList.getBuyer().isDebugEnabled();
+            String buyerDebugInfo = shoppingList.getBuyer().getDebugInfoNeverUseInCode();
 
-        boolean isDebugBuyer = shoppingList.getBuyer().isDebugEnabled();
-        String buyerDebugInfo = shoppingList.getBuyer().getDebugInfoNeverUseInCode();
-
-        // below is the provision logic for non shop together traders, if the trader
-        // should shop together, skip the logic
-        if (shoppingList.getBuyer().getSettings().isShopTogether()
-                || !shoppingList.isMovable()) {
-            if (logger.isTraceEnabled() || isDebugBuyer) {
-                if (shoppingList.getBuyer().getSettings().isShopTogether()) {
-                    logger.info("{" + buyerDebugInfo + "} can't shop alone because it must"
-                                + " shop together.");
+            // below is the provision logic for non shop together traders, if the trader
+            // should shop together, skip the logic
+            if (shoppingList.getBuyer().getSettings().isShopTogether()
+                    || !shoppingList.isMovable()) {
+                if (logger.isTraceEnabled() || isDebugBuyer) {
+                    if (shoppingList.getBuyer().getSettings().isShopTogether()) {
+                        logger.info("{" + buyerDebugInfo + "} can't shop alone because it must"
+                                    + " shop together.");
+                    }
+                    if (!shoppingList.isMovable()) {
+                        logger.info("{" + buyerDebugInfo + "} can't shop alone because its"
+                                    + " moving list is not movable.");
+                    }
                 }
-                if (!shoppingList.isMovable()) {
-                    logger.info("{" + buyerDebugInfo + "} can't shop alone because its"
-                                + " moving list is not movable.");
-                }
+                return allActions;
             }
-            return allActions;
-        }
-        if (!shouldConsiderForBootstrap(economy, shoppingList.getBuyer())) {
-            return allActions;
-        }
-        List<Trader> sellers = market.getActiveSellersAvailableForPlacement();
-        // find the bestQuote
-        final QuoteMinimizer minimizer =
-                (sellers.size() < economy.getSettings().getMinSellersForParallelism()
-                        ? sellers.stream() : sellers.parallelStream())
-                        .collect(() -> new QuoteMinimizer(economy, shoppingList),
-                                QuoteMinimizer::accept, QuoteMinimizer::combine);
+            if (!shouldConsiderForBootstrap(economy, shoppingList.getBuyer())) {
+                return allActions;
+            }
+            List<Trader> sellers = market.getActiveSellersAvailableForPlacement();
+            // find the bestQuote
+            final QuoteMinimizer minimizer =
+                    (sellers.size() < economy.getSettings().getMinSellersForParallelism()
+                            ? sellers.stream() : sellers.parallelStream())
+                            .collect(() -> new QuoteMinimizer(economy, shoppingList),
+                                    QuoteMinimizer::accept, QuoteMinimizer::combine);
 
-        boolean isDebugSeller = false;
-        String sellerDebugInfo = null;
-        if (minimizer.getBestSeller() != null) {
-            isDebugSeller = minimizer.getBestSeller().isDebugEnabled();
-            sellerDebugInfo = minimizer.getBestSeller().getDebugInfoNeverUseInCode();
-        }
+            boolean isDebugSeller = false;
+            String sellerDebugInfo = null;
+            if (minimizer.getBestSeller() != null) {
+                isDebugSeller = minimizer.getBestSeller().isDebugEnabled();
+                sellerDebugInfo = minimizer.getBestSeller().getDebugInfoNeverUseInCode();
+            }
 
-        // unplaced buyer
-        if (shoppingList.getSupplier() == null) {
-            if (Double.isFinite(minimizer.getTotalBestQuote())) {
-                // on getting finiteQuote, move unplaced Trader to the best provider
-                allActions.addAll(new Move(economy, shoppingList, minimizer.getBestSeller())
-                        .take().setImportance(Double.POSITIVE_INFINITY)
-                        .getAllActions());
-                if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
-                    logger.info("{" + buyerDebugInfo + "} moves to "
-                                + sellerDebugInfo + " because it is unplaced.");
+            // unplaced buyer
+            if (shoppingList.getSupplier() == null) {
+                if (Double.isFinite(minimizer.getTotalBestQuote())) {
+                    // on getting finiteQuote, move unplaced Trader to the best provider
+                    allActions.addAll(new Move(economy, shoppingList, minimizer.getBestSeller())
+                            .take().setImportance(Double.POSITIVE_INFINITY)
+                            .getAllActions());
+                    if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
+                        logger.info("{" + buyerDebugInfo + "} moves to "
+                                    + sellerDebugInfo + " because it is unplaced.");
+                    }
+                } else {
+                    // on getting an infiniteQuote, provision new Seller and move unplaced Trader to it
+                    if (logger.isTraceEnabled() || isDebugBuyer) {
+                        logger.info("{" + buyerDebugInfo + "} can't be placed in any supplier.");
+                    }
+                    allActions.addAll(checkAndApplyProvision(economy, shoppingList, market,
+                                                             slsThatNeedProvBySupply));
                 }
             } else {
-                // on getting an infiniteQuote, provision new Seller and move unplaced Trader to it
-                if (logger.isTraceEnabled() || isDebugBuyer) {
-                    logger.info("{" + buyerDebugInfo + "} can't be placed in any supplier.");
-                }
-                allActions.addAll(checkAndApplyProvision(economy, shoppingList, market,
-                                                         slsThatNeedProvBySupply));
-            }
-        } else {
-            // already placed Buyer
-            if (Double.isInfinite(minimizer.getBestQuote().getQuoteValue())) {
-                // Start by cloning the best provider that can fit the buyer. If none can fit
-                // the buyer, provision a new seller large enough to fit the demand.
-                if (logger.isTraceEnabled() || isDebugBuyer) {
-                    logger.info("{" + buyerDebugInfo + "} can't be placed an any supplier.");
-                }
-                allActions.addAll(checkAndApplyProvision(economy, shoppingList, market,
-                                                         slsThatNeedProvBySupply));
-            } else if (Double.isInfinite(minimizer.getCurrentQuote().getQuoteValue()) &&
-                    minimizer.getBestSeller() != shoppingList.getSupplier()) {
-                // If we have a seller that can fit the buyer getting an infiniteQuote,
-                // move buyer to this provider
-                allActions.addAll(new Move(economy, shoppingList, shoppingList.getSupplier(),
-                        minimizer.getBestSeller(), minimizer.getBestQuote().getContext())
-                        .take().setImportance(minimizer.getCurrentQuote().getQuoteValue())
-                        .getAllActions());
-                if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
-                    logger.info("{" + buyerDebugInfo + "} moves to "
-                            + sellerDebugInfo + " because its current quote is infinite.");
+                // already placed Buyer
+                if (Double.isInfinite(minimizer.getBestQuote().getQuoteValue())) {
+                    // Start by cloning the best provider that can fit the buyer. If none can fit
+                    // the buyer, provision a new seller large enough to fit the demand.
+                    if (logger.isTraceEnabled() || isDebugBuyer) {
+                        logger.info("{" + buyerDebugInfo + "} can't be placed an any supplier.");
+                    }
+                    allActions.addAll(checkAndApplyProvision(economy, shoppingList, market,
+                                                             slsThatNeedProvBySupply));
+                } else if (Double.isInfinite(minimizer.getCurrentQuote().getQuoteValue()) &&
+                        minimizer.getBestSeller() != shoppingList.getSupplier()) {
+                    // If we have a seller that can fit the buyer getting an infiniteQuote,
+                    // move buyer to this provider
+                    allActions.addAll(new Move(economy, shoppingList, shoppingList.getSupplier(),
+                            minimizer.getBestSeller(), minimizer.getBestQuote().getContext())
+                            .take().setImportance(minimizer.getCurrentQuote().getQuoteValue())
+                            .getAllActions());
+                    if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
+                        logger.info("{" + buyerDebugInfo + "} moves to "
+                                + sellerDebugInfo + " because its current quote is infinite.");
+                    }
                 }
             }
+        } catch (Exception e) {
+            if (exceptionCounterShopAlone < EconomyConstants.EXCEPTION_PRINT_LIMIT) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE, shoppingList.getDebugInfoNeverUseInCode(),
+                        e.getMessage(), e);
+                exceptionCounterShopAlone++;
+            }
+            economy.getExceptionTraders().add(shoppingList.getBuyer().getOid());
         }
         return allActions;
     }
@@ -839,72 +870,81 @@ public class BootstrapSupply {
                                                                        slsThatNeedProvBySupply) {
         List<Action> allActions = new ArrayList<>();
         for (ShoppingList sl : slsThatNeedProvBySupply.keySet()) {
-            // find the bestQuote
-            Market market = economy.getMarket(sl);
-            List<Trader> sellers = market.getActiveSellersAvailableForPlacement();
-            final QuoteMinimizer minimizer =
-                    (sellers.size() < economy.getSettings().getMinSellersForParallelism()
-                            ? sellers.stream() : sellers.parallelStream())
-                            .collect(() -> new QuoteMinimizer(economy, sl),
-                                    QuoteMinimizer::accept, QuoteMinimizer::combine);
+            try {
+                // find the bestQuote
+                Market market = economy.getMarket(sl);
+                List<Trader> sellers = market.getActiveSellersAvailableForPlacement();
+                final QuoteMinimizer minimizer =
+                        (sellers.size() < economy.getSettings().getMinSellersForParallelism()
+                                ? sellers.stream() : sellers.parallelStream())
+                                .collect(() -> new QuoteMinimizer(economy, sl),
+                                        QuoteMinimizer::accept, QuoteMinimizer::combine);
 
-            if (Double.isInfinite(minimizer.getTotalBestQuote())) {
-                // on getting an infiniteQuote, provision new Seller and move unplaced Trader to it
-                // clone one of the sellers or reactivate an inactive seller that the VM can fit in
-                Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy, Optional.empty());
-                if (sellerThatFits != null) {
-                    Trader provisionedSeller;
-                    // Obtain list of commodity specs causing infinite quote for the shopping list
-                    List<CommoditySpecification> commoditySpecsWithInfiniteQuote =
-                                    findCommSpecsWithInfiniteQuote(sellerThatFits, sl, economy);
-                    if (sellerThatFits.getSettings().isResizeThroughSupplier()) {
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("SellerThatFits is ResizeThroughSupplier: {}",
-                                            sellerThatFits.getDebugInfoNeverUseInCode());
+                if (Double.isInfinite(minimizer.getTotalBestQuote())) {
+                    // on getting an infiniteQuote, provision new Seller and move unplaced Trader to it
+                    // clone one of the sellers or reactivate an inactive seller that the VM can fit in
+                    Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy, Optional.empty());
+                    if (sellerThatFits != null) {
+                        Trader provisionedSeller;
+                        // Obtain list of commodity specs causing infinite quote for the shopping list
+                        List<CommoditySpecification> commoditySpecsWithInfiniteQuote =
+                                        findCommSpecsWithInfiniteQuote(sellerThatFits, sl, economy);
+                        if (sellerThatFits.getSettings().isResizeThroughSupplier()) {
+                            if (logger.isDebugEnabled()) {
+                                logger.debug("SellerThatFits is ResizeThroughSupplier: {}",
+                                                sellerThatFits.getDebugInfoNeverUseInCode());
+                            }
+                            // If the trader is resizeThroughSupplier then generate supply provisions
+                            // to provide enough capacity for the sellerThatFits to be able to host the
+                            // shopping list.
+                            List<Trader> newSellers = Utility.provisionSufficientSupplyForResize(economy,
+                                            sellerThatFits, commoditySpecsWithInfiniteQuote, sl, allActions);
+                            if (newSellers.isEmpty()) {
+                                return allActions;
+                            }
+                            // Obtain the first provisioned seller since they are all the same.
+                            provisionedSeller = newSellers.get(0);
+                        } else {
+                            CommoditySpecification commoditySpecWithInfiniteQuote =
+                                            commoditySpecsWithInfiniteQuote.isEmpty()
+                                                ? null : commoditySpecsWithInfiniteQuote.get(0);
+                            provisionedSeller = provisionOrActivateTrader(sellerThatFits,
+                                sl.getBasket(), allActions, economy, commoditySpecWithInfiniteQuote);
                         }
-                        // If the trader is resizeThroughSupplier then generate supply provisions
-                        // to provide enough capacity for the sellerThatFits to be able to host the
-                        // shopping list.
-                        List<Trader> newSellers = Utility.provisionSufficientSupplyForResize(economy,
-                                        sellerThatFits, commoditySpecsWithInfiniteQuote, sl, allActions);
-                        if (newSellers.isEmpty()) {
-                            return allActions;
+                        // provisionedSeller may not be a clone of the sellerThatFits in the case of
+                        // resizeThroughSupplier so ensure that the provisionedSeller is added to this
+                        // market's available sellers before moving the sl onto it
+                        if (market.getActiveSellersAvailableForPlacement().contains(provisionedSeller)) {
+                        allActions.addAll(new Move(economy, sl, provisionedSeller).take()
+                                .setImportance(Double.POSITIVE_INFINITY).getAllActions());
+                        // if the sellerThatFits is resizeThroughSupplier trader then move the sl to it
+                        // if it isn't currently on it.
+                        } else if (sellerThatFits.getSettings().isResizeThroughSupplier()
+                                        && sl.getSupplier() != sellerThatFits) {
+                            allActions.addAll(new Move(economy, sl, sellerThatFits).take()
+                                            .setImportance(Double.POSITIVE_INFINITY).getAllActions());
                         }
-                        // Obtain the first provisioned seller since they are all the same.
-                        provisionedSeller = newSellers.get(0);
                     } else {
-                        CommoditySpecification commoditySpecWithInfiniteQuote =
-                                        commoditySpecsWithInfiniteQuote.isEmpty()
-                                            ? null : commoditySpecsWithInfiniteQuote.get(0);
-                        provisionedSeller = provisionOrActivateTrader(sellerThatFits,
-                            sl.getBasket(), allActions, economy, commoditySpecWithInfiniteQuote);
-                    }
-                    // provisionedSeller may not be a clone of the sellerThatFits in the case of
-                    // resizeThroughSupplier so ensure that the provisionedSeller is added to this
-                    // market's available sellers before moving the sl onto it
-                    if (market.getActiveSellersAvailableForPlacement().contains(provisionedSeller)) {
-                    allActions.addAll(new Move(economy, sl, provisionedSeller).take()
-                            .setImportance(Double.POSITIVE_INFINITY).getAllActions());
-                    // if the sellerThatFits is resizeThroughSupplier trader then move the sl to it
-                    // if it isn't currently on it.
-                    } else if (sellerThatFits.getSettings().isResizeThroughSupplier()
-                                    && sl.getSupplier() != sellerThatFits) {
-                        allActions.addAll(new Move(economy, sl, sellerThatFits).take()
-                                        .setImportance(Double.POSITIVE_INFINITY).getAllActions());
+                        @NonNull Trader buyer = sl.getBuyer();
+                        if (logger.isTraceEnabled() || buyer.isDebugEnabled()) {
+                            logger.debug("Quote is infinity, and unable to find a seller that will fit the trader: {}",
+                                    buyer.getDebugInfoNeverUseInCode());
+                        }
                     }
                 } else {
-                    @NonNull Trader buyer = sl.getBuyer();
-                    if (logger.isTraceEnabled() || buyer.isDebugEnabled()) {
-                        logger.debug("Quote is infinity, and unable to find a seller that will fit the trader: {}",
-                                buyer.getDebugInfoNeverUseInCode());
+                    if (minimizer.getBestSeller() != sl.getSupplier()) {
+                        allActions.addAll(new Move(economy, sl, minimizer.getBestSeller()).take()
+                                .setImportance(minimizer.getCurrentQuote().getQuoteValue()
+                                        - minimizer.getBestQuote().getQuoteValue()).getAllActions());
                     }
                 }
-            } else {
-                if (minimizer.getBestSeller() != sl.getSupplier()) {
-                    allActions.addAll(new Move(economy, sl, minimizer.getBestSeller()).take()
-                            .setImportance(minimizer.getCurrentQuote().getQuoteValue()
-                                    - minimizer.getBestQuote().getQuoteValue()).getAllActions());
+            } catch (Exception e) {
+                if (exceptionCounterShopAlone < EconomyConstants.EXCEPTION_PRINT_LIMIT) {
+                    logger.error(EconomyConstants.EXCEPTION_MESSAGE, sl.getDebugInfoNeverUseInCode(),
+                            e.getMessage(), e);
+                    exceptionCounterShopAlone++;
                 }
+                economy.getExceptionTraders().add(sl.getBuyer().getOid());
             }
         }
         return allActions;

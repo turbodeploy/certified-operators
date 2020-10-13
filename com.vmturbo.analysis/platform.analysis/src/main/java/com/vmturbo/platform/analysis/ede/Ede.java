@@ -1,6 +1,5 @@
 package com.vmturbo.platform.analysis.ede;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -161,214 +160,266 @@ public final class Ede {
                     boolean isResize, boolean collapse, boolean isReplay,
                     @NonNull ReplayActions seedActions, String mktData,
                     SuspensionsThrottlingConfig suspensionsThrottlingConfig) {
-        String analysisLabel = "Analysis ";
-        logger.info(analysisLabel + "Started.");
         @NonNull List<Action> actions = new ArrayList<>();
-        ActionStats actionStats = new ActionStats(actions, M2Utils.getTopologyId(economy));
-        ActionClassifier classifier = null;
-        if (classifyActions) {
+        try {
+            String analysisLabel = "Analysis ";
+            logger.info(analysisLabel + "Started.");
+            ActionStats actionStats = new ActionStats(actions, M2Utils.getTopologyId(economy));
+            ActionClassifier classifier = null;
             try {
-                classifier = new ActionClassifier(economy);
+                if (classifyActions) {
+                    classifier = new ActionClassifier(economy);
+                }
+            } catch (Exception e) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE,
+                    EconomyConstants.CLASSIFY_PHASE + " initialization ", e.getMessage(), e);
             }
-            catch (ClassNotFoundException | IOException e) {
-                logger.error(analysisLabel + "Could not copy economy.", e);
-                return actions;
+            //Parse market stats data coming from Market1, add prepare to write to stats file.
+            String data[] = StatsUtils.getTokens(mktData, "|");
+            if (data.length <= 1) {
+                // XL file name is in contextid-topologyid format
+                data = StatsUtils.getTokens(mktData, "-");
+                if (data.length < 1 || !data[0].equals("777777")) { // Real market context id
+                    data = new String[1];
+                    data[0] = "plan";
+                }
             }
-        }
-        //Parse market stats data coming from Market1, add prepare to write to stats file.
-        String data[] = StatsUtils.getTokens(mktData, "|");
-        if (data.length <= 1) {
-            // XL file name is in contextid-topologyid format
-            data = StatsUtils.getTokens(mktData, "-");
-            if (data.length < 1 || !data[0].equals("777777")) { // Real market context id
-                data = new String[1];
-                data[0] = "plan";
+            StatsUtils statsUtils = new StatsUtils("m2stats-" + data[0], false);
+            if (data.length == 3) {
+                statsUtils.append(data[1]); // date, Time, topo name , topo send time from M1
+                statsUtils.after(Instant.parse(data[2]));
+            } else {
+                statsUtils.appendHeader("Date, Time,Topology,Topo Send Time,"
+                                        + "Bootstrap Time, Initial Place Time,Resize Time,"
+                                        + "Placement Time,Provisioning Time,Suspension Time,"
+                                        + "Total Plan Time,Total Actions");
+                //currently 4 columns for topology related data
+                statsUtils.appendDate(true, false);
+                statsUtils.appendTime(false, false);
+                statsUtils.append(mktData); // if not in expected parse format, should contain
+                                            // contextid-topologyid, different for each plan
+                statsUtils.append("NA"); // topology send time if unavailable
             }
-        }
-        StatsUtils statsUtils = new StatsUtils("m2stats-" + data[0], false);
-        if (data.length == 3) {
-            statsUtils.append(data[1]); // date, Time, topo name , topo send time from M1
-            statsUtils.after(Instant.parse(data[2]));
-        } else {
-            statsUtils.appendHeader("Date, Time,Topology,Topo Send Time,"
-                                    + "Bootstrap Time, Initial Place Time,Resize Time,"
-                                    + "Placement Time,Provisioning Time,Suspension Time,"
-                                    + "Total Plan Time,Total Actions");
-            //currently 4 columns for topology related data
-            statsUtils.appendDate(true, false);
-            statsUtils.appendTime(false, false);
-            statsUtils.append(mktData); // if not in expected parse format, should contain
-                                        // contextid-topologyid, different for each plan
-            statsUtils.append("NA"); // topology send time if unavailable
-        }
-        // Sort the buyers of each market based on the current quote (on-prem) or
-        // current cost (cloud) sorted high to low.
-        if (economy.getSettings().getSortShoppingLists()) {
-            economy.sortBuyersofMarket();
-        }
+            try {
+                // Sort the buyers of each market based on the current quote (on-prem) or
+                // current cost (cloud) sorted high to low.
+                if (economy.getSettings().getSortShoppingLists()) {
+                    economy.sortBuyersofMarket();
+                }
 
-        // create a subset list of markets that have at least one buyer that can move
-        economy.composeMarketSubsetForPlacement();
-
-        Ledger ledger = new Ledger(economy);
-
-        logBasketSoldOfTradersWithDebugEnabled(economy.getTraders());
-
-        if (logger.isTraceEnabled()) {
-            logger.trace("PSL relinquished VMs:");
-            for(ShoppingList shoppingList : economy.getPreferentialShoppingLists()){
-                logger.trace("PSL: " + shoppingList.toString());
+                // create a subset list of markets that have at least one buyer that can move
+                economy.composeMarketSubsetForPlacement();
+            } catch (Exception e) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE,
+                        EconomyConstants.SORT_PHASE, e.getMessage(), e);
             }
-        }
 
-        //sort the PreferentialShoppingList
-        long start = System.currentTimeMillis();
-        if (economy.getSettings().getSortShoppingLists()) {
-            economy.sortPreferentialShoppingLists();
-        }
-        long end = System.currentTimeMillis();
-        if (logger.isTraceEnabled()) {
-            logger.trace("PSL Execution time of sortShoppingLists of size: "
-                    + economy.getPreferentialShoppingLists().size() + " is: " + (end - start) + " milliseconds");
-        }
+            Ledger ledger = new Ledger(economy);
 
-        // generate moves for preferential shoppingLists
-        List<Action> preferentialActions = new ArrayList<>(Placement.prefPlacementDecisions(economy,
-                economy.getPreferentialShoppingLists()).getActions());
+            try {
+                logBasketSoldOfTradersWithDebugEnabled(economy.getTraders());
 
-        if (logger.isTraceEnabled()) {
-            logger.trace("PSL Actions: ");
-            preferentialActions.stream()
-                .flatMap(action -> {
-                    if (action.getType() == ActionType.MOVE) {
-                        return Stream.of(action);
-                    } else if (action.getType() == ActionType.COMPOUND_MOVE) {
-                        return ((CompoundMove) action).getConstituentMoves().stream();
+                if (logger.isTraceEnabled()) {
+                    logger.trace("PSL relinquished VMs:");
+                    for(ShoppingList shoppingList : economy.getPreferentialShoppingLists()){
+                        logger.trace("PSL: " + shoppingList.toString());
                     }
-                    return Stream.empty();
-                })
-                .forEach(action -> {
-                    Move moveAction = (Move) action;
-                    logger.trace("PSL Action: Destination is " +
-                                    moveAction.getDestination() +
-                                    " for the VM: " +
-                                    moveAction.getTarget());
-                });
-        }
+                }
 
-        actions.addAll(preferentialActions);
-        logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "inactive/idle Trader placement");
+                //sort the PreferentialShoppingList
+                long start = System.currentTimeMillis();
+                if (economy.getSettings().getSortShoppingLists()) {
+                    economy.sortPreferentialShoppingLists();
+                }
+                long end = System.currentTimeMillis();
+                if (logger.isTraceEnabled()) {
+                    logger.trace("PSL Execution time of sortShoppingLists of size: "
+                            + economy.getPreferentialShoppingLists().size() + " is: " + (end - start) + " milliseconds");
+                }
+            } catch (Exception e) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE,
+                        EconomyConstants.SORT_PHASE, e.getMessage(), e);
+            }
 
-        // Start by provisioning enough traders to satisfy all the demand
-        // Save first call to before() to calculate total plan time
-        Instant begin = statsUtils.before();
-        if (isProvision) {
-            actions.addAll(seedActions.replayActions(economy));
-            logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "provision replay");
-            // time to run provision replay
-            statsUtils.after();
+            try {
+                // generate moves for preferential shoppingLists
+                List<Action> preferentialActions = new ArrayList<>(Placement.prefPlacementDecisions(economy,
+                        economy.getPreferentialShoppingLists()).getActions());
 
-            statsUtils.before();
-            actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
-            ledger = new Ledger(economy);
-            logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "bootstrap");
-            // time to run bootstrap
-            statsUtils.after();
+                if (logger.isTraceEnabled()) {
+                    logger.trace("PSL Actions: ");
+                    preferentialActions.stream()
+                        .flatMap(action -> {
+                            if (action.getType() == ActionType.MOVE) {
+                                return Stream.of(action);
+                            } else if (action.getType() == ActionType.COMPOUND_MOVE) {
+                                return ((CompoundMove) action).getConstituentMoves().stream();
+                            }
+                            return Stream.empty();
+                        })
+                        .forEach(action -> {
+                            Move moveAction = (Move) action;
+                            logger.trace("PSL Action: Destination is " +
+                                            moveAction.getDestination() +
+                                            " for the VM: " +
+                                            moveAction.getTarget());
+                        });
+                }
 
-            statsUtils.before();
-            // run placement algorithm to balance the environment
-            actions.addAll(Placement.runPlacementsTillConverge(
-                economy, ledger, EconomyConstants.PLACEMENT_PHASE).getActions());
-            logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "placement");
-            // time to run initial placement
-            statsUtils.after();
-        }
+                actions.addAll(preferentialActions);
+                logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "inactive/idle Trader placement");
+            } catch (Exception e) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.PREFERENTIAL_PLACEMENT_PHASE, e.getMessage(), e);
+            }
 
-        statsUtils.before();
-        if (isResize) {
-            actions.addAll(Resizer.resizeDecisions(economy, ledger));
-        }
-        logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "resizing");
-        // resize time
-        statsUtils.after();
+            // Save first call to before() to calculate total plan time
+            Instant begin = statsUtils.before();
+            try {
+                // Start by provisioning enough traders to satisfy all the demand
+                if (isProvision) {
+                    actions.addAll(seedActions.replayActions(economy));
+                    logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "provision replay");
+                    // time to run provision replay
+                    statsUtils.after();
 
-        if (isReplay) {
-            actions.addAll(seedActions.tryReplayDeactivateActions(economy, ledger, suspensionsThrottlingConfig));
-            logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "replaying");
-        }
+                    statsUtils.before();
+                    actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
+                    ledger = new Ledger(economy);
+                    logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "bootstrap");
+                    // time to run bootstrap
+                    statsUtils.after();
 
-        statsUtils.before();
-        PlacementResults placementResults = Placement.runPlacementsTillConverge(economy, ledger,
-            EconomyConstants.PLACEMENT_PHASE);
-        actions.addAll(placementResults.getActions());
-        logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "placement");
-        // placement time
-        statsUtils.after();
+                    statsUtils.before();
+                    // run placement algorithm to balance the environment
+                    actions.addAll(Placement.runPlacementsTillConverge(
+                        economy, ledger, EconomyConstants.PLACEMENT_PHASE).getActions());
+                    logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "placement");
+                    // time to run initial placement
+                    statsUtils.after();
+                }
+            } catch (Exception e) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.BOOTSTRAP_SUPPLY_PHASE, e.getMessage(), e);
+            }
 
-        statsUtils.before();
-        // trigger provision, suspension and resize algorithm only when needed
-        int oldActionCount = actions.size();
-        if (isProvision) {
-            actions.addAll(Provision.provisionDecisions(economy, ledger));
-            logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "provisioning");
-            // if provision generated some actions, run placements
-            if (actions.size() > oldActionCount) {
+            try {
+                statsUtils.before();
+                if (isResize) {
+                    actions.addAll(Resizer.resizeDecisions(economy, ledger));
+                }
+                logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "resizing");
+                // resize time
+                statsUtils.after();
+            } catch (Exception e) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.RESIZE_PHASE, e.getMessage(), e);
+            }
+
+            try {
+                if (isReplay) {
+                    actions.addAll(seedActions.tryReplayDeactivateActions(economy, ledger, suspensionsThrottlingConfig));
+                    logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "replaying");
+                }
+            } catch (Exception e) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.REPLAY_PHASE, e.getMessage(), e);
+            }
+
+            PlacementResults placementResults = PlacementResults.empty();
+            try {
+                statsUtils.before();
                 placementResults = Placement.runPlacementsTillConverge(economy, ledger,
                     EconomyConstants.PLACEMENT_PHASE);
                 actions.addAll(placementResults.getActions());
-                logger.info(actionStats.phaseLogEntry("post provisioning placement"));
+                logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "placement");
+                // placement time
+                statsUtils.after();
+            } catch (Exception e) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.PLACEMENT_PHASE, e.getMessage(), e);
             }
-        }
-        // provisioning time
-        statsUtils.after();
 
-        statsUtils.before();
-        if (isSuspension) {
-            Suspension suspension = new Suspension(suspensionsThrottlingConfig);
-            // find if any seller is the sole provider in any market, if so, it should not
-            // be considered as suspension candidate
-            suspension.findSoleProviders(economy);
-            actions.addAll(suspension.suspensionDecisions(economy, ledger));
-            logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "suspending");
-        }
-        // suspension time
-        statsUtils.after();
+            try {
+                statsUtils.before();
+                // trigger provision, suspension and resize algorithm only when needed
+                int oldActionCount = actions.size();
+                if (isProvision) {
+                    actions.addAll(Provision.provisionDecisions(economy, ledger));
+                    logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "provisioning");
+                    // if provision generated some actions, run placements
+                    if (actions.size() > oldActionCount) {
+                        placementResults = Placement.runPlacementsTillConverge(economy, ledger,
+                            EconomyConstants.PLACEMENT_PHASE);
+                        actions.addAll(placementResults.getActions());
+                        logger.info(actionStats.phaseLogEntry("post provisioning placement"));
+                    }
+                }
+                // provisioning time
+                statsUtils.after();
+            } catch (Exception e) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.PROVISION_PHASE, e.getMessage(), e);
+            }
 
-        if (collapse && !economy.getForceStop()) {
-            List<@NonNull Action> collapsed = ActionCollapse.collapsed(actions);
-            // Reorder actions by type.
-            actions = ActionCollapse.groupActionsByTypeAndReorderBeforeSending(collapsed);
-            actionStats.setActionsList(actions);
-        }
+            try {
+                statsUtils.before();
+                if (isSuspension) {
+                    Suspension suspension = new Suspension(suspensionsThrottlingConfig);
+                    // find if any seller is the sole provider in any market, if so, it should not
+                    // be considered as suspension candidate
+                    suspension.findSoleProviders(economy);
+                    actions.addAll(suspension.suspensionDecisions(economy, ledger));
+                    logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "suspending");
+                }
+                // suspension time
+                statsUtils.after();
+            } catch (Exception e) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.SUSPENSION_PHASE, e.getMessage(), e);
+            }
 
-        // mark non-executable actions
-        if (classifyActions && classifier != null) {
-            classifier.classify(actions);
-        }
-        logger.info(actionStats.finalLogEntry());
-        // total time to run plan
-        statsUtils.after(begin);
-        // file total actions
-        statsUtils.append(actions.size(), false, false);
-        StatsWriter statsWriter = StatsManager.getInstance().init();
-        statsWriter.add(statsUtils);
+            try {
+                if (collapse && !economy.getForceStop()) {
+                    List<@NonNull Action> collapsed = ActionCollapse.collapsed(actions);
+                    // Reorder actions by type.
+                    actions = ActionCollapse.groupActionsByTypeAndReorderBeforeSending(collapsed);
+                    actionStats.setActionsList(actions);
+                }
+            } catch (Exception e) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.ACTION_COLLAPSE_PHASE, e.getMessage(), e);
+            }
 
-        if (logger.isDebugEnabled()) {
-            // Log number of actions by type
-            actions.stream()
-                            .collect(Collectors.groupingBy(Action::getClass))
-                            .forEach((k, v) -> logger
-                                            .debug("    " + k.getSimpleName() + " : " + v.size()));
+            try {
+                // mark non-executable actions
+                if (classifyActions && classifier != null) {
+                    classifier.classify(actions, economy);
+                }
+            } catch (Exception e) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.CLASSIFY_PHASE, e.getMessage(), e);
+            }
+            logger.info(actionStats.finalLogEntry());
+            // total time to run plan
+            statsUtils.after(begin);
+            // file total actions
+            statsUtils.append(actions.size(), false, false);
+            StatsWriter statsWriter = StatsManager.getInstance().init();
+            statsWriter.add(statsUtils);
+
+            if (logger.isDebugEnabled()) {
+                // Log number of actions by type
+                actions.stream()
+                                .collect(Collectors.groupingBy(Action::getClass))
+                                .forEach((k, v) -> logger
+                                                .debug("    " + k.getSimpleName() + " : " + v.size()));
+            }
+            // Reconfigures generated within Placement or Bootstrap do not have a quoteTracker.
+            // We can not create quoteTrackers at the moment when reconfigure was created, especially in
+            // the Bootstrap reconfigure case, because PlacementResults is not available. In order to
+            // keep quoteTrackers in PlacementResults for reconfigure traders, at the end of Ede, we
+            // call addQuoteTrackerForEmptyReconfigures.
+            placementResults.createQuoteTrackerForReconfigures(actions);
+            placementResults.populateExplanationForInfinityQuoteTraders();
+            logInfiniteQuoteTraders(placementResults);
+            this.edePlacementResults = placementResults;
+        } catch (Exception e) {
+            logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.EDE_GENERATE_ACTIONS, e.getMessage(), e);
+        } finally {
+            resetExceptionCounters();
         }
-        // Reconfigures generated within Placement or Bootstrap do not have a quoteTracker.
-        // We can not create quoteTrackers at the moment when reconfigure was created, especially in
-        // the Bootstrap reconfigure case, because PlacementResults is not available. In order to
-        // keep quoteTrackers in PlacementResults for reconfigure traders, at the end of Ede, we
-        // call addQuoteTrackerForEmptyReconfigures.
-        placementResults.createQuoteTrackerForReconfigures(actions);
-        placementResults.populateExplanationForInfinityQuoteTraders();
-        logInfiniteQuoteTraders(placementResults);
-        this.edePlacementResults = placementResults;
         return actions;
     }
 
@@ -549,4 +600,16 @@ public final class Ede {
         return this.edePlacementResults;
     }
 
+    /**
+     * Reset exception counters that may have increased during analysis.
+     */
+    private void resetExceptionCounters() {
+        Placement.exceptionCounterShopAlone = 0;
+        Placement.exceptionCounterShopTogether = 0;
+        BootstrapSupply.exceptionCounterShopAlone = 0;
+        BootstrapSupply.exceptionCounterShopTogether = 0;
+        Resizer.exceptionCounter = 0;
+        Suspension.exceptionCounter = 0;
+        Ledger.exceptionCounter = 0;
+    }
 }

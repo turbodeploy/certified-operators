@@ -93,7 +93,7 @@ public class ExecutableActionsTest {
             classifier = new ActionClassifier(economy);
             logger.info("No of executable actions for invalid move: "
                         + classifier.getExecutable());
-            classifier.classify(actions);
+            classifier.classify(actions, economy);
             // PS:  If there's another of doing this, I don't need to modify ActionClassifier ..
             assertTrue(classifier.getExecutable() == 1);
 
@@ -151,7 +151,7 @@ public class ExecutableActionsTest {
         ActionClassifier classifier;
         try {
             classifier = new ActionClassifier(economy);
-            classifier.classify(actions);
+            classifier.classify(actions, economy);
             // resize up non-executable, resize down executable
             assertTrue(actions.size() == 2);
             assertTrue(classifier.getExecutable() == 2);
@@ -207,7 +207,7 @@ public class ExecutableActionsTest {
         ActionClassifier classifier;
         try {
             classifier = new ActionClassifier(economy);
-            classifier.classify(actions);
+            classifier.classify(actions, economy);
             // resize up executable, resize down executable
             assertTrue(actions.size() == 1);
             assertTrue(classifier.getExecutable() == 1);
@@ -242,7 +242,7 @@ public class ExecutableActionsTest {
         ActionClassifier classifier;
         try {
             classifier = new ActionClassifier(economy);
-            classifier.classify(actions);
+            classifier.classify(actions, economy);
             // resize up non-executable, resize down executable
             assertTrue(actions.size() == 1);
             assertTrue(classifier.getExecutable() == 0);

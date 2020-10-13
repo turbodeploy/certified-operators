@@ -26,6 +26,7 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -79,6 +80,7 @@ public class Ledger {
     }
 
     private static final Logger logger = LogManager.getLogger(Ledger.class);
+    public static int exceptionCounter = 0;
 
     // Constructor
 
@@ -89,7 +91,18 @@ public class Ledger {
      */
     public Ledger(@NonNull Economy  economy) {
 
-        economy.getTraders().forEach(trader-> addTraderIncomeStatement(trader));
+        economy.getTraders().forEach(trader -> {
+            try {
+                addTraderIncomeStatement(trader);
+            } catch (Exception e) {
+                if (exceptionCounter < EconomyConstants.EXCEPTION_PRINT_LIMIT) {
+                    logger.error(EconomyConstants.EXCEPTION_MESSAGE, trader.getDebugInfoNeverUseInCode(),
+                            e.getMessage(), e);
+                    exceptionCounter++;
+                }
+                economy.getExceptionTraders().add(trader.getOid());
+            }
+        });
 
     }
 

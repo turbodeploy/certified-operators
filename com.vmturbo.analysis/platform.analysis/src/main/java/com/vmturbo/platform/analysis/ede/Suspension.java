@@ -47,6 +47,8 @@ public class Suspension {
 
     static final Logger logger = LogManager.getLogger();
 
+    public static int exceptionCounter = 0;
+
     private Ledger ledger_;
 
     private PriorityQueue<Trader> suspensionCandidateHeap_ = new PriorityQueue<>((t1, t2) -> {
@@ -90,113 +92,135 @@ public class Suspension {
         int round = 0;
         // suspend entities that are not sellers in any market
         for (Trader seller : economy.getTraders()) {
-            if (seller.getSettings().isSuspendable() && seller.getState().isActive()
-                    && !sellerHasNonDaemonCustomers(seller)
-                    // Check whether the seller is not a seller to any non-daemons in any market.
-                    // If the seller is only selling to daemons, it can suspend.
-                    && !economy.getMarketsAsSeller(seller).stream()
-                        .anyMatch(m -> m.getBuyers().stream()
-                            .anyMatch(sl -> !sl.getBuyer().getSettings().isDaemon()))) {
-                if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
-                    logger.info("Suspending " + seller.getDebugInfoNeverUseInCode()
-                            + " as it is not a seller in any market.");
+            try {
+                if (seller.getSettings().isSuspendable() && seller.getState().isActive()
+                        && !sellerHasNonDaemonCustomers(seller)
+                        // Check whether the seller is not a seller to any non-daemons in any market.
+                        // If the seller is only selling to daemons, it can suspend.
+                        && !economy.getMarketsAsSeller(seller).stream()
+                            .anyMatch(m -> m.getBuyers().stream()
+                                .anyMatch(sl -> !sl.getBuyer().getSettings().isDaemon()))) {
+                    if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
+                        logger.info("Suspending " + seller.getDebugInfoNeverUseInCode()
+                                + " as it is not a seller in any market.");
+                    }
+                    Deactivate deactivate = suspendTrader(economy, seller.getBasketSold(), seller, allActions);
+                    if (deactivate != null) {
+                        // Suspend any remaining customers.  These should all be daemons.
+                        allActions.addAll(suspendOrphanedCustomers(economy, deactivate));
+                    }
+                    // Avoid further suspensions if setting is CLUSTER
+                    if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
+                        makeCoSellersNonSuspendable(economy, seller);
+                    }
                 }
-                Deactivate deactivate = suspendTrader(economy, seller.getBasketSold(), seller, allActions);
-                if (deactivate != null) {
-                    // Suspend any remaining customers.  These should all be daemons.
-                    allActions.addAll(suspendOrphanedCustomers(economy, deactivate));
+            } catch (Exception e) {
+                if (exceptionCounter < EconomyConstants.EXCEPTION_PRINT_LIMIT) {
+                    logger.error(EconomyConstants.EXCEPTION_MESSAGE, seller.getDebugInfoNeverUseInCode(),
+                            e.getMessage(), e);
+                    exceptionCounter++;
                 }
-                // Avoid further suspensions if setting is CLUSTER
-                if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
-                    makeCoSellersNonSuspendable(economy, seller);
-                }
+                economy.getExceptionTraders().add(seller.getOid());
             }
         }
         // run suspension for 3 rounds. We can have scenarios where, there are VMs that can move
         // when buyers in a different market make room. In order to enable this, we retry suspensions
         // after a round of economy-wide placements. We do this a third time for better packing as
         // placements is the only expense here
-        while (round < 3) {
-            ledger.calculateExpRevForTradersInEconomy(economy);
-            // adjust utilThreshold to maxDesiredUtil*utilTh of the seller. Thereby preventing moves
-            // that force utilization to exceed maxDesiredUtil*utilTh
-            adjustUtilThreshold(economy, true);
-            ledger_ = ledger;
+        try {
+            while (round < 3) {
+                ledger.calculateExpRevForTradersInEconomy(economy);
+                // adjust utilThreshold to maxDesiredUtil*utilTh of the seller. Thereby preventing moves
+                // that force utilization to exceed maxDesiredUtil*utilTh
+                adjustUtilThreshold(economy, true);
+                ledger_ = ledger;
 
-            for (Market market : economy.getMarkets()) {
-                if (economy.getForceStop()) {
-                    return allActions;
-                }
-                // skip markets that don't have suspendable active sellers. We consider only
-                // activeSellersAvailableForPlacement as entities should not move out of the ones
-                // not available for placement
-                if (market.getActiveSellersAvailableForPlacement().isEmpty() ||
-                        market.getActiveSellersAvailableForPlacement().stream().noneMatch(
-                                        t -> t.getSettings().isSuspendable())) {
-                    continue;
-                }
-                List<Trader> suspensionCandidates = Lists.newArrayList(market.getActiveSellersAvailableForPlacement());
-                for (Trader seller : suspensionCandidates) {
-                    // suspension candidates can be only activeSellers that canAcceptNewCustomers
-                    // that are suspendable
-                    if (!seller.getSettings().isSuspendable()) {
-                        continue;
+                for (Market market : economy.getMarkets()) {
+                    try {
+                        if (economy.getForceStop()) {
+                            return allActions;
+                        }
+                        // skip markets that don't have suspendable active sellers. We consider only
+                        // activeSellersAvailableForPlacement as entities should not move out of the ones
+                        // not available for placement
+                        if (market.getActiveSellersAvailableForPlacement().isEmpty() ||
+                                market.getActiveSellersAvailableForPlacement().stream().noneMatch(
+                                                t -> t.getSettings().isSuspendable())) {
+                            continue;
+                        }
+                        List<Trader> suspensionCandidates = Lists.newArrayList(market.getActiveSellersAvailableForPlacement());
+                        for (Trader seller : suspensionCandidates) {
+                            // suspension candidates can be only activeSellers that canAcceptNewCustomers
+                            // that are suspendable
+                            if (!seller.getSettings().isSuspendable()) {
+                                continue;
+                            }
+                            boolean isDebugTrader = seller.isDebugEnabled();
+                            String sellerDebugInfo = seller.getDebugInfoNeverUseInCode();
+                            // Check for suspendable here because we might set co-sellers to be non suspendable.
+                            if (!sellerHasNonDaemonCustomers(seller)) {
+                                if (logger.isTraceEnabled() || isDebugTrader) {
+                                    logger.info("Suspending " + sellerDebugInfo
+                                        + " as there are no customers.");
+                                }
+                                Deactivate deactivate = suspendTrader(economy, market.getBasket(), seller, allActions);
+                                if (deactivate != null) {
+                                    // Suspend any remaining customers.  These should all be daemons.
+                                    allActions.addAll(suspendOrphanedCustomers(economy, deactivate));
+                                }
+                                // Avoid further suspensions if setting is CLUSTER
+                                if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
+                                    makeCoSellersNonSuspendable(economy, seller);
+                                }
+                                continue;
+                            }
+                            IncomeStatement incomeStmt = ledger.getTraderIncomeStatements()
+                                            .get(seller.getEconomyIndex());
+                            if (!suspensionCandidateHeap_.contains(seller)
+                                && !soleProviders.contains(seller)
+                                // Handle case where all commodities sold in the trader are selling
+                                // a quantity of zero. In this case, there is an optimization in the income
+                                // statement where the desired ROI is not calculated when the ROI is zero.
+                                && ((incomeStmt.getROI() == 0.0
+                                    || incomeStmt.getROI() < (incomeStmt.getMinDesiredROI() +
+                                                           incomeStmt.getMaxDesiredROI())
+                                                          / 2))) {
+                                suspensionCandidateHeap_.offer(seller);
+                                if (logger.isTraceEnabled() || isDebugTrader) {
+                                    logger.info("Inserting " + sellerDebugInfo
+                                                + " in suspension candidates heap.");
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.error(EconomyConstants.EXCEPTION_MESSAGE,
+                                market.getActiveSellers().isEmpty() ? "market " + market.toString()
+                                    : market + " " + market.toString() + " with first active seller "
+                                    + market.getActiveSellers().get(0).getDebugInfoNeverUseInCode(),
+                                    e.getMessage(), e);
                     }
-                    boolean isDebugTrader = seller.isDebugEnabled();
-                    String sellerDebugInfo = seller.getDebugInfoNeverUseInCode();
-                    // Check for suspendable here because we might set co-sellers to be non suspendable.
-                    if (!sellerHasNonDaemonCustomers(seller)) {
-                        if (logger.isTraceEnabled() || isDebugTrader) {
-                            logger.info("Suspending " + sellerDebugInfo
-                                + " as there are no customers.");
-                        }
-                        Deactivate deactivate = suspendTrader(economy, market.getBasket(), seller, allActions);
-                        if (deactivate != null) {
-                            // Suspend any remaining customers.  These should all be daemons.
-                            allActions.addAll(suspendOrphanedCustomers(economy, deactivate));
-                        }
-                        // Avoid further suspensions if setting is CLUSTER
-                        if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
-                            makeCoSellersNonSuspendable(economy, seller);
-                        }
-                        continue;
-                    }
-                    IncomeStatement incomeStmt = ledger.getTraderIncomeStatements()
-                                    .get(seller.getEconomyIndex());
-                    if (!suspensionCandidateHeap_.contains(seller)
-                        && !soleProviders.contains(seller)
-                        // Handle case where all commodities sold in the trader are selling
-                        // a quantity of zero. In this case, there is an optimization in the income
-                        // statement where the desired ROI is not calculated when the ROI is zero.
-                        && ((incomeStmt.getROI() == 0.0
-                            || incomeStmt.getROI() < (incomeStmt.getMinDesiredROI() +
-                                                   incomeStmt.getMaxDesiredROI())
-                                                  / 2))) {
-                        suspensionCandidateHeap_.offer(seller);
-                        if (logger.isTraceEnabled() || isDebugTrader) {
-                            logger.info("Inserting " + sellerDebugInfo
-                                        + " in suspension candidates heap.");
-                        }
-                    }
                 }
-            }
 
-            Trader trader;
-            double oldNumActions = allActions.size();
-            while ((trader = suspensionCandidateHeap_.poll()) != null) {
-                if (!soleProviders.contains(trader) && trader.getState().isActive()) {
-                    allActions.addAll(deactivateTraderIfPossible(trader, economy, ledger, false));
+                Trader trader;
+                double oldNumActions = allActions.size();
+                while ((trader = suspensionCandidateHeap_.poll()) != null) {
+                    if (!soleProviders.contains(trader) && trader.getState().isActive()) {
+                        allActions.addAll(deactivateTraderIfPossible(trader, economy, ledger, false));
+                    }
                 }
+                // reset threshold
+                adjustUtilThreshold(economy, false);
+
+                if (allActions.size() > oldNumActions) {
+                    // run economy wide placements if there are new actions in this round of suspension
+                    allActions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
+                        EconomyConstants.SUPPLY_PHASE).getActions());
+                }
+                round++;
             }
-            // reset threshold
+        } catch (Exception e) {
+            logger.error(EconomyConstants.EXCEPTION_MESSAGE, "Suspension", e.getMessage(), e);
             adjustUtilThreshold(economy, false);
-
-            if (allActions.size() > oldNumActions) {
-                // run economy wide placements if there are new actions in this round of suspension
-                allActions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
-                    EconomyConstants.SUPPLY_PHASE).getActions());
-            }
-            round++;
         }
         return allActions;
     }
@@ -214,128 +238,135 @@ public class Suspension {
      */
     List<Action> deactivateTraderIfPossible(Trader trader, Economy economy, Ledger ledger,
                                             boolean moveAllPossibleCustomers) {
-        boolean isDebugTrader = trader.isDebugEnabled();
-        String traderDebugInfo = trader.getDebugInfoNeverUseInCode();
-        if (logger.isTraceEnabled() || isDebugTrader) {
-            logger.info("Trying to suspend trader " + traderDebugInfo + ".");
-        }
-        List<Market> markets = economy.getMarketsAsSeller(trader);
-
         List<@NonNull Action> suspendActions = new ArrayList<>();
-        if (!trader.getSettings().isSuspendable()) {
+        try {
+            boolean isDebugTrader = trader.isDebugEnabled();
+            String traderDebugInfo = trader.getDebugInfoNeverUseInCode();
             if (logger.isTraceEnabled() || isDebugTrader) {
-                logger.info("{" + traderDebugInfo + "} is not suspendable.");
+                logger.info("Trying to suspend trader " + traderDebugInfo + ".");
             }
-            return suspendActions;
-        }
+            List<Market> markets = economy.getMarketsAsSeller(trader);
 
-        boolean isProviderOfResizeThroughSupplier = Utility.isProviderOfResizeThroughSupplierTrader(trader);
-        Set<ShoppingList> resizeThroughSupplierCustomers = new LinkedHashSet<>();
-        if (isProviderOfResizeThroughSupplier) {
-            Set<Trader> resizeThroughSuppliers = Utility.getResizeThroughSupplierTradersFromProvider(trader);
-            resizeThroughSupplierCustomers = resizeThroughSuppliers.stream()
-                                                        .flatMap(t -> t.getCustomers().stream())
-                                                                    .collect(Collectors.toCollection(LinkedHashSet::new));
-        }
+            if (!trader.getSettings().isSuspendable()) {
+                if (logger.isTraceEnabled() || isDebugTrader) {
+                    logger.info("{" + traderDebugInfo + "} is not suspendable.");
+                }
+                return suspendActions;
+            }
 
-        Set<ShoppingList> customersOfSuspCandidate = new LinkedHashSet<>();
-        if (moveAllPossibleCustomers) {
-            economy.getMarketsAsSeller(trader).stream()
-                    .map(Market::getBuyers)
-                    .flatMap(List::stream)
-                    .filter(sl -> !Suspension.isDaemon(sl))
-                    .forEach(customersOfSuspCandidate::add);
-        } else {
-            customersOfSuspCandidate.addAll(getNonDaemonCustomers(trader));
-        }
-        customersOfSuspCandidate.addAll(resizeThroughSupplierCustomers);
+            boolean isProviderOfResizeThroughSupplier = Utility.isProviderOfResizeThroughSupplierTrader(trader);
+            Set<ShoppingList> resizeThroughSupplierCustomers = new LinkedHashSet<>();
+            if (isProviderOfResizeThroughSupplier) {
+                Set<Trader> resizeThroughSuppliers = Utility.getResizeThroughSupplierTradersFromProvider(trader);
+                resizeThroughSupplierCustomers = resizeThroughSuppliers.stream()
+                                                            .flatMap(t -> t.getCustomers().stream())
+                                                                        .collect(Collectors.toCollection(LinkedHashSet::new));
+            }
 
-        // Need to get this before doing the suspend, or the list will be empty.
-        List<ShoppingList> guaranteedBuyerSls = GuaranteedBuyerHelper
-                .findSlsBetweenSellerAndGuaranteedBuyer(trader);
-        final Map<Trader, Set<ShoppingList>> slsSponsoredByGuaranteedBuyer =
-                GuaranteedBuyerHelper.getAllSlsSponsoredByGuaranteedBuyer(economy,
-                        guaranteedBuyerSls);
-        Deactivate deactivate = suspendTrader(economy,
-            markets.isEmpty() ? trader.getBasketSold() : markets.get(0).getBasket(),
-            trader, suspendActions);
-        if (deactivate == null) {
-            return suspendActions;
-        }
+            Set<ShoppingList> customersOfSuspCandidate = new LinkedHashSet<>();
+            if (moveAllPossibleCustomers) {
+                economy.getMarketsAsSeller(trader).stream()
+                        .map(Market::getBuyers)
+                        .flatMap(List::stream)
+                        .filter(sl -> !Suspension.isDaemon(sl))
+                        .forEach(customersOfSuspCandidate::add);
+            } else {
+                customersOfSuspCandidate.addAll(getNonDaemonCustomers(trader));
+            }
+            customersOfSuspCandidate.addAll(resizeThroughSupplierCustomers);
 
-        if (logger.isTraceEnabled() || isDebugTrader) {
-            logger.info("Suspending trader " + traderDebugInfo
-                        + " and trying to move its customers to other traders.");
-        }
+            // Need to get this before doing the suspend, or the list will be empty.
+            List<ShoppingList> guaranteedBuyerSls = GuaranteedBuyerHelper
+                    .findSlsBetweenSellerAndGuaranteedBuyer(trader);
+            final Map<Trader, Set<ShoppingList>> slsSponsoredByGuaranteedBuyer =
+                    GuaranteedBuyerHelper.getAllSlsSponsoredByGuaranteedBuyer(economy,
+                            guaranteedBuyerSls);
+            Deactivate deactivate = suspendTrader(economy,
+                markets.isEmpty() ? trader.getBasketSold() : markets.get(0).getBasket(),
+                trader, suspendActions);
+            if (deactivate == null) {
+                return suspendActions;
+            }
 
-        if (!markets.isEmpty()) {
-            // perform placement on just the customers on the suspensionCandidate
-            // The act of suspension of chains of providerMustClone traders may clear the supplier
-            // of some the customers, so remove them first.
-            suspendActions.addAll(Placement.runPlacementsTillConverge(
-                economy, customersOfSuspCandidate.stream()
-                    .filter(sl -> sl.getSupplier() != null)
-                    .collect(Collectors.toList()),
-                ledger, true, EconomyConstants.SUSPENSION_PHASE).getActions());
-        }
-
-        // Rollback actions if the trader still has customers.  If all of the customers are
-        // guaranteed buyers, it's still okay to proceed with the suspend.
-
-        if (makeNonDaemonCustomerStream(trader)
-                .anyMatch(cust -> !cust.getBuyer().getSettings().isGuaranteedBuyer())) {
             if (logger.isTraceEnabled() || isDebugTrader) {
-                logger.info("{" + traderDebugInfo + "} will not be suspended"
-                        + " because it still has customers.");
+                logger.info("Suspending trader " + traderDebugInfo
+                            + " and trying to move its customers to other traders.");
             }
-            return rollBackSuspends(suspendActions);
-        }
 
-        // If the new suspensions would cause a guaranteed buyer to get a very large quote,
-        // then reverse the suspensions.
-        for (Set<ShoppingList> shoppingLists : slsSponsoredByGuaranteedBuyer.values()) {
-            for (ShoppingList sl : shoppingLists) {
-                final @NonNull List<@NonNull Trader> sellers =
-                        economy.getMarket(sl).getActiveSellersAvailableForPlacement();
-                final QuoteMinimizer minimizer =
-                        sellers.stream()
-                                .collect(() -> new QuoteMinimizer(economy, sl),
-                                        QuoteMinimizer::accept, QuoteMinimizer::combine);
-                if (Double.compare(minimizer.getTotalBestQuote(), Cache.MAX_UNIT_PRICE) > 0) {
-                    if (logger.isTraceEnabled() || isDebugTrader) {
-                        logger.info("{} will not be suspended because otherwise it will cause"
-                                        + " its guaranteed buyer {} to have a quote larger than {}.",
-                                traderDebugInfo, sl.getBuyer().getDebugInfoNeverUseInCode(),
-                                Cache.MAX_UNIT_PRICE);
+            if (!markets.isEmpty()) {
+                // perform placement on just the customers on the suspensionCandidate
+                // The act of suspension of chains of providerMustClone traders may clear the supplier
+                // of some the customers, so remove them first.
+                suspendActions.addAll(Placement.runPlacementsTillConverge(
+                    economy, customersOfSuspCandidate.stream()
+                        .filter(sl -> sl.getSupplier() != null)
+                        .collect(Collectors.toList()),
+                    ledger, true, EconomyConstants.SUSPENSION_PHASE).getActions());
+            }
+
+            // Rollback actions if the trader still has customers.  If all of the customers are
+            // guaranteed buyers, it's still okay to proceed with the suspend.
+
+            if (makeNonDaemonCustomerStream(trader)
+                    .anyMatch(cust -> !cust.getBuyer().getSettings().isGuaranteedBuyer())) {
+                if (logger.isTraceEnabled() || isDebugTrader) {
+                    logger.info("{" + traderDebugInfo + "} will not be suspended"
+                            + " because it still has customers.");
+                }
+                return rollBackSuspends(suspendActions);
+            }
+
+            // If the new suspensions would cause a guaranteed buyer to get a very large quote,
+            // then reverse the suspensions.
+            for (Set<ShoppingList> shoppingLists : slsSponsoredByGuaranteedBuyer.values()) {
+                for (ShoppingList sl : shoppingLists) {
+                    final @NonNull List<@NonNull Trader> sellers =
+                            economy.getMarket(sl).getActiveSellersAvailableForPlacement();
+                    final QuoteMinimizer minimizer =
+                            sellers.stream()
+                                    .collect(() -> new QuoteMinimizer(economy, sl),
+                                            QuoteMinimizer::accept, QuoteMinimizer::combine);
+                    if (Double.compare(minimizer.getTotalBestQuote(), Cache.MAX_UNIT_PRICE) > 0) {
+                        if (logger.isTraceEnabled() || isDebugTrader) {
+                            logger.info("{} will not be suspended because otherwise it will cause"
+                                            + " its guaranteed buyer {} to have a quote larger than {}.",
+                                    traderDebugInfo, sl.getBuyer().getDebugInfoNeverUseInCode(),
+                                    Cache.MAX_UNIT_PRICE);
+                        }
+                        return rollBackSuspends(suspendActions);
                     }
-                    return rollBackSuspends(suspendActions);
                 }
             }
-        }
 
-        if (isProviderOfResizeThroughSupplier) {
-            for (ShoppingList sl : resizeThroughSupplierCustomers) {
-                // skip vsan storage's shopping list when considering reverse suspension
-                if (!sl.isMovable() && sl.getBuyer().getSettings().isResizeThroughSupplier()) {
-                    continue;
-                }
-                final @NonNull List<@NonNull Trader> sellers =
-                                economy.getMarket(sl).getActiveSellersAvailableForPlacement();
-                final QuoteMinimizer minimizer = sellers.stream()
-                                        .collect(() -> new QuoteMinimizer(economy, sl),
-                                                QuoteMinimizer::accept, QuoteMinimizer::combine);
-                if (Double.isInfinite(minimizer.getTotalBestQuote())) {
-                    return rollBackSuspends(suspendActions);
+            if (isProviderOfResizeThroughSupplier) {
+                for (ShoppingList sl : resizeThroughSupplierCustomers) {
+                    // skip vsan storage's shopping list when considering reverse suspension
+                    if (!sl.isMovable() && sl.getBuyer().getSettings().isResizeThroughSupplier()) {
+                        continue;
+                    }
+                    final @NonNull List<@NonNull Trader> sellers =
+                                    economy.getMarket(sl).getActiveSellersAvailableForPlacement();
+                    final QuoteMinimizer minimizer = sellers.stream()
+                                            .collect(() -> new QuoteMinimizer(economy, sl),
+                                                    QuoteMinimizer::accept, QuoteMinimizer::combine);
+                    if (Double.isInfinite(minimizer.getTotalBestQuote())) {
+                        return rollBackSuspends(suspendActions);
+                    }
                 }
             }
-        }
 
-        // Suspend any remaining customers.  These should all be daemons.
-        suspendActions.addAll(suspendOrphanedCustomers(economy, deactivate));
-        updateSoleProviders(economy, trader);
-        logger.info("{" + traderDebugInfo + "} was suspended.");
-        if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
-            makeCoSellersNonSuspendable(economy, trader);
+            // Suspend any remaining customers.  These should all be daemons.
+            suspendActions.addAll(suspendOrphanedCustomers(economy, deactivate));
+            updateSoleProviders(economy, trader);
+            logger.info("{" + traderDebugInfo + "} was suspended.");
+            if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
+                makeCoSellersNonSuspendable(economy, trader);
+            }
+        } catch (Exception e) {
+            logger.error(EconomyConstants.EXCEPTION_MESSAGE, trader.getDebugInfoNeverUseInCode(),
+                    e.getMessage(), e);
+            economy.getExceptionTraders().add(trader.getOid());
+            rollBackSuspends(suspendActions);
         }
         return suspendActions;
     }

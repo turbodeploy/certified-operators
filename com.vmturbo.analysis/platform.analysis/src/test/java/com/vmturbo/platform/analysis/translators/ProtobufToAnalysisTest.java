@@ -15,7 +15,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
@@ -24,6 +23,7 @@ import junitparams.naming.TestCaseName;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
+import com.vmturbo.platform.analysis.economy.CommoditySoldWithSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
@@ -238,24 +238,7 @@ public class ProtobufToAnalysisTest {
 
         TraderTO trader = TraderTO.newBuilder().setOid(1).setSettings(traderSetting).build();
 
-        CommoditySold commoditySold = new CommoditySold() {
-            private static final long serialVersionUID = 1L;
-
-            @Override
-            public @NonNull @PolyRead CommoditySoldSettings getSettings() {
-                return Mockito.mock(CommoditySoldSettings.class);
-            }
-
-            @Override
-            public double getEffectiveCapacity() {
-                return 0;
-            }
-
-            @Override
-            public double getEffectiveStartCapacity() {
-                return 0;
-            }
-        };
+        CommoditySoldWithSettings commoditySold = new CommoditySoldWithSettings();
 
         ProtobufToAnalysis.populateCommoditySold(commSoldTOBuilder.build(), commoditySold, trader);
 

@@ -35,6 +35,7 @@ import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Context.ContextComparator;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -60,6 +61,8 @@ public class Placement {
     public static int globalCounter = 0;
     private static boolean printMaxPlacementIterations = true;
     public static final int MOVE_COST_FACTOR_MAX_COMM_SIZE = 10;
+    public static int exceptionCounterShopAlone = 0;
+    public static int exceptionCounterShopTogether = 0;
 
     /**
      * Used to set parent id in the merged context, parent id is needed for CBTP cost lookup
@@ -242,138 +245,150 @@ public class Placement {
      */
     public static PlacementResults generateShopAlonePlacementDecisions(
                     @NonNull Economy economy, ShoppingList shoppingList) {
-        if (economy.getForceStop()) {
-            return PlacementResults.empty();
-        }
-
-        // if there are no sellers in the market, the buyer is misconfigured
-        final @NonNull List<@NonNull Trader> sellers =
-                        economy.getMarket(shoppingList).getActiveSellersAvailableForPlacement();
-
-        if (logger.isTraceEnabled()) {
-            logger.trace("PSL Sellers for shoppingList: " + shoppingList.toString());
-            for (Trader trader : sellers) {
-                if (AnalysisToProtobuf.replaceNewSupplier(shoppingList, economy, trader) != null) {
-                    logger.trace("PSL Seller: " +
-                            trader.toString());
-                }
+        try {
+            if (economy.getForceStop()) {
+                return PlacementResults.empty();
             }
-        }
-        // sl can be immovable when the underlying provider is not availableForPlacement
-        if (!shoppingList.isMovable()) {
-            return PlacementResults.empty();
-        }
-        if (economy.getMarket(shoppingList).getActiveSellers().isEmpty()) {
-            PlacementResults results = PlacementResults.empty();
-            createReconfigureForEmptySeller(economy, shoppingList, results);
-            return results;
-        }
 
-        final QuoteMinimizer minimizer = initiateQuoteMinimizer(economy, sellers, shoppingList,
-                                                    null, 0 /* ignored because cache == null */);
+            // if there are no sellers in the market, the buyer is misconfigured
+            final @NonNull List<@NonNull Trader> sellers =
+                            economy.getMarket(shoppingList).getActiveSellersAvailableForPlacement();
 
-        final double cheapestQuote = minimizer.getTotalBestQuote();
-        final Trader cheapestSeller = minimizer.getBestSeller();
-        final Trader buyer = shoppingList.getBuyer();
-        final double currentQuote = minimizer.getCurrentQuote().getQuoteValue();
-
-        boolean isDebugTrader = buyer.isDebugEnabled() || logger.isTraceEnabled();
-        boolean isSellersInfoPrinted = buyer.isSellersInfoPrinted();
-        String buyerDebugInfo = shoppingList.getBuyer().getDebugInfoNeverUseInCode();
-        if (logger.isTraceEnabled() || isDebugTrader) {
-            if (!isSellersInfoPrinted) {
-                logger.info("{" + buyerDebugInfo + "} Print debug info for all sellers in placement: ");
+            if (logger.isTraceEnabled()) {
+                logger.trace("PSL Sellers for shoppingList: " + shoppingList.toString());
                 for (Trader trader : sellers) {
-                    logger.info("Possible seller debug info: " + trader.getDebugInfoNeverUseInCode());
+                    if (AnalysisToProtobuf.replaceNewSupplier(shoppingList, economy, trader) != null) {
+                        logger.trace("PSL Seller: " +
+                                trader.toString());
+                    }
                 }
-                shoppingList.getBuyer().setSellersInfoPrinted(true);
             }
-            if (shoppingList.getSupplier() == null) {
-                logger.info("{" + buyerDebugInfo + "} Supplier is null.");
-            } else {
-                logger.info("{" + buyerDebugInfo
-                                + "} current supplier: " + shoppingList.getSupplier()
-                                + " quote: " + currentQuote);
-            }
+            // sl can be immovable when the underlying provider is not availableForPlacement
             if (!shoppingList.isMovable()) {
-                logger.info("{" + buyerDebugInfo + "} Shopping list of " + shoppingList.getSupplier() + " is not movable.");
+                return PlacementResults.empty();
             }
-            if (cheapestSeller == null) {
-                logger.info("{" + buyerDebugInfo + "} The cheapest supplier is null.");
-            } else {
-                logger.info("{" + buyerDebugInfo + "} The cheapest quote: "
-                                + cheapestQuote + " from the cheapest supplier: " + cheapestSeller.getDebugInfoNeverUseInCode());
-                logger.trace("{" + buyerDebugInfo + "} shopping list: " + shoppingList.toDebugString());
+            if (economy.getMarket(shoppingList).getActiveSellers().isEmpty()) {
+                PlacementResults results = PlacementResults.empty();
+                createReconfigureForEmptySeller(economy, shoppingList, results);
+                return results;
             }
-        }
 
-        // move, and update economy and state
-        PlacementResults placementResults = PlacementResults.empty();
-        // Move will require destination provider to be cheaper than current host by quote factor
-        // and move cost factor. Or there needs to be a change in coverage logged in the context
-        if (Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, shoppingList.getBasket().size())
-                        * buyer.getSettings().getMoveCostFactor() + cheapestQuote
-                        < currentQuote * buyer.getSettings().getQuoteFactor() ||
-                (cheapestSeller == shoppingList.getSupplier()
-                        && minimizer.getBestQuote().getContext().isPresent()
-                        && shoppingList.getBuyer().getSettings().getContext().isPresent()
-                        && !shoppingList.getBuyer().getSettings().getContext().get()
-                            .isEqualCoverages(minimizer.getBestQuote().getContext())) ||
-                // isScalingGroupConsistentlySized() is only meaningful for cloud providers.
-                // Anything else will return consistently sized.
-                (cheapestSeller != null && !economy.isScalingGroupConsistentlySized(shoppingList)
-                || anyDecisiveCommodityResized(minimizer.getBestQuote(), shoppingList))) {
-            double savings = currentQuote - cheapestQuote;
-            if (Double.isInfinite(savings)) {
-                savings = Double.MAX_VALUE;
-                if (isDebugTrader) {
-                    if (shoppingList.getSupplier() != null) {
-                        logger.info("{" + buyerDebugInfo + "} The infinite quote is from supplier: "
-                                        + shoppingList.getSupplier().getDebugInfoNeverUseInCode());
+            final QuoteMinimizer minimizer = initiateQuoteMinimizer(economy, sellers, shoppingList,
+                                                        null, 0 /* ignored because cache == null */);
+
+            final double cheapestQuote = minimizer.getTotalBestQuote();
+            final Trader cheapestSeller = minimizer.getBestSeller();
+            final Trader buyer = shoppingList.getBuyer();
+            final double currentQuote = minimizer.getCurrentQuote().getQuoteValue();
+
+            boolean isDebugTrader = buyer.isDebugEnabled() || logger.isTraceEnabled();
+            boolean isSellersInfoPrinted = buyer.isSellersInfoPrinted();
+            String buyerDebugInfo = shoppingList.getBuyer().getDebugInfoNeverUseInCode();
+            if (logger.isTraceEnabled() || isDebugTrader) {
+                if (!isSellersInfoPrinted) {
+                    logger.info("{" + buyerDebugInfo + "} Print debug info for all sellers in placement: ");
+                    for (Trader trader : sellers) {
+                        logger.info("Possible seller debug info: " + trader.getDebugInfoNeverUseInCode());
+                    }
+                    shoppingList.getBuyer().setSellersInfoPrinted(true);
+                }
+                if (shoppingList.getSupplier() == null) {
+                    logger.info("{" + buyerDebugInfo + "} Supplier is null.");
+                } else {
+                    logger.info("{" + buyerDebugInfo
+                                    + "} current supplier: " + shoppingList.getSupplier()
+                                    + " quote: " + currentQuote);
+                }
+                if (!shoppingList.isMovable()) {
+                    logger.info("{" + buyerDebugInfo + "} Shopping list of " + shoppingList.getSupplier() + " is not movable.");
+                }
+                if (cheapestSeller == null) {
+                    logger.info("{" + buyerDebugInfo + "} The cheapest supplier is null.");
+                } else {
+                    logger.info("{" + buyerDebugInfo + "} The cheapest quote: "
+                                    + cheapestQuote + " from the cheapest supplier: " + cheapestSeller.getDebugInfoNeverUseInCode());
+                    logger.trace("{" + buyerDebugInfo + "} shopping list: " + shoppingList.toDebugString());
+                }
+            }
+
+            // move, and update economy and state
+            PlacementResults placementResults = PlacementResults.empty();
+            // Move will require destination provider to be cheaper than current host by quote factor
+            // and move cost factor. Or there needs to be a change in coverage logged in the context
+            if (Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, shoppingList.getBasket().size())
+                            * buyer.getSettings().getMoveCostFactor() + cheapestQuote
+                            < currentQuote * buyer.getSettings().getQuoteFactor() ||
+                    (cheapestSeller == shoppingList.getSupplier()
+                            && minimizer.getBestQuote().getContext().isPresent()
+                            && shoppingList.getBuyer().getSettings().getContext().isPresent()
+                            && !shoppingList.getBuyer().getSettings().getContext().get()
+                                .isEqualCoverages(minimizer.getBestQuote().getContext())) ||
+                    // isScalingGroupConsistentlySized() is only meaningful for cloud providers.
+                    // Anything else will return consistently sized.
+                    (cheapestSeller != null && !economy.isScalingGroupConsistentlySized(shoppingList)
+                    || anyDecisiveCommodityResized(minimizer.getBestQuote(), shoppingList))) {
+                double savings = currentQuote - cheapestQuote;
+                if (Double.isInfinite(savings)) {
+                    savings = Double.MAX_VALUE;
+                    if (isDebugTrader) {
+                        if (shoppingList.getSupplier() != null) {
+                            logger.info("{" + buyerDebugInfo + "} The infinite quote is from supplier: "
+                                            + shoppingList.getSupplier().getDebugInfoNeverUseInCode());
+                        }
+                    }
+                }
+                // create recommendation, add it to the result list and  update the economy to
+                // reflect the decision
+                Move move = new Move(economy, shoppingList, shoppingList.getSupplier(),
+                    cheapestSeller, minimizer.getBestQuote().getContext(),
+                    minimizer.getBestQuote().getCommodityContexts());
+                placementResults.addAction(move.take().setImportance(savings));
+                // if the shoppinglist was unplaced before, now with a move action, it should be placed.
+                Collection<QuoteTracker> trackers = placementResults.getInfinityQuoteTraders().get(buyer);
+                Set<QuoteTracker> trackersToBeRemove = new HashSet<>();
+                if (trackers != null && !trackers.isEmpty()) {
+                    for (QuoteTracker tracker : trackers) {
+                        if (tracker.getShoppingList().equals(shoppingList)) {
+                            trackersToBeRemove.add(tracker);
+                        }
+                    }
+                    trackers.removeAll(trackersToBeRemove);
+                    if (trackers.isEmpty()) {
+                        placementResults.getInfinityQuoteTraders().remove(buyer);
+                    }
+                }
+                if (economy.getSettings().isUseExpenseMetricForTermination()) {
+                    Market myMarket = economy.getMarket(shoppingList);
+                    double placementSavings = myMarket.getPlacementSavings() + savings;
+                    if (Double.isInfinite(placementSavings)) {
+                        placementSavings = Double.MAX_VALUE;
+                    }
+                    myMarket.setPlacementSavings(placementSavings);
+                    if (logger.isDebugEnabled()
+                        && myMarket.getExpenseBaseline() < myMarket.getPlacementSavings()) {
+                        logger.debug("Total savings exceeds base expenses for buyer while shopping " +
+                            buyer.getDebugInfoNeverUseInCode()
+                            + " Basket " + shoppingList.getBasket());
                     }
                 }
             }
-            // create recommendation, add it to the result list and  update the economy to
-            // reflect the decision
-            Move move = new Move(economy, shoppingList, shoppingList.getSupplier(),
-                cheapestSeller, minimizer.getBestQuote().getContext(),
-                minimizer.getBestQuote().getCommodityContexts());
-            placementResults.addAction(move.take().setImportance(savings));
-            // if the shoppinglist was unplaced before, now with a move action, it should be placed.
-            Collection<QuoteTracker> trackers = placementResults.getInfinityQuoteTraders().get(buyer);
-            Set<QuoteTracker> trackersToBeRemove = new HashSet<>();
-            if (trackers != null && !trackers.isEmpty()) {
-                for (QuoteTracker tracker : trackers) {
-                    if (tracker.getShoppingList().equals(shoppingList)) {
-                        trackersToBeRemove.add(tracker);
-                    }
-                }
-                trackers.removeAll(trackersToBeRemove);
-                if (trackers.isEmpty()) {
-                    placementResults.getInfinityQuoteTraders().remove(buyer);
-                }
+            // add buyers that has infinity as the best quote to unplacedTraders of placementResults
+            if (Double.isInfinite(minimizer.getBestQuote().getQuoteValue())) {
+                placementResults.addInfinityQuoteTraders(shoppingList.getBuyer(),
+                    Arrays.asList(minimizer.getQuoteTracker()));
             }
-            if (economy.getSettings().isUseExpenseMetricForTermination()) {
-                Market myMarket = economy.getMarket(shoppingList);
-                double placementSavings = myMarket.getPlacementSavings() + savings;
-                if (Double.isInfinite(placementSavings)) {
-                    placementSavings = Double.MAX_VALUE;
-                }
-                myMarket.setPlacementSavings(placementSavings);
-                if (logger.isDebugEnabled()
-                    && myMarket.getExpenseBaseline() < myMarket.getPlacementSavings()) {
-                    logger.debug("Total savings exceeds base expenses for buyer while shopping " +
-                        buyer.getDebugInfoNeverUseInCode()
-                        + " Basket " + shoppingList.getBasket());
-                }
+            return placementResults;
+        } catch (Exception e) {
+            if (exceptionCounterShopAlone < EconomyConstants.EXCEPTION_PRINT_LIMIT) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE, shoppingList.getDebugInfoNeverUseInCode(),
+                    e.getMessage(), e);
+                exceptionCounterShopAlone++;
             }
+            if (shoppingList.getBuyer() != null) {
+                economy.getExceptionTraders().add(shoppingList.getBuyer().getOid());
+            }
+            return PlacementResults.empty();
         }
-        // add buyers that has infinity as the best quote to unplacedTraders of placementResults
-        if (Double.isInfinite(minimizer.getBestQuote().getQuoteValue())) {
-            placementResults.addInfinityQuoteTraders(shoppingList.getBuyer(),
-                Arrays.asList(minimizer.getQuoteTracker()));
-        }
-        return placementResults;
     }
 
     private static boolean anyDecisiveCommodityResized(final Quote quote,
@@ -454,48 +469,57 @@ public class Placement {
         @NonNull final PlacementResults placementResults = new PlacementResults();
 
         for (Trader buyingTrader : traders) {
-            if (economy.getForceStop()) {
-                return placementResults;
-            }
-            if (!shouldConsiderTraderForShopTogether(economy, buyingTrader)) {
-                continue;
-            }
-
-            // If there are no sellers in any market, the buyer is misconfigured
-            boolean generatedReconfigure = false;
-            for (Entry<@NonNull ShoppingList, @NonNull Market> entry : economy.moveableSlByMarket(buyingTrader)) {
-                ShoppingList sl = entry.getKey();
-                if (sl.isMovable() && entry.getValue().getActiveSellers().isEmpty()) {
-                    generatedReconfigure = true;
-                    // Since the shopping list can be in multiple entries in this loop,
-                    // we need to check whether a Reconfigure was already generated for
-                    // this list.
-                    createReconfigureForEmptySeller(economy, sl, placementResults);
+            try {
+                if (economy.getForceStop()) {
+                    return placementResults;
                 }
-            }
-            if (generatedReconfigure) {
-                continue;
-            }
+                if (!shouldConsiderTraderForShopTogether(economy, buyingTrader)) {
+                    continue;
+                }
 
-            CliqueMinimizer minimizer = computeBestQuote(economy, buyingTrader);
-            // If the best suppliers are not current ones, move shopping lists to best places
-            List<Action> generatedActions = checkAndGenerateCompoundMoveActions(economy,
-                    buyingTrader, minimizer);
-            placementResults.addActions(generatedActions);
-            // remove buying trader from unplacedTrader map as it now has placement actions.
-            if (!generatedActions.isEmpty()) {
-                placementResults.getInfinityQuoteTraders().remove(buyingTrader);
-            }
+                // If there are no sellers in any market, the buyer is misconfigured
+                boolean generatedReconfigure = false;
+                for (Entry<@NonNull ShoppingList, @NonNull Market> entry : economy.moveableSlByMarket(buyingTrader)) {
+                    ShoppingList sl = entry.getKey();
+                    if (sl.isMovable() && entry.getValue().getActiveSellers().isEmpty()) {
+                        generatedReconfigure = true;
+                        // Since the shopping list can be in multiple entries in this loop,
+                        // we need to check whether a Reconfigure was already generated for
+                        // this list.
+                        createReconfigureForEmptySeller(economy, sl, placementResults);
+                    }
+                }
+                if (generatedReconfigure) {
+                    continue;
+                }
 
-            if (minimizer == null) {
-                economy.moveableSlByMarket(buyingTrader).forEach(e -> {
-                    createReconfigureForEmptySeller(economy, e.getKey(), placementResults);
-                });
-                continue;
-            } else if (Double.isInfinite(minimizer.getBestTotalQuote())) {
-                // Add trader with best quote infinity to unplacedTraders of placementResults
-                placementResults.addInfinityQuoteTraders(buyingTrader, minimizer
-                        .getInfiniteQuoteTrackers().values().stream().collect(Collectors.toList()));
+                CliqueMinimizer minimizer = computeBestQuote(economy, buyingTrader);
+                // If the best suppliers are not current ones, move shopping lists to best places
+                List<Action> generatedActions = checkAndGenerateCompoundMoveActions(economy,
+                        buyingTrader, minimizer);
+                placementResults.addActions(generatedActions);
+                // remove buying trader from unplacedTrader map as it now has placement actions.
+                if (!generatedActions.isEmpty()) {
+                    placementResults.getInfinityQuoteTraders().remove(buyingTrader);
+                }
+
+                if (minimizer == null) {
+                    economy.moveableSlByMarket(buyingTrader).forEach(e -> {
+                        createReconfigureForEmptySeller(economy, e.getKey(), placementResults);
+                    });
+                    continue;
+                } else if (Double.isInfinite(minimizer.getBestTotalQuote())) {
+                    // Add trader with best quote infinity to unplacedTraders of placementResults
+                    placementResults.addInfinityQuoteTraders(buyingTrader, minimizer
+                            .getInfiniteQuoteTrackers().values().stream().collect(Collectors.toList()));
+                }
+            } catch (Exception e) {
+                if (exceptionCounterShopTogether < EconomyConstants.EXCEPTION_PRINT_LIMIT) {
+                    logger.error(EconomyConstants.EXCEPTION_MESSAGE, buyingTrader.getDebugInfoNeverUseInCode(),
+                            e.getMessage(), e);
+                    exceptionCounterShopTogether++;
+                }
+                economy.getExceptionTraders().add(buyingTrader.getOid());
             }
         }
         return placementResults;

@@ -36,6 +36,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -643,70 +644,89 @@ public final class AnalysisToProtobuf {
                     long timeToAnalyze_ns, Topology topology, PriceStatement startPriceStatement,
                     boolean sendBack) {
         AnalysisResults.Builder builder = AnalysisResults.newBuilder();
-        builder.setTopologyId(topology.getTopologyId());
-        for (Action action : actions) {
-            ActionTO actionTO = actionTO(action, shoppingListOid, topology);
-            if (actionTO != null) {
-                builder.addActions(actionTO);
-            }
-        }
-        // New shoppingList map has to be created after action conversion, because assigning
-        // oid for new shopping list happens in conversion
-        builder.addAllNewShoppingListToBuyerEntry(createNewShoppingListToBuyerMap(topology));
-        final UnmodifiableEconomy economy = topology.getEconomy();
-        // populate the endPriceIndex
-        PriceStatement endPriceStatement = new PriceStatement().computePriceIndex(economy);
-        List<TraderPriceStatement> startTraderPriceStmts = startPriceStatement.getTraderPriceStatements();
-        // populate AnalysisResults with priceIndex info
-        PriceIndexMessage.Builder piBuilder = PriceIndexMessage.newBuilder();
-        int traderIndex = 0;
-        int startPriceStatementSize = startPriceStatement.getTraderPriceStatements().size();
-        for (TraderPriceStatement endTraderPriceStmt : endPriceStatement.getTraderPriceStatements()) {
-            PriceIndexMessagePayload.Builder payloadBuilder = PriceIndexMessagePayload.newBuilder();
-            Trader trader = economy.getTraders().get(traderIndex);
-            // for inactive traders we don't care much about price index, so setting it to 0
-            // if the inactive trader is a clone created in M2, skip it
-            if (trader.getState().isActive()) {
-                payloadBuilder.setOid(trader.getOid());
-                double startPriceIndex = (traderIndex < startPriceStatementSize) ? startTraderPriceStmts
-                                .get(traderIndex).getPriceIndex() : 0;
-                payloadBuilder.setPriceindexCurrent(Double.isInfinite(startPriceIndex)
-                                ? MAX_PRICE_INDEX : startPriceIndex);
-                payloadBuilder.setPriceindexProjected(Double.isInfinite(endTraderPriceStmt.getPriceIndex())
-                                ? MAX_PRICE_INDEX : endTraderPriceStmt.getPriceIndex());
-                piBuilder.addPayload(payloadBuilder.build());
-            } else {
-                if (!trader.isClone()) {
-                    payloadBuilder.setOid(trader.getOid());
-                    double startPriceIndex = (traderIndex < startPriceStatementSize) ? startTraderPriceStmts
-                                    .get(traderIndex).getPriceIndex() : 0;
-                    payloadBuilder.setPriceindexCurrent(Double.isInfinite(startPriceIndex)
-                                    ? MAX_PRICE_INDEX : startPriceIndex);
-                    payloadBuilder.setPriceindexProjected(0);
-                    piBuilder.addPayload(payloadBuilder.build());
+        try {
+            builder.setTopologyId(topology.getTopologyId());
+            for (Action action : actions) {
+                try {
+                    ActionTO actionTO = actionTO(action, shoppingListOid, topology);
+                    if (actionTO != null) {
+                        builder.addActions(actionTO);
+                    }
+                } catch (Exception e) {
+                    logger.error(EconomyConstants.EXCEPTION_MESSAGE, "actionTO generation for "
+                            + action.getType() + " "  + action.getActionTarget().getDebugInfoNeverUseInCode(), e.getMessage(), e);
                 }
             }
-            traderIndex++;
-        }
+            // New shoppingList map has to be created after action conversion, because assigning
+            // oid for new shopping list happens in conversion
+            builder.addAllNewShoppingListToBuyerEntry(createNewShoppingListToBuyerMap(topology));
+            final UnmodifiableEconomy economy = topology.getEconomy();
+            // populate the endPriceIndex
+            PriceStatement endPriceStatement = new PriceStatement().computePriceIndex(economy);
+            List<TraderPriceStatement> startTraderPriceStmts = startPriceStatement.getTraderPriceStatements();
+            // populate AnalysisResults with priceIndex info
+            PriceIndexMessage.Builder piBuilder = PriceIndexMessage.newBuilder();
+            int traderIndex = 0;
+            int startPriceStatementSize = startPriceStatement.getTraderPriceStatements().size();
+            for (TraderPriceStatement endTraderPriceStmt : endPriceStatement.getTraderPriceStatements()) {
+                PriceIndexMessagePayload.Builder payloadBuilder = PriceIndexMessagePayload.newBuilder();
+                Trader trader = economy.getTraders().get(traderIndex);
+                try {
+                    // for inactive traders we don't care much about price index, so setting it to 0
+                    // if the inactive trader is a clone created in M2, skip it
+                    if (trader.getState().isActive()) {
+                        payloadBuilder.setOid(trader.getOid());
+                        double startPriceIndex = (traderIndex < startPriceStatementSize) ? startTraderPriceStmts
+                                        .get(traderIndex).getPriceIndex() : 0;
+                        payloadBuilder.setPriceindexCurrent(Double.isInfinite(startPriceIndex)
+                                        ? MAX_PRICE_INDEX : startPriceIndex);
+                        payloadBuilder.setPriceindexProjected(Double.isInfinite(endTraderPriceStmt.getPriceIndex())
+                                        ? MAX_PRICE_INDEX : endTraderPriceStmt.getPriceIndex());
+                        piBuilder.addPayload(payloadBuilder.build());
+                    } else {
+                        if (!trader.isClone()) {
+                            payloadBuilder.setOid(trader.getOid());
+                            double startPriceIndex = (traderIndex < startPriceStatementSize) ? startTraderPriceStmts
+                                            .get(traderIndex).getPriceIndex() : 0;
+                            payloadBuilder.setPriceindexCurrent(Double.isInfinite(startPriceIndex)
+                                            ? MAX_PRICE_INDEX : startPriceIndex);
+                            payloadBuilder.setPriceindexProjected(0);
+                            piBuilder.addPayload(payloadBuilder.build());
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.error(EconomyConstants.EXCEPTION_MESSAGE, "Payload for "
+                            + trader.getDebugInfoNeverUseInCode(), e.getMessage(), e);
+                }
+                traderIndex++;
+            }
 
-        Set<Trader> preferentialTraders = economy.getPreferentialShoppingLists().stream()
-            .map(sl -> sl.getBuyer())
-            .collect(Collectors.toSet());
-        List<TraderTO> traderTOList = new ArrayList<>();
-        if (sendBack) {
-            for (@NonNull @ReadOnly Trader trader : economy.getTraders()) {
-                if (!trader.isClone() || trader.getState() != TraderState.INACTIVE) {
-                    // in case of a cloned trader, if it is suspended(INACTIVE state), skip
-                    // creating a traderTO for it
-                    traderTOList.add(AnalysisToProtobuf.traderTO(economy, trader,
-                        shoppingListOid, preferentialTraders));
+            Set<Trader> preferentialTraders = economy.getPreferentialShoppingLists().stream()
+                .map(sl -> sl.getBuyer())
+                .collect(Collectors.toSet());
+            List<TraderTO> traderTOList = new ArrayList<>();
+            if (sendBack) {
+                for (@NonNull @ReadOnly Trader trader : economy.getTraders()) {
+                    try {
+                        if (!trader.isClone() || trader.getState() != TraderState.INACTIVE) {
+                            // in case of a cloned trader, if it is suspended(INACTIVE state), skip
+                            // creating a traderTO for it
+                            traderTOList.add(AnalysisToProtobuf.traderTO(economy, trader,
+                                shoppingListOid, preferentialTraders));
+                        }
+                    } catch (Exception e) {
+                        logger.error(EconomyConstants.EXCEPTION_MESSAGE, "traderTO for "
+                                + trader.getDebugInfoNeverUseInCode(), e.getMessage(), e);
+                    }
                 }
             }
+
+            return builder.setTimeToAnalyzeNs(timeToAnalyze_ns).setPriceIndexMsg(piBuilder.build())
+                            .addAllProjectedTopoEntityTO(traderTOList).build();
+        } catch (Exception e) {
+            logger.error(EconomyConstants.EXCEPTION_MESSAGE, EconomyConstants.ANALYSIS_RESULTS, e.getMessage(), e);
+            return builder.build();
         }
-
-        return builder.setTimeToAnalyzeNs(timeToAnalyze_ns).setPriceIndexMsg(piBuilder.build())
-                        .addAllProjectedTopoEntityTO(traderTOList).build();
-
     }
 
 

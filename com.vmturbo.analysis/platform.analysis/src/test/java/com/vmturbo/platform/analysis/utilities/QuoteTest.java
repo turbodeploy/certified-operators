@@ -15,10 +15,10 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.CommoditySold;
+import com.vmturbo.platform.analysis.economy.CommoditySoldWithSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
-import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderWithSettings;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.CapacityLimitation;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactoryHelper.RatioBasedResourceDependency;
@@ -35,14 +35,14 @@ import com.vmturbo.platform.analysis.utilities.Quote.LicenseUnavailableQuote;
  * Tests for {@link Quote} class.
  */
 public class QuoteTest {
-    final Trader seller = Mockito.mock(Trader.class);
+    final TraderWithSettings seller = Mockito.mock(TraderWithSettings.class);
     final CommoditySpecification memSpec = new CommoditySpecification(1);
     final CommoditySpecification cpuSpec = new CommoditySpecification(2);
     final CommoditySpecification ioSpec = new CommoditySpecification(3);
 
-    final CommoditySold memSold = Mockito.mock(CommoditySold.class);
-    final CommoditySold cpuSold = Mockito.mock(CommoditySold.class);
-    final CommoditySold ioSold = Mockito.mock(CommoditySold.class);
+    final CommoditySoldWithSettings memSold = Mockito.mock(CommoditySoldWithSettings.class);
+    final CommoditySoldWithSettings cpuSold = Mockito.mock(CommoditySoldWithSettings.class);
+    final CommoditySoldWithSettings ioSold = Mockito.mock(CommoditySoldWithSettings.class);
 
     final ShoppingList shoppingList = Mockito.mock(ShoppingList.class);
 

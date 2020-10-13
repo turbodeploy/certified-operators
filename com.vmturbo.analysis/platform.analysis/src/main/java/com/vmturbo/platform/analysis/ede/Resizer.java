@@ -24,6 +24,7 @@ import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
 import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -45,6 +46,7 @@ public class Resizer {
     static Map<CommoditySold, ResizeActionStateTracker> resizeImpact = new HashMap<>();
     private static final String NEGATIVE_QUANTITY_UPDATE = "Cap Negative Quantity Update to 0 for buyer {} with reverse {} and resold {}";
     private static final String NEGATIVE_PEAK_QUANTITY_UPDATE = "Cap Negative Peak Quantity Update to 0 for buyer {} with reverse {} and resold {}";
+    public static int exceptionCounter = 0;
 
     /**
      * Return a list of actions to optimize the size of all eligible commodities in the economy.
@@ -58,135 +60,154 @@ public class Resizer {
      */
     public static @NonNull List<@NonNull Action> resizeDecisions(@NonNull Economy economy,
                                                                  @NonNull Ledger ledger) {
+        List<@NonNull Action> actions = new ArrayList<>();
         try {
-            List<@NonNull Action> actions = new ArrayList<>();
             ConsistentResizer consistentResizer = new ConsistentResizer();
             for (Trader seller : economy.getTraders()) {
-                ledger.calculateCommodityExpensesAndRevenuesForTrader(economy, seller);
-                if (economy.getForceStop()) {
-                    return actions;
-                }
-                if (seller.getSettings().isResizeThroughSupplier()) {
-                    continue;
-                }
-                Basket basketSold = seller.getBasketSold();
-                boolean isDebugTrader = seller.isDebugEnabled();
-                String sellerDebugInfo = seller.getDebugInfoNeverUseInCode();
-                // do not resize if the basketSold is NULL or if the entity is INACTIVE
-                if (basketSold == null || !seller.getState().isActive()) {
-                    if (logger.isTraceEnabled() || isDebugTrader) {
-                        if (basketSold == null) {
-                            logger.info("{" + sellerDebugInfo
-                                    + "} will not be resized because basketSold is null.");
-                        } else {
-                            logger.info("{" + sellerDebugInfo
-                                    + "} will not be resized because its state is "
-                                    + seller.getState().toString() + ".");
-                        }
+                try {
+                    ledger.calculateCommodityExpensesAndRevenuesForTrader(economy, seller);
+                    if (economy.getForceStop()) {
+                        return actions;
                     }
-                    continue;
-                }
-                List<IncomeStatement> incomeStatements = ledger.getCommodityIncomeStatements(seller);
-                for (int soldIndex = 0; soldIndex < basketSold.size(); soldIndex++) {
-                    CommoditySold commoditySold = seller.getCommoditiesSold().get(soldIndex);
-                    if (!commoditySold.getSettings().isResizable()) {
+                    if (seller.getSettings().isResizeThroughSupplier()) {
                         continue;
                     }
-                    IncomeStatement incomeStatement = incomeStatements.get(soldIndex);
-                    CommoditySpecification resizedCommodity = basketSold.get(soldIndex);
-                    boolean consistentResizing = seller.isInScalingGroup(economy);
-                    boolean engage = evaluateEngageCriteria(economy, seller, commoditySold,
-                            incomeStatement);
-                    /*
-                     * All members of a scaling group are forced to generate a resize so that each
-                     * trader can generate (but not take) a resize with a potential new capacity.
-                     * These untaken resizes are called partial resizes, and are not taken until after
-                     * all traders in the group have generated their own partial resizes.  The
-                     * consistent resizer will then evaluate all of these partial resizes to determine
-                     * the best new capacity for the entire group.
-                     */
-                    if (engage || consistentResizing) {
-                        double expenses = incomeStatement.getExpenses();
-                        if (consistentResizing || expenses > 0) {
-                            try {
-                                double desiredROI = getDesiredROI(incomeStatement);
-                                double newRevenue = expenses < incomeStatement.getMinDesiredExpenses()
-                                        ? incomeStatement.getDesiredRevenues()
-                                        : desiredROI * (Double.isInfinite(expenses)
-                                        ? incomeStatement.getMaxDesiredExpenses()
-                                        : expenses);
-                                double currentRevenue = incomeStatement.getRevenues();
-                                double desiredCapacity =
-                                        calculateDesiredCapacity(commoditySold, newRevenue, seller, economy);
-                                Map<CommoditySold, Trader> rawMaterialMapping =
-                                        RawMaterials.findSellerCommodityAndSupplier(economy, seller, soldIndex);
-                                Set<CommoditySold> rawMaterials = (rawMaterialMapping != null) ? rawMaterialMapping.keySet() : null;
-                                float rateOfResize = seller.getSettings().getRateOfResize();
-                                double newEffectiveCapacity = calculateEffectiveCapacity(economy, seller,
-                                        resizedCommodity, desiredCapacity, commoditySold, rawMaterials, rateOfResize);
-                                boolean capacityChange = Double.compare(newEffectiveCapacity,
-                                        commoditySold.getEffectiveCapacity()) != 0;
-                                if (consistentResizing || capacityChange) {
-                                    double newCapacity = newEffectiveCapacity /
-                                            commoditySold.getSettings().getUtilizationUpperBound();
-                                    Resize resizeAction = new Resize(economy, seller,
-                                            resizedCommodity, commoditySold, soldIndex, newCapacity);
-                                    resizeAction.setImportance(currentRevenue - newRevenue);
-                                    if (consistentResizing) {
-                                        // If the action is the only one in a scaling group, we treat
-                                        // it as a normal resize, so we need to pass in both engage
-                                        // and capacity change to the delayed action generation logic.
-                                        // See ConsistentResizer.ResizingGroup.generateResizes for
-                                        // details.
-                                        consistentResizer.addResize(resizeAction,
-                                                engage && capacityChange, rawMaterialMapping);
-                                    } else {
-                                        takeAndAddResizeAction(actions, resizeAction);
+                    Basket basketSold = seller.getBasketSold();
+                    boolean isDebugTrader = seller.isDebugEnabled();
+                    String sellerDebugInfo = seller.getDebugInfoNeverUseInCode();
+                    // do not resize if the basketSold is NULL or if the entity is INACTIVE
+                    if (basketSold == null || !seller.getState().isActive()) {
+                        if (logger.isTraceEnabled() || isDebugTrader) {
+                            if (basketSold == null) {
+                                logger.info("{" + sellerDebugInfo
+                                        + "} will not be resized because basketSold is null.");
+                            } else {
+                                logger.info("{" + sellerDebugInfo
+                                        + "} will not be resized because its state is "
+                                        + seller.getState().toString() + ".");
+                            }
+                        }
+                        continue;
+                    }
+                    List<IncomeStatement> incomeStatements = ledger.getCommodityIncomeStatements(seller);
+                    for (int soldIndex = 0; soldIndex < basketSold.size(); soldIndex++) {
+                        CommoditySold commoditySold = seller.getCommoditiesSold().get(soldIndex);
+                        if (!commoditySold.getSettings().isResizable()) {
+                            continue;
+                        }
+                        IncomeStatement incomeStatement = incomeStatements.get(soldIndex);
+                        CommoditySpecification resizedCommodity = basketSold.get(soldIndex);
+                        try {
+                            boolean consistentResizing = seller.isInScalingGroup(economy);
+                            boolean engage = evaluateEngageCriteria(economy, seller, commoditySold,
+                                    incomeStatement);
+                            /*
+                             * All members of a scaling group are forced to generate a resize so that each
+                             * trader can generate (but not take) a resize with a potential new capacity.
+                             * These untaken resizes are called partial resizes, and are not taken until after
+                             * all traders in the group have generated their own partial resizes.  The
+                             * consistent resizer will then evaluate all of these partial resizes to determine
+                             * the best new capacity for the entire group.
+                             */
+                            if (engage || consistentResizing) {
+                                double expenses = incomeStatement.getExpenses();
+                                if (consistentResizing || expenses > 0) {
+                                    try {
+                                        double desiredROI = getDesiredROI(incomeStatement);
+                                        double newRevenue = expenses < incomeStatement.getMinDesiredExpenses()
+                                                ? incomeStatement.getDesiredRevenues()
+                                                : desiredROI * (Double.isInfinite(expenses)
+                                                ? incomeStatement.getMaxDesiredExpenses()
+                                                : expenses);
+                                        double currentRevenue = incomeStatement.getRevenues();
+                                        double desiredCapacity =
+                                                calculateDesiredCapacity(commoditySold, newRevenue, seller, economy);
+                                        Map<CommoditySold, Trader> rawMaterialMapping =
+                                                RawMaterials.findSellerCommodityAndSupplier(economy, seller, soldIndex);
+                                        Set<CommoditySold> rawMaterials = (rawMaterialMapping != null) ? rawMaterialMapping.keySet() : null;
+                                        float rateOfResize = seller.getSettings().getRateOfResize();
+                                        double newEffectiveCapacity = calculateEffectiveCapacity(economy, seller,
+                                                resizedCommodity, desiredCapacity, commoditySold, rawMaterials, rateOfResize);
+                                        boolean capacityChange = Double.compare(newEffectiveCapacity,
+                                                commoditySold.getEffectiveCapacity()) != 0;
+                                        if (consistentResizing || capacityChange) {
+                                            double newCapacity = newEffectiveCapacity /
+                                                    commoditySold.getSettings().getUtilizationUpperBound();
+                                            Resize resizeAction = new Resize(economy, seller,
+                                                    resizedCommodity, commoditySold, soldIndex, newCapacity);
+                                            resizeAction.setImportance(currentRevenue - newRevenue);
+                                            if (consistentResizing) {
+                                                // If the action is the only one in a scaling group, we treat
+                                                // it as a normal resize, so we need to pass in both engage
+                                                // and capacity change to the delayed action generation logic.
+                                                // See ConsistentResizer.ResizingGroup.generateResizes for
+                                                // details.
+                                                consistentResizer.addResize(resizeAction,
+                                                        engage && capacityChange, rawMaterialMapping);
+                                            } else {
+                                                takeAndAddResizeAction(actions, resizeAction);
+                                            }
+                                        } else {
+                                            if (logger.isTraceEnabled() || isDebugTrader) {
+                                                logger.info("{" + sellerDebugInfo
+                                                        + "} No resize for the commodity "
+                                                        + resizedCommodity.getDebugInfoNeverUseInCode()
+                                                        + " because the calculated capacity is the same to the"
+                                                        + " current one.");
+                                            }
+                                        }
+                                    } catch (Exception bisectionException) {
+                                        /**
+                                         *  This block is to catch checkArgument exceptions that may be
+                                         *  generated by checkArgument in Bisection.solve.
+                                         *  There are cases where revenueFunction passed to bisection
+                                         *  calculates negative values for both end points of it.
+                                         *  This is not valid and so we try to catch exception here and move
+                                         *  to the next seller.
+                                         *
+                                         *  Also it catches null pointer exception that can happen when a VM on
+                                         *  storage that is state UNKNOWN is trying size.
+                                         */
+                                        logger.info("Trader " + sellerDebugInfo
+                                                + " while resizing threw exception "
+                                                + bisectionException.getMessage() + " : Capacity "
+                                                + commoditySold.getEffectiveCapacity() + " Quantity "
+                                                + commoditySold.getQuantity() + " Revenues "
+                                                + incomeStatement.getRevenues() + " Expenses "
+                                                + incomeStatement.getExpenses());
                                     }
                                 } else {
                                     if (logger.isTraceEnabled() || isDebugTrader) {
                                         logger.info("{" + sellerDebugInfo
                                                 + "} No resize for the commodity "
                                                 + resizedCommodity.getDebugInfoNeverUseInCode()
-                                                + " because the calculated capacity is the same to the"
-                                                + " current one.");
+                                                + " because expenses are 0.");
                                     }
                                 }
-                            } catch (Exception bisectionException) {
-                                /**
-                                 *  This block is to catch checkArgument exceptions that may be
-                                 *  generated by checkArgument in Bisection.solve.
-                                 *  There are cases where revenueFunction passed to bisection
-                                 *  calculates negative values for both end points of it.
-                                 *  This is not valid and so we try to catch exception here and move
-                                 *  to the next seller.
-                                 *
-                                 *  Also it catches null pointer exception that can happen when a VM on
-                                 *  storage that is state UNKNOWN is trying size.
-                                 */
-                                logger.info("Trader " + sellerDebugInfo
-                                        + " while resizing threw exception "
-                                        + bisectionException.getMessage() + " : Capacity "
-                                        + commoditySold.getEffectiveCapacity() + " Quantity "
-                                        + commoditySold.getQuantity() + " Revenues "
-                                        + incomeStatement.getRevenues() + " Expenses "
-                                        + incomeStatement.getExpenses());
+                            } else {
+                                if (logger.isTraceEnabled() || isDebugTrader) {
+                                    logger.info("{" + sellerDebugInfo
+                                            + "} Resize engagement criteria are false for commodity "
+                                            + resizedCommodity.getDebugInfoNeverUseInCode() + ".");
+                                }
                             }
-                        } else {
-                            if (logger.isTraceEnabled() || isDebugTrader) {
-                                logger.info("{" + sellerDebugInfo
-                                        + "} No resize for the commodity "
-                                        + resizedCommodity.getDebugInfoNeverUseInCode()
-                                        + " because expenses are 0.");
+                        } catch (Exception e) {
+                            if (exceptionCounter < EconomyConstants.EXCEPTION_PRINT_LIMIT) {
+                                logger.error(EconomyConstants.EXCEPTION_MESSAGE, seller.getDebugInfoNeverUseInCode()
+                                        + " Commodity " + resizedCommodity.getDebugInfoNeverUseInCode(),
+                                        e.getMessage(), e);
+                                exceptionCounter++;
                             }
-                        }
-                    } else {
-                        if (logger.isTraceEnabled() || isDebugTrader) {
-                            logger.info("{" + sellerDebugInfo
-                                    + "} Resize engagement criteria are false for commodity "
-                                    + resizedCommodity.getDebugInfoNeverUseInCode() + ".");
+                            economy.getExceptionTraders().add(seller.getOid());
                         }
                     }
+                } catch (Exception e) {
+                    if (exceptionCounter < EconomyConstants.EXCEPTION_PRINT_LIMIT) {
+                        logger.error(EconomyConstants.EXCEPTION_MESSAGE, seller.getDebugInfoNeverUseInCode(),
+                                e.getMessage(), e);
+                        exceptionCounter++;
+                    }
+                    economy.getExceptionTraders().add(seller.getOid());
                 }
             }
             // Consistently resize commodities in scaling groups
@@ -198,6 +219,10 @@ public class Resizer {
                         .forEach(a -> resizeDependentCommodities(economy, a.getSellingTrader(), a.getResizedCommodity(),
                                 a.getSoldIndex(), a.getOldCapacity(), a.getResizedCommodity().isHistoricalQuantitySet(), true));
             }
+            return actions;
+        } catch (Exception e) {
+            logger.error(EconomyConstants.EXCEPTION_MESSAGE, "Resizer",
+                    e.getMessage(), e);
             return actions;
         } finally {
             resizeImpact.clear();
@@ -698,44 +723,54 @@ public class Resizer {
     public static void resizeDependentCommodities(@NonNull Economy economy, @NonNull Trader seller,
                                                   @NonNull CommoditySold commoditySold, int commoditySoldIndex,
                                                   double newCapacity, boolean basedOnHistorical, boolean reverse) {
-        List<CommodityResizeSpecification> typeOfCommsBought = economy.getResizeDependency(
-                                 seller.getBasketSold().get(commoditySoldIndex).getBaseType());
-        if (typeOfCommsBought == null || typeOfCommsBought.isEmpty()) {
-            return;
-        }
-        List<Integer> skippedCommodityTypes =
-                        economy.getHistoryBasedResizeSkippedDependentCommodities(seller
-                                        .getBasketSold().get(commoditySoldIndex).getBaseType());
+        try {
+            List<CommodityResizeSpecification> typeOfCommsBought = economy.getResizeDependency(
+                                     seller.getBasketSold().get(commoditySoldIndex).getBaseType());
+            if (typeOfCommsBought == null || typeOfCommsBought.isEmpty()) {
+                return;
+            }
+            List<Integer> skippedCommodityTypes =
+                            economy.getHistoryBasedResizeSkippedDependentCommodities(seller
+                                            .getBasketSold().get(commoditySoldIndex).getBaseType());
 
-        for (ShoppingList shoppingList : economy.getMarketsAsBuyer(seller).keySet()) {
+            for (ShoppingList shoppingList : economy.getMarketsAsBuyer(seller).keySet()) {
 
-            Trader supplier = shoppingList.getSupplier();
-            Basket basketBought = shoppingList.getBasket();
-            for (CommodityResizeSpecification typeOfCommBought : typeOfCommsBought) {
-                // If this resize is based on historical quantities and this commodity should
-                // be skipped when the resize is based on historical quantity continue
-                if (basedOnHistorical
-                        && skippedCommodityTypes != null
-                        && skippedCommodityTypes.contains(typeOfCommBought.getCommodityType())) {
-                    continue;
-                }
+                Trader supplier = shoppingList.getSupplier();
+                Basket basketBought = shoppingList.getBasket();
+                for (CommodityResizeSpecification typeOfCommBought : typeOfCommsBought) {
+                    // If this resize is based on historical quantities and this commodity should
+                    // be skipped when the resize is based on historical quantity continue
+                    if (basedOnHistorical
+                            && skippedCommodityTypes != null
+                            && skippedCommodityTypes.contains(typeOfCommBought.getCommodityType())) {
+                        continue;
+                    }
 
-                int boughtIndex = basketBought.indexOfBaseType(typeOfCommBought.getCommodityType());
-                if (boughtIndex < 0) {
-                    continue;
-                }
-                CommoditySpecification specOfSold = basketBought.get(boughtIndex);
-                CommoditySold commSoldBySupplier = supplier.getCommoditySold(specOfSold);
-                double changeInCapacity = newCapacity - commoditySold.getCapacity();
+                    int boughtIndex = basketBought.indexOfBaseType(typeOfCommBought.getCommodityType());
+                    if (boughtIndex < 0) {
+                        continue;
+                    }
+                    CommoditySpecification specOfSold = basketBought.get(boughtIndex);
+                    CommoditySold commSoldBySupplier = supplier.getCommoditySold(specOfSold);
+                    double changeInCapacity = newCapacity - commoditySold.getCapacity();
 
-                updateUsageOnBoughtAndSoldCommodities(commoditySold, commSoldBySupplier, shoppingList, boughtIndex,
-                                                        typeOfCommBought, newCapacity, changeInCapacity, reverse, false);
+                    updateUsageOnBoughtAndSoldCommodities(commoditySold, commSoldBySupplier, shoppingList, boughtIndex,
+                                                            typeOfCommBought, newCapacity, changeInCapacity, reverse, false);
 
-                if (commSoldBySupplier.getSettings().isResold()) {
-                    resizeDependentCommoditiesOnReseller(commoditySold, economy, seller, supplier, specOfSold,
-                            typeOfCommBought, newCapacity, changeInCapacity, reverse);
+                    if (commSoldBySupplier.getSettings().isResold()) {
+                        resizeDependentCommoditiesOnReseller(commoditySold, economy, seller, supplier, specOfSold,
+                                typeOfCommBought, newCapacity, changeInCapacity, reverse);
+                    }
                 }
             }
+        } catch (Exception e) {
+            if (exceptionCounter < EconomyConstants.EXCEPTION_PRINT_LIMIT) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE, seller.getDebugInfoNeverUseInCode()
+                        + " Commodity " + seller.getBasketSold().get(commoditySoldIndex).getDebugInfoNeverUseInCode(),
+                        e.getMessage(), e);
+                exceptionCounter++;
+            }
+            economy.getExceptionTraders().add(seller.getOid());
         }
     }
 

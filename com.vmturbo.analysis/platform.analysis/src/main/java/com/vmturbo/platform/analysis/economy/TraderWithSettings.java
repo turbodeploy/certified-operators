@@ -20,7 +20,7 @@ import com.vmturbo.platform.analysis.pricefunction.QuoteFunction;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
 
-final class TraderWithSettings extends Trader implements TraderSettings {
+public final class TraderWithSettings extends Trader implements TraderSettings {
     // Internal fields
     private final @NonNull Map<@NonNull ShoppingList,@NonNull Market> marketsAsBuyer_ = new LinkedHashMap<>();
     private final @NonNull List<Market> marketsAsSeller_ = new ArrayList<>();
