@@ -793,8 +793,8 @@ public class GroupMapper {
                          groupValidEntities.retainAll(validEntities);
                          missingEntitiesCount = groupMembers.size() - groupValidEntities.size();
                          if (missingEntitiesCount > 0) {
-                             logger.warn("{} members for static group {} not found in repository.",
-                                     missingEntitiesCount, groupDefinition.getDisplayName());
+                             logger.trace("{} members for static group {} not found in repository.",
+                                 () -> missingEntitiesCount, groupDefinition::getDisplayName);
                          }
                          outputDTO.setMemberUuidList(groupValidEntities
                                  .stream()
