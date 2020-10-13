@@ -13,12 +13,12 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
@@ -598,18 +598,10 @@ public class EntitySeverityCacheTest {
             makeEntity(EntityType.APPLICATION_COMPONENT, application6b1Oid, graphCreator, container6b1Oid);
             makeEntity(EntityType.APPLICATION_COMPONENT, application6b2Oid, graphCreator, container6b2Oid);
 
-            makeEntity(EntityType.CONTAINER, container6a1Oid, graphCreator, ImmutableList.of(
-                    newConnectedEntity(ConnectionType.AGGREGATED_BY_CONNECTION, EntityType.CONTAINER_SPEC, containerSpec61Oid)),
-                    containerPod6aOid);
-            makeEntity(EntityType.CONTAINER, container6a2Oid, graphCreator, ImmutableList.of(
-                    newConnectedEntity(ConnectionType.AGGREGATED_BY_CONNECTION, EntityType.CONTAINER_SPEC, containerSpec62Oid)),
-                    containerPod6aOid);
-            makeEntity(EntityType.CONTAINER, container6b1Oid, graphCreator, ImmutableList.of(
-                    newConnectedEntity(ConnectionType.AGGREGATED_BY_CONNECTION, EntityType.CONTAINER_SPEC, containerSpec61Oid)),
-                    containerPod6bOid);
-            makeEntity(EntityType.CONTAINER, container6b2Oid, graphCreator, ImmutableList.of(
-                    newConnectedEntity(ConnectionType.AGGREGATED_BY_CONNECTION, EntityType.CONTAINER_SPEC, containerSpec62Oid)),
-                    containerPod6bOid);
+            makeEntity(EntityType.CONTAINER, container6a1Oid, graphCreator, containerPod6aOid, containerSpec61Oid);
+            makeEntity(EntityType.CONTAINER, container6a2Oid, graphCreator, containerPod6aOid, containerSpec62Oid);
+            makeEntity(EntityType.CONTAINER, container6b1Oid, graphCreator, containerPod6bOid, containerSpec61Oid);
+            makeEntity(EntityType.CONTAINER, container6b2Oid, graphCreator, containerPod6bOid, containerSpec62Oid);
 
             makeEntity(EntityType.CONTAINER_POD, containerPod6aOid, graphCreator, virtualMachine1Oid, workloadController6Oid);
             makeEntity(EntityType.CONTAINER_POD, containerPod6bOid, graphCreator, virtualMachine5Oid, workloadController6Oid);
@@ -625,14 +617,12 @@ public class EntitySeverityCacheTest {
             makeEntity(EntityType.VIRTUAL_MACHINE, virtualMachine2Oid, graphCreator, physicalMachine2Oid, storage2Oid);
             makeEntity(EntityType.VIRTUAL_MACHINE, virtualMachine3Oid, graphCreator, physicalMachine1Oid, storage1Oid);
             makeEntity(EntityType.VIRTUAL_MACHINE, virtualMachine4Oid, graphCreator,
-                    ImmutableList.of(
-                            newConnectedEntity(ConnectionType.NORMAL_CONNECTION, EntityType.STORAGE_VOLUME, virtualVolume4Oid),
-                            newConnectedEntity(ConnectionType.NORMAL_CONNECTION, EntityType.STORAGE, storage4Oid)),
+                    ImmutableMap.of(EntityType.VIRTUAL_VOLUME, Collections.singleton(virtualVolume4Oid),
+                            EntityType.STORAGE, Collections.singleton(storage4Oid)),
                     physicalMachine4Oid, storage4Oid);
             makeEntity(EntityType.VIRTUAL_MACHINE, virtualMachine5Oid, graphCreator,
-                    ImmutableList.of(
-                            newConnectedEntity(ConnectionType.NORMAL_CONNECTION, EntityType.STORAGE_VOLUME, virtualVolume5Oid),
-                            newConnectedEntity(ConnectionType.NORMAL_CONNECTION, EntityType.STORAGE, storage4Oid)),
+                    ImmutableMap.of(EntityType.VIRTUAL_VOLUME, Collections.singleton(virtualVolume5Oid),
+                            EntityType.STORAGE, Collections.singleton(storage4Oid)),
                     physicalMachine4Oid, storage4Oid);
 
             makeEntity(EntityType.VIRTUAL_VOLUME, virtualVolume4Oid, graphCreator, storage4Oid);
@@ -656,13 +646,13 @@ public class EntitySeverityCacheTest {
                 long oid,
                 TopologyGraphCreator<ActionGraphEntity.Builder, ActionGraphEntity> graphCreator,
                 long... providerOids) {
-            return makeEntity(type, oid, graphCreator, Collections.emptyList(), providerOids);
+            return makeEntity(type, oid, graphCreator, Collections.emptyMap(), providerOids);
         }
 
         private ActionGraphEntity.Builder makeEntity(EntityType type,
                 long oid,
                 TopologyGraphCreator<ActionGraphEntity.Builder, ActionGraphEntity> graphCreator,
-                List<ConnectedEntity> connectedEntities,
+                Map<EntityType, Set<Long>> connectedIds,
                 long... providerOids) {
             TopologyEntityDTO.Builder e = TopologyEntityDTO.newBuilder()
                     .setOid(oid)
@@ -670,22 +660,21 @@ public class EntitySeverityCacheTest {
                     .setEntityType(type.getNumber());
             for (long provider : providerOids) {
                 e.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                        .setProviderId(provider));
+                    .setProviderId(provider));
             }
 
-            e.addAllConnectedEntityList(connectedEntities);
+            connectedIds.forEach((entityType, ids) -> {
+                ids.forEach(id -> {
+                    e.addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectionType(ConnectionType.NORMAL_CONNECTION)
+                            .setConnectedEntityId(id)
+                            .setConnectedEntityType(entityType.getNumber()));
+                });
+            });
 
             ActionGraphEntity.Builder bldr = new ActionGraphEntity.Builder(e.build());
             graphCreator.addEntity(bldr);
             return bldr;
-        }
-
-        private ConnectedEntity newConnectedEntity(ConnectionType connectionType,
-                EntityType entityType, long id) {
-            return ConnectedEntity.newBuilder()
-                    .setConnectionType(connectionType)
-                    .setConnectedEntityType(entityType.getNumber())
-                    .setConnectedEntityId(id).build();
         }
     }
 

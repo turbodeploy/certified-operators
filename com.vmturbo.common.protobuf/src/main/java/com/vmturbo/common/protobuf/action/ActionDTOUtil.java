@@ -516,7 +516,7 @@ public class ActionDTOUtil {
                 && ChangeProviderExplanationTypeCase.COMPLIANCE
                     == getPrimaryChangeProviderExplanation(action)
                         .getChangeProviderExplanationTypeCase();
-        retList.add(getPrimaryEntity(action));
+        retList.add(getPrimaryEntity(action, false));
         for (ChangeProvider change : getChangeProviderList(action)) {
             if (change.getSource().getId() != 0
                 // Compliance source does not impact ARM entity so it should not be included
