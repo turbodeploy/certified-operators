@@ -79,6 +79,7 @@ public class EntityTypeDefinitions {
             create(ApiEntityType.HYPERVISOR_SERVER),
             create(ApiEntityType.INTERNET),
             create(ApiEntityType.IOMODULE, "iom_stats", STANDARD_STATS),
+            create(ApiEntityType.CONTAINER_PLATFORM_CLUSTER, "container_platform_cluster_stats", STANDARD_STATS),
             create(ApiEntityType.LOAD_BALANCER, "load_balancer_stats", NON_PRICE_STATS),
             create(ApiEntityType.LOGICALPOOL, "lp_stats", STANDARD_STATS),
             create(ApiEntityType.NAMESPACE, "nspace_stats", STANDARD_STATS),

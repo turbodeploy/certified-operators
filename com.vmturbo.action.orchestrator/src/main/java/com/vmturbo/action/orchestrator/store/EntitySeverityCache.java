@@ -95,6 +95,8 @@ public class EntitySeverityCache {
                 // It's in the connected to list. All other entity types have the needed producers
                 // in the api producers list.
                 ImmutableSet.of(EntityType.VIRTUAL_VOLUME)))
+            .add(new TraverseOverConsumersConfig(EntityType.CONTAINER_PLATFORM_CLUSTER, true,
+                    true, ImmutableSet.of(EntityType.VIRTUAL_MACHINE)))
             //
             // Traversal across the Container area is as follows:
             //
@@ -105,6 +107,9 @@ public class EntitySeverityCache {
             //                            ^
             //                            |
             //                        Namespace
+            //                            |
+            //                            V
+            //                 ContainerPlatformCluster
             //
             // Note: No traversal/accumulation between ContainerSpec and WorkloadController to
             // avoid double counting; they essentially have the same actions: the
@@ -164,6 +169,7 @@ public class EntitySeverityCache {
             .add(new TraversalStarterConfig(EntityType.CONTAINER_SPEC))
             .add(new TraverseOverConsumersConfig(EntityType.WORKLOAD_CONTROLLER, true, false))
             .add(new TraverseOverConsumersConfig(EntityType.NAMESPACE, true, true))
+            .add(new TraverseOverConsumersConfig(EntityType.CONTAINER_PLATFORM_CLUSTER, true, true))
             .build();
 
     private final Logger logger = LogManager.getLogger();

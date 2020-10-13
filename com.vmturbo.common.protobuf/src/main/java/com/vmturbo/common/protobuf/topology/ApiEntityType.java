@@ -130,6 +130,8 @@ public enum  ApiEntityType {
     VIRTUAL_VOLUME(StringConstants.VIRTUAL_VOLUME, EntityType.VIRTUAL_VOLUME),
     /** VPod entity type. */
     VPOD(StringConstants.VPOD, EntityType.VPOD),
+    /** Container Platform Cluster entity type such as Kubernetes. */
+    CONTAINER_PLATFORM_CLUSTER(StringConstants.CONTAINER_PLATFORM_CLUSTER, EntityType.CONTAINER_PLATFORM_CLUSTER),
     /** Namespace entity type. */
     NAMESPACE(StringConstants.NAMESPACE, EntityType.NAMESPACE),
     /** WorkloadController entity type. Represents e.g. a Controller in kubernetes */

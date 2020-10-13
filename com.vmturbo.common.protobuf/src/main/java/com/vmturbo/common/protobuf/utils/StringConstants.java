@@ -32,6 +32,10 @@ public class StringConstants {
     public static final String CONTAINER = "Container";
     public static final String CONTAINERPOD = "ContainerPod";
     public static final String NAMESPACE = "Namespace";
+    /**
+     * Container platform cluster such as Kubernetes.
+     */
+    public static final String CONTAINER_PLATFORM_CLUSTER = "ContainerPlatformCluster";
     public static final String WORKLOAD_CONTROLLER = "WorkloadController";
     public static final String CONTAINER_SPEC = "ContainerSpec";
     public static final String VM_SPEC = "VMSpec";
