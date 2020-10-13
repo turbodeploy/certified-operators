@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
@@ -30,6 +31,7 @@ import com.vmturbo.platform.analysis.ede.BootstrapSupply;
 public final class Utility {
 
     static final Logger logger = LogManager.getLogger(Utility.class);
+    private static final Double MIN_CAPACITY_RTS = 0.0001;
 
     // Methods
 
@@ -203,11 +205,23 @@ public final class Utility {
                             : -origEffectiveCapacity);
                 // TODO Needs to be improved for scenarios that can lead to the negative capacity:
                 // See OM-59512.
-                if (!up && newCapacity < 0) {
-                    logger.warn("Deactivating supplier {} of trader {}, would lead to negative "
-                        + "capacity for commodity {}", seller.getDebugInfoNeverUseInCode(),
+                if (!up && newCapacity <= 0) {
+                    logger.warn("Deactivating supplier {} of trader {}, would lead to negative or 0 "
+                        + "capacity for commodity {}. Capping at {}.", seller.getDebugInfoNeverUseInCode(),
                             resizeThroughSupplierTrader.getDebugInfoNeverUseInCode(),
-                            buyerCS.getDebugInfoNeverUseInCode());
+                            buyerCS.getDebugInfoNeverUseInCode(), MIN_CAPACITY_RTS);
+                    // Generate the Resize down but cap at a small capacity above 0 so that we can
+                    // keep suspending unnecessary hosts if there is host reservation set.
+                    // If there there are consumers that now won't be able to place because of this
+                    // lower capacity, then the resize and host suspension will be rolled back.
+                    Resize resizeAction = new Resize(economy, resizeThroughSupplierTrader, buyerCS,
+                        buyerCommoditySold,
+                        resizeThroughSupplierTrader.getBasketSold().indexOf(buyerCS),
+                        MIN_CAPACITY_RTS);
+                    resizeAction.take();
+                    resizeAction.enableExtractAction();
+                    resizeAction.getResizeTriggerTraders().put(seller, relatedReasons);
+                    resizeList.add(resizeAction);
                 } else {
                     Resize resizeAction = new Resize(economy, resizeThroughSupplierTrader, buyerCS,
                         buyerCommoditySold,
@@ -393,5 +407,56 @@ public final class Utility {
             .map(ShoppingList::getBuyer)
                 .filter(trader -> trader.getSettings().isResizeThroughSupplier())
                     .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    /**
+     * Check if the sl is of resize through supplier trader and not movable.
+     *
+     * @param sl The ShoppingList to check.
+     * @return boolean of answer.
+     */
+    public static boolean isUnmovableRTSShoppingList(ShoppingList sl) {
+        return sl.getBuyer().getSettings().isResizeThroughSupplier()
+            && !sl.isMovable();
+    }
+
+    /**
+     * Check if the trader that is suspending is the last provider of a resizeThroughSupplier
+     * Trader which would then need to suspend as well.
+     *
+     * @param economy The economy.
+     * @param isProviderOfResizeThroughSupplier Quick exit if trader is not provider of RTS.
+     * @param resizeThroughSuppliers relevant RTS. Currently there should just be 1 RTS consumer of a Trader.
+     * @param guaranteedBuyerSls GB SL consumers of Trader that is suspending which should include the RTS SL.
+     * @param deactivate The deactivate action of the Trader providing to the RTS Trader.
+     * @param suspendActions The Suspend related actions around deactivate action to this point.
+     */
+    public static void checkRTSToSuspend(Economy economy, boolean isProviderOfResizeThroughSupplier,
+        Set<Trader> resizeThroughSuppliers, List<ShoppingList> guaranteedBuyerSls,
+        Deactivate deactivate, List<Action> suspendActions) {
+        if (isProviderOfResizeThroughSupplier && !resizeThroughSuppliers.isEmpty()) {
+            // Ideally there should just be 1 resize through supplier consuming from a trader.
+            for (Trader resizeThroughSupplierToCheck : resizeThroughSuppliers) {
+                Optional<ShoppingList> shoppingList = guaranteedBuyerSls.stream()
+                    .filter(sl -> sl.getBuyer() == resizeThroughSupplierToCheck).findFirst();
+                if (shoppingList.isPresent()) {
+                    if (economy.getMarketsAsBuyer(resizeThroughSupplierToCheck).keySet().stream()
+                        .filter(sl -> {
+                            Trader supplier = sl.getSupplier();
+                            return supplier != null && supplier.getState().isActive()
+                                && shoppingList.get().getBasket().equals(sl.getBasket());
+                    }).count() < 1) {
+                        if (resizeThroughSupplierToCheck.getCustomers().isEmpty()) {
+                            Deactivate deactivateAction = new Deactivate(economy,
+                                resizeThroughSupplierToCheck, resizeThroughSupplierToCheck.getBasketSold());
+                            deactivateAction.setExecutable(false);
+                            Action taken = deactivateAction.take();
+                            deactivate.getSubsequentActions().add(taken);
+                            suspendActions.add(taken);
+                        }
+                    }
+                }
+            }
+        }
     }
 } // end Utility class

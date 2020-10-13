@@ -256,8 +256,9 @@ public class Suspension {
 
             boolean isProviderOfResizeThroughSupplier = Utility.isProviderOfResizeThroughSupplierTrader(trader);
             Set<ShoppingList> resizeThroughSupplierCustomers = new LinkedHashSet<>();
+            Set<Trader> resizeThroughSuppliers = new LinkedHashSet<>();
             if (isProviderOfResizeThroughSupplier) {
-                Set<Trader> resizeThroughSuppliers = Utility.getResizeThroughSupplierTradersFromProvider(trader);
+                resizeThroughSuppliers = Utility.getResizeThroughSupplierTradersFromProvider(trader);
                 resizeThroughSupplierCustomers = resizeThroughSuppliers.stream()
                                                             .flatMap(t -> t.getCustomers().stream())
                                                                         .collect(Collectors.toCollection(LinkedHashSet::new));
@@ -269,9 +270,12 @@ public class Suspension {
                         .map(Market::getBuyers)
                         .flatMap(List::stream)
                         .filter(sl -> !Suspension.isDaemon(sl))
+                        .filter(sl -> !Utility.isUnmovableRTSShoppingList(sl))
                         .forEach(customersOfSuspCandidate::add);
             } else {
-                customersOfSuspCandidate.addAll(getNonDaemonCustomers(trader));
+                customersOfSuspCandidate.addAll(getNonDaemonCustomers(trader).stream()
+                    .filter(sl -> !Utility.isUnmovableRTSShoppingList(sl))
+                        .collect(Collectors.toList()));
             }
             customersOfSuspCandidate.addAll(resizeThroughSupplierCustomers);
 
@@ -320,6 +324,10 @@ public class Suspension {
             // then reverse the suspensions.
             for (Set<ShoppingList> shoppingLists : slsSponsoredByGuaranteedBuyer.values()) {
                 for (ShoppingList sl : shoppingLists) {
+                    // skip vsan storage's shopping list when considering reverse suspension
+                    if (Utility.isUnmovableRTSShoppingList(sl)) {
+                        continue;
+                    }
                     final @NonNull List<@NonNull Trader> sellers =
                             economy.getMarket(sl).getActiveSellersAvailableForPlacement();
                     final QuoteMinimizer minimizer =
@@ -341,7 +349,7 @@ public class Suspension {
             if (isProviderOfResizeThroughSupplier) {
                 for (ShoppingList sl : resizeThroughSupplierCustomers) {
                     // skip vsan storage's shopping list when considering reverse suspension
-                    if (!sl.isMovable() && sl.getBuyer().getSettings().isResizeThroughSupplier()) {
+                    if (Utility.isUnmovableRTSShoppingList(sl)) {
                         continue;
                     }
                     final @NonNull List<@NonNull Trader> sellers =
@@ -357,6 +365,10 @@ public class Suspension {
 
             // Suspend any remaining customers.  These should all be daemons.
             suspendActions.addAll(suspendOrphanedCustomers(economy, deactivate));
+            // Check if it is the last provider of resize through supplier trader.
+            Utility.checkRTSToSuspend(economy, isProviderOfResizeThroughSupplier,
+                resizeThroughSuppliers, guaranteedBuyerSls,
+                deactivate, suspendActions);
             updateSoleProviders(economy, trader);
             logger.info("{" + traderDebugInfo + "} was suspended.");
             if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {

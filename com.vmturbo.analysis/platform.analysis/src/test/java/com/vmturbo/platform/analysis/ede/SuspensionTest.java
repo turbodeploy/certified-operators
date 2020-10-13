@@ -222,6 +222,45 @@ public class SuspensionTest {
     }
 
     /**
+     * Resize Through Supplier deactivate test. If no consumers exist then all Providers should be
+     * able to suspend and cause the resize through supplier trader to suspend as well.
+     */
+    @Test
+    public void suspendAllProvidersOfResizeThroughSupplier() {
+        Economy economy = new Economy();
+        Trader consumer = economy.addTrader(ST_TYPE, TraderState.ACTIVE, ST_SMALL);
+        consumer.getSettings().setResizeThroughSupplier(true).setGuaranteedBuyer(true);
+        consumer.getCommoditiesSold().get(0).setCapacity(200);
+        consumer.getCommoditiesSold().get(0).getSettings().setResizable(true);
+        ShoppingList consumerSL1 = economy.addBasketBought(consumer, ST_SMALL);
+        Trader seller1 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, ST_SMALL);
+        seller1.getCommoditiesSold().get(0).setCapacity(200);
+        seller1.getCommoditiesSold().get(0).getSettings().setResizable(true);
+        consumerSL1.move(seller1);
+        CommoditySoldSettings commSoldSett = seller1.getCommoditiesSold().get(0).getSettings();
+        commSoldSett.setUtilizationUpperBound(0.5).setOrigUtilizationUpperBound(0.5);
+        seller1.getSettings().setMaxDesiredUtil(0.75).setMaxDesiredUtil(0.65).setSuspendable(true)
+            .setCanAcceptNewCustomers(true);
+
+        ShoppingList consumerSL2 = economy.addBasketBought(consumer, ST_SMALL);
+        Trader seller2 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, ST_SMALL);
+        seller2.getCommoditiesSold().get(0).setCapacity(200);
+        seller2.getCommoditiesSold().get(0).getSettings().setResizable(true);
+        consumerSL2.move(seller2);
+        CommoditySoldSettings commSoldSett2 = seller2.getCommoditiesSold().get(0).getSettings();
+        commSoldSett2.setUtilizationUpperBound(0.5).setOrigUtilizationUpperBound(0.5);
+        seller2.getSettings().setMaxDesiredUtil(0.75).setMaxDesiredUtil(0.65).setSuspendable(true)
+            .setCanAcceptNewCustomers(true);
+
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Ledger ledger = new Ledger(economy);
+        List<Action> actions = suspension.suspensionDecisions(economy, ledger);
+
+        assertTrue(actions.stream().filter(action -> action instanceof Deactivate).count() == 3);
+    }
+
+    /**
      * Verify that we have exactly one deactivate action when suspendTrader is called.
      */
     @Test

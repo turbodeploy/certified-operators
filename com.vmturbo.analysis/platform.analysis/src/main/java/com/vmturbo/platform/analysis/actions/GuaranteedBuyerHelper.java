@@ -67,34 +67,48 @@ public final class GuaranteedBuyerHelper {
                     reuseShoppingList? sl : null);
             newSl.move(newSupplier);
             newSl.setMovable(sl.isMovable());
-            for (int boughtIndex = 0; boughtIndex < newBasket.size(); ++boughtIndex) {
-                // calculate and reset the quantity and peak quantity for each shopping list
-                // sponsored by guaranteed buyer because when a new shopping list is added
-                // between guaranteed buyer and the new clone, the quantity and peak quantity
-                // needs to be re-averaged to include the new shopping list. We assume that all
-                // the sl sponsored by a guaranteed buyer should have the same quantity and peak
-                // quantity.
-                // If are reusing the shopping lists that we previously removed, we need to clear
-                // the original quantities on newSupplier.  The adjustCommodity call below will
-                // redistribute the existing quantities across all existing shopping lists into the
-                // new one.
-                // TODO: check with cloud native's team to see if we can assume each supplier of
-                // the guaranteed buyer has the same quantity bought
-                double updatedQuantity = sl.getQuantity(boughtIndex) * slsNeedsUpdate.size() /
-                                (slsNeedsUpdate.size() + 1);
-                double updatedPeakQuantity = sl.getPeakQuantity(boughtIndex) *
-                                slsNeedsUpdate.size() / (slsNeedsUpdate.size() + 1);
-                newSl.setQuantity(boughtIndex, updatedQuantity)
-                     .setPeakQuantity(boughtIndex, updatedPeakQuantity);
-                // update quantity of the newly cloned seller to construct the buyer-seller
-                // relation the commSold in new clone already went through Utility.adjustOverhead
-                // so commSoldOnClone.getQuantity is only overhead
-                CommoditySold commSoldOnClone =
-                                newSupplier.getCommoditySold(newBasket.get(boughtIndex));
-                commSoldOnClone.setQuantity(newSl.getQuantity(boughtIndex));
-                commSoldOnClone.setPeakQuantity(newSl.getPeakQuantity(boughtIndex));
-                for (ShoppingList spList : slsNeedsUpdate) {
-                    adjustCommodity(boughtIndex, updatedQuantity, updatedPeakQuantity, spList);
+            // ResizeThroughSuppliers are also set to be GuaranteedBuyers but we don't want
+            // to redistribute and update the SL quantities.
+            if (!sl.getBuyer().getSettings().isResizeThroughSupplier()) {
+                for (int boughtIndex = 0; boughtIndex < newBasket.size(); ++boughtIndex) {
+                    // calculate and reset the quantity and peak quantity for each shopping list
+                    // sponsored by guaranteed buyer because when a new shopping list is added
+                    // between guaranteed buyer and the new clone, the quantity and peak quantity
+                    // needs to be re-averaged to include the new shopping list. We assume that all
+                    // the sl sponsored by a guaranteed buyer should have the same quantity and peak
+                    // quantity.
+                    // If are reusing the shopping lists that we previously removed, we need to clear
+                    // the original quantities on newSupplier.  The adjustCommodity call below will
+                    // redistribute the existing quantities across all existing shopping lists into the
+                    // new one.
+                    // TODO: check with cloud native's team to see if we can assume each supplier of
+                    // the guaranteed buyer has the same quantity bought
+                    double updatedQuantity = sl.getQuantity(boughtIndex) * slsNeedsUpdate.size() /
+                                    (slsNeedsUpdate.size() + 1);
+                    double updatedPeakQuantity = sl.getPeakQuantity(boughtIndex) *
+                                    slsNeedsUpdate.size() / (slsNeedsUpdate.size() + 1);
+                    newSl.setQuantity(boughtIndex, updatedQuantity)
+                         .setPeakQuantity(boughtIndex, updatedPeakQuantity);
+                    // update quantity of the newly cloned seller to construct the buyer-seller
+                    // relation the commSold in new clone already went through Utility.adjustOverhead
+                    // so commSoldOnClone.getQuantity is only overhead
+                    CommoditySold commSoldOnClone =
+                                    newSupplier.getCommoditySold(newBasket.get(boughtIndex));
+                    commSoldOnClone.setQuantity(newSl.getQuantity(boughtIndex));
+                    commSoldOnClone.setPeakQuantity(newSl.getPeakQuantity(boughtIndex));
+                    for (ShoppingList spList : slsNeedsUpdate) {
+                        adjustCommodity(boughtIndex, updatedQuantity, updatedPeakQuantity, spList);
+                    }
+                }
+            } else {
+                // Copy over the same quantity as existing SL to new SL and set it as the sold
+                // for the RTS provider and the RTS consumes the full capacity.
+                for (int boughtIndex = 0; boughtIndex < newBasket.size(); ++boughtIndex) {
+                    newSl.setQuantity(boughtIndex, sl.getQuantity(boughtIndex))
+                        .setPeakQuantity(boughtIndex, sl.getPeakQuantity(boughtIndex));
+                    newSupplier.getCommoditySold(newBasket.get(boughtIndex))
+                        .setQuantity(newSl.getQuantity(boughtIndex))
+                        .setPeakQuantity(newSl.getPeakQuantity(boughtIndex));
                 }
             }
         }
@@ -147,37 +161,41 @@ public final class GuaranteedBuyerHelper {
                         getAllSlsSponsoredByGuaranteedBuyer(economy, guaranteedBuyerSlsOnNewClone);
         List<ShoppingList> removedShoppingLists = new ArrayList<>();
         for (ShoppingList shoppingList : guaranteedBuyerSlsOnNewClone) {
-            // a set of shopping list sponsored by guaranteed buyer, the sl consuming new clone is
-            // included
-            Set<ShoppingList> slsNeedsUpdate = slsSponsoredByGuaranteedBuyer
-                    .get(shoppingList.getBuyer()).stream()
-                    .filter(sl -> {
-                        Trader supplier = sl.getSupplier();
-                        return supplier != null && supplier.getState().isActive()
-                                        && shoppingList.getBasket().equals(sl.getBasket());
-                    }).collect(Collectors.toSet());
-            // Cannot rebalance across zero buyers.
-            if (slsNeedsUpdate.size() > 1) {
-                // update quantity and peak quantity of the shopping list sponsored by guaranteed buyer
-                // because we force to remove the shopping list between guaranteed buyer and new clone
-                // it is not the sl between new clone and guaranteed buyer
-                for (int i = 0; i < shoppingList.getBasket().size(); i++) {
-                    double updatedQuantity = shoppingList.getQuantity(i) * slsNeedsUpdate.size()
-                            / (slsNeedsUpdate.size() - 1);
-                    double updatedPeakQuantity = shoppingList.getPeakQuantity(i) *
-                            slsNeedsUpdate.size()
-                            / (slsNeedsUpdate.size() - 1);
-                    for (ShoppingList sl : slsNeedsUpdate) {
-                        // no need to update the sl on new clone as it will be removed
-                        if (!sl.equals(shoppingList)) {
-                            adjustCommodity(i, updatedQuantity, updatedPeakQuantity, sl);
+            // ResizeThroughSuppliers are also set to be GuaranteedBuyers but we don't want
+            // to redistribute and update the SL quantities.
+            if (!shoppingList.getBuyer().getSettings().isResizeThroughSupplier()) {
+                // a set of shopping list sponsored by guaranteed buyer, the sl consuming new clone is
+                // included
+                Set<ShoppingList> slsNeedsUpdate = slsSponsoredByGuaranteedBuyer
+                        .get(shoppingList.getBuyer()).stream()
+                        .filter(sl -> {
+                            Trader supplier = sl.getSupplier();
+                            return supplier != null && supplier.getState().isActive()
+                                            && shoppingList.getBasket().equals(sl.getBasket());
+                        }).collect(Collectors.toSet());
+                // Cannot rebalance across zero buyers.
+                if (slsNeedsUpdate.size() > 1) {
+                    // update quantity and peak quantity of the shopping list sponsored by guaranteed buyer
+                    // because we force to remove the shopping list between guaranteed buyer and new clone
+                    // it is not the sl between new clone and guaranteed buyer
+                    for (int i = 0; i < shoppingList.getBasket().size(); i++) {
+                        double updatedQuantity = shoppingList.getQuantity(i) * slsNeedsUpdate.size()
+                                / (slsNeedsUpdate.size() - 1);
+                        double updatedPeakQuantity = shoppingList.getPeakQuantity(i) *
+                                slsNeedsUpdate.size()
+                                / (slsNeedsUpdate.size() - 1);
+                        for (ShoppingList sl : slsNeedsUpdate) {
+                            // no need to update the sl on new clone as it will be removed
+                            if (!sl.equals(shoppingList)) {
+                                adjustCommodity(i, updatedQuantity, updatedPeakQuantity, sl);
+                            }
                         }
                     }
+                } else {
+                    logger.warn("Attempt to remove only shopping list from " +
+                            shoppingList.getBuyer() + " - skipping");
+                    continue;
                 }
-            } else {
-                logger.warn("Attempt to remove only shopping list from " +
-                        shoppingList.getBuyer() + " - skipping");
-                continue;
             }
 
             economy.removeBasketBought(shoppingList);
