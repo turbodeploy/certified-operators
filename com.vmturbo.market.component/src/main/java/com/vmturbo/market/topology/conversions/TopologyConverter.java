@@ -102,6 +102,7 @@ import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.market.topology.SingleRegionMarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
+import com.vmturbo.market.topology.conversions.CommoditiesResizeTracker.CommodityLookupType;
 import com.vmturbo.market.topology.conversions.CommodityIndex.CommodityIndexFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ScalingGroup;
@@ -2031,7 +2032,8 @@ public class TopologyConverter {
 
                 if (commoditySoldDTO.isPresent() && commoditySoldDTO.get().getIsResizeable()
                         && commoditySoldDTO.get().hasCapacity()) {
-                    return getCloudResizableBoughtCommodityCapacity(topologyDTO, commBought, histUsed, histPeak, commoditySoldDTO.get(), providerOid);
+                    return getCloudResizableBoughtCommodityCapacity(topologyDTO, commBought, histUsed,
+                        histPeak, commoditySoldDTO.get(), providerOid);
                 } else {
                     logger.debug("Tier {} does not sell commodity type {} for entity {}",
                             tier::getDisplayName, commBought::getCommodityType,
@@ -2078,7 +2080,7 @@ public class TopologyConverter {
             final float resizeUsage = histUsage / targetUtil;
 
             commoditiesResizeTracker.save(topologyDTO.getOid(), providerOid, commBought.getCommodityType(),
-                    resizeUsage - commoditySoldDTO.getCapacity() > 0);
+                    resizeUsage - commoditySoldDTO.getCapacity() > 0, CommodityLookupType.PROVIDER);
             return new float[][]{new float[]{resizeUsage}, new float[]{resizeUsage}};
         } else {
             // We want to use the historical used (already smoothened) for both the resize-up
@@ -2090,7 +2092,7 @@ public class TopologyConverter {
                     (float)commoditySoldDTO.getCapacity(),
                     (float)commBought.getResizeTargetUtilization(), false, false, false);
             commoditiesResizeTracker.save(topologyDTO.getOid(), providerOid, commBought.getCommodityType(),
-                    resizedQuantity[0] - commoditySoldDTO.getCapacity() > 0);
+                    resizedQuantity[0] - commoditySoldDTO.getCapacity() > 0, CommodityLookupType.PROVIDER);
             logger.debug("Using a peak used of {} for commodity type {} for entity {}.",
                     resizedQuantity[1], commBought.getCommodityType().getType(),
                     topologyDTO.getDisplayName());
@@ -2143,7 +2145,7 @@ public class TopologyConverter {
                         (float)commoditySoldDTO.getResizeTargetUtilization(),
                         true, useTargetUtilBand, percentileBasedDemand);
         commoditiesResizeTracker.save(topologyDTO.getOid(), providerOid, commoditySoldDTO.getCommodityType(),
-                resizedQuantity[0] - capacity > 0);
+                resizedQuantity[0] - capacity > 0, CommodityLookupType.CONSUMER);
         logger.debug(
                 "Using quantity {}, peak quantity {}, targetUtilBand: {} for driving commodity "
                         + "type {} for entity {}, with current capacity: {}",
@@ -2241,7 +2243,8 @@ public class TopologyConverter {
                     topologyDTO.getDisplayName(), commBought.getCommodityType().getType(),
                     histUsed, providerTopologyEntity.getDisplayName(), targetUtil, capacity);
             if (TopologyConversionConstants.ONPREM_BOUGHT_COMMODITIES_TO_TRACK.contains(commBought.getCommodityType().getType())) {
-                    commoditiesResizeTracker.save(topologyDTO.getOid(), providerOid, commBought.getCommodityType(), histUsed > capacity);
+                    commoditiesResizeTracker.save(topologyDTO.getOid(), providerOid, commBought.getCommodityType(),
+                        histUsed > capacity, CommodityLookupType.PROVIDER);
             }
         }
         if (commBought.hasHistoricalUsed() && commBought.getHistoricalUsed().hasPercentile()) {

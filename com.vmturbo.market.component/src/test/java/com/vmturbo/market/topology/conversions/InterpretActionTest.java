@@ -957,6 +957,8 @@ public class InterpretActionTest {
         when(mockCloudTc.getMarketTier(2)).thenReturn(destMarketTier);
         when(mockCloudTc.isMarketTier(1l)).thenReturn(true);
         when(mockCloudTc.isMarketTier(2l)).thenReturn(true);
+        when(mockCloudTc.getSourceOrDestinationTierFromMoveTo(any(), eq(vm.getOid()), eq(true))).thenReturn(Optional.of(m1Large.getOid()));
+        when(mockCloudTc.getSourceOrDestinationTierFromMoveTo(any(), eq(vm.getOid()), eq(false))).thenReturn(Optional.of(m1Medium.getOid()));
 
         ShoppingListInfo slInfo = new ShoppingListInfo(5, vm.getOid(), null, null, null, null, Arrays.asList());
         Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(5l, slInfo);

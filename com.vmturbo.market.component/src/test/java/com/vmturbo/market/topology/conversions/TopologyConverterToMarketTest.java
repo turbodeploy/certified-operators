@@ -1,7 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
 import static java.util.stream.Collectors.toList;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -1895,9 +1894,9 @@ public class TopologyConverterToMarketTest {
         // Only the VirtualMachine (OID==101) should be saved to the resize tracker. The other converted
         // entities should not be saved. The other VMs in the test case have no commodities bought.
         Mockito.verify(resizeTracker).save(Mockito.eq(101L), anyLong(),
-            Mockito.eq(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE).setKey("P1").build()), anyBoolean());
+            Mockito.eq(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE).setKey("P1").build()), anyBoolean(), any());
         Mockito.verify(resizeTracker).save(Mockito.eq(101L), anyLong(),
-            Mockito.eq(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE).setKey("").build()), anyBoolean());
+            Mockito.eq(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE).setKey("").build()), anyBoolean(), any());
         Mockito.verifyNoMoreInteractions(resizeTracker);
     }
 

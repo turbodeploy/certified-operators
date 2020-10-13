@@ -46,6 +46,7 @@ import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -339,6 +340,47 @@ public class CloudTopologyConverter {
     @Nullable
     public MarketTier getMarketTier(long traderToOid) {
         return traderTOOidToMarketTier.get(traderToOid);
+    }
+
+    /**
+     * Get the source/destination tier id of a MoveTO.
+     * @param moveTO the moveTO
+     * @param targetEntityId the consumer entity id
+     * @param isSource true if you need the source tier id. false if you need the destination tier id.
+     * @return Optional of the source/destination tier id. If the Move is not a cloud entities,
+     *         then optional empty will be returned. If the source is an RI, we can still find the
+     *         source tier from the orignal topology. But if the destination tier is an RI, we cannot
+     *         find the destination tier and we return Optional.empty
+     */
+    public Optional<Long> getSourceOrDestinationTierFromMoveTo(MoveTO moveTO, long targetEntityId, boolean isSource) {
+        Long tierId = null;
+        long marketTierId = isSource ? moveTO.getSource() : moveTO.getDestination();
+        MarketTier marketTier = getMarketTier(marketTierId);
+        if (marketTier != null) {
+            if (isSource) {
+                if (marketTier.hasRIDiscount()) {
+                    TopologyEntityDTO entity = topology.get(targetEntityId);
+                    if (entity != null) {
+                        Optional<CommoditiesBoughtFromProvider> primaryCommBoughtgrouping =
+                            entity.getCommoditiesBoughtFromProvidersList().stream()
+                                .filter(grouping -> grouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE)
+                                .findFirst();
+                        if (primaryCommBoughtgrouping.isPresent()) {
+                            tierId = primaryCommBoughtgrouping.get().getProviderId();
+                        }
+                    }
+                } else {
+                    tierId = marketTier.getTier().getOid();
+                }
+            } else {
+                if (!marketTier.hasRIDiscount()) {
+                    tierId = marketTier.getTier().getOid();
+                } else {
+                    logger.warn("Cannot find tier from RIMarkerTier {}", marketTier.getDisplayName());
+                }
+            }
+        }
+        return Optional.ofNullable(tierId);
     }
 
     /**

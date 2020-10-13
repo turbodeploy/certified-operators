@@ -95,6 +95,8 @@ public class ExplanationComposer {
         "{0} doesn''t comply with {1}";
     private static final String ACTION_TYPE_ERROR =
         "Can not give a proper explanation as action type is not defined";
+    private static final String EXPLANATION_ERROR =
+        "Can not give a proper explanation";
     private static final String INCREASE_RI_UTILIZATION =
         "Increase RI Utilization";
     private static final String WASTED_COST = "Wasted Cost";
@@ -111,6 +113,7 @@ public class ExplanationComposer {
     private static final String UNDERUTILIZED_RESOURCES_CATEGORY = "Underutilized resources";
     private static final String RECONFIGURE_EXPLANATION_CATEGORY = "Misconfiguration";
     private static final String REASON_SETTING_EXPLANATION_CATEGORY = "Setting policy compliance";
+    private static final String CSG_COMPLIANCE_EXPLANATION_CATEGORY = "CSG compliance";
     private static final String REASON_COMMODITY_EXPLANATION_CATEGORY =  " compliance";
     private static final String SEGMENTATION_COMMODITY_EXPLANATION_CATEGORY =  "Placement policy compliance";
     private static final String ALLOCATE_CATEGORY = "Virtual Machine RI Coverage";
@@ -274,9 +277,9 @@ public class ExplanationComposer {
         if (keepItShort) {
             return moveExplanations;
         }
+        String explanation = moveExplanations.stream().filter(exp -> !exp.isEmpty()).collect(Collectors.joining(", "));
         return Collections.singleton(ActionDTOUtil.TRANSLATION_PREFIX +
-            String.join(", ", moveExplanations) +
-            getScalingGroupExplanation(action.getExplanation()).orElse(""));
+             explanation + getScalingGroupExplanation(action.getExplanation(), explanation).orElse(""));
     }
 
     /**
@@ -338,11 +341,13 @@ public class ExplanationComposer {
      * If the explanation contains a scaling group ID, append scaling group information to the
      * action explanation.
      * @param explanation action explanation
+     * @param stringExplanation the string explanation so far
      * @return Optional containing the scaling group explanation if the explanation contains
      * scaling group information, else Optional.empty.  If scaling group information is present
      * but there is no mapping available, the scaling group ID itself is returned.
      */
-    private static Optional<String> getScalingGroupExplanation(final Explanation explanation) {
+    private static Optional<String> getScalingGroupExplanation(final Explanation explanation,
+                                                               final String stringExplanation) {
         String scalingGroupName = null;
         if (explanation.hasMove()) {
             MoveExplanation moveExplanation = explanation.getMove();
@@ -366,7 +371,9 @@ public class ExplanationComposer {
             }
         }
         if (scalingGroupName != null) {
-            return Optional.of(" (Scaling Groups: " + scalingGroupName + ")");
+            String openParenthesis = stringExplanation.isEmpty() ? "" : "(";
+            String closeParenthesis = stringExplanation.isEmpty() ? "" : ")";
+            return Optional.of(" " + openParenthesis + "Scaling Groups: " + scalingGroupName + closeParenthesis);
         } else {
             return Optional.empty();
         }
@@ -396,11 +403,18 @@ public class ExplanationComposer {
                     return Collections.singleton(buildReasonSettingsExplanation(target,
                         changeProviderExplanation.getCompliance().getReasonSettingsList(),
                         settingPolicyIdToSettingPolicyName, topology, keepItShort));
-                } else {
+                } else if (!changeProviderExplanation.getCompliance().getMissingCommoditiesList().isEmpty()) {
                     return buildComplianceReasonCommodityExplanation(optionalSourceEntity,
                         changeProviderExplanation.getCompliance().getMissingCommoditiesList(),
                         topology, keepItShort);
+                } else if (changeProviderExplanation.getCompliance().hasIsCsgCompliance()) {
+                    if (keepItShort) {
+                        return Collections.singleton(CSG_COMPLIANCE_EXPLANATION_CATEGORY);
+                    }
+                    // We don't need an explanation for CSG compliance actions
+                    return Collections.singleton("");
                 }
+                return Collections.singleton(EXPLANATION_ERROR);
             case CONGESTION:
                 return buildCongestionExplanation(changeProviderExplanation.getCongestion(), keepItShort);
             case EVACUATION:
@@ -775,7 +789,7 @@ public class ExplanationComposer {
                 ? " in " + buildEntityTypeAndName(resize.getTarget(), topology)
                 : "";
         sb.append(resizeExplanation).append(targetClause);
-        getScalingGroupExplanation(action.getExplanation()).ifPresent(sb::append);
+        getScalingGroupExplanation(action.getExplanation(), sb.toString()).ifPresent(sb::append);
         return sb.toString();
     }
 
@@ -917,7 +931,7 @@ public class ExplanationComposer {
             sb.append(buildReconfigureReasonCommodityExplanation(
                 reconfigExplanation.getReconfigureCommodityList()));
         }
-        getScalingGroupExplanation(action.getExplanation()).ifPresent(sb::append);
+        getScalingGroupExplanation(action.getExplanation(), sb.toString()).ifPresent(sb::append);
         return sb.toString();
     }
 

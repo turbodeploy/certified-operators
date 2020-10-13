@@ -68,6 +68,11 @@ message Explanation {
             // A list of setting policy oids which caused this compliance action.
             // For ex. compliance actions that can be caused by template exclusion settings
             repeated int64 reason_settings = 3;
+
+            // True if the compliance action is SOLELY because of CSG. We currently set this for
+            // cloud VMs only. If a cloud action cannot be explained by itself, then we check if it
+            // is a part of CSGs and set this flag.
+            optional bool is_csg_compliance = 4;
         }
 
         // A move explanation suggesting commodity congestion.
