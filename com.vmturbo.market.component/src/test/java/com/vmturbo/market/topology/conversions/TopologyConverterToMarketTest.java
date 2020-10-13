@@ -983,7 +983,8 @@ public class TopologyConverterToMarketTest {
         getResizedCapacityForCloud(EntityType.DATABASE_SERVER_VALUE,
                 CommodityDTO.CommodityType.CPU_VALUE,
                 CommodityDTO.CommodityType.VCPU_VALUE, used, peak, max,
-                commSoldCap, commSoldRtu, 70d, 80d, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
+                commSoldCap, commSoldRtu, 70d, 80d, EnvironmentType.CLOUD, null, null,
+            REALTIME_TOPOLOGY_INFO, true);
         // Expects no exception with a zero resize target util
     }
 
@@ -998,7 +999,8 @@ public class TopologyConverterToMarketTest {
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE,
                 used, peak, max, 200, 0.9,
-                histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
+                histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null,
+            REALTIME_TOPOLOGY_INFO, true);
         // new used = histPercentile * capacity / target util
         // new peak = max(peak, used) / rtu
         // percentile in the historical values is set as a percent value that needs to
@@ -1022,7 +1024,8 @@ public class TopologyConverterToMarketTest {
             CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
             CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
             used, peak, max, 100, 0.7,
-            histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
+            histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null,
+            REALTIME_TOPOLOGY_INFO, true);
         assertEquals(100, quantities[0], 0.01f);
     }
 
@@ -1041,7 +1044,8 @@ public class TopologyConverterToMarketTest {
             CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
             CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE,
             used, peak, max, 100, 0.7,
-            histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
+            histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null,
+            REALTIME_TOPOLOGY_INFO, true);
         assertEquals(0.2 * 100 / 0.7, quantities[0], 0.01f);
     }
 
@@ -1053,15 +1057,17 @@ public class TopologyConverterToMarketTest {
         double used = 40;
         double peak = 80;
         double max = 90;
+        final float capacity = 200;
         double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE,
-                used, peak, max, 200, 0.9,
-                null, null, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
-        // new used = [(max * 0.9) + (used * 0.1)] / rtu
-        // new peak = max(peak, used) / rtu
-        assertEquals(used / 0.9, quantities[0], 0.01f);
-        assertEquals(88.888, quantities[1], 0.01f);
+                used, peak, max, capacity, 0.9,
+                null, null, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO,
+            true);
+        // resize quantity is set to current capacity, as no historical used data is set
+        // resize peak quantity is set to current capacity, as no historical peak data is set
+        assertEquals(capacity, quantities[0], 0.01f);
+        assertEquals(capacity, quantities[1], 0.01f);
     }
 
     /**
@@ -1077,7 +1083,8 @@ public class TopologyConverterToMarketTest {
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE,
                 used, peak, max, 200, 0.9,
-                null, histUtil, EnvironmentType.ON_PREM, used, peak, REALTIME_TOPOLOGY_INFO);
+                null, histUtil, EnvironmentType.ON_PREM, used, peak, REALTIME_TOPOLOGY_INFO,
+            true);
         // new used = [(max * 0.9) + (used * 0.1)] / rtu
         // new peak = max(peak, used) / rtu
         assertEquals(histUtil, quantities[0], 0.01f);
@@ -1098,7 +1105,8 @@ public class TopologyConverterToMarketTest {
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE,
                 used, peak, max, 200, 0.9,
-                histPercentile, histUtil, EnvironmentType.ON_PREM, used, peak, REALTIME_TOPOLOGY_INFO);
+                histPercentile, histUtil, EnvironmentType.ON_PREM, used, peak,
+            REALTIME_TOPOLOGY_INFO, true);
         // new used = [(max * 0.9) + (used * 0.1)] / rtu
         // new peak = max(peak, used) / rtu
         assertEquals(histPercentile, quantities[0], 0.01f);
@@ -1119,7 +1127,7 @@ public class TopologyConverterToMarketTest {
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE,
                 used, peak, max, 200, 0.9,
-                null, histUtil, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
+                null, histUtil, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO, true);
         assertEquals(histUtil / 0.9, quantities[0], 0.01f);
         assertEquals(88.888, quantities[1], 0.01f);
     }
@@ -1138,7 +1146,8 @@ public class TopologyConverterToMarketTest {
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE,
                 used, peak, max, 100, 0.5,
-                histPercentile, histUtil, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
+                histPercentile, histUtil, EnvironmentType.CLOUD, null, null,
+            REALTIME_TOPOLOGY_INFO, true);
         // new used = percentile * capacity / target util
         // new peak = max(peak, used) / rtu
         // percentile in the historical values is set as a percent value that needs to
@@ -1155,7 +1164,8 @@ public class TopologyConverterToMarketTest {
         double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
                 CommodityDTO.CommodityType.MEM_VALUE,
                 CommodityDTO.CommodityType.VMEM_VALUE, used, peak, max,
-                100, 0.8, 0.8, 75d, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO);
+                100, 0.8, 0.8, 75d, EnvironmentType.CLOUD, null, null, REALTIME_TOPOLOGY_INFO,
+            true);
         // new used = capacity
         // new peak = max(peak, used) / rtu
         assertEquals(100, quantities[0], 0.01f);
@@ -1172,7 +1182,7 @@ public class TopologyConverterToMarketTest {
         final double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
             CommodityDTO.CommodityType.MEM_VALUE, CommodityDTO.CommodityType.VMEM_VALUE, 0,
             0, 0, capacity, 0.8, null, null, EnvironmentType.CLOUD, null, null,
-            REALTIME_TOPOLOGY_INFO);
+            REALTIME_TOPOLOGY_INFO, true);
         assertEquals(capacity, quantities[0], 0.01f);
     }
 
@@ -1185,8 +1195,32 @@ public class TopologyConverterToMarketTest {
         final double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
             CommodityDTO.CommodityType.MEM_VALUE, CommodityDTO.CommodityType.VMEM_VALUE, 0,
             0, 0, capacity, 0.8, 0d, null, EnvironmentType.CLOUD, null, null,
-            REALTIME_TOPOLOGY_INFO);
+            REALTIME_TOPOLOGY_INFO, true);
         assertEquals(0, quantities[0], 0.01f);
+    }
+
+    /**
+     * Test that if commodity sold has resizable flag set to false, then resize quantity is same
+     * as current capacity.
+     */
+    @Test
+    public void testResizeQuantityForResizableFlagValues() {
+        final double capacity = 100;
+        final double histPercentile = 0.7;
+        final double targetUtil = 0.9;
+        double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+            CommodityDTO.CommodityType.MEM_VALUE, CommodityDTO.CommodityType.VMEM_VALUE, 0,
+            0, 0, capacity, targetUtil, histPercentile, null, EnvironmentType.CLOUD, null, null,
+            REALTIME_TOPOLOGY_INFO, true);
+        // when resizable flag is true, resize quantity should be percentile x capacity /targetUtil
+        assertEquals(histPercentile * capacity / targetUtil, quantities[0], 0.01f);
+
+        quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+            CommodityDTO.CommodityType.MEM_VALUE, CommodityDTO.CommodityType.VMEM_VALUE, 0,
+            0, 0, capacity, targetUtil, histPercentile, null, EnvironmentType.CLOUD, null, null,
+            REALTIME_TOPOLOGY_INFO, false);
+        // when resizable flag is false, resize quantity should be equal to current capacity
+        assertEquals(capacity, quantities[0], 0.01f);
     }
 
     private double[] getResizedCapacityForCloud(int entityType, int commBoughtType, int commSoldType,
@@ -1194,7 +1228,8 @@ public class TopologyConverterToMarketTest {
                                                 double commSoldMax, double commSoldCap, double commSoldRtu,
                                                 Double histPercentile, Double histoUtilization,
                                                 final EnvironmentType envType, Double boughtUsed,
-                                                Double boughtPeak, TopologyInfo topologyInfo) {
+                                                Double boughtPeak, TopologyInfo topologyInfo,
+                                                final boolean soldCommodityResizable) {
 
         final HistoricalValues.Builder histValueBuilder = HistoricalValues.newBuilder();
         histValueBuilder.setMaxQuantity(commSoldMax);
@@ -1227,6 +1262,10 @@ public class TopologyConverterToMarketTest {
                 .setPeak(commSoldPeak)
                 .setCapacity(commSoldCap)
                 .setResizeTargetUtilization(commSoldRtu);
+        // resizable is true by default, set only if soldCommodityResizable argument is false
+        if (!soldCommodityResizable) {
+            soldBuilder.setIsResizeable(false);
+        }
         if (envType == EnvironmentType.CLOUD) {
             soldBuilder.setHistoricalUsed(histValue);
         }
@@ -1308,15 +1347,17 @@ public class TopologyConverterToMarketTest {
      */
     @Test
     public void testGetResizedCapacityForCloudNoResizeThroughput() {
+        final float capacity = 100;
         final double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
                 CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE, /*commodityBoughtUsed*/
                 70, /*commodityBoughtPeak*/75, /*commodityBoughtMax*/
                 85, /*commodityBoughtResizeTargetUtilization*/0.5,
-                /*commoditySoldCapacity*/100,
+                /*commoditySoldCapacity*/capacity,
                 50, 80);
-        // new used = capacity
-        Assert.assertEquals(70, quantities[0], 0.01f);
-        // new peak = max(peak, used) / rtu
+        // resize quantity is set to current capacity, since hist used / target util equals
+        // current capacity (which is 100)
+        Assert.assertEquals(capacity, quantities[0], 0.01f);
+        // resize peak quantity is set to max(peak, used) / rtu
         Assert.assertEquals(160, quantities[1], 0.01f);
     }
 
@@ -1331,9 +1372,9 @@ public class TopologyConverterToMarketTest {
                 85, /*commodityBoughtResizeTargetUtilization*/0.5,
                 /*commoditySoldCapacity*/100,
                 0, 0);
-        // new used = capacity
-        Assert.assertEquals(70, quantities[0], 0.01f);
-        // new peak = max(peak, used) / rtu
+        // resize quantity is set to 0, as the historical used is 0
+        Assert.assertEquals(0, quantities[0], 0.01f);
+        // resize peak quantity is set to max(peak, used) / rtu
         Assert.assertEquals(140, quantities[1], 0.01f);
     }
 
@@ -1354,7 +1395,7 @@ public class TopologyConverterToMarketTest {
                 CommodityDTO.CommodityType.VMEM_VALUE,
                 used, peak, max, commSoldCapacity, commSoldRtu,
                 histPercentile, null, EnvironmentType.CLOUD, used, peak,
-                MCP_ALLOCATION_PLAN_TOPOLOGY_INFO);
+                MCP_ALLOCATION_PLAN_TOPOLOGY_INFO, true);
         assertEquals(commSoldCapacity, quantities[0], 0.01f);
         assertEquals(commSoldCapacity, quantities[1], 0.01f);
     }
@@ -1377,7 +1418,7 @@ public class TopologyConverterToMarketTest {
                 CommodityDTO.CommodityType.VMEM_VALUE,
                 used, peak, max, commSoldCapacity, commSoldRtu,
                 histPercentile, null, EnvironmentType.CLOUD, used, peak,
-                MCP_COSUMPTION_PLAN_TOPOLOGY_INFO);
+                MCP_COSUMPTION_PLAN_TOPOLOGY_INFO, true);
         assertEquals(histPercentile * commSoldCapacity / commSoldRtu, quantities[0], 0.01f);
         assertEquals(peak / commSoldRtu, quantities[1], 0.01f);
     }

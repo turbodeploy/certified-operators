@@ -2099,10 +2099,10 @@ public class TopologyConverter {
             // and resize-down demand calculations. We do not want to consider the
             // historical max or the peaks to avoid a one-time historic max value to cause
             // resize decisions.
-            final float[] resizedQuantity = calculateResizedQuantity(histUsed[0], histUsed[0],
+            final float[] resizedQuantity = calculateResizedQuantity(histUsed[0],
                     (float)commBought.getUsed(), histPeak[0],
                     (float)commoditySoldDTO.getCapacity(),
-                    (float)commBought.getResizeTargetUtilization(), false, false, false);
+                    (float)commBought.getResizeTargetUtilization(), false);
             commoditiesResizeTracker.save(topologyDTO.getOid(), providerOid, commBought.getCommodityType(),
                     resizedQuantity[0] - commoditySoldDTO.getCapacity() > 0, CommodityLookupType.PROVIDER);
             logger.debug("Using a peak used of {} for commodity type {} for entity {}.",
@@ -2116,29 +2116,37 @@ public class TopologyConverter {
     private float[][] drivingSoldCommodityBasedCapacity(final List<CommoditySoldDTO> drivingCommmoditySoldList,
                                                         final TopologyEntityDTO topologyDTO, long providerOid) {
         final CommoditySoldDTO commoditySoldDTO = drivingCommmoditySoldList.get(0);
-
+        final float drivingCommSoldCapacity = (float)commoditySoldDTO.getCapacity();
         // Cloud migration lift and shift plan (a.k.a. allocation plan) uses the capacity
         // value of the commodity of drivingCommSold.
         // The optimization plan (a.k.a consumption plan) will consider commodity usage and target
         // utilization when determining the resize quantity.
-        if (isCloudMigration && !isCloudResizeEnabled && commoditySoldDTO.hasCapacity()) {
-            float drivingCommSoldCapacity = (float)commoditySoldDTO.getCapacity();
+        // If commodity has resizable set to false, resize quantity should be same as current
+        // capacity.
+        final boolean useCurrentCapacity =
+            !commoditySoldDTO.getIsResizeable() || isCloudMigration && !isCloudResizeEnabled;
+        if (useCurrentCapacity) {
+            logger.debug("Returning current capacity of sold commodity as quantity: {}, for "
+                + "commodity type: {}, entity oid: {}, isCloudMigration: {}, "
+                    + "isCloudResizeEnabled: {}, is commodity resizable: {}",
+                drivingCommSoldCapacity, commoditySoldDTO.getCommodityType().getType(),
+                topologyDTO.getOid(), isCloudMigration, isCloudResizeEnabled,
+                commoditySoldDTO.getIsResizeable());
             return new float[][]{new float[]{drivingCommSoldCapacity},
                     new float[]{drivingCommSoldCapacity}};
         }
-        float histUsage = (float)commoditySoldDTO.getUsed();
-        final float capacity = (float)commoditySoldDTO.getCapacity();
-        boolean percentileBasedDemand = false;
-        if (commoditySoldDTO.hasHistoricalUsed()) {
-            if (commoditySoldDTO.getHistoricalUsed().hasPercentile() &&
-                    commoditySoldDTO.getIsResizeable() && commoditySoldDTO.hasCapacity()) {
+        final float histUsage;
+        if (commoditySoldDTO.hasHistoricalUsed()
+            && (commoditySoldDTO.getHistoricalUsed().hasPercentile()
+            || commoditySoldDTO.getHistoricalUsed().hasHistUtilization())) {
+            if (commoditySoldDTO.getHistoricalUsed().hasPercentile()
+                && commoditySoldDTO.hasCapacity()) {
                 final float percentile = (float)commoditySoldDTO.getHistoricalUsed().getPercentile();
                 logger.debug("Using percentile value {} to recalculate capacity for {} in {}",
                         percentile, commoditySoldDTO.getCommodityType().getType(),
                         topologyDTO.getDisplayName());
-                histUsage = percentile * capacity;
-                percentileBasedDemand = true;
-            } else if (commoditySoldDTO.getHistoricalUsed().hasHistUtilization()) {
+                histUsage = percentile * drivingCommSoldCapacity;
+            } else {
                 // if not then hist utilization which is the historical used value.
                 histUsage =
                         (float)commoditySoldDTO.getHistoricalUsed().getHistUtilization();
@@ -2146,23 +2154,30 @@ public class TopologyConverter {
                         histUsage, commoditySoldDTO.getCommodityType().getType(),
                         topologyDTO.getDisplayName());
             }
+        } else {
+            logger.debug("Returning current capacity of sold commodity as quantity: {}, for "
+                    + "commodity type: {}, entity oid: {} as no historical used (percentile or "
+                    + "hist utilization) found.", drivingCommSoldCapacity,
+                commoditySoldDTO.getCommodityType().getType(), topologyDTO.getOid());
+            return new float[][]{new float[]{drivingCommSoldCapacity},
+                new float[]{drivingCommSoldCapacity}};
         }
         final EntityType entityType = EntityType.forNumber(topologyDTO.getEntityType());
         final boolean useTargetUtilBand = EntitySettingSpecs.TargetBand.getEntityTypeScope()
             .contains(entityType);
         final float[] resizedQuantity =
-                calculateResizedQuantity(histUsage, histUsage,
+                calculateResizedQuantity(histUsage,
                         (float)commoditySoldDTO.getUsed(), (float)commoditySoldDTO.getPeak(),
                         (float)commoditySoldDTO.getCapacity(),
-                        (float)commoditySoldDTO.getResizeTargetUtilization(),
-                        true, useTargetUtilBand, percentileBasedDemand);
+                        (float)commoditySoldDTO.getResizeTargetUtilization(), useTargetUtilBand);
         commoditiesResizeTracker.save(topologyDTO.getOid(), providerOid, commoditySoldDTO.getCommodityType(),
-                resizedQuantity[0] - capacity > 0, CommodityLookupType.CONSUMER);
+                resizedQuantity[0] - drivingCommSoldCapacity > 0, CommodityLookupType.CONSUMER);
         logger.debug(
                 "Using quantity {}, peak quantity {}, targetUtilBand: {} for driving commodity "
                         + "type {} for entity {}, with current capacity: {}",
                 resizedQuantity[0], resizedQuantity[1], useTargetUtilBand,
-                commoditySoldDTO.getCommodityType().getType(), topologyDTO.getDisplayName(), capacity);
+                commoditySoldDTO.getCommodityType().getType(), topologyDTO.getDisplayName(),
+            drivingCommmoditySoldList);
         return new float[][]{new float[]{resizedQuantity[0]},
                 new float[]{resizedQuantity[1]}};
     }
@@ -2265,39 +2280,31 @@ public class TopologyConverter {
         return new float[][]{used, peak};
     }
 
-    private float[] calculateResizedQuantity(float resizeUpDemand, float resizeDownDemand,
+    private float[] calculateResizedQuantity(float resizeDemand,
                                              float used, float peak, float capacity,
-                                             float targetUtil, boolean isSoldCommodity,
-                                             boolean useTargetUtilBand,
-                                             boolean percentileBasedDemand) {
+                                             float targetUtil,
+                                             boolean useTargetUtilBand) {
         if (targetUtil <= 0.0) {
             targetUtil = EntitySettingSpecs.UtilTarget.getSettingSpec()
                     .getNumericSettingValueType()
                     .getDefault() / 100;
         }
-        final float targetBandRange =
+        // targetBandRadius is a delta around target utilization. If resizeDemand / capacity, i.e.
+        //  desired utilization (a value between [0, 1]) is within targetUtil + targetBandRadius
+        // and targetUtil - targetBandRadius, then the resize quantity should be the same as
+        // current capacity. Otherwise calculate resize quantity as resizeDemand / targetUtil.
+        final float targetBandRadius =
                 EntitySettingSpecs.TargetBand.getSettingSpec().getNumericSettingValueType()
-                        .getDefault();
-        final boolean resizeUpOutsideTargetBand =
-                !useTargetUtilBand || outsideTargetBand(targetUtil, resizeUpDemand, capacity,
-                        targetBandRange / 200);
-        final boolean resizeDownOutsideTargetBand =
-                !useTargetUtilBand || outsideTargetBand(targetUtil, resizeDownDemand, capacity,
-                        targetBandRange / 200);
+                        .getDefault() / 200;
+        final boolean resizeDemandOutsideTargetBand = outsideTargetBand(targetUtil, resizeDemand,
+            capacity, targetBandRadius);
         // For cloud entities / cloud migration plans, we do not use the peakQuantity.
         // We only use the quantity values inside M2
         final float peakQuantity = Math.max(used, peak) / targetUtil;
-        float quantity = used;
-        final boolean zeroDemandAllowed = isSoldCommodity && percentileBasedDemand;
-        if (resizeUpOutsideTargetBand && Math.ceil(resizeUpDemand / targetUtil) > capacity) {
-            quantity = resizeUpDemand / targetUtil;
-        } else if (resizeDownOutsideTargetBand && (resizeDownDemand > 0 || zeroDemandAllowed)
-            && Math.ceil(resizeDownDemand / targetUtil) < capacity) {
-            quantity = resizeDownDemand / targetUtil;
-        } else if (isSoldCommodity) {
-            /* Sold commodities like vMem may sometimes have a zero usage
-            when the probe does not send in metrics. But, this is not applicable for
-            the bought commodities like the throughput commodities. */
+        final float quantity;
+        if (!useTargetUtilBand || resizeDemandOutsideTargetBand) {
+            quantity = resizeDemand / targetUtil;
+        } else {
             quantity = capacity;
         }
         return new float[]{quantity, peakQuantity};
