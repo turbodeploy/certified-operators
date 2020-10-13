@@ -335,7 +335,11 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                 }
                 EntityCommodityReference key = createEntityCommodityKey(entityOid, commoditySoldDTO.getCommodityType());
                 if (commoditySoldDTO.getUsed() < 0)  {
-                    logger.warn("Commodity has -ve used value : {}", commoditySoldDTO);
+                    logger.warn(
+                            "Commodity with type {} and key {} for entity oid {} has -ve used value : {}",
+                            commoditySoldDTO.getCommodityType().getType(),
+                            commoditySoldDTO.getCommodityType().getKey(),
+                            commoditySoldDTO.getUsed(), entity.getOid());
                 }
                 CommodityMaxValue newMax = createCommodityMaxValue(ValueSource.TP, commoditySoldDTO.getUsed());
                 // Atomically set the values as the background thread might also be mutating the map concurrently.
