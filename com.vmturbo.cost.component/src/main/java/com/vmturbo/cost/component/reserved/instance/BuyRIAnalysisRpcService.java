@@ -19,9 +19,11 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.cloud.commitment.analysis.CloudCommitmentAnalysisManager;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -31,10 +33,14 @@ import com.vmturbo.common.protobuf.cost.Cost.SetBuyRIAnalysisScheduleResponse;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisRunner;
+import com.vmturbo.cost.component.cca.CloudCommitmentSettingsFetcher;
+import com.vmturbo.cost.component.cca.configuration.CloudCommitmentAnalysisConfigurationHolder;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisScope;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalyzer;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceHistoricalDemandDataType;
@@ -67,19 +73,36 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
             DemandType.ALLOCATION, ReservedInstanceHistoricalDemandDataType.ALLOCATION,
             DemandType.CONSUMPTION, ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
 
+    private final CloudCommitmentAnalysisConfigurationHolder cloudCommitmentAnalysisConfigurationHolder;
+
+    private final SettingServiceBlockingStub settingServiceBlockingStub;
+
+    private final CloudCommitmentAnalysisRunner cloudCommitmentAnalysisRunner;
+
+    private final CloudCommitmentSettingsFetcher cloudCommitmentSettingsFetcher;
+
     public BuyRIAnalysisRpcService(
             @Nonnull final BuyRIAnalysisScheduler buyRIAnalysisScheduler,
             @Nonnull final RepositoryServiceBlockingStub repositoryClient,
             @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
             @Nonnull final ReservedInstanceAnalyzer reservedInstanceAnalyzer,
             @Nonnull final ComputeTierDemandStatsStore computeTierDemandStatsStore,
-            final long realtimeTopologyContextId) {
+            final long realtimeTopologyContextId,
+            @Nonnull final CloudCommitmentAnalysisConfigurationHolder cloudCommitmentAnalysisConfigurationHolder,
+            @Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
+            @Nonnull final PlanReservedInstanceStore planReservedInstanceStore,
+            @Nonnull final CloudCommitmentAnalysisManager cloudCommitmentAnalysisManager) {
         this.buyRIAnalysisScheduler = Objects.requireNonNull(buyRIAnalysisScheduler);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
         this.reservedInstanceAnalyzer = Objects.requireNonNull(reservedInstanceAnalyzer);
         this.computeTierDemandStatsStore = Objects.requireNonNull(computeTierDemandStatsStore);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.cloudCommitmentAnalysisConfigurationHolder = cloudCommitmentAnalysisConfigurationHolder;
+        this.settingServiceBlockingStub = settingServiceBlockingStub;
+        this.cloudCommitmentSettingsFetcher = new CloudCommitmentSettingsFetcher(settingServiceBlockingStub, cloudCommitmentAnalysisConfigurationHolder);
+        this.cloudCommitmentAnalysisRunner = new CloudCommitmentAnalysisRunner(cloudCommitmentAnalysisManager, cloudCommitmentSettingsFetcher,
+                planReservedInstanceStore, repositoryClient);
     }
 
     /**
@@ -121,7 +144,13 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
                                    StreamObserver<StartBuyRIAnalysisResponse> responseObserver) {
         try {
             if (request.hasTopologyInfo() && request.getTopologyInfo().hasPlanInfo()) {
-                runPlanBuyRIAnalysis(request, responseObserver);
+                if (StringConstants.OPTIMIZE_CLOUD_PLAN.equals(request.getTopologyInfo().getPlanInfo().getPlanType())
+                        && StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY.equals(request.getTopologyInfo().getPlanInfo().getPlanSubType())
+                && cloudCommitmentSettingsFetcher.runCloudCommitmentAnalysis()) {
+                    cloudCommitmentAnalysisRunner.runCloudCommitmentAnalysis(request, responseObserver);
+                } else {
+                    runPlanBuyRIAnalysis(request, responseObserver);
+                }
             } else {
                 runRealtimeBuyRIAnalysis(request, responseObserver);
             }

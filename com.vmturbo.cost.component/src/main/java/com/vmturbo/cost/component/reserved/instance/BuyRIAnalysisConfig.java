@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.cloud.commitment.analysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostREST.BuyRIAnalysisServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
@@ -19,6 +20,8 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
+import com.vmturbo.cost.component.cca.configuration.CloudCommitmentAnalysisConfigurationHolder;
+import com.vmturbo.cost.component.cca.configuration.ImmutableCloudCommitmentAnalysisConfigurationHolder;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.rpc.RIBuyContextFetchRpcService;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisConfig;
@@ -37,6 +40,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         GroupClientConfig.class,
         RepositoryClientConfig.class,
         PricingConfig.class,
+        CloudCommitmentAnalysisConfig.class,
         CostDBConfig.class})
 public class BuyRIAnalysisConfig {
 
@@ -73,11 +77,32 @@ public class BuyRIAnalysisConfig {
     @Autowired
     private PricingConfig pricingConfig;
 
+    @Autowired
+    private CloudCommitmentAnalysisConfig cloudCommitmentAnalysisConfig;
+
     @Value("${disableRealtimeRIBuyAnalysis:false}")
     private boolean disableRealtimeRIBuyAnalysis;
 
     @Value("${stopAndRunRIBuyOnNewRequest: false}")
     private boolean stopAndRunRIBuyOnNewRequest;
+
+    @Value("${allocation_terminated: false}")
+    private boolean allocationTerminated;
+
+    @Value("${allocation_suspended: false}")
+    private boolean allocationSuspended;
+
+    @Value("${min_Stability_millis: 0}")
+    private int minStabilityMillis;
+
+    @Value("${allocation_flexible: false}")
+    private boolean allocationFlexible;
+
+    @Value("${minimum_savings_over_onDemand: 80}")
+    private float minimumsSavingsOverOnDemand;
+
+    @Value("${max_demand_percentage: 80}")
+    private float maxDemandPercentage;
 
     /**
      * Gets Buy ReservedInstance Scheduler.
@@ -113,7 +138,9 @@ public class BuyRIAnalysisConfig {
                 repositoryServiceClient(), cloudTopologyFactory(),
                 reservedInstanceAnalysisConfig.reservedInstanceAnalyzer(),
                 computeTierDemandStatsConfig.riDemandStatsStore(),
-                realtimeTopologyContextId);
+                realtimeTopologyContextId, cloudCommitmentAnalysisConfigurationHolder(), settingServiceClient(),
+                reservedInstanceConfig.planReservedInstanceStore(),
+                cloudCommitmentAnalysisConfig.cloudCommitmentAnalysisManager());
     }
 
     /**
@@ -204,4 +231,17 @@ public class BuyRIAnalysisConfig {
     public RIBuyContextFetchRpcService riBuyContextFetchRpcService() {
         return new RIBuyContextFetchRpcService(reservedInstanceConfig.actionContextRIBuyStore());
     }
+
+    /**
+     * Constructs the CloudCommitmentConfigurationHolder which contains the settings CCA uses.
+     *
+     * @return The CloudCommitmentAnalysisConfigurationHolder.
+     */
+    @Bean
+    public CloudCommitmentAnalysisConfigurationHolder cloudCommitmentAnalysisConfigurationHolder() {
+        return ImmutableCloudCommitmentAnalysisConfigurationHolder.builder().allocationFlexible(
+                allocationFlexible)
+                .allocationSuspended(allocationSuspended).minStabilityMillis(minStabilityMillis).build();
+    }
+
 }

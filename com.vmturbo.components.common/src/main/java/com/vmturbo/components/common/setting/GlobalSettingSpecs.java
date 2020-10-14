@@ -102,10 +102,53 @@ public enum GlobalSettingSpecs {
             new BooleanSettingDataType(true),
             Lists.newArrayList(CategoryPathConstants.RI)),
 
+    /**
+     * Setting to indicate whether to run Cloud Commitment Analysis instead of legacy RI buy.
+     */
+    RunCloudCommitmentAnalysis("run.Cloud.Commitment.Analysis", "Run Cloud Commitment Analysis",
+            new BooleanSettingDataType(false),
+            Lists.newArrayList(CategoryPathConstants.RI)),
+
     CloudCommitmentAllocationRetentionDays(
             "cca.allocation.retentionDays",
             "Cloud Commitment Allocation Retention [Days]",
             numeric(1f, 90f, 30f),
+            Lists.newArrayList(CategoryPathConstants.RI)),
+
+    /**
+     * The setting for the cloud commitment historical lookback period.
+     */
+    CloudCommitmentHistoricalLookbackPeriod("cca.allocation.historicalLookBack",
+            "Cloud Commitment Allocation Lookback [Days]",
+            numeric(1f, 90f, 30f),
+            Lists.newArrayList(CategoryPathConstants.RI)),
+
+    /**
+     * The setting to log detailed summary for cloud commitment analysis.
+     */
+    CloudCommitmentLogDetailedSummary("cca.log.detailed.summary", "Cloud Commitment Log Detailed Summary",
+            new BooleanSettingDataType(false),
+            Lists.newArrayList(CategoryPathConstants.RI)),
+
+    /**
+     * The setting to specify the maximum percentage of an entity to be covered by an RI.
+     */
+    CloudCommitmentMaxDemandPercentage("cca.max.demand.percentage", "Cloud Commitment Max Demand Percentage",
+            numeric(1f, 100f, 100f),
+            Lists.newArrayList(CategoryPathConstants.RI)),
+
+    /**
+     * The setting to specify the minimum savings over on demand for an RI to be recommended.
+     */
+    CloudCommitmentMinimumSavingsOverOnDemand("cca.min.savings.onDemand", "Cloud Commitment Minimum Savings Over On Demand",
+            numeric(1f, 100f, 10f),
+            Lists.newArrayList(CategoryPathConstants.RI)),
+
+    /**
+     * This setting is used to sepcify whether to include demand from terminated entities in CCA.
+     */
+    CloudCommitmentIncludeTerminatedEntities("cca.include.terminated.entities", "Cloud Commitment Include Terminated Entities",
+            new BooleanSettingDataType(true),
             Lists.newArrayList(CategoryPathConstants.RI)),
 
     /**

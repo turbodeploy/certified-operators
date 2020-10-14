@@ -91,9 +91,6 @@ public class TopologyListenerConfig {
     private IdentityProviderConfig identityProviderConfig;
 
     @Autowired
-    private BuyRIAnalysisConfig buyRIAnalysisConfig;
-
-    @Autowired
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
 
     @Autowired
@@ -104,6 +101,9 @@ public class TopologyListenerConfig {
 
     @Autowired
     private CloudCommitmentAnalysisStoreConfig cloudCommitmentAnalysisStoreConfig;
+
+    @Autowired
+    private BuyRIAnalysisConfig buyRIAnalysisConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;

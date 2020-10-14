@@ -16,10 +16,9 @@ import com.vmturbo.cost.calculation.integration.PricingResolver;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.discount.DiscountConfig;
-import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
-import com.vmturbo.cost.component.pricing.PriceTableStore;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
+import com.vmturbo.cost.component.pricing.PricingConfig;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.topology.LocalCostPricingResolver;
 
 /**
@@ -27,20 +26,18 @@ import com.vmturbo.cost.component.topology.LocalCostPricingResolver;
  */
 @Configuration
 @Import({DiscountConfig.class,
-        IdentityProviderConfig.class})
+        IdentityProviderConfig.class, ReservedInstanceSpecConfig.class,
+        })
 public class LocalCloudCommitmentAnalysisConfig {
 
     @Autowired
-    private ReservedInstanceSpecStore reservedInstanceSpecStore;
+    private ReservedInstanceConfig reservedInstanceConfig;
 
     @Autowired
-    private ReservedInstanceBoughtStore reservedInstanceBoughtStore;
+    private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
 
     @Autowired
-    private PriceTableStore sqlPriceTableStore;
-
-    @Autowired
-    private BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore;
+    private PricingConfig pricingConfig;
 
     @Autowired
     private DiscountConfig discountConfig;
@@ -56,7 +53,7 @@ public class LocalCloudCommitmentAnalysisConfig {
      */
     @Bean
     public CloudCommitmentSpecResolver<ReservedInstanceSpec> reservedInstanceSpecResolver() {
-        return new LocalReservedInstanceSpecResolver(reservedInstanceSpecStore);
+        return new LocalReservedInstanceSpecResolver(reservedInstanceSpecConfig.reservedInstanceSpecStore());
     }
 
     /**
@@ -66,7 +63,7 @@ public class LocalCloudCommitmentAnalysisConfig {
      */
     @Bean
     public CloudCommitmentBoughtResolver cloudCommitmentBoughtResolver() {
-        return new LocalCloudCommitmentBoughtResolver(reservedInstanceBoughtStore, reservedInstanceSpecStore);
+        return new LocalCloudCommitmentBoughtResolver(reservedInstanceConfig.reservedInstanceBoughtStore(), reservedInstanceSpecConfig.reservedInstanceSpecStore());
     }
 
 
@@ -77,7 +74,8 @@ public class LocalCloudCommitmentAnalysisConfig {
      */
     @Bean
     public CloudCommitmentPricingAnalyzer cloudCommitmentPricingAnalyzer() {
-        return new LocalCloudCommitmentPricingAnalyzer(localCostPricingResolver(), businessAccountPriceTableKeyStore, sqlPriceTableStore, topologyEntityInfoExtractor());
+        return new LocalCloudCommitmentPricingAnalyzer(localCostPricingResolver(),
+                pricingConfig.businessAccountPriceTableKeyStore(), pricingConfig.priceTableStore(), topologyEntityInfoExtractor());
     }
 
     /**
@@ -106,7 +104,7 @@ public class LocalCloudCommitmentAnalysisConfig {
      * @return The pricing resolver.
      */
     public PricingResolver localCostPricingResolver() {
-        return new LocalCostPricingResolver(sqlPriceTableStore, businessAccountPriceTableKeyStore, identityProviderConfig.identityProvider(),
+        return new LocalCostPricingResolver(pricingConfig.priceTableStore(), pricingConfig.businessAccountPriceTableKeyStore(), identityProviderConfig.identityProvider(),
                 discountConfig.discountStore(), discountApplicatorFactory(), topologyEntityInfoExtractor());
     }
 }

@@ -293,7 +293,13 @@
         "preferredCoverage",
         "riCoverageOverride",
         "ri.demandType",
-        "cca.allocation.retentionDays"
+        "run.Cloud.Commitment.Analysis",
+        "cca.allocation.retentionDays",
+        "cca.allocation.historicalLookBack",
+        "cca.log.detailed.summary",
+        "cca.max.demand.percentage",
+        "cca.min.savings.onDemand",
+        "cca.include.terminated.entities"
       ]
     },
     "osmigrationmanager": {

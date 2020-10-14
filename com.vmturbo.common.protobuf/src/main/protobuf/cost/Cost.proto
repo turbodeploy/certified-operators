@@ -1199,6 +1199,7 @@ message RIPurchaseProfile {
 }
 
 message StartBuyRIAnalysisResponse {
+    optional cca.CloudCommitmentAnalysisInfo cloud_commitment_analysis_info = 1;
 }
 
 message GetRIBuyContextRequest {
