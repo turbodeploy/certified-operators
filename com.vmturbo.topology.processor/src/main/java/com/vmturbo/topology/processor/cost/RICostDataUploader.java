@@ -350,12 +350,9 @@ public class RICostDataUploader {
                     .setTenancy(Tenancy.forNumber(riData.getInstanceTenancy().getNumber()))
                     .setOs(CloudCostUtils.platformToOSType(riData.getPlatform()));
 
-            if (riData.hasInstanceSizeFlexible()) {
-                reservedInstanceSpecInfo.setSizeFlexible(riData.getInstanceSizeFlexible());
-            }
-            if (riData.hasPlatformFlexible()) {
-                reservedInstanceSpecInfo.setPlatformFlexible(riData.getPlatformFlexible());
-            }
+            reservedInstanceSpecInfo.setSizeFlexible(riData.getInstanceSizeFlexible());
+            reservedInstanceSpecInfo.setPlatformFlexible(riData.getPlatformFlexible());
+
             final ReservedInstanceSpecInfo riSpecInfo = reservedInstanceSpecInfo.build();
             if (!riSpecInfoToInternalId.containsKey(riSpecInfo)) {
                 // Generate reserved instance spec id.
