@@ -219,10 +219,14 @@ public class CostRpcService extends CostServiceImplBase {
                     costByIdMap.forEach((entityId, entityCost) -> {
                         beforeEntityCostbyOid.put(entityId, entityCost);
             }));
-            Map<Long, EntityCost> afterEntityCostbyOid = isPlanRequest ?
-                    planProjectedEntityCostStore
-                            .getPlanProjectedEntityCosts(entityOids, request.getTopologyContextId()) :
-                    projectedEntityCostStore.getProjectedEntityCosts(entityOids);
+            final Map<Long, EntityCost> afterEntityCostbyOid;
+            if (isPlanRequest) {
+                afterEntityCostbyOid = planProjectedEntityCostStore
+                        .getPlanProjectedEntityCosts(entityOids, request.getTopologyContextId());
+            } else {
+                final EntityCostFilterBuilder filterBuilder = createEntityCostFilter(request);
+                afterEntityCostbyOid = projectedEntityCostStore.getProjectedEntityCosts(filterBuilder.build());
+            }
             Map<Long, CurrencyAmount> beforeCurrencyAmountByOid = new HashMap<>();
             Map<Long, CurrencyAmount> afterCurrencyAmountByOid = new HashMap<>();
             for (Map.Entry<Long, EntityCost> entry : beforeEntityCostbyOid.entrySet()) {
@@ -262,6 +266,7 @@ public class CostRpcService extends CostServiceImplBase {
                     .asException());
         }
     }
+
     /**
      * {@inheritDoc}
      */
@@ -799,6 +804,19 @@ public class CostRpcService extends CostServiceImplBase {
             filterBuilder.regionIds(request.getRegionFilter().getRegionIdList());
         }
 
+        return filterBuilder;
+    }
+
+    @Nonnull
+    private EntityCostFilterBuilder createEntityCostFilter(@Nonnull final GetTierPriceForEntitiesRequest request) {
+        EntityCostFilterBuilder filterBuilder = EntityCostFilterBuilder
+                .newBuilder(TimeFrame.LATEST, request.getTopologyContextId());
+        filterBuilder.entityIds(request.getOidsList());
+        if (request.hasCostCategory()) {
+            CostCategoryFilter costCategoryFilter = CostCategoryFilter.newBuilder()
+                    .addCostCategory(request.getCostCategory()).build();
+            filterBuilder.costCategoryFilter(costCategoryFilter);
+        }
         return filterBuilder;
     }
 

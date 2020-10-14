@@ -958,7 +958,7 @@ public class CostRpcServiceTest {
         afterEntityCostbyOid.put(2L, entityCost1);
         afterEntityCostbyOid.put(3L, entityCost3);
 
-        given(projectedEntityCostStore.getProjectedEntityCosts(anySet())).willReturn(afterEntityCostbyOid);
+        given(projectedEntityCostStore.getProjectedEntityCosts(any(EntityCostFilter.class))).willReturn(afterEntityCostbyOid);
         given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
                 beforeEntityCostbyOid));
 
