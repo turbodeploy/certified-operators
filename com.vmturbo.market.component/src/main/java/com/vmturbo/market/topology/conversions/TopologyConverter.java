@@ -240,6 +240,8 @@ public class TopologyConverter {
 
     private Status costNotificationStatus = Status.UNKNOWN;
 
+    private final Gson gson = new Gson();
+
     /**
      * A non-shop-together TopologyConverter.
      *
@@ -2859,7 +2861,7 @@ public class TopologyConverter {
         Optional<ScalingGroupUsage> scalingGroupUsage =
             consistentScalingHelper.getScalingGroupUsage(topologyEntity.getOid());
         // used for the case when a plan VM is unplaced
-        Map<Long, Long> providers = oldProviders(topologyEntity);
+        Map<Long, Long> providers = TopologyDTOUtil.parseOldProvidersMap(topologyEntity, gson);
         List<ShoppingListTO> shoppingLists = new ArrayList<>();
         Long computeTierProviderId = null;
         // Sort the commBoughtGroupings based on provider type and then by volume id so
@@ -2993,10 +2995,10 @@ public class TopologyConverter {
                                 .isCommodityConsistentlyScalable(commBought.getCommodityType())) {
                             continue;
                         }
-                        final List<Pair<Float, Float>> boughtQuantities =
+                        final List<UsedAndPeak> boughtQuantities =
                                 getCommBoughtQuantities(topologyEntity,
                                 commBought, providerId.first);
-                        usage.addUsage(commBought, boughtQuantities.get(0));
+                        usage.addUsage(commBought, boughtQuantities.get(0).used);
                     }
                     // We've processed the grouping with the compute tier provider, so we're done.
                     break;
@@ -3021,30 +3023,6 @@ public class TopologyConverter {
     private boolean includeByType(int entityType) {
         return includeGuaranteedBuyer
             || !MarketAnalysisUtils.GUARANTEED_BUYER_TYPES.contains(entityType);
-    }
-
-    /**
-     * Extract the old providers mapping. When creating a copy of an entity in
-     * a plan, we "un-place" the entity by changing the provider oids in the
-     * cloned shopping lists to oids that do not exist in the topology. But we
-     * still need to know who were the original providers (for the purpose of
-     * creating bicliques). This map provides the mapping between the provider
-     * oids in the cloned object and the provider oids in the source object.
-     *
-     * @param topologyEntity a buyer in the topology
-     * @return map from provider oids in the cloned shopping list and
-     * the source shopping lists. If the entity is not a clone in a plan
-     * then the map is empty.
-     */
-    private Map<Long, Long> oldProviders(TopologyEntityDTO topologyEntity) {
-        // TODO: OM-26631 - get rid of unstructured data and Gson
-        @SuppressWarnings("unchecked")
-        Map<String, Double> oldProviders = new Gson().fromJson(
-            topologyEntity.getEntityPropertyMapMap()
-                .getOrDefault("oldProviders", EMPTY_JSON), Map.class);
-        return oldProviders.entrySet().stream()
-            .collect(Collectors.toMap(e -> Long.decode(e.getKey()),
-                e -> e.getValue().longValue()));
     }
 
     /**
@@ -3123,7 +3101,7 @@ public class TopologyConverter {
         if (isProviderUnknownOrFailover) {
             logger.debug("Making movable false for shoppingList of entity {} which has provider " +
                 "{} in UNKNOWN/FAILOVER state",
-                    entityForSL.getDisplayName(), skippedEntities.get(providerOid).getDisplayName());
+                entityForSL::getDisplayName, () -> skippedEntities.get(providerOid).getDisplayName());
         }
         // For Migrate to Cloud it doesn't matter if the current provider is not healthy
         boolean isMovable = !isProviderUnknownOrFailover
@@ -3528,7 +3506,7 @@ public class TopologyConverter {
             final TopologyEntityDTO buyer,
             CommodityBoughtDTO topologyCommBought, @Nullable final Long providerOid,
             final Optional<ScalingGroupUsage> scalingGroupUsage) {
-        List<Pair<Float, Float>> quantityList = getCommBoughtQuantities(buyer, topologyCommBought,
+        List<UsedAndPeak> quantityList = getCommBoughtQuantities(buyer, topologyCommBought,
                 providerOid, scalingGroupUsage);
         int slots =
                 (topologyCommBought.hasHistoricalUsed() &&
@@ -3540,9 +3518,9 @@ public class TopologyConverter {
         List<CommodityDTOs.CommodityBoughtTO> boughtTOs = new ArrayList<>();
         int index = 0;
         for (CommoditySpecificationTO spec: commoditySpecs) {
-            Pair<Float, Float> quantities = quantityList.get(index++);
-            float quantity = quantities.first.floatValue();
-            float peakQuantity = quantities.second.floatValue();
+            UsedAndPeak quantities = quantityList.get(index++);
+            float quantity = quantities.used;
+            float peakQuantity = quantities.peak;
             CommodityBoughtTO.Builder builder = CommodityDTOs.CommodityBoughtTO.newBuilder().setSpecification(spec);
             final int commodityType = topologyCommBought.getCommodityType().getType();
             // Add old capacity for cloud volume shoppingList.
@@ -3592,7 +3570,7 @@ public class TopologyConverter {
             boughtTOs.add(builder.build());
         }
         logger.debug("Created {} bought commodity TOs for {}",
-                boughtTOs.size(), topologyCommBought);
+            boughtTOs::size, () -> topologyCommBought);
         return boughtTOs;
     }
 
@@ -3606,7 +3584,7 @@ public class TopologyConverter {
      * @param scalingGroupUsage pre-calculated scaling group usage, if available.
      * @return a list of a pairs, each pair with the used and peak values.
      */
-    private List<Pair<Float, Float>> getCommBoughtQuantities(
+    private List<UsedAndPeak> getCommBoughtQuantities(
             final TopologyEntityDTO buyer,
             final CommodityBoughtDTO topologyCommBought,
             @Nullable final Long providerOid,
@@ -3616,20 +3594,20 @@ public class TopologyConverter {
                     .getUsageForCommodity(topologyCommBought);
             if (cachedUsage.isPresent()) {
                 final Float usage = cachedUsage.get().floatValue();
-                return ImmutableList.of(new Pair<>(usage, usage));
+                return Collections.singletonList(new UsedAndPeak(usage, usage));
             }
         }
         return getCommBoughtQuantities(buyer, topologyCommBought, providerOid);
     }
 
-    private List<Pair<Float, Float>> getCommBoughtQuantities(final TopologyEntityDTO buyer,
+    private List<UsedAndPeak> getCommBoughtQuantities(final TopologyEntityDTO buyer,
                                                              CommodityBoughtDTO topologyCommBought,
                                                              @Nullable final Long providerOid) {
 
         final float[][] newQuantity = getResizedCapacity(buyer, topologyCommBought, providerOid);
         float[] usedQuantities = newQuantity[0];
         float[] peakQuantities = newQuantity[1];
-        List<Pair<Float, Float>> newQuantityList = new ArrayList<>();
+        List<UsedAndPeak> newQuantityList = new ArrayList<>();
         if (newQuantity.length == 0) {
             logger.warn("Received  empty resized quantities for {}", topologyCommBought);
             return newQuantityList;
@@ -3646,8 +3624,7 @@ public class TopologyConverter {
             usedQuantity *= topologyCommBought.getScalingFactor();
             float peakQuantity = getQuantity(index, peakQuantities, topologyCommBought, "peak");
             peakQuantity *= topologyCommBought.getScalingFactor();
-            newQuantityList.add(new Pair(Float.valueOf(usedQuantity),
-                    Float.valueOf(peakQuantity)));
+            newQuantityList.add(new UsedAndPeak(usedQuantity, peakQuantity));
         }
         return newQuantityList;
     }
@@ -4040,7 +4017,7 @@ public class TopologyConverter {
                         .collect(Collectors.toSet());
                 logger.debug("Remove following ShoppingListTOs {} from cloudVmComputeShoppingListIDs, because traderTO {} is skipped",
                         () -> shoppingListsOids.stream().map(String::valueOf).collect(Collectors.joining(",")),
-                        () -> traderTO.getDebugInfoNeverUseInCode());
+                    traderTO::getDebugInfoNeverUseInCode);
                 cloudVmComputeShoppingListIDs.removeAll(shoppingListsOids);
 
             }
@@ -4132,13 +4109,13 @@ public class TopologyConverter {
      * @return providerUsedSubtractionMap
      */
     @VisibleForTesting
-    Map<Long, Map<TopologyDTO.CommodityType, Pair<Double, Double>>> createProviderUsedSubtractionMap(
+    Map<Long, Map<TopologyDTO.CommodityType, UsedAndPeak>> createProviderUsedSubtractionMap(
             final Map<Long, TopologyEntityDTO> entityOidToDto, final Set<Long> oidsToRemove) {
         if (oidsToRemove.isEmpty()) {
             return Collections.emptyMap();
         }
 
-        final Map<Long, Map<TopologyDTO.CommodityType, Pair<Double, Double>>> providerUsedSubtractionMap = new HashMap<>();
+        final Map<Long, Map<TopologyDTO.CommodityType, UsedAndPeak>> providerUsedSubtractionMap = new HashMap<>();
         for (long oid : oidsToRemove) {
             final TopologyEntityDTO entity = entityOidToDto.get(oid);
             for (CommoditiesBoughtFromProvider commBoughtProvider : entity.getCommoditiesBoughtFromProvidersList()) {
@@ -4153,17 +4130,17 @@ public class TopologyConverter {
                     if (commBought.getCommodityType().hasKey()) {
                         continue;
                     }
-                    final Map<TopologyDTO.CommodityType, Pair<Double, Double>> commodityUsed =
+                    final Map<TopologyDTO.CommodityType, UsedAndPeak> commodityUsed =
                         providerUsedSubtractionMap.computeIfAbsent(commBoughtProvider.getProviderId(),
                             key -> new HashMap<>());
-                    final List<Pair<Float, Float>> quantityList =
+                    final List<UsedAndPeak> quantityList =
                         getCommBoughtQuantities(entity, commBought, provider.getOid());
                     // The size of quantityList is greater than 1 only when the commBought is a time slot commodity.
                     if (quantityList.size() >= 1) {
-                        Pair<Double, Double> currentVal = commodityUsed.containsKey(commBought.getCommodityType())
-                            ? commodityUsed.get(commBought.getCommodityType()) : new Pair<>(0.0d, 0.0d);
-                        commodityUsed.put(commBought.getCommodityType(), new Pair<>(currentVal.first + quantityList.get(0).first,
-                                currentVal.second + quantityList.get(0).second));
+                        UsedAndPeak currentVal = commodityUsed.containsKey(commBought.getCommodityType())
+                            ? commodityUsed.get(commBought.getCommodityType()) : new UsedAndPeak(0.0f, 0.0f);
+                        commodityUsed.put(commBought.getCommodityType(), new UsedAndPeak(
+                            currentVal.used + quantityList.get(0).used, currentVal.peak + quantityList.get(0).peak));
                     }
                 }
             }
@@ -4337,5 +4314,30 @@ public class TopologyConverter {
                             .addCongestedCommodities(iopsReasonCommodity)).build();
         }
         return null;
+    }
+
+    /**
+     * A small helper class that contains float values for used and peak quantities.
+     */
+    static class UsedAndPeak {
+        /**
+         * The used quantity.
+         */
+        public final float used;
+        /**
+         * The peak quantity.
+         */
+        public final float peak;
+
+        /**
+         * Create a new {@link UsedAndPeak}.
+         *
+         * @param used The used value.
+         * @param peak The peak value.
+         */
+        UsedAndPeak(final float used, final float peak) {
+            this.used = used;
+            this.peak = peak;
+        }
     }
 }

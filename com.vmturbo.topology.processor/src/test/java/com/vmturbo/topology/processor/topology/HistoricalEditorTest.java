@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -436,7 +437,8 @@ public class HistoricalEditorTest {
             -2L, HistoricalValues.getDefaultInstance(), HistoricalValues.getDefaultInstance())
             .setClonedFromEntity(origin.getEntityBuilder());
         final Map<Long, Long> oldProvidersMap = ImmutableMap.of(-1L, 101L, -2L, 102L);
-        clone.getEntityBuilder().putEntityPropertyMap("oldProviders", new Gson().toJson(oldProvidersMap));
+        clone.getEntityBuilder().putEntityPropertyMap(TopologyDTOUtil.OLD_PROVIDERS,
+            new Gson().toJson(oldProvidersMap));
 
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(
             ImmutableMap.of(origin.getOid(), origin, clone.getOid(), clone));

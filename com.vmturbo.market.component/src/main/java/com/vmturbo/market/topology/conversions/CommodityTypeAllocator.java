@@ -128,7 +128,7 @@ public class CommodityTypeAllocator {
                             .build());
             commoditySpecMap.put(commodityType, topologyCommodityType);
             logger.debug("Added commodity spec {} for {}",
-                    economyCommodity, topologyCommodityType);
+                economyCommodity::toString, () -> topologyCommodityType);
             specs.add(economyCommodity);
         }
         return specs;

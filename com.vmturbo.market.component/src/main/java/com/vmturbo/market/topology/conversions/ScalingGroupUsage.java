@@ -88,14 +88,13 @@ public class ScalingGroupUsage {
      * Add usage for a commodity bought by a scaling group member and track the maximum usage for
      * the group.
      * @param commBought commodity bought
-     * @param commBoughtQuantities a pair of quantities (used, peak used).  We do not level the
-     *                             peak used, so it is ignored at this time.
+     * @param commBoughtUsed The commodity bought used value.
      */
     public void addUsage(final CommodityBoughtDTO commBought,
-                         final Pair<Float, Float> commBoughtQuantities) {
+                         final float commBoughtUsed) {
         Integer commodityType = commBought.getCommodityType().getType();
         Double currentUsage = topUsage_.getOrDefault(commodityType, 0D);
-        Double newUsage = Math.max(currentUsage, commBoughtQuantities.first);
+        Double newUsage = Math.max(currentUsage, commBoughtUsed);
         topUsage_.put(commodityType, newUsage);
         if (logger.isTraceEnabled()) {
             logger.trace("Adding precalculated usage for commodity {} to scaling group {}, used = {}, new max used = {}",

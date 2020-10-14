@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -58,6 +59,8 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
     private static final String RDM = "RDM";
 
     private final CpuCapacityServiceBlockingStub cpuCapacityService;
+
+    private static final Gson GSON = new Gson();
 
     /**
      * Creates an object uses for converting templates into TopologyEntityDTO.Builder.
@@ -123,7 +126,7 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
         Map<String, String> entityProperties = Maps.newHashMap();
         if (!oldProvidersMap.isEmpty()) {
             // TODO: OM-26631 - get rid of unstructured data and Gson
-            entityProperties.put("oldProviders", new Gson().toJson(oldProvidersMap));
+            entityProperties.put(TopologyDTOUtil.OLD_PROVIDERS, GSON.toJson(oldProvidersMap));
         }
         topologyEntityBuilder.putAllEntityPropertyMap(entityProperties);
     }

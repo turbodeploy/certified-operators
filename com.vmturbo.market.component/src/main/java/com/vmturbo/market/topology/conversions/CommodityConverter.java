@@ -37,6 +37,7 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCategory;
+import com.vmturbo.market.topology.conversions.TopologyConverter.UsedAndPeak;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO.Builder;
@@ -65,7 +66,7 @@ public class CommodityConverter {
     private final ConsistentScalingHelper consistentScalingHelper;
 
     // provider oid -> commodity type -> used value of all consumers to be removed of this provider
-    private Map<Long, Map<CommodityType, Pair<Double, Double>>> providerUsedSubtractionMap = Collections.emptyMap();
+    private Map<Long, Map<CommodityType, UsedAndPeak>> providerUsedSubtractionMap = Collections.emptyMap();
 
     CommodityConverter(@Nonnull final NumericIDAllocator idAllocator,
                        final boolean includeGuaranteedBuyer,
@@ -159,7 +160,7 @@ public class CommodityConverter {
         // Subtract used value of consumers from used value of provider.
         // This can only happen in a plan with entities to remove.
         if (shouldSubtractUsageAndPeak) {
-            used -= providerUsedSubtractionMap.get(dto.getOid()).get(topologyCommSold.getCommodityType()).first;
+            used -= providerUsedSubtractionMap.get(dto.getOid()).get(topologyCommSold.getCommodityType()).used;
         }
 
         final int type = commodityType.getType();
@@ -299,7 +300,7 @@ public class CommodityConverter {
         // Subtract peak value of consumers from peak value of provider.
         // This can only happen in a plan with entities to remove.
         if (shouldSubtractUsageAndPeak) {
-            peak -= providerUsedSubtractionMap.get(dto.getOid()).get(topologyCommSold.getCommodityType()).second;
+            peak -= providerUsedSubtractionMap.get(dto.getOid()).get(topologyCommSold.getCommodityType()).peak;
         }
 
         if (peak < used) {
@@ -694,11 +695,11 @@ public class CommodityConverter {
      *
      * @param providerUsedSubtractionMap providerUsedSubtractionMap
      */
-    void setProviderUsedSubtractionMap(final Map<Long, Map<CommodityType, Pair<Double, Double>>> providerUsedSubtractionMap) {
+    void setProviderUsedSubtractionMap(final Map<Long, Map<CommodityType, UsedAndPeak>> providerUsedSubtractionMap) {
         this.providerUsedSubtractionMap = providerUsedSubtractionMap;
     }
 
-    Map<Long, Map<CommodityType, Pair<Double, Double>>> getProviderUsedSubtractionMap() {
+    Map<Long, Map<CommodityType, UsedAndPeak>> getProviderUsedSubtractionMap() {
         return this.providerUsedSubtractionMap;
     }
 

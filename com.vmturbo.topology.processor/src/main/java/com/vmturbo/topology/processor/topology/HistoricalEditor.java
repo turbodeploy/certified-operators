@@ -82,6 +82,8 @@ public class HistoricalEditor {
 
     private boolean isPlan;
 
+    private static final Gson GSON = new Gson();
+
     /**
      * A metric that tracks the time taken to load the historical used and peak values.
      */
@@ -872,13 +874,9 @@ public class HistoricalEditor {
 
         // Get the providerOidOfClonedEntity to providerOidOfOriginalEntity map.
         @SuppressWarnings("unchecked")
-        final Map<String, Double> oldProviders = new Gson().fromJson(clonedEntityBuilder
-            .getEntityPropertyMapMap().getOrDefault("oldProviders", EMPTY_JSON), Map.class);
         final Map<Long, Long> oldProvidersMap;
         try {
-            oldProvidersMap = oldProviders.entrySet().stream()
-                .collect(Collectors.toMap(e -> Long.decode(e.getKey()),
-                    e -> e.getValue().longValue()));
+            oldProvidersMap = TopologyDTOUtil.parseOldProvidersMap(clonedEntityBuilder, GSON);
         } catch (NumberFormatException e) {
             logger.error("Failed to get oldProvidersMap.", e);
             return;

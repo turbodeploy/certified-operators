@@ -71,6 +71,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -564,10 +565,7 @@ public class TopologyEditorTest {
 
         // "oldProviders" entry in EntityPropertyMap captures the right placement
         @SuppressWarnings("unchecked")
-        Map<String, Double> oldProviders = new Gson().fromJson(
-                oneClone.getEntityPropertyMapMap().get("oldProviders"), Map.class);
-        Map<Long, Long> oldProvidersMap = oldProviders.entrySet().stream().collect(
-                Collectors.toMap(e -> Long.decode(e.getKey()), e -> e.getValue().longValue()));
+        Map<Long, Long> oldProvidersMap = TopologyDTOUtil.parseOldProvidersMap(oneClone, new Gson());
         for (CommoditiesBoughtFromProvider cloneCommBought :
                 oneClone.getCommoditiesBoughtFromProvidersList()) {
             long oldProvider = oldProvidersMap.get(cloneCommBought.getProviderId());

@@ -723,7 +723,7 @@ public class TopologyEditor {
                 Maps.newHashMap(cloneBuilder.getEntityPropertyMapMap());
         if (!oldProvidersMap.isEmpty()) {
             // TODO: OM-26631 - get rid of unstructured data and Gson
-            entityProperties.put("oldProviders", new Gson().toJson(oldProvidersMap));
+            entityProperties.put(TopologyDTOUtil.OLD_PROVIDERS, new Gson().toJson(oldProvidersMap));
         }
         return cloneBuilder
                 .setDisplayName(entity.getDisplayName() + " - Clone #" + cloneCounter)

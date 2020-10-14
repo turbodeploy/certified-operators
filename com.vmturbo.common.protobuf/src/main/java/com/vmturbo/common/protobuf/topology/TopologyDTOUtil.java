@@ -6,6 +6,7 @@ import static com.vmturbo.platform.common.builders.SDKConstants.FREE_STORAGE_CLU
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -19,6 +20,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.gson.Gson;
 
 import org.apache.commons.lang3.StringUtils;
 
@@ -36,6 +38,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
@@ -110,6 +113,11 @@ public final class TopologyDTOUtil {
 
     // One percent represented as a fraction.
     public static final double ONE_PERCENT = 0.01;
+
+    /**
+     * String for the old providers key in the entity properties map.
+     */
+    public static final String OLD_PROVIDERS = "oldProviders";
 
     private TopologyDTOUtil() {
     }
@@ -459,6 +467,41 @@ public final class TopologyDTOUtil {
      */
     public static String getProjectedTopologyLabel(@Nonnull final TopologyInfo topologyInfo) {
         return getTopologyInfoSummary(topologyInfo, true);
+    }
+
+    /**
+     * Parse the unstructured JSON for the old providers map out of the entity properties map
+     * on the TopologyEntityDTO.
+     * <p/>
+     * Extract the old providers mapping. When creating a copy of an entity in
+     * a plan, we "un-place" the entity by changing the provider oids in the
+     * cloned shopping lists to oids that do not exist in the topology. But we
+     * still need to know who were the original providers (for the purpose of
+     * creating bicliques). This map provides the mapping between the provider
+     * oids in the cloned object and the provider oids in the source object.
+     * TODO: OM-26631 - get rid of unstructured data and Gson
+     *
+     * @param entity The TopologyEntityDTO containing the entity properties map.
+     * @param gson The GSON object to use for parsing.
+     *             Performance Note: Do NOT create a new GSON object each time you call
+     *             this method in a loop. Cache the GSON because creating a new one is expensive.
+     * @return map from provider oids in the cloned shopping list and
+     * the source shopping lists. If the entity is not a clone in a plan
+     * then the map is empty.
+     * @throws NumberFormatException If number parsing fails.
+     */
+    public static Map<Long, Long> parseOldProvidersMap(@Nonnull final TopologyEntityDTOOrBuilder entity,
+                                                       @Nonnull final Gson gson) {
+        final String oldProvidersString = entity.getEntityPropertyMapMap().get(OLD_PROVIDERS);
+        if (oldProvidersString == null) {
+            return Collections.emptyMap();
+        } else {
+            @SuppressWarnings("unchecked")
+            final Map<String, Double> oldProviders = gson.fromJson(oldProvidersString, Map.class);
+            return oldProviders.entrySet().stream()
+                .collect(Collectors.toMap(e -> Long.decode(e.getKey()),
+                    e -> e.getValue().longValue()));
+        }
     }
 
     private static String getTopologyInfoSummary(TopologyInfo topologyInfo, boolean projected) {

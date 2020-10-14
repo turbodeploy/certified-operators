@@ -80,6 +80,7 @@ import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.market.topology.conversions.TopologyConverter.UsedAndPeak;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
@@ -2079,7 +2080,7 @@ public class TopologyConverterToMarketTest {
             marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher);
 
-        final Map<Long, Map<CommodityType, Pair<Double, Double>>> result =
+        final Map<Long, Map<CommodityType, UsedAndPeak>> result =
             converter.createProviderUsedSubtractionMap(ImmutableMap.of(pm.getOid(), pm,
                 removedVM1.getOid(), removedVM1, removedVM2.getOid(), removedVM2),
                 ImmutableSet.of(removedVM1.getOid(), removedVM2.getOid()));
@@ -2087,7 +2088,7 @@ public class TopologyConverterToMarketTest {
         assertEquals(1, result.size());
         assertEquals(1, result.get(pm.getOid()).size());
         assertEquals(used1 * scalingFactor1 + used2 * scalingFactor2,
-            result.get(pm.getOid()).get(commodityType).first, 10e-7);
+            result.get(pm.getOid()).get(commodityType).used, 10e-7);
     }
 
     /**
