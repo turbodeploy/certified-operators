@@ -6,10 +6,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -18,12 +15,10 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -69,7 +64,7 @@ public class AnalysisDiagnosticsCollectorTest {
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
     private static final Charset CHARSET = StandardCharsets.UTF_8;
 
-    private Set<TraderTO> traderTOs = new HashSet<>();
+    private List<TraderTO> traderTOs = new ArrayList<>();
     private Optional<AnalysisConfig> analysisConfig = Optional.empty();
     private Optional<TopologyInfo> topologyInfo = Optional.empty();
     private Optional<SMAInput> smaInput = Optional.empty();
@@ -272,7 +267,7 @@ public class AnalysisDiagnosticsCollectorTest {
 
             smaInput = Optional.of(new SMAInput(smaInputContexts));
 
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.error("Could not extract from file {}.", unzippedSMADiagsLocation, e);
         }
     }
@@ -286,12 +281,7 @@ public class AnalysisDiagnosticsCollectorTest {
                 String fileName = path.getFileName().toString();
                 switch (fileName) {
                     case AnalysisDiagnosticsCollector.TRADER_DIAGS_FILE_NAME:
-                        FileInputStream fi = new FileInputStream(new File(path.toString()));
-                        ObjectInputStream oi = new ObjectInputStream(fi);
-                        // Read objects
-                        traderTOs = (HashSet<TraderTO>)(oi.readObject());
-                        oi.close();
-                        fi.close();
+                        traderTOs = extractMultipleInstancesOfType(path, TraderTO.class);
                         break;
                     case AnalysisDiagnosticsCollector.ANALYSIS_CONFIG_DIAGS_FILE_NAME:
                         analysisConfig = extractSingleInstanceOfType(path, AnalysisConfig.class);
@@ -307,7 +297,7 @@ public class AnalysisDiagnosticsCollectorTest {
                         break;
                 }
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             logger.error("Could not extract from file {}.", unzippedAnalysisDiagsLocation, e);
         }
     }

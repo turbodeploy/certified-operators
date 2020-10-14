@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
-import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
@@ -25,7 +24,6 @@ import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration.Verbosity;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.market.api.MarketApiConfig;
 import com.vmturbo.market.rpc.MarketRpcConfig;
-import com.vmturbo.market.runner.MarketRunnerConfig;
 import com.vmturbo.market.topology.PlanOrchestratorConfig;
 import com.vmturbo.market.topology.TopologyListenerConfig;
 import com.vmturbo.trax.TraxConfiguration;
@@ -42,16 +40,12 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     PlanOrchestratorConfig.class,
     MarketApiConfig.class,
     SpringSecurityConfig.class,
-    MarketRpcConfig.class,
-    MarketRunnerConfig.class
+    MarketRpcConfig.class
 })
 public class MarketComponent extends BaseVmtComponent {
 
     @Autowired
     private MarketApiConfig marketApiConfig;
-
-    @Autowired
-    private MarketRunnerConfig marketRunnerConfig;
 
     @Autowired
     private MarketGlobalConfig marketGlobalConfig;
@@ -105,10 +99,4 @@ public class MarketComponent extends BaseVmtComponent {
     public List<ServerInterceptor> getServerInterceptors() {
         return Collections.singletonList(new JwtServerInterceptor(securityConfig.apiAuthKVStore()));
     }
-
-    @Override
-    protected void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
-        marketRunnerConfig.diagsHandler().dump(diagnosticZip);
-    }
-
 }

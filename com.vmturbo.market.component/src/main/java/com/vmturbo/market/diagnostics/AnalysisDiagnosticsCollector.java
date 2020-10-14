@@ -1,10 +1,7 @@
 package com.vmturbo.market.diagnostics;
 
-import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.ObjectOutputStream;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -43,7 +40,7 @@ public class AnalysisDiagnosticsCollector {
     @VisibleForTesting
     static final String ADJUST_OVERHEAD_DIAGS_FILE_NAME = "CommSpecsToAdjustOverhead.diags";
     @VisibleForTesting
-    static final String SMAINPUT_FILE_NAME = "SMAInput.diags";
+    static final String SMAINPUT_FILE_NAME_SUFFIX = "SMAInput.diags";
     @VisibleForTesting
     static final String ACTIONS_FILE_NAME = "Actions.csv";
     @VisibleForTesting
@@ -55,17 +52,13 @@ public class AnalysisDiagnosticsCollector {
     @VisibleForTesting
     static final String SMA_TEMPLATE_PREFIX = "Template";
 
-
-    static final String ANALYSIS_DIAGS_DIRECTORY = "tmp/";
-    static final String SMA_ZIP_LOCATION_PREFIX = "sma";
-    static final String M2_ZIP_LOCATION_PREFIX = "analysis";
-    static final String ACTION_ZIP_LOCATION_PREFIX = "action";
-    static final String ANALYSIS_DIAGS_SUFFIX = "Diags-";
+    static final String SMA_ZIP_LOCATION_PREFIX = "tmp/smaDiags-";
+    static final String M2_ZIP_LOCATION_PREFIX = "tmp/analysisDiags-";
+    static final String ACTION_ZIP_LOCATION_PREFIX = "tmp/actionDiags-";
 
     private static final Logger logger = LogManager.getLogger();
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
     private final DiagnosticsWriter diagsWriter;
-    private final ZipOutputStream diagnosticZip;
 
     /**
      * To identify which analysis diags we are saving.
@@ -87,22 +80,14 @@ public class AnalysisDiagnosticsCollector {
         ACTIONS;
     }
 
-    /**
-     * AnalysisDiagnosticsCollector constructor.
-     *
-     * @param diagsWriter   the diagnostics writer.
-     * @param diagnosticZip the zip output stream.
-     */
-    private AnalysisDiagnosticsCollector(DiagnosticsWriter diagsWriter,
-                                         ZipOutputStream diagnosticZip) {
+    private AnalysisDiagnosticsCollector(DiagnosticsWriter diagsWriter) {
         this.diagsWriter = diagsWriter;
-        this.diagnosticZip = diagnosticZip;
     }
 
     /**
      * Save SMA and M2 cloud VM compute actions.
      *
-     * @param actionLogs   list of actions.
+     * @param actionLogs list of actions.
      * @param topologyInfo topology info
      */
     public void saveActions(List<String> actionLogs,
@@ -119,51 +104,53 @@ public class AnalysisDiagnosticsCollector {
         } catch (Exception e) {
             // Analysis should not stop because there was an error in saving diags.
             logger.error("Error when attempting to save Actions. But analysis will continue.", e);
-        } finally {
-            try {
-                diagnosticZip.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
         }
     }
+
+
+
 
 
     /**
      * Save SMA Input data.
      *
-     * @param smaInput     smaInput to save
+     * @param smaInput smaInput to save
      * @param topologyInfo topology info
      */
     public void saveSMAInput(final SMAInput smaInput,
                              final TopologyInfo topologyInfo) {
-        final Stopwatch stopwatch = Stopwatch.createStarted();
-        smaInput.getContexts().stream().forEach(a -> a.compress());
         try {
             logger.info("Starting dump of SMA diagnostics for topology context id {}",
                     topologyInfo.getTopologyContextId());
+            final Stopwatch stopwatch = Stopwatch.createStarted();
+            smaInput.getContexts().stream().forEach(a -> a.compress());
             for (int contextIndex = 0; contextIndex < smaInput.getContexts().size(); contextIndex++) {
                 SMAInputContext inputContext = smaInput.getContexts().get(contextIndex);
                 writeAnalysisDiagsEntry(diagsWriter, inputContext.getReservedInstances().stream(),
                         SMA_RESERVED_INSTANCE_PREFIX + "_" + contextIndex + "_"
-                                + SMAINPUT_FILE_NAME,
+                                + SMAINPUT_FILE_NAME_SUFFIX,
                         inputContext.getReservedInstances().size()
                                 + " Reserved Instances" + " contextID: " + contextIndex);
                 writeAnalysisDiagsEntry(diagsWriter, inputContext.getVirtualMachines().stream(),
                         SMA_VIRTUAL_MACHINE_PREFIX + "_" + contextIndex + "_"
-                                + SMAINPUT_FILE_NAME,
+                                + SMAINPUT_FILE_NAME_SUFFIX,
                         inputContext.getVirtualMachines().size()
                                 + " Virtual Machines" + " contextID: " + contextIndex);
                 writeAnalysisDiagsEntry(diagsWriter, inputContext.getTemplates().stream(),
                         SMA_TEMPLATE_PREFIX + "_" + contextIndex + "_"
-                                + SMAINPUT_FILE_NAME,
+                                + SMAINPUT_FILE_NAME_SUFFIX,
                         inputContext.getTemplates().size()
                                 + " Templates" + " contextID: " + contextIndex);
                 writeAnalysisDiagsEntry(diagsWriter, Stream.of(inputContext.getContext()),
                         SMA_CONTEXT_PREFIX + "_" + contextIndex + "_"
-                                + SMAINPUT_FILE_NAME,
+                                + SMAINPUT_FILE_NAME_SUFFIX,
                         "SMA Context" + " contextID: " + contextIndex);
             }
+            smaInput.getContexts().stream().forEach(a -> a.decompress());
+            stopwatch.stop();
+
+            logger.info("Completed dump of SMA diagnostics for topology context id {} in {} seconds",
+                    topologyInfo.getTopologyContextId(), stopwatch.elapsed(TimeUnit.SECONDS));
         } catch (StackOverflowError e) {
             // If any of the objects being converted to JSON have a circular reference, then it
             // can lead to a StackOverflowError. We only print the message of the exception because
@@ -172,25 +159,15 @@ public class AnalysisDiagnosticsCollector {
         } catch (Exception e) {
             // Analysis should not stop because there was an error in saving diags.
             logger.error("Error when attempting to save SMA diags. But analysis will continue.", e);
-        } finally {
-            try {
-                diagnosticZip.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            smaInput.getContexts().stream().forEach(a -> a.decompress());
-            stopwatch.stop();
-            logger.info("Completed dump of SMA diagnostics for topology context id {} in {} seconds",
-                    topologyInfo.getTopologyContextId(), stopwatch.elapsed(TimeUnit.SECONDS));
         }
     }
 
     /**
      * Save analysis data.
      *
-     * @param traderTOs                 traders
-     * @param topologyInfo              topology info
-     * @param analysisConfig            analysis config
+     * @param traderTOs traders
+     * @param topologyInfo topology info
+     * @param analysisConfig analysis config
      * @param commSpecsToAdjustOverhead commSpecsToAdjustOverhead
      */
     public void saveAnalysis(final Collection<TraderTO> traderTOs,
@@ -199,37 +176,32 @@ public class AnalysisDiagnosticsCollector {
                              final List<CommoditySpecification> commSpecsToAdjustOverhead) {
         try {
             logger.info("Starting dump of Analysis diagnostics for topology context id {}",
-                    topologyInfo.getTopologyContextId());
+                topologyInfo.getTopologyContextId());
             final Stopwatch stopwatch = Stopwatch.createStarted();
 
-            logger.info("Starting dump of TraderTOs");
-            try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                 ObjectOutputStream oos = new ObjectOutputStream(bos)) {
-                oos.writeObject(traderTOs);
-                oos.flush();
-                diagsWriter.writeZipEntry(TRADER_DIAGS_FILE_NAME, bos.toByteArray());
-            }
-            logger.info("Completed dump of TraderTOs");
+            writeAnalysisDiagsEntry(diagsWriter, traderTOs.stream(), TRADER_DIAGS_FILE_NAME,
+                traderTOs.size() + " TraderTOs");
 
             writeAnalysisDiagsEntry(diagsWriter, Stream.of(topologyInfo),
-                    TOPOLOGY_INFO_DIAGS_FILE_NAME, "TopologyInfo");
+                TOPOLOGY_INFO_DIAGS_FILE_NAME, "TopologyInfo");
 
             writeAnalysisDiagsEntry(diagsWriter, Stream.of(analysisConfig),
-                    ANALYSIS_CONFIG_DIAGS_FILE_NAME, "AnalysisConfig");
+                ANALYSIS_CONFIG_DIAGS_FILE_NAME, "AnalysisConfig");
 
             writeAnalysisDiagsEntry(diagsWriter, commSpecsToAdjustOverhead.stream(),
-                    ADJUST_OVERHEAD_DIAGS_FILE_NAME, commSpecsToAdjustOverhead.size()
-                            + " CommSpecsToAdjustOverhead");
+                ADJUST_OVERHEAD_DIAGS_FILE_NAME, commSpecsToAdjustOverhead.size()
+                    + " CommSpecsToAdjustOverhead");
 
             if (!diagsWriter.getErrors().isEmpty()) {
                 logger.error("Encountered {} errors. Check {} for details",
-                        diagsWriter.getErrors().size(), DiagnosticsHandler.ERRORS_FILE);
+                    diagsWriter.getErrors().size(), DiagnosticsHandler.ERRORS_FILE);
                 diagsWriter.writeZipEntry(DiagnosticsHandler.ERRORS_FILE,
-                        diagsWriter.getErrors().iterator());
+                    diagsWriter.getErrors().iterator());
             }
             stopwatch.stop();
+
             logger.info("Completed dump of Analysis diagnostics for topology context id {} in {} seconds",
-                    topologyInfo.getTopologyContextId(), stopwatch.elapsed(TimeUnit.SECONDS));
+                topologyInfo.getTopologyContextId(), stopwatch.elapsed(TimeUnit.SECONDS));
         } catch (StackOverflowError e) {
             // If any of the objects being converted to JSON have a circular reference, then it
             // can lead to a StackOverflowError. We only print the message of the exception because
@@ -238,28 +210,21 @@ public class AnalysisDiagnosticsCollector {
         } catch (Exception e) {
             // Analysis should not stop because there was an error in saving diags.
             logger.error("Error when attempting to save Analysis diags. But analysis will continue.", e);
-        } finally {
-            try {
-                diagnosticZip.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
         }
     }
 
     private <T> void writeAnalysisDiagsEntry(final DiagnosticsWriter diagsWriter,
-                                             final Stream<T> diagsEntries,
-                                             final String fileName,
-                                             final String logSuffix) {
+                                         final Stream<T> diagsEntries,
+                                         final String fileName,
+                                         final String logSuffix) {
         logger.info("Starting dump of {}", logSuffix);
-        diagsWriter.writeZipEntry(fileName, diagsEntries.map(d -> GSON.toJson(d)).iterator());
+        diagsWriter.writeZipEntry(fileName, diagsEntries.map(d ->  GSON.toJson(d)).iterator());
         logger.info("Completed dump of {}", logSuffix);
     }
 
     /**
      * Is saving of diags enabled? Currently, we need to make analysis.dto.logger to Debug or
      * higher to get the diags dumped. And currently, we do not export this when diags are exported.
-     *
      * @return true if analysis diags need to be saved, false otherwise
      */
     public static boolean isEnabled() {
@@ -272,7 +237,6 @@ public class AnalysisDiagnosticsCollector {
     public interface AnalysisDiagnosticsCollectorFactory {
         /**
          * Create a new {@link AnalysisDiagnosticsCollector}.
-         *
          * @param topologyInfo the topologyInfo
          * @param analysisMode collecting sma diags if mode is SMA
          * @return new instance of{@link AnalysisDiagnosticsCollector}
@@ -285,7 +249,6 @@ public class AnalysisDiagnosticsCollector {
         class DefaultAnalysisDiagnosticsCollectorFactory implements AnalysisDiagnosticsCollectorFactory {
             /**
              * Returns a new {@link AnalysisDiagnosticsCollector}.
-             *
              * @param topologyInfo the topologyInfo
              * @param analysisMode collecting sma diags if mode is SMA
              * @return a new {@link AnalysisDiagnosticsCollector}
@@ -295,9 +258,8 @@ public class AnalysisDiagnosticsCollector {
                 AnalysisDiagnosticsCollector diagsCollector = null;
                 if (AnalysisDiagnosticsCollector.isEnabled()) {
                     try {
-                        ZipOutputStream diagnosticZip = createZipOutputStream(topologyInfo, analysisMode);
-                        DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
-                        diagsCollector = new AnalysisDiagnosticsCollector(diagsWriter, diagnosticZip);
+                        DiagnosticsWriter diagsWriter = createDiagnosticsWriter(topologyInfo, analysisMode);
+                        diagsCollector = new AnalysisDiagnosticsCollector(diagsWriter);
                     } catch (Exception e) {
                         logger.error("Error when attempting to write DTOs. But analysis will continue.", e);
                     }
@@ -305,8 +267,8 @@ public class AnalysisDiagnosticsCollector {
                 return Optional.ofNullable(diagsCollector);
             }
 
-            private ZipOutputStream createZipOutputStream(TopologyInfo topologyInfo, AnalysisMode analysisMode)
-                    throws FileNotFoundException {
+            private DiagnosticsWriter createDiagnosticsWriter(TopologyInfo topologyInfo, AnalysisMode analysisMode)
+                throws FileNotFoundException {
 
                 String zipPrefix = "";
                 if (analysisMode == AnalysisMode.SMA) {
@@ -317,15 +279,15 @@ public class AnalysisDiagnosticsCollector {
                     zipPrefix = ACTION_ZIP_LOCATION_PREFIX;
                 }
 
-                final String zipLocation = ANALYSIS_DIAGS_DIRECTORY + zipPrefix
-                        + ANALYSIS_DIAGS_SUFFIX
+                final String zipLocation = zipPrefix
                         + topologyInfo.getTopologyContextId()
                         + "-" + topologyInfo.getTopologyId()
                         + ".zip";
 
                 FileOutputStream fos = new FileOutputStream(zipLocation);
                 ZipOutputStream diagnosticZip = new ZipOutputStream(fos);
-                return diagnosticZip;
+                final DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
+                return diagsWriter;
             }
         }
     }
