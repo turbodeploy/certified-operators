@@ -10,8 +10,11 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity.Builder;
 
 /**
  * Controllable means that when there are some actions are executing, we should not let Market generate
@@ -33,32 +36,29 @@ public class ControllableManager {
     }
 
     /**
-     * First get all out of controllable entity ids, and change their TopologyEntityDTO controllable flag
-     * to false.
+     * First get all out of controllable entity ids, and change their TopologyEntityDTO controllable
+     * flag to false.
      *
-     * @param topology a Map contains all topology entities, and which key is entity Id, and value is
-     *                 {@link TopologyEntity.Builder}.
+     * @param topology a Map contains all topology entities, and which key is entity Id, and value
+     *                 is {@link TopologyEntity.Builder}.
      * @return Number of modified entities.
      */
     public int applyControllable(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
-        final AtomicInteger numModified = new AtomicInteger(0);
-        final Set<Long> entityIdsNotControllable =
-                entityActionDao.getNonControllableEntityIds();
-        entityIdsNotControllable.stream()
-                .filter(topology::containsKey)
-                .map(topology::get)
-                .map(TopologyEntity.Builder::getEntityBuilder)
-                .forEach(entityBuilder -> {
-                        if (entityBuilder.getAnalysisSettingsBuilder().getControllable()) {
-                            // It's currently controllable, and about to be marked
-                            // non-controllable.
-                            numModified.incrementAndGet();
-                        }
-                        entityBuilder.getAnalysisSettingsBuilder().setControllable(false);
-                        logger.trace("Applying controllable false for entity {}.",
-                                entityBuilder.getDisplayName());
-                });
-        return numModified.get();
+        int numModified = 0;
+        for (long entityOid : entityActionDao.getNonControllableEntityIds()) {
+            Builder builder = topology.get(entityOid);
+            if (builder != null) {
+                TopologyEntityDTO.Builder entityBuilder = builder.getEntityBuilder();
+                if (entityBuilder.getAnalysisSettingsBuilder().getControllable()) {
+                    // It's currently controllable, and about to be marked non-controllable.
+                    ++numModified;
+                } // end if
+                entityBuilder.getAnalysisSettingsBuilder().setControllable(false);
+                logger.trace("Applying controllable false for entity {}.",
+                    entityBuilder.getDisplayName());
+            } // end if
+        } // end foreach
+        return numModified;
     }
 
     /**
@@ -71,9 +71,7 @@ public class ControllableManager {
      */
     public int applySuspendable(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
         final AtomicInteger numModified = new AtomicInteger(0);
-        final Set<Long> entityIdsNotSuspendable =
-                entityActionDao.getNonSuspendableEntityIds();
-        entityIdsNotSuspendable.stream()
+        entityActionDao.getNonSuspendableEntityIds().stream()
             .filter(topology::containsKey)
             .map(topology::get)
             .map(TopologyEntity.Builder::getEntityBuilder)
@@ -100,9 +98,7 @@ public class ControllableManager {
      */
     public int applyScaleEligibility(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
         final AtomicInteger numModified = new AtomicInteger(0);
-        final Set<Long> ineligibleForResizeEntityIds =
-                entityActionDao.ineligibleForScaleEntityIds();
-        ineligibleForResizeEntityIds.stream()
+        entityActionDao.ineligibleForScaleEntityIds().stream()
                 .filter(topology::containsKey)
                 .map(topology::get)
                 .map(TopologyEntity.Builder::getEntityBuilder)
@@ -132,9 +128,7 @@ public class ControllableManager {
      */
     public int applyResizeDownEligibility(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
         final AtomicInteger numModified = new AtomicInteger(0);
-        final Set<Long> ineligibleForResizeEntityIds =
-                entityActionDao.ineligibleForResizeDownEntityIds();
-        ineligibleForResizeEntityIds.stream()
+        entityActionDao.ineligibleForResizeDownEntityIds().stream()
                 .filter(topology::containsKey)
                 .map(topology::get)
                 .map(TopologyEntity.Builder::getEntityBuilder)
