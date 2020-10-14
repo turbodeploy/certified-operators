@@ -199,7 +199,7 @@ public class SettingsMapperTest {
                 SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 (new SettingsManagerMappingLoader("settingManagersTest.json")).getMapping(),
                 (new SettingSpecStyleMappingLoader("settingSpecStyleTest.json")).getMapping(),
-                ScheduleServiceGrpc.newBlockingStub(grpcServer.getChannel()), scheduleMapper);
+                ScheduleServiceGrpc.newBlockingStub(grpcServer.getChannel()), scheduleMapper, true);
 
         final Map<String, SettingsManagerApiDTO> mgrsByUuid = mapper.toManagerDtos(
                 Arrays.asList(settingSpec1, SETTING_SPEC_3, SETTING_SPEC_4), Optional.empty(), false).stream()
@@ -926,7 +926,7 @@ public class SettingsMapperTest {
 
         final SettingServiceBlockingStub settingServiceClient =
                SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        return new DefaultSettingPolicyMapper(mapper, settingServiceClient);
+        return new DefaultSettingPolicyMapper(mapper, settingServiceClient, true);
     }
 
     @Test
@@ -941,7 +941,7 @@ public class SettingsMapperTest {
 
         final DefaultSettingPolicyMapper policyMapper =
                 new DefaultSettingPolicyMapper(mapper,
-                        SettingServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+                        SettingServiceGrpc.newBlockingStub(grpcServer.getChannel()), true);
 
         final long groupId = 7;
         final String groupName = "goat";
@@ -1208,7 +1208,7 @@ public class SettingsMapperTest {
         final SettingServiceBlockingStub settingServiceClient =
              SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final DefaultSettingPolicyMapper policyMapper =
-                new DefaultSettingPolicyMapper(mapper, settingServiceClient);
+                new DefaultSettingPolicyMapper(mapper, settingServiceClient, true);
 
         final String entityType = "testType";
         final Setting setting = Setting.newBuilder()

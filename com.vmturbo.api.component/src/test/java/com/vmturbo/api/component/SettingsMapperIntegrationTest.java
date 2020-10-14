@@ -99,7 +99,7 @@ public class SettingsMapperIntegrationTest {
                     GroupServiceGrpc.newBlockingStub(channel),
                     SettingPolicyServiceGrpc.newBlockingStub(channel),
                     settingsManagerMapping, settingSpecStyleMapping,
-                    ScheduleServiceGrpc.newBlockingStub(channel), new ScheduleMapper());
+                    ScheduleServiceGrpc.newBlockingStub(channel), new ScheduleMapper(), true);
         final SettingsService settingService =
                 new SettingsService(SettingServiceGrpc.newBlockingStub(channel),
                         StatsHistoryServiceGrpc.newBlockingStub(channel),

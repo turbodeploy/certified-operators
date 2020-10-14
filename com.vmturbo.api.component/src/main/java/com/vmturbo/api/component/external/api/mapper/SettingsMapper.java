@@ -40,6 +40,7 @@ import org.immutables.value.Value;
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
+import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
@@ -204,6 +205,8 @@ public class SettingsMapper {
 
     private final ScheduleMapper scheduleMapper;
 
+    private Boolean enableCloudScaleEnhancement = false;
+
     /**
      * (April 10 2017) In the UI, all settings - including global settings - are organized by
      * entity type. This map contains the "global setting name" -> "entity type" mappings to use
@@ -228,7 +231,8 @@ public class SettingsMapper {
                           @Nonnull final SettingsManagerMapping settingsManagerMapping,
                           @Nonnull final SettingSpecStyleMapping settingSpecStyleMapping,
                           @Nonnull final ScheduleServiceBlockingStub schedulesService,
-                          @Nonnull final ScheduleMapper scheduleMapper) {
+                          @Nonnull final ScheduleMapper scheduleMapper,
+                          @Nonnull final Boolean enableCloudScaleEnhancement) {
         this.managerMapping = settingsManagerMapping;
         this.settingSpecStyleMapping = settingSpecStyleMapping;
         this.schedulesService = schedulesService;
@@ -237,7 +241,8 @@ public class SettingsMapper {
         this.groupService = groupService;
         this.settingService = settingService;
         this.settingPolicyService = settingPolicyService;
-        this.settingPolicyMapper = new DefaultSettingPolicyMapper(this, settingService);
+        this.settingPolicyMapper = new DefaultSettingPolicyMapper(this, settingService, enableCloudScaleEnhancement);
+        this.enableCloudScaleEnhancement = enableCloudScaleEnhancement;
     }
 
     @VisibleForTesting
@@ -648,6 +653,7 @@ public class SettingsMapper {
         List<SettingSpec> sortedSpecs = info.sortSettingSpecs(specs, SettingSpec::getName);
 
         List<SettingApiDTO<String>> settings = new ArrayList<>();
+
         sortedSpecs.stream()
             .map(settingSpec -> settingSpecMapper.settingSpecToApi(Optional.of(settingSpec),
                 Optional.empty()))
@@ -660,6 +666,18 @@ public class SettingsMapper {
                         return settingPossibilities.getAll().stream();
                     }
                 }).forEach( settingApiDTO -> {
+            if (!enableCloudScaleEnhancement) {
+                if (mgrId.equals(SettingsService.AUTOMATION_MANAGER)) {
+
+                    if (settingApiDTO.getUuid().equals(ConfigurableActionSettings.CloudComputeScaleForSavings.getSettingName())
+                            || settingApiDTO.getUuid().equals(ConfigurableActionSettings.CloudComputeScaleForPerf.getSettingName())) {
+                        return;
+                    }
+                    if (settingApiDTO.getUuid().equals(ConfigurableActionSettings.CloudComputeScale.getSettingName())) {
+                        settingApiDTO.setDisplayName("Cloud Compute Scale");
+                    }
+                }
+            }
             settings.add(settingApiDTO);
         });
 
@@ -766,12 +784,15 @@ public class SettingsMapper {
 
         private final SettingsMapper mapper;
         private final SettingServiceBlockingStub settingServiceClient;
+        private Boolean enableCloudScaleEnhancement;
 
         DefaultSettingPolicyMapper(@Nonnull final SettingsMapper mapper,
-                                   @Nonnull final SettingServiceBlockingStub settingServiceClient) {
+                                   @Nonnull final SettingServiceBlockingStub settingServiceClient,
+                                   @Nonnull final Boolean enableCloudScaleEnhancement) {
 
             this.mapper = mapper;
             this.settingServiceClient = settingServiceClient;
+            this.enableCloudScaleEnhancement = enableCloudScaleEnhancement;
         }
 
         @Override
@@ -922,6 +943,19 @@ public class SettingsMapper {
             mgrApiDto.setSettings(settings.stream()
                     .map(setting -> mapper.toSettingApiDto(setting).getSettingForEntityType(entityType))
                     .filter(Optional::isPresent).map(Optional::get)
+                    .filter(setting -> enableCloudScaleEnhancement ||
+                            !mgrId.equals(SettingsService.AUTOMATION_MANAGER) || (
+                            !setting.getUuid().equals(ConfigurableActionSettings.CloudComputeScaleForPerf.getSettingName()) &&
+                            !setting.getUuid().equals(ConfigurableActionSettings.CloudComputeScaleForSavings.getSettingName())
+                    ))
+                    .map(setting -> {
+                        if (!enableCloudScaleEnhancement &&
+                                mgrId.equals(SettingsService.AUTOMATION_MANAGER) &&
+                                setting.getUuid().equals(ConfigurableActionSettings.CloudComputeScale.getSettingName())) {
+                            setting.setDisplayName("Cloud Compute Scale");
+                        }
+                        return setting;
+                    })
                     .collect(Collectors.toList()));
             return mgrApiDto;
         }

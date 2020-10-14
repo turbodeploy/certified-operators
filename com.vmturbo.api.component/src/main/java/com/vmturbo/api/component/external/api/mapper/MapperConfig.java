@@ -62,6 +62,12 @@ public class MapperConfig {
     @Value("${getMostRecentStatRpcFutureTimeoutSeconds:10}")
     private long getMostRecentStatRpcFutureTimeoutSeconds;
 
+    /**
+     * Enable 'Scale for Performance' and 'Scale for Savings' settings.
+     */
+    @Value("${enableCloudScaleEnhancement:false}")
+    private boolean enableCloudScaleEnhancement;
+
     @Autowired
     private CommunicationConfig communicationConfig;
 
@@ -267,7 +273,8 @@ public class MapperConfig {
                 settingManagerMappingLoader().getMapping(),
                 settingSpecStyleMappingLoader().getMapping(),
                 communicationConfig.scheduleRpcService(),
-                scheduleMapper());
+                scheduleMapper(),
+                enableCloudScaleEnhancement);
     }
 
     @Bean
