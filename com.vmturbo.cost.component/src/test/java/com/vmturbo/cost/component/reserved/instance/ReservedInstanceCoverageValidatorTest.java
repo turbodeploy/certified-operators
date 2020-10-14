@@ -20,7 +20,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
+import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -329,7 +331,31 @@ public class ReservedInstanceCoverageValidatorTest {
     }
 
     /**
-     * Test a valid match with a regional RI
+     * Test coverage validation if size flexibility is not present for reserved instance.
+     */
+    @Test
+    public void testValidCoverageIfInstanceSizeFlexibilityNotPresentForReservedInstance() {
+        final TopologyEntityDTO riComputeTier = TopologyEntityDTO.newBuilder(computeTier).setOid(
+                oidProvider.incrementAndGet()).build();
+        final ReservedInstanceSpec.Builder riSpecBuilder = ReservedInstanceSpec.newBuilder(
+                reservedInstanceSpec);
+        riSpecBuilder.getReservedInstanceSpecInfoBuilder().clearSizeFlexible().setTierId(
+                riComputeTier.getOid());
+        Mockito.when(mockReservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
+                .thenReturn(Lists.newArrayList(reservedInstanceBought));
+        Mockito.when(mockReservedInstanceSpecStore.getReservedInstanceSpecByIds(any())).thenReturn(
+                Lists.newArrayList(riSpecBuilder.build()));
+        final CloudTopology<TopologyEntityDTO> cloudTopology = generateCloudTopology(computeTier,
+                riComputeTier, region, availabilityZone, virtualMachine, businessAccount);
+        final ReservedInstanceCoverageValidator validator = validatorFactory.newValidator(
+                cloudTopology);
+        final boolean isValidCoverage = validator.isCoverageValid(virtualMachine,
+                reservedInstanceBought);
+        Assert.assertTrue(isValidCoverage);
+    }
+
+    /**
+     * Test a valid match with a regional RI.
      */
     @Test
     public void testIsValidCoverage_validCoverage_regional() {
