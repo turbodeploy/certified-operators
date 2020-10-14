@@ -29,7 +29,7 @@ public class CloudCommitmentSettingsFetcher {
     /**
      * List of settings to retrieve from global spec settings.
      */
-    private final List<String> settings = Lists.newArrayList(GlobalSettingSpecs.CloudCommitmentMinimumSavingsOverOnDemand.createSettingSpec().getName(),
+    private final List<String> settingsToFetch = Lists.newArrayList(GlobalSettingSpecs.CloudCommitmentMinimumSavingsOverOnDemand.createSettingSpec().getName(),
             GlobalSettingSpecs.CloudCommitmentMaxDemandPercentage.createSettingSpec().getName(), GlobalSettingSpecs
                     .CloudCommitmentHistoricalLookbackPeriod.createSettingSpec().getName(), GlobalSettingSpecs.RunCloudCommitmentAnalysis.createSettingSpec().getName(),
             GlobalSettingSpecs.CloudCommitmentLogDetailedSummary.createSettingSpec().getName(), GlobalSettingSpecs.CloudCommitmentIncludeTerminatedEntities.createSettingSpec().getName());
@@ -47,7 +47,6 @@ public class CloudCommitmentSettingsFetcher {
             @Nonnull CloudCommitmentAnalysisConfigurationHolder cloudCommitmentAnalysisConfigurationHolder) {
         this.settingServiceClient = settingServiceClient;
         this.cloudCommitmentAnalysisConfigurationHolder = cloudCommitmentAnalysisConfigurationHolder;
-        populateSettingsMap(settings);
     }
 
     /**
@@ -69,7 +68,10 @@ public class CloudCommitmentSettingsFetcher {
                 : (int)settingSpec.getNumericSettingValueType().getDefault();
     }
 
-    private void populateSettingsMap(List<String> settingsToFetch) {
+    /**
+     * Populate the settings map which has the list of settings to fetch.
+     */
+    public void populateSettingsMap() {
         settingServiceClient.getMultipleGlobalSettings(
                 GetMultipleGlobalSettingsRequest.newBuilder()
                         .addAllSettingSpecName(settingsToFetch).build())

@@ -81,6 +81,7 @@ public class CloudCommitmentAnalysisRunner {
      * @param responseObserver Contains the response of the cca run.
      */
     public void runCloudCommitmentAnalysis(StartBuyRIAnalysisRequest request, StreamObserver<StartBuyRIAnalysisResponse> responseObserver) {
+        cloudCommitmentSettingsFetcher.populateSettingsMap();
         boolean logDetailedSummary = cloudCommitmentSettingsFetcher.logDetailedSummary();
         Builder cloudCommitmentAnalysisConfigBuilder = CloudCommitmentAnalysisConfig.newBuilder();
         cloudCommitmentAnalysisConfigBuilder.setAnalysisTag("CCA-" + request.getTopologyInfo().getTopologyContextId());
