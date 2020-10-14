@@ -1,8 +1,9 @@
 package com.vmturbo.topology.processor.actions.data;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -15,11 +16,9 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.repository.api.RepositoryClient;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.conversions.EntityConversionException;
 import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
 import com.vmturbo.topology.processor.topology.pipeline.CachedTopology;
-import com.vmturbo.topology.processor.topology.pipeline.CachedTopology.CachedTopologyResult;
 
 /**
  * This class retrieves and converts an entity in order to provide the full entity data for action
@@ -114,7 +113,7 @@ public class EntityRetriever {
      * @return stitched entity data corresponding to the provided entity
      */
     public Optional<TopologyEntityDTO> retrieveTopologyEntity(final long entityId) {
-        final List<TopologyEntityDTO> topologyEntities = retrieveTopologyEntities(
+        final Collection<TopologyEntityDTO> topologyEntities = retrieveTopologyEntities(
                 Collections.singletonList(entityId));
         if (topologyEntities.isEmpty()) {
             return Optional.empty();
@@ -130,31 +129,17 @@ public class EntityRetriever {
      * @param entities the entities to fetch data about
      * @return entity data corresponding to the provided entities
      */
-    public List<TopologyEntityDTO> retrieveTopologyEntities(List<Long> entities) {
-        final CachedTopologyResult cachedTopologyResult = cachedTopology.getTopology();
-        final List<Long> retrieveFromRepository = new ArrayList<>();
-        final List<TopologyEntityDTO> results = new ArrayList<>(entities.size());
-        for (Long entityId: entities) {
-            final TopologyEntity.Builder entity = cachedTopologyResult.getEntities().get(entityId);
-            if (entity != null) {
-                results.add(entity.build().getTopologyEntityDtoBuilder().build());
-            } else {
-                retrieveFromRepository.add(entityId);
-            }
+    public Collection<TopologyEntityDTO> retrieveTopologyEntities(List<Long> entities) {
+        final Map<Long, TopologyEntityDTO> cachedResults =
+                cachedTopology.getCachedEntitiesAsTopologyEntityDTOs(entities);
+        final List<Long> missing = entities.stream()
+                .filter(id -> !cachedResults.containsKey(id))
+                .collect(Collectors.toList());
+        if (!missing.isEmpty()) {
+            repositoryClient.retrieveTopologyEntities(missing, realtimeTopologyContextId).forEach(
+                    dto -> cachedResults.put(dto.getOid(), dto));
+
         }
-        logger.debug("Fetched {} of {} requested entities from topology cached. "
-                        + "Will request rest {} from repository", results::size, entities::size,
-                retrieveFromRepository::size);
-        if (!retrieveFromRepository.isEmpty()) {
-            logger.info("Fetch entities by oids {} from repository", entities);
-            final List<TopologyEntityDTO> dtos = repositoryClient.retrieveTopologyEntities(
-                    retrieveFromRepository, realtimeTopologyContextId).collect(Collectors.toList());
-            logger.info("Successfully retrieved following entities from from repository: [{}]", dtos
-                    .stream()
-                    .map(TopologyEntityDTO::getDisplayName)
-                    .collect(Collectors.joining(",")));
-            results.addAll(dtos);
-        }
-        return results;
+        return cachedResults.values();
     }
 }

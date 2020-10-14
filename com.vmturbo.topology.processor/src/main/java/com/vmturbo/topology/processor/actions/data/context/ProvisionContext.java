@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.actions.data.context;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -76,7 +77,7 @@ public class ProvisionContext extends AbstractActionExecutionContext {
             .collect(Collectors.toList());
         // If providers are found, create an ADD_PROVIDER action item for each provider
         if (!allProviderIds.isEmpty()) {
-            final List<TopologyEntityDTO> allProviders =
+            final Collection<TopologyEntityDTO> allProviders =
                 entityRetriever.retrieveTopologyEntities(allProviderIds);
             allProviders.stream()
                     .map(topologyEntityDTO -> entityRetriever.convertToEntityDTO(topologyEntityDTO))

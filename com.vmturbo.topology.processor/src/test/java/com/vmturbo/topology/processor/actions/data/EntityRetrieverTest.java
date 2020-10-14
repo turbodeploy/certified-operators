@@ -1,13 +1,19 @@
 package com.vmturbo.topology.processor.actions.data;
 
+import static org.mockito.Mockito.when;
+
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.base.Functions;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -48,19 +54,22 @@ public class EntityRetrieverTest {
                 TopologyToSdkEntityConverter.class);
         final RepositoryClient repositoryClient = Mockito.mock(RepositoryClient.class);
         final CachedTopology cachedTopology = Mockito.mock(CachedTopology.class);
+        when(cachedTopology.getCachedEntitiesAsTopologyEntityDTOs(Mockito.anyList())).thenAnswer(
+                invocation -> repoData.stream().collect(Collectors.toMap(
+                        TopologyEntityDTO::getOid, Functions.identity())));
         entityRetriever = new EntityRetriever(entityConverter, repositoryClient, cachedTopology, 1);
         cachedEntities = new HashMap<>();
         repoData = new ArrayList<>();
         final CachedTopologyResult cachedTopologyResult = Mockito.mock(CachedTopologyResult.class);
-        Mockito.when(cachedTopologyResult.getEntities()).thenReturn(cachedEntities);
-        Mockito.when(cachedTopology.getTopology()).thenReturn(cachedTopologyResult);
-        Mockito.when(repositoryClient.retrieveTopologyEntities(Mockito.any(), Mockito.anyLong()))
+        when(cachedTopologyResult.getEntities()).thenReturn(cachedEntities);
+        when(cachedTopology.getTopology()).thenReturn(cachedTopologyResult);
+        when(repositoryClient.retrieveTopologyEntities(Mockito.any(), Mockito.anyLong()))
                 .thenAnswer(invocation -> {
-                    @SuppressWarnings("unchecked")
-                    final List<Long> oids = (List<Long>)invocation.getArguments()[0];
-                    return repoData.stream().filter(entity -> oids.contains(entity.getOid()));
-                }
-        );
+                            @SuppressWarnings("unchecked")
+                            final List<Long> oids = (List<Long>)invocation.getArguments()[0];
+                            return repoData.stream().filter(entity -> oids.contains(entity.getOid()));
+                        }
+                );
     }
 
     /**
@@ -68,7 +77,7 @@ public class EntityRetrieverTest {
      */
     @Test
     public void testLoadFromCacheOnly()  {
-        putIntoCache(ENTITY_1);
+        repoData.add(ENTITY_1);
         final Optional<TopologyEntityDTO> topologyEntityDTOOptional =
                 entityRetriever.retrieveTopologyEntity(ENTITY1_OID);
         Assert.assertEquals(Optional.of(ENTITY_1), topologyEntityDTOOptional);
@@ -79,9 +88,9 @@ public class EntityRetrieverTest {
      */
     @Test
     public void testLoadMixedFromCacheAndRepo() {
-        putIntoCache(ENTITY_1);
-        repoData.add(ENTITY_2);
-        final List<TopologyEntityDTO> topologyEntities =
+        putIntoCache(ENTITY_2);
+        repoData.add(ENTITY_1);
+        final Collection<TopologyEntityDTO> topologyEntities =
                 entityRetriever.retrieveTopologyEntities(Arrays.asList(ENTITY1_OID, ENTITY2_OID));
         final Optional<TopologyEntityDTO> entity1 = topologyEntities.stream().filter(
                 entity -> entity.getOid() == ENTITY1_OID).findFirst();
@@ -96,7 +105,6 @@ public class EntityRetrieverTest {
     @Test
     public void testMiss() {
         putIntoCache(ENTITY_1);
-        repoData.add(ENTITY_2);
         final Optional<TopologyEntityDTO> entityOptional = entityRetriever.retrieveTopologyEntity(
                 ENTITY3_OID);
         Assert.assertEquals(Optional.empty(), entityOptional);
