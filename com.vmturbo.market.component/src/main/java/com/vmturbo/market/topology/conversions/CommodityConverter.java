@@ -406,8 +406,7 @@ public class CommodityConverter {
                         .setPriceFunction(priceFunction(commodityType, 1.0f, null))
                         .setUpdateFunction(uf)
                         .build();
-        final Collection<CommoditySpecificationTO> commoditySpecs =
-                commodityTypeAllocator.commoditySpecification(commodityType, slots);
+        final Collection<CommoditySpecificationTO> commoditySpecs = commodityTypeAllocator.commoditySpecification(commodityType, slots);
         List<CommodityDTOs.CommoditySoldTO> soldCommodityTOs = new ArrayList<>();
         for (CommoditySpecificationTO commoditySpec : commoditySpecs) {
             soldCommodityTOs.add(CommodityDTOs.CommoditySoldTO.newBuilder()
@@ -516,8 +515,19 @@ public class CommodityConverter {
      */
     @Nonnull
     private static UpdatingFunctionTO
-                    updateFunction(final TopologyDTO.CommoditySoldDTO topologyCommSold) {
-        return MarketAnalysisUtils.updateFunction(topologyCommSold.getCommodityType());
+                    updateFunction(TopologyDTO.CommoditySoldDTO topologyCommSold) {
+        return updateFunction(topologyCommSold.getCommodityType());
+    }
+
+    /**
+     * Select the right {@link UpdatingFunctionTO} based on the commodity sold type.
+     *
+     * @param commodityType {@link CommodityType} for which to add an updating function
+     * @return a (reusable) instance of UpdatingFunctionTO to use in the commodity sold settings.
+     */
+    @Nonnull
+    private static UpdatingFunctionTO updateFunction(CommodityType commodityType) {
+        return MarketAnalysisUtils.updateFunction(commodityType);
     }
 
     /**
