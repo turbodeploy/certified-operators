@@ -589,7 +589,12 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             oidsInScope = new HashSet<>(request.getOidsList());
         }
 
-        Set<RepoGraphEntity> seeds = graph.getEntities(oidsInScope).collect(Collectors.toSet());
+        Set<RepoGraphEntity> seeds;
+        if (oidsInScope.isEmpty()) {
+            seeds = new HashSet();
+        } else {
+            seeds = graph.getEntities(oidsInScope).collect(Collectors.toSet());
+        }
 
         GraphResponse.Builder response = GraphResponse.newBuilder();
         request.getNodesMap().forEach((name, node) -> {
