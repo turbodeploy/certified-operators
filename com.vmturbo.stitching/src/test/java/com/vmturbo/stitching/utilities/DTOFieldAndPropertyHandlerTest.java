@@ -11,13 +11,14 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
+import org.junit.Test;
+
 import com.vmturbo.platform.common.builders.ConsumerPolicyBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.UtilizationData;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VCpuData;
@@ -133,17 +134,9 @@ public class DTOFieldAndPropertyHandlerTest {
 
     @Test
     public void testMergeCommoditiesOnlySpecifiedFields() {
-        CommodityDTO.Builder comm1 = CommodityDTO.newBuilder()
-            .setCommodityType(CommodityType.VCPU)
-            .setUsed(50)
-            .setCapacity(900)
-            .setVcpuData(VCpuData.newBuilder()
-                .setHotAddSupported(true)
-                .setHotRemoveSupported(true));
-        CommodityDTO.Builder comm2 = CommodityDTO.newBuilder()
-            .setCommodityType(CommodityType.VCPU)
-            .setUsed(10)
-            .setCapacity(1000);
+        final CommodityDTO.Builder comm1 = getCommodityBuilder(900, CommodityType.VCPU).setUsed(50).setVcpuData(
+                VCpuData.newBuilder().setHotAddSupported(true).setHotRemoveSupported(true));
+        final CommodityDTO.Builder comm2 = getCommodityBuilder(1000, CommodityType.VCPU).setUsed(10);
 
         List<DTOFieldSpec> dtoFieldSpecs = ImmutableList.of(
             new DTOFieldSpec() {
@@ -179,5 +172,63 @@ public class DTOFieldAndPropertyHandlerTest {
         assertEquals(1000, comm2.getCapacity(), 0);
         assertTrue(comm2.getVcpuData().getHotAddSupported());
         assertFalse(comm2.getVcpuData().hasHotRemoveSupported());
+    }
+
+    /**
+     * Tests the case when two probes are stitched. First probe contains used, the second - used and
+     * utilizationData.
+     * "Used" and "utilizationData" are two fields that depend on each other, so when we
+     * change "used", "utilizationData" must also change, and if probe contains information only about
+     * "used" and overwrites the information of another probe, then "utilizationData" should be cleared.
+     */
+    @Test
+    public void testMergeCommoditiesUtilizationData() {
+        final int usedCommodity1 = 1000;
+        final int capacityCommodity1 = 900;
+        final CommodityDTO.Builder commodity1 = getCommodityBuilder(capacityCommodity1,
+                CommodityType.VMEM).setUsed(usedCommodity1);
+        final CommodityDTO.Builder commodity2 = getCommodityBuilder(500, CommodityType.VMEM).setUsed(10).setUtilizationData(
+                UtilizationData.newBuilder()
+                        .setLastPointTimestampMs(100)
+                        .setIntervalMs(10)
+                        .addPoint(123)
+                        .build());
+        DTOFieldAndPropertyHandler.mergeBuilders(commodity1, commodity2, Collections.emptyList());
+        assertEquals(usedCommodity1, commodity2.getUsed(), 0);
+        assertEquals(capacityCommodity1, commodity2.getCapacity(), 0);
+        assertFalse(commodity2.hasUtilizationData());
+        assertEquals(CommodityDTO.UtilizationData.getDefaultInstance(),
+                commodity2.getUtilizationData());
+    }
+
+    /**
+     * Tests the case when two probes are stitched. First probe contains utilizationData, the second - utilizationData and
+     * used.
+     * "Used" and "utilizationData" are two fields that depend on each other, so when we
+     * change "utilizationData", "used" must also change, and if probe contains information only about
+     * "utilizationData" and overwrites the information of another probe, then "used" should be cleared.
+     */
+    @Test
+    public void testMergeCommoditiesUsed() {
+        final int capacityCommodity1 = 900;
+        final UtilizationData utilizationData = UtilizationData.newBuilder()
+                .setLastPointTimestampMs(100)
+                .setIntervalMs(10)
+                .addPoint(123)
+                .build();
+        final CommodityDTO.Builder commodity1 = getCommodityBuilder(capacityCommodity1,
+                CommodityType.VMEM).setUtilizationData(utilizationData);
+        final CommodityDTO.Builder commodity2 = CommodityDTO.newBuilder().setCommodityType(
+                CommodityType.VMEM).setUsed(10).setCapacity(500).setUtilizationData(
+                utilizationData);
+        DTOFieldAndPropertyHandler.mergeBuilders(commodity1, commodity2, Collections.emptyList());
+        assertEquals(utilizationData, commodity2.getUtilizationData());
+        assertEquals(capacityCommodity1, commodity2.getCapacity(), 0);
+        assertFalse(commodity2.hasUsed());
+        assertEquals(0, commodity2.getUsed(), 0);
+    }
+
+    private Builder getCommodityBuilder(int capacity, CommodityType commodityType) {
+        return CommodityDTO.newBuilder().setCommodityType(commodityType).setCapacity(capacity);
     }
 }
