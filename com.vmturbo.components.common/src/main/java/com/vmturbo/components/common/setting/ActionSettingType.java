@@ -49,6 +49,9 @@ public enum ActionSettingType {
                         ImmutableMap.<EntityType, ActionMode>builder()
                             .put(EntityType.IO_MODULE, ActionMode.DISABLED)
                             .put(EntityType.APPLICATION_COMPONENT, ActionMode.RECOMMEND)
+                            .put(EntityType.STORAGE, ActionMode.DISABLED)
+                            .put(EntityType.DISK_ARRAY, ActionMode.DISABLED)
+                            .put(EntityType.LOGICAL_POOL, ActionMode.DISABLED)
                             .build(),
                         ActionMode.class);
                     break;
@@ -57,23 +60,48 @@ public enum ActionSettingType {
                         ImmutableMap.<EntityType, ActionMode>builder()
                             .put(EntityType.STORAGE_CONTROLLER, ActionMode.DISABLED)
                             .put(EntityType.APPLICATION_COMPONENT, ActionMode.RECOMMEND)
+                            .put(EntityType.STORAGE, ActionMode.RECOMMEND)
+                            .put(EntityType.DISK_ARRAY, ActionMode.DISABLED)
+                            .put(EntityType.LOGICAL_POOL, ActionMode.DISABLED)
+                            .build(),
+                        ActionMode.class);
+                    break;
+                case Resize:
+                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, null, null,
+                        ImmutableMap.<EntityType, ActionMode>builder()
+                            .put(EntityType.STORAGE, ActionMode.RECOMMEND)
+                            .put(EntityType.DISK_ARRAY, ActionMode.DISABLED)
+                            .put(EntityType.LOGICAL_POOL, ActionMode.RECOMMEND)
                             .build(),
                         ActionMode.class);
                     break;
                 case Move:
+                case Activate:
+                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, null, null,
+                        ImmutableMap.<EntityType, ActionMode>builder()
+                            .put(EntityType.STORAGE, ActionMode.RECOMMEND)
+                            .put(EntityType.DISK_ARRAY, ActionMode.DISABLED)
+                            .put(EntityType.LOGICAL_POOL, ActionMode.DISABLED)
+                            .build(),
+                        ActionMode.class);
+                    break;
                 case CloudComputeScale:
                 case CloudDBScale:
                 case CloudDBServerScale:
-                case Resize:
                 case ResizeUpDBMem:
                 case ResizeDownDBMem:
                 case ResizeVcpuUpInBetweenThresholds:
                 case ResizeVcpuDownInBetweenThresholds:
                 case ResizeVmemUpInBetweenThresholds:
                 case ResizeVmemDownInBetweenThresholds:
-                case Delete:
-                case Activate:
                     enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, ActionMode.class);
+                    break;
+                case Delete:
+                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, null, null,
+                        ImmutableMap.<EntityType, ActionMode>builder()
+                            .put(EntityType.STORAGE, ActionMode.DISABLED)
+                            .build(),
+                        ActionMode.class);
                     break;
                 case NonDisruptiveReversibleScaling:
                 case NonDisruptiveIrreversibleScaling:
