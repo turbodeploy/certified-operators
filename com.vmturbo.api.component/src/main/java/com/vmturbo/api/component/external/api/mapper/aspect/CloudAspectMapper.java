@@ -153,8 +153,10 @@ public class CloudAspectMapper extends AbstractAspectMapper {
     @Nullable
     public Optional<Map<Long, EntityAspect>> mapEntityToAspectBatch(@Nonnull List<TopologyEntityDTO> entities) {
         // this aspect only applies to cloud service entities
-        List<TopologyEntityDTO> cloudEntities = entities.stream().filter(CloudAspectMapper::isCloudEntity)
-                .collect(Collectors.toList());
+        List<TopologyEntityDTO> cloudEntities = entities.stream().filter(CloudAspectMapper::isCloudEntity).collect(Collectors.toList());
+        if (cloudEntities.isEmpty()) {
+            return Optional.ofNullable(null);
+        }
         Set<Long> entityIds = cloudEntities.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
         Set<Long> riEntityIds = cloudEntities.stream().filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                 .filter(entity -> entity.getTypeSpecificInfo().getVirtualMachine().getBillingType() != VirtualMachineData.VMBillingType.BIDDING)
