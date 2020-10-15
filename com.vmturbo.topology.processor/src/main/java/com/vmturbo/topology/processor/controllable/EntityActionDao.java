@@ -47,6 +47,13 @@ public interface EntityActionDao {
             throws ActionRecordNotFoundException;
 
     /**
+     * Deletes all action records pertaining to a particular entity from the entity_action table.
+     *
+     * @param entityOid The unique OID of the topology entity for which to remove the records.
+     */
+    void deleteActions(final long entityOid);
+
+    /**
      * First it will delete all expired action records, for different status records, it may has different expired
      * interval time. Then it will return all non-controllable entities.
      *

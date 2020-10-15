@@ -161,6 +161,13 @@ public class EntityActionDaoImp implements EntityActionDao {
         }
     }
 
+    @Override
+    public void deleteActions(final long entityOid) {
+        dsl.deleteFrom(ENTITY_ACTION)
+            .where(ENTITY_ACTION.ENTITY_ID.eq(entityOid))
+            .execute();
+    }
+
     /**
      * Get entities non-controllable on-prem.
      * These are entityIds of : source, destination and target for which move action was executed recently.

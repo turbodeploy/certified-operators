@@ -49,6 +49,24 @@ public class ControllableManager {
             Builder builder = topology.get(entityOid);
             if (builder != null) {
                 TopologyEntityDTO.Builder entityBuilder = builder.getEntityBuilder();
+
+                if (entityBuilder.getEntityState() == EntityState.MAINTENANCE) {
+                    // Clear action information regarding this entity from ENTITY_ACTION table so
+                    // that when entity exits maintenance mode it will be controllable.
+                    entityActionDao.deleteActions(entityOid);
+                    // Entities in maintenance mode are always controllable.
+                    continue;
+                }
+
+                if (entityBuilder.getCommoditiesBoughtFromProvidersList().stream()
+                    .map(shoppinglist -> topology.get(shoppinglist.getProviderId()))
+                    .filter(Objects::nonNull)
+                    .anyMatch(supplier ->
+                        supplier.getEntityBuilder().getEntityState() == EntityState.MAINTENANCE)
+                ) {
+                    continue;
+                }
+
                 if (entityBuilder.getAnalysisSettingsBuilder().getControllable()) {
                     // It's currently controllable, and about to be marked non-controllable.
                     ++numModified;
