@@ -33,7 +33,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ede.BootstrapSupply;
-import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 
 /**
  * An action to provision a new {@link Trader seller} using another {@link Trader seller} as the
@@ -161,7 +161,8 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
                 Trader clonedMandatorySupplier = provisionedSupplier.getProvisionedSeller();
                 provisionedSellerSl.move(clonedMandatorySupplier);
                 Move.updateQuantities(getEconomy(), provisionedSellerSl,
-                        provisionedSellerSl.getSupplier(), UpdatingFunctionFactory.ADD_COMM);
+                                      provisionedSellerSl.getSupplier(),
+                                      FunctionalOperatorUtil.ADD_COMM);
                 unPlacedClones.add(clonedMandatorySupplier);
             } else {
                 // If the new clone does not need its provider to clone and it is movable,
@@ -276,7 +277,7 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
     @Override
     public @NonNull Action rollback() {
         super.rollback();
-        GuaranteedBuyerHelper.removeSlAndAdjustRemainingSls(getEconomy(),
+        GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(),
                 getProvisionedSeller());
         getEconomy().removeTrader(getProvisionedSeller());
         getSubsequentActions().forEach(a -> {

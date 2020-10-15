@@ -1,4 +1,4 @@
-package com.vmturbo.platform.analysis.updatingfunction;
+package com.vmturbo.platform.analysis.utilities;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -13,11 +13,11 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -29,58 +29,85 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 
-/**
- * Create commodity updating functions.
- */
-public final class UpdatingFunctionFactory {
+public class FunctionalOperatorUtil {
 
-    private static final Logger logger = LogManager.getLogger(UpdatingFunctionFactory.class);
-
-    private UpdatingFunctionFactory() {
-    }
+    private static final Logger logger = LogManager.getLogger(FunctionalOperatorUtil.class);
 
     /**
-     * Creates {@link UpdatingFunction} for a given seller.
+     * Creates {@link CostFunction} for a given seller.
      *
-     * @param costDTO          the DTO carries the cost information
+     * @param costDTO the DTO carries the cost information
      * @param updateFunctionTO contains the updateFunctionType
-     * @return UpdatingFunction
+     * @return CostFunction
      */
-    public static UpdatingFunction createUpdatingFunction(CostDTO costDTO,
-                                                          UpdatingFunctionTO updateFunctionTO) {
+    public static @NonNull FunctionalOperator createUpdatingFunction(CostDTO costDTO,
+                                                                     UpdatingFunctionTO updateFunctionTO) {
         switch (updateFunctionTO.getUpdatingFunctionTypeCase()) {
             case MAX:
-                return MAX_COMM;
+                return createMaxCommUpdatingFunction(costDTO, updateFunctionTO);
             case MIN:
-                return MIN_COMM;
+                return createMinCommUpdatingFunction(costDTO, updateFunctionTO);
             case PROJECT_SECOND:
-                return RETURN_BOUGHT_COMM;
+                return createReturnCommBoughtUpdatingFunction(costDTO, updateFunctionTO);
             case DELTA:
-                return ADD_COMM;
+                return createAddCommUpdatingFunction(costDTO, updateFunctionTO);
             case AVG_ADD:
-                return AVG_COMMS;
+                return createAverageCommUpdatingFunction(costDTO, updateFunctionTO);
             case IGNORE_CONSUMPTION:
-                return IGNORE_CONSUMPTION;
+                return createIgnoreConsumptionUpdatingFunction(costDTO, updateFunctionTO);
             case EXTERNAL_UPDATE:
-                return EXTERNAL_UPDATING_FUNCTION;
+                return createExternalUpdatingFunction(costDTO, updateFunctionTO);
             case UPDATE_COUPON:
-                return createCouponUpdatingFunction(costDTO);
-            case STANDARD_DISTRIBUTION:
-                return STANDARD_DISTRIBUTION;
+                return createCouponUpdatingFunction(costDTO, updateFunctionTO);
             case UPDATINGFUNCTIONTYPE_NOT_SET:
             default:
                 return null;
         }
     }
 
-    /**
-     * Creates coupon updating function for a given seller.
-     *
-     * @param costDTO          the DTO carries the cost information
-     * @return UpdatingFunction
-     */
-    public static UpdatingFunction createCouponUpdatingFunction(CostDTO costDTO) {
-        return (buyer, boughtIndex, commSold, seller, economy, take, overhead, currentSLs)
+    public static FunctionalOperator createMaxCommUpdatingFunction(CostDTO costDTO,
+                                                                   UpdatingFunctionTO updateFunctionTO) {
+        return MAX_COMM;
+    }
+
+    public static FunctionalOperator createMinCommUpdatingFunction(CostDTO costDTO,
+                                                                   UpdatingFunctionTO updateFunctionTO) {
+        return MIN_COMM;
+    }
+
+    public static FunctionalOperator createReturnCommBoughtUpdatingFunction(CostDTO costDTO,
+                                                                            UpdatingFunctionTO updateFunctionTO) {
+        return RETURN_BOUGHT_COMM;
+    }
+
+    public static FunctionalOperator createAddCommUpdatingFunction(CostDTO costDTO,
+                                                                   UpdatingFunctionTO updateFunctionTO) {
+        return ADD_COMM;
+    }
+
+    public static FunctionalOperator createAverageCommUpdatingFunction(CostDTO costDTO,
+                                                                       UpdatingFunctionTO updateFunctionTO) {
+        return AVG_COMMS;
+    }
+
+    public static FunctionalOperator createSubtractCommUpdatingFunction(CostDTO costDTO,
+                                                                        UpdatingFunctionTO updateFunctionTO) {
+        return SUB_COMM;
+    }
+
+    public static FunctionalOperator createIgnoreConsumptionUpdatingFunction(CostDTO costDTO,
+                                                                             UpdatingFunctionTO updateFunctionTO) {
+        return IGNORE_CONSUMPTION;
+    }
+
+    public static FunctionalOperator createExternalUpdatingFunction(CostDTO costDTO,
+                                                                    UpdatingFunctionTO updateFunctionTO) {
+        return EXTERNAL_UPDATING_FUNCTION;
+    }
+
+    public static FunctionalOperator createCouponUpdatingFunction(CostDTO costDTO,
+                                                                    UpdatingFunctionTO updateFunctionTO) {
+        FunctionalOperator UPDATE_COUPON_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead)
                         -> {
             Optional<Context> optionalContext = buyer.getBuyer().getSettings().getContext();
             long oid = seller.getOid();
@@ -239,7 +266,7 @@ public final class UpdatingFunctionFactory {
                             + " coupons, allowed " + totalAllocatedCoupons
                             + " coupons");
                 }
-                /* Increase the used value of coupon commodity sold by cbtp accordingly.
+                /** Increase the used value of coupon commodity sold by cbtp accordingly.
                  * Increase the value by what was allocated to the buyer and not
                  * how much the buyer requested. This is important when we rollback the action.
                  * During rollback, we are only subtracting what buyer is buying (quantity).
@@ -252,44 +279,33 @@ public final class UpdatingFunctionFactory {
                         {commSold.getQuantity() + totalAllocatedCoupons, 0};
             }
         };
+                        return UPDATE_COUPON_COMM;
     }
 
-    /**
-     * Add commodity updating function.
-     */
-    public static final UpdatingFunction ADD_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead, currentSLs)
+    public static FunctionalOperator ADD_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead)
                     -> new double[]{buyer.getQuantities()[boughtIndex] + commSold.getQuantity(),
                                     buyer.getPeakQuantities()[boughtIndex] + commSold.getPeakQuantity()};
-    /**
-     * Subtract commodity updating function.
-     */
-    public static final UpdatingFunction SUB_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead, currentSLs)
+
+    public static FunctionalOperator SUB_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead)
                     -> new double[]{Math.max(0, commSold.getQuantity() - buyer.getQuantities()[boughtIndex]),
                                     Math.max(0, commSold.getPeakQuantity() - buyer.getPeakQuantities()[boughtIndex])};
 
-    /**
-     * Ignore consumption updating function.
-     * When taking the action, Return commSoldUsed. When not
-     * taking the action, return 0 if the buyer fits or INFINITY otherwise.
-     */
-    public static final UpdatingFunction IGNORE_CONSUMPTION = (buyer, boughtIndex, commSold, seller,
-                                                               economy, take, overhead, currentSLs)
-                    -> {
-                        if (take) {
+    // when taking the action, Return commSoldUsed
+    // when not taking the action, return 0 if the buyer fits or INFINITY otherwise
+    public static FunctionalOperator IGNORE_CONSUMPTION = (buyer, boughtIndex, commSold, seller, economy
+                    , take, overhead)
+                    -> {if (take) {
                             return new double[]{commSold.getQuantity(), commSold.getPeakQuantity()};
                         } else {
-                            return ((buyer.getQuantities()[boughtIndex] <= commSold.getCapacity())
-                                    && (buyer.getPeakQuantities()[boughtIndex] <= commSold.getCapacity()))
-                                    ? new double[]{0, 0} : new double[]{Double.POSITIVE_INFINITY,
-                                    Double.POSITIVE_INFINITY};
+                            return ((buyer.getQuantities()[boughtIndex] <= commSold.getCapacity()) &&
+                                    (buyer.getPeakQuantities()[boughtIndex] <= commSold.getCapacity())) ?
+                                    new double[]{0, 0} : new double[]{Double.POSITIVE_INFINITY,
+                                                    Double.POSITIVE_INFINITY};
                         }
                     };
 
-    /**
-     * Average commodity updating function.
-     */
-    public static final UpdatingFunction AVG_COMMS = (buyer, boughtIndex, commSold, seller, economy,
-                                                      take, overhead, currentSLs)
+    public static FunctionalOperator AVG_COMMS = (buyer, boughtIndex, commSold, seller, economy
+                    , take, overhead)
                     -> {
                         // consider just the buyers that consume the commodity as customers
                         double numCustomers = commSold.getNumConsumers();
@@ -297,11 +313,12 @@ public final class UpdatingFunctionFactory {
                         // customer. If we are not taking the move, we want to update the used considering
                         // an incoming customer. In which case, we need to increase the custoemrCount by 1
                         if (take) {
-                            return new double[]{
-                                    (commSold.getQuantity() * numCustomers
-                                            + buyer.getQuantities()[boughtIndex]) / numCustomers,
-                                    (commSold.getPeakQuantity() * numCustomers
-                                            + buyer.getPeakQuantities()[boughtIndex]) / numCustomers};
+                            return new double[]{(commSold.getQuantity() * numCustomers +
+                                                buyer.getQuantities()[boughtIndex])
+                                                / numCustomers,
+                                                (commSold.getPeakQuantity() * numCustomers +
+                                                buyer.getPeakQuantities()[boughtIndex])
+                                                / numCustomers};
                         } else {
                             // This is done to prevent ping-pong occurring due to ""AVG_COMMS".
                             // Consider a commodity with quantity "1" on supplier1 and two consumers with
@@ -327,33 +344,21 @@ public final class UpdatingFunctionFactory {
                         }
                     };
 
-    /**
-     * Max commodity updating function.
-     */
-    public static final UpdatingFunction MAX_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead, currentSLs)
+    public static FunctionalOperator MAX_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead)
                     -> new double[]{Math.max(buyer.getQuantities()[boughtIndex], commSold.getQuantity()),
                                     Math.max(buyer.getPeakQuantities()[boughtIndex], commSold.getPeakQuantity())};
 
-    /**
-     * Min commodity updating function.
-     */
-    public static final UpdatingFunction MIN_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead, currentSLs)
+    public static FunctionalOperator MIN_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead)
                     -> new double[]{Math.min(buyer.getQuantities()[boughtIndex], commSold.getQuantity()),
                                     Math.min(buyer.getPeakQuantities()[boughtIndex], commSold.getPeakQuantity())};
 
-    /**
-     * Return bought commodity updating function.
-     */
-    public static final UpdatingFunction RETURN_BOUGHT_COMM = (buyer, boughtIndex, commSold, seller,
-                                                               economy, take, overhead, currentSLs)
+    public static FunctionalOperator RETURN_BOUGHT_COMM = (buyer, boughtIndex, commSold, seller, economy
+                    , take, overhead)
                     -> new double[]{buyer.getQuantities()[boughtIndex],
                                     buyer.getPeakQuantities()[boughtIndex]};
 
-    /**
-     * External updating function.
-     */
-    public static final UpdatingFunction EXTERNAL_UPDATING_FUNCTION =
-            (buyer, boughtIndex, commSold, seller, economy, take, overhead, currentSLs) -> {
+    public static FunctionalOperator EXTERNAL_UPDATING_FUNCTION =
+                    (buyer, boughtIndex, commSold, seller, economy, take, overhead) -> {
                         // If we are moving, external function needs to call place on matrix
                         // interface, else do nothing
                         if (take) {
@@ -377,149 +382,12 @@ public final class UpdatingFunctionFactory {
                         return new double[] {0, 0};
                     };
 
-    /**
-     * Return a distribution function which distributes commodity values based on workload
-     * conservation model.
-     * Provision: projected = current x N/(N+1)
-     * Suspension: projected = current x N/(N-1)
-     */
-    public static final UpdatingFunction STANDARD_DISTRIBUTION =
-            (clonedSL, index, commSold, seller, economy, take, overhead, currentSLs) -> {
-                    if (currentSLs == null) {
-                        return new double[]{commSold.getQuantity(), commSold.getPeakQuantity()};
-                    }
-                    // Aggregate quantities across all shopping lists
-                    final double quantitySum = currentSLs.stream()
-                            .peek(sl -> {
-                                if (logger.isTraceEnabled()) {
-                                    logger.info("Standard distribution: {} to sum for {}: {}",
-                                            sl.getBasket().get(index).getDebugInfoNeverUseInCode(),
-                                            sl.getDebugInfoNeverUseInCode(), sl.getQuantity(index));
-                                }
-                            })
-                            .mapToDouble(sl -> sl.getQuantity(index)).sum();
-                    final double peakQuantitySum = currentSLs.stream()
-                            .mapToDouble(sl -> sl.getPeakQuantity(index)).sum();
-                    final int existingSize = currentSLs.size();
-                    // Calculate projected quantities based on the workload conserving model
-                    final int newSize = existingSize + ((clonedSL == null) ? -1 : 1);
-                    double projectedQuantity = quantitySum / newSize;
-                    double projectedPeakQuantity = peakQuantitySum / newSize;
-                    // Distribute the projected quantities
-                    // Update existing shopping lists
-                    distributeOnCurrent(currentSLs, index,
-                            projectedQuantity, projectedPeakQuantity);
-                    // Update new shopping list
-                    distributeOnClone(index, clonedSL,
-                            projectedQuantity, projectedPeakQuantity);
-                    return new double[]{projectedQuantity, projectedPeakQuantity};
-                };
-
     // when a user by mistake sets addComm as the updatingFn, we iterate over all the consumers and sum up the
     // usage for the comm across customers and set that as the usage on the soldComm. This is when consumers move in or out
-    private static Set<UpdatingFunction> explicitCombinators = ImmutableSet.of(AVG_COMMS, MAX_COMM, MIN_COMM, ADD_COMM);
+    private static Set<FunctionalOperator> explicitCombinators = ImmutableSet.of(AVG_COMMS, MAX_COMM, MIN_COMM, ADD_COMM);
 
-    public static Set<UpdatingFunction> getExplicitCombinatorsSet() {
+    public static Set<FunctionalOperator> getExplicitCombinatorsSet() {
         return explicitCombinators;
-    }
-
-    /**
-     * A set of valid distribution functions.
-     */
-    private static Set<UpdatingFunction> distributionFunctions = ImmutableSet.of(STANDARD_DISTRIBUTION);
-
-    /**
-     * Check the validity of an updating function.
-     *
-     * @param updatingFunction the updating function to check
-     * @return if the input {@link UpdatingFunction} is a valid updating function
-     */
-    public static boolean isValidDistributionFunction(UpdatingFunction updatingFunction) {
-        return distributionFunctions.contains(updatingFunction);
-    }
-
-    /**
-     * A helper function to update SLO commodity values on existing shopping lists.
-     *
-     * @param currentSLs         a set of shopping lists sponsored by a guaranteed buyer
-     * @param boughtIndex         the index to the commodity specification in a basket
-     * @param updatedQuantity     the quantity to update on the existing shopping lists
-     * @param updatedPeakQuantity the peak quantity to update on the existing shopping lists
-     */
-    private static void distributeOnCurrent(Set<ShoppingList> currentSLs,
-                                    final int boughtIndex,
-                                    final double updatedQuantity,
-                                    final double updatedPeakQuantity) {
-        for (ShoppingList currentSL : currentSLs) {
-            String buyerName = currentSL.getBuyer().getDebugInfoNeverUseInCode();
-            CommoditySpecification commSpec = currentSL.getBasket().get(boughtIndex);
-            String commName = commSpec.getDebugInfoNeverUseInCode();
-            double originalBought = currentSL.getQuantity(boughtIndex);
-            double originalBoughtPeak = currentSL.getPeakQuantity(boughtIndex);
-            if (logger.isTraceEnabled()) {
-                logger.info("Updating {} bought on existing buyer {}: {} -> {}",
-                        commName, buyerName, originalBought, updatedQuantity);
-            }
-            currentSL.setQuantity(boughtIndex, updatedQuantity)
-                    .setPeakQuantity(boughtIndex, updatedPeakQuantity);
-            // update commSold that the shoppingList consume as a result of changing
-            // quantity and peak quantity of shoppingList, the commSold is from existing
-            // sellers
-            Trader supplier = currentSL.getSupplier();
-            if (supplier == null) {
-                return;
-            }
-            CommoditySold commSold = supplier.getCommoditySold(commSpec);
-            if (commSold != null) {
-                double originalSold = commSold.getQuantity();
-                double originalSoldPeak = commSold.getPeakQuantity();
-                double updatedSold = Math.max(0, originalSold - originalBought + updatedQuantity);
-                commSold.setQuantity(updatedSold);
-                commSold.setPeakQuantity(Math.max(originalSoldPeak - originalBoughtPeak
-                        + updatedPeakQuantity, updatedSold));
-                String supplierName = supplier.getDebugInfoNeverUseInCode();
-                if (logger.isTraceEnabled()) {
-                    logger.info("Updating {} sold on existing supplier {}: {} -> {} "
-                                    + "[originalSold: {}, originalBought: {}, updatedBought: {}]",
-                            commName, supplierName, originalSold, updatedSold,
-                            originalSold, originalBought, updatedQuantity);
-                }
-            }
-        }
-    }
-
-    /**
-     * A helper function to set projected SLO commodity values on the cloned shopping list.
-     *
-     * @param index                 the index to the commodity specification in a basket
-     * @param clonedSL              the cloned shopping list
-     * @param projectedQuantity     the quantity to set on the cloned shopping list
-     * @param projectedPeakQuantity the peak quantity to set on the cloned shopping list
-     */
-    private static void distributeOnClone(final int index,
-                                  ShoppingList clonedSL,
-                                  double projectedQuantity,
-                                  double projectedPeakQuantity) {
-        if (clonedSL == null) {
-            // Could be suspension or provision rollback
-            return;
-        }
-        // The cloned shopping list could be a new shopping list from a new provision action, or
-        // an existing shopping list from a rollback of a suspend action
-        // Update the cloned shopping list
-        clonedSL.setQuantity(index, projectedQuantity)
-                .setPeakQuantity(index, projectedPeakQuantity);
-        // Update the cloned seller
-        Trader newSupplier = clonedSL.getSupplier();
-        if (newSupplier == null) {
-            // Should not happen
-            return;
-        }
-        // Update quantity of the newly cloned seller to construct the buyer-seller relationship
-        CommoditySold commSoldOnClone =
-                newSupplier.getCommoditySold(clonedSL.getBasket().get(index));
-        commSoldOnClone.setQuantity(clonedSL.getQuantity(index));
-        commSoldOnClone.setPeakQuantity(clonedSL.getPeakQuantity(index));
     }
 }
 

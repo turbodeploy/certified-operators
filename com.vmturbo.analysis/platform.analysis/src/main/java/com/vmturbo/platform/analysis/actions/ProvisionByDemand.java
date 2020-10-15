@@ -272,7 +272,7 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
     @Override
     public @NonNull Action rollback() {
         super.rollback();
-        GuaranteedBuyerHelper.removeSlAndAdjustRemainingSls(getEconomy(),
+        GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(),
                 getProvisionedSeller());
         getEconomy().removeTrader(getProvisionedSeller());
         getSubsequentActions().forEach(a -> {

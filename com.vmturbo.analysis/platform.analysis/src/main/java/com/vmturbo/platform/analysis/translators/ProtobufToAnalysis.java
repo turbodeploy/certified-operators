@@ -66,9 +66,9 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.topology.Topology;
-import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 
 /**
  * A class containing methods to convert Protobuf messages to java classes used by analysis.
@@ -119,6 +119,7 @@ public final class ProtobufToAnalysis {
     }
 
     // Methods for converting UpdatingFunctionDTOs.
+
     /**
      * Converts a {@link UpdatingFunctionTO} to a {@link DoubleTernaryOperator quantity
      * updating function}.
@@ -264,7 +265,7 @@ public final class ProtobufToAnalysis {
         destination.setPriceFunction(priceFunction(source.getPriceFunction()));
         CostDTO costDTO = (entitySett.getQuoteFunction().hasRiskBased() == true) ?
                         entitySett.getQuoteFunction().getRiskBased().getCloudCost() : null;
-        destination.setUpdatingFunction(UpdatingFunctionFactory.createUpdatingFunction(
+        destination.setUpdatingFunction(FunctionalOperatorUtil.createUpdatingFunction(
                                                   costDTO, source.getUpdateFunction()));
         destination.setUtilizationCheckForCongestion(source.getUtilizationCheckForCongestion());
     }

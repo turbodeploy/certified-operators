@@ -40,13 +40,6 @@ message UpdatingFunctionTO {
     message ExternalUpdateFunction {
     }
 
-    // The update function which distributes SLO commodity values based on workload
-    // conservation model.
-    // Provision: projected = current x N/(N+1)
-    // Suspension: projected = current x N/(N-1)
-    message StandardDistribution {
-    }
-
     // Which one of the available functions this message contains.
     oneof updating_function_type {
         Max max = 1;
@@ -58,6 +51,5 @@ message UpdatingFunctionTO {
         IgnoreConsumption ignore_consumption = 7;
         ExternalUpdateFunction external_update = 8;
         UpdateCoupon update_coupon = 9;
-        StandardDistribution standard_distribution = 10;
     }
 }

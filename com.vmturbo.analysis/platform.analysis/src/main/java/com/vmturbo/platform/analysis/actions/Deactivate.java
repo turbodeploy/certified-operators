@@ -91,13 +91,13 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
         // If this trader has providerMustClone set, suspend this trader's suppliers as well.
         GuaranteedBuyerHelper.suspendProviders(this);
         removedShoppingLists.addAll(
-            GuaranteedBuyerHelper.removeSlAndAdjustRemainingSls(getEconomy(), target));
+            GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(), target));
         target.changeState(TraderState.INACTIVE);
         return this;
     }
 
     /**
-     * Rolls back a deactivate action to change the state of a trader from inactive to active.
+     * Rolls back a deactivate action to change the state of a trader from active to inactive.
      */
     @Override
     public @NonNull Deactivate rollback() {

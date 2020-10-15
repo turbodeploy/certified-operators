@@ -10,15 +10,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-import org.checkerframework.checker.nullness.qual.NonNull;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
+import org.checkerframework.checker.nullness.qual.NonNull;
+
+import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
-import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Context;
@@ -44,9 +44,9 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRatioDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.analysis.topology.Topology;
-import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 
 /**
@@ -73,10 +73,6 @@ public class TestUtils {
     public static final int DC_TYPE = 12;
     public static final int NAMESPACE_TYPE = 13;
     public static final int DB_TIER_TYPE = 14;
-    /**
-     * The service type.
-     */
-    public static final int SERVICE_TYPE = 15;
 
     public static final double FLOATING_POINT_DELTA = 1e-7;
     public static final double FLOATING_POINT_DELTA2 = 1e-15;
@@ -117,10 +113,6 @@ public class TestUtils {
     public static final CommoditySpecification HEAP = createNewCommSpec();
     public static final CommoditySpecification COST_COMMODITY = createNewCommSpec();
     public static final CommoditySpecification IOPS = createNewCommSpec();
-    /**
-     * Construct the commodity specification for Transaction commodity with a standard
-     * commodity distribution function.
-     */
     public static final CommoditySpecification TRANSACTION = createNewCommSpec();
     public static final CommoditySpecification SEGMENTATION_COMMODITY = createNewCommSpec();
     public static final CommoditySpecification RESPONSE_TIME = createNewCommSpec();
@@ -130,11 +122,6 @@ public class TestUtils {
     public static final CommoditySpecification COOLING = createNewCommSpec();
     public static final CommoditySpecification VMEMLIMITQUOTA = createNewCommSpec();
     public static final CommoditySpecification DTU = createNewCommSpec();
-    /**
-     * Construct the commodity specification for Application commodity with a constant
-     * commodity distribution function.
-     */
-    public static final CommoditySpecification APPLICATION = createNewCommSpec();
 
     public static final CommoditySpecificationTO iopsTO =
                     CommoditySpecificationTO.newBuilder().setBaseType(TestUtils.IOPS.getBaseType())
@@ -175,18 +162,7 @@ public class TestUtils {
         trader.getSettings().setCloneable(isCloneable);
         trader.getSettings().setGuaranteedBuyer(isGuaranteedBuyer);
         trader.getSettings().setCanAcceptNewCustomers(true);
-        setUpdatingFunctionForTrader(trader);
         return trader;
-    }
-
-    private static void setUpdatingFunctionForTrader(Trader trader) {
-        trader.getBasketSold().forEach(commSpec -> {
-            CommoditySold commSold = trader.getCommoditySold(commSpec);
-            if (commSpec.equals(TRANSACTION)) {
-                commSold.getSettings().setUpdatingFunction(UpdatingFunctionFactory
-                        .STANDARD_DISTRIBUTION);
-            }
-        });
     }
 
     /**
@@ -682,16 +658,13 @@ public class TestUtils {
     }
 
     public static void moveSlOnSupplier(Economy e, ShoppingList sl, Trader supplier, double[] quantities) {
-        sl.move(supplier);
-        sl.setMovable(true);
         for (int i = 0; i < quantities.length ; i++) {
             sl.setQuantity(i, quantities[i]);
             sl.setPeakQuantity(i, quantities[i]);
-            CommoditySold commSold =
-                    supplier.getCommoditySold(sl.getBasket().get(i));
-            commSold.setQuantity(commSold.getQuantity() + quantities[i]);
-            commSold.setPeakQuantity(commSold.getPeakQuantity() + quantities[i]);
         }
+        sl.move(supplier);
+        sl.setMovable(true);
+        Move.updateQuantities(e, sl, supplier, FunctionalOperatorUtil.ADD_COMM);
     }
 
     /**

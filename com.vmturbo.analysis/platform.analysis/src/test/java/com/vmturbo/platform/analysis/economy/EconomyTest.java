@@ -24,8 +24,8 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 
-import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
-import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 import com.vmturbo.platform.analysis.utility.CollectionTests;
 import com.vmturbo.platform.analysis.utility.ListTests;
 import com.vmturbo.platform.analysis.utility.MapTests;
@@ -68,7 +68,7 @@ public class EconomyTest {
     private static final Market independentMarket = new Market(EMPTY);
     private static final TraderWithSettings independentTrader = new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
     private static final ShoppingList independentShoppingList = new ShoppingList(independentTrader, EMPTY);
-    private static final @NonNull UpdatingFunction DUMMY_FUNCTION = UpdatingFunctionFactory.ADD_COMM;
+    private static final @NonNull FunctionalOperator DUMMY_FUNCTION = FunctionalOperatorUtil.ADD_COMM;
 
     // TODO (Vaptistis): Eventually, all parameterized tests that share the same parameters can be
     // refactored in a single parameterized test, but until we implement copying of Economies the

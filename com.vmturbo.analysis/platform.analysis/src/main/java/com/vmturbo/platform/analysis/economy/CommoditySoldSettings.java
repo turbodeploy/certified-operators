@@ -6,7 +6,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
-import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 
 /**
  * The settings associated with and controlling the behavior of a single {@link CommoditySold}.
@@ -249,7 +249,7 @@ public interface CommoditySoldSettings {
      *
      * @see #getUpdatingFunction()
      */
-    CommoditySoldSettings setUpdatingFunction(UpdatingFunction updatingFunction);
+    @NonNull CommoditySoldSettings setUpdatingFunction(@NonNull FunctionalOperator updatingFunction);
 
     /**
      * Returns the updating function for {@code this} commodity.
@@ -260,7 +260,7 @@ public interface CommoditySoldSettings {
      *
      */
     @Pure
-    @PolyRead UpdatingFunction getUpdatingFunction(@PolyRead CommoditySoldSettings this);
+    @NonNull @PolyRead FunctionalOperator getUpdatingFunction(@PolyRead CommoditySoldSettings this);
 
     /**
      * Sets the value of the <b>cloneWithNewKey</b> field.

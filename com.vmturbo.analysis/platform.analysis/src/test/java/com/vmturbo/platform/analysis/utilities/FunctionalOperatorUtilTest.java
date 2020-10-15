@@ -1,28 +1,24 @@
 package com.vmturbo.platform.analysis.utilities;
 
 import java.util.Arrays;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.platform.analysis.economy.Context;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
-import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 
-/**
- * Tests for UpdatingFunctionFactory.
- */
-public class UpdatingFunctionFactoryTest {
+public class FunctionalOperatorUtilTest {
 
     private static final long zoneId = 0L;
     Economy economy;
     Trader vm;
     Trader pm;
-    ShoppingList sl1;
-    ShoppingList sl2;
+    ShoppingList sl1, sl2;
 
     /**
      * Set up before tests.
@@ -49,8 +45,8 @@ public class UpdatingFunctionFactoryTest {
      */
     @Test
     public void testAddComm() {
-        double[] res = UpdatingFunctionFactory.ADD_COMM.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), null, null, false, 0, null);
+        double[] res = FunctionalOperatorUtil.ADD_COMM.operate(sl2, 0,
+                        pm.getCommoditySold(TestUtils.CPU), null, null, false, 0);
         Assert.assertEquals(80, res[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(150, res[1], TestUtils.FLOATING_POINT_DELTA);
     }
@@ -62,8 +58,8 @@ public class UpdatingFunctionFactoryTest {
      */
     @Test
     public void testSubComm() {
-        double[] res = UpdatingFunctionFactory.SUB_COMM.operate(sl1, 0,
-                        pm.getCommoditySold(TestUtils.CPU), null, null, false, 0, null);
+        double[] res = FunctionalOperatorUtil.SUB_COMM.operate(sl1, 0,
+                        pm.getCommoditySold(TestUtils.CPU), null, null, false, 0);
         Assert.assertEquals(0, res[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(0, res[1], TestUtils.FLOATING_POINT_DELTA);
     }
@@ -72,18 +68,19 @@ public class UpdatingFunctionFactoryTest {
      * Unit test for IGNORE_CONSUMPTION().
      * res1[0] = 50.
      * res1[1] = 90.
+     *
      * res2[0] = 30 + 50 = 80.
      * res2[1] = 60 + 90 = 150.
      */
     @Test
     public void testIgnoreConsumption() {
-        double[] res1 = UpdatingFunctionFactory.IGNORE_CONSUMPTION.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), null, null, true, 0, null);
+        double[] res1 = FunctionalOperatorUtil.IGNORE_CONSUMPTION.operate(sl2, 0,
+                        pm.getCommoditySold(TestUtils.CPU), null, null, true, 0);
         Assert.assertEquals(50, res1[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(90, res1[1], TestUtils.FLOATING_POINT_DELTA);
 
-        double[] res2 = UpdatingFunctionFactory.IGNORE_CONSUMPTION.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), null, null, false, 0, null);
+        double[] res2 = FunctionalOperatorUtil.IGNORE_CONSUMPTION.operate(sl2, 0,
+                        pm.getCommoditySold(TestUtils.CPU), null, null, false, 0);
         Assert.assertEquals(0, res2[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(0, res2[1], TestUtils.FLOATING_POINT_DELTA);
     }
@@ -92,6 +89,7 @@ public class UpdatingFunctionFactoryTest {
      * Unit test for AVG_COMMS().
      * res1[0] = (60 * 2 + 30)/(2 + 0) = 75.
      * res1[1] = (90 * 2 + 60)/(2 + 0) = 120.
+     *
      * res2[0] = (60 * 2 + 30)/(2 + 1) = 50. Take Max(60, 50).
      * res2[1] = (90 * 2 + 60)/(2 + 1) = 80. Take Max(90, 80).
      * Provider usage should not decrease when a VM is moving into it.
@@ -105,13 +103,13 @@ public class UpdatingFunctionFactoryTest {
         // populate numConsumers on the commSold by the pm
         pm.getCommoditiesSold().forEach(cs -> cs.setNumConsumers(2));
 
-        double[] res1 = UpdatingFunctionFactory.AVG_COMMS.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), pm, null, true, 0, null);
+        double[] res1 = FunctionalOperatorUtil.AVG_COMMS.operate(sl2, 0,
+                        pm.getCommoditySold(TestUtils.CPU), pm, null, true, 0);
         Assert.assertEquals(75, res1[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(120, res1[1], TestUtils.FLOATING_POINT_DELTA);
 
-        double[] res2 = UpdatingFunctionFactory.AVG_COMMS.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), pm, null, false, 0, null);
+        double[] res2 = FunctionalOperatorUtil.AVG_COMMS.operate(sl2, 0,
+                        pm.getCommoditySold(TestUtils.CPU), pm, null, false, 0);
         Assert.assertEquals(60, res2[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(90, res2[1], TestUtils.FLOATING_POINT_DELTA);
     }
@@ -123,8 +121,8 @@ public class UpdatingFunctionFactoryTest {
      */
     @Test
     public void testMaxComm() {
-        double[] res = UpdatingFunctionFactory.MAX_COMM.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), null, null, false, 0, null);
+        double[] res = FunctionalOperatorUtil.MAX_COMM.operate(sl2, 0,
+                        pm.getCommoditySold(TestUtils.CPU), null, null, false, 0);
         Assert.assertEquals(50, res[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(90, res[1], TestUtils.FLOATING_POINT_DELTA);
     }
@@ -136,8 +134,8 @@ public class UpdatingFunctionFactoryTest {
      */
     @Test
     public void testMinComm() {
-        double[] res = UpdatingFunctionFactory.MIN_COMM.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), null, null, false, 0, null);
+        double[] res = FunctionalOperatorUtil.MIN_COMM.operate(sl2, 0,
+                        pm.getCommoditySold(TestUtils.CPU), null, null, false, 0);
         Assert.assertEquals(30, res[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(60, res[1], TestUtils.FLOATING_POINT_DELTA);
     }
@@ -149,8 +147,8 @@ public class UpdatingFunctionFactoryTest {
      */
     @Test
     public void testReturnBoughtComm() {
-        double[] res = UpdatingFunctionFactory.RETURN_BOUGHT_COMM.operate(sl2, 0, null, null, null,
-                        false, 0, null);
+        double[] res = FunctionalOperatorUtil.RETURN_BOUGHT_COMM.operate(sl2, 0, null, null, null,
+                        false, 0);
         Assert.assertEquals(30, res[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(60, res[1], TestUtils.FLOATING_POINT_DELTA);
     }
