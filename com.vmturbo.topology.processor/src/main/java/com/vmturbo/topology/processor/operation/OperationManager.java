@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.operation;
 
 import java.io.IOException;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -32,10 +33,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.communication.CommunicationException;
@@ -72,7 +69,9 @@ import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.proactivesupport.DataMetricGauge;
+import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.sdk.server.common.DiscoveryDumper;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
@@ -210,8 +209,25 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     private static final DataMetricSummary DISCOVERY_SIZE_SUMMARY = DataMetricSummary.builder()
         .withName("tp_discovery_size_entities")
         .withHelp("The number of service entities in a discovery.")
+        .withLabelNames("target_type")
         .build()
         .register();
+
+    private static final DataMetricHistogram DISCOVERY_TIMES = DataMetricHistogram.builder()
+                    .withName("tp_discovery_time_seconds")
+                    .withHelp("Total time of discoveries. Currently FULL and INCREMENTAL discovery types are supported.")
+                    .withLabelNames("target_type", "discovery_type", "is_successful")
+		    .withBuckets(new double[]{60.0, 120.0, 180.0, 300.0, 480.0, 600.0})
+                    .build()
+                    .register();
+
+    private static final DataMetricHistogram DISCOVERY_WAITING_TIMES = DataMetricHistogram.builder()
+                    .withName("tp_discovery_wait_time_seconds")
+                    .withHelp("Total time that discovery waits for permit.")
+                    .withLabelNames("target_type", "discovery_type")
+		    .withBuckets(new double[]{1.0, 5.0, 10.0, 30.0, 60.0, 120.0, 240.0})
+                    .build()
+                    .register();
 
     private DiscoveredWorkflowUploader discoveredWorkflowUploader;
 
@@ -521,6 +537,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         final DiscoveryRequest discoveryRequest;
         final DiscoveryMessageHandler discoveryMessageHandler;
         final Target target;
+        final String probeType;
         synchronized (this) {
             logger.info("Starting discovery for target: {} ({})", targetId, discoveryType);
             final Optional<Discovery> currentDiscovery = getInProgressDiscoveryForTarget(targetId, discoveryType);
@@ -531,7 +548,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
             target = targetStore.getTarget(targetId)
                     .orElseThrow(() -> new TargetNotFoundException(targetId));
-            final String probeType = getProbeTypeWithCheck(target);
+            probeType = getProbeTypeWithCheck(target);
 
             probeId = target.getProbeId();
             discovery = new Discovery(probeId, target.getId(), discoveryType, identityProvider);
@@ -552,39 +569,47 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         logger.info("Number of permits before acquire: {}, queueLength: {} by targetId: {}({}) ({})",
             () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
             () -> semaphore.map(Semaphore::getQueueLength).orElse(-1),
-            () -> target.getDisplayName(),
+            target::getDisplayName,
             () -> targetId,
             () -> discoveryType);
 
-        if (semaphore.isPresent()) {
-            // Threads will be blocked if there are not enough permits.
-            // If due to some bug, the permits are never released, there will be a deadlock and
-            // any new discoveries will be blocked. To get out of such situations, we add a safety
-            // measure of timing out the acquisition of the semaphore. After the timeout, there
-            // will be an implicit release. We add a random delay to prevent thundering herd
-            // effect.
-            // Acquire timeout doesn't necessarily mean that there is a deadlock. It can also be
-            // the case that all the concurrent requests didn't finish within the timeout. But
-            // since this case is less likely, it is ok to assume that the acquire timeout is
-            // due to a deadlock.
-            // todo: should we have different timeout for incremental discovery?
-            final long waitTimeout = probeDiscoveryPermitWaitTimeoutMins +
-                    random.nextInt(probeDiscoveryPermitWaitTimeoutIntervalMins);
-            logger.info("Set permit acquire timeout to: {} for target: {}({}) ({})",
-                waitTimeout, target.getDisplayName(), targetId, discoveryType);
-            boolean gotPermit = semaphore.get().tryAcquire(1, waitTimeout, TimeUnit.MINUTES);
-            if (!gotPermit) {
-                logger.warn("Permit acquire timeout of: {} {} exceeded for targetId: {} ({})." +
-                    " Continuing with discovery", waitTimeout, TimeUnit.MINUTES,
-                    targetId, discoveryType);
+        try (DataMetricTimer waitingTimer = DISCOVERY_WAITING_TIMES.labels(probeType, discoveryType.toString()).startTimer()) {
+            if (semaphore.isPresent()) {
+                // Threads will be blocked if there are not enough permits.
+                // If due to some bug, the permits are never released, there will be a deadlock and
+                // any new discoveries will be blocked. To get out of such situations, we add a safety
+                // measure of timing out the acquisition of the semaphore. After the timeout, there
+                // will be an implicit release. We add a random delay to prevent thundering herd
+                // effect.
+                // Acquire timeout doesn't necessarily mean that there is a deadlock. It can also be
+                // the case that all the concurrent requests didn't finish within the timeout. But
+                // since this case is less likely, it is ok to assume that the acquire timeout is
+                // due to a deadlock.
+                // todo: should we have different timeout for incremental discovery?
+                final long waitTimeout = probeDiscoveryPermitWaitTimeoutMins + random.nextInt(probeDiscoveryPermitWaitTimeoutIntervalMins);
+                logger.info("Set permit acquire timeout to: {} for target: {}({}) ({})",
+                            waitTimeout,
+                            target.getDisplayName(),
+                            targetId,
+                            discoveryType);
+                boolean gotPermit = semaphore.get().tryAcquire(1, waitTimeout, TimeUnit.MINUTES);
+                if (!gotPermit) {
+                    logger.warn("Permit acquire timeout of: {} {} exceeded for targetId: {} ({})."
+                                + " Continuing with discovery",
+                                waitTimeout,
+                                TimeUnit.MINUTES,
+                                targetId,
+                                discoveryType);
+                }
             }
+            logger.info("Number of permits after acquire: {}, queueLength: {} by target: {}({}) ({}). Took {} seconds.",
+                        () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
+                        () -> semaphore.map(Semaphore::getQueueLength).orElse(-1),
+                        target::getDisplayName,
+                        () -> targetId,
+                        () -> discoveryType,
+                        waitingTimer::getTimeElapsedSecs);
         }
-        logger.info("Number of permits after acquire: {}, queueLength: {} by target: {}({}) ({})",
-            () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
-            () -> semaphore.map(Semaphore::getQueueLength).orElse(-1),
-            () -> target.getDisplayName(),
-            () -> targetId,
-            () -> discoveryType);
 
         synchronized (this) {
             try {
@@ -984,6 +1009,17 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             final Optional<Target> target = targetStore.getTarget(targetId);
             if (change) {
                 if (target.isPresent()) {
+                    if (discovery.getCompletionTime() != null) {
+                        try {
+                            DISCOVERY_TIMES.labels(getProbeTypeWithCheck(target.get()), discoveryType.toString(), Boolean.toString(success))
+                                            .observe((double)discovery.getStartTime().until(
+                                                            discovery.getCompletionTime(),
+                                                            ChronoUnit.SECONDS));
+                        } catch (ProbeException e) {
+                            logger.warn("Probe type is missing for target {}. Exception is {}", target, e);
+                        }
+                    }
+
                     if (success) {
                         try {
                             // TODO: (DavidBlinn 3/14/2018) if information makes it into the entityStore but fails later
@@ -993,7 +1029,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             // these operations apply to all discovery types (FULL and INCREMENTAL for now)
                             entityStore.entitiesDiscovered(discovery.getProbeId(), targetId,
                                     discovery.getMediationMessageId(), discoveryType, response.getEntityDTOList());
-                            DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOCount());
+                            DISCOVERY_SIZE_SUMMARY.labels(target.map(Target::getProbeInfo)
+                                                                          .map(ProbeInfo::getProbeType)
+                                                                          .orElse("UNKNOWN"))
+                                            .observe((double)response.getEntityDTOCount());
                             // dump discovery response if required
                             if (discoveryDumper != null) {
                                 final Optional<ProbeInfo> probeInfo = probeStore.getProbe(discovery.getProbeId());
