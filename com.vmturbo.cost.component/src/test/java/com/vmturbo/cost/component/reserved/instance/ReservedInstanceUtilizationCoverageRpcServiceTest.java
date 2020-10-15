@@ -275,9 +275,8 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
         final long projectedSnapshotTime = now + 50;
         final ReservedInstanceStatsRecord planProjectedRICoverageStats =
                         createRIStatsRecord(200, 100, projectedSnapshotTime);
-
-        when(planProjectedRICoverageAndUtilStore.getPlanReservedInstanceUtilizationStatsRecords(eq(PLAN_ID), anyList()))
-                        .thenReturn(Lists.newArrayList(planProjectedRICoverageStats));
+        when(planProjectedRICoverageAndUtilStore.getPlanReservedInstanceUtilizationStatsRecords(eq(PLAN_ID), anyList(), anyLong()))
+                .thenReturn(Lists.newArrayList(planProjectedRICoverageStats));
         GetReservedInstanceUtilizationStatsRequest request =
                         GetReservedInstanceUtilizationStatsRequest.newBuilder()
                                         .setTopologyContextId(PLAN_ID)
@@ -308,7 +307,7 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
         final ReservedInstanceStatsRecord planProjectedRICoverageStats =
                         createRIStatsRecord(10, 6.5f, projectedSnapshotTime);
 
-        when(planProjectedRICoverageAndUtilStore.getPlanReservedInstanceCoverageStatsRecords(eq(PLAN_ID), anyList()))
+        when(planProjectedRICoverageAndUtilStore.getPlanReservedInstanceCoverageStatsRecords(eq(PLAN_ID), anyList(), anyLong()))
                         .thenReturn(Lists.newArrayList(planProjectedRICoverageStats));
         GetReservedInstanceCoverageStatsRequest request =
                         GetReservedInstanceCoverageStatsRequest.newBuilder()

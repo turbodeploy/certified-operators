@@ -422,15 +422,18 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
      */
     @Test
     public void testGetReservedInstanceUtilizationStatsRecords() {
+        long endTime = 2020000L;
         mockPlanRIUtilizationTables();
         final List<ReservedInstanceStatsRecord> statsRecords =
-                store.getPlanReservedInstanceUtilizationStatsRecords(PLAN_ID, Collections.emptyList());
+                store.getPlanReservedInstanceUtilizationStatsRecords(PLAN_ID,
+                        Collections.emptyList(), endTime);
         assertEquals(1, statsRecords.size());
         final ReservedInstanceStatsRecord record = statsRecords.get(0);
         // Coupon capacities are 100 and 200, so average is 150.
         assertEquals(150, record.getCapacity().getAvg(), DELTA);
         // Used coupons is 100 out of 2 coupons, so average is 50.
         assertEquals(50, record.getValues().getAvg(), DELTA);
+        assertEquals(endTime, record.getSnapshotDate());
     }
 
     /**
@@ -438,14 +441,17 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
      */
     @Test
     public void testGetReservedInstanceCoverageStatsRecords() {
+        long endTime = 2020000L;
         mockPlanRIUtilizationTables();
         mockPlanProjectedRICoverageTable(PLAN_ID, false, null, null);
         final List<ReservedInstanceStatsRecord> statsRecords =
-                store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID, Collections.emptyList());
+                store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID, Collections.emptyList(),
+                        endTime);
         assertEquals(1, statsRecords.size());
         final ReservedInstanceStatsRecord record = statsRecords.get(0);
         assertEquals(5, record.getCapacity().getAvg(), DELTA);
         assertEquals(0.2, record.getValues().getAvg(), DELTA);
+        assertEquals(endTime, record.getSnapshotDate());
     }
 
     /**
@@ -456,7 +462,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
         mockPlanRIUtilizationTables();
         mockPlanProjectedRICoverageTable(PLAN_ID, true, null, null);
         final List<ReservedInstanceStatsRecord> statsRecords =
-                store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID, Collections.emptyList());
+                store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID, Collections.emptyList(), 0);
         assertEquals(1, statsRecords.size());
         final ReservedInstanceStatsRecord record = statsRecords.get(0);
         assertEquals(5, record.getCapacity().getAvg(), DELTA);
@@ -504,7 +510,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
         mockPlanProjectedRICoverageTable(PLAN_ID, false,
                 ImmutableList.of(vmBidding, ba), ImmutableList.of(vmCoverage));
         final List<ReservedInstanceStatsRecord> statsRecords =
-                store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID, Collections.emptyList());
+                store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID, Collections.emptyList(), 0);
         assertEquals(1, statsRecords.size());
         final ReservedInstanceStatsRecord record = statsRecords.get(0);
         assertEquals(5, record.getCapacity().getAvg(), DELTA);
@@ -539,7 +545,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
                         .setEntityCouponCapacity(4)
                         .build()));
         final List<ReservedInstanceStatsRecord> statsRecords =
-                store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID, Collections.emptyList());
+                store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID, Collections.emptyList(), 0);
         assertEquals(1, statsRecords.size());
         final ReservedInstanceStatsRecord record = statsRecords.get(0);
         assertEquals(5, record.getCapacity().getAvg(), DELTA);

@@ -135,7 +135,8 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             if (request.hasTopologyContextId() && request.getTopologyContextId() != realtimeTopologyContextId) {
                 final List<ReservedInstanceStatsRecord> statsRecords = planProjectedRICoverageAndUtilStore
                                 .getPlanReservedInstanceUtilizationStatsRecords(request.getTopologyContextId(),
-                                        filter.getRegionFilter().getRegionIdList());
+                                        filter.getRegionFilter().getRegionIdList(),
+                                        request.getEndDate());
                 if (!CollectionUtils.isEmpty(statsRecords)) {
                     statRecords.add(statsRecords.get(0));
                 }
@@ -190,7 +191,8 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             if (request.hasTopologyContextId() && request.getTopologyContextId() != realtimeTopologyContextId) {
                 final List<ReservedInstanceStatsRecord> statsRecords = planProjectedRICoverageAndUtilStore
                                 .getPlanReservedInstanceCoverageStatsRecords(request.getTopologyContextId(),
-                                        filter.getRegionFilter().getRegionIdList());
+                                        filter.getRegionFilter().getRegionIdList(),
+                                        request.getEndDate());
                 if (!CollectionUtils.isEmpty(statsRecords)) {
                     statRecords.add(statsRecords.get(0));
                 }

@@ -112,13 +112,15 @@ public class ReservedInstanceUtil {
      * Convert {@link Record} to a {@link ReservedInstanceStatsRecord}.
      *
      * @param record {@link Record} which contains the aggregated plan reserved instance stats data.
+     * @param endDate End date (if non-0) to use as stats snapshot time.
      * @return a {@link ReservedInstanceStatsRecord}.
      */
     public static ReservedInstanceStatsRecord convertPlanRIUtilizationCoverageRecordToRIStatsRecord(
-            @Nonnull final Record record) {
+            @Nonnull final Record record, long endDate) {
         final ReservedInstanceStatsRecord.Builder statsRecord = convertCouponValues(record);
-        statsRecord.setSnapshotDate(Clock.systemUTC().instant().plus(PROJECTED_STATS_TIME_IN_FUTURE_HOURS, ChronoUnit.HOURS)
-                        .toEpochMilli());
+        final long projectedTimeMillis = endDate != 0 ? endDate : Clock.systemUTC().instant()
+                .plus(PROJECTED_STATS_TIME_IN_FUTURE_HOURS, ChronoUnit.HOURS).toEpochMilli();
+        statsRecord.setSnapshotDate(projectedTimeMillis);
         return statsRecord.build();
     }
 

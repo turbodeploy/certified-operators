@@ -467,13 +467,17 @@ public class PlanProjectedRICoverageAndUtilStore implements MultiStoreDiagnosabl
      *
      * @param planId plan ID.
      * @param regions a list of regions.
+     * @param endDate End date (if non-0) to use as stats snapshot time.
      * @return a list of {@link ReservedInstanceStatsRecord}.
      */
-    public List<ReservedInstanceStatsRecord> getPlanReservedInstanceUtilizationStatsRecords(long planId, List<Long> regions) {
-        return getPlanRIStatsRecords(planId, Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION, regions);
+    public List<ReservedInstanceStatsRecord> getPlanReservedInstanceUtilizationStatsRecords(long planId,
+            List<Long> regions, long endDate) {
+        return getPlanRIStatsRecords(planId, Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION,
+                regions, endDate);
     }
 
-    private List<ReservedInstanceStatsRecord> getPlanRIStatsRecords(long planId, final Table<?> table, List<Long> regions) {
+    private List<ReservedInstanceStatsRecord> getPlanRIStatsRecords(long planId, final Table<?> table,
+            List<Long> regions, long endDate) {
         Condition conditions = table.field(PLAN_ID, Long.class).eq(planId);
         // If there is no region filter, return data for all regions.
         if (regions != null && !regions.isEmpty()) {
@@ -485,7 +489,7 @@ public class PlanProjectedRICoverageAndUtilStore implements MultiStoreDiagnosabl
                                         .where(conditions)
                                         .fetch();
         return records.stream().filter(r -> r.getValue(0) != null)
-                        .map(ReservedInstanceUtil::convertPlanRIUtilizationCoverageRecordToRIStatsRecord)
+                        .map(rec -> ReservedInstanceUtil.convertPlanRIUtilizationCoverageRecordToRIStatsRecord(rec, endDate))
                         .collect(Collectors.toList());
     }
 
@@ -563,10 +567,13 @@ public class PlanProjectedRICoverageAndUtilStore implements MultiStoreDiagnosabl
      *
      * @param planId plan ID.
      * @param regions a list of regions.
+     * @param endDate End date (if non-0) to use as stats snapshot time.
      * @return a list of {@link ReservedInstanceStatsRecord}.
      */
-    public List<ReservedInstanceStatsRecord> getPlanReservedInstanceCoverageStatsRecords(long planId, List<Long> regions) {
-        return getPlanRIStatsRecords(planId, Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE, regions);
+    public List<ReservedInstanceStatsRecord> getPlanReservedInstanceCoverageStatsRecords(long planId,
+            List<Long> regions, long endDate) {
+        return getPlanRIStatsRecords(planId, Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE,
+                regions, endDate);
     }
 
     /**
