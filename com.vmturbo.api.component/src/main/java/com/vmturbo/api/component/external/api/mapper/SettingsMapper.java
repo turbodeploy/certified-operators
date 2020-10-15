@@ -976,7 +976,7 @@ public class SettingsMapper {
      * @param settingValue the value to be checked
      * @param spec the spec for the setting
      */
-    private static void validateSettingValue(@Nonnull final String settingValue,
+    public static void validateSettingValue(@Nonnull final String settingValue,
                                              @Nonnull final SettingSpec spec) {
         switch (spec.getSettingValueTypeCase()) {
             case BOOLEAN_SETTING_VALUE_TYPE:
@@ -1158,7 +1158,7 @@ public class SettingsMapper {
     }
 
     @Nonnull
-    private static Optional<SettingSpec> getSettingSpec(@Nonnull final String settingSpecName) {
+    public static Optional<SettingSpec> getSettingSpec(@Nonnull final String settingSpecName) {
         Optional<EntitySettingSpecs> entitySpec =
             EntitySettingSpecs.getSettingByName(settingSpecName);
         if (entitySpec.isPresent()) {

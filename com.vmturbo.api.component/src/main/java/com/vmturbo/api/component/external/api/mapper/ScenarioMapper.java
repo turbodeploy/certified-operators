@@ -1164,10 +1164,17 @@ public class ScenarioMapper {
         if (dto.getConfigChanges() != null && dto.getConfigChanges().getAutomationSettingList() != null) {
             List<SettingApiDTO<String>> automationSettingList = dto.getConfigChanges().getAutomationSettingList();
             for(SettingApiDTO setting : automationSettingList) {
-                if (setting.getEntityType() != null && setting.getUuid() != null
-                                && ApiEntityType.fromString(setting.getEntityType()).typeNumber() == EntityType.PHYSICAL_MACHINE_VALUE
-                                && setting.getUuid().equalsIgnoreCase(ConfigurableActionSettings.Provision.getSettingName())) {
-                    hasPMProvisionSetting = true;
+                if ( setting.getUuid() != null  ) {
+                    final Optional<SettingSpec> settingSpec =  SettingsMapper.getSettingSpec(setting.getUuid());
+                    if (settingSpec.isPresent()) {
+                        SettingsMapper.validateSettingValue(setting.getValue().toString(), settingSpec.get());
+                    }
+
+                    if ( setting.getEntityType() != null
+                            && EntityType.PHYSICAL_MACHINE_VALUE == ApiEntityType.fromString(setting.getEntityType()).typeNumber()
+                            && setting.getUuid().equalsIgnoreCase(ConfigurableActionSettings.Provision.getSettingName())) {
+                        hasPMProvisionSetting = true;
+                    }
                 }
             }
         }

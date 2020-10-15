@@ -40,9 +40,11 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
+import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.PlanSettingInfo;
@@ -176,6 +178,12 @@ public class SettingsMapperTest {
 
     private final ScheduleMapper scheduleMapper = new ScheduleMapper();
 
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
+
+    /**
+     * Set Grpc Test Server.
+     */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupBackend,
             settingBackend, settingPolicyBackend);
@@ -385,6 +393,51 @@ public class SettingsMapperTest {
             false).isEmpty());
     }
 
+    @Test
+    public void testValidateSettingValue() {
+
+        final SettingSpec boolValueTypeSpec = SettingSpec.newBuilder()
+                .setName("boolValueTypeSpec")
+                .setBooleanSettingValueType(BooleanSettingValueType.newBuilder()).build();
+
+        final SettingSpec numericValueTypeSpec = SettingSpec.newBuilder()
+                .setName("numericValueTypeSpec")
+                .setNumericSettingValueType(NumericSettingValueType.newBuilder()).build();
+
+
+        final SettingSpec enumValueTypeSpec = SettingSpec.newBuilder()
+                .setName("enumValueTypeSpec")
+                .setEnumSettingValueType(EnumSettingValueType.newBuilder().addAllEnumValues(Arrays.asList("value1", "value2", "value3")).build())
+                .build();
+
+
+        final String stringInputValue = "testValue";
+        final String booleanInputValue = "true";
+        final String numericInputValue = "20";
+
+        final SettingApiDTO stringSetting = makeSetting("move", "MANUAL");
+        final SettingApiDTO numSetting = makeSetting("utilTarget", "50");
+        final SettingApiDTO boolSetting = makeSetting("consistentResizing", "false");
+
+        thrown.expect(IllegalArgumentException.class);
+        SettingsMapper.validateSettingValue(stringInputValue, boolValueTypeSpec );
+
+        thrown.expect(IllegalArgumentException.class);
+        thrown.expectMessage("Setting '" + numericValueTypeSpec.getName()
+                + "' must have a numeric value. The value '" + stringInputValue
+                + "' is invalid.");
+        SettingsMapper.validateSettingValue(stringInputValue, numericValueTypeSpec );
+
+        thrown.expect(IllegalArgumentException.class);
+        thrown.expectMessage("The value '"
+                + "' provided for setting '" + enumValueTypeSpec.getName()
+                + "' is not one of the allowed values: "
+                + StringUtils.join(enumValueTypeSpec.getEnumSettingValueType().getEnumValuesList(), ", "));
+    }
+
+    /**
+     * Test SpecMapper single path.
+     */
     @Test
     public void testSpecMapperSinglePath() {
         final DefaultSettingSpecMapper specMapper = new DefaultSettingSpecMapper();

@@ -46,6 +46,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
 import com.vmturbo.api.component.ApiTestUtils;
@@ -176,6 +177,12 @@ public class ScenarioMapperTest {
     private UuidMapper uuidMapper;
 
     private final SettingApiDTO<String> settingApiDto = new SettingApiDTO<>();
+
+    /**
+     * Used for testing exceptions.
+     */
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
 
     @Before
     public void setup() throws Exception {
@@ -864,6 +871,69 @@ public class ScenarioMapperTest {
     }
 
     /**
+     * Tests converting of ScenarioApiDto with invalid automation settings list to ScenarioInfo.
+     *
+     * @throws Exception on exception occured
+     * @throws IllegalArgumentException on invalid automation settings
+     */
+    @Test
+    public void testToScenarioInfoWithInvalidAutomationSettingsList() throws Exception {
+        final ScenarioApiDTO invalidAutomationSettings = new ScenarioApiDTO();
+        final String settingUuid = "provision";
+        final String settingValue = "Enabled";
+        final List<SettingApiDTO<String>> automationList = Arrays.asList(
+                makeSetting("utilTarget", "70", null),
+                makeSetting(settingUuid, settingValue, "PhysicalMachine"));
+        final ConfigChangesApiDTO configChangesApiDTO = new ConfigChangesApiDTO();
+        configChangesApiDTO.setAutomationSettingList(automationList);
+        invalidAutomationSettings.setConfigChanges(configChangesApiDTO);
+        String scopeUuid = "12345";
+        invalidAutomationSettings.setType(DECOMMISSION_HOST_SCENARIO_TYPE);
+        invalidAutomationSettings.setScope(Collections.singletonList(createTestScope(scopeUuid, "Group", "testScopeDisplayName" )));
+
+        thrown.expect(IllegalArgumentException.class);
+        scenarioMapper.toScenarioInfo("invalid automation settings plan", invalidAutomationSettings);
+    }
+
+    /**
+     * Tests converting of ScenarioApiDto with valid automation settings list to ScenarioInfo.
+     *
+     * @throws Exception on exception occured.
+     */
+    @Test
+    public void testToScenarioInfoWithvalidAutomationSettingsList() throws Exception {
+        final ScenarioApiDTO validAutomationSettings = new ScenarioApiDTO();
+        final String settingUuid = "provision";
+        final String settingValue = "AUTOMATIC";
+        final String scenarioName = "valid automation settings plan";
+        final List<SettingApiDTO<String>> automationList = Arrays.asList(
+                makeSetting("utilTarget", "70", null),
+                makeSetting(settingUuid, settingValue, "PhysicalMachine"));
+        final ConfigChangesApiDTO configChangesApiDTO = new ConfigChangesApiDTO();
+        configChangesApiDTO.setAutomationSettingList(automationList);
+        validAutomationSettings.setConfigChanges(configChangesApiDTO);
+        String scopeUuid = "12345";
+        validAutomationSettings.setType(DECOMMISSION_HOST_SCENARIO_TYPE);
+        validAutomationSettings.setScope(Collections.singletonList(createTestScope(scopeUuid, "Group", "testScopeDisplayName" )));
+
+
+        final ScenarioInfo validAutomationSettingsInfo = scenarioMapper.toScenarioInfo(scenarioName, validAutomationSettings);
+        assertTrue(validAutomationSettingsInfo.getName().equals(scenarioName));
+        assertTrue(validAutomationSettingsInfo.getType().equals(DECOMMISSION_HOST_SCENARIO_TYPE));
+
+    }
+
+    private SettingApiDTO makeSetting(String uuid, String value, String entityType) {
+        final SettingApiDTO<String> setting = new SettingApiDTO<>();
+        setting.setUuid(uuid);
+        setting.setValue(value);
+        setting.setEntityType(entityType);
+        return setting;
+    }
+
+    /**
+     * Test toScenarioInfoUtilizationLevel for utilization level.
+     *
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
      * @throws UnknownObjectException when a setting manger is not found by the uuid specified
