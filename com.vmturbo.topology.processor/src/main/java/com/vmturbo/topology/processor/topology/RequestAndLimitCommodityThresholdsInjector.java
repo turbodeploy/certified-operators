@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -82,7 +83,7 @@ public class RequestAndLimitCommodityThresholdsInjector {
      *
      * @param entity The entity whose request commodities on which we wish to inject thresholds.
      * @param stats for summarizing the changes made. Stats will be incremented depending
-     *              to indicate the threhsolds injected.
+     *              to indicate the thresholds injected.
      */
     private void injectThresholds(@Nonnull final TopologyEntity entity,
                                   @Nonnull final InjectionStats stats) {
@@ -136,6 +137,72 @@ public class RequestAndLimitCommodityThresholdsInjector {
         }
     }
 
+
+    /**
+     * Inject commodity min threshold as current usage to prevent resizing down limit or request below
+     * current usage so as to avoid container running out of memory.
+     * <p/>
+     * Update min threshold of individual container as the max current usage from all container replicas.
+     *
+     * @param graph The {@link TopologyGraph} containing all the entities in the topology and their
+     *              relationships.
+     * @return {@link InjectionStats} summarizing the changes made.
+     */
+    public InjectionStats injectMinThresholdsFromUsage(@Nonnull final TopologyGraph<TopologyEntity> graph) {
+        final InjectionStats injectionStats = new InjectionStats();
+        graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber()).forEach(entity ->
+            injectMinThresholdsFromUsage(entity, injectionStats));
+        if (injectionStats.entitiesModified > 0) {
+            logger.info("Injected {} commodity min thresholds from usage on {} entities.",
+                injectionStats.getCommoditiesModified(),
+                injectionStats.getEntitiesModified());
+        }
+        return injectionStats;
+    }
+
+    /**
+     * Inject commodity min threshold as current usage to prevent resizing down limit or request below
+     * current usage so as to avoid container running out of memory.
+     * <p/>
+     * Update min threshold of individual container as the max current usage from all container replicas.
+     *
+     * @param entity Given entity whose commodities on which we wish to inject min thresholds from usage.
+     * @param stats  For summarizing the changes made. Stats will be incremented depending to indicate
+     *               the thresholds injected.
+     */
+    private void injectMinThresholdsFromUsage(@Nonnull final TopologyEntity entity,
+                                              @Nonnull final InjectionStats stats) {
+        final Map<Integer, Double> commodityTypeToMaxUsageMap = new HashMap<>();
+        entity.getAggregatedEntities().forEach(container ->
+            container.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
+                // Update min thresholds only for limit and request commodities.
+                .filter(comm -> LIMIT_COMMODITY_TYPES.contains(comm.getCommodityType().getType())
+                    || REQUEST_COMMODITY_TYPES.contains(comm.getCommodityType().getType()))
+                .forEach(comm -> {
+                commodityTypeToMaxUsageMap.compute(
+                    comm.getCommodityType().getType(), (k, v) -> v == null ? comm.getUsed()
+                        : Math.max(v, comm.getUsed()));
+            }));
+        entity.getAggregatedEntities().forEach(container -> {
+            container.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
+                .filter(comm -> LIMIT_COMMODITY_TYPES.contains(comm.getCommodityType().getType())
+                    || REQUEST_COMMODITY_TYPES.contains(comm.getCommodityType().getType()))
+                .forEach(comm -> {
+                    double maxUsage = commodityTypeToMaxUsageMap.get(comm.getCommodityType().getType());
+                    // If commodity has existing thresholds, update min threshold as the max of existing
+                    // min threshold and max commodity usage from all container replicas.
+                    if (comm.hasThresholds()) {
+                        double newMinThresholds = Math.max(comm.getThresholds().getMin(), maxUsage);
+                        comm.getThresholdsBuilder().setMin(newMinThresholds);
+                    } else {
+                        comm.setThresholds(Thresholds.newBuilder().setMin(maxUsage));
+                    }
+                    stats.incrementCommoditiesModified();
+                });
+            stats.incrementEntitiesModified();
+        });
+    }
+
     /**
      * Statistics about the number of entities and commodities on which we inject thresholds.
      */
@@ -143,6 +210,7 @@ public class RequestAndLimitCommodityThresholdsInjector {
         private int entitiesModified;
         private int requestCommoditiesModified;
         private int limitCommoditiesModified;
+        private int commoditiesModified;
 
         /**
          * Create a new {@link InjectionStats}.
@@ -161,6 +229,10 @@ public class RequestAndLimitCommodityThresholdsInjector {
 
         private void incrementLimitCommoditiesModified() {
             limitCommoditiesModified++;
+        }
+
+        private void incrementCommoditiesModified() {
+            commoditiesModified++;
         }
 
         /**
@@ -188,6 +260,15 @@ public class RequestAndLimitCommodityThresholdsInjector {
          */
         public int getLimitCommoditiesModified() {
             return limitCommoditiesModified;
+        }
+
+        /**
+         * Get the number of commodities modified.
+         *
+         * @return The number of commodities modified.
+         */
+        public int getCommoditiesModified() {
+            return commoditiesModified;
         }
     }
 }

@@ -1748,15 +1748,15 @@ public class Stages {
      * Stage to inject min and max thresholds to Container entity request commodities.
      * These thresholds control the behavior of resize analysis for these commodities in the market.
      */
-    public static class RequestCommodityThresholdsStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
+    public static class RequestAndLimitCommodityThresholdsStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
         private final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector;
 
         /**
-         * Create a new {@link RequestCommodityThresholdsStage}.
+         * Create a new {@link RequestAndLimitCommodityThresholdsStage}.
          * @param requestAndLimitCommodityThresholdsInjector The {@link RequestAndLimitCommodityThresholdsInjector} to
          *                                           be run in this stage.
          */
-        public RequestCommodityThresholdsStage(
+        public RequestAndLimitCommodityThresholdsStage(
             @Nonnull final RequestAndLimitCommodityThresholdsInjector requestAndLimitCommodityThresholdsInjector) {
             this.requestAndLimitCommodityThresholdsInjector = Objects.requireNonNull(requestAndLimitCommodityThresholdsInjector);
         }
@@ -1766,6 +1766,7 @@ public class Stages {
         @Nonnull
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
             requestAndLimitCommodityThresholdsInjector.injectThresholds(graph);
+            requestAndLimitCommodityThresholdsInjector.injectMinThresholdsFromUsage(graph);
             return Status.success();
         }
     }

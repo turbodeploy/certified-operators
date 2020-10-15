@@ -10,6 +10,9 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -233,6 +236,108 @@ public class RequestAndLimitCommodityThresholdsInjectorTest {
         assertFalse(vcpuLimit.hasThresholds());
     }
 
+    /**
+     * testInjectMinThresholdsFromUsageEmpty.
+     */
+    @Test
+    public void testInjectMinThresholdsFromUsageEmpty() {
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf();
+        final InjectionStats stats = injector.injectMinThresholdsFromUsage(graph);
+
+        assertEquals(0, stats.getEntitiesModified());
+        assertEquals(0, stats.getCommoditiesModified());
+    }
+
+    /**
+     * testInjectMinThresholdsFromUsageNoContainerSpecs.
+     */
+    @Test
+    public void testInjectMinThresholdsFromUsageNoContainerSpecs() {
+        final TopologyEntity.Builder stEntity = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "ST", EntityType.STORAGE);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(stEntity);
+        final InjectionStats stats = injector.injectMinThresholdsFromUsage(graph);
+
+        assertEquals(0, stats.getEntitiesModified());
+        assertEquals(0, stats.getCommoditiesModified());
+    }
+
+    /**
+     * testInjectMinThresholdsFromUsageNoCommodities.
+     */
+    @Test
+    public void testInjectMinThresholdsFromUsageNoCommodities() {
+        final TopologyEntity.Builder container = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "Container", EntityType.CONTAINER);
+        final TopologyEntity.Builder containerSpec = TopologyEntityUtils
+            .topologyEntity(1, 0, 0, "ContainerSpec", EntityType.CONTAINER_SPEC)
+            .addAggregatedEntity(container);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container, containerSpec);
+        final InjectionStats stats = injector.injectMinThresholdsFromUsage(graph);
+
+        assertEquals(0, stats.getEntitiesModified());
+        assertEquals(0, stats.getCommoditiesModified());
+    }
+
+
+    /**
+     * testInjectMinThresholdsFromUsageMultipleContainers.
+     */
+    @Test
+    public void testInjectMinThresholdsFromUsageMultipleContainers() {
+        final TopologyEntity.Builder containerSpec = TopologyEntityUtils
+            .topologyEntity(2, 0, 0, "ContainerSpec", EntityType.CONTAINER_SPEC);
+
+        final TopologyEntity.Builder container1 = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "Container1", EntityType.CONTAINER);
+        final TopologyEntity.Builder container2 = TopologyEntityUtils
+            .topologyEntity(1, 0, 0, "Container2", EntityType.CONTAINER);
+        final CommoditySoldDTO.Builder vcpu1 =
+            addCommoditySold(container1, CommodityType.VCPU_VALUE, 50.0, 10.0, true);
+        final CommoditySoldDTO.Builder vcpu2 =
+            addCommoditySold(container2, CommodityType.VCPU_VALUE, 50.0, 20.0, true);
+
+        addAggregatedEntity(container1, containerSpec.getOid());
+        addAggregatedEntity(container2, containerSpec.getOid());
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container1, container2, containerSpec);
+        final InjectionStats stats = injector.injectMinThresholdsFromUsage(graph);
+
+        assertEquals(2, stats.getEntitiesModified());
+        assertEquals(2, stats.getCommoditiesModified());
+
+        assertTrue(vcpu1.hasThresholds());
+        assertEquals(vcpu2.getUsed(), vcpu1.getThresholds().getMin(), 0);
+
+        assertTrue(vcpu2.hasThresholds());
+        assertEquals(vcpu2.getUsed(), vcpu2.getThresholds().getMin(), 0);
+    }
+
+    /**
+     * testInjectMinThresholdsFromUsageWithExistingThresholds.
+     */
+    @Test
+    public void testInjectMinThresholdsFromUsageWithExistingThresholds() {
+        final TopologyEntity.Builder containerSpec = TopologyEntityUtils
+            .topologyEntity(2, 0, 0, "ContainerSpec", EntityType.CONTAINER_SPEC);
+
+        final TopologyEntity.Builder container = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "Container1", EntityType.CONTAINER);
+        final CommoditySoldDTO.Builder comm =
+            addCommoditySold(container, CommodityType.VCPU_REQUEST_VALUE, 50.0, 20.0, true);
+        comm.setThresholds(Thresholds.newBuilder().setMin(10).setMax(100).build());
+
+        addAggregatedEntity(container, containerSpec.getOid());
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container, containerSpec);
+        injector.injectMinThresholdsFromUsage(graph);
+
+        // commodity min threshold is updated to 20 and max threshold is still 100.
+        assertTrue(comm.hasThresholds());
+        assertEquals(20, comm.getThresholds().getMin(), 0);
+        assertEquals(100, comm.getThresholds().getMax(), 0);
+    }
+
     private static CommoditySoldDTO.Builder addCommoditySold(@Nonnull final TopologyEntity.Builder entity,
                                                              final int commodityType,
                                                              final double capacity) {
@@ -243,9 +348,18 @@ public class RequestAndLimitCommodityThresholdsInjectorTest {
                                                              final int commodityType,
                                                              final double capacity,
                                                              final boolean resizable) {
+        return addCommoditySold(entity, commodityType, capacity, 0.0, resizable);
+    }
+
+    private static CommoditySoldDTO.Builder addCommoditySold(@Nonnull final TopologyEntity.Builder entity,
+                                                             final int commodityType,
+                                                             final double capacity,
+                                                             final double used,
+                                                             final boolean resizable) {
         final CommoditySoldDTO.Builder commSold = CommoditySoldDTO.newBuilder()
             .setCommodityType(commType(commodityType))
             .setCapacity(capacity)
+            .setUsed(used)
             .setIsResizeable(resizable);
         entity.getEntityBuilder().addCommoditySoldList(commSold);
 
@@ -256,5 +370,13 @@ public class RequestAndLimitCommodityThresholdsInjectorTest {
 
     private static TopologyDTO.CommodityType commType(final int type) {
         return TopologyDTO.CommodityType.newBuilder().setType(type).build();
+    }
+
+    private static void addAggregatedEntity(@Nonnull final TopologyEntity.Builder entity, long connectedEntityId) {
+        entity.getEntityBuilder()
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                .setConnectedEntityId(connectedEntityId)
+                .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                .build());
     }
 }

@@ -65,7 +65,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ProbeActionCapabilitiesApplicatorStage;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.RequestCommodityThresholdsStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.RequestAndLimitCommodityThresholdsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ReservationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScopeResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsApplicationStage;
@@ -261,7 +261,7 @@ public class PlanPipelineFactory {
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor, changes))
                 .addStage(new OverrideWorkLoadDemandStage(demandOverriddenCommodityEditor, searchResolver, groupServiceClient, changes, searchFilterResolver))
-                .addStage(new RequestCommodityThresholdsStage(requestAndLimitCommodityThresholdsInjector))
+                .addStage(new RequestAndLimitCommodityThresholdsStage(requestAndLimitCommodityThresholdsInjector))
                 .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
                 .addStage(new TopSortStage())
