@@ -240,6 +240,7 @@ public class CloudAspectMapper extends AbstractAspectMapper {
                 }
             });
         } catch (Exception e) {
+            logger.error("mapEntityToAspectBatch failed with exception", e);
             return Optional.empty();
         }
 
