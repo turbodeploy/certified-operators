@@ -1,18 +1,21 @@
 package com.vmturbo.stitching.utilities;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Message.Builder;
 import com.google.protobuf.MessageOrBuilder;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
@@ -27,7 +30,12 @@ import com.vmturbo.stitching.DTOFieldSpec;
  */
 public class DTOFieldAndPropertyHandler {
 
+    private static final FieldDescriptor USED_FIELD_FIELD_DESCRIPTOR =
+            CommodityDTO.getDescriptor().findFieldByNumber(CommodityDTO.USED_FIELD_NUMBER);
     private static final Logger logger = LogManager.getLogger();
+    private static final FieldDescriptor UTILIZATION_DATA_FIELD_DESCRIPTOR =
+            CommodityDTO.getDescriptor().findFieldByNumber(
+                    CommodityDTO.UTILIZATIONDATA_FIELD_NUMBER);
 
     /**
      * Private constructor since class just provides static utility method
@@ -186,7 +194,19 @@ public class DTOFieldAndPropertyHandler {
                                                       @Nonnull final T onto,
                                                       @Nonnull List<DTOFieldSpec> patchedFields) {
         if (patchedFields.isEmpty()) {
-            from.getAllFields().forEach(onto::setField);
+            final Map<FieldDescriptor, ?> allFromFields = from.getAllFields();
+            for (Entry<FieldDescriptor, ?> entry : allFromFields.entrySet()) {
+                final FieldDescriptor key = entry.getKey();
+                onto.setField(key, entry.getValue());
+                // "Used" and "utilizationData" are two fields that depend on each other, so
+                // if we change one of them, we must also change the second one, and if the probe
+                // contains information about only one field and overwrites the information of another
+                // probe, then the other field must be cleared.
+                clearConnectedField(onto, allFromFields, key, USED_FIELD_FIELD_DESCRIPTOR,
+                        UTILIZATION_DATA_FIELD_DESCRIPTOR);
+                clearConnectedField(onto, allFromFields, key, UTILIZATION_DATA_FIELD_DESCRIPTOR,
+                        USED_FIELD_FIELD_DESCRIPTOR);
+            }
         } else {
             patchedFields.forEach(fieldSpec -> {
                 try {
@@ -202,6 +222,16 @@ public class DTOFieldAndPropertyHandler {
             });
         }
         return onto;
+    }
+
+    private static <T extends Builder> void clearConnectedField(@Nonnull T onto,
+            Map<FieldDescriptor, ?> allFromFields, FieldDescriptor currentField,
+            FieldDescriptor firstTiedField, FieldDescriptor secondTiedField) {
+        if (currentField.getFullName().equals(firstTiedField.getFullName())) {
+            if (!allFromFields.containsKey(secondTiedField)) {
+                onto.clearField(secondTiedField);
+            }
+        }
     }
 
     /**
