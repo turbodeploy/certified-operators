@@ -120,9 +120,9 @@ public class Ledger {
     public @NonNull IncomeStatement addTraderIncomeStatement(@NonNull Trader trader) {
 
         IncomeStatement traderIncomeStatement = new IncomeStatement();
+        checkArgument(trader.getEconomyIndex() == traderIncomeStatements_.size());
         traderIncomeStatements_.add(traderIncomeStatement);
 
-        checkArgument(traderIncomeStatements_.get(trader.getEconomyIndex()).equals(traderIncomeStatement));
         int eIndex = trader.getEconomyIndex();
 
         if (commodityIncomeStatements_.size() <= eIndex) {
