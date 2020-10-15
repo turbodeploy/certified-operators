@@ -43,6 +43,7 @@ import com.vmturbo.stitching.StringsToStringsStitchingMatchingMetaData;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
+import com.vmturbo.stitching.poststitching.SetAutoSetCommodityCapacityPostStitchingOperation.MaxCapacityCache;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -97,7 +98,7 @@ public abstract class StitchingIntegrationTest {
                 new PostStitchingOperationLibrary(
                         new CommodityPostStitchingOperationConfig(
                                 statsServiceClient, 30, 10),  //meaningless values
-                        diskCapacityCalculator, cpuCapacityStore, clock, 0);
+                        diskCapacityCalculator, cpuCapacityStore, clock, 0, mock(MaxCapacityCache.class));
         when(probeStore.getProbeIdForType(anyString())).thenReturn(Optional.<Long>empty());
         when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets

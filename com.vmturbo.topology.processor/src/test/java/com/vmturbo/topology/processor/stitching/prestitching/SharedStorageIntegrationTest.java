@@ -48,6 +48,7 @@ import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
+import com.vmturbo.stitching.poststitching.SetAutoSetCommodityCapacityPostStitchingOperation.MaxCapacityCache;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -120,7 +121,8 @@ public class SharedStorageIntegrationTest {
             new PostStitchingOperationLibrary(
                 new CommodityPostStitchingOperationConfig(
                     statsServiceClient, 30, 10), //meaningless values
-                diskCapacityCalculator, cpuCapacityStore, clock, 0);
+                diskCapacityCalculator, cpuCapacityStore, clock, 0,
+                    mock(MaxCapacityCache.class));
         when(targetA.getId()).thenReturn(targetAId);
         when(targetB.getId()).thenReturn(targetBId);
         when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));

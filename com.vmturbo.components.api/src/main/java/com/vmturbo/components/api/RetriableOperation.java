@@ -263,8 +263,9 @@ public class RetriableOperation<T> {
          * @return The output of the operation.
          * @throws RetriableOperationFailedException If there is an exception when executing the
          *                                           operation.
+         * @throws InterruptedException If the thread is interrupted while calling the operation.
          */
-        T call() throws RetriableOperationFailedException;
+        T call() throws RetriableOperationFailedException, InterruptedException;
     }
 
     /**

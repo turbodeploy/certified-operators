@@ -512,10 +512,12 @@ message GetEntityCommoditiesMaxValuesRequest {
 
 // Request for commodity capacity values
 message GetEntityCommoditiesCapacityValuesRequest {
+    repeated EntityAndCommodityType target_comms = 1;
+}
 
-    required string commodityTypeName = 1;
-
-    repeated EntityUuidAndType entityUuidAndTypeSet = 2;
+message EntityAndCommodityType {
+    optional int32 entity_type = 1;
+    repeated int32 commodity_type = 2;
 }
 
 // Entity uuid and type
@@ -537,7 +539,7 @@ message EntityToCommodityTypeCapacity {
 
     required int64 entityUuid = 1;
 
-    required topology.CommodityType commodityType = 2;
+    required .topology.CommodityType commodityType = 2;
 
     required double capacity = 3;
 }

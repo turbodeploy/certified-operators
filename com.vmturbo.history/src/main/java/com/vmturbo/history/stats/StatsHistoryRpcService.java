@@ -35,8 +35,6 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
-import com.google.common.collect.Sets;
-import com.google.common.collect.Sets.SetView;
 import com.google.common.collect.Table.Cell;
 
 import io.grpc.Status;
@@ -67,7 +65,6 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityGroup;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityGroupList;
-import com.vmturbo.common.protobuf.stats.Stats.EntityUuidAndType;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
@@ -1258,38 +1255,25 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @param responseObserver  for streaming the response
      */
     @Override
-    public void getEntityCommoditiesCapacityValues(
-        GetEntityCommoditiesCapacityValuesRequest request,
-        StreamObserver<GetEntityCommoditiesCapacityValuesResponse> responseObserver) {
-        try {
-            final Set<Integer> uniqEntityTypes = request.getEntityUuidAndTypeSetList().stream()
-                .map(entity -> entity.getEntityType()).collect(Collectors.toSet());
-            for (Integer entityType : uniqEntityTypes) {
-                final Set<EntityUuidAndType> entityToCommodities = request.getEntityUuidAndTypeSetList().stream()
-                    .filter(entity -> entity.getEntityType() == entityType).collect(Collectors.toSet());
-                final Set<String> uuidsToGetCapacityFor = entityToCommodities.stream()
-                    .map(entity -> String.valueOf(entity.getEntityUuid()))
-                    .collect(Collectors.toSet());
-                // Get data from the daily table, if data for uuid is missing get it from the hourly table
-                final List<GetEntityCommoditiesCapacityValuesResponse> entityCommoditiesCapacityDayValues =
-                    historydbIO.getEntityCommoditiesCapacityValues(entityType, uuidsToGetCapacityFor,
-                        request.getCommodityTypeName(), TimeUnit.DAYS);
+    public void getEntityCommoditiesCapacityValues( GetEntityCommoditiesCapacityValuesRequest request,
+            StreamObserver<GetEntityCommoditiesCapacityValuesResponse> responseObserver) {
+        final Map<Integer, List<Integer>> commsByType = new HashMap<>();
+        request.getTargetCommsList().forEach(entityAndComms -> {
+            commsByType.put(entityAndComms.getEntityType(), entityAndComms.getCommodityTypeList());
+        });
+
+        commsByType.forEach((entityType, commsToGet) -> {
+            // Get data from the daily table. Daily table rollups happen hourly.
+            try {
+                final List<GetEntityCommoditiesCapacityValuesResponse> entityCommoditiesCapacityDayValues
+                    = historydbIO.getEntityCommoditiesCapacityValues(entityType, commsToGet, TimeUnit.DAYS);
                 entityCommoditiesCapacityDayValues.forEach(responseObserver::onNext);
-                final SetView<String> entityUuidsWithoutDailyData =
-                    Sets.difference(uuidsToGetCapacityFor, entityCommoditiesCapacityDayValues.iterator().next()
-                    .getEntitiesToCommodityTypeCapacityList().stream()
-                    .map(x -> String.valueOf(x.getEntityUuid()))
-                    .collect(Collectors.toSet()));
-                final List<GetEntityCommoditiesCapacityValuesResponse> entityCommoditiesCapacityHourValues =
-                    historydbIO.getEntityCommoditiesCapacityValues(entityType, entityUuidsWithoutDailyData,
-                        request.getCommodityTypeName(), TimeUnit.HOURS);
-                entityCommoditiesCapacityHourValues.forEach(responseObserver::onNext);
+            } catch (VmtDbException | SQLException e) {
+                responseObserver.onError(
+                        Status.INTERNAL.withDescription(e.getMessage()).asException());
             }
-            responseObserver.onCompleted();
-        } catch (VmtDbException | SQLException e) {
-            responseObserver.onError(
-                Status.INTERNAL.withDescription(e.getMessage()).asException());
-        }
+        });
+        responseObserver.onCompleted();
     }
 
     @Override

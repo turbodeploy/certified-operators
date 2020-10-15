@@ -1760,24 +1760,27 @@ public class HistorydbIO extends BasedbIO {
      * according to entity type to know which for the stats tables to select.
      *
      * @param entityTypeNo for knowing the table to access
-     * @param uuids of the entity record we want
-     * @param commodityTypeName of the record we want
+     * @param commodityTypes of the records we want.
      * @param retentionPeriod used to know which table should we query
      * @return a converted response ready for sending back
      * @throws VmtDbException in case of a db connection issue
      * @throws SQLException in case if issues executing the sql query
      */
     public List<GetEntityCommoditiesCapacityValuesResponse> getEntityCommoditiesCapacityValues(int entityTypeNo,
-           Set<String> uuids, String commodityTypeName, TimeUnit retentionPeriod)
-        throws VmtDbException, SQLException {
+           List<Integer> commodityTypes, TimeUnit retentionPeriod)
+                throws VmtDbException, SQLException {
         final EntityType entityType = EntityType.fromSdkEntityType(entityTypeNo).orElse(null);
         Optional<Table<?>> table = getTableByTimeUnit(entityType, retentionPeriod);
         if (table.isPresent()) {
+            final Set<String> commStrings = commodityTypes.stream()
+                .map(CommodityDTO.CommodityType::forNumber)
+                .map(ClassicEnumMapper::getCommodityString)
+                .collect(Collectors.toSet());
             // Query for the max of the capacities from the last 7 days in the DB for
             // each commodity in each entity.
             try (Connection conn = connection()) {
                 final ResultQuery<?> query = new EntityCommoditiesCapacityValuesQuery(table.get(),
-                    uuids, commodityTypeName).getQuery();
+                    commStrings).getQuery();
                 Result<? extends Record> statsRecords = using(conn).fetch(query);
                 logger.debug("Number of records fetched for table {} = {}", table.get(), statsRecords.size());
                 return convertToEntityCommoditiesCapacityValues(table.get(), statsRecords);
@@ -1807,17 +1810,20 @@ public class HistorydbIO extends BasedbIO {
         Table<?> tbl, final Result<? extends Record> statsRecords) {
         final Builder responseBuilder = GetEntityCommoditiesCapacityValuesResponse.newBuilder();
         statsRecords.forEach(record -> {
-            final Long uuid = Long.parseLong(record.getValue(getStringField(tbl, UUID)));
-            final String comKey = record.getValue(getStringField(tbl, COMMODITY_KEY));
+            final long uuid = Long.parseLong(record.getValue(getStringField(tbl, UUID)));
+            final String commKey = record.getValue(getStringField(tbl, COMMODITY_KEY));
             final String comTypeString = record.getValue(getStringField(tbl, PROPERTY_TYPE));
-            final Integer comTypeInt = new Integer(UICommodityType.fromString(comTypeString).typeNumber());
+            CommodityType.Builder commTypeBldr = CommodityType.newBuilder()
+                .setType(UICommodityType.fromString(comTypeString).typeNumber());
+            if (!StringUtils.isEmpty(commKey)) {
+                commTypeBldr.setKey(commKey);
+            }
+
             final Double maxCapacity = record.getValue(DSL.field(MAX_COLUMN_NAME, Double.class));
             responseBuilder.addEntitiesToCommodityTypeCapacity(
                     EntityToCommodityTypeCapacity.newBuilder()
                         .setEntityUuid(uuid)
-                        .setCommodityType(CommodityType.newBuilder()
-                            .setType(comTypeInt)
-                            .setKey(comKey).build())
+                        .setCommodityType(commTypeBldr)
                         .setCapacity(maxCapacity).build()
             );
         });

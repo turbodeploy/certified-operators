@@ -1,5 +1,12 @@
 package com.vmturbo.topology.processor.stitching;
 
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import io.grpc.Channel;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +23,7 @@ import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
+import com.vmturbo.stitching.poststitching.SetAutoSetCommodityCapacityPostStitchingOperation.MaxCapacityCache;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.cpucapacity.CpuCapacityConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
@@ -38,6 +46,9 @@ public class StitchingConfig {
 
     @Value("${maxValuesBackgroundLoadFrequencyMinutes:720}") // default to 3 hours
     private long maxValuesBackgroundLoadFrequencyMinutes;
+
+    @Value("${armCapacityRefreshIntervalHours:6}")
+    private long armCapacityRefreshIntervalHours;
 
     @Value("${maxValuesBackgroundLoadDelayOnInitFailureMinutes:30}")
     private long maxValuesBackgroundLoadDelayOnInitFailureMinutes;
@@ -130,9 +141,33 @@ public class StitchingConfig {
             arrayIopsCapacityFactor, hybridDiskIopsFactor, flashAvailableDiskIopsFactor);
     }
 
+    /**
+     * Schedules capacity cache refresh.
+     *
+     * @return The {@link ScheduledExecutorService}.
+     */
+    @Bean
+    public ScheduledExecutorService capacityCacheRefreshSvc() {
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder()
+            .setNameFormat("max-capacity-cache-refresh-%d")
+            .build();
+        return Executors.newSingleThreadScheduledExecutor(threadFactory);
+    }
+
+    /**
+     * Cache for max capacities.
+     *
+     * @return The {@link MaxCapacityCache}.
+     */
+    @Bean
+    public MaxCapacityCache maxCapacityCache() {
+        return new MaxCapacityCache(StatsHistoryServiceGrpc.newStub(historyChannel()),
+                capacityCacheRefreshSvc(), armCapacityRefreshIntervalHours, TimeUnit.HOURS);
+    }
+
     @Bean
     public PostStitchingOperationLibrary postStitchingOperationStore() {
-        return new PostStitchingOperationLibrary(
+        PostStitchingOperationLibrary postStitchingOperationLibrary = new PostStitchingOperationLibrary(
             new CommodityPostStitchingOperationConfig(
                 historyClient(),
                 maxValuesBackgroundLoadFrequencyMinutes,
@@ -140,7 +175,9 @@ public class StitchingConfig {
                 diskPropertyCalculator(),
                 cpuCapacityConfig.cpucCapacityStore(),
                 clockConfig.clock(),
-                resizeDownWarmUpIntervalHours);
+                resizeDownWarmUpIntervalHours, maxCapacityCache());
+        maxCapacityCache().initializeFromStitchingOperations(postStitchingOperationLibrary);
+        return postStitchingOperationLibrary;
     }
 
     @Bean

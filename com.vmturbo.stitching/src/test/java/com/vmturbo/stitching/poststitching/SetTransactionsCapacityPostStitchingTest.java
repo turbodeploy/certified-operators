@@ -7,11 +7,11 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import com.google.common.collect.Lists;
+
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -24,6 +24,7 @@ import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
+import com.vmturbo.stitching.poststitching.SetAutoSetCommodityCapacityPostStitchingOperation.MaxCapacityCache;
 
 /**
  * Unit test for {@link SetTransactionsCapacityPostStitchingOperation}.
@@ -53,14 +54,17 @@ public class SetTransactionsCapacityPostStitchingTest {
             .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false).build())
             .build();
 
-    @BeforeClass
-    public static void init() {
-        com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig config =
-            mock(com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig.class);
+    private final MaxCapacityCache maxCapacityCache = mock(MaxCapacityCache.class);
+
+    /**
+     * Common code before every test.
+     */
+    @Before
+    public void init() {
         stitchOperation = new SetTransactionsCapacityPostStitchingOperation(SELLER_TYPE,
             ProbeCategory.DATABASE_SERVER, SLO_SETTING,
             (Float)EntitySettingSpecs.ResponseTimeSLO.getDataStructure().getDefault(EntityType.DATABASE_SERVER),
-            SLO_ENABLED_SETTING, config);
+            SLO_ENABLED_SETTING, maxCapacityCache);
     }
 
     /**
