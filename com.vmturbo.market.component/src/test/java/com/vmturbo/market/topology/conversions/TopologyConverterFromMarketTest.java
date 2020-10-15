@@ -52,7 +52,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.ChangeProviderExplanationTypeCase;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -2142,6 +2141,11 @@ public class TopologyConverterFromMarketTest {
         Assert.assertEquals(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
             commoditySoldDTO.getCommodityType().getType());
         Assert.assertEquals(storageAmountCapacity, commoditySoldDTO.getCapacity(), 0.1);
+        // Storage Amount projected commodity should not have historicalUsed and percentile set
+        // since the original Storage Amount commodity did not have historicalUsed and percentile
+        // set
+        Assert.assertFalse(commoditySoldDTO.hasHistoricalUsed());
+        Assert.assertFalse(commoditySoldDTO.getHistoricalUsed().hasPercentile());
     }
 
     private CommoditySoldTO createSoldTO(final int typeValue,

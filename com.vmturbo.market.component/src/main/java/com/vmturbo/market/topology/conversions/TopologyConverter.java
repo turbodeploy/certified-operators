@@ -1354,14 +1354,16 @@ public class TopologyConverter {
             final CommoditySoldDTO.Builder soldBuilder = CommoditySoldDTO.newBuilder()
                 .setCommodityType(commodityType)
                 .setCapacity(newCapacity);
-            final Optional<CommoditySoldDTO> currentCommSold =
-                getCommodityIndex().getCommSold(entity.getOid(), commodityType);
-            if (currentCommSold.isPresent()) {
-                soldBuilder.setUsed(currentCommSold.get().getUsed());
-                if (newCapacity > 0) {
-                    final double oldCapacity = currentCommSold.get().getCapacity();
+            final CommoditySoldDTO currentCommSold =
+                getCommodityIndex().getCommSold(entity.getOid(), commodityType)
+                .orElse(null);
+            if (currentCommSold != null) {
+                soldBuilder.setUsed(currentCommSold.getUsed());
+                if (newCapacity > 0 && currentCommSold.hasHistoricalUsed()
+                    && currentCommSold.getHistoricalUsed().hasPercentile()) {
+                    final double oldCapacity = currentCommSold.getCapacity();
                     final double oldPercentile =
-                        currentCommSold.get().getHistoricalUsed().getPercentile();
+                        currentCommSold.getHistoricalUsed().getPercentile();
                     final double projectedPercentile = oldPercentile * oldCapacity / newCapacity;
                     soldBuilder
                         .setHistoricalUsed(HistoricalValues.newBuilder()
