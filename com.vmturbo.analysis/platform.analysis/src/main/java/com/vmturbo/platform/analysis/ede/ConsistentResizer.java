@@ -172,6 +172,10 @@ public class ConsistentResizer {
             // make sure we dont exceed the upperbound
             maxCapacity = Math.min(maxCapacity, minUpperBound);
             // make sure we meet the lowerbound
+            // update maxLowerBound to the smallest multiple of capacityIncrement larger than
+            // current maxLowerBound value to make sure finalNewCapacity is always larger than lower
+            // bound when resizing down.
+            maxLowerBound = Math.ceil(maxLowerBound / capacityIncrement) * capacityIncrement;
             maxCapacity = Math.max(maxCapacity, maxLowerBound);
 
             /*
