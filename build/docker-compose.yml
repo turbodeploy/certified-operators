@@ -617,6 +617,10 @@ services:
       - kafka1
       - auth
     environment:
+      # The grafanaDb.* fields should be in sync with the grafana definition below.
+      grafanaDb.name: "grafana"
+      grafanaDb.user: "grafana_backend"
+      grafanaDb.password: "grafana"
       component_type: extractor
       instance_id: extractor-1
       logging.level.com.vmturbo.extractor: info # change to debug to enable more debugging output
@@ -642,8 +646,6 @@ services:
       - 5432:5432
     mem_limit: ${TIMESCALE_MEM_LIMIT_MB}M
 
-  # Purely in-memory store.
-  # Currently only used for integration type testing.
   grafana:
     extends:
       file: common-services.yml
@@ -664,6 +666,14 @@ services:
       GF_AUTH_PROXY_ENABLED: "true"
       GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s:%(http_port)s/reports"
       GF_SERVE_FROM_SUB_PATH: "true"
+      # Uncomment the following five lines to store Grafana data in postgres.
+      # Mainly for use when testing embedded reporting. The db name, user, and
+      # password needs to be in sync with the extractor's environment variables abobe.
+      #GF_DATABASE_TYPE: "postgres"
+      #GF_DATABASE_HOST: "timescaledb"
+      #GF_DATABASE_NAME: "grafana"
+      #GF_DATABASE_USER: "grafana_backend"
+      #GF_DATABASE_PASSWORD: "grafana"
 
   renderer:
     image: grafana/grafana-image-renderer:latest

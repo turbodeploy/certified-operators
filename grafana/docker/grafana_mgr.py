@@ -91,8 +91,15 @@ class Grafana:
         self.logger.info("Started Grafana server process.")
 
     def ensureStarted(self):
-        if self.process is None:
+        if not self.isRunning():
+            self.logger.warn("Grafana is not running (or in zombie mode). Restarting...")
             self.reboot()
+
+    def isRunning(self):
+        # The process has to exist, be running, and have a "RUNNING" status.
+        # If grafana shuts down (e.g. due to failure to connect to Postgres to store its data)
+        # it will be in a "Zombie" status.
+        return self.process is not None and self.process.is_running() and not self.process.status() == psutil.STATUS_ZOMBIE
 
     def shutdown(self):
         """
@@ -154,6 +161,8 @@ class Grafana:
 
         if (os.path.exists(self.license_path)):
             self.logger.info("Overwriting contents of license file: %s", self.license_path)
+            # Remove the old license before writing the new one.
+            os.remove(self.license_path)
         else:
             self.logger.info("Writing license file: %s", self.license_path)
 
@@ -174,8 +183,8 @@ class SmtpUpdateOperation:
     SMTP_PASS = "smtpPassword"
     SMTP_ENCRYPTION = "smtpEncryption"
 
-    REQUIRED = [SMTP_SERVER, SMTP_PORT, FROM_ADDR, SMTP_USER, SMTP_PASS]
-    OPTIONAL = [SMTP_ENCRYPTION]
+    REQUIRED = [SMTP_SERVER, SMTP_PORT, FROM_ADDR]
+    OPTIONAL = [SMTP_ENCRYPTION, SMTP_USER, SMTP_PASS]
 
     logger = _LOGGER
 
@@ -331,12 +340,17 @@ def run():
                     email_update_op.run()
                 except:
                     _LOGGER.error("Failed to process group response due to unexpected error:", sys.exc_info()[0])
-                # This is only required the first time we run through this loop.
-                grafana.ensureStarted()
-                # Sleep for the poll duration.
-                # TODO (roman, Sept 11 2020): Does this make it take longer to terminate the
-                # process?
-                time.sleep(polling_interval_s)
+                # Instead of sleeping for the polling interval, we sleep for 10 seconds at a time.
+                # This is to check that Grafana is still running, and restart it if necessary.
+                ten_sec_intervals = int(polling_interval_s / 10)
+                for i in range(ten_sec_intervals):
+                    # Ensure that the underlying Grafana process is still running.
+                    # Grafana may crash, or fail to start up (e.g. if the extractor hasn't finished
+                    # initializing the database users).
+                    grafana.ensureStarted()
+                    # TODO (roman, Sept 11 2020): Does this make it take longer to terminate the
+                    # process?
+                    time.sleep(10)
     except:
         _LOGGER.error("Shutting down after unexpected error:", sys.exc_info()[0])
         grafana.shutdown()
