@@ -66,6 +66,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -112,6 +113,19 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     private final long getMostRecentStatRpcDeadlineDurationSeconds;
 
     private final long getMostRecentStatRpcFutureTimeoutSeconds;
+
+    // Function to get the "correct" used value which was used in the analysis.
+    private static final Function<CommoditySoldDTO, Float> getUsedFromCommodity = commoditySoldDTO -> {
+        if (commoditySoldDTO.hasHistoricalUsed()) {
+            final HistoricalValues historicalUsed = commoditySoldDTO.getHistoricalUsed();
+            if (historicalUsed.hasPercentile() && commoditySoldDTO.hasCapacity()) {
+                return (float)(historicalUsed.getPercentile() * commoditySoldDTO.getCapacity());
+            } else {
+                return (float)historicalUsed.getHistUtilization();
+            }
+        }
+        return (float)commoditySoldDTO.getUsed();
+    };
 
     private static final String ENCRYPTION_STATE_ENABLED = "Enabled";
 
@@ -480,18 +494,34 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         // Map volume ID to before-plan commList
         // VM ID -> Volume ID -> List<commodityBoughtDTO>
         Map<Long, Map<Long, List<CommodityBoughtDTO>>> beforePlanVolIdToCommListMap = new HashMap<>();
+        Set<Long> beforePlanCloudVirtualVolumeIds = new HashSet<>();
         for (TopologyEntityDTO vm : sourceVms) {
+            if (isCloudEntity(vm)) {
+                vm.getCommoditiesBoughtFromProvidersList().stream()
+                    .filter(commList -> commList.getProviderEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                    .map(commList -> commList.getProviderId())
+                    .forEach(beforePlanCloudVirtualVolumeIds::add);
+            }
             final List<CommoditiesBoughtFromProvider> virtualDiskCommBoughtLists =
-                    vm.getCommoditiesBoughtFromProvidersList().stream()
-                            .filter(commList -> commList.getProviderEntityType() == EntityType.STORAGE_VALUE
-                                    || commList.getProviderEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
-                            .collect(Collectors.toList());
+                vm.getCommoditiesBoughtFromProvidersList().stream()
+                    .filter(commList -> commList.getProviderEntityType() == EntityType.STORAGE_VALUE
+                        || commList.getProviderEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                    .collect(Collectors.toList());
             Function<CommoditiesBoughtFromProvider, Long> getVolumeId = commoditiesBoughtFromProvider ->
                 commoditiesBoughtFromProvider.hasVolumeId()
-                         ? commoditiesBoughtFromProvider.getVolumeId() : commoditiesBoughtFromProvider.getProviderId();
+                    ? commoditiesBoughtFromProvider.getVolumeId() : commoditiesBoughtFromProvider.getProviderId();
             beforePlanVolIdToCommListMap.put(vm.getOid(), virtualDiskCommBoughtLists.stream()
-                    .collect(Collectors.toMap(getVolumeId, CommoditiesBoughtFromProvider::getCommodityBoughtList)));
+                .collect(Collectors.toMap(getVolumeId, CommoditiesBoughtFromProvider::getCommodityBoughtList)));
         }
+
+        // For Cloud Volume, use volume's commoditySold to create VirtualDiskApiDTO later
+        Map<Long, List<CommoditySoldDTO>> beforePlanCloudVirtualVolumeIdToCommListMap = new HashMap<>();
+        repositoryApi.entitiesRequest(beforePlanCloudVirtualVolumeIds)
+            .contextId(topologyContextId)
+            .getFullEntities()
+            .forEach(vvTopologyEntityDTO ->
+                beforePlanCloudVirtualVolumeIdToCommListMap.put(vvTopologyEntityDTO.getOid(), vvTopologyEntityDTO.getCommoditySoldListList())
+            );
 
         final Map<Long, List<VirtualDiskApiDTO>> virtualDisksByVmId = new HashMap<>();
         for (TopologyEntityDTO vm : projectedVms) {
@@ -515,7 +545,9 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 }
                 VirtualDiskApiDTO virtualDiskApiDTO = createVirtualDiskApiDTO(vm, projectedVolumeMap.get(volId),
                         beforePlanVolIdToCommListMap.get(vm.getOid()).get(volId),
-                        commList.getCommodityBoughtList(), costStats, regionByVolumeId, storageTierByVolumeId,
+                        commList.getCommodityBoughtList(),
+                        beforePlanCloudVirtualVolumeIdToCommListMap.getOrDefault(volId, Collections.emptyList()),
+                        costStats, regionByVolumeId, storageTierByVolumeId,
                         projectedVolumeMap.values().size() == 1);
                 virtualDiskList.add(virtualDiskApiDTO);
             }
@@ -531,6 +563,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
      * @param volume Volume entity
      * @param beforeActionCommList the commodity bought list of the VM before the action
      * @param afterActionCommList the commodity bought list of the VM after the action
+     * @param beforeActionCommSoldListForCloudVV commodity sold list of Cloud VV before the action. For On-perm, this will be empty list.
      * @param costStats cost stats
      * @param regionByVolumeId map of volume ID to region
      * @param storageTierByVolumeId map of volume ID to storage tier
@@ -543,6 +576,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                                                       TopologyEntityDTO volume,
                                                       List<CommodityBoughtDTO> beforeActionCommList,
                                                       List<CommodityBoughtDTO> afterActionCommList,
+                                                      @Nonnull List<CommoditySoldDTO> beforeActionCommSoldListForCloudVV,
                                                       Collection<StatApiDTO> costStats,
                                                       final Map<Long, ApiPartialEntity> regionByVolumeId,
                                                       final Map<Long, ServiceEntityApiDTO> storageTierByVolumeId,
@@ -592,27 +626,52 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 null, volume.getDisplayName(), null, false));
 
         // Add stats for before action stats.
-        for (CommodityBoughtDTO commodity : beforeActionCommList) {
-            switch (commodity.getCommodityType().getType()) {
-                case CommodityType.STORAGE_AMOUNT_VALUE:
-                    // Unit of storage amount in source topology is in MB.
-                    final float storageAmountUsed = isCloudVolume ? (float)(commodity.getUsed() / Units.KIBI) : (float)commodity.getUsed();
-                    statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
-                        storageAmountUnit, storageAmountUsed, storageAmountUsed,
-                        null, volume.getDisplayName(), null, true));
-                    break;
-                case CommodityType.STORAGE_ACCESS_VALUE:
-                    statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
+        if (beforeActionCommSoldListForCloudVV.isEmpty()) {
+            for (CommodityBoughtDTO commodity : beforeActionCommList) {
+                switch (commodity.getCommodityType().getType()) {
+                    case CommodityType.STORAGE_AMOUNT_VALUE:
+                        // Unit of storage amount in source topology is in MB.
+                        final float storageAmountUsed = isCloudVolume ? (float)(commodity.getUsed() / Units.KIBI) : (float)commodity.getUsed();
+                        statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
+                            storageAmountUnit, storageAmountUsed, storageAmountUsed,
+                            null, volume.getDisplayName(), null, true));
+                        break;
+                    case CommodityType.STORAGE_ACCESS_VALUE:
+                        statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
                             CommodityTypeUnits.STORAGE_ACCESS.getUnits(), (float)commodity.getUsed(),
                             (float)commodity.getUsed(),
                             null, volume.getDisplayName(), null, true));
-                    break;
-                case CommodityType.IO_THROUGHPUT_VALUE:
-                    statDTOs.add(createStatApiDTO(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
+                        break;
+                    case CommodityType.IO_THROUGHPUT_VALUE:
+                        statDTOs.add(createStatApiDTO(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
                             CommodityTypeUnits.IO_THROUGHPUT.getUnits(), (float)commodity.getUsed(),
                             (float)commodity.getUsed(),
                             null, volume.getDisplayName(), null, true));
-                    break;
+                        break;
+                }
+            }
+        } else {
+            for (CommoditySoldDTO commoditySoldDTO : beforeActionCommSoldListForCloudVV) {
+                final float used = getUsedFromCommodity.apply(commoditySoldDTO);
+                switch (commoditySoldDTO.getCommodityType().getType()) {
+                    case CommodityType.STORAGE_AMOUNT_VALUE:
+                        // Unit of storage amount in source topology is in MB.
+                        final float storageAmountUsed = (float)(used / Units.KIBI);
+                        statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
+                            storageAmountUnit, storageAmountUsed, storageAmountUsed,
+                            null, volume.getDisplayName(), null, true));
+                        break;
+                    case CommodityType.STORAGE_ACCESS_VALUE:
+                        statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
+                            CommodityTypeUnits.STORAGE_ACCESS.getUnits(), used, used,
+                            null, volume.getDisplayName(), null, true));
+                        break;
+                    case CommodityType.IO_THROUGHPUT_VALUE:
+                        statDTOs.add(createStatApiDTO(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
+                            CommodityTypeUnits.IO_THROUGHPUT.getUnits(), used, used,
+                            null, volume.getDisplayName(), null, true));
+                        break;
+                }
             }
         }
 
