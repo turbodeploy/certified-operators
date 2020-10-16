@@ -8,6 +8,7 @@ import static com.vmturbo.history.db.jooq.JooqUtils.getRelationTypeField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
 import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.isA;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -29,6 +30,7 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
+import org.apache.logging.log4j.LogManager;
 import org.jooq.Condition;
 import org.jooq.Record;
 import org.jooq.Result;
@@ -75,11 +77,29 @@ public class RollupProcessorTest {
     private static final String COMMODITY_KEY_FIELD = "commodity_key";
     private static final String RELATION_FIELD = "relation";
     private static final String CAPACITY_FIELD = "capacity";
+    private static final String EFFECTIVE_CAPACITY_FIELD = "effective_capacity";
     private static final String AVG_VALUE_FIELD = "avg_value";
     private static final String MAX_VALUE_FIELD = "max_value";
     private static final String MIN_VALUE_FIELD = "min_value";
     private static final String SNAPSHOT_TIME_FIELD = "snapshot_time";
     private static final String SAMPLES_FIELD = "samples";
+
+    /**
+     * Seed for random number generator.
+     *
+     * <p>There's considerable awkwardness in this test due to the fact that the database type of
+     * value- and capacity-related columns in the stats tables is DECIMAL(15,3), but we have a
+     * jOOQ conversion to Double configured for the component. This makes it difficult to compare
+     * values of internally computed averages to those computed in the database. We use approximate
+     * equality tests to help address this, but even then, the test with different values could
+     * suffer false failures. While there's value in creating a stream of values with internal
+     * randomness (mostly in terms of conciseness of test specification), there's no value in having
+     * different random values from one execution to the next. So we fix the seed to a value that
+     * is known to work. If a change to this test class causes some tests to fail for no other
+     * likely reason, one thing to try is changing this seed value to find one that works with the
+     * other code changes.</p>
+     */
+    private static final long RANDOM_SEED = 0L;
 
     @Autowired
     private DbTestConfig dbTestConfig;
@@ -87,8 +107,8 @@ public class RollupProcessorTest {
     private static HistorydbIO historydbIO;
     private static String testDbName;
     private SimpleBulkLoaderFactory loaders;
-    private Random rand = new Random();
     private RollupProcessor rollupProcessor;
+    private final Random rand = new Random(RANDOM_SEED);
 
     /**
      * Create a history database to be used by all tests.
@@ -123,19 +143,17 @@ public class RollupProcessorTest {
      * <p>If any other tables are populated by a given test, that test should clean them up.</p>
      *
      * @throws InterruptedException if interrupted
-     * @throws VmtDbException       on db error
-     * @throws SQLException         on db error
      */
     @After
-    public void after() throws InterruptedException, VmtDbException, SQLException {
+    public void after() throws InterruptedException {
         loaders.close(null);
         for (Table<?> t : loaders.getStats().getOutTables()) {
             truncateTable(t);
             final Optional<EntityType> type = EntityType.fromTable(t);
             if (type.isPresent()) {
-                truncateTable(type.get().getHourTable().get());
-                truncateTable(type.get().getDayTable().get());
-                truncateTable(type.get().getMonthTable().get());
+                type.flatMap(EntityType::getHourTable).ifPresent(this::truncateTable);
+                type.flatMap(EntityType::getDayTable).ifPresent(this::truncateTable);
+                type.flatMap(EntityType::getMonthTable).ifPresent(this::truncateTable);
             }
         }
     }
@@ -144,12 +162,12 @@ public class RollupProcessorTest {
      * Remove all records from the given table.
      *
      * @param table table to be truncated
-     * @throws VmtDbException if a db error occurs
-     * @throws SQLException   if a db error occurs
      */
-    private void truncateTable(Table<?> table) throws VmtDbException, SQLException {
+    private void truncateTable(Table<?> table) {
         try (Connection conn = historydbIO.connection()) {
             historydbIO.using(conn).truncate(table).execute();
+        } catch (VmtDbException | SQLException e) {
+            LogManager.getLogger(getClass()).warn("Failed truncating table {} after tests", table);
         }
     }
 
@@ -178,7 +196,7 @@ public class RollupProcessorTest {
                         createTemplateForStatsTimeSeries(Tables.PM_STATS_LATEST, "CPU",
                                         PropertySubType.Used.getApiParameterName(), null);
         StatsTimeSeries<PmStatsLatestRecord> ts1 = new StatsTimeSeries<>(
-                Tables.PM_STATS_LATEST, template1, 100_000.0, 50_000.0,
+                Tables.PM_STATS_LATEST, template1, 100_000.0,
                 Instant.parse("2019-01-31T22:01:35Z"), TimeUnit.MINUTES.toMillis(10));
         BulkLoader<PmStatsLatestRecord> loader = loaders.getLoader(Tables.PM_STATS_LATEST);
         // run through the 22:00 hour
@@ -252,6 +270,8 @@ public class RollupProcessorTest {
         checkField(aggregator.getAvg(), rollup, AVG_VALUE_FIELD, Double.class);
         checkField(aggregator.getMin(), rollup, MIN_VALUE_FIELD, Double.class);
         checkField(aggregator.getMax(), rollup, MAX_VALUE_FIELD, Double.class);
+        checkField(aggregator.getLastObservedCapacity(), rollup, CAPACITY_FIELD, Double.class);
+        checkField(aggregator.getLastObservedEffectiveCapacity(), rollup, EFFECTIVE_CAPACITY_FIELD, Double.class);
         checkField(aggregator.getSamples(), rollup, SAMPLES_FIELD, Integer.class);
     }
 
@@ -286,7 +306,11 @@ public class RollupProcessorTest {
         if (actual != null) {
             assertThat((T)actual, isA(type));
         }
-        assertEquals(expected, actual);
+        if (type == Double.class) {
+            assertThat((Double)expected, closeTo((Double)actual, 0.01));
+        } else {
+            assertEquals(expected, actual);
+        }
     }
 
     /**
@@ -419,7 +443,6 @@ public class RollupProcessorTest {
     private class StatsTimeSeries<R extends Record> implements Supplier<R> {
 
         private final Table<R> table;
-        private final Double capacity;
         private final Double baseValue;
         private Instant snapshot;
         private final long cycleTimeMsec;
@@ -431,17 +454,15 @@ public class RollupProcessorTest {
          *
          * @param table          "latest" stats table
          * @param templateRecord record providing ts identity values
-         * @param capacity       capacity appearing throughout time series
          * @param baseValue      base value for time series; actual values will be within 5% of this
          * @param baseSnapshot   snapshot_time of first generated record
          * @param cycleTimeMsec  duration in millis between snapshot_times in consecutive records
          */
         StatsTimeSeries(
                 Table<R> table, R templateRecord,
-                Double capacity, Double baseValue, Instant baseSnapshot, long cycleTimeMsec) {
+                Double baseValue, Instant baseSnapshot, long cycleTimeMsec) {
             this.table = table;
             this.templateRecord = templateRecord;
-            this.capacity = capacity;
             this.baseValue = baseValue;
             this.snapshot = baseSnapshot;
             this.cycleTimeMsec = cycleTimeMsec;
@@ -498,12 +519,15 @@ public class RollupProcessorTest {
             // clone the template
             R r = templateRecord.into(table);
             r.set(getTimestampField(table, SNAPSHOT_TIME_FIELD), Timestamp.from(snapshot));
-            r.setValue(getDoubleField(table, CAPACITY_FIELD), capacity);
             // compute a value that is randomly +-5% from base and set it in all value fields
-            double value = baseValue * (0.95 + rand.nextInt(10_000) / 100_000);
+            Double value = baseValue * (0.95 + rand.nextFloat() / 10);
             r.set(getDoubleField(table, AVG_VALUE_FIELD), value);
             r.set(getDoubleField(table, MAX_VALUE_FIELD), value);
             r.set(getDoubleField(table, MIN_VALUE_FIELD), value);
+            // set capacity and effective capacity as fixed muliples of the provided value
+            // (we don't really care what they are, just that we're correctly aggregating them
+            r.set(getDoubleField(table, CAPACITY_FIELD), value * 2);
+            r.set(getDoubleField(table, EFFECTIVE_CAPACITY_FIELD), value * 4);
             // update all active aggregators
             aggregators.values().forEach(agg -> agg.observe(value, snapshot));
             // set up for next cycle
@@ -572,10 +596,12 @@ public class RollupProcessorTest {
      */
     private static class Aggregator {
         private int samples = 0;
-        private double avg = 0.0;
-        private double min = Double.MAX_VALUE;
-        private double max = Double.MIN_VALUE;
+        private Double avg = 0.0;
+        private Double min = Double.MAX_VALUE;
+        private Double max = Double.MIN_VALUE;
         private Instant latestSnapshot;
+        private Double lastObservedCapacity = Double.MIN_VALUE;
+        private Double lastObservedEffectiveCapacity = Double.MIN_VALUE;
 
         /**
          * Incorporate a new sample.
@@ -584,9 +610,11 @@ public class RollupProcessorTest {
          * @param snapshot snapshot time where this value appeared
          */
         void observe(Double value, Instant snapshot) {
-            this.avg = (avg * samples + value) / (++samples);
+            this.avg = round((avg * samples + value) / (++samples), 1000);
             this.max = Math.max(max, value);
             this.min = Math.min(min, value);
+            this.lastObservedCapacity = value * 2;
+            this.lastObservedEffectiveCapacity = value * 4;
             this.latestSnapshot = snapshot;
         }
 
@@ -604,7 +632,7 @@ public class RollupProcessorTest {
          *
          * @return average
          */
-        double getAvg() {
+        Double getAvg() {
             return avg;
         }
 
@@ -613,7 +641,7 @@ public class RollupProcessorTest {
          *
          * @return min value
          */
-        double getMin() {
+        Double getMin() {
             return min;
         }
 
@@ -622,8 +650,17 @@ public class RollupProcessorTest {
          *
          * @return max value
          */
-        double getMax() {
+        Double getMax() {
             return max;
+        }
+
+
+        Double getLastObservedCapacity() {
+            return lastObservedCapacity;
+        }
+
+        Double getLastObservedEffectiveCapacity() {
+            return lastObservedEffectiveCapacity;
         }
 
         /**
@@ -634,5 +671,9 @@ public class RollupProcessorTest {
         Instant getLatestSnapshot() {
             return latestSnapshot;
         }
+    }
+
+    private static double round(double value, int scale) {
+        return (double)Math.round(value * scale) / scale;
     }
 }
