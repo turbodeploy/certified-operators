@@ -166,9 +166,6 @@ public class TopologyConfig {
     @Value("${useReservationPipeline:true}")
     private boolean useReservationPipeline;
 
-    @Value("${supplyChainValidationFrequency:40}")
-    private int supplyChainValidationFrequency;
-
     /**
      * How long we will wait to successfully discover targets at startup before allowing broadcasts.
      */
@@ -277,8 +274,7 @@ public class TopologyConfig {
                 ephemeralEntityEditor(),
                 ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel()),
                 topologyProcessorRpcConfig.groupResolverSearchFilterResolver(),
-                targetConfig.groupScopeResolver(),
-                supplyChainValidationFrequency
+                targetConfig.groupScopeResolver()
         );
     }
 

@@ -354,38 +354,33 @@ public class ReservedInstanceCoverageValidator {
     private boolean isTierValidForCoverage(
             @Nonnull final TopologyEntityDTO entityDTO,
             @Nonnull final ReservedInstanceBought reservedInstance) {
-        return extractRISpecInfo(reservedInstance).map(riSpecInfo -> cloudTopology.getComputeTier(
-                entityDTO.getOid()).map(entityComputeTier -> cloudTopology.getEntity(
-                riSpecInfo.getTierId())
-                .filter(riComputeTier -> riComputeTier.getEntityType()
-                        == EntityType.COMPUTE_TIER_VALUE)
-                .map(riComputeTier -> {
-                    final ComputeTierInfo entityComputeTierInfo =
-                            entityComputeTier.getTypeSpecificInfo().getComputeTier();
-                    final ComputeTierInfo riComputeTierInfo =
-                            riComputeTier.getTypeSpecificInfo().getComputeTier();
-                    final boolean isFamilyMatch =
-                            riComputeTierInfo.hasFamily() && entityComputeTierInfo.hasFamily()
-                                    && riComputeTierInfo.getFamily().equals(
-                                    entityComputeTierInfo.getFamily());
-                    if (!isFamilyMatch) {
-                        logger.debug(
-                                "Entity {} and RI {} tier families do not match for entity {} and reserved instance {}.",
-                                entityComputeTierInfo::getFamily, riComputeTierInfo::getFamily,
-                                entityDTO::getOid, reservedInstance::getId);
-                    }
-                    final boolean isTierMatch =
-                            riComputeTier.getOid() == entityComputeTier.getOid();
-                    if (!isTierMatch) {
-                        logger.debug(
-                                "Entity {} and RI {} tiers do not match for entity {} and RI {}.",
-                                entityComputeTier::getOid, riComputeTier::getOid, entityDTO::getOid,
-                                reservedInstance::getId);
-                    }
-                    return isFamilyMatch && (isTierMatch || (!riSpecInfo.hasSizeFlexible()
-                            || riSpecInfo.getSizeFlexible()));
-                })
-                .orElse(false)).orElse(false)).orElse(false);
+
+        return extractRISpecInfo(reservedInstance).map(riSpecInfo ->
+                cloudTopology.getComputeTier(entityDTO.getOid())
+                        .map(entityComputeTier ->
+                                cloudTopology.getEntity(riSpecInfo.getTierId())
+                                        .filter(riComputeTier ->
+                                                riComputeTier.getEntityType() ==
+                                                        EntityType.COMPUTE_TIER_VALUE)
+                                        .map(riComputeTier -> {
+
+                                            final ComputeTierInfo entityComputeTierInfo =
+                                            entityComputeTier.getTypeSpecificInfo().getComputeTier();
+                                            final ComputeTierInfo riComputeTierInfo =
+                                            riComputeTier.getTypeSpecificInfo().getComputeTier();
+                                            final boolean isFamilyMatch =
+                                            riComputeTierInfo.hasFamily() &&
+                                                    entityComputeTierInfo.hasFamily() &&
+                                                    riComputeTierInfo.getFamily().equals(
+                                                            entityComputeTierInfo.getFamily());
+
+                                            return isFamilyMatch &&
+                                                    (riSpecInfo.getSizeFlexible() ||
+                                                            riComputeTier.getOid() == entityComputeTier.getOid());
+
+                                        }).orElse(false))
+                        .orElse(false))
+                .orElse(false);
     }
 
     /**
