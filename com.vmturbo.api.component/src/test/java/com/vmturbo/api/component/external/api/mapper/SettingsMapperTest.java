@@ -407,7 +407,8 @@ public class SettingsMapperTest {
 
         final SettingSpec enumValueTypeSpec = SettingSpec.newBuilder()
                 .setName("enumValueTypeSpec")
-                .setEnumSettingValueType(EnumSettingValueType.newBuilder().addAllEnumValues(Arrays.asList("value1", "value2", "value3")).build())
+                .setEnumSettingValueType(EnumSettingValueType.newBuilder()
+                        .addAllEnumValues(Arrays.asList("VALUE1", "VALUE2", "VALUE3")).build())
                 .build();
 
 
@@ -433,6 +434,11 @@ public class SettingsMapperTest {
                 + "' provided for setting '" + enumValueTypeSpec.getName()
                 + "' is not one of the allowed values: "
                 + StringUtils.join(enumValueTypeSpec.getEnumSettingValueType().getEnumValuesList(), ", "));
+        SettingsMapper.validateSettingValue(stringInputValue, enumValueTypeSpec);
+
+        // Make sure that enum validation isn't case sensitive
+        final String lowerCaseInputValue = "value1";
+        SettingsMapper.validateSettingValue(lowerCaseInputValue, enumValueTypeSpec);
     }
 
     /**

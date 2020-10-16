@@ -31,6 +31,7 @@ import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ISettingsService;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
@@ -229,33 +230,19 @@ public class SettingsService implements ISettingsService {
     ) throws UnknownObjectException {
         Setting.Builder settingBuilder = Setting.newBuilder().setSettingSpecName(name);
 
+        SettingsMapper.validateSettingValue(settingValue, spec);
         switch (spec.getSettingValueTypeCase()) {
             case BOOLEAN_SETTING_VALUE_TYPE:
-                if (!StringUtils.equalsIgnoreCase(settingValue, Boolean.TRUE.toString())
-                        && !StringUtils.equalsIgnoreCase(settingValue, Boolean.FALSE.toString())) {
-                    // Throw an exception with a more meaningful message if the boolean value is
-                    // neither "true" nor "false" (case insensitive).
-                    throw new IllegalArgumentException(String.format(
-                            "Setting %s must have a boolean value. The value '%s' is invalid.",
-                            name, settingValue));
-                }
                 settingBuilder.setBooleanSettingValue(
                         BooleanSettingValue.newBuilder().setValue(Boolean.valueOf(settingValue)));
                 break;
             case NUMERIC_SETTING_VALUE_TYPE:
-                try {
-                    settingBuilder.setNumericSettingValue(NumericSettingValue.newBuilder()
-                            .setValue(Float.parseFloat(settingValue)));
-                } catch (NumberFormatException e) {
-                    // Throw an exception with a more meaninful message if value is not a number.
-                    throw new IllegalArgumentException(String.format(
-                            "Setting %s must have a numeric value. The value '%s' is invalid. ",
-                            name, settingValue));
-                }
+                settingBuilder.setNumericSettingValue(NumericSettingValue.newBuilder()
+                        .setValue(Float.parseFloat(settingValue)));
                 break;
             case ENUM_SETTING_VALUE_TYPE:
-                settingBuilder.setEnumSettingValue(
-                        EnumSettingValue.newBuilder().setValue(settingValue));
+                settingBuilder.setEnumSettingValue(EnumSettingValue.newBuilder()
+                        .setValue(ActionDTOUtil.mixedSpacesToUpperUnderScore(settingValue)));
                 break;
             case STRING_SETTING_VALUE_TYPE:
                 // fall through to next case

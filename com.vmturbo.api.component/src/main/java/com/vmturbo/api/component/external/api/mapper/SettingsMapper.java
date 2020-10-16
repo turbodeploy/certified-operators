@@ -973,6 +973,9 @@ public class SettingsMapper {
     /**
      * Validates that the setting's value matches the setting value type.
      *
+     * <p>Note: for enum value types, the {@code settingValue} is checked after being sanitized through
+     * {@link ActionDTOUtil#mixedSpacesToUpperUnderScore}.
+     *
      * @param settingValue the value to be checked
      * @param spec the spec for the setting
      */
@@ -1001,7 +1004,8 @@ public class SettingsMapper {
                 break;
             case ENUM_SETTING_VALUE_TYPE:
                 final EnumSettingValueType enumType = spec.getEnumSettingValueType();
-                if (!enumType.getEnumValuesList().contains(settingValue)) {
+                if (!enumType.getEnumValuesList()
+                        .contains(ActionDTOUtil.mixedSpacesToUpperUnderScore(settingValue))) {
                     throw new IllegalArgumentException("The value '" + settingValue
                             + "' provided for setting '" + spec.getName()
                             + "' is not one of the allowed values: "
