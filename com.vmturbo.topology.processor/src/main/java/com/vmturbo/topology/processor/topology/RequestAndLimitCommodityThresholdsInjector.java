@@ -193,6 +193,16 @@ public class RequestAndLimitCommodityThresholdsInjector {
                     // min threshold and max commodity usage from all container replicas.
                     if (comm.hasThresholds()) {
                         double newMinThresholds = Math.max(comm.getThresholds().getMin(), maxUsage);
+                        // If commodity max threshold is set, new min threshold cannot be larger than
+                        // max threshold.
+                        // For example, request commodity max threshold is request capacity. When
+                        // request commodity usage is larger than capacity (which is valid), if we
+                        // simply set min threshold to usage, it will cause IllegalArgumentException
+                        // in the following market analysis, leading to unexpected results. So cap
+                        // the min threshold as the max threshold here.
+                        if (comm.getThresholds().hasMax()) {
+                            newMinThresholds = Math.min(newMinThresholds, comm.getThresholds().getMax());
+                        }
                         comm.getThresholdsBuilder().setMin(newMinThresholds);
                     } else {
                         comm.setThresholds(Thresholds.newBuilder().setMin(maxUsage));

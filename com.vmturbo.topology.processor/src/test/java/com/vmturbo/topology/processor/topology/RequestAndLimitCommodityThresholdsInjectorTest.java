@@ -338,6 +338,57 @@ public class RequestAndLimitCommodityThresholdsInjectorTest {
         assertEquals(100, comm.getThresholds().getMax(), 0);
     }
 
+    /**
+     * testInjectMinThresholdsFromUsageWithOnlyExistingMinThresholds.
+     */
+    @Test
+    public void testInjectMinThresholdsFromUsageWithOnlyExistingMinThresholds() {
+        final TopologyEntity.Builder containerSpec = TopologyEntityUtils
+            .topologyEntity(2, 0, 0, "ContainerSpec", EntityType.CONTAINER_SPEC);
+
+        final TopologyEntity.Builder container = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "Container1", EntityType.CONTAINER);
+        final CommoditySoldDTO.Builder comm =
+            addCommoditySold(container, CommodityType.VCPU_REQUEST_VALUE, 50.0, 20.0, true);
+        comm.setThresholds(Thresholds.newBuilder().setMin(10).build());
+
+        addAggregatedEntity(container, containerSpec.getOid());
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container, containerSpec);
+        injector.injectMinThresholdsFromUsage(graph);
+
+        // commodity min threshold is updated to 20 and max threshold is still 100.
+        assertTrue(comm.hasThresholds());
+        assertEquals(20, comm.getThresholds().getMin(), 0);
+        // commodity has no max thresholds.
+        assertFalse(comm.getThresholds().hasMax());
+    }
+
+    /**
+     * testInjectMinThresholdsFromUsageWithUsageLargerThanMaxThresholds.
+     */
+    @Test
+    public void testInjectMinThresholdsFromUsageWithUsageLargerThanMaxThresholds() {
+        final TopologyEntity.Builder containerSpec = TopologyEntityUtils
+            .topologyEntity(2, 0, 0, "ContainerSpec", EntityType.CONTAINER_SPEC);
+
+        final TopologyEntity.Builder container = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "Container", EntityType.CONTAINER);
+        final CommoditySoldDTO.Builder comm =
+            addCommoditySold(container, CommodityType.VCPU_REQUEST_VALUE, 80.0, 100.0, true);
+        comm.setThresholds(Thresholds.newBuilder().setMax(80).build());
+
+        addAggregatedEntity(container, containerSpec.getOid());
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container, containerSpec);
+        injector.injectMinThresholdsFromUsage(graph);
+
+        // commodity min threshold is capped to max threshold 80 with current usage 100.
+        assertTrue(comm.hasThresholds());
+        assertEquals(80, comm.getThresholds().getMin(), 0);
+        assertEquals(80, comm.getThresholds().getMax(), 0);
+    }
+
     private static CommoditySoldDTO.Builder addCommoditySold(@Nonnull final TopologyEntity.Builder entity,
                                                              final int commodityType,
                                                              final double capacity) {
