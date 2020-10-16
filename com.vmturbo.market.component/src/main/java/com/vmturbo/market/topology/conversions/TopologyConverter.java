@@ -1409,8 +1409,7 @@ public class TopologyConverter {
         final Queue<CommoditiesBoughtFromProvider> originalCommodities =
                 originalVm.getCommoditiesBoughtFromProvidersList()
                         .stream()
-                        .filter(commBought -> commBought.getProviderEntityType()
-                                == EntityType.VIRTUAL_VOLUME.getNumber())
+                        .filter(commBought -> isValidVolume(entityBuilder, commBought))
                         .collect(Collectors.toCollection(LinkedList::new));
 
         if (originalCommodities.isEmpty()) {
@@ -1439,6 +1438,34 @@ public class TopologyConverter {
                     + "doesn't match the number of original commodities. {} extra original "
                     + "commodities found", entityBuilder.getOid(), originalCommodities.size());
         }
+    }
+
+    /**
+     * When converting a topology entity to a traderTO, we do not include shopping lists for
+     * ephemeral volumes, which puts the original and projected comm bought lists out of sync.
+     * Since overwriteCommoditiesBoughtByVMsFromVolumes() expects the comm bought lists to be the
+     * same, we must also omit the ephemeral volumes here.
+     *
+     * @param entityBuilder builder for related entity, used for logging
+     * @param commBought commodity to check
+     * @return true if the volume commodity should be present in the projected entity.
+     */
+    private boolean isValidVolume(TopologyEntityDTO.Builder entityBuilder,
+            CommoditiesBoughtFromProvider commBought) {
+        if (commBought.getProviderEntityType() != EntityType.VIRTUAL_VOLUME.getNumber()) {
+            return false;
+        }
+        final TopologyEntityDTO originalVolume = entityOidToDto.get(commBought.getProviderId());
+        if (originalVolume == null) {
+            // Can't check whether the SL was skipped, so let it pass
+            logger.warn("Cannot determine whether provider {} for entity {} is an ephemeral "
+                            + "volume - assuming it is not",
+                    commBought.getProviderId(), entityBuilder.getDisplayName());
+            return true;
+        }
+        // If the shopping list for this volume was skipped when passing to the market, it
+        // won't appear in the projected topology and is therefore not valid.
+        return !skipShoppingListCreation(originalVolume);
     }
 
     /**

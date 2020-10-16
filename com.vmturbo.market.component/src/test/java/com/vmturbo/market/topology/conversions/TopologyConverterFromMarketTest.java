@@ -163,6 +163,8 @@ public class TopologyConverterFromMarketTest {
 
     private static final TopologyInfo REALTIME_TOPOLOGY_INFO =
             TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME).build();
+    private static final TopologyInfo PLAN_TOPOLOGY_INFO =
+            TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build();
 
     private CommodityType topologyCommodity1;
     private CommodityType topologyCommodity2;
@@ -2061,37 +2063,12 @@ public class TopologyConverterFromMarketTest {
         final CommodityType commodityType = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
             .build();
-        final TopologyDTO.TopologyEntityDTO originalVolume1 = TopologyEntityDTO.newBuilder()
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                    .setCommodityType(commodityType)
-                    .build())
-                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
-                .setProviderId(storageTierOid))
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                .setCapacity(storageAmountCapacity)
-                .setCommodityType(commodityType)
-                .build())
-                .setOid(volume1Oid)
-                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setOrigin(volumeOrigin)
-                .build();
-        final TopologyDTO.TopologyEntityDTO originalVolume2 = TopologyEntityDTO.newBuilder()
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                    .setCommodityType(commodityType)
-                    .build())
-                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
-                .setProviderId(storageTierOid))
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                .setCapacity(storageAmountCapacity)
-                .setCommodityType(CommodityType.newBuilder()
-                    .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
-                    .build())
-                .build())
-                .setOid(volume2Oid)
-                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .build();
+        final TopologyDTO.TopologyEntityDTO originalVolume1 =
+                createVirtualVolume(false, commodityType, volume1Oid,
+                        storageTierOid, volumeOrigin, storageAmountCapacity);
+        final TopologyDTO.TopologyEntityDTO originalVolume2 =
+                createVirtualVolume(false, commodityType, volume2Oid,
+                        storageTierOid, volumeOrigin, storageAmountCapacity);
         final TopologyDTO.TopologyEntityDTO storageTier = TopologyEntityDTO.newBuilder()
             .setOid(storageTierOid)
             .setEntityType(EntityType.STORAGE_TIER_VALUE)
@@ -2148,6 +2125,109 @@ public class TopologyConverterFromMarketTest {
         Assert.assertFalse(commoditySoldDTO.getHistoricalUsed().hasPercentile());
     }
 
+    /**
+     * Test that {@link TopologyConverter#convertFromMarket(List, Map, PriceIndexMessage,
+     * ReservedCapacityAnalysis, WastedFilesAnalysis)}
+     * method preserved original commodities bought by VMs from Volumes. This verifies that
+     * ephemeral volumes are ignored.
+     */
+    @Test
+    public void testConvertFromMarketPreservesCommoditiesBoughtByVmsIgnoringEphemeralVolume() {
+        constructTopologyConverter(CommodityIndex.newFactory(), PLAN_TOPOLOGY_INFO);
+        final long vmOid = 1L;
+        final long volume1Oid = 2L;
+        final long ephemeralVolumeOid = 3L;
+        final long storageTierOid = 4L;
+        final long storageAmountCapacity = 2000L;
+        final Origin volumeOrigin = Origin.newBuilder().build();
+        final TopologyDTO.TopologyEntityDTO originalVm = TopologyEntityDTO.newBuilder()
+                .setOid(vmOid)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("")
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                            .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)))
+                        .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                        .setProviderId(volume1Oid))
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)))
+                        .setProviderEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                        .setProviderId(ephemeralVolumeOid))
+                .setAnalysisSettings(AnalysisSettings.newBuilder())
+                .build();
+        final CommodityType commodityType = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+            .build();
+        final TopologyDTO.TopologyEntityDTO originalVolume1 =
+                createVirtualVolume(false, commodityType, volume1Oid,
+                        storageTierOid, volumeOrigin, storageAmountCapacity);
+        final TopologyDTO.TopologyEntityDTO originalEphemeralVolume =
+                createVirtualVolume(true, commodityType, ephemeralVolumeOid,
+                        storageTierOid, volumeOrigin, storageAmountCapacity);
+        final TopologyDTO.TopologyEntityDTO storageTier = TopologyEntityDTO.newBuilder()
+            .setOid(storageTierOid)
+            .setEntityType(EntityType.STORAGE_TIER_VALUE)
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(commodityType)
+                .build())
+            .build();
+        final Map<Long, TopologyDTO.TopologyEntityDTO> originalTopology = ImmutableMap.of(
+                vmOid, originalVm,
+                storageTierOid, storageTier,
+                volume1Oid, originalVolume1,
+                ephemeralVolumeOid, originalEphemeralVolume);
+        final CommoditySpecificationTO commoditySpecificationTO =
+            CommoditySpecificationTO.newBuilder()
+            .setBaseType(1111)
+            .setType(1112)
+            .build();
+        Mockito.doReturn(Collections.singletonList(commoditySpecificationTO)).when(mockCommodityConverter)
+            .commoditySpecification(any(), anyByte());
+        Mockito.doReturn(Optional.of(commodityType)).when(mockCommodityConverter).marketToTopologyCommodity(any());
+        Mockito.doReturn(commodityType).when(mockCommodityConverter)
+            .commodityIdToCommodityType(anyInt());
+
+        // Test code
+        final Set<TraderTO> traders = converter.convertToMarket(originalTopology);
+        final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
+                new ArrayList<>(traders), originalTopology, PriceIndexMessage.getDefaultInstance(),
+                reservedCapacityAnalysis, setUpWastedFileAnalysis());
+
+        // Verify results
+        final ProjectedTopologyEntity projectedVm = entity.get(vmOid);
+        assertNotNull(projectedVm);
+        final Set<Long> projectedProviders = projectedVm.getEntity()
+                .getCommoditiesBoughtFromProvidersList().stream()
+                .map(CommoditiesBoughtFromProvider::getProviderId)
+                .collect(Collectors.toSet());
+        // Ensure that the ephemeral volume is not included.
+        assertEquals(ImmutableSet.of(volume1Oid), projectedProviders);
+    }
+
+    private TopologyEntityDTO createVirtualVolume(boolean isEphemeral, CommodityType commodityType,
+            long volumeOid, long storageTierOid, Origin volumeOrigin, long storageAmountCapacity) {
+        final TopologyDTO.TopologyEntityDTO.Builder volumeBuilder = TopologyEntityDTO.newBuilder()
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setCommodityType(commodityType))
+                        .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                        .setProviderId(storageTierOid))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCapacity(storageAmountCapacity)
+                        .setCommodityType(commodityType))
+                .setOid(volumeOid)
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setOrigin(volumeOrigin);
+        if (isEphemeral) {
+            volumeBuilder.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                    .setIsEphemeral(true)));
+        }
+        return volumeBuilder.build();
+    }
     private CommoditySoldTO createSoldTO(final int typeValue,
                                          final double capacity,
                                          final boolean resizable) {
