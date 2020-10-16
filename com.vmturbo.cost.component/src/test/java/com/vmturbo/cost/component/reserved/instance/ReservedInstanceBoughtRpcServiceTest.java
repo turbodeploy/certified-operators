@@ -135,6 +135,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
     private static final long RI_SPEC_ID_4 = 2225L;
     private static final Map<Long, Double> RI_ID_TO_NUMBER_OF_USED_COUPONS_1 = ImmutableMap.of(
             RI_BOUGHT_ID_1, 15D, RI_BOUGHT_ID_2, 16D, RI_BOUGHT_ID_3, 17D);
+    private static final Map<Long, Double> RI_ID_TO_NUMBER_OF_USED_COUPONS_2 = ImmutableMap.of(RI_BOUGHT_ID_2, 16D, RI_BOUGHT_ID_3, 17D);
 
     private static final ReservedInstanceBoughtInfo RI_INFO_1 = ReservedInstanceBoughtInfo.newBuilder()
                     .setBusinessAccountId(123L)
@@ -223,6 +224,10 @@ public class ReservedInstanceBoughtRpcServiceTest {
                 .when(reservedInstanceBoughtStore)
                 .getNumberOfUsedCouponsForReservedInstances(
                         ImmutableSet.of(RI_BOUGHT_ID_1, RI_BOUGHT_ID_2, RI_BOUGHT_ID_3));
+        Mockito.doReturn(RI_ID_TO_NUMBER_OF_USED_COUPONS_2)
+                .when(reservedInstanceBoughtStore)
+                .getNumberOfUsedCouponsForReservedInstances(
+                        ImmutableSet.of(RI_BOUGHT_ID_2, RI_BOUGHT_ID_3));
         Mockito.doReturn(ImmutableMap.of(RI_BOUGHT_ID_1, 10D))
                 .when(reservedInstanceBoughtStore)
                 .getNumberOfUsedCouponsForReservedInstances(ImmutableSet.of(RI_BOUGHT_ID_1));
@@ -561,7 +566,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
         scopeIds.add(103L);
 
         Mockito.doReturn(Collections.emptyList()).when(repositoryClient).getAllBusinessAccounts(anyLong());
-
+        Mockito.when(businessAccountHelper.getDiscoveredBusinessAccounts()).thenReturn(Collections.emptySet());
 
         // setup what's expected to be returned on going through the real-time path.
         // When getSaved is false, the real-time RIs are fetched, which is all the RIs in scope.
@@ -579,6 +584,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
 
         doReturn(allReservedInstanceBought).when(reservedInstanceBoughtStore)
                 .getReservedInstanceBoughtByFilter(any());
+        doReturn(Collections.emptyList()).when(reservedInstanceBoughtStore)
+                .getUndiscoveredUnusedReservedInstancesInScope(any());
 
         List<ReservedInstanceBought> riBought2 = client
                         .getReservedInstanceBoughtForScope(
@@ -588,6 +595,54 @@ public class ReservedInstanceBoughtRpcServiceTest {
                         .getReservedInstanceBoughtList();
         assertEquals(3, riBought2.size());
         Assert.assertEquals(RI_ID_TO_NUMBER_OF_USED_COUPONS_1, riBought2.stream()
+                .collect(Collectors.toMap(ReservedInstanceBought::getId, r -> r.getReservedInstanceBoughtInfo()
+                        .getReservedInstanceBoughtCoupons()
+                        .getNumberOfCouponsUsed())));
+    }
+
+    /**
+     * Tests getReservedInstanceBoughtForScope with undiscovered RI.
+     */
+    @Test
+    public void testReservedInstanceBoughtExcludeUndiscoveredUnused() {
+
+        // The plan added RIs above have Region ID == 101L and 102L, and below are all the
+        // RIs in scope.
+        Set<Long> scopeIds = new HashSet<>();
+        scopeIds.add(101L);
+        scopeIds.add(102L);
+        scopeIds.add(103L);
+
+        Mockito.doReturn(Collections.emptyList()).when(repositoryClient).getAllBusinessAccounts(anyLong());
+        Mockito.when(businessAccountHelper.getDiscoveredBusinessAccounts()).thenReturn(Collections.emptySet());
+
+        // setup what's expected to be returned on going through the real-time path.
+        ReservedInstanceBought riFromUndiscovered = ReservedInstanceBought.newBuilder()
+                .setId(RI_BOUGHT_ID_1)
+                .setReservedInstanceBoughtInfo(RI_INFO_1)
+                .build();
+        final List<ReservedInstanceBought> allReservedInstanceBought = Arrays.asList(
+                riFromUndiscovered, ReservedInstanceBought.newBuilder()
+                        .setId(RI_BOUGHT_ID_2)
+                        .setReservedInstanceBoughtInfo(RI_INFO_2)
+                        .build(), ReservedInstanceBought.newBuilder()
+                        .setId(RI_BOUGHT_ID_3)
+                        .setReservedInstanceBoughtInfo(RI_INFO_3)
+                        .build());
+
+        doReturn(allReservedInstanceBought).when(reservedInstanceBoughtStore)
+                .getReservedInstanceBoughtByFilter(any());
+        doReturn(Collections.singletonList(riFromUndiscovered)).when(reservedInstanceBoughtStore)
+                .getUndiscoveredUnusedReservedInstancesInScope(any());
+
+        List<ReservedInstanceBought> riBought2 = client
+                .getReservedInstanceBoughtForScope(
+                        GetReservedInstanceBoughtForScopeRequest.newBuilder()
+                                .addAllScopeSeedOids(scopeIds)
+                                .build())
+                .getReservedInstanceBoughtList();
+        assertEquals(2, riBought2.size());
+        Assert.assertEquals(RI_ID_TO_NUMBER_OF_USED_COUPONS_2, riBought2.stream()
                 .collect(Collectors.toMap(ReservedInstanceBought::getId, r -> r.getReservedInstanceBoughtInfo()
                         .getReservedInstanceBoughtCoupons()
                         .getNumberOfCouponsUsed())));

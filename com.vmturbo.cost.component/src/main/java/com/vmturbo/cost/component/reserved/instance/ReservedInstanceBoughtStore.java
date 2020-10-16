@@ -6,6 +6,7 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+
 import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -127,4 +128,26 @@ public interface ReservedInstanceBoughtStore extends ReservedInstanceCostStore,
     @Nonnull
     Map<Long, Double> getNumberOfUsedCouponsForReservedInstances(
             @Nonnull Collection<Long> filterByReservedInstanceIds);
+
+
+    /**
+     * Gets the undiscovered RIs. An undiscovered RI is an RI that is purchased by an account
+     * that has not been added as a target.
+     *
+     * @return List of undiscovered reserved instances.
+     */
+    @Nonnull
+    List<ReservedInstanceBought> getUndiscoveredReservedInstances();
+
+    /**
+     * Gets the undiscovered RIs not being used by any of the managed accounts.
+     * An undiscovered RI is an RI that is purchased by an account
+     * that has not been added as a target.
+     *
+     * @param filter Filter representing the scope for the requested RI list.
+     * @return List of reserved instances not used by managed accounts.
+     */
+    @Nonnull
+    List<ReservedInstanceBought> getUndiscoveredUnusedReservedInstancesInScope(
+            ReservedInstanceBoughtFilter filter);
 }

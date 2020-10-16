@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -29,6 +30,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record2;
@@ -36,6 +38,7 @@ import org.jooq.Record3;
 import org.jooq.Record4;
 import org.jooq.Result;
 import org.jooq.SelectJoinStep;
+import org.jooq.SelectWhereStep;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.jooq.impl.TableImpl;
@@ -600,5 +603,40 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
                         : RESERVED_INSTANCE_ID_FIELD.in(filterByReservedInstanceIds)).groupBy(
                 RESERVED_INSTANCE_ID_FIELD).fetchStream().collect(
                 Collectors.toMap(r -> r.getValue(0, Long.class), r -> r.getValue(1, Double.class)));
+    }
+
+    @Nonnull
+    @Override
+    public List<ReservedInstanceBought> getUndiscoveredReservedInstances() {
+        final SelectWhereStep<ReservedInstanceBoughtRecord> records
+                = getDsl().selectFrom(RESERVED_INSTANCE_BOUGHT);
+        final Set<Long> discoveredAccounts = businessAccountHelper.getDiscoveredBusinessAccounts();
+        return records.stream()
+                .filter(record -> !discoveredAccounts.contains(record.getBusinessAccountId()))
+                .map(this::reservedInstancesToProto)
+                .collect(toList());
+    }
+
+
+    @Nonnull
+    @Override
+    public List<ReservedInstanceBought> getUndiscoveredUnusedReservedInstancesInScope(
+            final ReservedInstanceBoughtFilter filter) {
+        List<ReservedInstanceBought> undiscoveredRIs = getUndiscoveredReservedInstances();
+        Optional<Condition> usedCondition = filter.generateUsedByDiscoveredAccountsCondition(getDSLContext());
+        final List<Long> usedRIs;
+        if (usedCondition.isPresent()) {
+            usedRIs = getDsl()
+                    .selectFrom(RESERVED_INSTANCE_BOUGHT)
+                    .where(usedCondition.get())
+                    .fetchStream()
+                    .map(r -> r.getId())
+                    .collect(Collectors.toList());
+        } else {
+            usedRIs = Collections.emptyList();
+        }
+        return undiscoveredRIs.stream()
+                .filter(ri -> !usedRIs.contains(ri.getId()))
+                .collect(toList());
     }
 }

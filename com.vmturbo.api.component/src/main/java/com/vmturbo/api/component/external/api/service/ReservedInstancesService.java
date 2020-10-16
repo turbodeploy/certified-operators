@@ -15,8 +15,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.Lists;
 
+import com.google.common.collect.Lists;
 import org.apache.commons.lang.StringUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -239,6 +239,17 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
                 final GetReservedInstanceBoughtByFilterRequest.Builder requestBuilder =
                         GetReservedInstanceBoughtByFilterRequest.newBuilder();
+
+                /* At present USED_AND_PURCHASED_BY will only return RIs that are used
+                 by discovered accounts.
+                 The additional flag at the request filter level is required for
+                 non account scopes like regions, zones.
+                 This should be cleaned by by a follow up story where
+                 the account filter type sent in by the UI should be moved outside
+                 as a generic RI filter type. */
+                if (accountFilterType == AccountFilterType.USED_AND_PURCHASED_BY) {
+                    requestBuilder.setExcludeUndiscoveredUnused(true);
+                }
 
                 // add any scope filters
                 scope.getScopeEntitiesByType().forEach((entityType, entityOids) -> {

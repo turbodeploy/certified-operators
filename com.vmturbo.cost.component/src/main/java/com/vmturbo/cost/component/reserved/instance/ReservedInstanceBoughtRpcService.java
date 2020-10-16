@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
@@ -27,6 +28,7 @@ import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter.AccountFilterType;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
@@ -183,6 +185,28 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
     }
 
     /**
+     * Eliminates unused undiscovered RIs for a given collection of RIs.
+     *
+     * @param reservedInstances RIs to be filtered.
+     * @param riBoughtFilter the filter used to retrieve the RIs.
+     * @return updated list of bought reserved instances with the undiscovered RIs eliminated.
+     */
+    private List<ReservedInstanceBought> removeUndiscoveredUnusedRIs(
+            final List<ReservedInstanceBought> reservedInstances,
+            final ReservedInstanceBoughtFilter riBoughtFilter) {
+        List<Long> undiscoveredUnusedRIs =
+                reservedInstanceBoughtStore
+                        .getUndiscoveredUnusedReservedInstancesInScope(riBoughtFilter)
+                        .stream().map(ri -> ri.getId())
+                        .collect(Collectors.toList());
+
+        return reservedInstances.stream()
+                .filter(ri -> !undiscoveredUnusedRIs.contains(ri.getId()))
+                .collect(Collectors.toList());
+
+    }
+
+    /**
      * Get Buy RIs (recommended RIs) for provided topology info.
      *
      * @param topoInfo topolgy info
@@ -231,12 +255,20 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             logger.trace("Removed {} regions for {} zones from plan {} RI scope. Seeds: {}",
                     regionIds, zoneIds, topologyContextId, scopeIds);
         }
-        final ReservedInstanceBoughtFilter riBoughtFilter = ReservedInstanceBoughtFilter.newBuilder()
-                .cloudScopeTuples(cloudScopeTuples)
-                .build();
 
-        final List<ReservedInstanceBought> boughtReservedInstances = reservedInstanceBoughtStore
+        final ReservedInstanceBoughtFilter riBoughtFilter =
+                ReservedInstanceBoughtFilter.newBuilder()
+                        .cloudScopeTuples(cloudScopeTuples, AccountFilterType.USED_AND_PURCHASED_BY)
+                        .build();
+
+
+
+        List<ReservedInstanceBought> boughtReservedInstances = reservedInstanceBoughtStore
                 .getReservedInstanceBoughtByFilter(riBoughtFilter);
+
+        // Filter out undiscovered RIs not used by discovered accounts.
+        boughtReservedInstances = removeUndiscoveredUnusedRIs(boughtReservedInstances, riBoughtFilter);
+
 
         // If Business Account was considered in RI selection, (request.getScopeSeedOidsList() represented one or more
         // Business Accounts or workloads) filter on shared vs. subscription scope
@@ -274,10 +306,12 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                     .availabilityZoneFilter(request.getZoneFilter())
                     .accountFilter(request.getAccountFilter())
                     .build();
-            final List<ReservedInstanceBought> reservedInstancesBought =
+            List<ReservedInstanceBought> reservedInstancesBought =
                            reservedInstanceBoughtStore
                                .getReservedInstanceBoughtByFilter(filter);
-
+            if (request.hasExcludeUndiscoveredUnused() && request.getExcludeUndiscoveredUnused()) {
+                reservedInstancesBought = removeUndiscoveredUnusedRIs(reservedInstancesBought, filter);
+            }
             final GetReservedInstanceBoughtByFilterResponse response =
                     GetReservedInstanceBoughtByFilterResponse.newBuilder()
                             .addAllReservedInstanceBoughts(

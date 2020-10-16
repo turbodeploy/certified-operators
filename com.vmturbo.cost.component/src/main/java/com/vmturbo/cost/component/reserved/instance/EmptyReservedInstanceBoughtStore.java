@@ -130,4 +130,17 @@ public class EmptyReservedInstanceBoughtStore implements ReservedInstanceBoughtS
     public String getFileName() {
         return DIAG_FILE_NAME;
     }
+
+    @Nonnull
+    @Override
+    public List<ReservedInstanceBought> getUndiscoveredReservedInstances() {
+        return  Collections.emptyList();
+    }
+
+    @Nonnull
+    @Override
+    public List<ReservedInstanceBought> getUndiscoveredUnusedReservedInstancesInScope(final ReservedInstanceBoughtFilter filter) {
+        return  Collections.emptyList();
+    }
+
 }

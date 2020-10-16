@@ -703,7 +703,7 @@ message GetReservedInstanceBoughtByFilterRequest {
     optional RegionFilter region_filter = 1;
     optional AvailabilityZoneFilter zone_filter = 2;
     optional AccountFilter account_filter = 3;
-    optional bool include_undiscovered = 4 [default = true];
+    optional bool exclude_undiscovered_unused = 5 [default = false];
 }
 
 // A response contains a list reserved instance bought.

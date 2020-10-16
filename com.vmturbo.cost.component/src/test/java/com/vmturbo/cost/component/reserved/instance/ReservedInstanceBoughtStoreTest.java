@@ -18,6 +18,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.jooq.DSLContext;
@@ -61,6 +63,7 @@ import com.vmturbo.sql.utils.DbConfigurationRule;
  * Class to test ReservedInstanceBoughtStore methods.
  */
 public class ReservedInstanceBoughtStoreTest {
+    private static final long BA_1 = 123L;
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -82,10 +85,11 @@ public class ReservedInstanceBoughtStoreTest {
     private PriceTableStore priceTableStore = Mockito.mock(PriceTableStore.class);
     private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore = Mockito.mock(EntityReservedInstanceMappingStore.class);
     private AccountRIMappingStore accountRIMappingStore = Mockito.mock(AccountRIMappingStore.class);
+    private BusinessAccountHelper businessAccountHelper = Mockito.mock(BusinessAccountHelper.class);
 
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore = new SQLReservedInstanceBoughtStore(dsl,
                 new DefaultIdentityProvider(0), reservedInstanceCostCalculator, priceTableStore,
-            entityReservedInstanceMappingStore, accountRIMappingStore, new BusinessAccountHelper());
+            entityReservedInstanceMappingStore, accountRIMappingStore, businessAccountHelper);
 
     private static final int REGION_VALUE = 54;
     private static final int AVAILABILITYZONE_VALUE = 55;
@@ -162,6 +166,7 @@ public class ReservedInstanceBoughtStoreTest {
                 .putAllRiPricesBySpecId(map).build();
         Mockito.when(priceTableStore.getMergedRiPriceTable()).thenReturn(riPriceTable);
         insertDefaultReservedInstanceSpec();
+
     }
 
     @Test
@@ -283,7 +288,29 @@ public class ReservedInstanceBoughtStoreTest {
         assertEquals(2, reservedInstancesByRegionIdFilter.size());
         assertEquals("bar", reservedInstancesByRegionIdFilter.get(0)
                 .getReservedInstanceBoughtInfo().getProbeReservedInstanceId());
+    }
 
+    /**
+     * Tests getUndiscoveredUnusedReservedInstancesInScope.
+     */
+    @Test
+    public void testGetUndiscoveredUnusedReservedInstance() {
+        final List<ReservedInstanceBoughtInfo> reservedInstanceInfos = Arrays.asList(riInfoOne, riInfoFour);
+        reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstanceInfos);
+        List<Long> scopeIds = new ArrayList<>();
+        scopeIds.add(0L);
+
+        final ReservedInstanceBoughtFilter regionIdFilter = ReservedInstanceBoughtFilter.newBuilder()
+                .regionFilter(RegionFilter.newBuilder()
+                        .addAllRegionId(scopeIds)
+                        .build())
+                .build();
+        Mockito.when(businessAccountHelper.getDiscoveredBusinessAccounts()).thenReturn(ImmutableSet.of(123L, 456L));
+        final List<ReservedInstanceBought> reservedInstancesByRegionIdFilter =
+                reservedInstanceBoughtStore.getUndiscoveredUnusedReservedInstancesInScope(regionIdFilter);
+        assertEquals(1, reservedInstancesByRegionIdFilter.size());
+        assertEquals("qux", reservedInstancesByRegionIdFilter.get(0)
+                .getReservedInstanceBoughtInfo().getProbeReservedInstanceId());
     }
 
     @Test
