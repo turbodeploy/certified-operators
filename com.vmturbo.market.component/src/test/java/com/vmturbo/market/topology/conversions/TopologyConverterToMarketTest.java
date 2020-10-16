@@ -132,6 +132,7 @@ public class TopologyConverterToMarketTest {
     private static final double DELTA = 0.001d;
 
     private static final double epsilon = 1e-5; // used in assertEquals(double, double, epsilon)
+    private static final long VM1_OID = 101L; // matches the oid in vm-1.dto.json
 
     private CommoditySpecificationTO economyCommodity1;
     private CommodityType topologyCommodity1;
@@ -1811,6 +1812,42 @@ public class TopologyConverterToMarketTest {
                                         .build());
         return builder.build();
     }
+
+    /**
+     * Test that current providers with an unknown state dont prevent shopping lists
+     * for migrate to cloud from being movable.
+     *
+     * @throws IOException when one of the files cannot be load
+     */
+    @Test
+    public void testMigratingVmWithUnknownStateStorage() throws IOException {
+        final Map<Long, TopologyEntityDTO> topologyDTOs = Stream.of(
+            messageFromJsonFile("protobuf/messages/vm-1.dto.json"),
+            messageFromJsonFile("protobuf/messages/pm-1.dto.json"),
+            messageFromJsonFile("protobuf/messages/ds-1.dto.json"),
+            messageFromJsonFile("protobuf/messages/ds-2-unknownState.dto.json"))
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        Set<TraderTO> traderTOs = new TopologyConverter(MCP_COSUMPTION_PLAN_TOPOLOGY_INFO, false,
+            MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+            marketCloudRateExtractor,
+            ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+            consistentScalingHelperFactory, reversibilitySettingFetcher)
+            .convertToMarket(topologyDTOs);
+
+        // All shopping lists for VM1 should be movable, even though storage 2 has
+        // state UNKNOWN.
+        assertEquals(4, traderTOs.size());
+        for (TraderTO traderTO : traderTOs) {
+            if (traderTO.getOid() == VM1_OID) {
+                // vm-1 is movable
+                for (ShoppingListTO shoppingList : traderTO.getShoppingListsList()) {
+                    assertTrue(shoppingList.getMovable());
+                }
+            }
+        }
+    }
+
     /**
      * The intent of this test is to ensure that Containers that are hosted by ContainerPods are
      * marked not movable.  This also tests whether that the VM that hosts the pods is suspendable.
@@ -1847,7 +1884,7 @@ public class TopologyConverterToMarketTest {
                 // VM-4 has no suspension setting and hosts pods, so it should have suspendable
                 // true.
                 assertFalse(traderTO.getSettings().getSuspendable());
-            } else if (traderTO.getOid() == 101L) {
+            } else if (traderTO.getOid() == VM1_OID) {
                 // VM-1 has no suspension setting does not host containers, so it should have
                 // suspendable false.
                 assertFalse(traderTO.getSettings().getSuspendable());
@@ -1893,9 +1930,10 @@ public class TopologyConverterToMarketTest {
         topologyConverter.convertToMarket(topologyDTOs);
         // Only the VirtualMachine (OID==101) should be saved to the resize tracker. The other converted
         // entities should not be saved. The other VMs in the test case have no commodities bought.
-        Mockito.verify(resizeTracker).save(Mockito.eq(101L), anyLong(),
+
+        Mockito.verify(resizeTracker).save(Mockito.eq(VM1_OID), anyLong(),
             Mockito.eq(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE).setKey("P1").build()), anyBoolean(), any());
-        Mockito.verify(resizeTracker).save(Mockito.eq(101L), anyLong(),
+        Mockito.verify(resizeTracker).save(Mockito.eq(VM1_OID), anyLong(),
             Mockito.eq(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_VALUE).setKey("").build()), anyBoolean(), any());
         Mockito.verifyNoMoreInteractions(resizeTracker);
     }
