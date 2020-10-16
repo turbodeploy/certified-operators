@@ -1472,25 +1472,13 @@ public class ActionInterpreter {
         Optional<ChangeProviderExplanation.Builder> freeScaleUpExplanation =
             getFreeScaleUpExplanation(savings, higherProjectedCapacityComms);
         if (freeScaleUpExplanation.isPresent()) {
-            return underUtilizedExplanation;
+            return freeScaleUpExplanation;
         }
 
         return getDefaultExplanationForCloud(actionTargetId, moveTO);
     }
 
     private Optional<ChangeProviderExplanation.Builder> getFreeScaleUpExplanation(
-        CalculatedSavings savings, Set<CommodityType> higherProjectedCapacityComms) {
-        // Check if we got a scale up for free. This can happen when the savings is 0 or greater,
-        // and there are some commodities which have higher projected capacities.
-        if (savings.savingsAmount.getValue() >= 0 && !higherProjectedCapacityComms.isEmpty()) {
-            return Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
-                Efficiency.newBuilder().addAllScaleUpCommodity(higherProjectedCapacityComms)));
-        }
-        return Optional.empty();
-    }
-
-    private Optional<ChangeProviderExplanation.Builder> appendScaleUpCommodities(
-        Optional<ChangeProviderExplanation.Builder> efficiencyExplanation,
         CalculatedSavings savings, Set<CommodityType> higherProjectedCapacityComms) {
         // Check if we got a scale up for free. This can happen when the savings is 0 or greater,
         // and there are some commodities which have higher projected capacities.
