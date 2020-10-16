@@ -1743,7 +1743,7 @@ public class HistorydbIO extends BasedbIO {
                     // Drop the temp table
                     execute(String.format("DROP TEMPORARY TABLE IF EXISTS %s", tempTableName.get()), conn);
                 }
-                return convertToEntityCommoditiesMaxValues(table.get(), statsRecords);
+                return convertToEntityCommoditiesMaxValues(table.get(), isBought, statsRecords);
             } catch (VmtDbException e) {
                 logger.error(
                         "Error while querying max historical StorageAccess bought by migrating source entities: %s", e);
@@ -1833,12 +1833,15 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Convert the max value db records into EntityCommoditiesMaxValues.
      *
-     * @param tbl             DB table from which the records were fetched.
+     * @param tbl DB table from which the records were fetched.
+     * @param recordsContainProducerUuid Whether the {@link Result} contains a producer_uuid column
      * @param maxStatsRecords Jooq Result containing the lisf of max values DB records.
      * @return List of converted records.
      */
     private List<EntityCommoditiesMaxValues> convertToEntityCommoditiesMaxValues(
-        Table<?> tbl, Result<? extends Record> maxStatsRecords) {
+            Table<?> tbl,
+            boolean recordsContainProducerUuid,
+            Result<? extends Record> maxStatsRecords) {
         List<EntityCommoditiesMaxValues> maxValues = new ArrayList<>();
         // Group the records by entityId
         // TODO: karthikt - check the memory profile for large number of entities
@@ -1866,9 +1869,11 @@ public class HistorydbIO extends BasedbIO {
                                 // at a common prefix boundary.
                                 .setKey(record.getValue(getStringField(tbl, COMMODITY_KEY)))
                                 .build());
-                final String producerOid = record.getValue(getStringField(tbl, PRODUCER_UUID));
-                if (Objects.nonNull(producerOid)) {
-                    commodityMaxValueBuilder.setProducerOid(Long.parseLong(producerOid));
+                if (recordsContainProducerUuid) {
+                    final String producerOid = record.getValue(getStringField(tbl, PRODUCER_UUID));
+                    if (Objects.nonNull(producerOid)) {
+                        commodityMaxValueBuilder.setProducerOid(Long.parseLong(producerOid));
+                    }
                 }
                 // Null check first - this field is nullable!
                 final Double maxValue = record.getValue(DSL.field(MAX_COLUMN_NAME, Double.class));
