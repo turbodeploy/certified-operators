@@ -1207,9 +1207,8 @@ public class TopologyConverter {
             // For VMs, if trader states are not changed, then the new entity state
             // should be the same as original entity state.
             if (traderTO.getType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                EconomyDTOs.TraderTO oldTraderTo = topologyDTOtoTraderTO(originalEntity);
-                if (oldTraderTo != null
-                        && isSameVMTraderState(traderTO.getState(), oldTraderTo.getState())) {
+                final TraderStateTO originalStateTo = TopologyConversionUtils.traderState(originalEntity);
+                if (isSameVMTraderState(traderTO.getState(), originalStateTo)) {
                     entityState = originalEntity.getEntityState();
                 }
             } else {
@@ -3744,21 +3743,26 @@ public class TopologyConverter {
         if (!originalCommoditySold.isPresent() && projectedTraderTO.getCloneOf() != 0) {
             originalCommoditySold = getCommodityIndex().getCommSold(projectedTraderTO.getCloneOf(), commType);
         }
-        CommoditySoldTO adjustedCommSoldTO = commSoldTO.toBuilder()
-                .setQuantity((float)reverseScaleComm(commSoldTO.getQuantity(),
-                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
-                .setCapacity((float)reverseScaleComm(commSoldTO.getCapacity(),
-                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
-                .setPeakQuantity((float)reverseScaleComm(peak,
-                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
-                .setMaxQuantity((float)reverseScaleComm(commSoldTO.getMaxQuantity(),
-                        originalCommoditySold, CommoditySoldDTO::getScalingFactor))
-                .build();
-        double capacity = updateCommoditySoldCapacity(traderTO, commType, marketTier, adjustedCommSoldTO);
+
+        float reverseScaleQuantity = commSoldTO.getQuantity();
+        float reverseScaleCapacity = commSoldTO.getCapacity();
+        float reverseScalePeakQuantity = peak;
+        if (originalCommoditySold.isPresent()) {
+            final float scalingFactor = (float)originalCommoditySold.get().getScalingFactor();
+            if (scalingFactor > EPSILON) {
+                float inverseScalingFactor = 1.0f / scalingFactor;
+                reverseScaleQuantity *= inverseScalingFactor;
+                reverseScaleCapacity *= inverseScalingFactor;
+                reverseScalePeakQuantity *= inverseScalingFactor;
+            }
+        }
+
+        double capacity = updateCommoditySoldCapacity(traderTO, commType, marketTier,
+            reverseScaleCapacity, commSoldTO.getSpecification().getBaseType());
         CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder()
             .setCapacity(capacity)
-            .setUsed(adjustedCommSoldTO.getQuantity())
-            .setPeak(adjustedCommSoldTO.getPeakQuantity())
+            .setUsed(reverseScaleQuantity)
+            .setPeak(reverseScalePeakQuantity)
             .setIsResizeable(commSoldTO.getSettings().getResizable())
             .setEffectiveCapacityPercentage(
                 commSoldTO.getSettings().getUtilizationUpperBound() * 100)
@@ -3813,13 +3817,15 @@ public class TopologyConverter {
      * @param traderTO           {@link TraderTO} whose commoditiesSold are to be converted into DTOs.
      * @param commType           commodity type.
      * @param marketTier         the primary market tier.
-     * @param adjustedCommSoldTO commodity sold.
+     * @param reverseScaledCapacity commodity sold capacity that has been reverse-scaled by scaling factor.
+     * @param commSoldToBaseType The commodity base type for the commoditySoldTO whose capacity is being adjusted.
      * @return double capacity value.
      */
     private double updateCommoditySoldCapacity(final @Nonnull TraderTO traderTO,
                                                final @Nonnull CommodityType commType,
                                                final @Nonnull MarketTier marketTier,
-                                               final @Nonnull CommoditySoldTO adjustedCommSoldTO) {
+                                               final float reverseScaledCapacity,
+                                               final int commSoldToBaseType) {
         // Filter based on if the current CommodityType and entityType matches.
         final int entityType = traderTO.getType();
         if (OLD_CAPACITY_REQUIRED_ENTITIES_TO_COMMODITIES.containsKey(entityType) &&
@@ -3846,22 +3852,25 @@ public class TopologyConverter {
             }
         }
         // If assignedCapacityForBuyer is not available, get capacity from commSoldTO.
-        return getCapacityForCommodity(adjustedCommSoldTO, marketTier, commType, traderTO.getOid());
+        return getCapacityForCommodity(reverseScaledCapacity, commSoldToBaseType,
+            marketTier, commType, traderTO.getOid());
     }
 
     /**
      * Find the capacity of the old provider for a given sold commodity TO.
-     * @param commSoldTO the soldTO for which we want the new capacity.
+     * @param reverseScaledCapacity commodity sold capacity that has been reverse-scaled by scaling factor.
+     * @param commSoldToBaseType The commodity base type for the commoditySoldTO whose capacity is being adjusted.
      * @param marketTier the current market tier for the trader selling the commodity.
      * @param commType the commodity type.
      * @param traderOid the trader OID.
      * @return the new capacity for the passed sold TO.
      */
-    private float getCapacityForCommodity(final CommoditySoldTO commSoldTO,
+    private float getCapacityForCommodity(final float reverseScaledCapacity,
+                                          final int commSoldToBaseType,
                                           final MarketTier marketTier,
                                           final CommodityType commType,
                                           final long traderOid) {
-        float capacity = commSoldTO.getCapacity();
+        float capacity = reverseScaledCapacity;
 
         // If it is a tier based cloud sold TO, return the new provider capacity
         if (marketTier != null && marketTier.getTier() != null) {
@@ -3892,8 +3901,8 @@ public class TopologyConverter {
                         " of type {} for trader {}.Using usage as received from trader from market.",
                         commType.getType(), traderOid);
             }
-        } else if (commSoldTO.getSpecification().getBaseType() == CommodityDTO.CommodityType.VCPU_VALUE) {
-            capacity = calculateVCPUResizeCapacityForVM(traderOid, commSoldTO);
+        } else if (commSoldToBaseType == CommodityDTO.CommodityType.VCPU_VALUE) {
+            capacity = calculateVCPUResizeCapacityForVM(traderOid, reverseScaledCapacity);
         }
         return capacity;
     }
@@ -3908,12 +3917,12 @@ public class TopologyConverter {
      * Math formula: correctCapacity = Math.ceil(newCapacity / cpuCoreMhz) * cpuCoreMhz
      *
      * @param traderOid The ID of the trader selling the commodity
-     * @param commSoldTO the market CommdditySoldTO to convert
+     * @param reverseScaledCapacity commodity sold capacity that has been reverse-scaled by scaling factor.
      * @return the correct VCPU capacity
      */
     private float calculateVCPUResizeCapacityForVM(final long traderOid,
-                                                   @Nonnull final CommoditySoldTO commSoldTO) {
-        float capacity = commSoldTO.getCapacity();
+                                                   final float reverseScaledCapacity) {
+        float capacity = reverseScaledCapacity;
         if (oidToProjectedTraderTOMap.get(traderOid).getType() != EntityType.VIRTUAL_MACHINE_VALUE) {
             return capacity;
         }

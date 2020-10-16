@@ -29,11 +29,14 @@ public class TopologyConversionConstants {
                     EntityType.REGION_VALUE, EntityType.AVAILABILITY_ZONE_VALUE,
                     EntityType.BUSINESS_ACCOUNT_VALUE, EntityType.VIRTUAL_VOLUME_VALUE));
 
-    public static final String COMMODITY_TYPE_KEY_SEPARATOR = "|";
+    /**
+     * Character (as opposed to string) separator in commodity key.
+     */
+    public static final char COMMODITY_TYPE_KEY_SEPARATOR_CHAR = '|';
 
     /**
      * If used is greater than capacity for a few commodities, then we make the
-     * used = CAPACITY_FACTOR * capacity
+     * used = CAPACITY_FACTOR * capacity.
      */
     public static final float CAPACITY_FACTOR = 0.999999f;
 

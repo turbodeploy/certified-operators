@@ -5,7 +5,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -15,6 +14,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -90,7 +90,7 @@ public class CommodityTypeAllocator {
                 .setBaseType(CommodityDTO.CommodityType.BICLIQUE_VALUE)
                 .setType(idAllocator.allocate(
                         CommodityDTO.CommodityType.BICLIQUE_VALUE
-                                + TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR + bcKey))
+                                + TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR_CHAR + bcKey))
                 .setDebugInfoNeverUseInCode(CommodityDTO.CommodityType.BICLIQUE.toString() + " " + bcKey)
                 .build();
     }
@@ -242,8 +242,8 @@ public class CommodityTypeAllocator {
             return false;
         }
         // timeslot commodity name is the pattern "baseType|key|slotNumber"
-        return 2 < commodityName.split(Pattern.quote(
-            TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR)).length;
+        return StringUtils.countMatches(commodityName,
+            TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR_CHAR) > 1;
     }
 
     /**
@@ -313,7 +313,7 @@ public class CommodityTypeAllocator {
         @Override
         @Nullable
         public CommodityType stringToCommodityType(@Nonnull final String commodityTypeString) {
-            int separatorIndex = commodityTypeString.indexOf(TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR);
+            int separatorIndex = commodityTypeString.indexOf(TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR_CHAR);
             try {
                 if (separatorIndex > -1) {
                     int type = Integer.parseInt(commodityTypeString.substring(0, separatorIndex));
@@ -343,7 +343,7 @@ public class CommodityTypeAllocator {
         public String getKeyFromCommoditySpecification(@Nonnull final CommoditySpecificationTO economyCommodity,
                                                        @Nonnull final Optional<Integer> slotIndex) {
             return (economyCommodity.getType())
-                    + TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR
+                    + String.valueOf(TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR_CHAR)
                     + (economyCommodity.getBaseType());
         }
 
@@ -361,7 +361,7 @@ public class CommodityTypeAllocator {
             int type = commType.getType();
             return type + (
                     commType.hasKey()
-                    ? TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR + commType.getKey()
+                    ? TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR_CHAR + commType.getKey()
                     : "");
         }
 
@@ -379,7 +379,8 @@ public class CommodityTypeAllocator {
      * Commodity type allocator for time slot based commodities where the
      * the slot index is part of the commodity key.
      */
-    private static class TimeSlotCommodityIDKeyGenerator extends DefaultCommodityIDKeyGenerator {
+    @VisibleForTesting
+    static class TimeSlotCommodityIDKeyGenerator extends DefaultCommodityIDKeyGenerator {
 
         /**
          * Concatenates the type and the key of the {@link CommodityType}.
@@ -404,7 +405,7 @@ public class CommodityTypeAllocator {
         public String commodityTypeToString(@Nonnull final CommodityType commType, final int slotIndex) {
             final int type = commType.getType();
             final String key = (commType.hasKey() ? commType.getKey() : "");
-            return String.join(TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR,
+            return String.join(String.valueOf(TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR_CHAR),
                 ImmutableList.of(String.valueOf(type), key, String.valueOf(slotIndex)));
         }
 
@@ -416,14 +417,16 @@ public class CommodityTypeAllocator {
         public Optional<Integer> getCommoditySlotNumber(@Nonnull final String commodityTypeString) {
             // The expected commodity type is of the pattern: baseType|key|slotNumber
             // key is optional
-            String[] parts = commodityTypeString.split(Pattern.quote(
-                TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR));
-            if (3 > parts.length) {
+            final int keyIndex = StringUtils.ordinalIndexOf(commodityTypeString,
+                String.valueOf(TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR_CHAR), 2);
+            if (keyIndex < 0) {
                 logger.error("Unexpectedly no slot number is present in commodity type {}",
                     () -> commodityTypeString);
                 return Optional.empty();
             }
-            final String slotNumber = parts[2];
+
+            // +1 to skip over the separator character.
+            final String slotNumber = commodityTypeString.substring(keyIndex + 1);
             try {
                 return Optional.of(Integer.valueOf(slotNumber));
             } catch (NumberFormatException e) {

@@ -109,6 +109,12 @@ public class TierExcluder {
     private final CommodityConverter commodityConverter;
 
     /**
+     * Tier exclusion commodities are always of SEGMENTATION type.
+     */
+    private static final int TIER_EXCLUSION_COMMODITY_TYPE
+        = CommodityDTO.CommodityType.SEGMENTATION_VALUE;
+
+    /**
      * This constructor accepts all the parameters needed by this class. If the object is
      * constructed using that, then isInstanceValid will be true.
      *
@@ -173,7 +179,7 @@ public class TierExcluder {
                             .collect(Collectors.toSet());
 
                         CommodityType commodityType = CommodityType.newBuilder()
-                            .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+                            .setType(TIER_EXCLUSION_COMMODITY_TYPE)
                             .setKey(TIER_EXCLUSION_KEY_PREFIX + keyCounter++)
                             .build();
                         tierExclusionCommodityTypes.add(commodityType);
@@ -477,8 +483,10 @@ public class TierExcluder {
      * @return true if the comm spec was created for tier exclusion
      */
     boolean isCommSpecTypeForTierExclusion(CommoditySpecificationTO commSpec) {
-        return !MarketAnalysisUtils.CLONE_COMMODITIES_WITH_NEW_TYPE.contains(commSpec.getBaseType()) &&
-            isCommSpecTypeForTierExclusion(commSpec.getType());
+        // Tier exclusion commodities are always modeled through SEGMENTATION.
+        return commSpec.getBaseType() == TIER_EXCLUSION_COMMODITY_TYPE
+            && !MarketAnalysisUtils.CLONE_COMMODITIES_WITH_NEW_TYPE.contains(commSpec.getBaseType())
+            && isCommSpecTypeForTierExclusion(commSpec.getType());
     }
 
     /**

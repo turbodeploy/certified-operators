@@ -154,4 +154,54 @@ public class CommodityTypeAllocatorTest {
                 commodityTypeAllocator.commoditySpecification(commodityType, 1).iterator().next();
         Assert.assertSame(spec1, spec2);
     }
+
+    /**
+     * testCommoditySlotNumberEmptyString.
+     */
+    @Test
+    public void testCommoditySlotNumberEmptyString() {
+        CommodityTypeAllocator.TimeSlotCommodityIDKeyGenerator keyGenerator =
+            new CommodityTypeAllocator.TimeSlotCommodityIDKeyGenerator();
+        assertEquals(Optional.empty(), keyGenerator.getCommoditySlotNumber(""));
+    }
+
+    /**
+     * testCommoditySlotNumberMissingSlot.
+     */
+    @Test
+    public void testCommoditySlotNumberMissingSlot() {
+        CommodityTypeAllocator.TimeSlotCommodityIDKeyGenerator keyGenerator =
+            new CommodityTypeAllocator.TimeSlotCommodityIDKeyGenerator();
+        assertEquals(Optional.empty(), keyGenerator.getCommoditySlotNumber("foo|bar"));
+    }
+
+    /**
+     * testCommoditySlotNumberInvalidString.
+     */
+    @Test
+    public void testCommoditySlotNumberInvalidString() {
+        CommodityTypeAllocator.TimeSlotCommodityIDKeyGenerator keyGenerator =
+            new CommodityTypeAllocator.TimeSlotCommodityIDKeyGenerator();
+        assertEquals(Optional.empty(), keyGenerator.getCommoditySlotNumber("foo|bar|baz"));
+    }
+
+    /**
+     * testValidCommoditySlotNumber.
+     */
+    @Test
+    public void testValidCommoditySlotNumber() {
+        CommodityTypeAllocator.TimeSlotCommodityIDKeyGenerator keyGenerator =
+            new CommodityTypeAllocator.TimeSlotCommodityIDKeyGenerator();
+        assertEquals(Optional.of(123), keyGenerator.getCommoditySlotNumber("foo|bar|123"));
+    }
+
+    /**
+     * testCommoditySlotNumberTooManySeparators.
+     */
+    @Test
+    public void testCommoditySlotNumberTooManySeparators() {
+        CommodityTypeAllocator.TimeSlotCommodityIDKeyGenerator keyGenerator =
+            new CommodityTypeAllocator.TimeSlotCommodityIDKeyGenerator();
+        assertEquals(Optional.empty(), keyGenerator.getCommoditySlotNumber("foo|bar|123:baz"));
+    }
 }
