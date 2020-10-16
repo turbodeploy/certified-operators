@@ -1295,15 +1295,26 @@ public class Stages {
      */
     public static class SupplyChainValidationStage extends PassthroughStage<GraphWithSettings> {
         private final SupplyChainValidator supplyChainValidator;
+        private final int validationFrequency;
+        private long broadcastCount;
 
         public SupplyChainValidationStage(
-            @Nonnull final SupplyChainValidator supplyChainValidator) {
+            @Nonnull final SupplyChainValidator supplyChainValidator,
+            final int validationFrequency, long broadcastCount) {
             this.supplyChainValidator = supplyChainValidator;
+            this.validationFrequency = validationFrequency;
+            this.broadcastCount = broadcastCount;
         }
 
         @NotNull
         @Override
         public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
+            if (!applyStage()) {
+                logger.trace("Skipping validation phase, will perform one in the next {} "
+                    + "broadcasts", validationFrequency - (broadcastCount % validationFrequency));
+                return Status.success("Skipping validation phase");
+            }
+            logger.trace("Running Validation phase");
             final List<SupplyChainValidationFailure> validationErrors =
                     supplyChainValidator.validateTopologyEntities(input.getTopologyGraph().entities());
             final Map<String, Long> errorsByType = validationErrors.stream()
@@ -1322,6 +1333,10 @@ public class Stages {
         @Override
         public boolean required() {
             return true;
+        }
+
+        private boolean applyStage() {
+            return broadcastCount % validationFrequency == 0;
         }
     }
 

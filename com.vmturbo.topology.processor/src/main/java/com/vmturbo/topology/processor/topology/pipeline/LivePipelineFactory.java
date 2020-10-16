@@ -158,6 +158,10 @@ public class LivePipelineFactory {
 
     private final GroupScopeResolver groupScopeResolver;
 
+    private final int supplyChainValidationFrequency;
+
+    private long broadcastCount = 0;
+
     public LivePipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
             @Nonnull final PolicyManager policyManager,
             @Nonnull final StitchingManager stitchingManager,
@@ -191,7 +195,8 @@ public class LivePipelineFactory {
             @Nonnull final EphemeralEntityEditor ephemeralEntityEditor,
             @Nonnull final ReservationServiceBlockingStub reservationService,
             @Nonnull final GroupResolverSearchFilterResolver searchFilterResolver,
-            @Nonnull final GroupScopeResolver groupScopeResolver) {
+            @Nonnull final GroupScopeResolver groupScopeResolver,
+            final int supplyChainValidationFrequency) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -226,6 +231,7 @@ public class LivePipelineFactory {
         this.reservationService = Objects.requireNonNull(reservationService);
         this.searchFilterResolver = Objects.requireNonNull(searchFilterResolver);
         this.groupScopeResolver = Objects.requireNonNull(groupScopeResolver);
+        this.supplyChainValidationFrequency = supplyChainValidationFrequency;
     }
 
     /**
@@ -255,6 +261,7 @@ public class LivePipelineFactory {
         final List<TopoBroadcastManager> managers = new ArrayList<>(additionalBroadcastManagers.size() + 1);
         managers.add(topoBroadcastManager);
         managers.addAll(additionalBroadcastManagers);
+        broadcastCount += 1;
         if (licenseCheckClient.isDevFreemium()) {
             return liveDevFreemiumTopology(context, journalFactory, managers);
         }
@@ -306,7 +313,8 @@ public class LivePipelineFactory {
                 .addStage(new Stages.MatrixUpdateStage(mi))
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new EntityValidationStage(entityValidator, false))
-                .addStage(new SupplyChainValidationStage(supplyChainValidator))
+                .addStage(new SupplyChainValidationStage(supplyChainValidator,
+                    supplyChainValidationFrequency, broadcastCount))
                 .addStage(new HistoryAggregationStage(historyAggregator, null, topologyInfo, null))
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor))
@@ -353,7 +361,7 @@ public class LivePipelineFactory {
             .addStage(new DummySettingsResolutionStage())
             .addStage(new Stages.MatrixUpdateStage(matrix))
             .addStage(new PostStitchingStage(stitchingManager))
-            .addStage(new SupplyChainValidationStage(supplyChainValidator))
+            .addStage(new SupplyChainValidationStage(supplyChainValidator, supplyChainValidationFrequency, broadcastCount ))
             .addStage(new ExtractTopologyGraphStage())
             .addStage(new TopSortStage())
             .finalStage(new BroadcastStage(managers, matrix)));
