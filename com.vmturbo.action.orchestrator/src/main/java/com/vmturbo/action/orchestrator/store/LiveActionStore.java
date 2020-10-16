@@ -49,7 +49,6 @@ import com.vmturbo.action.orchestrator.store.AtomicActionFactory.AtomicActionRes
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.LiveActions.RecommendationTracker;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
-import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
@@ -398,6 +397,12 @@ public class LiveActionStore implements ActionStore {
                 }
             });
 
+            actions.doForEachAtomicAction(action -> {
+                if (action.getState() == ActionState.SUCCEEDED || action.getState() == ActionState.FAILED) {
+                    completedSinceLastPopulate.add(action);
+                }
+            });
+
             // We are still holding the population lock, so
             // the actions map shouldn't get modified in the meantime.
             //
@@ -525,6 +530,8 @@ public class LiveActionStore implements ActionStore {
             // sense to use the last snapshot's time instead of the current snapshot's time.
             // Not doing it for now because of the extra complexity - and it's not clear if anyone
             // cares if the counts are off by ~10 minutes.
+
+
             actionsStatistician.recordActionStats(sourceTopologyInfo,
                 // Only record user-visible actions.
                 Stream.concat(completedSinceLastPopulate.stream(),
