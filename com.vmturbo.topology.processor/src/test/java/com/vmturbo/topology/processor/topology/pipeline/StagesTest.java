@@ -46,6 +46,7 @@ import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineStageException;
 import com.vmturbo.components.common.pipeline.Pipeline.StageResult;
+import com.vmturbo.components.common.pipeline.Pipeline.Status;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.StitchingEntity;
@@ -78,6 +79,7 @@ import com.vmturbo.topology.processor.stitching.journal.EmptyStitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
+import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader.UploadException;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
@@ -99,6 +101,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.ScanDiscoveredSet
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingGroupFixupStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.SupplyChainValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadActionConstraintsStage;
@@ -690,6 +693,35 @@ public class StagesTest {
 
         eeHistoryStage.passthrough(topologyGraph);
         verify(ephemeralEntityEditor).applyEdits(topologyGraph);
+    }
+
+    /**
+     * Tests that the supplychain validation stage is only being applied once every N
+     * broadcasts, where N is equal to validationFrequency.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testSupplyChainValidationStage() throws Exception {
+        final int validationFrequency = 10;
+        final SupplyChainValidator supplyChainValidator = mock(SupplyChainValidator.class);
+        final GraphWithSettings graphWithSettings = mock(GraphWithSettings.class);
+        final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
+        when(graphWithSettings.getTopologyGraph()).thenReturn(topologyGraph);
+        when(topologyGraph.entities()).thenReturn(Stream.empty());
+
+        for (long i = 0; i < validationFrequency; i++) {
+            final SupplyChainValidationStage supplyChainValidationStage =
+                new SupplyChainValidationStage(supplyChainValidator, validationFrequency, i);
+            Status status = supplyChainValidationStage.passthrough(graphWithSettings);
+            if (i % validationFrequency == 0) {
+                Assert.assertEquals(TopologyPipeline.Status.Type.SUCCEEDED, status.getType());
+                Assert.assertEquals("No supply chain validation errors.", status.getMessage());
+            } else {
+                Assert.assertEquals(TopologyPipeline.Status.Type.SUCCEEDED, status.getType());
+                Assert.assertEquals("Skipping validation phase", status.getMessage());
+            }
+        }
     }
 
     private TopologyGraph<TopologyEntity> createTopologyGraph() {
