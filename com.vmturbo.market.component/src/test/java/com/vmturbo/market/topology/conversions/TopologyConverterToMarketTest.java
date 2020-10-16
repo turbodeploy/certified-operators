@@ -722,7 +722,8 @@ public class TopologyConverterToMarketTest {
                 .setCloneable(false)
                 .setSuspendable(false)
                 .setDesiredUtilizationTarget(70.0f)
-                .setDesiredUtilizationRange(20.0f))
+                .setDesiredUtilizationRange(20.0f)
+                .setRateOfResize(1))
             .build();
         TraderTO trader = convertToMarketTO(Sets.newHashSet(entityDTO), REALTIME_TOPOLOGY_INFO).iterator().next();
         assertFalse(trader.getShoppingLists(0).getMovable());
@@ -736,6 +737,7 @@ public class TopologyConverterToMarketTest {
             is(((70.0f + (20.0f / 2.0f)) / 100.0f)));
         assertEquals(trader.getSettings().getQuoteFactor(), MarketAnalysisUtils.QUOTE_FACTOR, 0.0001);
         assertEquals(trader.getSettings().getMoveCostFactor(), MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, 0.0001);
+        assertThat(trader.getSettings().getRateOfResize(), is(10000000000.0f));
 
         final TopologyEntityDTO oppositeEntityDTO = TopologyEntityDTO.newBuilder()
             .setEntityType(1)
@@ -749,7 +751,8 @@ public class TopologyConverterToMarketTest {
                 .setIsAvailableAsProvider(true)
                 .setShopTogether(true)
                 .setCloneable(true)
-                .setSuspendable(true))
+                .setSuspendable(true)
+                .setRateOfResize(2))
             .build();
         TraderTO traderTwo = convertToMarketTO(Sets.newHashSet(oppositeEntityDTO), REALTIME_TOPOLOGY_INFO).iterator().next();
         assertTrue(traderTwo.getShoppingLists(0).getMovable());
@@ -765,6 +768,31 @@ public class TopologyConverterToMarketTest {
         // flag will continue to be ignored and VMs that do not host containers will not suspend.
         assertFalse(traderTwo.getSettings().getSuspendable());
         assertEquals(traderTwo.getSettings().getQuoteFactor(), MarketAnalysisUtils.QUOTE_FACTOR, epsilon);
+        assertThat(traderTwo.getSettings().getRateOfResize(), is(4.0f));
+
+        final TopologyEntityDTO entityThree = TopologyEntityDTO.newBuilder()
+            .setEntityType(1)
+            .setOid(123)
+            .setAnalysisSettings(AnalysisSettings.newBuilder().setRateOfResize(3))
+            .build();
+        TraderTO traderThree = convertToMarketTO(Sets.newHashSet(entityThree), REALTIME_TOPOLOGY_INFO).iterator().next();
+        assertThat(traderThree.getSettings().getRateOfResize(), is(1.0f));
+
+        final TopologyEntityDTO entityFour = TopologyEntityDTO.newBuilder()
+            .setEntityType(1)
+            .setOid(123)
+            .setAnalysisSettings(AnalysisSettings.newBuilder())
+            .build();
+        TraderTO traderFour = convertToMarketTO(Sets.newHashSet(entityFour), REALTIME_TOPOLOGY_INFO).iterator().next();
+        assertThat(traderFour.getSettings().getRateOfResize(), is(4.0f));
+
+        final TopologyEntityDTO entityFive = TopologyEntityDTO.newBuilder()
+            .setEntityType(1)
+            .setOid(123)
+            .setAnalysisSettings(AnalysisSettings.newBuilder().setRateOfResize(10))
+            .build();
+        TraderTO traderFive = convertToMarketTO(Sets.newHashSet(entityFive), REALTIME_TOPOLOGY_INFO).iterator().next();
+        assertThat(traderFive.getSettings().getRateOfResize(), is(4.0f));
     }
 
     @Test

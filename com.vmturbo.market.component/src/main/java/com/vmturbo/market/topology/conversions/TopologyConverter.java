@@ -212,6 +212,16 @@ public class TopologyConverter {
             CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE
     );
 
+    private static final float MEDIUM_RATE_OF_RESIZE = 2.0f;
+
+    private static final ImmutableMap<Float, Float> rateOfResizeTranslationMap = ImmutableMap.of(
+        // Low rateOfResize
+        1.0f, 10000000000.0f,
+        // Medium rateOfResize
+        MEDIUM_RATE_OF_RESIZE, 4.0f,
+        // High rateOfResize
+        3.0f, 1.0f);
+
     // TODO: In legacy this is taken from LicenseManager and is currently false
     private boolean includeGuaranteedBuyer = INCLUDE_GUARANTEED_BUYER_DEFAULT;
 
@@ -2657,6 +2667,13 @@ public class TopologyConverter {
                     .setProviderMustClone(isProviderMustClone)
                     .setDaemon(topologyDTO.getAnalysisSettings().getDaemon())
                     .setRateOfResize(topologyDTO.getAnalysisSettings().getRateOfResize());
+
+            final float rateOfResize = topologyDTO.getAnalysisSettings().getRateOfResize();
+            if (rateOfResizeTranslationMap.containsKey(rateOfResize)) {
+                settingsBuilder.setRateOfResize(rateOfResizeTranslationMap.get(rateOfResize));
+            } else {
+                settingsBuilder.setRateOfResize(rateOfResizeTranslationMap.get(MEDIUM_RATE_OF_RESIZE));
+            }
 
             // Overwrite flags for vSAN
             if (TopologyConversionUtils.isVsanStorage(topologyDTO)) {
