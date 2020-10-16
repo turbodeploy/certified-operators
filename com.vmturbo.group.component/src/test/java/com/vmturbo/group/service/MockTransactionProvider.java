@@ -7,6 +7,7 @@ import io.grpc.Status;
 import org.jooq.exception.DataAccessException;
 import org.mockito.Mockito;
 
+import com.vmturbo.group.group.GroupUpdateListener;
 import com.vmturbo.group.policy.IPlacementPolicyStore;
 import com.vmturbo.group.service.TransactionProviderImpl.StoresImpl;
 
@@ -43,6 +44,11 @@ public class MockTransactionProvider implements TransactionProvider {
                         "Stores operation failed: " + e.getMessage(), e);
             }
         }
+    }
+
+    @Override
+    public void addGroupUpdateListener(GroupUpdateListener updateListener) {
+
     }
 
     @Nonnull

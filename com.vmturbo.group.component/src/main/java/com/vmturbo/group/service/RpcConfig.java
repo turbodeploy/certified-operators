@@ -27,6 +27,7 @@ import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.group.policy.DiscoveredPlacementPolicyUpdater;
 import com.vmturbo.group.policy.PolicyConfig;
 import com.vmturbo.group.schedule.ScheduleConfig;
+import com.vmturbo.group.service.CachingMemberCalculator.CachedGroupMembers;
 import com.vmturbo.group.setting.DefaultSettingPolicyCreator;
 import com.vmturbo.group.setting.DiscoveredSettingPoliciesUpdater;
 import com.vmturbo.group.setting.SettingConfig;
@@ -94,6 +95,19 @@ public class RpcConfig {
     @Value("${entitySettingsResponseChunkSize:20}")
     private int entitySettingsResponseChunkSize;
 
+    @Value("${memberCacheEnabled:true}")
+    private boolean cacheEnabled;
+
+    @Value("${enableRegrouping:true}")
+    private boolean enableRegrouping;
+
+    /**
+     * Look at the {@link com.vmturbo.group.service.CachingMemberCalculator.CachedGroupMembers.Type}
+     * enum for possible values.
+     */
+    @Value("${memberCacheType:set}")
+    private String memberCacheType;
+
     @Bean
     public PolicyRpcService policyService() {
         return new PolicyRpcService(policyConfig.policyStore(), groupService(),
@@ -112,6 +126,28 @@ public class RpcConfig {
     }
 
     /**
+     * Calculates group members.
+     *
+     * @return The {@link GroupMemberCalculator}.
+     */
+    @Bean
+    public GroupMemberCalculator memberCalculator() {
+        final GroupMemberCalculatorImpl basicCalculator = new GroupMemberCalculatorImpl(targetSearchService(),
+            repositoryClientConfig.searchServiceClient());
+        if (cacheEnabled) {
+            final CachingMemberCalculator cachingCalc = new CachingMemberCalculator(
+                    groupConfig.groupStore(), basicCalculator,
+                    CachedGroupMembers.Type.fromString(memberCacheType), enableRegrouping);
+            repositoryClientConfig.repository().addListener(cachingCalc);
+            groupConfig.groupStore().addUpdateListener(cachingCalc);
+            transactionProvider().addGroupUpdateListener(cachingCalc);
+            return cachingCalc;
+        } else {
+            return basicCalculator;
+        }
+    }
+
+    /**
      * Group gRPC service bean.
      *
      * @return group service bean
@@ -123,7 +159,7 @@ public class RpcConfig {
                 userSessionConfig.userSessionContext(), groupStitchingManager(),
                 transactionProvider(), identityProviderConfig.identityProvider(),
                 targetSearchService(), settingsPoliciesUpdater(), placementPolicyUpdater(),
-                groupRetrievePermitsSize, groupLoadTimeoutSec);
+                memberCalculator(), groupRetrievePermitsSize, groupLoadTimeoutSec);
     }
 
     /**

@@ -1,9 +1,12 @@
 package com.vmturbo.group.service;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -18,6 +21,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.group.GroupDAO;
+import com.vmturbo.group.group.GroupUpdateListener;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.IPlacementPolicyStore;
@@ -36,6 +40,7 @@ public class TransactionProviderImpl implements TransactionProvider {
     private final SettingStore settingStore;
     private final DSLContext dslContext;
     private final IdentityProvider identityProvider;
+    private final Set<GroupUpdateListener> groupUpdateListeners = Collections.synchronizedSet(new HashSet<>());
 
     /**
      * Constructs transaction provider for RPC services.
@@ -52,6 +57,15 @@ public class TransactionProviderImpl implements TransactionProvider {
         this.identityProvider = Objects.requireNonNull(identityProvider);
     }
 
+    /**
+     * Add a listener for group change events.
+     *
+     * @param groupUpdateListener The {@link GroupUpdateListener}.
+     */
+    public void addGroupUpdateListener(GroupUpdateListener groupUpdateListener) {
+        this.groupUpdateListeners.add(groupUpdateListener);
+    }
+
     @Nonnull
     @Override
     public <T> T transaction(@Nonnull TransactionalOperation<T> operation)
@@ -60,6 +74,7 @@ public class TransactionProviderImpl implements TransactionProvider {
             return dslContext.transactionResult(config -> {
                 final DSLContext transactionContext = DSL.using(config);
                 final GroupDAO groupStore = new GroupDAO(transactionContext);
+                groupUpdateListeners.forEach(groupStore::addUpdateListener);
                 final PolicyValidator policyValidator = new PolicyValidator(groupStore);
                 final IPlacementPolicyStore placementPolicyStore = new PolicyStore(
                         transactionContext, identityProvider, policyValidator);

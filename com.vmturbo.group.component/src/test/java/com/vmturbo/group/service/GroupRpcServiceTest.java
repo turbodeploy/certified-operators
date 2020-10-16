@@ -219,6 +219,7 @@ public class GroupRpcServiceTest {
                 targetSearchServiceRpc,
                 settingPolicyUpdater,
                 placementPolicyUpdater,
+                new GroupMemberCalculatorImpl(targetSearchServiceRpc, searchServiceRpc),
                 2, 120);
         when(temporaryGroupCache.getGrouping(anyLong())).thenReturn(Optional.empty());
         when(temporaryGroupCache.deleteGrouping(anyLong())).thenReturn(Optional.empty());

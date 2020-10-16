@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
 
 import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.commons.lang3.StringUtils;
@@ -56,7 +55,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.SelectionCriteriaCase;
@@ -70,21 +68,14 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesS
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
-import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchQuery;
-import com.vmturbo.common.protobuf.search.SearchFilterResolver;
-import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.group.common.Truncator;
 import com.vmturbo.group.group.DiscoveredGroupHash;
-import com.vmturbo.group.group.GroupMembersPlain;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.TemporaryGroupCache;
@@ -97,7 +88,6 @@ import com.vmturbo.group.stitching.GroupStitchingContext;
 import com.vmturbo.group.stitching.GroupStitchingManager;
 import com.vmturbo.group.stitching.StitchingGroup;
 import com.vmturbo.group.stitching.StitchingResult;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 
@@ -133,6 +123,9 @@ public class GroupRpcService extends GroupServiceImplBase {
     private final DiscoveredPlacementPolicyUpdater placementPolicyUpdater;
     private final GrpcTransactionUtil grpcTransactionUtil;
     private final GroupPermit groupRequestPermits;
+
+    private final GroupMemberCalculator memberCalculator;
+
     private final long groupLoadTimeoutMs;
 
     /**
@@ -147,6 +140,7 @@ public class GroupRpcService extends GroupServiceImplBase {
      * @param targetSearchService target search service for dynamic groups
      * @param settingPolicyUpdater updater for the discovered setting policies
      * @param placementPolicyUpdater updater for the discovered placement policies
+     * @param memberCalculator Member calculator.
      * @param groupLoadPermits size of group batch used to retrieve groups from the DB
      * @param groupLoadTimeoutSec timeout to await for permits to load groups from DAO. If
      *         this timeout expires, {@link #getGroupsByIds(IGroupStore, List, StreamObserver,
@@ -161,6 +155,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             @Nonnull TargetSearchServiceBlockingStub targetSearchService,
             @Nonnull DiscoveredSettingPoliciesUpdater settingPolicyUpdater,
             @Nonnull DiscoveredPlacementPolicyUpdater placementPolicyUpdater,
+            GroupMemberCalculator memberCalculator,
             int groupLoadPermits, long groupLoadTimeoutSec) {
         this.tempGroupCache = Objects.requireNonNull(tempGroupCache);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
@@ -181,6 +176,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                     "Group load timeout must be a positive value, found: " + groupLoadTimeoutSec);
         }
         this.groupLoadTimeoutMs = groupLoadTimeoutSec * 1000;
+        this.memberCalculator = memberCalculator;
     }
 
     @Override
@@ -307,7 +303,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             return true;
         }
 
-        final Collection<Long> members = getGroupMembers(groupStore, Collections.singleton(groupId), true);
+        final Collection<Long> members = memberCalculator.getGroupMembers(groupStore, Collections.singleton(groupId), true);
         boolean result = true;
         // filter by user scopes
         if (userSessionContext.isUserScoped()) {
@@ -401,14 +397,14 @@ public class GroupRpcService extends GroupServiceImplBase {
                 .map(Optional::get)
                 .collect(Collectors.toList());
         for (Grouping group: tmpGroups) {
-            final Set<Long> members = getGroupMembers(groupStore, group.getDefinition(),
+            final Set<Long> members = memberCalculator.getGroupMembers(groupStore, group.getDefinition(),
                     request.getExpandNestedGroups());
             // verify the user has access to all of the group members before returning any of them.
             if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
                 if (!request.getExpandNestedGroups()) {
                     // Need to use the expanded members for checking access, if we didn't already fetch them
                     UserScopeUtils.checkAccess(userSessionContext,
-                            getGroupMembers(groupStore, group.getDefinition(), true));
+                            memberCalculator.getGroupMembers(groupStore, group.getDefinition(), true));
                 } else {
                     UserScopeUtils.checkAccess(userSessionContext, members);
                 }
@@ -433,14 +429,14 @@ public class GroupRpcService extends GroupServiceImplBase {
         }
         for (Long groupId: realGroupIds) {
             try {
-                final Set<Long> members = getGroupMembers(groupStore, Collections.singleton(groupId),
+                final Set<Long> members = memberCalculator.getGroupMembers(groupStore, Collections.singleton(groupId),
                     request.getExpandNestedGroups());
                 // verify the user has access to all of the group members before returning any of them.
                 if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
                     if (!request.getExpandNestedGroups()) {
                         // Need to use the expanded members for checking access, if we didn't already fetch them
                         UserScopeUtils.checkAccess(userSessionContext,
-                            getGroupMembers(groupStore, Collections.singleton(groupId), true));
+                            memberCalculator.getGroupMembers(groupStore, Collections.singleton(groupId), true));
                     } else {
                         UserScopeUtils.checkAccess(userSessionContext, members);
                     }
@@ -648,7 +644,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             if (groupDef.hasOptimizationMetadata()
                             && !groupDef.getOptimizationMetadata().getIsGlobalScope()) {
                 UserScopeUtils.checkAccess(userSessionContext,
-                        getGroupMembers(groupStore, groupDef, true));
+                        memberCalculator.getGroupMembers(groupStore, groupDef, true));
             }
 
             try {
@@ -668,7 +664,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             if (userSessionContext.isUserScoped()) {
                 // verify that the members of the new group would all be in scope
                 UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(),
-                                getGroupMembers(groupStore, groupDef, true));
+                                memberCalculator.getGroupMembers(groupStore, groupDef, true));
             }
 
             long groupOid = identityProvider.next();
@@ -753,7 +749,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             checkUserAccessToGrouping(groupStore, request.getId());
             // verify the modified version would fit in scope too
             UserScopeUtils.checkAccess(userSessionContext,
-                            getGroupMembers(groupStore, groupDefinition, true));
+                            memberCalculator.getGroupMembers(groupStore, groupDefinition, true));
         }
 
         final boolean supportsMemberReverseLookup =
@@ -795,7 +791,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             /*
             if (userSessionContext.isUserScoped() && group.isPresent()) {
                 // verify that the members of the new group would all be in scope
-                UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(), getGroupMembers(group.get()));
+                UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(), memberCalculator.getGroupMembers(group.get()));
             }
             */
             GetGroupResponse.Builder builder = GetGroupResponse.newBuilder();
@@ -932,145 +928,6 @@ public class GroupRpcService extends GroupServiceImplBase {
                         .allMatch(type -> type == MemberType.TypeCase.ENTITY);
     }
 
-    @Nonnull
-    private Set<Long> getEntities(@Nonnull EntityFilters entityFilters, @Nonnull IGroupStore groupStore) {
-        final List<EntityFilter> filterList = entityFilters.getEntityFilterList();
-        final Set<Long> memberOids = new HashSet<>();
-        for (EntityFilter entityFilter : filterList) {
-            if (!entityFilter.hasSearchParametersCollection()) {
-                logger.error("Search parameter collection is not present in group entity filters `{}`",
-                        entityFilters);
-            }
-            // resolve a dynamic group
-            final List<SearchParameters> searchParameters
-                    = entityFilter.getSearchParametersCollection().getSearchParametersList();
-
-            // Convert any ClusterMemberFilters to static set member checks based
-            // on current group membership info
-            final List<SearchParameters> finalParams = new ArrayList<>(searchParameters.size());
-            final SearchFilterResolver searchFilterResolver =
-                    new GroupComponentSearchFilterResolver(targetSearchService, groupStore);
-            for (SearchParameters params : searchParameters) {
-                finalParams.add(searchFilterResolver.resolveExternalFilters(params));
-            }
-            try {
-                final SearchQuery.Builder query = SearchQuery.newBuilder()
-                    .addAllSearchParameters(finalParams)
-                    .setLogicalOperator(entityFilter.getLogicalOperator());
-
-                if (entityFilter.getEntityType() == CommonDTO.EntityDTO
-                            .EntityType.BUSINESS_ACCOUNT.getNumber()) {
-                    // Dynamic group of accounts should only include those accounts that have an
-                    // associated target
-                    query.addSearchParameters(SearchProtoUtil.makeSearchParameters(
-                        SearchProtoUtil.entityTypeFilter(ApiEntityType.BUSINESS_ACCOUNT))
-                        .addSearchFilter(SearchFilter.newBuilder()
-                            .setPropertyFilter(SearchProtoUtil.associatedTargetFilter())
-                            .build())
-                        .build());
-                }
-
-                final Search.SearchEntityOidsResponse searchResponse =
-                    searchServiceRpc.searchEntityOids(SearchEntityOidsRequest.newBuilder()
-                        .setSearch(query)
-                        .build());
-
-                memberOids.addAll(searchResponse.getEntitiesList());
-            } catch (StatusRuntimeException e) {
-                logger.debug("Error resolving filter {}. Error: {}. Some members may be missing.",
-                    entityFilter, e.getMessage());
-            }
-        }
-        return memberOids;
-    }
-
-    /**
-     * Method returns a set of entity members for a specified groups collection.
-     *
-     * @param groupStore group store to use
-     * @param groupIds ids of groups to get members for
-     * @param expandNestedGroups whether to expand nested groups
-     * @return members of the specified groups.
-     * @throws StoreOperationException if exception occurred operating with a group store
-     */
-    @Nonnull
-    private Set<Long> getGroupMembers(@Nonnull IGroupStore groupStore,
-            @Nonnull Collection<Long> groupIds, boolean expandNestedGroups)
-            throws StoreOperationException {
-        final long startTime = System.currentTimeMillis();
-        final Set<Long> memberOids = new HashSet<>();
-        final GroupMembersPlain members = groupStore.getMembers(groupIds, expandNestedGroups);
-        memberOids.addAll(members.getEntityIds());
-        if (!expandNestedGroups) {
-            memberOids.addAll(members.getGroupIds());
-        }
-        for (EntityFilters entityFilters : members.getEntityFilters()) {
-            memberOids.addAll(getEntities(entityFilters, groupStore));
-        }
-        logger.debug("Retrieving members for groups {} (recursion: {}) took {}ms", groupIds,
-                expandNestedGroups, System.currentTimeMillis() - startTime);
-        return memberOids;
-    }
-
-    @Nonnull
-    private Set<Long> getGroupMembers(@Nonnull IGroupStore groupStore,
-            @Nonnull GroupDefinition groupDefinition, boolean expandNestedGroups)
-            throws StoreOperationException {
-        final long startTime = System.currentTimeMillis();
-        final Set<Long> memberOids = new HashSet<>();
-
-        switch (groupDefinition.getSelectionCriteriaCase()) {
-            case STATIC_GROUP_MEMBERS: {
-                final List<StaticMembersByType> staticMembers =
-                        groupDefinition.getStaticGroupMembers().getMembersByTypeList();
-                final Set<Long> groupIds = new HashSet<>();
-
-                for (final StaticMembersByType member : staticMembers) {
-                    switch (member.getType().getTypeCase()) {
-                        case ENTITY:
-                            memberOids.addAll(member.getMembersList());
-                            break;
-                        case GROUP:
-                            groupIds.addAll(member.getMembersList());
-                            break;
-                        default:
-                            logger.error("Unexpected member type `{}` in group definition `{}`",
-                                    member.getType().getTypeCase(), groupDefinition);
-                    }
-                }
-
-                if (expandNestedGroups) {
-                    memberOids.addAll(getGroupMembers(groupStore, groupIds, true));
-                } else {
-                    memberOids.addAll(groupIds);
-                }
-                break;
-            }
-            case ENTITY_FILTERS:
-                memberOids.addAll(getEntities(groupDefinition.getEntityFilters(), groupStore));
-                break;
-           case GROUP_FILTERS:
-               final GroupFilters groupFilters = groupDefinition.getGroupFilters();
-               final Collection<Long> groupIds = groupStore.getGroupIds(groupFilters);
-               if (expandNestedGroups) {
-                   memberOids.addAll(getGroupMembers(groupStore, groupIds, expandNestedGroups));
-               } else {
-                   memberOids.addAll(groupIds);
-               }
-               break;
-           case SELECTIONCRITERIA_NOT_SET:
-               logger.error("Member selection criteria has not been set in group definition `{}`",
-                               groupDefinition);
-               break;
-           default:
-               logger.error("Unexpected selection criteria `{}` in group definition `{}`",
-                               groupDefinition.getSelectionCriteriaCase(), groupDefinition);
-        }
-        logger.debug("Retrieving anonymous group members took {}ms",
-                System.currentTimeMillis() - startTime);
-        return memberOids;
-    }
-
     /**
      * Check if the user has access to the group identified by Id. A user has access to the group by
      * default, but if the user is a "scoped" user, they will only have access to the group if all
@@ -1113,7 +970,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         }
         // check membership
         return entityAccessScope.contains(
-                getGroupMembers(groupStore, Collections.singleton(groupId), true));
+                memberCalculator.getGroupMembers(groupStore, Collections.singleton(groupId), true));
     }
 
     @VisibleForTesting
@@ -1195,10 +1052,10 @@ public class GroupRpcService extends GroupServiceImplBase {
             // group as one of its members. We perform this check here since it's easier to to
             // apply the regEx filters in sql.
             case GROUP_FILTERS:
-                Set<Long> groupMembers = getGroupMembers(groupStore, groupDefinition, false);
+                Set<Long> groupMembers = memberCalculator.getGroupMembers(groupStore, groupDefinition, false);
                 Collection<Grouping> groups = groupStore.getGroupsById(groupMembers);
                 for (Grouping group : groups) {
-                    Set<Long> members = getGroupMembers(groupStore, group.getDefinition(), false);
+                    Set<Long> members = memberCalculator.getGroupMembers(groupStore, group.getDefinition(), false);
                     int depth = 0;
                     while (members.size() > 0) {
                         if (depth > MAX_NESTING_DEPTH) {

@@ -2,6 +2,7 @@ package com.vmturbo.group.service;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.group.group.GroupUpdateListener;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.policy.IPlacementPolicyStore;
 import com.vmturbo.group.setting.ISettingPolicyStore;
@@ -25,6 +26,13 @@ public interface TransactionProvider {
     @Nonnull
     <T> T transaction(@Nonnull TransactionalOperation<T> operation)
             throws StoreOperationException, InterruptedException;
+
+    /**
+     * Add a listener for group operations executed by this provider.
+     *
+     * @param updateListener The {@link GroupUpdateListener}.
+     */
+    void addGroupUpdateListener(GroupUpdateListener updateListener);
 
     /**
      * Stores is a set of different stores (DAOs) available to be operated within the transaction.
