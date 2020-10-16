@@ -196,18 +196,18 @@ public class ActionInterpreter {
             final Action.Builder action;
             switch (actionTO.getActionTypeCase()) {
                 case MOVE:
+                    action = createAction(actionTO, projectedTopology,
+                            originalCloudTopology, projectedCosts, topologyCostCalculator);
+                    final boolean translateMoveToScale = translateMoveToScale(actionTO);
+                    if (translateMoveToScale) {
+                        action.getInfoBuilder().setScale(interpretScaleAction(actionTO.getMove(),
+                                projectedTopology, originalCloudTopology));
+                        actionList.add(action.build());
+                        break;
+                    }
                     Optional<ActionDTO.Move> move = interpretMoveAction(
-                        actionTO.getMove(), projectedTopology, originalCloudTopology);
+                            actionTO.getMove(), projectedTopology, originalCloudTopology);
                     if (move.isPresent()) {
-                        action = createAction(actionTO, projectedTopology,
-                                originalCloudTopology, projectedCosts, topologyCostCalculator);
-                        final boolean translateMoveToScale = translateMoveToScale(actionTO);
-                        if (translateMoveToScale) {
-                            action.getInfoBuilder().setScale(interpretScaleAction(actionTO.getMove(),
-                                    projectedTopology, originalCloudTopology));
-                            actionList.add(action.build());
-                            break;
-                        }
                         action.getInfoBuilder().setMove(move.get());
                         actionList.add(action.build());
                     }
