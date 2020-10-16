@@ -331,8 +331,7 @@ public class ScenarioMapperTest {
         ScenarioInfo info = getScenarioInfo(name, scenarioApiDTO);
         assertEquals(name, info.getName());
 
-        // ShopTogether change is no longer there, so expect 2 instead of 3.
-        assertEquals(2, info.getChangesCount());
+        assertEquals(5, info.getChangesCount());
         List<ScenarioChange> changes = info.getChangesList();
 
         assertEquals(DetailsCase.TOPOLOGY_MIGRATION, changes.get(0).getDetailsCase());
@@ -340,6 +339,16 @@ public class ScenarioMapperTest {
         assertEquals(sourceVmOid, migration.getSourceList().get(0).getOid());
         assertEquals(destinationOid, migration.getDestinationList().get(0).getOid());
         assertEquals(ScenarioChange.TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE, migration.getDestinationEntityType());
+
+        final Set<String> settingsOverrides = info.getChangesList().stream()
+            .filter(ScenarioChange::hasSettingOverride)
+            .map(ScenarioChange::getSettingOverride)
+            .map(SettingOverride::getSetting)
+            .map(Setting::getSettingSpecName)
+            .collect(Collectors.toSet());
+
+        assertEquals(Sets.newHashSet("cloudComputeScale", "cloudDBScale", "cloudDBServerScale"),
+            settingsOverrides);
     }
 
     /**

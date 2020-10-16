@@ -85,6 +85,7 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.api.mappers.EnumMapper;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -905,6 +906,35 @@ public class ScenarioMapper {
     }
 
     /**
+     * In migrate to cloud plans, we need to override and cloud scaling action modes to manual,
+     * so that eg disabled cloud VM scaling doesn't prevent migration actions.
+     *
+     * @return a list of settings override changes for cloud scale action modes.
+     */
+    private List<ScenarioChange> getMigrationActionModeScenarioChanges() {
+        return Arrays.asList(
+            ScenarioChange.newBuilder().setSettingOverride(SettingOverride.newBuilder()
+                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setSetting(Setting.newBuilder()
+                    .setSettingSpecName(ConfigurableActionSettings.CloudComputeScale.getSettingName())
+                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))))
+                .build(),
+            ScenarioChange.newBuilder().setSettingOverride(SettingOverride.newBuilder()
+                .setEntityType(ApiEntityType.DATABASE.typeNumber())
+                .setSetting(Setting.newBuilder()
+                    .setSettingSpecName(ConfigurableActionSettings.CloudDBScale.getSettingName())
+                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))))
+                .build(),
+            ScenarioChange.newBuilder().setSettingOverride(SettingOverride.newBuilder()
+                .setEntityType(ApiEntityType.DATABASE_SERVER.typeNumber())
+                .setSetting(Setting.newBuilder()
+                    .setSettingSpecName(ConfigurableActionSettings.CloudDBServerScale.getSettingName())
+                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))))
+                .build()
+        );
+    }
+
+    /**
      * TODO: Get rate of resize setting from settingsList.
      * The rate of resize is temporarily set to 3.
      *
@@ -1219,6 +1249,8 @@ public class ScenarioMapper {
             if (configChanges == null || CollectionUtils.isEmpty(configChanges.getRiSettingList())) {
                 changes.add(getRiSettings(planScope));
             }
+            // 3. Override action mode settings, we always want manual actions in the plan
+            changes.addAll(getMigrationActionModeScenarioChanges());
         }
 
         return changes.build();
