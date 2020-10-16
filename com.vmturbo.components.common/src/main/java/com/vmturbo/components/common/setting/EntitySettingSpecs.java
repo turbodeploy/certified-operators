@@ -469,7 +469,7 @@ public enum EntitySettingSpecs {
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
                 EntityType.STORAGE_CONTROLLER, EntityType.STORAGE),
-            new NumericSettingDataType(20f, 1000000, 5000,
+            new NumericSettingDataType(20f, 1000000, 50000,
                     Collections.singletonMap(EntityType.DISK_ARRAY, 10_000f)), true),
 
     /**
