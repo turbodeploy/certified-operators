@@ -5,6 +5,17 @@
 # Purpose: Setup a kubernetes environment with T8s xl components
 # Tools:  Kubespray, Heketi, GlusterFs
 
+# Exit out if running as root or sudo
+if [[ $(/usr/bin/id -u) -eq 0 ]]
+then
+  echo
+  echo "*******************************************************************"
+  echo "This script should *ONLY* be run as the turbo user, *WITHOUT* sudo*"
+  echo "*******************************************************************"
+  echo
+  exit
+fi
+
 # Variable to use if a non-turbonomic deployment
 deploymentBrand=${1}
 
