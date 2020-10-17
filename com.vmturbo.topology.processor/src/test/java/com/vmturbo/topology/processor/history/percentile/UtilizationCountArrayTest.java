@@ -43,8 +43,7 @@ public class UtilizationCountArrayTest {
     @Test
     public void testEmptyArray() throws HistoryCalculationException {
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
-        final Integer percentile = counts.getPercentile(90);
-        Assert.assertNull(percentile);
+        Assert.assertEquals(0, counts.getPercentile(90));
     }
 
     /**
@@ -71,24 +70,7 @@ public class UtilizationCountArrayTest {
         for (int i = 0; i < 100; ++i) {
             counts.addPoint(i, 100, "", timestamp);
         }
-        verifyPercentile(0, counts.getPercentile(0));
-    }
-
-    /**
-     * Test that percentile value is correct when a single count is recorded.
-     *
-     * @throws HistoryCalculationException if getPercentile throws HistoryCalculationException.
-     */
-    @Test
-    public void testCountSinglePoint() throws HistoryCalculationException {
-        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
-        counts.addPoint(3, 4, "", timestamp);
-        verifyPercentile(75, counts.getPercentile(95));
-    }
-
-    private void verifyPercentile(int expected, Integer actual) {
-        Assert.assertNotNull(actual);
-        Assert.assertEquals(expected, (int)actual);
+        Assert.assertEquals(0, counts.getPercentile(0));
     }
 
     /**
@@ -100,8 +82,8 @@ public class UtilizationCountArrayTest {
     public void testSingleCount() throws HistoryCalculationException {
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         addCount(counts, 1, 5);
-        verifyPercentile(1, counts.getPercentile(20));
-        verifyPercentile(1, counts.getPercentile(30));
+        Assert.assertEquals(1, counts.getPercentile(20));
+        Assert.assertEquals(1, counts.getPercentile(30));
         Assert.assertThat(counts.serialize(REF).getStartTimestamp(), Matchers.is(timestamp));
     }
 
@@ -118,9 +100,9 @@ public class UtilizationCountArrayTest {
         addCount(counts, 2, 6);
         addCount(counts, 3, 3);
         addCount(counts, 4, 2);
-        verifyPercentile(1, counts.getPercentile(30));
-        verifyPercentile(2, counts.getPercentile(50));
-        verifyPercentile(4, counts.getPercentile(95));
+        Assert.assertEquals(1, counts.getPercentile(30));
+        Assert.assertEquals(2, counts.getPercentile(50));
+        Assert.assertEquals(4, counts.getPercentile(95));
     }
 
     /**
@@ -133,11 +115,11 @@ public class UtilizationCountArrayTest {
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         addCount(counts, 1, 5);
         addCount(counts, 2, 5);
-        verifyPercentile(2, counts.getPercentile(80));
+        Assert.assertEquals(2, counts.getPercentile(80));
         counts.removePoint(2, 1, 100, timestamp, "");
-        verifyPercentile(2, counts.getPercentile(80));
+        Assert.assertEquals(2, counts.getPercentile(80));
         counts.removePoint(2, 2, 100, timestamp, "");
-        verifyPercentile(2, counts.getPercentile(80));
+        Assert.assertEquals(1, counts.getPercentile(80));
     }
 
     /**
@@ -151,13 +133,13 @@ public class UtilizationCountArrayTest {
         counts.addPoint(10, 200, "", timestamp);
         counts.addPoint(20, 100, "", timestamp);
         // now after rescaling we should have a point at 10 and a point at 20
-        verifyPercentile(10, counts.getPercentile(50));
-        verifyPercentile(20, counts.getPercentile(100));
+        Assert.assertEquals(10, counts.getPercentile(50));
+        Assert.assertEquals(20, counts.getPercentile(100));
         // removing 1st point
         counts.removePoint(5, 1, 200, timestamp, "");
         // now only one point at 20 should remain
-        verifyPercentile(20, counts.getPercentile(80));
-        verifyPercentile(20, counts.getPercentile(100));
+        Assert.assertEquals(0, counts.getPercentile(80));
+        Assert.assertEquals(20, counts.getPercentile(100));
     }
 
     /**
@@ -170,18 +152,20 @@ public class UtilizationCountArrayTest {
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         addCount(counts, 10, 5);
         addCount(counts, 20, 5);
-        verifyPercentile(10, counts.getPercentile(40));
-        verifyPercentile(20, counts.getPercentile(80));
+        Assert.assertEquals(10, counts.getPercentile(40));
+        Assert.assertEquals(20, counts.getPercentile(80));
         counts.addPoint(10, 200, "", timestamp);
-        verifyPercentile(5, counts.getPercentile(40));
-        verifyPercentile(10, counts.getPercentile(80));
+        Assert.assertEquals(5, counts.getPercentile(40));
+        Assert.assertEquals(10, counts.getPercentile(80));
     }
 
     /**
      * Test the serialization of array in protobuf.
+     *
+     * @throws HistoryCalculationException when failed
      */
     @Test
-    public void testSerialize() {
+    public void testSerialize() throws HistoryCalculationException {
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
 
         PercentileRecord.Builder empty = counts.serialize(REF);
@@ -208,6 +192,8 @@ public class UtilizationCountArrayTest {
 
     /**
      * Test the serialization of array in protobuf. Case when the commodity without key.
+     *
+     * @throws HistoryCalculationException when failed
      */
     @Test
     public void testSerializeCommodityWithoutKey() {
@@ -230,13 +216,13 @@ public class UtilizationCountArrayTest {
         addCount(builder, 5, 10);
         addCount(builder, 10, 10);
         counts.deserialize(builder.build(), "");
-        verifyPercentile(5, counts.getPercentile(50));
+        Assert.assertEquals(5, counts.getPercentile(50));
 
         addCount(builder, 15, 10);
         addCount(builder, 20, 10);
         counts.deserialize(builder.build(), "");
-        verifyPercentile(5, counts.getPercentile(25));
-        verifyPercentile(10, counts.getPercentile(50));
+        Assert.assertEquals(5, counts.getPercentile(25));
+        Assert.assertEquals(10, counts.getPercentile(50));
     }
 
     /**
@@ -268,15 +254,15 @@ public class UtilizationCountArrayTest {
         addCount(builder1, 5, 10);
         addCount(builder1, 10, 10);
         counts.deserialize(builder1.build(), "");
-        verifyPercentile(5, counts.getPercentile(50));
+        Assert.assertEquals(5, counts.getPercentile(50));
 
         PercentileRecord.Builder builder2 = PercentileRecord.newBuilder().setEntityOid(12)
                         .setCommodityType(32).setCapacity(50f).setPeriod(30);
         addCount(builder2, 0, 0);
         counts.deserialize(builder2.build(), "");
-        verifyPercentile(10, counts.getPercentile(25));
-        verifyPercentile(10, counts.getPercentile(50));
-        verifyPercentile(20, counts.getPercentile(75));
+        Assert.assertEquals(10, counts.getPercentile(25));
+        Assert.assertEquals(10, counts.getPercentile(50));
+        Assert.assertEquals(20, counts.getPercentile(75));
     }
 
     /**
@@ -320,9 +306,10 @@ public class UtilizationCountArrayTest {
      *     was initialized and capacity ant counts will be displayed.</li>
      * </ul>
      *
+     * @throws HistoryCalculationException in case adding of the point failed.
      */
     @Test
-    public void toStringTests() {
+    public void toStringTests() throws HistoryCalculationException {
         final UtilizationCountArray utilizationCountArray = new UtilizationCountArray(new PercentileBuckets());
         checkToString(utilizationCountArray::toDebugString, UtilizationCountArray.EMPTY);
         checkToString(utilizationCountArray::toString, UtilizationCountArray.EMPTY);
@@ -349,14 +336,14 @@ public class UtilizationCountArrayTest {
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         final int validPercent = 20;
         addCount(counts, validPercent, 10);
-        verifyPercentile(validPercent, counts.getPercentile(100));
+        Assert.assertEquals(validPercent, counts.getPercentile(100));
 
         PercentileRecord.Builder builder = PercentileRecord.newBuilder().setEntityOid(12)
                         .setCommodityType(32).setCapacity(0f).setPeriod(30);
         addCount(builder, 50, 10);
         counts.deserialize(builder.build(), "");
 
-        verifyPercentile(validPercent, counts.getPercentile(100));
+        Assert.assertEquals(validPercent, counts.getPercentile(100));
     }
 
     private void checkToString(Supplier<String> toStringSupplier,

@@ -118,18 +118,14 @@ public class PercentileCommodityData
             if (hasEnoughData) {
                 // calculate and store the utilization into commodity's history value
                 float aggressiveness = config.getAggressiveness(context, field.getEntityOid());
-                final Integer percentile = utilizationCounts.getPercentile(aggressiveness);
-                if (percentile != null) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("Calculated percentile score for {} for rank {}: {}",
-                            utilizationCounts, aggressiveness, percentile);
-                    }
-                    commodityFieldsAccessor.updateHistoryValue(field,
-                        hv -> hv.setPercentile(percentile / 100d),
-                        PercentileEditor.class.getSimpleName());
-                } else {
-                    logger.trace("No utilization counts recorded for {}", () -> field);
+                int percentile = utilizationCounts.getPercentile(aggressiveness);
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Calculated percentile score for {} for rank {}: {}",
+                                    utilizationCounts, aggressiveness, percentile);
                 }
+                commodityFieldsAccessor.updateHistoryValue(field,
+                                hv -> hv.setPercentile(percentile / 100d),
+                                PercentileEditor.class.getSimpleName());
             }
             commodityFieldsAccessor.clearUtilizationData(field);
         } catch (HistoryCalculationException e) {
