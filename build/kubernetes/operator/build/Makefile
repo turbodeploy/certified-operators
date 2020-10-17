@@ -1,4 +1,4 @@
-version:=7.22
+version:=8.0
 # Note that this makefile is only used to ensure helm dependency updates are done in the correct
 # order. It always rebuilds everything.
 # This is a temporary workaround until https://github.com/helm/helm/issues/2247 is implemented.

@@ -213,10 +213,6 @@ variable "xtremio" {
   default = false
 }
 
-variable "action-orchestrator_memory" {}
-variable "history_memory" {}
-variable "market_memory" {}
-variable "repository_memory" {}
-variable "topology-processor_memory" {}
-variable "mediation-appdynamics_memory" {}
-variable "mediation-vcenter_memory" {}
+variable "udt" {
+  default = false
+}
