@@ -6,7 +6,7 @@
     <parent>
         <artifactId>components-api-root</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>8.0.1-SNAPSHOT</version>
+        <version>8.0.2-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components.api.root/pom.xml</relativePath>
     </parent>
 
