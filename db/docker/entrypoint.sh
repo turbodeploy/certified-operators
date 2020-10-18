@@ -57,7 +57,7 @@ if [ ! -d "/var/lib/mysql/mysql" ]; then
     if [ "$USER" == "root" ]; then
       /usr/bin/mysql_install_db --user=mysql --defaults-file=$DEFAULT_MYSQL_CONF 2>&1 | log
      else
-      /usr/bin/mysql_install_db --auth-root-socket-user=mysql --defaults-file=$DEFAULT_MYSQL_CONF 2>&1 | log
+      /usr/bin/mysql_install_db --auth-root-socket-user=$USER --defaults-file=$DEFAULT_MYSQL_CONF 2>&1 | log
     fi
 
     copy_mysql_default_conf_file
@@ -100,7 +100,7 @@ else
 
     # Start mysqld in background for any upgrade processing that may be needed.
     # Networking is disabled so other components can't connect.
-    /usr/sbin/mysqld --defaults-file=$MYSQL_CONF --user=mysql --datadir=/var/lib/mysql --lc-messages-dir=/usr/share/mysql --skip-networking 2>&1 | log &
+    /usr/sbin/mysqld --defaults-file=$MYSQL_CONF --user=$USER --datadir=/var/lib/mysql --lc-messages-dir=/usr/share/mysql --skip-networking 2>&1 | log &
     # Upgrade mysql database if the database server was updated
     logmsg "*** Awaiting connection to perform any needed data upgrades"
     for (( i = 1; i > 0; i++ ))

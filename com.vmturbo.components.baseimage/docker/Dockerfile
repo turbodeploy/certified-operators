@@ -41,6 +41,6 @@ RUN useradd -m -r -d /home/turbonomic -g 50 -s /bin/bash -u 102 turbonomic && \
 
 USER turbonomic
 
-RUN mkdir -p /home/turbonomic/data
+RUN chmod 755 /home/turbonomic && mkdir -p /home/turbonomic/data
 
 ENTRYPOINT ["/entrypoint.sh"]
