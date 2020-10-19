@@ -208,6 +208,36 @@ public class InterpretCloudExplanationTest {
     }
 
     /**
+     * An VM has under-utilized commodities, increased RI coverage and savings.
+     * It does not have any commodity congested.
+     * RI coverage will not take precedence since the coverage increase is less than 1%.
+     */
+    @Test
+    public void testInterpretEfficiencyWithInsufficientRiCoverageIncrease() {
+        // Congested / Under-utilized commodities
+        Set<CommodityTypeWithLookup> underUtilizedCommodities = ImmutableSet.of(VMEMWithLookup);
+        when(commoditiesResizeTracker.getCongestedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(Collections.emptySet());
+        when(commoditiesResizeTracker.getUnderutilizedCommodityTypes(VM1_OID, TIER1_OID)).thenReturn(underUtilizedCommodities);
+
+        // Savings
+        doReturn(new CalculatedSavings(trax(10))).when(ai).calculateActionSavings(move, originalCloudTopology,
+            projectedCosts, topologyCostCalculator);
+
+        // RI Coverage increases
+        when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(Optional.empty());
+        when(riCoverageCalculator.getProjectedRICoverageForEntity(VM1_OID)).thenReturn(Optional.of(EntityReservedInstanceCoverage.newBuilder()
+                .setEntityId(VM1_OID)
+                .putCouponsCoveredByRi(1L, 0.00001)
+                .setEntityCouponCapacity(16).build()).get());
+
+        List<Action> actions = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
+
+        assertTrue(!actions.isEmpty());
+        Efficiency efficiency = actions.get(0).getExplanation().getMove().getChangeProviderExplanation(0).getEfficiency();
+        assertFalse(efficiency.getIsRiCoverageIncreased());
+    }
+
+    /**
      * An VM has under-utilized commodities, and savings.
      * It does not have congested commodity nor RI coverage increase.
      * Under-utilized commodities will take precedence.

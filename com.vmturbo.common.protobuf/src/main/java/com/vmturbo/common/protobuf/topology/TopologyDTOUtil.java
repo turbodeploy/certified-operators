@@ -108,6 +108,9 @@ public final class TopologyDTOUtil {
      */
     public static final double QX_VCPU_BASE_COEFFICIENT = 20000.0;
 
+    // One percent represented as a fraction.
+    public static final double ONE_PERCENT = 0.01;
+
     private TopologyDTOUtil() {
     }
 

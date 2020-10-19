@@ -1784,7 +1784,9 @@ public class ActionInterpreter {
         if (originalCouponsCapacity > 0) {
             originalCoveragePercentage = originalCouponsCovered / originalCouponsCapacity;
         }
-        return projectedCouponsCovered > originalCouponsCovered && projectedCoveragePercentage > originalCoveragePercentage;
+        return projectedCouponsCovered > originalCouponsCovered
+                // check if the coverage change is over 1%.
+                && projectedCoveragePercentage - originalCoveragePercentage >= TopologyDTOUtil.ONE_PERCENT;
     }
 
     private ActionEntity createActionTargetEntity(@Nonnull ShoppingListInfo shoppingListInfo,
