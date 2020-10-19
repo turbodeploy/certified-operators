@@ -277,16 +277,17 @@ public class CostDTOCreator {
                                                 .build()).getType())
                                 .addAllDependentResourceOptions(dependentResourceOptions)
                                 .build());
+                        CommoditySpecificationTO spec =
+                                commodityConverter.commoditySpecification(licenseCommodity);
+                        dbTierDTOBuilder.addCostTupleList(
+                                createCostTuple(accountPricingData.getAccountPricingDataOid(), spec.getType(), price, region.getOid(),
+                                        dependentCostTuples));
+                    } else {
+                        logger.warn("Storage Options is empty for {}, {}", tier.getDisplayName(), region.getDisplayName());
                     }
-                    CommoditySpecificationTO spec =
-                            commodityConverter.commoditySpecification(licenseCommodity);
-                    dbTierDTOBuilder.addCostTupleList(
-                            createCostTuple(accountPricingData.getAccountPricingDataOid(),
-                                    spec.getType(), price, region.getOid(), dependentCostTuples));
+
                 }
                 // price when license isn't available
-                CommoditySpecificationTO spec =
-                        commodityConverter.commoditySpecification(dataCenterAccessCommodity.get());
                 dbTierDTOBuilder.addCostTupleList(CostTuple.newBuilder()
                         .setBusinessAccountId(accountPricingData.getAccountPricingDataOid())
                         .setLicenseCommodityType(-1)

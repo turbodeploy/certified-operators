@@ -302,6 +302,39 @@ public class CostDTOCreatorTest {
         Assert.assertEquals(0.01, dependentResourceOption2.getPrice(), 0.01);
     }
 
+    /**
+     * Tests creating a DB tier cost DTO when there are no storage options.
+     * We should not create CostTuple in that case
+     */
+    @Test
+    public void createdDatabaseTierCostDTONoStorageOptions() {
+        AccountPricingData accountPricingData = Mockito.mock(AccountPricingData.class);
+        List<StorageOption> storageOptions = new ArrayList<>();
+        DatabasePriceBundle databasePriceBundle = DatabasePriceBundle.newBuilder().addPrice(0,
+                DatabaseEngine.SQLSERVER, DatabaseEdition.STANDARD, DeploymentType.MULTI_AZ,
+                LicenseModel.NO_LICENSE_REQUIRED, 0.4, storageOptions).build();
+        when(marketCloudRateExtractor.getDatabasePriceBundle(DB_TIER_ID, DB_TIER_REGION_ID,
+                accountPricingData)).thenReturn(databasePriceBundle);
+        CostDTOCreator costDTOCreator = new CostDTOCreator(converter, marketCloudRateExtractor);
+        Set<AccountPricingData> accountPricingDataSet = new HashSet<>();
+        accountPricingDataSet.add(accountPricingData);
+        List<TopologyEntityDTO> regions = new ArrayList<>();
+        final CommodityType licenseType = CommodityType.newBuilder().setKey(
+                LicenseModel.NO_LICENSE_REQUIRED.name()).setType(
+                CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE).build();
+        final TopologyDTO.CommoditySoldDTO license =
+                TopologyDTO.CommoditySoldDTO.newBuilder().setCommodityType(licenseType).build();
+        regions.add(TopologyEntityDTO.newBuilder().setOid(DB_TIER_REGION_ID).setEntityType(
+                EntityType.REGION_VALUE).addCommoditySoldList(license).build());
+        TopologyEntityDTO dbTier = createDBTier();
+
+        CostDTO costDTO = costDTOCreator.createDatabaseTierCostDTO(dbTier, regions,
+                accountPricingDataSet);
+        Assert.assertEquals(1, costDTO.getDatabaseTierCost().getCostTupleListList().size());
+        Assert.assertEquals(Double.POSITIVE_INFINITY,
+                costDTO.getDatabaseTierCost().getCostTupleListList().get(0).getPrice(), 0.01);
+    }
+
     private TopologyEntityDTO createDBTier() {
         final CommodityType licenseType = CommodityType.newBuilder()
                 .setKey(DB_TIER_LICENCE_KEY)
