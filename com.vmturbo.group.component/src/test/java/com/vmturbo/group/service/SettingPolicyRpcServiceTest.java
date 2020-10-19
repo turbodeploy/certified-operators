@@ -82,7 +82,6 @@ import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.setting.EntitySettingStore;
@@ -117,8 +116,14 @@ public class SettingPolicyRpcServiceTest {
                     .build())
             .build();
 
-    private SettingPolicy settingPolicy = SettingPolicy.newBuilder()
+    private SettingPolicy settingPolicy1 = SettingPolicy.newBuilder()
             .setId(7L)
+            .setInfo(settingPolicyInfo)
+            .setSettingPolicyType(Type.USER)
+            .build();
+
+    private SettingPolicy settingPolicy2 = SettingPolicy.newBuilder()
+            .setId(8L)
             .setInfo(settingPolicyInfo)
             .setSettingPolicyType(Type.USER)
             .build();
@@ -473,7 +478,7 @@ public class SettingPolicyRpcServiceTest {
     public void testDeletePolicy() throws Exception {
         final long id = 7;
         transactionProvider.getSettingPolicyStore()
-                .createSettingPolicies(Collections.singletonList(settingPolicy));
+                .createSettingPolicies(Collections.singletonList(settingPolicy1));
         final StreamObserver<DeleteSettingPolicyResponse> responseObserver =
                 (StreamObserver<DeleteSettingPolicyResponse>)mock(StreamObserver.class);
         settingPolicyService.deleteSettingPolicy(DeleteSettingPolicyRequest.newBuilder()
@@ -572,13 +577,13 @@ public class SettingPolicyRpcServiceTest {
                 (StreamObserver<GetSettingPolicyResponse>)mock(StreamObserver.class);
 
         transactionProvider.getSettingPolicyStore()
-                .createSettingPolicies(Collections.singletonList(settingPolicy));
+                .createSettingPolicies(Collections.singletonList(settingPolicy1));
         settingPolicyService.getSettingPolicy(GetSettingPolicyRequest.newBuilder()
                 .setName("name")
                 .build(), responseObserver);
 
         verify(responseObserver).onNext(eq(GetSettingPolicyResponse.newBuilder()
-                .setSettingPolicy(settingPolicy)
+                .setSettingPolicy(settingPolicy1)
                 .build()));
     }
 
@@ -588,13 +593,13 @@ public class SettingPolicyRpcServiceTest {
                 (StreamObserver<GetSettingPolicyResponse>)mock(StreamObserver.class);
 
         transactionProvider.getSettingPolicyStore()
-                .createSettingPolicies(Collections.singletonList(settingPolicy));
+                .createSettingPolicies(Collections.singletonList(settingPolicy1));
         settingPolicyService.getSettingPolicy(GetSettingPolicyRequest.newBuilder()
                 .setId(7L)
                 .build(), responseObserver);
 
         verify(responseObserver).onNext(eq(GetSettingPolicyResponse.newBuilder()
-                .setSettingPolicy(settingPolicy)
+                .setSettingPolicy(settingPolicy1)
                 .build()));
     }
 
@@ -604,7 +609,7 @@ public class SettingPolicyRpcServiceTest {
                 (StreamObserver<GetSettingPolicyResponse>)mock(StreamObserver.class);
 
         transactionProvider.getSettingPolicyStore()
-                .createSettingPolicies(Collections.singletonList(settingPolicy));
+                .createSettingPolicies(Collections.singletonList(settingPolicy1));
         when(settingSpecStore.getSettingSpec(settingSpec.getName()))
             .thenReturn(Optional.of(settingSpec));
         settingPolicyService.getSettingPolicy(GetSettingPolicyRequest.newBuilder()
@@ -613,7 +618,7 @@ public class SettingPolicyRpcServiceTest {
                 .build(), responseObserver);
 
         verify(responseObserver).onNext(eq(GetSettingPolicyResponse.newBuilder()
-                .setSettingPolicy(settingPolicy)
+                .setSettingPolicy(settingPolicy1)
                 .addSettingSpecs(settingSpec)
                 .build()));
     }
@@ -623,7 +628,7 @@ public class SettingPolicyRpcServiceTest {
         final StreamObserver<GetSettingPolicyResponse> responseObserver =
                 (StreamObserver<GetSettingPolicyResponse>)mock(StreamObserver.class);
         transactionProvider.getSettingPolicyStore()
-                .createSettingPolicies(Collections.singletonList(settingPolicy));
+                .createSettingPolicies(Collections.singletonList(settingPolicy1));
         when(settingSpecStore.getSettingSpec(settingSpec.getName()))
                 .thenReturn(Optional.empty());
         settingPolicyService.getSettingPolicy(GetSettingPolicyRequest.newBuilder()
@@ -632,7 +637,7 @@ public class SettingPolicyRpcServiceTest {
                 .build(), responseObserver);
 
         verify(responseObserver).onNext(eq(GetSettingPolicyResponse.newBuilder()
-                .setSettingPolicy(settingPolicy)
+                .setSettingPolicy(settingPolicy1)
                 // No setting spec, because it wasn't found.
                 .build()));
     }
@@ -642,8 +647,8 @@ public class SettingPolicyRpcServiceTest {
         final StreamObserver<SettingPolicy> responseObserver =
                 (StreamObserver<SettingPolicy>)mock(StreamObserver.class);
         transactionProvider.getSettingPolicyStore()
-                .createSettingPolicies(Arrays.asList(settingPolicy,
-                        SettingPolicy.newBuilder(settingPolicy).setId(8L).build()));
+                .createSettingPolicies(Arrays.asList(settingPolicy1,
+                        SettingPolicy.newBuilder(settingPolicy1).setId(8L).build()));
 
         settingPolicyService.listSettingPolicies(ListSettingPoliciesRequest.getDefaultInstance(),
                 responseObserver);
@@ -734,7 +739,7 @@ public class SettingPolicyRpcServiceTest {
                         settingPolicyInfo.getSettingsList().stream()
                                 .map(setting -> SettingToPolicyId.newBuilder()
                                         .setSetting(setting)
-                                        .addSettingPolicyId(settingPolicy.getId())
+                                        .addSettingPolicyId(settingPolicy1.getId())
                                         .build())
                                 .collect(Collectors.toList()))
                     .build();
@@ -1153,6 +1158,8 @@ public class SettingPolicyRpcServiceTest {
 
     /**
      * Test get setting policies using schedule rpc.
+     * Schedule can be used in policy as activation schedule or execution schedule.
+     * Result list of policies shouldn't have duplications.
      */
     @Test
     public void testGetPoliciesUsingSchedule() {
@@ -1162,17 +1169,18 @@ public class SettingPolicyRpcServiceTest {
         Mockito.when(transactionProvider.getSettingPolicyStore()
                 .getPolicies(SettingPolicyFilter.newBuilder()
                         .withActivationScheduleId(scheduleId)
-                        .build())).thenReturn(Arrays.asList(settingPolicy, settingPolicy));
+                        .build())).thenReturn(Arrays.asList(settingPolicy1, settingPolicy2));
         Mockito.when(transactionProvider.getSettingPolicyStore()
                 .getPolicies(SettingPolicyFilter.newBuilder()
                         .withExecutionScheduleId(scheduleId)
-                        .build())).thenReturn(Collections.singletonList(settingPolicy));
+                        .build())).thenReturn(Collections.singletonList(settingPolicy1));
         settingPolicyService.getSettingPoliciesUsingSchedule(
                 GetSettingPoliciesUsingScheduleRequest.newBuilder()
                         .setScheduleId(scheduleId)
                         .build(), responseObserver);
 
-        verify(responseObserver, times(3)).onNext(eq(settingPolicy));
+        verify(responseObserver, times(1)).onNext(eq(settingPolicy1));
+        verify(responseObserver, times(1)).onNext(eq(settingPolicy2));
         verify(responseObserver).onCompleted();
     }
 

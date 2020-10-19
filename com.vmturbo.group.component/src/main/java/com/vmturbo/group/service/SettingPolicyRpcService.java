@@ -16,7 +16,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.protobuf.InvalidProtocolBufferException;
 
@@ -436,16 +435,14 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
             final GetSettingPoliciesUsingScheduleRequest request,
             final StreamObserver<SettingPolicy> responseObserver,
             @Nonnull ISettingPolicyStore settingPolicyStore) throws StoreOperationException {
-        final Collection<SettingPolicy> policiesWithActivationSchedules =
-                settingPolicyStore.getPolicies(SettingPolicyFilter.newBuilder()
-                        .withActivationScheduleId(request.getScheduleId())
-                        .build());
-        final Collection<SettingPolicy> policiesWithExecutionSchedules =
-                settingPolicyStore.getPolicies(SettingPolicyFilter.newBuilder()
-                        .withExecutionScheduleId(request.getScheduleId())
-                        .build());
-        for (SettingPolicy policy : Iterables.concat(policiesWithActivationSchedules,
-                policiesWithExecutionSchedules)) {
+        final Collection<SettingPolicy> resultPolicies = new HashSet<>();
+        resultPolicies.addAll(settingPolicyStore.getPolicies(SettingPolicyFilter.newBuilder()
+                .withActivationScheduleId(request.getScheduleId())
+                .build()));
+        resultPolicies.addAll(settingPolicyStore.getPolicies(SettingPolicyFilter.newBuilder()
+                .withExecutionScheduleId(request.getScheduleId())
+                .build()));
+        for (SettingPolicy policy : resultPolicies) {
             responseObserver.onNext(policy);
         }
         responseObserver.onCompleted();
