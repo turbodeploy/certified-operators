@@ -648,6 +648,9 @@ message GetAccountExpensesChecksumRequest {
 message GetRIDataChecksumRequest {
 }
 
+message ClearRIDataChecksumRequest {
+}
+
 message ChecksumResponse {
     optional int64 checksum = 1;
 }
@@ -1486,6 +1489,8 @@ service RIAndExpenseUploadService {
     rpc UploadRIData(UploadRIDataRequest) returns (UploadRIDataResponse);
 
     rpc GetRIDataChecksum(GetRIDataChecksumRequest) returns (ChecksumResponse);
+
+    rpc ClearRIDataChecksum(ClearRIDataChecksumRequest) returns (ChecksumResponse);
 }
 
 message riBuyDemandStats {

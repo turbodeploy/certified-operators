@@ -16,6 +16,7 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.cost.Cost.ChecksumResponse;
+import com.vmturbo.common.protobuf.cost.Cost.ClearRIDataChecksumRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetAccountExpensesChecksumRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetRIDataChecksumRequest;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -92,6 +93,16 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
                 .setChecksum(lastProcessedRIDataChecksum).build());
         responseObserver.onCompleted();
     }
+
+    @Override
+    public void clearRIDataChecksum(final ClearRIDataChecksumRequest request,
+                                    final StreamObserver<ChecksumResponse> responseObserver) {
+        lastProcessedRIDataChecksum = 0;
+        responseObserver.onNext(ChecksumResponse.newBuilder()
+                .setChecksum(lastProcessedRIDataChecksum).build());
+        responseObserver.onCompleted();
+    }
+
 
     @Override
     public void getAccountExpensesChecksum(final GetAccountExpensesChecksumRequest request, final StreamObserver<ChecksumResponse> responseObserver) {

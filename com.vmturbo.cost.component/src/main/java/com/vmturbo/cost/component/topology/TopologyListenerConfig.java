@@ -6,8 +6,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.DiscountApplicator;
@@ -57,7 +59,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         CostDBConfig.class,
         SupplyChainServiceConfig.class,
         GroupClientConfig.class,
-        CloudCommitmentAnalysisStoreConfig.class})
+        CloudCommitmentAnalysisStoreConfig.class,
+        CostClientConfig.class})
 public class TopologyListenerConfig {
 
     @Autowired
@@ -105,6 +108,9 @@ public class TopologyListenerConfig {
     @Autowired
     private BuyRIAnalysisConfig buyRIAnalysisConfig;
 
+    @Autowired
+    private CostClientConfig costClientConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -151,7 +157,8 @@ public class TopologyListenerConfig {
         final TopologyProcessorNotificationListener targetListener =
                 new TopologyProcessorNotificationListener(
                 costConfig.businessAccountHelper(),
-                pricingConfig.businessAccountPriceTableKeyStore());
+                pricingConfig.businessAccountPriceTableKeyStore(),
+                RIAndExpenseUploadServiceGrpc.newBlockingStub(costClientConfig.costChannel()));
             topologyProcessorListenerConfig.topologyProcessor()
                     .addTargetListener(targetListener);
         return targetListener;
