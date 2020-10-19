@@ -50,6 +50,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -102,6 +103,19 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 public class BusinessAccountRetrieverTest {
 
     private static final long ACCOUNT_OID = 7L;
+    private static final String CHILD_ACCOUNT_1_ID_STR = "11";
+    private static final String CHILD_ACCOUNT_2_ID_STR = "22";
+    private static final String MASTER_ACCOUNT_1_ID_STR = "33";
+    private static final String MASTER_ACCOUNT_2_ID_STR = "44";
+    private static final BusinessUnitApiDTO CHILD_ACCOUNT_1 =
+        createAccountDto(CHILD_ACCOUNT_1_ID_STR, false, Collections.emptyList());
+    private static final BusinessUnitApiDTO CHILD_ACCOUNT_2 =
+        createAccountDto(CHILD_ACCOUNT_2_ID_STR, false, Collections.emptyList());
+    private static final BusinessUnitApiDTO MASTER_ACCOUNT_1 =
+        createAccountDto(MASTER_ACCOUNT_1_ID_STR, true,
+            Arrays.asList(CHILD_ACCOUNT_1.getAccountId(), CHILD_ACCOUNT_2.getAccountId()));
+    private static final BusinessUnitApiDTO MASTER_ACCOUNT_2 =
+        createAccountDto(MASTER_ACCOUNT_2_ID_STR, true, Collections.emptyList());
 
     private static final TopologyEntityDTO ACCOUNT = TopologyEntityDTO.newBuilder()
         .setOid(ACCOUNT_OID)
@@ -113,6 +127,7 @@ public class BusinessAccountRetrieverTest {
                 .build())
             .build())
         .build();
+
 
     private ThinTargetCache thinTargetCache = mock(ThinTargetCache.class);
 
@@ -728,6 +743,92 @@ public class BusinessAccountRetrieverTest {
         Assert.assertEquals(1, actualBusinessUnits.size());
         BusinessUnitApiDTO actual = actualBusinessUnits.get(0);
         Assert.assertNull(actual.getCostPrice());
+    }
+
+    /**
+     * Test the case that a parent for a business account is retrieved.
+     *
+     * @throws InvalidOperationException if something goes wrong.
+     * @throws OperationFailedException if something goes wrong.
+     */
+    @Test
+    public void testGetParentBusinessAccount() throws InvalidOperationException,
+            OperationFailedException {
+        // ARRANGE
+        final RepositoryApi.SearchRequest mockReq = ApiTestUtils.mockSearchFullReq(Collections.singletonList(ACCOUNT));
+        when(repositoryApi.newSearchRequestMulti(any()))
+            .thenReturn(mockReq);
+
+        final BusinessUnitApiDTO convertedDto = mock(BusinessUnitApiDTO.class);
+        when(mockMapper.convert(any(), anyBoolean()))
+            .thenReturn(Arrays.asList(MASTER_ACCOUNT_1, MASTER_ACCOUNT_2,
+                CHILD_ACCOUNT_1, CHILD_ACCOUNT_2));
+
+        // ACT
+        Optional<BusinessUnitApiDTO> parentAccount = businessAccountRetriever
+            .getParentBusinessAccount(CHILD_ACCOUNT_1_ID_STR);
+
+        // ASSERT
+        Assert.assertTrue(parentAccount.isPresent());
+        Assert.assertThat(parentAccount.get().getAccountId(), is(MASTER_ACCOUNT_1_ID_STR));
+    }
+
+    /**
+     * Test the case that the parent business account is requested for a id which is not numeric.
+     *
+     * @throws InvalidOperationException if something goes wrong.
+     * @throws OperationFailedException if something goes wrong.
+     */
+    @Test(expected = InvalidOperationException.class)
+    public void testGetParentBusinessAccountNonNumericInput() throws InvalidOperationException,
+        OperationFailedException {
+        businessAccountRetriever.getParentBusinessAccount("test");
+    }
+
+    /**
+     * Test the case that a parent for a business account is retrieved.
+     *
+     * @throws InvalidOperationException if something goes wrong.
+     * @throws OperationFailedException if something goes wrong.
+     * @throws ConversionException if something goes wrong.
+     * @throws InterruptedException if something goes wrong.
+     */
+    @Test
+    public void testGetSiblingBusinessAccount() throws InvalidOperationException,
+        OperationFailedException, ConversionException, InterruptedException {
+        // ARRANGE
+        final RepositoryApi.SearchRequest mockReq = ApiTestUtils.mockSearchFullReq(Collections.singletonList(ACCOUNT));
+        when(repositoryApi.newSearchRequestMulti(any()))
+            .thenReturn(mockReq);
+
+        final BusinessUnitApiDTO convertedDto = mock(BusinessUnitApiDTO.class);
+        when(mockMapper.convert(any(), anyBoolean()))
+            .thenReturn(Arrays.asList(MASTER_ACCOUNT_1, MASTER_ACCOUNT_2,
+                CHILD_ACCOUNT_1, CHILD_ACCOUNT_2));
+
+        Mockito.when(repositoryApi.getByIds(
+            Collections.singletonList(Long.valueOf(CHILD_ACCOUNT_2_ID_STR)),
+            Collections.singleton(EntityType.BUSINESS_ACCOUNT), false))
+            .thenReturn(new RepositoryRequestResult(Collections.singleton(CHILD_ACCOUNT_2),
+                Collections.emptySet()));
+
+        // ACT
+        Collection<BusinessUnitApiDTO> siblingCollection = businessAccountRetriever
+            .getSiblingBusinessAccount(CHILD_ACCOUNT_1_ID_STR);
+
+        // ASSERT
+        Assert.assertThat(siblingCollection.size(), is(1));
+        Assert.assertThat(siblingCollection.iterator().next().getAccountId(),
+            is(CHILD_ACCOUNT_2_ID_STR));
+    }
+
+    private static BusinessUnitApiDTO createAccountDto(String stringId, boolean isMaster,
+                                                       List<String> children) {
+        BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
+        businessUnitApiDTO.setAccountId(stringId);
+        businessUnitApiDTO.setMaster(isMaster);
+        businessUnitApiDTO.setChildrenBusinessUnits(children);
+        return businessUnitApiDTO;
     }
 
     private SearchParameters getFilterForMonitoredAccounts() {

@@ -250,6 +250,57 @@ public class BusinessAccountRetriever {
     }
 
     /**
+     * Gets the parent for a the input business account.
+     *
+     * @param uuid the uuid for the account we want to get the business account for it.
+     * @return the optional containing the parent business account if the account is present.
+     * @throws OperationFailedException if there is an error in getting business accounts in
+     * environment.
+     * @throws InvalidOperationException if the uuid is not numeric.
+     */
+    @Nonnull
+    public Optional<BusinessUnitApiDTO> getParentBusinessAccount(@Nonnull final String uuid)
+          throws OperationFailedException, InvalidOperationException {
+        if (!StringUtils.isNumeric(uuid)) {
+            throw new InvalidOperationException("Business account ID must be numeric. Got: " + uuid);
+        }
+
+        return getBusinessAccountsInScope(null, null)
+            .stream()
+            .filter(BusinessUnitApiDTO::isMaster)
+            .filter(a -> a.getChildrenBusinessUnits().contains(uuid))
+            .findAny();
+    }
+
+    /**
+     * Gets the siblings for an account.
+     *
+     * @param uuid the account for which we get the sibling for.
+     * @return the collection of siblings for the account.
+     * @throws InvalidOperationException  if the uuid is not numeric.
+     * @throws OperationFailedException if there is an error in getting business accounts in
+     * environment.
+     * @throws ConversionException if error is faced converting objects to API DTOs.
+     * @throws InterruptedException if current thread has been interrupted.
+     */
+    @Nonnull
+    public Collection<BusinessUnitApiDTO> getSiblingBusinessAccount(@Nonnull final String uuid)
+        throws InvalidOperationException, OperationFailedException, InterruptedException, ConversionException {
+        Optional<BusinessUnitApiDTO> parentBusinessAccount = getParentBusinessAccount(uuid);
+
+        if (parentBusinessAccount.isPresent()) {
+            return getBusinessAccounts(parentBusinessAccount.get()
+                .getChildrenBusinessUnits()
+                .stream()
+                .filter(childAccountId -> !uuid.equals(childAccountId))
+                .map(Long::valueOf)
+                .collect(Collectors.toList()));
+        }
+
+        return Collections.emptySet();
+    }
+
+    /**
      * Returns the BusinessUnitApiDTOs for the business units that have the provided oids.
      *
      * @param ids the oids of the business units to retrieve.
@@ -258,7 +309,7 @@ public class BusinessAccountRetriever {
      * @throws InterruptedException if current thread has been interrupted
      */
     @Nonnull
-    public Collection<BusinessUnitApiDTO> getBusinessAccounts(@Nonnull final Set<Long> ids) throws
+    public Collection<BusinessUnitApiDTO> getBusinessAccounts(@Nonnull final Collection<Long> ids) throws
             ConversionException, InterruptedException {
         final Collection<BusinessUnitApiDTO> result =
                 repositoryApi.getByIds(ids, Collections.singleton(EntityType.BUSINESS_ACCOUNT),

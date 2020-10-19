@@ -345,8 +345,17 @@ public class BusinessUnitsService implements IBusinessUnitsService {
     @Override
     public Collection<BusinessUnitApiDTO> getRelatedBusinessUnits(@Nonnull String uuid,
                                                                   HierarchicalRelationship relationship) throws Exception {
-        // TODO (roman, Nov 14 2019): Handle other relationship types (parent, siblings).
-        return businessAccountRetriever.getChildAccounts(uuid);
+        switch (relationship) {
+            case CHILDREN:
+                return businessAccountRetriever.getChildAccounts(uuid);
+            case SIBLINGS:
+                return businessAccountRetriever.getSiblingBusinessAccount(uuid);
+            case PARENT:
+                return businessAccountRetriever.getParentBusinessAccount(uuid)
+                    .map(Collections::singletonList).orElse(Collections.emptyList());
+            default:
+                throw new UnsupportedOperationException("The relationship is not supported");
+        }
     }
 
     @Override
