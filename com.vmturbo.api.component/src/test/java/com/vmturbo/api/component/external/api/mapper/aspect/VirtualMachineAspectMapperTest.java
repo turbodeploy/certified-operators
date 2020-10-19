@@ -87,13 +87,12 @@ public class VirtualMachineAspectMapperTest extends BaseAspectMapperTest {
                         .putEntityPropertyMap(StringConstants.EBS_OPTIMIZED, Boolean.TRUE.toString())
                         .build();
 
-        VirtualMachineAspectMapper testMapper = new VirtualMachineAspectMapper(repositoryApi);
+        VirtualMachineAspectMapper testMapper = new VirtualMachineAspectMapper(repositoryApi, new BusinessUserAspectMapper());
 
         // act
-        final EntityAspect resultAspect = testMapper.mapEntityToAspect(topologyEntityDTO);
+        final VMEntityAspectApiDTO vmAspect = testMapper.mapEntityToAspect(topologyEntityDTO);
 
         // assert
-        final VMEntityAspectApiDTO vmAspect = (VMEntityAspectApiDTO)resultAspect;
         Assert.assertEquals(OSType.LINUX.name(), vmAspect.getOs());
         Assert.assertEquals(IP_ADDRESSES, vmAspect.getIp());
         Assert.assertEquals(4, vmAspect.getNumVCPUs().intValue());
@@ -133,11 +132,10 @@ public class VirtualMachineAspectMapperTest extends BaseAspectMapperTest {
                         typeSpecificInfo).putEntityPropertyMap(StringConstants.EBS_OPTIMIZED,
                         Boolean.TRUE.toString()).build();
 
-        VirtualMachineAspectMapper testMapper = new VirtualMachineAspectMapper(repositoryApi);
+        VirtualMachineAspectMapper testMapper = new VirtualMachineAspectMapper(repositoryApi, new BusinessUserAspectMapper());
         // act
-        final EntityAspect resultAspect = testMapper.mapEntityToAspect(topologyEntityDTO);
+        final VMEntityAspectApiDTO vmAspect = testMapper.mapEntityToAspect(topologyEntityDTO);
         // assert
-        final VMEntityAspectApiDTO vmAspect = (VMEntityAspectApiDTO)resultAspect;
         Assert.assertTrue(vmAspect.isAHUBLicense());
     }
 }

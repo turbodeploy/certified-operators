@@ -43,7 +43,7 @@ public class WorkloadControllerAspectMapper extends AbstractAspectMapper {
     }
 
     @Override
-    public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
+    public WorkloadControllerAspectApiDTO mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
         final WorkloadControllerAspectApiDTO aspect = new WorkloadControllerAspectApiDTO();
         if (!entity.getTypeSpecificInfo().hasWorkloadController()) {
             return aspect;

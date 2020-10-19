@@ -5,7 +5,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.STEntityAspectApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -19,7 +18,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
  **/
 public class StorageAspectMapper extends AbstractAspectMapper {
     @Override
-    public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
+    public STEntityAspectApiDTO mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
         STEntityAspectApiDTO aspect = new STEntityAspectApiDTO();
         aspect.setDisplayName(entity.getDisplayName());
         if (!entity.getTypeSpecificInfo().hasStorage()) {

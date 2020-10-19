@@ -42,7 +42,7 @@ public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
 
     @Nullable
     @Override
-    public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
+    public PMEntityAspectApiDTO mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
         PMEntityAspectApiDTO aspect = new PMEntityAspectApiDTO();
         // the 'processorPools' aspect is set from the displayName of any ProcessorPool entities
         // that are "connected" to the given PM

@@ -91,19 +91,17 @@ public class WorkloadControllerAspectMapperTest extends BaseAspectMapperTest {
         assertNull(deployment.getCustomControllerType());
 
         // act
-        final EntityAspect resultAspect2 = testMapper.mapEntityToAspect(cronJobTopologyEntityDTO);
+        final WorkloadControllerAspectApiDTO cronJob = testMapper.mapEntityToAspect(cronJobTopologyEntityDTO);
 
         // assert
-        final WorkloadControllerAspectApiDTO cronJob = (WorkloadControllerAspectApiDTO)resultAspect2;
         assertNotNull(cronJob);
         assertEquals(ControllerTypeCase.CRON_JOB_INFO.name(), cronJob.getControllerType());
         assertNull(cronJob.getCustomControllerType());
 
         // act
-        final EntityAspect resultAspect3 = testMapper.mapEntityToAspect(customControllerTopologyEntityDTO);
+        final WorkloadControllerAspectApiDTO customController = testMapper.mapEntityToAspect(customControllerTopologyEntityDTO);
 
         // assert
-        final WorkloadControllerAspectApiDTO customController = (WorkloadControllerAspectApiDTO)resultAspect3;
         assertNotNull(customController);
         assertEquals(ControllerTypeCase.CUSTOM_CONTROLLER_INFO.name(), customController.getControllerType());
         assertEquals(FOO_CUSTOM_CONTROLLER_TYPE, customController.getCustomControllerType());

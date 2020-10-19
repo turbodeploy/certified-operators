@@ -48,7 +48,7 @@ public class RegionAspectMapper extends AbstractAspectMapper {
      */
     @Override
     @Nullable
-    public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
+    public RegionAspectApiDTO mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
         Optional<Map<Long, EntityAspect>> result = mapEntityToAspectBatch(Collections.singletonList(entity));
         if (result.isPresent()) {
             result.get().get(entity.getOid());

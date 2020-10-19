@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Groupings;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -38,7 +39,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo.VmWithSnapshot;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData;
@@ -121,9 +121,8 @@ public class DesktopPoolAspectMapperTest extends BaseAspectMapperTest {
     @Test
     public void testMapEntityToAspectDesktopPool() {
         // act
-        final DesktopPoolEntityAspectApiDTO aspect =
-                (DesktopPoolEntityAspectApiDTO)desktopPoolAspectMapper.mapEntityToAspect(
-                        desktopPool);
+        final DesktopPoolEntityAspectApiDTO aspect = desktopPoolAspectMapper.mapEntityToAspect(
+                desktopPool);
         // assert
         checkAspect(aspect);
     }
@@ -158,8 +157,7 @@ public class DesktopPoolAspectMapperTest extends BaseAspectMapperTest {
                 .addAllCommoditiesBoughtFromProviders(commoditiesBoughtFromProviders)
                 .build();
         // act
-        final DesktopPoolEntityAspectApiDTO aspect =
-                (DesktopPoolEntityAspectApiDTO)desktopPoolAspectMapper.mapEntityToAspect(vm);
+        final DesktopPoolEntityAspectApiDTO aspect = desktopPoolAspectMapper.mapEntityToAspect(vm);
         // assert
         checkAspect(aspect);
     }

@@ -1,12 +1,10 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
 import com.vmturbo.api.dto.entityaspect.DBEntityAspectApiDTO;
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
@@ -52,10 +50,8 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
 
         final DatabaseAspectMapper mapper = new DatabaseAspectMapper();
         // act
-        EntityAspect result = mapper.mapEntityToAspect(topologyEntityDTO.build());
+        final DBEntityAspectApiDTO dbAspect = mapper.mapEntityToAspect(topologyEntityDTO.build());
         // assert
-        assertTrue(result instanceof DBEntityAspectApiDTO);
-        DBEntityAspectApiDTO dbAspect = (DBEntityAspectApiDTO) result;
         assertEquals(RAW_DATABASE_EDITION, dbAspect.getDbEdition());
         assertEquals(TEST_DATABASE_ENGINE.name(), dbAspect.getDbEngine());
         assertEquals(TEST_DATABASE_VERSION, dbAspect.getDbVersion());

@@ -22,7 +22,6 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.CommodityCommonFieldsExtractor;
 import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.StatsUtils.PrecisionEnum;
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.PortsAspectApiDTO;
 import com.vmturbo.api.dto.statistic.PortChannelApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -34,9 +33,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**
@@ -52,7 +51,7 @@ public class PortsAspectMapper extends AbstractAspectMapper {
 
     @Nullable
     @Override
-    public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
+    public PortsAspectApiDTO mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
         final PortsAspectApiDTO aspect = new PortsAspectApiDTO();
 
         final List<StatApiDTO> nonAggregatedPorts = Lists.newArrayList();

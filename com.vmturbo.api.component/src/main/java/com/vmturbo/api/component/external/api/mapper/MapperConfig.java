@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.api.component.communication.CommunicationConfig;
+import com.vmturbo.api.component.external.api.mapper.aspect.BusinessUserAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.ComputeTierAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DatabaseAspectMapper;
@@ -315,7 +316,7 @@ public class MapperConfig {
 
     @Bean
     public VirtualMachineAspectMapper virtualMachineMapper() {
-        return new VirtualMachineAspectMapper(communicationConfig.repositoryApi());
+        return new VirtualMachineAspectMapper(communicationConfig.repositoryApi(), businessUserAspectMapper());
     }
 
     /**
@@ -406,6 +407,17 @@ public class MapperConfig {
     }
 
     @Bean
+    protected BusinessUserAspectMapper businessUserAspectMapper() {
+        return new BusinessUserAspectMapper();
+    }
+
+    /**
+     * Returns a common {@link EntityAspectMapper} of the combining aspect mappers of different
+     * entities types.
+     *
+     * @return new instance of {@link EntityAspectMapper}.
+     */
+    @Bean
     public EntityAspectMapper entityAspectMapper() {
         return new EntityAspectMapper(storageTierAspectMapper(), virtualVolumeAspectMapper(),
                 cloudAspectMapper(), virtualMachineMapper(), desktopPoolAspectMapper(),
@@ -413,7 +425,7 @@ public class MapperConfig {
                 storageAspectMapper(), diskArrayAspectMapper(), logicalPoolAspectMapper(),
                 storageControllerAspectMapper(), portsAspectMapper(), databaseAspectMapper(),
                 regionAspectMapper(), workloadControllerAspectMapper(), computeTierAspectMapper(),
-                databaseServerTierAspectMapper(), databaseTierAspectMapper());
+                databaseServerTierAspectMapper(), databaseTierAspectMapper(), businessUserAspectMapper());
     }
 
     @Bean

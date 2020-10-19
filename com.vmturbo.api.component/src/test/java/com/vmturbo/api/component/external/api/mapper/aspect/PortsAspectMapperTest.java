@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -10,19 +9,17 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.junit.Before;
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+
+import org.junit.Before;
+import org.junit.Test;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
-import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.StatsUtils.PrecisionEnum;
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.PortsAspectApiDTO;
 import com.vmturbo.api.dto.statistic.PortChannelApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -156,11 +153,9 @@ public class PortsAspectMapperTest extends BaseAspectMapperTest {
         final PortsAspectMapper testMapper = new PortsAspectMapper(repositoryApi);
 
         // act
-        final EntityAspect aspectResult = testMapper.mapEntityToAspect(switchDTO.build());
+        final PortsAspectApiDTO portsAspect = testMapper.mapEntityToAspect(switchDTO.build());
 
         // assert
-        assertTrue(aspectResult instanceof PortsAspectApiDTO);
-        final PortsAspectApiDTO portsAspect = (PortsAspectApiDTO) aspectResult;
 
         final Collection<PortChannelApiDTO> portChannels = portsAspect.getPortChannels();
         final Collection<StatApiDTO> ports = portsAspect.getPorts();

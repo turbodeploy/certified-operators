@@ -2,7 +2,6 @@ package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import static junit.framework.TestCase.assertEquals;
 import static junit.framework.TestCase.assertNotNull;
-import static junit.framework.TestCase.assertTrue;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -22,7 +21,6 @@ import org.junit.Test;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.PMDiskAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.PMDiskGroupAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.PMEntityAspectApiDTO;
@@ -69,14 +67,12 @@ public class PhysicalMachineAspectMapperTest extends BaseAspectMapperTest {
 
         PhysicalMachineAspectMapper testMapper = new PhysicalMachineAspectMapper(repositoryApi);
         // act
-        final EntityAspect resultAspect = testMapper.mapEntityToAspect(topologyEntityDTO.build());
+        final PMEntityAspectApiDTO pmAspect = testMapper.mapEntityToAspect(topologyEntityDTO.build());
 
         verify(repositoryApi).entitiesRequest(Collections.singleton(CONNECTED_ENTITY_ID));
         verify(mockReq).getMinimalEntities();
 
         // assert
-        assertTrue(resultAspect instanceof PMEntityAspectApiDTO);
-        final PMEntityAspectApiDTO pmAspect = (PMEntityAspectApiDTO) resultAspect;
         assertNotNull(pmAspect.getProcessorPools());
         assertEquals(CONNECTED_ENTITY_NAME_LIST, pmAspect.getProcessorPools());
     }
@@ -94,8 +90,7 @@ public class PhysicalMachineAspectMapperTest extends BaseAspectMapperTest {
         JsonFormat.parser().merge(new InputStreamReader(is), builder);
 
         PhysicalMachineAspectMapper mapper = new PhysicalMachineAspectMapper(null);
-        PMEntityAspectApiDTO result = (PMEntityAspectApiDTO)mapper
-                .mapEntityToAspect(builder.build());
+        final PMEntityAspectApiDTO result = mapper.mapEntityToAspect(builder.build());
 
         List<PMDiskGroupAspectApiDTO> diskGroups = result.getDiskGroups();
         Assert.assertTrue(diskGroups.size() > 0);
@@ -155,10 +150,8 @@ public class PhysicalMachineAspectMapperTest extends BaseAspectMapperTest {
 
     private void checkCpuModel(TopologyEntityDTO entityDto, String expectedCpuModel) {
         PhysicalMachineAspectMapper mapper = new PhysicalMachineAspectMapper(repositoryApi);
-        EntityAspect entityAspect = mapper.mapEntityToAspect(entityDto);
-        Assert.assertNotNull(entityAspect);
-        Assert.assertTrue(entityAspect instanceof PMEntityAspectApiDTO);
-        PMEntityAspectApiDTO pmEntityAspect = (PMEntityAspectApiDTO)entityAspect;
+        final PMEntityAspectApiDTO pmEntityAspect = mapper.mapEntityToAspect(entityDto);
+        Assert.assertNotNull(pmEntityAspect);
         Assert.assertEquals(expectedCpuModel, pmEntityAspect.getCpuModel());
     }
 }

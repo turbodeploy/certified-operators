@@ -98,17 +98,15 @@ public class RegionAspectMapperTest extends BaseAspectMapperTest {
         Assert.assertEquals(0, regionAspectApiDTO1.getNumWorkloads());
 
         // act
-        final EntityAspect resultAspect2 = testMapper.mapEntityToAspect(regionTopologyEntityDTO2);
+        final RegionAspectApiDTO regionAspectApiDTO2 = testMapper.mapEntityToAspect(regionTopologyEntityDTO2);
 
         // assert
-        final RegionAspectApiDTO regionAspectApiDTO2 = (RegionAspectApiDTO)resultAspect2;
         assert regionAspectApiDTO2 == null;
 
         // act
-        final EntityAspect resultAspect3 = testMapper.mapEntityToAspect(regionTopologyEntityDTO3);
+        final RegionAspectApiDTO regionAspectApiDTO3 = testMapper.mapEntityToAspect(regionTopologyEntityDTO3);
 
         // assert
-        final RegionAspectApiDTO regionAspectApiDTO3 = (RegionAspectApiDTO)resultAspect3;
         assert regionAspectApiDTO3 == null;
     }
 }

@@ -7,7 +7,6 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.dto.entityaspect.DesktopPoolEntityAspectApiDTO;
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.DesktopPoolAssignmentType;
 import com.vmturbo.api.enums.DesktopPoolCloneType;
@@ -50,7 +49,7 @@ public class DesktopPoolAspectMapper extends AbstractAspectMapper {
 
     @Nullable
     @Override
-    public EntityAspect mapEntityToAspect(@Nonnull TopologyEntityDTO entity) {
+    public DesktopPoolEntityAspectApiDTO mapEntityToAspect(@Nonnull TopologyEntityDTO entity) {
         if (entity.getEntityType() == EntityType.DESKTOP_POOL_VALUE) {
             return mapDesktopPoolToAspect(entity);
         } else if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {

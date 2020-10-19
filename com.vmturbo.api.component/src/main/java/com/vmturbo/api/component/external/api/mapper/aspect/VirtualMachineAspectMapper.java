@@ -1,23 +1,25 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.dto.entityaspect.BusinessUserEntityAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.VMEntityAspectApiDTO;
 import com.vmturbo.api.dto.user.BusinessUserSessionApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 
@@ -26,18 +28,21 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
  **/
 public class VirtualMachineAspectMapper extends AbstractAspectMapper {
     private final RepositoryApi repositoryApi;
+    private BusinessUserAspectMapper businessUserAspectMapper;
 
     /**
      * Constructor.
      *
-     * @param repositoryApi the {@link RepositoryApi}
+     * @param repositoryApi repositoryApi the {@link RepositoryApi}
+     * @param businessUserAspectMapper {@link BusinessUserAspectMapper} instance.
      */
-    public VirtualMachineAspectMapper(final RepositoryApi repositoryApi) {
+    public VirtualMachineAspectMapper(final RepositoryApi repositoryApi, BusinessUserAspectMapper businessUserAspectMapper) {
         this.repositoryApi = repositoryApi;
+        this.businessUserAspectMapper = businessUserAspectMapper;
     }
 
     @Override
-    public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
+    public VMEntityAspectApiDTO mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
         final VMEntityAspectApiDTO aspect = new VMEntityAspectApiDTO();
         if (entity.getTypeSpecificInfo().hasVirtualMachine()) {
             final VirtualMachineInfo virtualMachineInfo = entity.getTypeSpecificInfo()
@@ -82,24 +87,23 @@ public class VirtualMachineAspectMapper extends AbstractAspectMapper {
     private List<BusinessUserSessionApiDTO> getBusinessUserSessions(
             @Nonnull final TopologyEntityDTO entity) {
         final List<BusinessUserSessionApiDTO> sessions = new LinkedList<>();
-        repositoryApi.newSearchRequest(
+        final Collection<TopologyEntityDTO> businessUsers = repositoryApi.newSearchRequest(
                 SearchProtoUtil.neighborsOfType(entity.getOid(), TraversalDirection.PRODUCES,
-                        ApiEntityType.BUSINESS_USER))
-                .getFullEntities()
-                .filter(e -> e.hasTypeSpecificInfo() && e.getTypeSpecificInfo().hasBusinessUser())
-                .forEach((e) -> {
-                    final Long sessionDuration = e.getTypeSpecificInfo()
-                            .getBusinessUser()
-                            .getVmOidToSessionDurationMap()
-                            .get(entity.getOid());
-                    if (sessionDuration != null) {
-                        final BusinessUserSessionApiDTO dto = new BusinessUserSessionApiDTO();
-                        dto.setBusinessUserUuid(String.valueOf(e.getOid()));
-                        dto.setConnectedEntityUuid(String.valueOf(entity.getOid()));
-                        dto.setDuration(sessionDuration);
-                        sessions.add(dto);
-                    }
-                });
+                        ApiEntityType.BUSINESS_USER)).getFullEntities().filter(
+                e -> e.hasTypeSpecificInfo() && e.getTypeSpecificInfo().hasBusinessUser()).collect(
+                Collectors.toSet());
+        for (TopologyEntityDTO entityDTO : businessUsers) {
+            final BusinessUserEntityAspectApiDTO businessUserEntityAspectApiDTO =
+                    businessUserAspectMapper.mapEntityToAspect(entityDTO);
+            if (businessUserEntityAspectApiDTO.getSessions() != null) {
+                sessions.addAll(businessUserEntityAspectApiDTO.getSessions()
+                        .stream()
+                        .filter(Objects::nonNull)
+                        .filter(s -> String.valueOf(entity.getOid())
+                                .equals(s.getConnectedEntityUuid()))
+                        .collect(Collectors.toList()));
+            }
+        }
         return sessions;
     }
 

@@ -4,7 +4,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.api.dto.entityaspect.ComputeTierAspectApiDTO;
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -21,7 +20,7 @@ public class ComputeTierAspectMapper extends AbstractAspectMapper {
      */
     @Override
     @Nullable
-    public EntityAspect mapEntityToAspect(@Nonnull final TopologyDTO.TopologyEntityDTO entity) {
+    public ComputeTierAspectApiDTO mapEntityToAspect(@Nonnull final TopologyDTO.TopologyEntityDTO entity) {
         // this aspect only applies to compute tiers
         if (entity.getEntityType() != CommonDTO.EntityDTO.EntityType.COMPUTE_TIER_VALUE) {
             return null;

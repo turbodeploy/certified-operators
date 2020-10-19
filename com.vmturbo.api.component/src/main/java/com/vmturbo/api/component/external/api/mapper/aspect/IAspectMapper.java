@@ -22,12 +22,13 @@ public interface IAspectMapper {
      * Map a single {@link TopologyEntityDTO} into one entity aspect object.
      *
      * @param entity the {@link TopologyEntityDTO} to get aspect for
+     * @param <T> the type of aspect inherited from {@link IAspectMapper}.
      * @return the entity aspect for the given entity, or null if no aspect for this entity
      * @throws InterruptedException if thread has been interrupted
      * @throws ConversionException if errors faced during converting data to API DTOs
      */
     @Nullable
-    EntityAspect mapEntityToAspect(@Nonnull TopologyEntityDTO entity)
+    <T extends EntityAspect> T mapEntityToAspect(@Nonnull TopologyEntityDTO entity)
             throws InterruptedException, ConversionException;
 
     /**

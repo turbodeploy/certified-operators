@@ -1,11 +1,9 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.STEntityAspectApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.DiskTypeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -37,10 +35,8 @@ public class DiskCommonAspectMapperTest extends BaseAspectMapperTest {
 
         DiskArrayAspectMapper testMapper = new DiskArrayAspectMapper();
         // act
-        EntityAspect aspectResult = testMapper.mapEntityToAspect(topologyEntityDTO.build());
+        final STEntityAspectApiDTO daAspect = testMapper.mapEntityToAspect(topologyEntityDTO.build());
         // assert
-        assertTrue(aspectResult instanceof STEntityAspectApiDTO);
-        final STEntityAspectApiDTO daAspect = (STEntityAspectApiDTO) aspectResult;
         assertEquals(NUM_SSD, daAspect.getSsdDiskCount());
         assertEquals(NUM_RPM_7200_DISKS, daAspect.getRpm7200DiskCount());
         assertEquals(NUM_RPM_10K_DISKS, daAspect.getRpm10KDiskCount());

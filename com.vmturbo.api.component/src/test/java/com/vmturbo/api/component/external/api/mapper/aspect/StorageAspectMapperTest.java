@@ -1,13 +1,11 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
-import org.junit.Test;
 
 import com.google.common.collect.Lists;
 
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import org.junit.Test;
+
 import com.vmturbo.api.dto.entityaspect.STEntityAspectApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -33,10 +31,8 @@ public class StorageAspectMapperTest extends BaseAspectMapperTest {
 
         StorageAspectMapper testMapper = new StorageAspectMapper();
         // act
-        EntityAspect aspectResult = testMapper.mapEntityToAspect(topologyEntityDTO.build());
+        final STEntityAspectApiDTO storageAspect = testMapper.mapEntityToAspect(topologyEntityDTO.build());
         // assert
-        assertTrue(aspectResult instanceof STEntityAspectApiDTO);
-        final STEntityAspectApiDTO storageAspect = (STEntityAspectApiDTO) aspectResult;
         assertEquals(Lists.newArrayList(TEST_EXTERNAL_NAME), storageAspect.getExternalNames());
         assertEquals(TEST_DISPLAY_NAME, storageAspect.getDisplayName());
     }

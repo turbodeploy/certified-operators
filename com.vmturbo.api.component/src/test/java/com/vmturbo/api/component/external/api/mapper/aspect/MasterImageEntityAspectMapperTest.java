@@ -134,8 +134,7 @@ public class MasterImageEntityAspectMapperTest extends BaseAspectMapperTest {
                 .thenReturn(masterImageVirtualMachineRequest);
         // act
         final MasterImageEntityAspectApiDTO aspect =
-                (MasterImageEntityAspectApiDTO)masterImageEntityAspectMapper.mapEntityToAspect(
-                        desktopPool);
+                masterImageEntityAspectMapper.mapEntityToAspect(desktopPool);
         // assert
         checkAspect(aspect);
     }
@@ -167,7 +166,7 @@ public class MasterImageEntityAspectMapperTest extends BaseAspectMapperTest {
 
         // act
         final MasterImageEntityAspectApiDTO aspect =
-                (MasterImageEntityAspectApiDTO)masterImageEntityAspectMapper.mapEntityToAspect(vm);
+                masterImageEntityAspectMapper.mapEntityToAspect(vm);
         // assert
         checkAspect(aspect);
     }
@@ -219,7 +218,7 @@ public class MasterImageEntityAspectMapperTest extends BaseAspectMapperTest {
                         .setTemplate(Template.newBuilder().setId(1L).setTemplateInfo(info).build()).build());
 
         final MasterImageEntityAspectApiDTO aspect =
-                        (MasterImageEntityAspectApiDTO)masterImageEntityAspectMapper.mapEntityToAspect(desktopPool);
+                masterImageEntityAspectMapper.mapEntityToAspect(desktopPool);
         Assert.assertEquals(MASTER_IMAGE_VMEM_CAPACITY, aspect.getMem(), DELTA);
         Assert.assertEquals(cpu1 + cpu2, aspect.getNumVcpus(), DELTA);
         Assert.assertEquals(MASTER_IMAGE_STORAGE_USED_1, aspect.getStorage(), DELTA);

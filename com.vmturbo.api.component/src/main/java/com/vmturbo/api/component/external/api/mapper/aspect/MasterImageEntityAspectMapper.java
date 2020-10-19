@@ -16,7 +16,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.MasterImageEntityAspectApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
@@ -57,7 +56,7 @@ public class MasterImageEntityAspectMapper extends AbstractAspectMapper {
 
     @Nullable
     @Override
-    public EntityAspect mapEntityToAspect(@Nonnull TopologyEntityDTO entity) {
+    public MasterImageEntityAspectApiDTO mapEntityToAspect(@Nonnull TopologyEntityDTO entity) {
         if (entity.getEntityType() == EntityType.DESKTOP_POOL_VALUE) {
             return mapDesktopPoolToAspect(entity);
         } else if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
