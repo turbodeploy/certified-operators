@@ -33,6 +33,8 @@ public class ModelDefinitions {
     public static final Column<String> ENTITY_NAME = Column.stringColumn("name");
     /** ATTRS column. */
     public static final Column<JsonString> ATTRS = Column.jsonColumn("attrs");
+    /** SEED column. */
+    public static final Column<Long> SEED_OID = Column.longColumn("seed_oid");
     /** SCOPED_OIDS column. */
     public static final Column<Long[]> SCOPED_OIDS = Column.longSetColumn("scoped_oids");
     /** FIRST_SEEN column. */
@@ -97,7 +99,7 @@ public class ModelDefinitions {
 
     /** SCOPE_TABLE. */
     public static final Table SCOPE_TABLE = Table.named("scope")
-            .withColumns(ENTITY_OID, SCOPED_OID, SCOPED_TYPE, SCOPE_START, SCOPE_FINISH)
+            .withColumns(SEED_OID, SCOPED_OID, SCOPED_TYPE, SCOPE_START, SCOPE_FINISH)
             .build();
 
     /** METRIC_TABLE. */

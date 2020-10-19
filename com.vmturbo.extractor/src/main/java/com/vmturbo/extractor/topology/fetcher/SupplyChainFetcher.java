@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -11,6 +12,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 
@@ -19,6 +22,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 import com.vmturbo.topology.graph.supplychain.TraversalRulesLibrary;
@@ -74,17 +78,61 @@ public class SupplyChainFetcher extends DataFetcher<Map<Long, Map<Integer, Set<L
                 .filter(e -> requireSupplyChainForAllEntities
                         || SearchMetadataUtils.shouldComputeSupplyChain(e.getEntityType()))
                 .forEach(e -> {
-            final Map<Integer, SupplyChainNode> related = calc.getSupplyChainNodes(graph,
-                    Collections.singletonList(e.getOid()), entityPredicate, ruleChain);
-            final Map<Integer, Set<Long>> relatedEntitiesByType = related.entrySet().stream()
-                    .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue()
-                            .getMembersByStateMap().values().stream()
-                            .map(MemberList::getMemberOidsList)
-                            .flatMap(Collection::stream)
-                            .mapToLong(Long::longValue)
-                            .collect(LongOpenHashSet::new, LongOpenHashSet::add, LongOpenHashSet::addAll)));
-            syncEntityToRelated.put(e.getOid(), relatedEntitiesByType);
-        });
+                    final Map<Integer, SupplyChainNode> related = calc.getSupplyChainNodes(graph,
+                            Collections.singletonList(e.getOid()), entityPredicate, ruleChain);
+                    final Map<Integer, Set<Long>> relatedEntitiesByType = related.entrySet().stream()
+                            .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue()
+                                    .getMembersByStateMap().values().stream()
+                                    .map(MemberList::getMemberOidsList)
+                                    .flatMap(Collection::stream)
+                                    .mapToLong(Long::longValue)
+                                    .collect(LongOpenHashSet::new, LongOpenHashSet::add, LongOpenHashSet::addAll)));
+                    syncEntityToRelated.put(e.getOid(), relatedEntitiesByType);
+                });
+        if (logger.isDebugEnabled()) {
+            logSupplyChainAsymmetries(entityToRelated);
+        }
         return entityToRelated;
     }
+
+    /**
+     * We normally expect the supply chain relationship to be symmetric (if x is in y's supply
+     * chain, then y is in x's).
+     *
+     * <p>As a precaution, we can perform an exhaustive check for asymmetries, and log whatever
+     * entity type pairs are involved. This can be used across a variety of topologies to look for
+     * potential problems with the supply chain traversal rules.
+     *
+     * @param entityToRelated supply chain relationships
+     */
+    private void logSupplyChainAsymmetries(final Map<Long, Map<Integer, Set<Long>>> entityToRelated) {
+        // compute the basic (entity, entity) relationship without interposed type information
+        Map<Long, Set<Long>> relatedEntities = new Long2ObjectOpenHashMap<>();
+        entityToRelated.forEach((oid1, typeToRelated) ->
+                typeToRelated.forEach((type, related) ->
+                        related.forEach(oid2 ->
+                                relatedEntities.computeIfAbsent(oid1, _oid1 -> new LongOpenHashSet())
+                                        .add(oid2))));
+        // now find all entity<->entity asymmetries and record corresponding type<->type asymmetries
+        Map<Integer, Set<Integer>> asymmetries = new Int2ObjectOpenHashMap<>();
+        relatedEntities.forEach((oid1, related) ->
+                related.forEach(oid2 -> {
+                    if (!relatedEntities.get(oid2).contains(oid1)) {
+                        Optional<Integer> type1 = graph.getEntity(oid1)
+                                .map(SupplyChainEntity::getEntityType);
+                        Optional<Integer> type2 = graph.getEntity(oid2)
+                                .map(SupplyChainEntity::getEntityType);
+                        if (type1.isPresent() && type2.isPresent()) {
+                            asymmetries.computeIfAbsent(type1.get(),
+                                    _t -> new IntOpenHashSet()).add(type2.get());
+                        }
+                    }
+                }));
+        // log anything we found
+        asymmetries.forEach((type, asymmTypes) ->
+                asymmTypes.forEach(asymmType ->
+                        logger.debug("Supply Chain asymmetries detected from entity type {} to {}",
+                                EntityType.forNumber(type), EntityType.forNumber(asymmType))));
+    }
+
 }

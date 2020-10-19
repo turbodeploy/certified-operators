@@ -1,9 +1,9 @@
 package com.vmturbo.extractor.topology;
 
-import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.SCOPED_OID;
 import static com.vmturbo.extractor.models.ModelDefinitions.SCOPE_START;
 import static com.vmturbo.extractor.models.ModelDefinitions.SCOPE_TABLE;
+import static com.vmturbo.extractor.models.ModelDefinitions.SEED_OID;
 import static com.vmturbo.extractor.schema.Tables.ENTITY;
 import static com.vmturbo.extractor.schema.Tables.SCOPE;
 
@@ -77,6 +77,11 @@ import com.vmturbo.sql.utils.jooq.JooqUtil.TempTable;
  *         that spans cycles.
  *     </li>
  * </ul>
+ *
+ * <p>Probably counterintuitively, we keep the scope relationship in "reverse", keeping track, for each
+ * entity, the seeds in whose scope that entity appears. This allows us to directly populate the
+ * `scope` arrays that appear in the `entity` table in the original schema, while we transition
+ * to the new schema.</p>
  */
 public class ScopeManager {
 
@@ -95,6 +100,8 @@ public class ScopeManager {
     private final WriterConfig config;
 
     private DSLContext dsl;
+    // for a (seedIid, scopedIid) pair in the scoping relationship, we will have
+    // scope.get(scopedIid).contains(seedIid) in both the prior and current scope tables
     Int2ObjectMap<IntSet> priorScope = new Int2ObjectOpenHashMap<>();
     private OffsetDateTime priorTimestamp;
     Int2ObjectMap<IntSet> currentScope = new Int2ObjectOpenHashMap<>();
@@ -141,21 +148,20 @@ public class ScopeManager {
     }
 
     /**
-     * Add one or more oids to the current scope of the given entity.
+     * Add one or more oids to the current scope of the given seed entity.
      *
-     * @param entityOid  iid of entity whose scope is updated
-     * @param scopedOids iids of entities/groups/... to add to this entity's scope
+     * @param seedOid    iid of entity whose scope is updated
+     * @param scopedOids iids of entities/groups/... to add to the seed entity's scope
      */
-    public void addScope(long entityOid, long... scopedOids) {
-        final int entityIid = entityIdManager.toIid(entityOid);
-        IntSet scopeSet = currentScope.computeIfAbsent(entityIid, _iid -> new IntOpenHashSet());
-        for (final long scopedIid : scopedOids) {
-            scopeSet.add(entityIdManager.toIid(scopedIid));
+    public void addInCurrentScope(long seedOid, long... scopedOids) {
+        final int seedIid = entityIdManager.toIid(seedOid);
+        for (final long scopedOid : scopedOids) {
+            addScope(currentScope, seedIid, entityIdManager.toIid(scopedOid));
         }
     }
 
-    private void addScope(Int2ObjectMap<IntSet> scopeMap, int entityIid, int scopedIid) {
-        scopeMap.computeIfAbsent(entityIid, _iid -> new IntOpenHashSet()).add(scopedIid);
+    private void addScope(Int2ObjectMap<IntSet> scopeMap, int seedIid, int scopedIid) {
+        scopeMap.computeIfAbsent(scopedIid, _iid -> new IntOpenHashSet()).add(seedIid);
     }
 
     /**
@@ -170,14 +176,14 @@ public class ScopeManager {
             final IntStream priorIids = priorScope.keySet().stream().mapToInt(Integer::intValue);
             final IntStream currentIids = currentScope.keySet().stream().mapToInt(Integer::intValue);
             IntStream.concat(priorIids, currentIids).distinct()
-                    .forEach(entityIid ->
+                    .forEach(scopedIid ->
                             // handle every entity that appeared in this or prior topology
-                            finishScopingEntity(entityIid, scopeInserter, scopeUpdater));
+                            finishScopingEntity(scopedIid, scopeInserter, scopeUpdater));
             // update the "0/0" record's finish date to be the current timestamp, for restoration
             // following  a restart. We use an upsert because on very first cycle there will be no
             // record.
             dsl.insertInto(SCOPE,
-                    SCOPE.ENTITY_OID, SCOPE.SCOPED_OID, SCOPE.SCOPED_TYPE, SCOPE.START, SCOPE.FINISH)
+                    SCOPE.SEED_OID, SCOPE.SCOPED_OID, SCOPE.SCOPED_TYPE, SCOPE.START, SCOPE.FINISH)
                     .values(0L, 0L, EntityType._NONE_, EPOCH_TIMESTAMP, currentTimestamp)
                     .onConflictOnConstraint(SCOPE.getPrimaryKey()).doUpdate()
                     .set(SCOPE.FINISH, currentTimestamp)
@@ -191,26 +197,26 @@ public class ScopeManager {
     }
 
     /**
-     * Get the scoped oids currently associated with given oid in the current scope data.
+     * Get the seed oids currently associated with given scoped oid in the current scope data.
      *
-     * @param oid oid whose scope is needed
-     * @return the scope
+     * @param oid oid whose scoping seeds are needed
+     * @return the scoping seeds
      */
-    public LongSet getCurrentScope(long oid) {
-        return getScope(currentScope, oid);
+    public LongSet getCurrentScopingSeeds(long oid) {
+        return getScopingSeeds(currentScope, oid);
     }
 
     /**
-     * Get the scoped oids currently associated with given oid in the prior scope data.
+     * Get the seed oids currently associated with given scoped oid in the prior scope data.
      *
-     * @param oid oid whose scope is needed
-     * @return the scope
+     * @param oid oid whose scoping seeds are needed
+     * @return the scoping seeds
      */
-    public LongSet getPriorScope(long oid) {
-        return getScope(priorScope, oid);
+    public LongSet getPriorScopingSeeds(long oid) {
+        return getScopingSeeds(priorScope, oid);
     }
 
-    private LongSet getScope(Int2ObjectMap<IntSet> scope, long oid) {
+    private LongSet getScopingSeeds(Int2ObjectMap<IntSet> scope, long oid) {
         IntSet iids = scope != null
                 ? scope.getOrDefault(entityIdManager.toIid(oid), IntSets.EMPTY_SET)
                 : IntSets.EMPTY_SET;
@@ -227,74 +233,76 @@ public class ScopeManager {
     }
 
     /**
-     * Update persisted scope info for this entity, which appeared in the current topology, the
-     * prior topology, or both.
+     * Update persisted scope info for this scoped entity, which appeared in the current topology,
+     * the prior topology, or both.
      *
-     * @param entityIid     iid of entity
+     * @param scopedIid     iid of scoped entity
      * @param scopeInserter where to send newly appearing entities
      * @param scopeUpdater  where to send updates for dropped entities
      */
     private void finishScopingEntity(
-            int entityIid, TableWriter scopeInserter, TableWriter scopeUpdater) {
-        if (currentScope.containsKey(entityIid)) {
-            if (!priorScope.containsKey(entityIid)) {
-                finishNewEntity(entityIid, scopeInserter);
+            int scopedIid, TableWriter scopeInserter, TableWriter scopeUpdater) {
+        if (currentScope.containsKey(scopedIid)) {
+            if (!priorScope.containsKey(scopedIid)) {
+                finishNewEntity(scopedIid, scopeInserter);
             } else {
-                finishOverlappingEntity(entityIid, scopeInserter, scopeUpdater);
+                finishOverlappingEntity(scopedIid, scopeInserter, scopeUpdater);
             }
-        } else if (priorScope.containsKey(entityIid)) {
-            finishDroppedEntity(entityIid, scopeUpdater);
+        } else if (priorScope.containsKey(scopedIid)) {
+            finishDroppedEntity(scopedIid, scopeUpdater);
         }
     }
 
     /**
-     * Persist scope info for an entity that appeared in current topology but not prior.
+     * Persist scope info for a scoped entity that appeared in current topology but not prior.
      *
-     * @param entityIid     iid of entity
+     * @param scopedIid     iid of new scoped entity
      * @param scopeInserter where to send new records for insertion
      */
-    private void finishNewEntity(final int entityIid, TableWriter scopeInserter) {
-        long entityOid = entityIdManager.toOid(entityIid);
-        currentScope.get(entityIid).forEach((IntConsumer)scopedIid -> {
+    private void finishNewEntity(final int scopedIid, TableWriter scopeInserter) {
+        long scopedOid = entityIdManager.toOid(scopedIid);
+        currentScope.get(scopedIid).forEach((IntConsumer)seedIid -> {
             try (Record r = scopeInserter.open()) {
-                r.set(ENTITY_OID, entityOid);
-                r.set(SCOPED_OID, entityIdManager.toOid(scopedIid));
+                r.set(SEED_OID, entityIdManager.toOid(seedIid));
+                r.set(SCOPED_OID, scopedOid);
                 r.set(SCOPE_START, currentTimestamp);
             }
         });
     }
 
     /**
-     * Update persisted scope for an entity that appeared in current and prior topology, possibly
-     * with different scopes.
+     * Update persisted scope for a scoped entity that appeared in current and prior topology,
+     * possibly with different scoping seeds.
      *
-     * <p>Scoped entities that are new in the current scope are inserted into the `scopes` table,
-     * while scoped entities that are no longer present have their `finish` times updated to the
-     * prior snapshot time.</p>
+     * <p>Scoping seeds that are new in the current scope are inserted into the `scopes` table,
+     * while seeds that are no longer present have their `finish` times updated to the prior
+     * snapshot time.</p>
      *
-     * @param entityIid     of entity
+     * @param scopedIid     iid of scoped entity
      * @param scopeInserter where to send new `scope` records
      * @param scopeUpdater  where to send existing `scope` record updates
      */
     private void finishOverlappingEntity(
-            final int entityIid, TableWriter scopeInserter, TableWriter scopeUpdater) {
-        long entityOid = entityIdManager.toOid(entityIid);
-        final IntSet priorSet = priorScope.getOrDefault(entityIid, IntSets.EMPTY_SET);
-        final IntSet currentSet = currentScope.getOrDefault(entityIid, IntSets.EMPTY_SET);
-        Stream.concat(priorSet.stream(), currentSet.stream()).distinct().forEach(scopedIid -> {
-            if (priorSet.contains(scopedIid.intValue())) {
-                if (!currentSet.contains(scopedIid.intValue())) {
+            final int scopedIid, TableWriter scopeInserter, TableWriter scopeUpdater) {
+        long scopedOid = entityIdManager.toOid(scopedIid);
+        final IntSet priorSet = priorScope.getOrDefault(scopedIid, IntSets.EMPTY_SET);
+        final IntSet currentSet = currentScope.getOrDefault(scopedIid, IntSets.EMPTY_SET);
+        IntStream.concat(
+                Arrays.stream(priorSet.toIntArray()), Arrays.stream(currentSet.toIntArray()))
+                .distinct().forEach(seedIid -> {
+            if (priorSet.contains(seedIid)) {
+                if (!currentSet.contains(seedIid)) {
                     // entity dropped out of the topology... tie off its record in DB
                     try (Record r = scopeUpdater.open()) {
-                        r.set(ENTITY_OID, entityOid);
-                        r.set(SCOPED_OID, entityIdManager.toOid(scopedIid));
+                        r.set(SEED_OID, entityIdManager.toOid(seedIid));
+                        r.set(SCOPED_OID, scopedOid);
                     }
                 }
-            } else if (currentSet.contains(scopedIid.intValue())) {
+            } else if (currentSet.contains(seedIid)) {
                 // new entity (or reappearance of an old entity) requires a new record
                 try (Record r = scopeInserter.open()) {
-                    r.set(ENTITY_OID, entityOid);
-                    r.set(SCOPED_OID, entityIdManager.toOid(scopedIid));
+                    r.set(SEED_OID, entityIdManager.toOid(seedIid));
+                    r.set(SCOPED_OID, scopedOid);
                     r.set(SCOPE_START, currentTimestamp);
                 }
             }
@@ -302,18 +310,18 @@ public class ScopeManager {
     }
 
     /**
-     * Update scope info for an entity that has dropped out of the topology, by setting the `finish`
-     * values in the corresponding `scope` records to the prior timestamp.
+     * Update scope info for a scoped entity that has dropped out of the topology, by setting the
+     * `finish` values in the corresponding `scope` records to the prior timestamp.
      *
-     * @param entityIid    entity iid
+     * @param scopedIid    scoped entity iid
      * @param scopeUpdater where to send updates to existing records
      */
-    private void finishDroppedEntity(final int entityIid, TableWriter scopeUpdater) {
-        long entityOid = entityIdManager.toOid(entityIid);
-        priorScope.get(entityIid).forEach((IntConsumer)scopedIid -> {
+    private void finishDroppedEntity(final int scopedIid, TableWriter scopeUpdater) {
+        long scopedOid = entityIdManager.toOid(scopedIid);
+        priorScope.get(scopedIid).forEach((IntConsumer)seedIid -> {
             try (Record r = scopeUpdater.open()) {
-                r.set(ENTITY_OID, entityOid);
-                r.set(SCOPED_OID, entityIdManager.toOid(scopedIid));
+                r.set(SEED_OID, entityIdManager.toOid(seedIid));
+                r.set(SCOPED_OID, scopedOid);
             }
         });
     }
@@ -339,19 +347,19 @@ public class ScopeManager {
      */
     private void reloadPriorScope() {
         try (Stream<Record2<Long, Long>> stream =
-                     dsl.select(SCOPE.ENTITY_OID, SCOPE.SCOPED_OID).from(SCOPE)
+                     dsl.select(SCOPE.SEED_OID, SCOPE.SCOPED_OID).from(SCOPE)
                              // greater-than comparison because MAX_TIMESTAMP used to be the
                              // end not the start of the day it falls in.
                              .where(SCOPE.FINISH.ge(MAX_TIMESTAMP))
                              .stream()) {
             stream.forEach(r -> {
-                int eiid = entityIdManager.toIid(r.value1());
-                int siid = entityIdManager.toIid(r.value2());
-                addScope(priorScope, eiid, siid);
+                int seedIid = entityIdManager.toIid(r.value1());
+                int scopedIid = entityIdManager.toIid(r.value2());
+                addScope(priorScope, seedIid, scopedIid);
             });
         }
         priorTimestamp = dsl.select(SCOPE.FINISH).from(SCOPE)
-                .where(SCOPE.ENTITY_OID.eq(0L).and(SCOPE.SCOPED_OID.eq(0L))
+                .where(SCOPE.SEED_OID.eq(0L).and(SCOPE.SCOPED_OID.eq(0L))
                         .and(SCOPE.START.eq(EPOCH_TIMESTAMP)))
                 .fetchOne(SCOPE.FINISH);
     }
@@ -381,7 +389,7 @@ public class ScopeManager {
         @Override
         protected void preCopyHook(final Connection conn) {
             this.tempTable = JooqUtil.createTemporaryTable(conn, null, getWriteTableName(),
-                    SCOPE.ENTITY_OID, SCOPE.SCOPED_OID, SCOPE.START);
+                    SCOPE.SEED_OID, SCOPE.SCOPED_OID, SCOPE.START);
         }
 
         /**
@@ -397,22 +405,22 @@ public class ScopeManager {
             // TODO Remove "distinct" during transition away from old schema; it's there because
             // there will often be multiple matching `entity` records for a given entity oid
             selectStmt = DSL.selectDistinct(
-                    tempTable.field(SCOPE.ENTITY_OID),
+                    tempTable.field(SCOPE.SEED_OID),
                     tempTable.field(SCOPE.SCOPED_OID),
                     ENTITY.TYPE.as(SCOPE.SCOPED_TYPE),
                     tempTable.field(SCOPE.START),
                     DSL.inline(MAX_TIMESTAMP).as(SCOPE.FINISH)
             ).from(tempTable.table()).innerJoin(ENTITY)
-                    .on(ENTITY.OID.eq(tempTable.field(SCOPE.ENTITY_OID)));
+                    .on(ENTITY.OID.eq(tempTable.field(SCOPE.SCOPED_OID)));
             DSL.using(conn, dsl.configuration().settings())
-                    .insertInto(SCOPE, SCOPE.ENTITY_OID, SCOPE.SCOPED_OID, SCOPE.SCOPED_TYPE, SCOPE.START, SCOPE.FINISH)
+                    .insertInto(SCOPE, SCOPE.SEED_OID, SCOPE.SCOPED_OID, SCOPE.SCOPED_TYPE, SCOPE.START, SCOPE.FINISH)
                     .select(selectStmt)
                     .execute();
         }
 
         @Override
         protected Collection<Column<?>> getRecordColumns() {
-            return Arrays.asList(ENTITY_OID, SCOPED_OID, SCOPE_START);
+            return Arrays.asList(SEED_OID, SCOPED_OID, SCOPE_START);
         }
 
         @Override
@@ -422,14 +430,12 @@ public class ScopeManager {
     }
 
     /**
-     * Record sink to insert new records into the `scope` table.
+     * Record sink to close off previous existing scope records when the scoping pair is no longer
+     * active in the current topology.
      *
-     * <p>Posted records will be missing their scoped entity types, we write records to a temp
-     * table and then copy everything to `scopes`, joining the temp table against `entity` to obtain
-     * scoped entity types.</p>
-     *
-     * <p>Records also have their `start` and `finish` timestamps set to the current topology
-     * timestamp and `MAX_TIMESTAMP` respectively.</p>
+     * <p>Records with matching oids and with their current `finish` timestamp set to our special
+     * {@link #MAX_TIMESTAMP} value have their `finish` timestamps set to the prior topology's
+     * timestamp.
      */
     private class ScopeUpdaterSink extends DslRecordSink {
         private TempTable<?> tempTable;
@@ -441,7 +447,7 @@ public class ScopeManager {
         @Override
         protected void preCopyHook(final Connection conn) {
             this.tempTable = JooqUtil.createTemporaryTable(conn, null, getWriteTableName(),
-                    SCOPE.ENTITY_OID, SCOPE.SCOPED_OID);
+                    SCOPE.SEED_OID, SCOPE.SCOPED_OID);
         }
 
         @Override
@@ -450,14 +456,15 @@ public class ScopeManager {
                     .update(SCOPE)
                     .set(SCOPE.FINISH, priorTimestamp)
                     .from(tempTable.table())
-                    .where(SCOPE.ENTITY_OID.eq(tempTable.field(SCOPE.ENTITY_OID))
-                            .and(SCOPE.SCOPED_OID.eq(tempTable.field(SCOPE.SCOPED_OID))))
+                    .where(SCOPE.SEED_OID.eq(tempTable.field(SCOPE.SEED_OID))
+                            .and(SCOPE.SCOPED_OID.eq(tempTable.field(SCOPE.SCOPED_OID)))
+                            .and(SCOPE.FINISH.ge(MAX_TIMESTAMP)))
                     .execute();
         }
 
         @Override
         protected Collection<Column<?>> getRecordColumns() {
-            return Arrays.asList(ENTITY_OID, SCOPED_OID);
+            return Arrays.asList(SEED_OID, SCOPED_OID);
         }
 
         @Override

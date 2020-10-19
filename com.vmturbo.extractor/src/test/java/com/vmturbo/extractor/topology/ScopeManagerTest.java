@@ -92,15 +92,16 @@ public class ScopeManagerTest {
      */
     @Test
     public void testScopesAccumulateCorrectly() {
-        scopeManager.addScope(1L, 100L);
-        scopeManager.addScope(1L, 101L);
-        scopeManager.addScope(2L, 200L, 201L, 203L);
-        scopeManager.addScope(1L, 100L, 201L);
-        scopeManager.addScope(3L);
-        assertThat(scopeManager.getCurrentScope(1L), containsInAnyOrder(100L, 101L, 201L));
-        assertThat(scopeManager.getCurrentScope(2L), containsInAnyOrder(200L, 201L, 203L));
-        assertThat(scopeManager.getCurrentScope(3L), hasSize(0));
-        assertThat(scopeManager.getCurrentScope(4L), hasSize(0));
+        scopeManager.addInCurrentScope(1L, 100L);
+        scopeManager.addInCurrentScope(1L, 101L);
+        scopeManager.addInCurrentScope(2L, 200L, 201L, 203L);
+        scopeManager.addInCurrentScope(1L, 100L, 201L);
+        assertThat(scopeManager.getCurrentScopingSeeds(100L), containsInAnyOrder(1L));
+        assertThat(scopeManager.getCurrentScopingSeeds(101L), containsInAnyOrder(1L));
+        assertThat(scopeManager.getCurrentScopingSeeds(200L), containsInAnyOrder(2L));
+        assertThat(scopeManager.getCurrentScopingSeeds(201L), containsInAnyOrder(1L, 2L));
+        assertThat(scopeManager.getCurrentScopingSeeds(202L), hasSize(0));
+        assertThat(scopeManager.getCurrentScopingSeeds(203L), containsInAnyOrder(2L));
     }
 
     /**
@@ -118,11 +119,12 @@ public class ScopeManagerTest {
         preload(2L, time, 200L, 201L, 203L);
         scopeManager.startTopology(TopologyInfo.newBuilder()
                 .setCreationTime(time.toEpochSecond()).build());
-        assertThat(scopeManager.getPriorScope(1L),
-                containsInAnyOrder(100L, 101L, 201L));
-        assertThat(scopeManager.getPriorScope(2L),
-                containsInAnyOrder(200L, 201L, 203L));
-        assertThat(scopeManager.getPriorScope(3L), hasSize(0));
+        assertThat(scopeManager.getPriorScopingSeeds(100L), containsInAnyOrder(1L));
+        assertThat(scopeManager.getPriorScopingSeeds(101L), containsInAnyOrder(1L));
+        assertThat(scopeManager.getPriorScopingSeeds(102L), hasSize(0));
+        assertThat(scopeManager.getPriorScopingSeeds(200L), containsInAnyOrder(2L));
+        assertThat(scopeManager.getPriorScopingSeeds(201L), containsInAnyOrder(1L, 2L));
+        assertThat(scopeManager.getPriorScopingSeeds(203L), containsInAnyOrder(2L));
     }
 
     /**
@@ -137,11 +139,11 @@ public class ScopeManagerTest {
     @Test
     public void testMultiCycleScopes() throws UnsupportedDialectException, InterruptedException, SQLException {
         OffsetDateTime t1 = OffsetDateTime.now();
-        setupEntities(1L, 2L, 3L);
+        setupEntities(100L, 101L, 200L, 201L, 300L);
         // topology 1
         scopeManager.startTopology(TopologyInfo.newBuilder().setCreationTime(t1.toInstant().toEpochMilli()).build());
-        scopeManager.addScope(1L, 100L, 101L);
-        scopeManager.addScope(2L, 200L);
+        scopeManager.addInCurrentScope(1L, 100L, 101L);
+        scopeManager.addInCurrentScope(2L, 200L);
         scopeManager.finishTopology();
         Set<ScopeRecord> records = fetchScopeRecords(t1.getOffset());
         assertThat(records.size(), is(4));
@@ -151,9 +153,9 @@ public class ScopeManagerTest {
         // topology 2: drop 1/101, add 2/201 and 3/300
         OffsetDateTime t2 = t1.plus(10, ChronoUnit.MINUTES);
         scopeManager.startTopology(TopologyInfo.newBuilder().setCreationTime(t2.toInstant().toEpochMilli()).build());
-        scopeManager.addScope(1L, 100L);
-        scopeManager.addScope(2L, 200L, 201L);
-        scopeManager.addScope(3L, 300L);
+        scopeManager.addInCurrentScope(1L, 100L);
+        scopeManager.addInCurrentScope(2L, 200L, 201L);
+        scopeManager.addInCurrentScope(3L, 300L);
         scopeManager.finishTopology();
         records = fetchScopeRecords(t1.getOffset());
         assertThat(records.size(), is(6));
@@ -166,8 +168,8 @@ public class ScopeManagerTest {
         // topology 3: drop 1/100, re-add 1/101, and all of entity 2
         OffsetDateTime t3 = t1.plus(20, ChronoUnit.MINUTES);
         scopeManager.startTopology(TopologyInfo.newBuilder().setCreationTime(t3.toInstant().toEpochMilli()).build());
-        scopeManager.addScope(1L, 101L);
-        scopeManager.addScope(3L, 300L);
+        scopeManager.addInCurrentScope(1L, 101L);
+        scopeManager.addInCurrentScope(3L, 300L);
         scopeManager.finishTopology();
         records = fetchScopeRecords(t1.getOffset());
         assertThat(records.size(), is(7));
@@ -206,7 +208,7 @@ public class ScopeManagerTest {
     private void preload(long oid, OffsetDateTime time, long... scopeOids) {
         final InsertValuesStep5<ScopeRecord, Long, Long, EntityType, OffsetDateTime, OffsetDateTime> insert;
         insert = dsl.insertInto(SCOPE,
-                SCOPE.ENTITY_OID, SCOPE.SCOPED_OID, SCOPE.SCOPED_TYPE, SCOPE.START, SCOPE.FINISH);
+                SCOPE.SEED_OID, SCOPE.SCOPED_OID, SCOPE.SCOPED_TYPE, SCOPE.START, SCOPE.FINISH);
         for (final long scopeOid : scopeOids) {
             insert.values(oid, scopeOid, EntityType.VIRTUAL_MACHINE, time, ScopeManager.MAX_TIMESTAMP);
         }
@@ -226,7 +228,7 @@ public class ScopeManagerTest {
             OffsetDateTime start, OffsetDateTime finish, long oid, long... scopedOids) {
         for (final long scopedOid : scopedOids) {
             final ScopeRecord rec = SCOPE.newRecord();
-            rec.setEntityOid(oid);
+            rec.setSeedOid(oid);
             rec.setScopedOid(scopedOid);
             rec.setScopedType(oid == 0L ? EntityType._NONE_ : EntityType.VIRTUAL_MACHINE);
             rec.setStart(start);

@@ -226,7 +226,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
      *
      * @param commodityTypeNo commodity type
      * @param entityTypeNo    entity type
-     * @return true if commodity shoudl be aggregated across keys
+     * @return true if commodity should be aggregated across keys
      */
     private boolean isAggregateByKeys(int commodityTypeNo, int entityTypeNo) {
         final CommodityType commodityType = CommodityType.forNumber(commodityTypeNo);
@@ -476,8 +476,9 @@ public class EntityMetricWriter extends TopologyWriterBase {
         entityRecordsMap.int2ObjectEntrySet().forEach(entry -> {
             int iid = entry.getIntKey();
             Record record = entry.getValue();
-            final LongSet scope = getRelatedEntitiesAndGroups(entityIdManager.toOid(iid), dataProvider);
-            record.set(ModelDefinitions.SCOPED_OIDS, scope.stream().toArray(Long[]::new));
+            final LongSet scope = getRelatedEntitiesAndGroups(entityIdManager.toOid(iid),
+                    dataProvider);
+            record.set(ModelDefinitions.SCOPED_OIDS, scope.toArray(new Long[0]));
             // only store entity if hash changes
             Long newHash = snapshotManager.updateRecordHash(record);
             if (newHash != null) {
@@ -490,11 +491,11 @@ public class EntityMetricWriter extends TopologyWriterBase {
     }
 
     private LongSet getRelatedEntitiesAndGroups(long oid, DataProvider dataProvider) {
-        // first collect iids for entities related to this one via spply chain
+        // first collect iids for entities related to this one via supply chain
         final Set<Long> related = dataProvider.getRelatedEntities(oid);
         // those all go into our result set
         LongSet result = new LongOpenHashSet(related);
-        // then we collect all the groups that any of oure related entities belong to...
+        // then we collect all the groups that any of our related entities belong to...
         related.stream()
                 .map(dataProvider::getGroupsForEntity)
                 .flatMap(Collection::stream)
@@ -502,7 +503,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
                 .distinct()
                 // ... and add their iids to the result as well
                 .forEach(result::add);
-        scopeManager.addScope(oid, result.toLongArray());
+        this.scopeManager.addInCurrentScope(oid, result.toLongArray());
         return result;
     }
 
