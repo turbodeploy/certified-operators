@@ -117,8 +117,11 @@ public class ExternalActionApprovalManager {
             return;
         }
         try {
-            if (action.getState() != ActionState.ACCEPTED) {
+            if (action.getState() == ActionState.READY) {
                 actionApprovalManager.attemptAndExecute(liveActionStore, USER_ID, action);
+            } else if (action.getState() != ActionState.ACCEPTED) {
+                logger.info("The action with {} OID was not sent for execution because it's "
+                        + "current state is {}.", action.getRecommendationOid(), action.getState());
             }
         } catch (ExecutionInitiationException ex) {
             logger.info("Failed accepting action {}: {}", recommendationId,

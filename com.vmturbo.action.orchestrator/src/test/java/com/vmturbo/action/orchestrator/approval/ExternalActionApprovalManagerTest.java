@@ -114,6 +114,7 @@ public class ExternalActionApprovalManagerTest {
         Mockito.when(readyAction.getMode()).thenReturn(ActionDTO.ActionMode.EXTERNAL_APPROVAL);
 
         Mockito.when(rejectedAction.getState()).thenReturn(ActionState.READY);
+        Mockito.when(acceptedAction.getState()).thenReturn(ActionState.READY);
         Mockito.when(rejectedAction.getId()).thenReturn(ACTION3);
         Mockito.when(rejectedAction.getAssociatedSettingsPolicies())
                 .thenReturn(Collections.singleton(122L));

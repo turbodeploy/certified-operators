@@ -433,7 +433,7 @@ public class Action implements ActionView {
                 .calculateActionModeAndExecutionSchedule(this, entitiesSnapshot);
             setActionMode(actionModeAndSchedule.getMode());
             schedule = actionModeAndSchedule.getSchedule();
-            workflowSettingsForState = actionModeCalculator.calculateWorkflowSettings(recommendation, entitiesSnapshot);
+            workflowSettingsForState = getWorkflowSettingsForState(entitiesSnapshot);
 
             try {
                 final long primaryEntity = ActionDTOUtil.getPrimaryEntityId(recommendation);
@@ -452,6 +452,23 @@ public class Action implements ActionView {
             setDescription(ActionDescriptionBuilder.buildActionDescription(entitiesSnapshot,
                actionTranslation.getTranslationResultOrOriginal()));
         }
+    }
+
+    private Map<ActionState, SettingProto.Setting> getWorkflowSettingsForState(
+            @Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot) {
+        final Optional<ActionDTO.Action> translatedRecommendation =
+                getActionTranslation().getTranslatedRecommendation();
+        final Map<ActionState, Setting> workflowSettingsForActionStates;
+        if (translatedRecommendation.isPresent()) {
+            workflowSettingsForActionStates =
+                    actionModeCalculator.calculateWorkflowSettings(translatedRecommendation.get(),
+                            entitiesSnapshot);
+        } else {
+            logger.error("Workflow settings weren't calculated for action with {} ID because "
+                    + "recommendation wasn't translated.", this::getId);
+            workflowSettingsForActionStates = Collections.emptyMap();
+        }
+        return workflowSettingsForActionStates;
     }
 
     /**
