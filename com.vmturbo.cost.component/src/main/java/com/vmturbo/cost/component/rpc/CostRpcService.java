@@ -253,7 +253,7 @@ public class CostRpcService extends CostServiceImplBase {
                 if (componentCost != null) {
                     afterCurrencyAmountByOid.put(id, componentCost.getAmount());
                 } else {
-                    logger.error("Projected costs could not be found for entity having oid {}." +
+                    logger.debug("Projected on demand rate could not be found for entity having oid {}." +
                             " This may result in the on demand rate not being displayed on the UI.", request.getOidsList());
                 }
             }
