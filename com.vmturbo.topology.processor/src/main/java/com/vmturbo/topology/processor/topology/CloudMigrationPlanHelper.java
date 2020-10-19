@@ -912,18 +912,6 @@ public class CloudMigrationPlanHelper {
             commSoldBuilder.setHistoricalPeak(HistoricalValues.newBuilder()
                     .setHistUtilization(histMaxIops).build());
         }
-        // For L&S in cloud-to-cloud migration, IOPS capacity of volume is used as
-        // demand for IOPS.
-        // If source demand is higher than the max of GP2 or Managed Premium,
-        // cap the capacity to the max value of the target tier to make sure it can
-        // be placed with GP2 or Managed Premium.
-        if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
-            if (isDestinationAws && commSoldBuilder.getCapacity() > GP2_IOPS_AMOUNT_MAX_CAPACITY) {
-                commSoldBuilder.setCapacity(GP2_IOPS_AMOUNT_MAX_CAPACITY);
-            } else if (!isDestinationAws && commSoldBuilder.getCapacity() > MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY) {
-                commSoldBuilder.setCapacity(MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY);
-            }
-        }
     }
 
     /**
@@ -1046,15 +1034,6 @@ public class CloudMigrationPlanHelper {
                     }
                     double historicalMaxIOP = getHistoricalMaxIOPSValue(commBoughtGrouping, entityOid,
                             sourceToProducerToMaxStorageAccess);
-                    if (!TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo)) {
-                        // Lift and Shift: cap the IOPS value to max value supported by the L&S tier if it exceeds the max value
-                        if (!isDestinationAws && historicalMaxIOP > MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY) {
-                            historicalMaxIOP = MANAGED_PREMIUM_IOPS_AMOUNT_MAX_CAPACITY;
-                        }
-                        if (isDestinationAws && historicalMaxIOP > GP2_IOPS_AMOUNT_MAX_CAPACITY) {
-                            historicalMaxIOP = GP2_IOPS_AMOUNT_MAX_CAPACITY;
-                        }
-                    }
                     commodityBoughtDTO = getHistoricalMaxIOPS(dtoBought, historicalMaxIOP);
                 } else {
                     commodityBoughtDTO = dtoBought.toBuilder();

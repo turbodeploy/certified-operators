@@ -3578,6 +3578,16 @@ public class TopologyConverter {
                 quantity /= Units.KIBI;
                 peakQuantity /= Units.KIBI;
             }
+            // Cloud migration lift and shift plans only considers storage amount in volume actions.
+            // M2 assigns storage access value based on the storage amount. Set storage access value
+            // to 0 in shopping list.
+            if (isCloudMigration && !isCloudResizeEnabled
+                    && (buyerEntityType == EntityType.VIRTUAL_VOLUME_VALUE
+                    || buyerEntityType == EntityType.VIRTUAL_MACHINE_VALUE)
+                    && commodityType == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE) {
+                quantity = 0;
+                peakQuantity = 0;
+            }
             builder.setQuantity(quantity).setPeakQuantity(peakQuantity);
             boughtTOs.add(builder.build());
         }
