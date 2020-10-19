@@ -4,8 +4,8 @@ MAINTAINER Endre Sara <endre.sara@turbonomic.com>
 # Required OpenShift Labels
 LABEL name="t8c-operator" \
       vendor="Turbonomic" \
-      version="v8.0.0" \
-      release="1" \
+      version="8" \
+      release="0" \
       summary="Turbonomic Platform Operator" \
       description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints." \
 ### Required labels above - recommended below

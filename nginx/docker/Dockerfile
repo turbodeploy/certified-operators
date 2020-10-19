@@ -4,8 +4,8 @@ MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 # Required OpenShift Labels
 LABEL name="nginx" \
       vendor="Turbonomic" \
-      version="7" \
-      release="1" \
+      version="8" \
+      release="0" \
       summary="nginx" \
       description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
 

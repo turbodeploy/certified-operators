@@ -22,8 +22,8 @@ ARG grafana_version
 # Required OpenShift Labels
 LABEL name="grafana" \
       vendor="Turbonomic" \
-      version="7" \
-      release="1" \
+      version="8" \
+      release="0" \
       summary="grafana" \
       description="Turbonomic Workload Automation for Multicloud simultaneously optimizes performance, compliance, and cost in real-time. Workloads are precisely resourced, automatically, to perform while satisfying business constraints."
 

@@ -104,13 +104,10 @@ data:
             VDCCommodity
             VMPMAccessCommodity
       ml-datastore:
-        influxdbHealthCheckIntervalSeconds: 60
         influxHost: influxdb
         influxPort: 8086
         influxUsername: root
         influxDatabaseName: metron
-        actionOrchestratorHost: action-orchestrator
-        marketHost: market
         gzipToInflux: false
         # Setting jitterEnabled to false OR metricJitter to 0 avoids any jitter.
         jitterEnabled: false
