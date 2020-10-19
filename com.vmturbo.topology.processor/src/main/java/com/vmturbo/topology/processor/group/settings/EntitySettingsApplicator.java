@@ -124,7 +124,9 @@ public class EntitySettingsApplicator {
                 new ProvisionApplicator(),
                 new ResizeApplicator(),
                 new RateOfResizeApplicator(),
-                new ScalingApplicator(),
+                new ScalingApplicator(ConfigurableActionSettings.CloudComputeScale),
+                new ScalingApplicator(ConfigurableActionSettings.CloudDBScale),
+                new ScalingApplicator(ConfigurableActionSettings.CloudDBServerScale),
                 new MoveCommoditiesFromProviderTypesApplicator(ConfigurableActionSettings.StorageMove,
                         TopologyDTOUtil.STORAGE_TYPES),
                 new VirtualMachineResizeVcpuApplicator(),
@@ -594,8 +596,8 @@ public class EntitySettingsApplicator {
      */
     private static class ScalingApplicator extends ActionModeSettingApplicator {
 
-        private ScalingApplicator() {
-            super(ConfigurableActionSettings.CloudComputeScale);
+        private ScalingApplicator(ConfigurableActionSettings setting) {
+            super(setting);
         }
         @Override
         protected void apply(@Nonnull final Builder entity, @Nonnull final ActionMode actionMode) {
