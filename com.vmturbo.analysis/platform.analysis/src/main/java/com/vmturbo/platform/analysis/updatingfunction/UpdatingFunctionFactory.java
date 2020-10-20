@@ -85,9 +85,7 @@ public final class UpdatingFunctionFactory {
             case STANDARD_DISTRIBUTION:
                 return STANDARD_DISTRIBUTION;
             case MM1_DISTRIBUTION:
-                return createMM1DistributionUpdatingFunction(updateFunctionTO
-                        .getMm1Distribution()
-                        .getDependentCommoditiesList());
+                return createMM1DistributionUpdatingFunction(updateFunctionTO.getMm1Distribution());
             case UPDATINGFUNCTIONTYPE_NOT_SET:
             default:
                 return null;
@@ -445,24 +443,29 @@ public final class UpdatingFunctionFactory {
      * Provision, projected = current x (N x capacity - N x VCPUUtil)/((N+1) x capacity - N x VCPUUtil) ^ elasticity
      * Suspension, projected = current x (N x capacity - N x VCPUUtil)/((N-1) x capacity - N x VCPUUtil) ^ elasticity
      *
-     * @param dependentCommodities a list dependent commodities required to compute MM1 distribution
+     * @param mm1Distribution the M/M/1 distribution definition required to compute the MM1 updating function
      * @return {@link UpdatingFunction}
      */
     public static @Nonnull
-    UpdatingFunction createMM1DistributionUpdatingFunction(List<MM1Commodity> dependentCommodities) {
+    UpdatingFunction createMM1DistributionUpdatingFunction(
+            @Nonnull final UpdatingFunctionTO.MM1Distribution mm1Distribution) {
+        final List<MM1Commodity> dependentCommodities = mm1Distribution.getDependentCommoditiesList();
+        final float minDecreasePct = mm1Distribution.getMinDecreasePct();
         String key = String.format(
-                "%s-%s",
+                "%s-%s-%f",
                 MM1_DF,
                 dependentCommodities.stream()
                         .map(mm1Comm -> String.format(
                                 "%.2f-%d",
                                 mm1Comm.getElasticity(),
                                 mm1Comm.getCommodityType()))
-                        .collect(Collectors.joining("-")));
+                        .collect(Collectors.joining("-")),
+                minDecreasePct);
         return mm1Cache.computeIfAbsent(
                 key,
                 k -> new MM1Distribution()
-                        .setDependentCommodities(dependentCommodities));
+                        .setDependentCommodities(dependentCommodities)
+                        .setMinDecreasePct(minDecreasePct));
     }
 
     // when a user by mistake sets addComm as the updatingFn, we iterate over all the consumers and sum up the
@@ -486,7 +489,17 @@ public final class UpdatingFunctionFactory {
      */
     public static boolean isValidDistributionFunction(UpdatingFunction distributionFunction) {
         return distributionFunctions.contains(distributionFunction)
-                || (distributionFunction != null && mm1Cache.containsValue(distributionFunction));
+                || isMM1DistributionFunction(distributionFunction);
+    }
+
+    /**
+     * Check if an updating function is MM1 distribution function.
+     *
+     * @param distributionFunction the updating function to check
+     * @return if the input {@link UpdatingFunction} is an MM1 distribution function
+     */
+    public static boolean isMM1DistributionFunction(UpdatingFunction distributionFunction) {
+        return distributionFunction != null && mm1Cache.containsValue(distributionFunction);
     }
 
     /**

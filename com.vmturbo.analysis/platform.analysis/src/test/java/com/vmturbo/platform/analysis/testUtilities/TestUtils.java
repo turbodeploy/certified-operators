@@ -45,6 +45,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRatioDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.MM1Commodity;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.MM1Distribution;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
@@ -211,14 +212,14 @@ public class TestUtils {
             }
             if (commSpec.equals(RESPONSE_TIME)) {
                 commSold.getSettings().setUpdatingFunction(UpdatingFunctionFactory
-                        .createMM1DistributionUpdatingFunction(Arrays
-                                .asList(MM1Commodity.newBuilder()
-                                                .setCommodityType(VCPU.getType())
-                                                .build(),
-                                        MM1Commodity.newBuilder()
+                        .createMM1DistributionUpdatingFunction(MM1Distribution.newBuilder()
+                                        .addDependentCommodities(MM1Commodity.newBuilder()
+                                                .setCommodityType(VCPU.getType()))
+                                        .addDependentCommodities(MM1Commodity.newBuilder()
                                                 .setCommodityType(VMEM.getType())
-                                                .setElasticity(0.0F)
-                                                .build())));
+                                                .setElasticity(0.0F))
+                                        .build()))
+                        .setPriceFunction(Cache.createFiniteStandardWeightedPriceFunction(1.0));
             }
             if (commSpec.equals(Q16_VCPU)) {
                 commSold.getSettings().setUpdatingFunction(UpdatingFunctionFactory

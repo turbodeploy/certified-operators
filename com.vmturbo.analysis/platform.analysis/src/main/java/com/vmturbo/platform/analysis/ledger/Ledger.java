@@ -12,16 +12,17 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import com.vmturbo.commons.Pair;
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.google.common.collect.Sets;
-
+import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -33,6 +34,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.EdeCommon;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
 
 /**
  * A bookkeeper of the expenses and revenues of all the traders and the commodities that are
@@ -268,25 +270,36 @@ public class Ledger {
                                 (sellerMinDesUtil + sellerMaxDesUtil) / 2);
 
         calculateExpensesForSeller(economy, seller);
+        final CommoditySold topComm = topSellingComm[0];
+        if (topComm == null) {
+            return new MostExpensiveCommodityDetails(null, topRev[0], 0.0, null);
+        }
         return new MostExpensiveCommodityDetails(
-                        topSellingComm[0] == null ? null
-                                        : seller.getBasketSold()
-                                                        .get(seller.getCommoditiesSold()
-                                                                        .indexOf(topSellingComm[0])),
-                        topRev[0]);
+                seller.getBasketSold().get(seller.getCommoditiesSold().indexOf(topComm)),
+                topRev[0],
+                topComm.getQuantity(),
+                topComm.getSettings().getUpdatingFunction());
     }
 
-    /*
-     * Contains most expensive commodity specification and related revenues.
+    /**
+     * MostExpensiveCommodityDetails contains most expensive commodity specification and
+     * related revenues and quantities.
      */
-    public class MostExpensiveCommodityDetails {
+    public static class MostExpensiveCommodityDetails {
 
         CommoditySpecification commSpec;
         double revenues;
+        double quantity;
+        UpdatingFunction updatingFunction;
 
-        public MostExpensiveCommodityDetails(CommoditySpecification commoditySpec, double topRevenue) {
+        MostExpensiveCommodityDetails(CommoditySpecification commoditySpec,
+                                      double topRevenue,
+                                      double topQuantity,
+                                      @Nullable UpdatingFunction updatingFunc) {
             commSpec = commoditySpec;
             revenues = topRevenue;
+            quantity = topQuantity;
+            updatingFunction = updatingFunc;
         }
 
         public CommoditySpecification getCommoditySpecification() {
@@ -295,6 +308,14 @@ public class Ledger {
 
         public double getRevenues() {
             return revenues;
+        }
+
+        public double getQuantity() {
+            return quantity;
+        }
+
+        @Nullable public UpdatingFunction getUpdatingFunction() {
+            return updatingFunction;
         }
     }
     /**

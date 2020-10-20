@@ -33,6 +33,7 @@ public class MM1Distribution implements UpdatingFunction {
      * A factor to cap the usage of a trader below the capacity during distribution.
      */
     private static final double CAPACITY_FACTOR = 0.99F;
+    private float minDecreasePct;
 
     /**
      * Set the dependent commodities for the MM1 distribution function.
@@ -44,6 +45,26 @@ public class MM1Distribution implements UpdatingFunction {
     public MM1Distribution setDependentCommodities(List<MM1Commodity> dependentCommodities) {
         this.dependentCommodities = dependentCommodities;
         return this;
+    }
+
+    /**
+     * Set the minimum desired quantity drop percentage for the MM1 distribution function.
+     *
+     * @param minDecreasePct the minimum desired quantity drop percentage for the MM1 distribution
+     * @return the {@link MM1Distribution} instance
+     */
+    public MM1Distribution setMinDecreasePct(final float minDecreasePct) {
+        this.minDecreasePct = minDecreasePct;
+        return this;
+    }
+
+    /**
+     * Get the minimum desired quantity drop percentage for the MM1 distribution function.
+     *
+     * @return the minimum desired quantity drop percentage for the MM1 distribution function
+     */
+    public float getMinDecreasePct() {
+        return minDecreasePct;
     }
 
     /**

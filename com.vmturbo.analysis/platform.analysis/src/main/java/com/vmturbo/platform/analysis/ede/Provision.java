@@ -4,6 +4,7 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -18,7 +19,6 @@ import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -27,6 +27,8 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.ledger.Ledger.MostExpensiveCommodityDetails;
+import com.vmturbo.platform.analysis.updatingfunction.MM1Distribution;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.ProvisionUtils;
 
 /*
@@ -41,7 +43,7 @@ import com.vmturbo.platform.analysis.utilities.ProvisionUtils;
  */
 public class Provision {
 
-    static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     /*
      * The bundle contains information about the mostProfitableTrader, most profitable commodity and
@@ -50,27 +52,46 @@ public class Provision {
     private static class MostProfitableBundle {
 
         Trader mostProfitableTrader_;
-        double mostProfitableCommRev_ = 0;
-        CommoditySpecification mostProfitableComm_;
+        MostExpensiveCommodityDetails mostExpensiveCommodityDetails_;
+        float minDecreasePct_;
 
-        public MostProfitableBundle(Trader mostProfitableTrader, double mostProfitableCommRev,
-                                    CommoditySpecification mostProfitableComm) {
+        MostProfitableBundle(Trader mostProfitableTrader,
+                             MostExpensiveCommodityDetails mostExpensiveCommodityDetails) {
             super();
             mostProfitableTrader_ = mostProfitableTrader;
-            mostProfitableCommRev_ = mostProfitableCommRev;
-            mostProfitableComm_ = mostProfitableComm;
+            mostExpensiveCommodityDetails_ = mostExpensiveCommodityDetails;
+            setMinDecreasePct();
         }
 
-        public Trader getMostProfitableTrader() {
+        Trader getMostProfitableTrader() {
             return mostProfitableTrader_;
         }
 
-        public double getMostProfitableCommRev() {
-            return mostProfitableCommRev_;
+        MostExpensiveCommodityDetails getMostExpensiveCommodityDetails() {
+            return mostExpensiveCommodityDetails_;
         }
 
-        public CommoditySpecification getMostProfitableCommoditySpecification() {
-            return mostProfitableComm_;
+        /**
+         * Set the minimum desired quantity drop percentage.
+         * This is only needed for commodity with MM1 distribution function.
+         */
+        void setMinDecreasePct() {
+            if (mostExpensiveCommodityDetails_ == null) {
+                return;
+            }
+            minDecreasePct_ = Optional.ofNullable(mostExpensiveCommodityDetails_.getUpdatingFunction())
+                    .filter(UpdatingFunctionFactory::isMM1DistributionFunction)
+                    .map(MM1Distribution.class::cast)
+                    .map(MM1Distribution::getMinDecreasePct)
+                    .orElse(0.0F);
+        }
+
+        /**
+         * Get the minimum desired quantity drop percentage.
+         * @return the minimum desired quantity drop percentage
+         */
+        float getMinDecreasePct() {
+            return minDecreasePct_;
         }
     }
 
@@ -124,7 +145,9 @@ public class Provision {
                     // break if there is no seller that is eligible for cloning in the market
                     MostProfitableBundle pb = findBestTraderToEngage(market, ledger, economy);
                     Trader mostProfitableTrader = pb.getMostProfitableTrader();
-                    if (mostProfitableTrader == null) {
+                    MostExpensiveCommodityDetails mostExpensiveCommodityDetails =
+                            pb.getMostExpensiveCommodityDetails();
+                    if (mostProfitableTrader == null || mostExpensiveCommodityDetails == null) {
                         break;
                     }
                     boolean isDebugMostProfitableTrader = mostProfitableTrader.isDebugEnabled();
@@ -147,7 +170,7 @@ public class Provision {
                             if (isEligibleForActivation(seller, mostProfitableTrader, economy, market)) {
                                 provisionAction = new Activate(economy, seller, market.getBasket(),
                                         mostProfitableTrader,
-                                        pb.getMostProfitableCommoditySpecification());
+                                        mostExpensiveCommodityDetails.getCommoditySpecification());
                                 actions.add(provisionAction.take());
                                 provisionedTrader = ((Activate)provisionAction).getTarget();
                                 try {
@@ -167,8 +190,7 @@ public class Provision {
 
                                     actions.addAll(placementAfterProvisionAction(economy, market, mostProfitableTrader));
 
-                                    if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
-                                            provisionedTrader, pb.getMostProfitableCommRev())) {
+                                    if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, pb, provisionedTrader)) {
                                         if (logger.isTraceEnabled() || isDebugMostProfitableTrader || isDebugProvisionedTrader) {
                                             logger.info("Roll back activation of " + provisionedTraderDebugInfo
                                                     + ", because it does not reduce ROI of "
@@ -193,7 +215,7 @@ public class Provision {
                     if (!successfulEvaluation) {
                         // provision a new trader
                         provisionAction = new ProvisionBySupply(economy,
-                                mostProfitableTrader, pb.getMostProfitableCommoditySpecification());
+                                mostProfitableTrader, mostExpensiveCommodityDetails.getCommoditySpecification());
                         actions.add(provisionAction.take());
                         provisionedTrader = ((ProvisionBySupply)provisionAction).getProvisionedSeller();
                         try {
@@ -221,10 +243,8 @@ public class Provision {
                                             .getProvisionedSeller());
                                 }
                             });
-
                             actions.addAll(placementAfterProvisionAction(economy, market, mostProfitableTrader));
-                            if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
-                                    provisionedTrader, pb.getMostProfitableCommRev())) {
+                            if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, pb, provisionedTrader)) {
                                 if (logger.isTraceEnabled() || isDebugMostProfitableTrader || isDebugProvisionedTrader) {
                                     logger.info("Roll back provision of " + provisionedTraderDebugInfo
                                             + ", because it does not reduce ROI of "
@@ -248,7 +268,7 @@ public class Provision {
                             ((provisionAction instanceof Activate) ? "ACTIVATION of " : "PROVISION of ")
                             + provisionedTrader.getDebugInfoNeverUseInCode()
                             + " due to commodity : "
-                            + pb.getMostProfitableCommoditySpecification().getDebugInfoNeverUseInCode());
+                            + mostExpensiveCommodityDetails.getCommoditySpecification().getDebugInfoNeverUseInCode());
                     ((ActionImpl)provisionAction).setImportance(oldRevenue - ledger
                             .getTraderIncomeStatements().get(mostProfitableTrader
                                     .getEconomyIndex()).getRevenues());
@@ -256,7 +276,7 @@ public class Provision {
                     if (logger.isTraceEnabled() || isDebugMostProfitableTrader || isDebugProvisionedTrader) {
                         logger.info("New ROI of " + mostProfitableTraderDebugInfo + " is "
                                 + ledger.getTraderIncomeStatements()
-                                .get(mostProfitableTrader.getEconomyIndex()).getMaxDesiredROI()
+                                .get(mostProfitableTrader.getEconomyIndex()).getROI()
                                 + ".");
                     }
 
@@ -340,16 +360,14 @@ public class Provision {
      * implies eligibility to clone
      * @param ledger - the ledger that holds the incomeStatement of the trader whose ROI is checked
      * @param economy - that the market is a part of
-     *
      * @return the {@link MostProfitableBundle} containing the mostProfitableTrader if there is one that
      * can clone and NULL otherwise
      */
-    public static MostProfitableBundle findBestTraderToEngage(Market market, Ledger ledger, Economy economy) {
+    private static MostProfitableBundle findBestTraderToEngage(Market market, Ledger ledger, Economy economy) {
 
         Trader mostProfitableTrader = null;
         double roiOfRichestTrader = 0;
-        double mostProfitableCommRev = 0;
-        CommoditySpecification commSpec = null;
+        MostExpensiveCommodityDetails mostProfitableCommodity = null;
         // consider only sellers available for placements. Considering a seller with cloneable false
         // is going to fail acceptanceCriteria since none its customers will move
         for (Trader seller : market.getActiveSellersAvailableForPlacement()) {
@@ -374,13 +392,12 @@ public class Provision {
                 if (sellerCustomersInCurrentMarket.size() > 0
                         && (roiOfTrader > traderIS.getMaxDesiredROI())
                         && (roiOfTrader > roiOfRichestTrader)
-                        && (seller.getCustomers().stream().anyMatch(sl -> sl.isMovable())
+                        && (seller.getCustomers().stream().anyMatch(ShoppingList::isMovable)
                         || (seller.getCustomers().stream().allMatch(sl ->
                         sl.getBuyer().getSettings().isGuaranteedBuyer())))) {
                     mostProfitableTrader = seller;
                     roiOfRichestTrader = roiOfTrader;
-                    mostProfitableCommRev = mostExpensiveCommodity.getRevenues();
-                    commSpec = mostExpensiveCommodity.getCommoditySpecification();
+                    mostProfitableCommodity = mostExpensiveCommodity;
                 } else {
                     if (logger.isTraceEnabled() || isDebugTrader) {
                         if (roiOfTrader <= traderIS.getMaxDesiredROI()) {
@@ -393,17 +410,14 @@ public class Provision {
                             logger.info("{" + traderDebugInfo + "} is not the best trader to"
                                     + " engage because its ROI (" + roiOfTrader + ") is not"
                                     + " bigger than the ROI od the richest trader so far ("
-                                    + traderIS.getMaxDesiredROI() + ").");
+                                    + roiOfRichestTrader + ").");
                         }
-                        if (seller.getCustomers().stream().allMatch(sl -> !sl.isMovable())) {
+                        if (seller.getCustomers().stream().noneMatch(ShoppingList::isMovable)
+                                && seller.getCustomers().stream().anyMatch(sl ->
+                                        !sl.getBuyer().getSettings().isGuaranteedBuyer())) {
                             logger.info("{" + traderDebugInfo + "} is not the best trader to"
-                                    + " engage because it has no movable customer.");
-                        }
-                        if (seller.getCustomers().stream().anyMatch(sl ->
-                                !sl.getBuyer().getSettings().isGuaranteedBuyer())) {
-                            logger.info("{" + traderDebugInfo + "} is not the best trader to"
-                                    + " engage because there is one customer which is not a"
-                                    + " guaranteed buyer.");
+                                    + " engage because it has no movable customer and none of them"
+                                    + " is a guaranteed buyer.");
                         }
                     }
                 }
@@ -414,38 +428,78 @@ public class Provision {
                 }
             }
         }
-        return new MostProfitableBundle(mostProfitableTrader, mostProfitableCommRev, commSpec);
+        return new MostProfitableBundle(mostProfitableTrader, mostProfitableCommodity);
     }
 
     /**
      * Calculate the current ROI of the  <b>mostProfitableTrader</b>. Return true if this has
-     * decreased compared to <b>origROI</b>
+     * decreased compared to <b>origROI</b>. If the most expensive commodity uses a quantity drop
+     * based stop criteria, use that criteria instead of the ROI drop based stop criteria.
      *
-     * @param economy - the {@link Economy} where <b>mostProfitableTrader</b> participates in
-     * @param ledger - the ledger that holds the incomeStatement of the trader whose ROI is checked
-     * @param origRoI - the RoI of the mostProfitableTrader before placements
-     * @param mostProfitableTrader - {@link Trader} that had the highest RoI and was selected to be
-     * cloned
-     * @param provisionedTrader - {@link Trader} that has been provisioned in this economy
-     * @param origMostProfitableCommRev - is the highest revenue generated by a single revenue
-     *
-     * @return true - if (a) the current ROI of the <b>mostProfitableTrader</b> is less than or
-     * equal to the <b>origROI</b> and (b) and the newly provisioned trader has customers
-     *
+     * @param economy              - the {@link Economy} where <b>mostProfitableTrader</b> participates in
+     * @param ledger               - the ledger that holds the incomeStatement of the trader whose ROI is checked
+     * @param origRoI              - the RoI of the mostProfitableTrader before placements
+     * @param mostProfitableBundle - {@link MostProfitableBundle} that contains the trader with the
+     *                             highest RoI and was selected to be cloned
+     * @param provisionedTrader    - {@link Trader} that has been provisioned in this economy
+     * @return true - if (a) the current ROI of the <b>mostProfitableTrader</b> is less than
+     * the <b>origROI</b> and (b) and the newly provisioned trader has customers. If the most
+     * expensive commodity uses a quantity drop based stop criteria, return true if the quantity
+     * of the most expensive commodity after provision is still the same, and the quantity has
+     * dropped by at least minDecreasePct.
      */
-    public static boolean evaluateAcceptanceCriteria(Economy economy, Ledger ledger, double origRoI
-            , Trader mostProfitableTrader
-            , Trader provisionedTrader
-            , double origMostProfitableCommRev) {
+    private static boolean evaluateAcceptanceCriteria(Economy economy,
+                                                      Ledger ledger,
+                                                      double origRoI,
+                                                      MostProfitableBundle mostProfitableBundle,
+                                                      Trader provisionedTrader) {
+        // Make sure at least one buyer has moved into the new trader
+        if (provisionedTrader.getCustomers().isEmpty()) {
+            return false;
+        }
 
-        double newMostProfitableCommRev = ledger
-                .calculateExpRevForTraderAndGetTopRevenue(economy, mostProfitableTrader)
-                .getRevenues();
-        // check if the RoI of the mostProfitableTrader after cloning is less than before cloning
-        // and that at least one nonGuaranteedBuyer has moved into the new host
-        return ledger.getTraderIncomeStatements().get(mostProfitableTrader.getEconomyIndex())
-                .getROI() < origRoI && !provisionedTrader.getCustomers().isEmpty() &&
-                origMostProfitableCommRev > newMostProfitableCommRev;
+        // Get the most profitable commodity's revenue and quantity of the most
+        // profitable trader before the provision or activation
+        Trader topTrader = mostProfitableBundle.getMostProfitableTrader();
+        MostExpensiveCommodityDetails origTopCommDetails =
+                mostProfitableBundle.getMostExpensiveCommodityDetails();
+        double origTopCommRev = origTopCommDetails.getRevenues();
+        double origTopCommQuantity = origTopCommDetails.getQuantity();
+        // Get the most profitable commodity's revenue and quantity of the most
+        // profitable trader after a new trader is provisioned or activated
+        MostExpensiveCommodityDetails newTopCommDetails =
+                ledger.calculateExpRevForTraderAndGetTopRevenue(economy, topTrader);
+        double newTopCommRev = newTopCommDetails.getRevenues();
+        double newTopCommQuantity = newTopCommDetails.getQuantity();
+        double newRoI = ledger.getTraderIncomeStatements()
+                .get(topTrader.getEconomyIndex())
+                .getROI();
+        if (logger.isTraceEnabled()) {
+            logger.info("Evaluating provision: ROI of {}: original {}, new {}. "
+                            + "Revenue: original {}, new {}.",
+                    topTrader.getDebugInfoNeverUseInCode(), origRoI, newRoI,
+                    origTopCommRev, newTopCommRev);
+        }
+        // Check quantity drop based stop criteria.
+        // For certain commodities like Response Time, we use MM1 distribution after a provision.
+        // We want to make sure that, in addition to RoI and Revenue drop, there is also a minimal
+        // drop of quantity for the most top commodity to justify the provision.
+        if (mostProfitableBundle.getMinDecreasePct() > 0.0
+                && origTopCommDetails.getCommoditySpecification()
+                == newTopCommDetails.getCommoditySpecification()) {
+            final double desiredTopCommQuantity = origTopCommQuantity
+                    - origTopCommQuantity * mostProfitableBundle.getMinDecreasePct();
+            if (logger.isTraceEnabled()) {
+                logger.info("M/M/1: Quantity of {}: original {}, new {}, desired {}",
+                        origTopCommDetails.getCommoditySpecification().getDebugInfoNeverUseInCode(),
+                        origTopCommQuantity, newTopCommQuantity, desiredTopCommQuantity);
+            }
+            if (newTopCommQuantity >= desiredTopCommQuantity) {
+                return false;
+            }
+        }
+        // Check RoI drop based stop criteria
+        return newRoI < origRoI && newTopCommRev < origTopCommRev;
     }
 
     /**
@@ -457,8 +511,8 @@ public class Provision {
      *                  that need to be rolledBack
      *
      */
-    public static void rollBackActionAndUpdateLedger(Ledger ledger,
-                                                     Trader provisionedTrader, List<@NonNull Action> actions, Action provisionAction) {
+    private static void rollBackActionAndUpdateLedger(Ledger ledger,
+                                                      Trader provisionedTrader, List<@NonNull Action> actions, Action provisionAction) {
         // remove IncomeStatement from ledger and rollback actions
         if (provisionAction instanceof ProvisionBySupply) {
             Lists.reverse(((ProvisionBySupply)provisionAction).getSubsequentActions()).forEach(action -> {
@@ -485,7 +539,7 @@ public class Provision {
      * @return true if the trader is eligible for activation, false otherwise
      */
     @VisibleForTesting
-    protected static boolean isEligibleForActivation(
+    private static boolean isEligibleForActivation(
             Trader inactiveTrader, Trader mostProfitableTrader, Economy economy, Market m) {
         Set<ShoppingList> slsOnMostProfitableTrader = mostProfitableTrader.getCustomers(m);
         for (ShoppingList sl : slsOnMostProfitableTrader) {

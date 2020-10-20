@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -31,8 +32,12 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.ede.Provision;
+import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
+import com.vmturbo.platform.analysis.updatingfunction.MM1Distribution;
+import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 
 /**
  * A test case for the {@link ProvisionBySupply} class.
@@ -566,6 +571,70 @@ public class ProvisionBySupplyTest {
         assertEquals(expected4, sl2.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
         assertEquals(expected4, c1.getCommoditySold(TestUtils.VCPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
         assertEquals(expected4, c2.getCommoditySold(TestUtils.VCPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Test provision by supply with MM1 distribution and a 50% stop condition.
+     *
+     * <p>The app sells 300(ms) response time. The service requests 20000(ms) response time.
+     * The app has a max desired util of 0.75 and min desired util 0f 0.65.
+     * The response time commodity has MM1Distribution with one dependent VCPU commodity of default
+     * elasticity 1.0, and a minimum desired quantity drop percentage of 0.5 (i.e., 50%).
+     * The container sells 575(MHz) VCPU. The application requests 515(MHz) VCPU.
+     * After one provision, the service should request 1890(ms) response time.
+     * After another provision, the service should request 992(ms) response time, which is larger
+     * than the desired response time of 1890 * 0.5 = 945, so the second provision should be rejected.
+     * The overall number of provisions should be 2, i.e., one application provision, and one
+     * container provision due to providerMustClone.
+     */
+    @Test
+    public void testProvisionBySupplyWithMM1DistributionStopCondition() {
+        Economy e = new Economy();
+        // Create svc
+        Trader svc = TestUtils.createTrader(e, TestUtils.SERVICE_TYPE, Collections.singletonList(0L),
+                Collections.emptyList(), new double[]{}, true, true);
+        svc.setDebugInfoNeverUseInCode("service");
+        // Create app
+        Trader app = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app.setDebugInfoNeverUseInCode("application");
+        app.getSettings()
+                .setProviderMustClone(true)
+                .setMaxDesiredUtil(0.75)
+                .setMaxDesiredUtil(0.65);
+        // Set minimum desired quantity drop percentage to be 50%
+        Basket bSvc = new Basket(TestUtils.RESPONSE_TIME);
+        Optional.ofNullable(app.getCommoditySold(bSvc.get(0)).getSettings().getUpdatingFunction())
+                .filter(UpdatingFunctionFactory::isMM1DistributionFunction)
+                .map(MM1Distribution.class::cast).ifPresent(uf -> uf.setMinDecreasePct(0.5F));
+        // Create shopping list for svc, and places it on app
+        ShoppingList slSvc = e.addBasketBought(svc, bSvc);
+        TestUtils.moveSlOnSupplier(e, slSvc, app, new double[]{20000});
+        // Create shopping list for app
+        Basket bApp = new Basket(TestUtils.VCPU, TestUtils.VMEM);
+        ShoppingList slApp = e.addBasketBought(app, bApp);
+        // Create container
+        Trader container = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        container.setDebugInfoNeverUseInCode("container");
+        // Place app on container
+        TestUtils.moveSlOnSupplier(e, slApp, container, new double[]{515, 256});
+        // Populate market
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+        Ledger ledger = new Ledger(e);
+        List<Action> actions = Provision.provisionDecisions(e, ledger);
+        // Two actions (app clone, and container clone)
+        assertEquals(2, actions.size());
+        assertEquals(TestUtils.APP_TYPE, actions.get(0).getActionTarget().getType());
+        assertEquals(TestUtils.CONTAINER_TYPE, actions.get(1).getActionTarget().getType());
+        // Provision once 20000 -> 1890
+        // Provision twice 1890 -> 992 > (1890 * 0.5 = 945), rejected
+        final double expected = 20000D * (575D - 515D) / (575D * 2 - 515D);
+        assertEquals(expected, actions.get(0).getActionTarget().getCustomers().get(0).getQuantity(0),
+                TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected, slSvc.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**

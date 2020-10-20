@@ -65,6 +65,10 @@ message UpdatingFunctionTO {
     // the Response Time commodity, and the dependent commodity is VCPU.
     message MM1Distribution {
         repeated MM1Commodity dependent_commodities = 1;
+        // The min_decrease_pct is the minimum desired percentage drop of quantity after a provision.
+        // If after a provision, the percentage drop of quantity is not larger than min_decrease_pct,
+        // then the provision will be rolled back. Default to 0.2, i.e., 20%.
+        optional float min_decrease_pct = 2 [default = 0.2];
     }
 
     // Which one of the available functions this message contains.
