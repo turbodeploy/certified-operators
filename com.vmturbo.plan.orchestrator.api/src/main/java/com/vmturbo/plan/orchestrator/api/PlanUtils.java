@@ -14,6 +14,7 @@ public class PlanUtils {
      * Check if the currently-logged-in user can access the specified plan. Access is allowed if:
      *   * There is no user in the calling context. (this implies a system user)
      *   * The current user is an administrator. Administrators can access all plans.
+     *   * The current user is a site administrator. Site administrators can access all plans.
      *   * The current user is the creator of the plan, as per the {@link PlanInstance#getCreatedByUser()} field.
      * @param planInstance the plan instance to check.
      * @return true, if access should be allowed. false if not.
@@ -30,7 +31,10 @@ public class PlanUtils {
         // address OM-44445 (more comprehensive treatment of "System" users)
         Optional<String> userId = UserContextUtils.getCurrentUserId();
         Optional<Boolean> isAdmin = UserContextUtils.currentUserHasRole(SecurityConstant.ADMINISTRATOR);
-        boolean isDefinitelyNotAdmin = ! isAdmin.orElse(true);
+        Optional<Boolean> isSiteAdmin =
+            UserContextUtils.currentUserHasRole(SecurityConstant.SITE_ADMIN);
+
+        boolean isDefinitelyNotAdmin = ! isAdmin.orElse(true) && ! isSiteAdmin.orElse(true);
         if (isDefinitelyNotAdmin && userId.isPresent()) {
             // check access
             if (! planInstance.getCreatedByUser().equalsIgnoreCase(userId.get())) {

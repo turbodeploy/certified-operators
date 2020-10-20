@@ -13,6 +13,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
@@ -108,6 +109,27 @@ public class PlanUtilsTest {
                 .setStatus(PlanStatus.READY)
                 .build();
 
+        assertTrue(PlanUtils.canCurrentUserAccessPlan(planInstance));
+    }
+
+    /**
+     * Tests that a site administrator can access plans from other users.
+     */
+    @Test
+    public void testSiteAdminAccessPlan() {
+        // verify that an admin user can access a plan they did not create
+        final PlanInstance planInstance = PlanInstance.newBuilder()
+            .setPlanId(123)
+            .setCreatedByUser("2")
+            .setStatus(PlanStatus.READY)
+            .build();
+
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+            new AuthUserDTO(null, "admin", "pass", "10.10.10.10",
+                "1", "token", ImmutableList.of(SecurityConstant.SITE_ADMIN), null),
+            "admin000",
+            Collections.emptySet());
+        SecurityContextHolder.getContext().setAuthentication(auth);
         assertTrue(PlanUtils.canCurrentUserAccessPlan(planInstance));
     }
 }
