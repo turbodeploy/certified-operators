@@ -114,10 +114,12 @@ public class CompoundMove extends ActionImpl {
             @Nonnull Map<ShoppingList, List<CommodityContext>> slToCommodityContextsMap) {
         super(economy);
 
-        checkArgument(shoppingLists.size() == destinations.size(), "shoppingLists.size() = "
-                    + shoppingLists.size() + ", destinations.size() = " + destinations.size());
-        checkArgument(shoppingLists.size() == sources.size(), "shoppingLists.size() = "
-                    + shoppingLists.size() + ", sources.size() = " + sources.size());
+        checkArgument(shoppingLists.size() == destinations.size(),
+                "shoppingLists.size() = %s, destinations.size() = %s",
+                    shoppingLists.size(), destinations.size());
+        checkArgument(shoppingLists.size() == sources.size(),
+                "shoppingLists.size() = %s, sources.size() = %s",
+                    shoppingLists.size(), sources.size());
         @NonNull List<@NonNull Move> moves = new ArrayList<>();
 
         Iterator<ShoppingList> shoppingListIter = shoppingLists.iterator();

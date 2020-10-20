@@ -231,9 +231,11 @@ public final class TraderWithSettings extends Trader implements TraderSettings {
     @Override
     @Deterministic
     public @NonNull TraderWithSettings setMaxDesiredUtil(double maxDesiredUtilization) {
-        checkArgument(maxDesiredUtilization <= 1.0, "maxDesiredUtilization = " + maxDesiredUtilization);
+        checkArgument(maxDesiredUtilization <= 1.0,
+                "maxDesiredUtilization = %s", maxDesiredUtilization);
         checkArgument(minDesiredUtilization_ <= maxDesiredUtilization,
-            "minDesiredUtilization_ = " + minDesiredUtilization_ + " maxDesiredUtilization = " + maxDesiredUtilization);
+            "minDesiredUtilization_ = %s  maxDesiredUtilization = %s",
+                minDesiredUtilization_, maxDesiredUtilization);
         maxDesiredUtilization_ = maxDesiredUtilization;
         return this;
     }
@@ -241,9 +243,11 @@ public final class TraderWithSettings extends Trader implements TraderSettings {
     @Override
     @Deterministic
     public @NonNull TraderWithSettings setMinDesiredUtil(double minDesiredUtilization) {
-        checkArgument(0.0 <= minDesiredUtilization, "minDesiredUtilization = " + minDesiredUtilization);
+        checkArgument(0.0 <= minDesiredUtilization,
+                "minDesiredUtilization = %s", minDesiredUtilization);
         checkArgument(minDesiredUtilization <= maxDesiredUtilization_,
-            "minDesiredUtilization = " + minDesiredUtilization + " maxDesiredUtilization_ = " + maxDesiredUtilization_);
+            "minDesiredUtilization = %s maxDesiredUtilization_ = %s",
+                minDesiredUtilization, maxDesiredUtilization_);
         minDesiredUtilization_ = minDesiredUtilization;
         return this;
     }
@@ -304,8 +308,7 @@ public final class TraderWithSettings extends Trader implements TraderSettings {
     @Override
     @Deterministic
     public @NonNull TraderWithSettings setQuoteFactor(double quoteFactor) {
-        checkArgument(quoteFactor > 0.0, "quoteFactor = " + quoteFactor);
-        checkArgument(quoteFactor <= 1.0, "quoteFactor = " + quoteFactor);
+        checkArgument(quoteFactor > 0.0 && quoteFactor <= 1.0, "quoteFactor = %s", quoteFactor);
         quoteFactor_ = quoteFactor;
         return this;
     }

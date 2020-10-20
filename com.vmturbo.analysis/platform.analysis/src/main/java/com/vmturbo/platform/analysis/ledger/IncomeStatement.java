@@ -71,7 +71,7 @@ public class IncomeStatement {
      * @see #getExpenses()
      */
     protected @NonNull IncomeStatement setExpenses(double expenses) {
-        checkArgument(expenses >= 0, "expenses = " + expenses);
+        checkArgument(expenses >= 0, "expenses = %s", expenses);
         expenses_ = expenses;
         return this;
     }
@@ -103,7 +103,7 @@ public class IncomeStatement {
      * @see #getRevenues()
      */
     protected @NonNull IncomeStatement setRevenues(double revenues) {
-        checkArgument(revenues >= 0, "revenues = " + revenues);
+        checkArgument(revenues >= 0, "revenues = %s", revenues);
         revenues_ = revenues;
         return this;
     }
@@ -139,7 +139,7 @@ public class IncomeStatement {
      * @see #getMinDesiredExpenses()
      */
     protected @NonNull IncomeStatement setMinDesiredExpenses(double minDesiredExpenses) {
-        checkArgument(minDesiredExpenses >= 0, "minDesiredExpenses = " + minDesiredExpenses);
+        checkArgument(minDesiredExpenses >= 0, "minDesiredExpenses = %s", minDesiredExpenses);
         minDesiredExpenses_ = minDesiredExpenses;
         return this;
     }
@@ -176,7 +176,7 @@ public class IncomeStatement {
      * @see #getMaxDesiredExpenses()
      */
     protected @NonNull IncomeStatement setMaxDesiredExpenses(double maxDesiredExpenses) {
-        checkArgument(maxDesiredExpenses >= 0, "maxDesiredExpenses = " + maxDesiredExpenses);
+        checkArgument(maxDesiredExpenses >= 0, "maxDesiredExpenses = %s", maxDesiredExpenses);
         maxDesiredExpenses_ = maxDesiredExpenses;
         return this;
     }
@@ -211,7 +211,7 @@ public class IncomeStatement {
      * @see #getMinDesiredRevenues()
      */
     protected @NonNull IncomeStatement setMinDesiredRevenues(double minDesiredRevenues) {
-        checkArgument(minDesiredRevenues >= 0, "minDesiredRevenues = "+ minDesiredRevenues);
+        checkArgument(minDesiredRevenues >= 0, "minDesiredRevenues = %s", minDesiredRevenues);
         minDesiredRevenues_ = minDesiredRevenues;
         return this;
     }

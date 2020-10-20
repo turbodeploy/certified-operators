@@ -118,7 +118,8 @@ public final class CommoditySoldWithSettings extends CommoditySold implements Co
     @Override
     @Deterministic
     public @NonNull CommoditySoldSettings setCapacityUpperBound(double capacityUpperBound) {
-        checkArgument(getCapacityLowerBound() <= capacityUpperBound, "capacityUpperBound = " + capacityUpperBound);
+        checkArgument(getCapacityLowerBound() <= capacityUpperBound,
+                "capacityUpperBound = %s", capacityUpperBound);
         capacityUpperBound_ = capacityUpperBound;
         return this;
     }
@@ -126,7 +127,8 @@ public final class CommoditySoldWithSettings extends CommoditySold implements Co
     @Override
     @Deterministic
     public @NonNull CommoditySoldSettings setCapacityLowerBound(double capacityLowerBound) {
-        checkArgument(0 <= capacityLowerBound, "capacityLowerBound = " + capacityLowerBound);
+        checkArgument(0 <= capacityLowerBound,
+                "capacityLowerBound = %s", capacityLowerBound);
         checkArgument(capacityLowerBound <= getCapacityUpperBound());
         capacityLowerBound_ = capacityLowerBound;
         return this;
@@ -135,7 +137,8 @@ public final class CommoditySoldWithSettings extends CommoditySold implements Co
     @Override
     @Deterministic
     public @NonNull CommoditySoldSettings setCapacityIncrement(double capacityIncrement) {
-        checkArgument(0 <= capacityIncrement, "capacityIncrement = " + capacityIncrement);
+        checkArgument(0 <= capacityIncrement,
+                "capacityIncrement = %s", capacityIncrement);
         capacityIncrement_ = capacityIncrement;
         return this;
     }
@@ -144,7 +147,7 @@ public final class CommoditySoldWithSettings extends CommoditySold implements Co
     @Deterministic
     public @NonNull CommoditySoldSettings setUtilizationUpperBound(double utilizationUpperBound) {
         checkArgument(0.0 < utilizationUpperBound && utilizationUpperBound <= 1.0,
-                      "utilizationUpperBound = " + utilizationUpperBound);
+                      "utilizationUpperBound = %s", utilizationUpperBound);
         utilizationUpperBound_ = utilizationUpperBound;
         return this;
     }
@@ -160,7 +163,7 @@ public final class CommoditySoldWithSettings extends CommoditySold implements Co
     public @NonNull CommoditySoldSettings
                     setOrigUtilizationUpperBound(double origUtilizationUpperBound) {
           checkArgument(0.0 < origUtilizationUpperBound && origUtilizationUpperBound <= 1.0,
-                        "origUtilizationUpperBound = " + origUtilizationUpperBound);
+                        "origUtilizationUpperBound = %s", origUtilizationUpperBound);
           origUtilizationUpperBound_ = origUtilizationUpperBound;
           return this;
     }

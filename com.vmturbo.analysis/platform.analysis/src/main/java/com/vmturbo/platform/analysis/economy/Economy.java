@@ -215,7 +215,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     @Pure
     public @NonNull @ReadOnly Market getMarket(@ReadOnly Economy this, @NonNull @ReadOnly Basket basket) {
         Market result = markets_.get(basket);
-        checkArgument(result != null, "basket = " + basket);
+        checkArgument(result != null, "basket = %s", basket);
 
         return result;
     }
@@ -552,7 +552,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
                 trader.setEconomyIndex(trader.getEconomyIndex() - 1);
             }
         }
-        checkArgument(traders_.remove(traderToRemove), "traderToRemove = {}", traderToRemove);
+        checkArgument(traders_.remove(traderToRemove), "traderToRemove = %s", traderToRemove);
         sellersInvertedIndex_.remove(traderToRemove);
 
         return this;

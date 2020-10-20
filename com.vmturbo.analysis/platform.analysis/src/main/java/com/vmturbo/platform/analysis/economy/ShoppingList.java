@@ -240,7 +240,7 @@ public class ShoppingList implements Serializable {
      */
     @Deterministic
     public @NonNull ShoppingList setQuantity(int index, double newQuantity) {
-        checkArgument(newQuantity >= 0, "newQuantity = " + newQuantity);
+        checkArgument(newQuantity >= 0, "newQuantity = %s", newQuantity);
         quantities_[index] = newQuantity;
         return this;
     }
@@ -260,7 +260,7 @@ public class ShoppingList implements Serializable {
      */
     @Deterministic
     public @NonNull ShoppingList setPeakQuantity(int index, double newPeakQuantity) {
-        checkArgument(newPeakQuantity >= 0, "newPeakQuantity = " + newPeakQuantity);
+        checkArgument(newPeakQuantity >= 0, "newPeakQuantity = %s", newPeakQuantity);
         peakQuantities_[index] = Math.max(quantities_[index], newPeakQuantity);
         return this;
     }
@@ -293,7 +293,7 @@ public class ShoppingList implements Serializable {
      */
     @Deterministic
     public @NonNull ShoppingList setMoveCost(float moveCost) {
-        checkArgument(moveCost >= 0f, "value less than 0, moveCost = " + moveCost);
+        checkArgument(moveCost >= 0f, "value less than 0, moveCost = %s", moveCost);
         moveCost_ = moveCost;
         return this;
     }

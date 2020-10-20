@@ -114,8 +114,8 @@ public class Resize extends ActionImpl {
 
         checkArgument(sellingTrader.getBasketSold().indexOf(resizedCommoditySpec) >= 0,
                       "resizedCommodity =  " + resizedCommoditySpec);
-        checkArgument(oldCapacity >= 0, "oldCapacity = " + oldCapacity);
-        checkArgument(newCapacity >= 0, "newCapacity = " + newCapacity);
+        checkArgument(oldCapacity >= 0, "oldCapacity = %s", oldCapacity);
+        checkArgument(newCapacity >= 0, "newCapacity = %s", newCapacity);
 
         sellingTrader_ = sellingTrader;
         resizedCommoditySpec_ = resizedCommoditySpec;

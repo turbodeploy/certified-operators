@@ -112,7 +112,8 @@ public final class EconomySettings implements Serializable {
      */
     @Deterministic
     public EconomySettings setMinSellersForParallelism(int minSellersForParallelism) {
-        checkArgument(minSellersForParallelism >= 0, "minSellersForParallelism = " + minSellersForParallelism);
+        checkArgument(minSellersForParallelism >= 0,
+                "minSellersForParallelism = %s", minSellersForParallelism);
         minSellersForParallelism_ = minSellersForParallelism;
         return this;
     }
@@ -131,7 +132,7 @@ public final class EconomySettings implements Serializable {
      */
     @Deterministic
     public EconomySettings setQuoteFactor(double quoteFactor) {
-        checkArgument(quoteFactor >= 0, "quoteFactor = " + quoteFactor);
+        checkArgument(quoteFactor >= 0, "quoteFactor = %s", quoteFactor);
         quoteFactor_ = quoteFactor;
         return this;
     }
@@ -158,7 +159,7 @@ public final class EconomySettings implements Serializable {
 
     @Deterministic
     public EconomySettings setRightSizeLower(double rightSizeLower) {
-        checkArgument(rightSizeLower >= 0, "rightSizeLower = " + rightSizeLower);
+        checkArgument(rightSizeLower >= 0, "rightSizeLower = %s", rightSizeLower);
         rightSizeLower_ = rightSizeLower;
         return this;
     }
@@ -187,7 +188,7 @@ public final class EconomySettings implements Serializable {
 
     @Deterministic
     public EconomySettings setRightSizeUpper(double rightSizeUpper) {
-        checkArgument(rightSizeUpper >= 0, "rightSizeUpper = " + rightSizeUpper);
+        checkArgument(rightSizeUpper >= 0, "rightSizeUpper = %s", rightSizeUpper);
         rightSizeUpper_ = rightSizeUpper;
         return this;
     }

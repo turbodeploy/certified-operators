@@ -79,7 +79,7 @@ public abstract class Trader implements Serializable {
      * @param basketSold see {@link #getBasketSold()}.
      */
     public Trader(int economyIndex, int type, @NonNull TraderState state, @NonNull Basket basketSold) {
-        checkArgument(type >= 0, "type = " + type);
+        checkArgument(type >= 0, "type = %s", type);
 
         type_ = type;
         state_ = state;
@@ -338,7 +338,7 @@ public abstract class Trader implements Serializable {
      */
     @Deterministic
     @NonNull Trader setEconomyIndex(int economyIndex) {
-        checkArgument(economyIndex >= 0, "economyIndex = " + economyIndex);
+        checkArgument(economyIndex >= 0, "economyIndex = %s", economyIndex);
         economyIndex_ = economyIndex;
         return this;
     }
@@ -376,7 +376,7 @@ public abstract class Trader implements Serializable {
     @Deterministic
     @NonNull
     public Trader setOid(long oid) {
-        checkArgument(oid_ == Long.MIN_VALUE, "oid_ already assigned value of " + oid_);
+        checkArgument(oid_ == Long.MIN_VALUE, "oid_ already assigned value of %s", oid_);
         oid_ = oid;
         return this;
     }

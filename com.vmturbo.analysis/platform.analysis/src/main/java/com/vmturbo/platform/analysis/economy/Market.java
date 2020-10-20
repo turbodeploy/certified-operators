@@ -251,19 +251,22 @@ public final class Market implements Serializable {
     @Deterministic
     @NonNull Market removeSeller(@NonNull TraderWithSettings sellerToRemove) {
         if (sellerToRemove.getState().isActive()) {
-            checkArgument(activeSellers_.remove(sellerToRemove), "sellerToRemove = " + sellerToRemove);
+            checkArgument(activeSellers_.remove(sellerToRemove),
+                    "sellerToRemove = %s", sellerToRemove);
             if (sellerToRemove.canAcceptNewCustomers()) {
                 checkArgument(activeSellersAvailableForPlacement_.remove(sellerToRemove));
             }
         } else {
-            checkArgument(inactiveSellers_.remove(sellerToRemove), "sellerToRemove = " + sellerToRemove);
+            checkArgument(inactiveSellers_.remove(sellerToRemove),
+                    "sellerToRemove = %s", sellerToRemove);
         }
         sellerToRemove.getMarketsAsSeller().remove(this);
 
         // Remove seller from corresponding cliques
         for (@NonNull Long cliqueNumber : sellerToRemove.getCliques()) {
             @NonNull List<@NonNull Trader> cliquePart = cliques_.get(cliqueNumber);
-            checkArgument(cliquePart.remove(sellerToRemove), "sellerToRemove = " + sellerToRemove);
+            checkArgument(cliquePart.remove(sellerToRemove),
+                    "sellerToRemove = %s", sellerToRemove);
         }
 
         return this;
@@ -335,11 +338,13 @@ public final class Market implements Serializable {
      */
     @NonNull Market removeShoppingList(@NonNull ShoppingList shoppingListToRemove) {
         if (shoppingListToRemove.getBuyer().getState().isActive()) {
-            checkArgument(buyers_.remove(shoppingListToRemove), "shoppingListToRemove = " + shoppingListToRemove);
+            checkArgument(buyers_.remove(shoppingListToRemove),
+                    "shoppingListToRemove = %s", shoppingListToRemove);
         }
         shoppingListToRemove.move(null);
         checkArgument(((TraderWithSettings)shoppingListToRemove.getBuyer()).getMarketsAsBuyer().remove(shoppingListToRemove, this),
-                      "shoppingListToRemove = " + shoppingListToRemove + " this = " + this);
+                      "shoppingListToRemove = %s this = %s",
+                shoppingListToRemove, this);
 
         return this;
     }
@@ -363,7 +368,7 @@ public final class Market implements Serializable {
                 }
                 // As seller
                 for (@NonNull @PolyRead Market market : trader.getMarketsAsSeller()) {
-                    checkArgument(market.inactiveSellers_.remove(trader), "trader = " + trader);
+                    checkArgument(market.inactiveSellers_.remove(trader), "trader = %s", trader);
                     market.activeSellers_.add(trader);
                     market.activeSellersAvailableForPlacement_.add(trader);
                     for (@NonNull Long cliqueNumber : trader.getCliques()) {
@@ -373,15 +378,17 @@ public final class Market implements Serializable {
             } else { // deactivate
                 // As buyer
                 for (Entry<@NonNull ShoppingList, @NonNull Market> entry : trader.getMarketsAsBuyer().entrySet()) {
-                    checkArgument(entry.getValue().buyers_.remove(entry.getKey()), "entry.getKey() = " + entry.getKey());
+                    checkArgument(entry.getValue().buyers_.remove(entry.getKey()),
+                            "entry.getKey() = %s", entry.getKey());
                 }
                 // As seller
                 for (@NonNull @PolyRead Market market : trader.getMarketsAsSeller()) {
-                    checkArgument(market.activeSellers_.remove(trader), "trader = " + trader);
+                    checkArgument(market.activeSellers_.remove(trader), "trader = %s", trader);
                     market.activeSellersAvailableForPlacement_.remove(trader);
                     market.inactiveSellers_.add(trader);
                     for (@NonNull Long cliqueNumber : trader.getCliques()) {
-                        checkArgument(market.cliques_.get(cliqueNumber).remove(trader),"trader = " + trader);
+                        checkArgument(market.cliques_.get(cliqueNumber).remove(trader),
+                                "trader = %s", trader);
                     }
                 }
             }

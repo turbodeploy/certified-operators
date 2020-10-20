@@ -54,7 +54,7 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
      *             It must be non-negative.
      */
     public CommoditySpecification(int type) {
-        checkArgument(type >= 0, "type = " + type);
+        checkArgument(type >= 0, "type = %s", type);
 
         type_ = type;
         baseType_ = type;
@@ -69,7 +69,7 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
      *             It must be non-negative.
      */
     public CommoditySpecification(int type, int baseType) {
-        checkArgument(type >= 0, "type = " + type);
+        checkArgument(type >= 0, "type = %s", type);
 
         type_ = type;
         baseType_ = baseType;
@@ -88,7 +88,7 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
      */
     public CommoditySpecification(int type, int baseType,
                                   boolean isCloneWithNewType) {
-        checkArgument(type >= 0, "type = " + type);
+        checkArgument(type >= 0, "type = %s", type);
 
         type_ = type;
         baseType_ = baseType;
