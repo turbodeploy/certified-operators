@@ -8,9 +8,9 @@ DROP PROCEDURE IF EXISTS entity_stats_rollup;
 DELIMITER //
 CREATE DEFINER=CURRENT_USER PROCEDURE entity_stats_rollup (
     -- the table containing the records to be rolled up
-    IN source_table CHAR(30),
+    IN source_table CHAR(40),
     -- the table into which those records should be rolled up
-    IN rollup_table CHAR(30),
+    IN rollup_table CHAR(40),
     -- the snapshot time of the source records to be processed - must have zero milliseconds value
     IN snapshot_time DATETIME,
     -- the rollup time for rollup records (i.e. their snapshot_time column values)
