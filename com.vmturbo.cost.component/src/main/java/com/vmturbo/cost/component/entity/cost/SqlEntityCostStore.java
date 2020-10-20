@@ -293,7 +293,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
             @Nonnull final CostFilter entityCostFilter) {
         final CostGroupBy costGroupBy = entityCostFilter.getCostGroupBy();
         final Set<Field<?>> groupByFields = costGroupBy.getGroupByFields();
-        final Table<?> table = costGroupBy.getTable();
+        final @Nonnull Table<?> table = costGroupBy.getTable();
         final Set<Field<?>> selectableFields = Sets.newHashSet(groupByFields);
         selectableFields.add(sum(costGroupBy.getAmountFieldInTable()));
         selectableFields.add(max(costGroupBy.getAmountFieldInTable()));
@@ -305,7 +305,7 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
                 .and(getConditionForEntityCost(dsl, entityCostFilter, table))
                 .groupBy(groupByFields)
                 .fetch();
-        return createGroupByStatRecords(result, selectableFields);
+        return createGroupByStatRecords(result, table, selectableFields);
     }
 
     @Nonnull
@@ -358,33 +358,33 @@ public class SqlEntityCostStore implements EntityCostStore, MultiStoreDiagnosabl
 
     @Nonnull
     private Map<Long, Collection<StatRecord>> createGroupByStatRecords(@Nonnull final Result<Record> res,
-                                                                       @Nonnull final Set<Field<?>> selectableFields) {
+            @Nonnull Table<?> table, @Nonnull final Set<Field<?>> selectableFields) {
         final Map<Long, Collection<StatRecord>> statRecordsByTimeStamp = Maps.newHashMap();
         res.forEach(item -> {
             Collection<StatRecord> entityCosts = statRecordsByTimeStamp.computeIfAbsent(TimeUtil
                     .localDateTimeToMilli(item.getValue(ENTITY_COST.CREATED_TIME),
                     clock), k -> Sets.newHashSet());
-            entityCosts.add(mapToEntityCost(item, selectableFields));
+            entityCosts.add(mapToEntityCost(item, table, selectableFields));
         });
         return statRecordsByTimeStamp;
     }
 
     @Nonnull
-    private StatRecord mapToEntityCost(@Nonnull final Record item,
+    private StatRecord mapToEntityCost(@Nonnull final Record item, @Nonnull Table<?> table,
             @Nonnull final Set<Field<?>> selectableFields) {
         final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder();
-        if (selectableFields.contains(ENTITY_COST.COST_TYPE)) {
+        if (selectableFields.contains(getField(table, ENTITY_COST.COST_TYPE))) {
             statRecordBuilder.setCategory(CostCategory.forNumber(item.get(ENTITY_COST.COST_TYPE)));
         }
-        if (selectableFields.contains(ENTITY_COST.COST_SOURCE)) {
+        if (selectableFields.contains(getField(table, ENTITY_COST.COST_SOURCE))) {
             statRecordBuilder.setCostSource(
                     CostSource.forNumber(item.get(ENTITY_COST.COST_SOURCE)));
         }
-        if (selectableFields.contains(ENTITY_COST.ASSOCIATED_ENTITY_TYPE)) {
+        if (selectableFields.contains(getField(table, ENTITY_COST.ASSOCIATED_ENTITY_TYPE))) {
             statRecordBuilder.setAssociatedEntityType(
                     item.getValue(ENTITY_COST.ASSOCIATED_ENTITY_TYPE));
         }
-        if (selectableFields.contains(ENTITY_COST.ASSOCIATED_ENTITY_ID)) {
+        if (selectableFields.contains(getField(table, ENTITY_COST.ASSOCIATED_ENTITY_ID))) {
             statRecordBuilder.setAssociatedEntityId(
                     item.getValue(ENTITY_COST.ASSOCIATED_ENTITY_ID));
         }

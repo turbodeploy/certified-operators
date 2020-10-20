@@ -109,6 +109,7 @@ public class CostGroupBy {
      *
      * @return Table to be used for storing and querying.
      */
+    @Nonnull
     public Table<?> getTable() {
         if (this.topologyContextId != null && topologyContextId != realtimeTopologyContextId) {
             return PLAN_ENTITY_COST;
