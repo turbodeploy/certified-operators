@@ -75,6 +75,7 @@ import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
@@ -100,6 +101,7 @@ import com.vmturbo.sql.utils.DbException;
 @SuppressWarnings("unchecked")
 public class CostRpcServiceTest {
 
+    // constant primitives used for test
     private static final double ACCOUNT_EXPENSE1 = 10.0;
     private static final double ACCOUNT_EXPENSE2 = 5.0;
     private static final long ASSOCIATED_ACCOUNT_ID = 1111L;
@@ -108,177 +110,137 @@ public class CostRpcServiceTest {
     private static final long ID = 1234L;
     private static final long ID2 = 1235L;
     private static final long ASSOCIATED_SERVICE_ID = 4L;
+    private static final long ASSOCIATED_TARGET_ID = 9876;
+    private static final int ASSOCIATED_ENTITY_TYPE1 = 1;
     private static final long TIME = 1000_000_000L;
     private static final long MID_TIME = TIME + TimeUnit.MINUTES.toMillis(30);
     private static final double DELTA = 0.00001d; // the allowed delta between 'expected' and 'actual'
     private static final long PLAN_ID = 1234567L;
     private static final int MAX_INNER_STAT_RECORDS = 10;
-
     private static final long RT_TOPO_CONTEXT_ID = 777777L;
 
+    // constant objects used for test
+    private static final TopologyEntityDTO ACCOUNT_DTO = TopologyEntityDTO.newBuilder()
+        .setOid(ASSOCIATED_ACCOUNT_ID)
+        .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+        .build();
+    private final DiscountInfo discountInfo1 = DiscountInfo.newBuilder()
+        .setAccountLevelDiscount(DiscountInfo.AccountLevelDiscount.newBuilder()
+                .setDiscountPercentage(DISCOUNT_PERCENTAGE1))
+        .setServiceLevelDiscount(DiscountInfo.ServiceLevelDiscount.newBuilder()
+            .putDiscountPercentageByServiceId(ID, DISCOUNT_PERCENTAGE1))
+        .build();
+    private final DiscountInfo discountInfo2 = DiscountInfo.newBuilder()
+        .setAccountLevelDiscount(DiscountInfo.AccountLevelDiscount.newBuilder()
+            .setDiscountPercentage(DISCOUNT_PERCENTAGE2))
+        .setServiceLevelDiscount(DiscountInfo.ServiceLevelDiscount.newBuilder()
+            .putDiscountPercentageByServiceId(ID, DISCOUNT_PERCENTAGE1))
+        .build();
+    private final DiscountInfo discountInfo3 = DiscountInfo.newBuilder()
+        .setAccountLevelDiscount(DiscountInfo.AccountLevelDiscount.newBuilder()
+            .setDiscountPercentage(DISCOUNT_PERCENTAGE1))
+        .setServiceLevelDiscount(DiscountInfo.ServiceLevelDiscount.newBuilder()
+            .putDiscountPercentageByServiceId(ID, DISCOUNT_PERCENTAGE1))
+        .setDisplayName("testname")
+        .build();
+    private final DiscountInfo discountInfo4 = DiscountInfo.newBuilder()
+        .setAccountLevelDiscount(DiscountInfo.AccountLevelDiscount.newBuilder()
+            .setDiscountPercentage(DISCOUNT_PERCENTAGE1))
+        .setServiceLevelDiscount(DiscountInfo.ServiceLevelDiscount.newBuilder()
+            .putDiscountPercentageByServiceId(ID, DISCOUNT_PERCENTAGE1))
+        .build();
+    private final DiscountInfo discountInfo5 = DiscountInfo.newBuilder()
+        .setAccountLevelDiscount(DiscountInfo.AccountLevelDiscount.newBuilder()
+            .setDiscountPercentage(DISCOUNT_PERCENTAGE1))
+        .setServiceLevelDiscount(DiscountInfo.ServiceLevelDiscount.newBuilder()
+            .putDiscountPercentageByServiceId(ID, DISCOUNT_PERCENTAGE1))
+        .setTierLevelDiscount(DiscountInfo.TierLevelDiscount.newBuilder()
+            .putDiscountPercentageByTierId(ID, DISCOUNT_PERCENTAGE1))
+        .build();
+    private final DiscountInfo discountInfoAccountOnly1 = DiscountInfo.newBuilder()
+        .setAccountLevelDiscount(DiscountInfo.AccountLevelDiscount.newBuilder()
+            .setDiscountPercentage(DISCOUNT_PERCENTAGE1))
+        .setDisplayName("testname")
+        .build();
+    private final DiscountInfo discountInfoServiceAndTierOnly1 = DiscountInfo.newBuilder()
+        .setServiceLevelDiscount(DiscountInfo.ServiceLevelDiscount.newBuilder()
+            .putDiscountPercentageByServiceId(ID, DISCOUNT_PERCENTAGE1))
+        .setTierLevelDiscount(DiscountInfo.TierLevelDiscount.newBuilder()
+            .putDiscountPercentageByTierId(ID, DISCOUNT_PERCENTAGE1))
+        .build();
+    private final AccountExpenses.AccountExpensesInfo accountExpensesInfo = AccountExpensesInfo.newBuilder()
+        .addServiceExpenses(ServiceExpenses.newBuilder()
+            .setAssociatedServiceId(ASSOCIATED_SERVICE_ID)
+            .setExpenses(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE1)))
+        .addServiceExpenses(ServiceExpenses.newBuilder()
+            .setAssociatedServiceId(ASSOCIATED_SERVICE_ID)
+            .setExpenses(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE2)))
+        .build();
+    private final ComponentCost componentCost = ComponentCost.newBuilder()
+        .setAmount(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE1).setCurrency(1))
+        .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+        .setCostSource(CostSource.ON_DEMAND_RATE)
+        .build();
+    private final EntityCost entityCost = EntityCost.newBuilder()
+        .setAssociatedEntityId(ASSOCIATED_SERVICE_ID)
+        .addComponentCost(componentCost)
+        .setTotalAmount(CurrencyAmount.newBuilder().setAmount(1.111).setCurrency(1).build())
+        .setAssociatedEntityType(ASSOCIATED_ENTITY_TYPE1)
+        .build();
+    private final ComponentCost componentCost1 = ComponentCost.newBuilder()
+        .setAmount(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE1).setCurrency(1))
+        .setCategory(CostCategory.IP)
+        .build();
+    private final ComponentCost componentCost2 = ComponentCost.newBuilder()
+        .setAmount(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE2).setCurrency(1))
+        .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+        .setCostSource(CostSource.ON_DEMAND_RATE)
+        .build();
+    private final EntityCost entityCost1 = EntityCost.newBuilder()
+        .setAssociatedEntityId(ASSOCIATED_SERVICE_ID)
+        .addComponentCost(componentCost)
+        .addComponentCost(componentCost1)
+        .setTotalAmount(CurrencyAmount.newBuilder().setAmount(1.111).setCurrency(1).build())
+        .setAssociatedEntityType(ASSOCIATED_ENTITY_TYPE1)
+        .build();
+    private final EntityCost entityCost2 = EntityCost.newBuilder()
+        .setAssociatedEntityId(ASSOCIATED_SERVICE_ID)
+        .addComponentCost(componentCost1)
+        .setTotalAmount(CurrencyAmount.newBuilder().setAmount(1.21).setCurrency(1).build())
+        .setAssociatedEntityType(ASSOCIATED_ENTITY_TYPE1)
+        .build();
+    private final EntityCost entityCost3 = EntityCost.newBuilder()
+        .setAssociatedEntityId(ASSOCIATED_SERVICE_ID)
+        .addComponentCost(componentCost2)
+        .setTotalAmount(CurrencyAmount.newBuilder().setAmount(1.51).setCurrency(1).build())
+        .setAssociatedEntityType(ASSOCIATED_ENTITY_TYPE1)
+        .build();
+
+    // mock internal objects of CostRpcService
     private RepositoryClient repositoryClient;
     private SupplyChainServiceBlockingStub serviceBlockingStub;
-
-    private static final long realTimeContextId = 777777L;
-    final DiscountInfo discountInfo1 = DiscountInfo.newBuilder()
-            .setAccountLevelDiscount(DiscountInfo
-                    .AccountLevelDiscount
-                    .newBuilder()
-                    .setDiscountPercentage(DISCOUNT_PERCENTAGE1)
-                    .build())
-            .setServiceLevelDiscount(DiscountInfo
-                    .ServiceLevelDiscount
-                    .newBuilder()
-                    .putDiscountPercentageByServiceId(ID, DISCOUNT_PERCENTAGE1)
-                    .build())
-            .build();
-    private final DiscountInfo discountInfo2 = DiscountInfo.newBuilder()
-            .setAccountLevelDiscount(DiscountInfo
-                    .AccountLevelDiscount
-                    .newBuilder()
-                    .setDiscountPercentage(DISCOUNT_PERCENTAGE2)
-                    .build())
-            .setServiceLevelDiscount(DiscountInfo
-                    .ServiceLevelDiscount
-                    .newBuilder()
-                    .putDiscountPercentageByServiceId(ID, DISCOUNT_PERCENTAGE1)
-                    .build())
-            .build();
-    private final DiscountInfo discountInfo3 = DiscountInfo.newBuilder()
-            .setAccountLevelDiscount(DiscountInfo
-                    .AccountLevelDiscount
-                    .newBuilder()
-                    .setDiscountPercentage(DISCOUNT_PERCENTAGE1)
-                    .build())
-            .setServiceLevelDiscount(DiscountInfo
-                    .ServiceLevelDiscount
-                    .newBuilder()
-                    .putDiscountPercentageByServiceId(ID, DISCOUNT_PERCENTAGE1)
-                    .build())
-            .setDisplayName("testname")
-            .build();
-    private final DiscountInfo discountInfo4 = DiscountInfo.newBuilder()
-            .setAccountLevelDiscount(DiscountInfo
-                    .AccountLevelDiscount
-                    .newBuilder()
-                    .setDiscountPercentage(DISCOUNT_PERCENTAGE1)
-                    .build())
-            .setServiceLevelDiscount(DiscountInfo
-                    .ServiceLevelDiscount
-                    .newBuilder()
-                    .putDiscountPercentageByServiceId(ID, DISCOUNT_PERCENTAGE1)
-                    .build())
-            .build();
-    private final DiscountInfo discountInfo5 = DiscountInfo.newBuilder()
-            .setAccountLevelDiscount(DiscountInfo
-                    .AccountLevelDiscount
-                    .newBuilder()
-                    .setDiscountPercentage(DISCOUNT_PERCENTAGE1)
-                    .build())
-            .setServiceLevelDiscount(DiscountInfo
-                    .ServiceLevelDiscount
-                    .newBuilder()
-                    .putDiscountPercentageByServiceId(ID, DISCOUNT_PERCENTAGE1)
-                    .build())
-            .setTierLevelDiscount(DiscountInfo
-                    .TierLevelDiscount
-                    .newBuilder()
-                    .putDiscountPercentageByTierId(ID, DISCOUNT_PERCENTAGE1))
-            .build();
-    private final DiscountInfo discountInfoAccountOnly1 = DiscountInfo.newBuilder()
-            .setAccountLevelDiscount(DiscountInfo
-                    .AccountLevelDiscount
-                    .newBuilder()
-                    .setDiscountPercentage(DISCOUNT_PERCENTAGE1)
-                    .build())
-            .setDisplayName("testname")
-            .build();
-    private final DiscountInfo discountInfoServiceAndTierOnly1 = DiscountInfo.newBuilder()
-            .setServiceLevelDiscount(DiscountInfo
-                    .ServiceLevelDiscount
-                    .newBuilder()
-                    .putDiscountPercentageByServiceId(ID, DISCOUNT_PERCENTAGE1)
-                    .build())
-            .setTierLevelDiscount(DiscountInfo
-                    .TierLevelDiscount
-                    .newBuilder()
-                    .putDiscountPercentageByTierId(ID, DISCOUNT_PERCENTAGE1))
-            .build();
-    private final AccountExpenses.AccountExpensesInfo accountExpensesInfo = AccountExpensesInfo.newBuilder()
-            .addServiceExpenses(ServiceExpenses
-                    .newBuilder()
-                    .setAssociatedServiceId(ASSOCIATED_SERVICE_ID)
-                    .setExpenses(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE1).build())
-                    .build())
-            .addServiceExpenses(ServiceExpenses
-                    .newBuilder()
-                    .setAssociatedServiceId(ASSOCIATED_SERVICE_ID)
-                    .setExpenses(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE2).build())
-                    .build())
-            .build();
-    private static final int ASSOCIATED_ENTITY_TYPE1 = 1;
-    private final ComponentCost componentCost = ComponentCost.newBuilder()
-            .setAmount(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE1).setCurrency(1))
-            .setCategory(CostCategory.ON_DEMAND_COMPUTE)
-            .setCostSource(CostSource.ON_DEMAND_RATE)
-            .build();
-    private final EntityCost entityCost = EntityCost.newBuilder()
-            .setAssociatedEntityId(ASSOCIATED_SERVICE_ID)
-            .addComponentCost(componentCost)
-            .setTotalAmount(CurrencyAmount.newBuilder().setAmount(1.111).setCurrency(1).build())
-            .setAssociatedEntityType(ASSOCIATED_ENTITY_TYPE1)
-            .build();
-
-    private final ComponentCost componentCost1 = ComponentCost.newBuilder()
-            .setAmount(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE1).setCurrency(1))
-            .setCategory(CostCategory.IP)
-            .build();
-    private final ComponentCost componentCost2 = ComponentCost.newBuilder()
-            .setAmount(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE2).setCurrency(1))
-            .setCategory(CostCategory.ON_DEMAND_COMPUTE)
-            .setCostSource(CostSource.ON_DEMAND_RATE)
-            .build();
-    private final EntityCost entityCost1 = EntityCost.newBuilder()
-            .setAssociatedEntityId(ASSOCIATED_SERVICE_ID)
-            .addComponentCost(componentCost)
-            .addComponentCost(componentCost1)
-            .setTotalAmount(CurrencyAmount.newBuilder().setAmount(1.111).setCurrency(1).build())
-            .setAssociatedEntityType(ASSOCIATED_ENTITY_TYPE1)
-            .build();
-    private final EntityCost entityCost2 = EntityCost.newBuilder()
-            .setAssociatedEntityId(ASSOCIATED_SERVICE_ID)
-            .addComponentCost(componentCost1)
-            .setTotalAmount(CurrencyAmount.newBuilder().setAmount(1.21).setCurrency(1).build())
-            .setAssociatedEntityType(ASSOCIATED_ENTITY_TYPE1)
-            .build();
-    private final EntityCost entityCost3 = EntityCost.newBuilder()
-            .setAssociatedEntityId(ASSOCIATED_SERVICE_ID)
-            .addComponentCost(componentCost2)
-            .setTotalAmount(CurrencyAmount.newBuilder().setAmount(1.51).setCurrency(1).build())
-            .setAssociatedEntityType(ASSOCIATED_ENTITY_TYPE1)
-            .build();
     private DiscountStore discountStore = mock(DiscountStore.class);
-
     private AccountExpensesStore accountExpenseStore = mock(AccountExpensesStore.class);
-
     private EntityCostStore entityCostStore = mock(EntityCostStore.class);
     private ProjectedEntityCostStore projectedEntityCostStore = mock(ProjectedEntityCostStore.class);
     private PlanProjectedEntityCostStore planProjectedEntityCostStore = mock(PlanProjectedEntityCostStore.class);
     private BusinessAccountHelper businessAccountHelper = new BusinessAccountHelper();
     private TimeFrameCalculator timeFrameCalculator = mock(TimeFrameCalculator.class);
-
     private Clock clock = new MutableFixedClock(TIME);
+
+    //CostRpcService under test
     private CostRpcService costRpcService;
 
     @Before
     public void setUp() {
-        businessAccountHelper.storeTargetMapping(2, "Pay as you go - Engineering", ImmutableList.of(2L));
+        businessAccountHelper.storeTargetMapping(ASSOCIATED_ACCOUNT_ID,
+            "Pay as you go - Engineering", ImmutableList.of(ASSOCIATED_TARGET_ID));
+        businessAccountHelper.storeDiscoveredBusinessAccount(ACCOUNT_DTO);
         costRpcService = new CostRpcService(discountStore, accountExpenseStore, entityCostStore,
-                        projectedEntityCostStore, planProjectedEntityCostStore, timeFrameCalculator, businessAccountHelper,
-                        clock, realTimeContextId, MAX_INNER_STAT_RECORDS);
-
-            repositoryClient = mock(RepositoryClient.class);
-            serviceBlockingStub = SupplyChainServiceGrpc.newBlockingStub(mock(Channel.class));
+            projectedEntityCostStore, planProjectedEntityCostStore, timeFrameCalculator,
+            businessAccountHelper, clock, RT_TOPO_CONTEXT_ID, MAX_INNER_STAT_RECORDS);
+        repositoryClient = mock(RepositoryClient.class);
+        serviceBlockingStub = SupplyChainServiceGrpc.newBlockingStub(mock(Channel.class));
         when(timeFrameCalculator.millis2TimeFrame(anyLong())).thenReturn(TimeFrame.LATEST);
     }
 
@@ -1174,7 +1136,7 @@ public class CostRpcServiceTest {
                 .setGroupBy(GroupByType.CSP)
                 .build();
 
-        performAccountExpenseTests(mockObserver, request, 2L);
+        performAccountExpenseTests(mockObserver, request, ASSOCIATED_TARGET_ID);
     }
 
     @Test
@@ -1183,13 +1145,14 @@ public class CostRpcServiceTest {
                 mock(StreamObserver.class);
         final GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
                 .setGroupBy(GroupByType.CSP)
-                .setEntityTypeFilter(EntityTypeFilter.newBuilder().addEntityTypeId(EntityType.CLOUD_SERVICE_VALUE).build())
+                .setEntityTypeFilter(EntityTypeFilter.newBuilder()
+                    .addEntityTypeId(EntityType.CLOUD_SERVICE_VALUE))
                 .setStartDate(TIME)
                 .setEndDate(TIME)
                 .setEntityTypeFilter(EntityTypeFilter.newBuilder().build())
                 .build();
 
-        performAccountExpenseTests(mockObserver, request, 2L);
+        performAccountExpenseTests(mockObserver, request, ASSOCIATED_TARGET_ID);
     }
 
     @Test
@@ -1198,13 +1161,14 @@ public class CostRpcServiceTest {
                 mock(StreamObserver.class);
         final GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
                 .setGroupBy(GroupByType.BUSINESS_UNIT)
-                .setEntityTypeFilter(EntityTypeFilter.newBuilder().addEntityTypeId(EntityType.CLOUD_SERVICE_VALUE).build())
+                .setEntityTypeFilter(EntityTypeFilter.newBuilder()
+                    .addEntityTypeId(EntityType.CLOUD_SERVICE_VALUE))
                 .setStartDate(TIME)
                 .setEndDate(TIME)
                 .setEntityTypeFilter(EntityTypeFilter.newBuilder().build())
                 .build();
 
-        performAccountExpenseTests(mockObserver, request, 2L);
+        performAccountExpenseTests(mockObserver, request, ASSOCIATED_ACCOUNT_ID);
     }
 
     @Test
@@ -1213,13 +1177,14 @@ public class CostRpcServiceTest {
                 mock(StreamObserver.class);
         final GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
                 .setGroupBy(GroupByType.CLOUD_SERVICE)
-                .setEntityTypeFilter(EntityTypeFilter.newBuilder().addEntityTypeId(EntityType.CLOUD_SERVICE_VALUE).build())
+                .setEntityTypeFilter(EntityTypeFilter.newBuilder()
+                    .addEntityTypeId(EntityType.CLOUD_SERVICE_VALUE))
                 .setStartDate(TIME)
                 .setEndDate(TIME)
                 .setEntityTypeFilter(EntityTypeFilter.newBuilder().build())
                 .build();
 
-        performAccountExpenseTests(mockObserver, request, 4L);
+        performAccountExpenseTests(mockObserver, request, ASSOCIATED_SERVICE_ID);
     }
 
     /**
@@ -1344,37 +1309,45 @@ public class CostRpcServiceTest {
     private void performAccountExpenseTests(final StreamObserver<GetCloudCostStatsResponse> mockObserver,
                                             final GetCloudExpenseStatsRequest request,
                                             final long expectedEntityTypeId) throws DbException {
-        final Map<Long, AccountExpenses> accountIdToExpenseMap = ImmutableMap.of(2L,
-                AccountExpenses.newBuilder()
-                        .setAssociatedAccountId(2L)
-                        .setAccountExpensesInfo(accountExpensesInfo)
-                        .build());
+        final long accountWithNoTarget = 2468L;
         final Map<Long, Map<Long, AccountExpenses>> snapshotToAccountExpensesMap =
-                ImmutableMap.of(TIME, accountIdToExpenseMap);
+                ImmutableMap.of(TIME, ImmutableMap.of(
+                    ASSOCIATED_ACCOUNT_ID,
+                    AccountExpenses.newBuilder()
+                        .setAssociatedAccountId(ASSOCIATED_ACCOUNT_ID)
+                        .setAccountExpensesInfo(accountExpensesInfo)
+                        .build(),
+                    accountWithNoTarget,
+                    AccountExpenses.newBuilder()
+                        .setAssociatedAccountId(accountWithNoTarget)
+                        .setAccountExpensesInfo(accountExpensesInfo)
+                        .build()));
         given(accountExpenseStore.getAccountExpenses(any())).willReturn(snapshotToAccountExpensesMap);
         final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
-        final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
+        final GetCloudCostStatsResponse.Builder responseBuilder = GetCloudCostStatsResponse.newBuilder();
         statRecordBuilder.setName(StringConstants.COST_PRICE);
         statRecordBuilder.setUnits("$/h");
         statRecordBuilder.setAssociatedEntityId(expectedEntityTypeId);
         statRecordBuilder.setAssociatedEntityType(EntityType.CLOUD_SERVICE_VALUE);
-        CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
+        CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder =
+            CloudCostStatRecord.StatRecord.StatValue.newBuilder();
 
-        statValueBuilder.setAvg(7.5f)
-                .setTotal(15.0f)
-                .setMax(10.0f)
-                .setMin(5.0f);
+        final float expectedTotal = (float)(ACCOUNT_EXPENSE1 + ACCOUNT_EXPENSE2);
+        statValueBuilder.setAvg(expectedTotal / 2)
+                .setTotal(expectedTotal)
+                .setMax((float)ACCOUNT_EXPENSE1)
+                .setMin((float)ACCOUNT_EXPENSE2);
 
         statRecordBuilder.setValues(statValueBuilder.build());
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
                 .setSnapshotDate(TIME)
                 .addStatRecords(statRecordBuilder.build())
                 .build();
-        builder.addCloudStatRecord(cloudStatRecord);
+        responseBuilder.addCloudStatRecord(cloudStatRecord);
 
         when(timeFrameCalculator.millis2TimeFrame(request.getStartDate())).thenReturn(TimeFrame.HOUR);
         costRpcService.getAccountExpenseStats(request, mockObserver);
-        verify(mockObserver).onNext(builder.build());
+        verify(mockObserver).onNext(responseBuilder.build());
         verify(mockObserver).onCompleted();
     }
 
@@ -1410,7 +1383,7 @@ public class CostRpcServiceTest {
     private Iterable<? extends StatRecord> createProjectedStatRecordsByGroup(final List<EntityCost> entityCosts) {
         List<StatRecord> result = new ArrayList<>();
         ProjectedEntityCostStore projectedEntityCostStore = new ProjectedEntityCostStore(repositoryClient, serviceBlockingStub,
-                realTimeContextId);
+            RT_TOPO_CONTEXT_ID);
         for (EntityCost entityCost : entityCosts) {
             result.addAll(EntityCostToStatRecordConverter.convertEntityToStatRecord(entityCost));
         }

@@ -903,15 +903,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         if (businessAccounts.isEmpty()) {
             scopeBuilder.setAllAccounts(true);
         } else {
-            final IdList.Builder accountsIdList = IdList.newBuilder();
-            repositoryApi.entitiesRequest(businessAccounts)
-                    .getFullEntities()
-                    .filter(e -> e.hasTypeSpecificInfo() && e.getTypeSpecificInfo()
-                            .hasBusinessAccount() && e.getTypeSpecificInfo()
-                            .getBusinessAccount()
-                            .hasAssociatedTargetId())
-                    .forEach(e -> accountsIdList.addAccountIds(e.getOid()));
-            scopeBuilder.setSpecificAccounts(accountsIdList);
+            scopeBuilder.setSpecificAccounts(IdList.newBuilder().addAllAccountIds(businessAccounts));
         }
         return scopeBuilder;
     }

@@ -1119,24 +1119,13 @@ public class CloudCostsStatsSubQueryTest {
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getInputScope()).thenReturn(inputScope);
 
-        final TopologyEntityDTO businessAccount1 = TopologyEntityDTO.newBuilder().setEntityType(
-                EntityType.BUSINESS_ACCOUNT_VALUE).setOid(ACCOUNT_ID_1).setTypeSpecificInfo(
-                TypeSpecificInfo.newBuilder()
-                        .setBusinessAccount(
-                                BusinessAccountInfo.newBuilder().setAssociatedTargetId(1))).build();
-        final TopologyEntityDTO businessAccount2 = TopologyEntityDTO.newBuilder().setEntityType(
-                EntityType.BUSINESS_ACCOUNT_VALUE).setOid(ACCOUNT_ID_2).build();
-        final MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiFullEntityReq(
-                Arrays.asList(businessAccount1, businessAccount2));
-        Mockito.when(repositoryApi.entitiesRequest(businessAccounts)).thenReturn(
-                multiEntityRequest);
-        final Cost.AccountExpenseQueryScope.Builder scopeBuilder = query.getAccountScopeBuilder(
-                context);
+        final Cost.AccountExpenseQueryScope.Builder scopeBuilder =
+            query.getAccountScopeBuilder(context);
+
         Assert.assertFalse(scopeBuilder.getAllAccounts());
-        Assert.assertEquals(
-                "If scope is a billing family, then scope should be resolved up to discovered accounts.",
-                Collections.singletonList(ACCOUNT_ID_1),
-                scopeBuilder.getSpecificAccounts().getAccountIdsList());
+        Assert.assertEquals(2, scopeBuilder.getSpecificAccounts().getAccountIdsCount());
+        Assert.assertTrue(scopeBuilder.getSpecificAccounts().getAccountIdsList()
+            .containsAll(Arrays.asList(ACCOUNT_ID_1, ACCOUNT_ID_2)));
     }
 
     /**

@@ -62,6 +62,10 @@ public class BusinessAccountHelper {
         return targetIds;
     }
 
+    public boolean isAccountDiscovered(final long accountId) {
+        return discoveredBusinessAccounts.containsKey(accountId);
+    }
+
     /**
      * List of BAs which does not have any other targets attached to them.
      *

@@ -470,7 +470,10 @@ public class CostRpcService extends CostServiceImplBase {
             final CloudCostStatRecord.Builder snapshotBuilder = CloudCostStatRecord.newBuilder();
             snapshotBuilder.setSnapshotDate(snapshotTime);
             final List<AccountExpenseStat> accountExpenseStats = Lists.newArrayList();
-            accountIdToExpensesMap.values().forEach(accountExpenses -> {
+            accountIdToExpensesMap.forEach((accountId, accountExpenses) -> {
+                if (!businessAccountHelper.isAccountDiscovered(accountId)) {
+                    return;
+                }
                 accountExpenses.getAccountExpensesInfo().getServiceExpensesList()
                         .forEach(serviceExpenses -> {
                             final double amount = serviceExpenses.getExpenses().getAmount();
@@ -487,11 +490,11 @@ public class CostRpcService extends CostServiceImplBase {
                                         historicData,
                                         accountIdToEntitiesMap,
                                         snapshotTime,
-                                        accountExpenses.getAssociatedAccountId(), amount);
+                                        accountId, amount);
                             } else if (groupByCloudProvider) {
                                 // create stat with associated entity ID = target ID
                                 businessAccountHelper
-                                        .resolveTargetId(accountExpenses.getAssociatedAccountId())
+                                        .resolveTargetId(accountId)
                                         .stream()
                                         .findAny()
                                         .ifPresent(targetId -> updateAccountExpenses(
