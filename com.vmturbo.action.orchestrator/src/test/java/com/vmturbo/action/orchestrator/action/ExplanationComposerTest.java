@@ -15,6 +15,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 
 import org.junit.Test;
 
@@ -48,11 +49,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity.TimeSlotReasonInformation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
@@ -242,6 +245,30 @@ public class ExplanationComposerTest {
     }
 
     /**
+     * Test that an action purely for CSG compliance is explained as "Comply to Auto Scaling
+     * Groups: GroupName".
+     */
+    @Test
+    public void testScaleCsgCompliance() {
+        ActionDTO.Action scaleAction = ActionDTO.Action.newBuilder()
+            .setId(0).setInfo(ActionInfo.newBuilder().setScale(
+                Scale.newBuilder().setTarget(ActionEntity.newBuilder()
+                    .setId(1).setType(EntityType.VIRTUAL_MACHINE_VALUE))))
+            .setDeprecatedImportance(0)
+            .setExplanation(Explanation.newBuilder()
+                .setScale(ScaleExplanation.newBuilder()
+                    .setScalingGroupId("TestScalingGroup123")
+                    .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                        .setIsPrimaryChangeProviderExplanation(true)
+                        .setCompliance(Compliance.newBuilder()
+                            .setIsCsgCompliance(true)))))
+            .build();
+
+        assertEquals("(^_^)~Comply to Auto Scaling Groups: TestScalingGroup123",
+            ExplanationComposer.composeExplanation(scaleAction, Maps.newHashMap(), Optional.empty(), null));
+    }
+
+    /**
      * Test the explanation of move action due to evacuation.
      */
     @Test
@@ -419,7 +446,7 @@ public class ExplanationComposerTest {
         builder.getExplanationBuilder().getReconfigureBuilder().setScalingGroupId("example group");
         ActionDTO.Action reconfigureWithPrefixCSG = builder.build();
         assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, " +
-                    "Network Commodity testNetwork2 (Scaling Groups: example group)",
+                    "Network Commodity testNetwork2 (Auto Scaling Groups: example group)",
             ExplanationComposer.composeExplanation(reconfigureWithPrefixCSG));
         assertEquals(Collections.singleton("Misconfiguration"),
             ExplanationComposer.composeRelatedRisks(reconfigureWithPrefixCSG));
@@ -593,12 +620,12 @@ public class ExplanationComposerTest {
         action.getExplanationBuilder().getResizeBuilder()
             .setScalingGroupId("example scaling group");
         assertEquals("(^_^)~VMem Congestion in Virtual Machine {entity:0:displayName:}" +
-                " (Scaling Groups: example scaling group)",
+                " (Auto Scaling Groups: example scaling group)",
             ExplanationComposer.composeExplanation(action.build()));
         assertEquals(Collections.singleton("VMem Congestion"),
             ExplanationComposer.composeRelatedRisks(action.build()));
         assertEquals("(^_^)~VMem Congestion in Virtual Machine Danny"
-                + " (Scaling Groups: example scaling group)",
+                + " (Auto Scaling Groups: example scaling group)",
             ExplanationComposer.composeExplanation(action.build(), Collections.emptyMap(),
                 Optional.of(graphCreator.build()), null));
 

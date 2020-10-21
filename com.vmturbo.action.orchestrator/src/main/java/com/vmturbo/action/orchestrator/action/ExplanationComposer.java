@@ -99,7 +99,7 @@ public class ExplanationComposer {
         "Can not give a proper explanation";
     private static final String INCREASE_RI_UTILIZATION =
         "Increase RI Utilization";
-    private static final String WASTED_COST = "Wasted Cost";
+    private static final String WASTED_COST = "Cost Reduction";
     private static final String DELETE_WASTED_FILES_EXPLANATION = "Idle or non-productive";
     private static final String DELETE_WASTED_VOLUMES_EXPLANATION = "Increase savings";
     private static final String ALLOCATE_EXPLANATION = "Virtual Machine can be covered by {0} RI";
@@ -371,9 +371,11 @@ public class ExplanationComposer {
             }
         }
         if (scalingGroupName != null) {
-            String openParenthesis = stringExplanation.isEmpty() ? "" : "(";
-            String closeParenthesis = stringExplanation.isEmpty() ? "" : ")";
-            return Optional.of(" " + openParenthesis + "Scaling Groups: " + scalingGroupName + closeParenthesis);
+            String prefix = stringExplanation.isEmpty() ? "Comply to " : "(";
+            String suffix = stringExplanation.isEmpty() ? "" : ")";
+            String leadingSpace = stringExplanation.isEmpty() ? "" : " ";
+            return Optional.of(leadingSpace + prefix + "Auto Scaling Groups: "
+                + scalingGroupName + suffix);
         } else {
             return Optional.empty();
         }
