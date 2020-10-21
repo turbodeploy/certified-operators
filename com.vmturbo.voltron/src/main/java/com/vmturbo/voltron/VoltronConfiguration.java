@@ -585,6 +585,11 @@ public class VoltronConfiguration {
         MEDIATION_DB_MSSQL(Component.MEDIATION_DB_MSSQL),
 
         /**
+         * DB MYSQL.
+         */
+        MEDIATION_DB_MYSQL(Component.MEDIATION_DB_MYSQL),
+
+        /**
          * DataDog.
          */
         MEDIATION_DATADOG(Component.MEDIATION_DATADOG),
@@ -723,6 +728,11 @@ public class VoltronConfiguration {
          * Tetration.
          */
         MEDIATION_TETRATION(Component.MEDIATION_TETRATION),
+
+        /**
+         * Tomcat.
+         */
+        MEDIATION_TOMCAT(Component.MEDIATION_TOMCAT),
 
         /**
          * UCS.

@@ -229,14 +229,23 @@ public class SettingsManagerMappingLoader {
                 }
             });
 
-            final Set<String> executionModeSettings =
+            // No need to add new settings to settingManagers.json.
+            // only need to add it to ConfigurableActionSettings.
+            // The execution schedule setting names are derived from ConfigurableActionSettings
+            // in ActionSettingSpecs and ActionSettingType. No need to keep adding these
+            // sub settings to settingsManagers.json. Keep all them in one place instead of keep
+            // multiple files in sync.
+            final Set<String> actionModeExecutionScheduleModeSettings =
                 ActionSettingSpecs.getSettingSpecs().stream()
                     .map(SettingSpec::getName)
-                    .filter(ActionSettingSpecs::isExecutionScheduleSetting)
+                    .filter(settingName -> ActionSettingSpecs.isExecutionScheduleSetting(settingName)
+                        || ActionSettingSpecs.isActionModeSetting(settingName))
                     .collect(Collectors.toSet());
             replaceManagerSettings(SettingsService.AUTOMATION_MANAGER,
-                executionModeSettings,
+                actionModeExecutionScheduleModeSettings,
                 managersByUuidBuilder);
+            // Same comment as above. Keep all them in one place instead of keep multiple files
+            // in sync.
             final Set<String> actionWorkflowSettings =
                 ActionSettingSpecs.getSettingSpecs().stream()
                     .map(SettingSpec::getName)

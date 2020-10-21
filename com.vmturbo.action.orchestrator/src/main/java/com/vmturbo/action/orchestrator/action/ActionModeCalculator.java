@@ -76,6 +76,28 @@ public class ActionModeCalculator {
                     ConfigurableActionSettings.CloudComputeScaleForPerf,
                     ActionSettingType.ACTION_MODE)).getEnumSettingValueType();
 
+    private static final List<ResizeDirectionConfiguration> RESIZE_DIRECTION_CONFIGURATIONS =
+        Arrays.asList(
+            new ResizeDirectionConfiguration(EntityType.APPLICATION_COMPONENT, CommodityType.HEAP,
+                ConfigurableActionSettings.ResizeUpHeap,
+                ConfigurableActionSettings.ResizeDownHeap),
+            new ResizeDirectionConfiguration(EntityType.APPLICATION_COMPONENT, CommodityType.THREADS,
+                ConfigurableActionSettings.ResizeUpThreadPool,
+                ConfigurableActionSettings.ResizeDownThreadPool),
+            new ResizeDirectionConfiguration(EntityType.APPLICATION_COMPONENT, CommodityType.CONNECTION,
+                ConfigurableActionSettings.ResizeUpConnections,
+                ConfigurableActionSettings.ResizeDownConnections),
+            new ResizeDirectionConfiguration(EntityType.DATABASE_SERVER, CommodityType.DB_MEM,
+                ConfigurableActionSettings.ResizeUpDBMem,
+                ConfigurableActionSettings.ResizeDownDBMem),
+            new ResizeDirectionConfiguration(EntityType.DATABASE_SERVER, CommodityType.TRANSACTION_LOG,
+                ConfigurableActionSettings.ResizeUpTransactionLog,
+                ConfigurableActionSettings.ResizeDownTransactionLog),
+            new ResizeDirectionConfiguration(EntityType.DATABASE_SERVER, CommodityType.CONNECTION,
+                ConfigurableActionSettings.ResizeUpConnections,
+                ConfigurableActionSettings.ResizeDownConnections)
+        );
+
     private final RangeAwareSpecCalculator rangeAwareSpecCalculator;
     private final boolean enableCloudScaleEnhancement;
 
@@ -894,26 +916,7 @@ public class ActionModeCalculator {
                 return Stream.of(new ActionSpecifications(ConfigurableActionSettings.Resize));
             case RESIZE:
                 final Resize resize = action.getInfo().getResize();
-                if (isApplicationComponentHeapCommodity(resize)) {
-                    ConfigurableActionSettings spec = resize.getNewCapacity() > resize.getOldCapacity()
-                            ? ConfigurableActionSettings.ResizeUpHeap : ConfigurableActionSettings.ResizeDownHeap;
-                    return Stream.of(new ActionSpecifications(spec));
-                } else if (isDatabaseServerDBMemCommodity(resize)) {
-                    ConfigurableActionSettings spec = resize.getNewCapacity() > resize.getOldCapacity()
-                            ? ConfigurableActionSettings.ResizeUpDBMem : ConfigurableActionSettings.ResizeDownDBMem;
-                    return Stream.of(new ActionSpecifications(spec));
-                }
-                Optional<ConfigurableActionSettings> rangeAwareSpec = rangeAwareSpecCalculator
-                        .getSpecForRangeAwareCommResize(resize, settingsForTargetEntity);
-                // Return the range aware spec if present. Otherwise return the regular resize
-                // spec, or if it's a vm the default empty stream, since the only resize action
-                // that should fall into this logic is for vStorages. Resize Vms for vStorage
-                // commodities should always translate to a RECOMMENDED mode .
-                if (isVirtualMachine(resize) && !rangeAwareSpec.isPresent()) {
-                    return Stream.empty();
-                }
-                return Stream.of(new ActionSpecifications(rangeAwareSpec.orElse(ConfigurableActionSettings.Resize),
-                                true));
+                return getResizeActionSpecifications(resize, settingsForTargetEntity);
             case ACTIVATE:
                 return Stream.of(new ActionSpecifications(ConfigurableActionSettings.Activate));
             case DEACTIVATE:
@@ -958,6 +961,51 @@ public class ActionModeCalculator {
 
         // By default use generic setting for Scale actions
         return ConfigurableActionSettings.CloudComputeScale;
+    }
+
+    /**
+     * Describes which settings should be applied resize action for commodity type of an entity must.
+     */
+    private static final class ResizeDirectionConfiguration {
+        private final EntityType entityType;
+        private final CommodityType commodityType;
+        private final ConfigurableActionSettings upDirectionSetting;
+        private final ConfigurableActionSettings downDirectionSetting;
+
+        private ResizeDirectionConfiguration(
+                final EntityType entityType,
+                final CommodityType commodityType,
+                final ConfigurableActionSettings upDirectionSetting,
+                final ConfigurableActionSettings downDirectionSetting) {
+            this.entityType = entityType;
+            this.commodityType = commodityType;
+            this.upDirectionSetting = upDirectionSetting;
+            this.downDirectionSetting = downDirectionSetting;
+        }
+    }
+
+    private Stream<ActionSpecifications> getResizeActionSpecifications(
+            @Nonnull final Resize resize,
+            Map<String, Setting> settingsForTargetEntity) {
+        for (ResizeDirectionConfiguration resizeDirectionConfiguration : RESIZE_DIRECTION_CONFIGURATIONS) {
+            if (isResizeCommodity(resize, resizeDirectionConfiguration.entityType, resizeDirectionConfiguration.commodityType)) {
+                ConfigurableActionSettings spec = resize.getNewCapacity() > resize.getOldCapacity()
+                    ? resizeDirectionConfiguration.upDirectionSetting : resizeDirectionConfiguration.downDirectionSetting;
+                return Stream.of(new ActionSpecifications(spec));
+            }
+        }
+
+        Optional<ConfigurableActionSettings> rangeAwareSpec = rangeAwareSpecCalculator
+            .getSpecForRangeAwareCommResize(resize, settingsForTargetEntity);
+        // Return the range aware spec if present. Otherwise return the regular resize
+        // spec, or if it's a vm the default empty stream, since the only resize action
+        // that should fall into this logic is for vStorages. Resize Vms for vStorage
+        // commodities should always translate to a RECOMMENDED mode .
+        if (isVirtualMachine(resize) && !rangeAwareSpec.isPresent()) {
+            return Stream.empty();
+        }
+        return Stream.of(new ActionSpecifications(rangeAwareSpec.orElse(ConfigurableActionSettings.Resize),
+            true));
     }
 
     /**
@@ -1144,28 +1192,13 @@ public class ActionModeCalculator {
      * @param resize The {@link Resize} action
      * @return boolean whether is a vm or not
      * */
-    private boolean isVirtualMachine(Resize resize) {
+    private static boolean isVirtualMachine(Resize resize) {
         return resize.getTarget().getType() == EntityType.VIRTUAL_MACHINE_VALUE;
     }
 
-    /**
-     * Checks if the Resize action has an EntityType, it's an Application Component and Heap commodity.
-     * @param resize the {@link Resize} action
-     * @return Returns {@code true} if the action has Application Component as a target and Heap commodity
-     */
-    private boolean isApplicationComponentHeapCommodity(Resize resize) {
-        return resize.getTarget().getType() == EntityType.APPLICATION_COMPONENT_VALUE
-            && resize.getCommodityType().getType() == CommodityType.HEAP.getNumber();
-    }
-
-    /**
-     * Checks if the Resize action has an EntityType, it's an Database Server and DBMem commodity.
-     * @param resize The {@link Resize} action
-     * @return Returns {@code true} if the action has Database Server as a target and DBMem commodity
-     * */
-    private boolean isDatabaseServerDBMemCommodity(Resize resize) {
-        return resize.getTarget().getType() == EntityType.DATABASE_SERVER_VALUE
-            && resize.getCommodityType().getType() == CommodityType.DB_MEM.getNumber();
+    private boolean isResizeCommodity(Resize resize, EntityType entityType, CommodityType commodityType) {
+        return resize.getTarget().getType() == entityType.getNumber()
+            && resize.getCommodityType().getType() == commodityType.getNumber();
     }
 
     /**

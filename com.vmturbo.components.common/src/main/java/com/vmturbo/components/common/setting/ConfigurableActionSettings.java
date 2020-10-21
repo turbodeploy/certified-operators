@@ -90,6 +90,18 @@ public enum ConfigurableActionSettings {
         EnumSet.of(EntityType.APPLICATION_COMPONENT)),
 
     /**
+     * Resize Up ThreadPool automation mode.
+     */
+    ResizeUpThreadPool("resizeUpThreadPool", "Resize Up Thread Pool",
+        EnumSet.of(EntityType.APPLICATION_COMPONENT)),
+
+    /**
+     * Resize Down ThreadPool automation mode.
+     */
+    ResizeDownThreadPool("resizeDownThreadPool", "Resize Down Thread Pool",
+        EnumSet.of(EntityType.APPLICATION_COMPONENT)),
+
+    /**
      * Resize Up DBMem automation mode.
      */
     ResizeUpDBMem("resizeUpDBMem", "Resize Up DBMem",
@@ -100,6 +112,30 @@ public enum ConfigurableActionSettings {
      */
     ResizeDownDBMem("resizeDownDBMem", "Resize Down DBMem",
         EnumSet.of(EntityType.DATABASE_SERVER)),
+
+    /**
+     * Resize Up Transaction Log automation mode.
+     */
+    ResizeUpTransactionLog("resizeUpTransactionLog", "Resize Up Transaction Log",
+        EnumSet.of(EntityType.DATABASE_SERVER)),
+
+    /**
+     * Resize Down Transaction Log automation mode.
+     */
+    ResizeDownTransactionLog("resizeDownTransactionLog", "Resize Down Transaction Log",
+        EnumSet.of(EntityType.DATABASE_SERVER)),
+
+    /**
+     * Resize Up Connections automation mode.
+     */
+    ResizeUpConnections("resizeUpConnections", "Resize Up Connections",
+        EnumSet.of(EntityType.APPLICATION_COMPONENT, EntityType.DATABASE_SERVER)),
+
+    /**
+     * Resize Down Connections automation mode.
+     */
+    ResizeDownConnections("resizeDownConnections", "Resize Down Connections",
+        EnumSet.of(EntityType.APPLICATION_COMPONENT, EntityType.DATABASE_SERVER)),
 
     /**
      * Resize action automation mode for vcpu resize ups where the target capacity is between

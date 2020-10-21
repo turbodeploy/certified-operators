@@ -995,107 +995,75 @@ public class ActionModeCalculatorTest {
     }
 
     /**
-     * Test: Memory Resize for application component for different commodities.
+     * Test: Resize for application component for different commodities.
      */
     @Test
     public void testSpecsApplicableToActionForAppComponents() {
-        long vmId = 122L;
-        long targetId = 7L;
-        final Map<String, Setting> settingsForEntity = Collections.emptyMap();
-        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
-
-        // Heap Up for Application Components
-        final ActionDTO.Action heapUpAction = actionBuilder.setInfo(
-                ActionInfo.newBuilder()
-                        .setResize(Resize.newBuilder()
-                                .setTarget(ActionEntity.newBuilder()
-                                        .setId(targetId)
-                                        .setType(EntityType.APPLICATION_COMPONENT_VALUE)
-                                        .build())
-                                .setCommodityAttribute(CommodityAttribute.RESERVED)
-                                .setCommodityType(CommodityType.newBuilder()
-                                        .setType(CommodityDTO.CommodityType.HEAP_VALUE)
-                                        .build())
-                                .setOldCapacity(10.f)
-                                .setNewCapacity(20.f)
-                                .build())
-                        .build()
-        ).build();
-        List<ActionSpecifications> entitySpecs = actionModeCalculator.specsApplicableToAction(heapUpAction, settingsForEntity, Collections.emptySet()).collect(Collectors.toList());
-        Assert.assertEquals(1, entitySpecs.size());
-        Assert.assertEquals(ConfigurableActionSettings.ResizeUpHeap, entitySpecs.get(0).getConfigurableActionSetting());
-
-        // Heap Up for Application Components
-        final ActionDTO.Action heapDownAction = actionBuilder.setInfo(
-                ActionInfo.newBuilder()
-                        .setResize(Resize.newBuilder()
-                                .setTarget(ActionEntity.newBuilder()
-                                        .setId(targetId)
-                                        .setType(EntityType.APPLICATION_COMPONENT_VALUE)
-                                        .build())
-                                .setCommodityAttribute(CommodityAttribute.RESERVED)
-                                .setCommodityType(CommodityType.newBuilder()
-                                        .setType(CommodityDTO.CommodityType.HEAP_VALUE)
-                                        .build())
-                                .setOldCapacity(20.f)
-                                .setNewCapacity(10.f)
-                                .build())
-                        .build()
-        ).build();
-        entitySpecs = actionModeCalculator.specsApplicableToAction(heapDownAction, settingsForEntity, Collections.emptySet()).collect(Collectors.toList());
-        Assert.assertEquals(1, entitySpecs.size());
-        Assert.assertEquals(ConfigurableActionSettings.ResizeDownHeap, entitySpecs.get(0).getConfigurableActionSetting());
+        checkSpecsApplicableToAction(EntityType.APPLICATION_COMPONENT, CommodityDTO.CommodityType.HEAP,
+            10.0f, 20.f, ConfigurableActionSettings.ResizeUpHeap);
+        checkSpecsApplicableToAction(EntityType.APPLICATION_COMPONENT, CommodityDTO.CommodityType.HEAP,
+            20.0f, 10.f, ConfigurableActionSettings.ResizeDownHeap);
+        checkSpecsApplicableToAction(EntityType.APPLICATION_COMPONENT, CommodityDTO.CommodityType.CONNECTION,
+            10.0f, 20.f, ConfigurableActionSettings.ResizeUpConnections);
+        checkSpecsApplicableToAction(EntityType.APPLICATION_COMPONENT, CommodityDTO.CommodityType.CONNECTION,
+            20.0f, 10.f, ConfigurableActionSettings.ResizeDownConnections);
+        checkSpecsApplicableToAction(EntityType.APPLICATION_COMPONENT, CommodityDTO.CommodityType.THREADS,
+            10.0f, 20.f, ConfigurableActionSettings.ResizeUpThreadPool);
+        checkSpecsApplicableToAction(EntityType.APPLICATION_COMPONENT, CommodityDTO.CommodityType.THREADS,
+            20.0f, 10.f, ConfigurableActionSettings.ResizeDownThreadPool);
     }
 
     /**
-     * Test: Memory Resize for database server for different commodities.
+     * Test: Resize for database server for different commodities.
      */
     @Test
     public void testSpecsApplicableToActionForDBServers() {
+        checkSpecsApplicableToAction(EntityType.DATABASE_SERVER, CommodityDTO.CommodityType.DB_MEM,
+            10.0f, 20.f, ConfigurableActionSettings.ResizeUpDBMem);
+        checkSpecsApplicableToAction(EntityType.DATABASE_SERVER, CommodityDTO.CommodityType.DB_MEM,
+            20.0f, 10.f, ConfigurableActionSettings.ResizeDownDBMem);
+        checkSpecsApplicableToAction(EntityType.DATABASE_SERVER, CommodityDTO.CommodityType.TRANSACTION_LOG,
+            10.0f, 20.f, ConfigurableActionSettings.ResizeUpTransactionLog);
+        checkSpecsApplicableToAction(EntityType.DATABASE_SERVER, CommodityDTO.CommodityType.TRANSACTION_LOG,
+            20.0f, 10.f, ConfigurableActionSettings.ResizeDownTransactionLog);
+        checkSpecsApplicableToAction(EntityType.DATABASE_SERVER, CommodityDTO.CommodityType.CONNECTION,
+            10.0f, 20.f, ConfigurableActionSettings.ResizeUpConnections);
+        checkSpecsApplicableToAction(EntityType.DATABASE_SERVER, CommodityDTO.CommodityType.CONNECTION,
+            20.0f, 10.f, ConfigurableActionSettings.ResizeDownConnections);
+    }
+
+    private void checkSpecsApplicableToAction(
+            EntityType entityType,
+            CommodityDTO.CommodityType commodityType,
+            float oldCapacity,
+            float newCapacity,
+            ConfigurableActionSettings expected) {
         long targetId = 7L;
         final Map<String, Setting> settingsForEntity = Collections.emptyMap();
-
+        final Set<String> defaultSettingsForEntity = Collections.emptySet();
         final ActionDTO.Action resizeUpDbMemAction = actionBuilder.setInfo(
-                ActionInfo.newBuilder()
-                        .setResize(Resize.newBuilder()
-                                .setTarget(ActionEntity.newBuilder()
-                                        .setId(targetId)
-                                        .setType(EntityType.DATABASE_SERVER_VALUE)
-                                        .build())
-                                .setCommodityAttribute(CommodityAttribute.RESERVED)
-                                .setCommodityType(CommodityType.newBuilder()
-                                        .setType(CommodityDTO.CommodityType.DB_MEM_VALUE)
-                                        .build())
-                                .setOldCapacity(10.f)
-                                .setNewCapacity(20.f)
-                                .build())
-                        .build()
-        ).build();
-        final ActionDTO.Action resizeDownDbMemAction = actionBuilder.setInfo(
-                ActionInfo.newBuilder()
-                        .setResize(Resize.newBuilder()
-                                .setTarget(ActionEntity.newBuilder()
-                                        .setId(targetId)
-                                        .setType(EntityType.DATABASE_SERVER_VALUE)
-                                        .build())
-                                .setCommodityAttribute(CommodityAttribute.RESERVED)
-                                .setCommodityType(CommodityType.newBuilder()
-                                        .setType(CommodityDTO.CommodityType.DB_MEM_VALUE)
-                                        .build())
-                                .setOldCapacity(20.f)
-                                .setNewCapacity(10.f)
-                                .build())
-                        .build()
+            ActionInfo.newBuilder()
+                .setResize(Resize.newBuilder()
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(targetId)
+                        .setType(entityType.getNumber())
+                        .build())
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(commodityType.getNumber())
+                        .build())
+                    .setOldCapacity(oldCapacity)
+                    .setNewCapacity(newCapacity)
+                    .build())
+                .build()
         ).build();
 
-        // Resize DBMem Up/Down for Database Server
-        List<ActionSpecifications> entitySpecs = actionModeCalculator.specsApplicableToAction(resizeUpDbMemAction, settingsForEntity, Collections.emptySet()).collect(Collectors.toList());
+        List<ActionSpecifications> entitySpecs = actionModeCalculator.specsApplicableToAction(
+                resizeUpDbMemAction,
+                settingsForEntity,
+                defaultSettingsForEntity)
+            .collect(Collectors.toList());
         Assert.assertEquals(1, entitySpecs.size());
-        Assert.assertEquals(ConfigurableActionSettings.ResizeUpDBMem, entitySpecs.get(0).getConfigurableActionSetting());
-
-        entitySpecs = actionModeCalculator.specsApplicableToAction(resizeDownDbMemAction, settingsForEntity, Collections.emptySet()).collect(Collectors.toList());
-        Assert.assertEquals(1, entitySpecs.size());
-        Assert.assertEquals(ConfigurableActionSettings.ResizeDownDBMem, entitySpecs.get(0).getConfigurableActionSetting());
+        Assert.assertEquals(expected, entitySpecs.get(0).getConfigurableActionSetting());
     }
 
     /**

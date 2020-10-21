@@ -244,6 +244,11 @@ public enum Component {
     MEDIATION_DB_MSSQL("db-mssql", "com.vmturbo.mediation.database.mssql.component"),
 
     /**
+     * DB MYSQL.
+     */
+    MEDIATION_DB_MYSQL("db-mysql", "com.vmturbo.mediation.database.mysql.component"),
+
+    /**
      * Datadog.
      */
     MEDIATION_DATADOG("datadog", "com.vmturbo.mediation.datadog.component"),
@@ -382,6 +387,11 @@ public enum Component {
      * Tetration.
      */
     MEDIATION_TETRATION("tetration", "com.vmturbo.mediation.tetration.component"),
+
+    /**
+     * Tomcat.
+     */
+    MEDIATION_TOMCAT("tomcat", "com.vmturbo.mediation.tomcat.component"),
 
     /**
      * UCS.
