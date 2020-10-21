@@ -399,6 +399,13 @@ http {
             access_log  /var/log/nginx/access.log  upstream_ws;
         }
 
+        location /healthz/ready {
+            # ensure security headers
+            include /etc/nginx/includes/security-headers.conf;
+
+            return 200 OK;
+        }
+
         # include any additional server config files for the secured block
         include /etc/nginx/userconf/secure/*.conf;
 
