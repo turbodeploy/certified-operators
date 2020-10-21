@@ -158,7 +158,7 @@ public class CloudAspectMapper extends AbstractAspectMapper {
             return Optional.ofNullable(null);
         }
         Set<Long> entityIds = cloudEntities.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
-        Set<Long> riEntityIds = cloudEntities.stream().filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+        Set<Long> entityIdsForRIQuery = cloudEntities.stream().filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                 .filter(entity -> entity.getTypeSpecificInfo().getVirtualMachine().getBillingType() != VirtualMachineData.VMBillingType.BIDDING)
                 .map(entity -> entity.getOid())
                 .collect(Collectors.toSet());
@@ -177,7 +177,7 @@ public class CloudAspectMapper extends AbstractAspectMapper {
         Future<GraphResponse> graphResponseF = executorService.submit(() -> repositoryApi.graphSearch(request));
         Future<Map<Long, MinimalEntity>> templatesF = executorService.submit(() -> repositoryApi.entitiesRequest(templateIds).getMinimalEntities().collect(Collectors.toMap(MinimalEntity::getOid, e -> e)));
         Future<Map<Long, Grouping>> resourceGroupMapF = executorService.submit(() -> retrieveResourceGroupsForEntities(entityIds));
-        Future<Map<Long, EntityReservedInstanceCoverage>> riMapF = executorService.submit(() -> getRiCoverageRelatedInformation(riEntityIds));
+        Future<Map<Long, EntityReservedInstanceCoverage>> riMapF = executorService.submit(() -> getRiCoverageRelatedInformation(entityIdsForRIQuery));
 
         Map<Long, EntityAspect> resp = new HashMap<>();
         try {
@@ -291,6 +291,9 @@ public class CloudAspectMapper extends AbstractAspectMapper {
      * @return map containing RI information indexed by oid
      */
     private Map<Long, EntityReservedInstanceCoverage> getRiCoverageRelatedInformation(final Set<Long> oids) {
+        if (oids.isEmpty()) {
+            return Collections.emptyMap();
+        }
         final GetEntityReservedInstanceCoverageRequest entityRiCoverageRequest =
                 GetEntityReservedInstanceCoverageRequest.newBuilder()
                         .setEntityFilter(EntityFilter.newBuilder()
