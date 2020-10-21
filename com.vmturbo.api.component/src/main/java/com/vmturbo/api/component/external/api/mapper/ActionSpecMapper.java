@@ -511,6 +511,8 @@ public class ActionSpecMapper {
         // actionID and uuid are the same
         actionApiDTO.setUuid(Long.toString(actionSpec.getRecommendation().getId()));
         actionApiDTO.setActionID(actionSpec.getRecommendation().getId());
+        // Populate the action OID
+        actionApiDTO.setActionImpactID(actionSpec.getRecommendationId());
         // set ID of topology/market for which the action is generated
         actionApiDTO.setMarketID(topologyContextId);
         // actionMode is direct translation
