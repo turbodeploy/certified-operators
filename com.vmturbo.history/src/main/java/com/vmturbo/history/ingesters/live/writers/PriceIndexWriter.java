@@ -3,12 +3,14 @@ package com.vmturbo.history.ingesters.live.writers;
 import java.sql.Timestamp;
 import java.util.Collection;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.TimeFrame;
@@ -40,10 +42,13 @@ public class PriceIndexWriter extends ProjectedTopologyWriterBase {
      * @param topologyInfo   topology info
      * @param loaders        bulk loader factory
      * @param visitorFactory factory to create visitors over price index data
+     * @param entitiesFilter entities filter
      */
     public PriceIndexWriter(@Nonnull TopologyInfo topologyInfo,
             @Nonnull SimpleBulkLoaderFactory loaders,
-            @Nonnull DBPriceIndexVisitorFactory visitorFactory) {
+            @Nonnull DBPriceIndexVisitorFactory visitorFactory,
+            @Nonnull Predicate<TopologyDTO.TopologyEntityDTO> entitiesFilter) {
+        super(entitiesFilter);
         this.topologyInfo = topologyInfo;
         this.loaders = loaders;
         this.visitorFactory = visitorFactory;
@@ -51,7 +56,7 @@ public class PriceIndexWriter extends ProjectedTopologyWriterBase {
     }
 
     @Override
-    public ChunkDisposition processChunk(@Nonnull Collection<ProjectedTopologyEntity> chunk,
+    public ChunkDisposition processEntities(@Nonnull Collection<ProjectedTopologyEntity> chunk,
             @Nonnull String infoSummary) {
         chunk.forEach(indicesBuilder::addEntity);
         return ChunkDisposition.SUCCESS;
@@ -88,21 +93,25 @@ public class PriceIndexWriter extends ProjectedTopologyWriterBase {
     public static class Factory extends ProjectedTopologyWriterBase.Factory {
 
         private final DBPriceIndexVisitorFactory visitorFactory;
+        private final Predicate<TopologyDTO.TopologyEntityDTO> entitiesFilter;
 
         /**
          * Create a new instance.
          *
          * @param visitorFactory factory to create visitors for price index data
+         * @param entitiesFilter entities filter
          */
-        public Factory(@Nonnull DBPriceIndexVisitorFactory visitorFactory) {
+        public Factory(@Nonnull DBPriceIndexVisitorFactory visitorFactory,
+                       @Nonnull Predicate<TopologyDTO.TopologyEntityDTO> entitiesFilter) {
             this.visitorFactory = visitorFactory;
+            this.entitiesFilter = entitiesFilter;
         }
 
         @Override
         public Optional<IChunkProcessor<ProjectedTopologyEntity>>
         getChunkProcessor(@Nonnull final TopologyInfo topologyInfo,
                 @Nonnull final SimpleBulkLoaderFactory loaders) {
-            return Optional.of(new PriceIndexWriter(topologyInfo, loaders, visitorFactory));
+            return Optional.of(new PriceIndexWriter(topologyInfo, loaders, visitorFactory, entitiesFilter));
         }
     }
 }

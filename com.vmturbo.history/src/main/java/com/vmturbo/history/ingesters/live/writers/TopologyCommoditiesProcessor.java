@@ -37,12 +37,13 @@ public class TopologyCommoditiesProcessor extends ProjectedTopologyWriterBase {
      * @param projectedStatsStore projected stats store to update
      */
     private TopologyCommoditiesProcessor(@Nonnull ProjectedStatsStore projectedStatsStore) {
+        super();
         this.projectedStatsStore = projectedStatsStore;
         this.topologyCommoditiesSnapshotBuilder = new TopologyCommoditiesSnapshot.Builder(projectedStatsStore.getExcludedCommodities());
     }
 
     @Override
-    public ChunkDisposition processChunk(@Nonnull final Collection<ProjectedTopologyEntity> chunk,
+    public ChunkDisposition processEntities(@Nonnull final Collection<ProjectedTopologyEntity> chunk,
                                          @Nonnull final String infoSummary) {
         chunk.forEach(topologyCommoditiesSnapshotBuilder::addProjectedEntity);
         return ChunkDisposition.SUCCESS;

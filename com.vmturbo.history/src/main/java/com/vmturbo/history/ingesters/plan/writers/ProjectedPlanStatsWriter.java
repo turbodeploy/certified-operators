@@ -48,6 +48,7 @@ public class ProjectedPlanStatsWriter extends ProjectedTopologyWriterBase {
     private ProjectedPlanStatsWriter(@Nonnull TopologyInfo topologyInfo,
                                      @Nonnull HistorydbIO historydbIO,
                                      @Nonnull SimpleBulkLoaderFactory loaders) {
+        super();
         this.historydbIO = historydbIO;
         this.loaders = loaders;
 
@@ -63,8 +64,8 @@ public class ProjectedPlanStatsWriter extends ProjectedTopologyWriterBase {
     }
 
     @Override
-    public ChunkDisposition processChunk(@Nonnull final Collection<ProjectedTopologyEntity> chunk,
-                                         @Nonnull final String infoSummary) {
+    public ChunkDisposition processEntities(@Nonnull final Collection<ProjectedTopologyEntity> chunk,
+                                            @Nonnull final String infoSummary) {
         aggregator.handleChunk(Collections2.transform(chunk, ProjectedTopologyEntity::getEntity));
 
         for (final ProjectedTopologyEntity entity : chunk) {

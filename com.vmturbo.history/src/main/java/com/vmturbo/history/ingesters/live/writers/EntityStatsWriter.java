@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -50,11 +51,14 @@ public class EntityStatsWriter extends TopologyWriterBase {
      * @param commoditiesToExclude set of commodities that are not recorded in stats table
      * @param historydbIO          database utils
      * @param loaders              bulk loader factory
+     * @param entitiesFilter       entities filter
      */
     private EntityStatsWriter(TopologyInfo topologyInfo,
                               Set<String> commoditiesToExclude,
                               HistorydbIO historydbIO,
-                              SimpleBulkLoaderFactory loaders) {
+                              SimpleBulkLoaderFactory loaders,
+                              Predicate<TopologyEntityDTO> entitiesFilter) {
+        super(entitiesFilter);
         this.topologyInfo = topologyInfo;
         this.commoditiesToExclude = commoditiesToExclude;
         this.historydbIO = historydbIO;
@@ -116,16 +120,20 @@ public class EntityStatsWriter extends TopologyWriterBase {
     public static class Factory extends TopologyWriterBase.Factory {
         private final HistorydbIO historydbIO;
         private final Set<String> commoditiesToExclude;
+        private final Predicate<TopologyEntityDTO> entitiesFilter;
 
         /**
          * Create a new factory instance.
          *
          * @param historydbIO          database utils
          * @param commoditiesToExclude commodities to be excluded from stats tables
+         * @param entitiesFilter       entities filter
          */
-        public Factory(HistorydbIO historydbIO, Set<String> commoditiesToExclude) {
+        public Factory(HistorydbIO historydbIO, Set<String> commoditiesToExclude,
+                       Predicate<TopologyEntityDTO> entitiesFilter) {
             this.historydbIO = historydbIO;
             this.commoditiesToExclude = commoditiesToExclude;
+            this.entitiesFilter = entitiesFilter;
         }
 
         @Override
@@ -133,7 +141,7 @@ public class EntityStatsWriter extends TopologyWriterBase {
         getChunkProcessor(final TopologyInfo topologyInfo,
                           SimpleBulkLoaderFactory loaders) {
             return Optional.of(new EntityStatsWriter(
-                topologyInfo, commoditiesToExclude, historydbIO, loaders));
+                topologyInfo, commoditiesToExclude, historydbIO, loaders, entitiesFilter));
         }
     }
 }

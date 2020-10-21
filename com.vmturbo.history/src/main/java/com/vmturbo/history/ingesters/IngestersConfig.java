@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableMap;
@@ -22,6 +23,8 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.utils.GuestLoadFilters;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
@@ -137,6 +140,9 @@ public class IngestersConfig {
     @Value("${ingest.projectedPlanChunkTimeLimitMsec:60000}")
     private long projectedPlanChunkTimeLimit;
 
+    @Value("${ingest.saveGuestLoadEntityStats:false}")
+    private boolean saveGuestLoadEntityStats;
+
     @Bean
     MarketClientConfig marketClientConfig() {
         return new MarketClientConfig();
@@ -216,7 +222,8 @@ public class IngestersConfig {
                 Arrays.asList(
                         new EntityStatsWriter.Factory(
                                 historyDbConfig.historyDbIO(),
-                                excludedCommoditiesList()
+                                excludedCommoditiesList(),
+                                getEntitiesFilter()
                         ),
                         new SystemLoadWriter.Factory(
                                 groupServiceBlockingStub(),
@@ -247,7 +254,8 @@ public class IngestersConfig {
                         new TopologyCommoditiesProcessor.Factory(
                                 statsConfig.projectedStatsStore()
                         ),
-                        new PriceIndexWriter.Factory(priceIndexVisitorFactory())
+                        new PriceIndexWriter.Factory(priceIndexVisitorFactory(),
+                                getEntitiesFilter())
                 ),
                 ingesterConfig(TopologyIngesterType.projectedRealtime),
                 bulkLoaderFactorySupplier()
@@ -454,6 +462,10 @@ public class IngestersConfig {
     Supplier<SimpleBulkLoaderFactory> bulkLoaderFactorySupplier() {
         return () -> new SimpleBulkLoaderFactory(historyDbConfig.historyDbIO(),
                 historyDbConfig.bulkLoaderConfig(), historyDbConfig.bulkLoaderThreadPool());
+    }
+
+    private Predicate<TopologyDTO.TopologyEntityDTO> getEntitiesFilter() {
+        return saveGuestLoadEntityStats ? e -> true : GuestLoadFilters::isNotGuestLoad;
     }
 
     /** Topology ingester types, used in injector configurations. */

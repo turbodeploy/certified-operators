@@ -2,6 +2,7 @@ package com.vmturbo.history.ingesters.common.writers;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -18,6 +19,23 @@ import com.vmturbo.history.ingesters.common.IChunkProcessorFactory;
  * Base class for topology writers.
  */
 public abstract class TopologyWriterBase implements IChunkProcessor<Topology.DataSegment> {
+    private final Predicate<TopologyEntityDTO> entitiesFilter;
+
+    /**
+     * Default constructor.
+     */
+    public TopologyWriterBase() {
+        this(e -> true);
+    }
+
+    /**
+     * Constructor with entities filter.
+     *
+     * @param entitiesFilter entities filter
+     */
+    public TopologyWriterBase(Predicate<TopologyEntityDTO> entitiesFilter) {
+        this.entitiesFilter = entitiesFilter;
+    }
 
     @Override
     public ChunkDisposition processChunk(@Nonnull final Collection<Topology.DataSegment> chunk,
@@ -25,6 +43,7 @@ public abstract class TopologyWriterBase implements IChunkProcessor<Topology.Dat
         final List<TopologyEntityDTO> filteredChunk = chunk.stream()
                 .filter(DataSegment::hasEntity)
                 .map(DataSegment::getEntity)
+                .filter(entitiesFilter)
                 .collect(Collectors.toList());
         return processEntities(filteredChunk, infoSummary);
     }
