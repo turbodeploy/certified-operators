@@ -39,6 +39,9 @@ import com.vmturbo.api.dto.searchquery.FieldValueApiDTO;
 import com.vmturbo.api.dto.searchquery.PrimitiveFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.RelatedActionFieldApiDTO;
 import com.vmturbo.api.dto.searchquery.SearchQueryRecordApiDTO;
+import com.vmturbo.extractor.schema.enums.EntityState;
+import com.vmturbo.extractor.schema.enums.EnvironmentType;
+import com.vmturbo.extractor.schema.enums.Severity;
 import com.vmturbo.extractor.schema.tables.SearchEntity;
 import com.vmturbo.extractor.schema.tables.SearchEntityAction;
 import com.vmturbo.extractor.schema.tables.records.SearchEntityActionRecord;
@@ -100,7 +103,9 @@ public abstract class AbstractQuery {
     protected static final Map<SearchMetadataMapping, Object> FIELD_DEFAULT_VALUE =
             ImmutableMap.of(
                     SearchMetadataMapping.RELATED_ACTION_COUNT, 0,
-                    SearchMetadataMapping.PRIMITIVE_SEVERITY, "NORMAL"
+                    SearchMetadataMapping.PRIMITIVE_SEVERITY, Severity.NORMAL,
+                    SearchMetadataMapping.PRIMITIVE_STATE, EntityState.UNKNOWN,
+                    SearchMetadataMapping.PRIMITIVE_ENVIRONMENT_TYPE, EnvironmentType.UNKNOWN_ENV
             );
 
     private static final Map<PrimitiveFieldApiDTO, Function> ENUM_FIELD_JOOQ_TO_API_MAPPER = new HashMap<PrimitiveFieldApiDTO, Function>() {{

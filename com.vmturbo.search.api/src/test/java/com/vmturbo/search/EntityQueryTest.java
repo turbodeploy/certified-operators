@@ -684,14 +684,19 @@ public class EntityQueryTest {
 
         FieldApiDTO integerFieldApiDTO = RelatedEntityFieldApiDTO.entityCount(EntityType.VirtualMachine);
         FieldApiDTO doubleFieldApiDTO = CommodityFieldApiDTO.weightedHistoricalUtilization(CommodityType.MEM);
+        FieldApiDTO environmentFieldApiDTO = PrimitiveFieldApiDTO.environmentType();
+        FieldApiDTO stateFieldApiDTO = PrimitiveFieldApiDTO.entityState();
         FieldApiDTO severityFieldApiDTO = PrimitiveFieldApiDTO.severity();
         OrderByApiDTO orderByIntegerField = OrderByApiDTO.asc(integerFieldApiDTO);
         OrderByApiDTO orderByDoubleField = OrderByApiDTO.desc(doubleFieldApiDTO);
+        OrderByApiDTO orderByEnvironmentField = OrderByApiDTO.desc(environmentFieldApiDTO);
+        OrderByApiDTO orderByStateField = OrderByApiDTO.desc(stateFieldApiDTO);
         OrderByApiDTO orderBySeverityField = OrderByApiDTO.desc(severityFieldApiDTO);
         OrderByApiDTO orderByActionCountField = OrderByApiDTO.desc(RelatedActionFieldApiDTO.actionCount());
 
         PaginationApiDTO pagination = PaginationApiDTO.orderBy(orderByIntegerField,
-                orderByDoubleField, orderBySeverityField, orderByActionCountField).build();
+                orderByDoubleField, orderByEnvironmentField, orderByStateField,
+                orderBySeverityField, orderByActionCountField).build();
         final EntityQueryApiDTO request = EntityQueryApiDTO.queryEntity(selectEntity, pagination);
 
         EntityQuery query = entityQuery(request);
@@ -700,12 +705,18 @@ public class EntityQueryTest {
         LinkedHashSet<SortField<?>> sortFields = query.buildOrderByFields();
 
         //THEN
-        assertEquals(5, sortFields.size());
+        assertEquals(7, sortFields.size());
         final String integerSort = "coalesce(\n" + "  cast(attrs->>'num_vms' as bigint), \n"
                 + "  -2147483648\n" + ") asc nulls first";
         final String doubleSort = "coalesce(\n"
                 + "  cast(attrs->>'mem_hist_utilization' as double), \n"
                 + "  -1.7976931348623157E308\n" + ") desc nulls last";
+        final String environmentSort = "coalesce(\n"
+                + "  \"extractor\".\"search_entity\".\"environment\", \n" + "  'UNKNOWN_ENV'\n"
+                + ") desc nulls last";
+        final String stateSort = "coalesce(\n"
+                + "  \"extractor\".\"search_entity\".\"state\", \n" + "  'UNKNOWN'\n"
+                + ") desc nulls last";
         final String severitySort = "coalesce(\n"
                 + "  \"extractor\".\"search_entity_action\".\"severity\", \n" + "  'NORMAL'\n"
                 + ") desc nulls last";
@@ -717,6 +728,8 @@ public class EntityQueryTest {
                 + ") asc nulls first";
         assertTrue(containsSort(sortFields, integerSort));
         assertTrue(containsSort(sortFields, doubleSort));
+        assertTrue(containsSort(sortFields, environmentSort));
+        assertTrue(containsSort(sortFields, stateSort));
         assertTrue(containsSort(sortFields, severitySort));
         assertTrue(containsSort(sortFields, actionCountSort));
         assertTrue(containsSort(sortFields, defaultOidField));
@@ -1118,11 +1131,14 @@ public class EntityQueryTest {
         final FieldApiDTO commodityDoubleField = CommodityFieldApiDTO.capacity(CommodityType.VMEM);
         final FieldApiDTO severityField = PrimitiveFieldApiDTO.severity();
         final FieldApiDTO actionCountField = RelatedActionFieldApiDTO.actionCount();
+        final FieldApiDTO environmentField = PrimitiveFieldApiDTO.environmentType();
+        final FieldApiDTO stateField = PrimitiveFieldApiDTO.entityState();
 
         OrderByApiDTO orderByCommodity = OrderByApiDTO.asc(commodityDoubleField);
 
         final SelectEntityApiDTO selectEntity = SelectEntityApiDTO.selectEntity(EntityType.VirtualMachine)
-                .fields(primitiveOid, commodityDoubleField, severityField, actionCountField)
+                .fields(primitiveOid, commodityDoubleField, severityField, actionCountField,
+                        environmentField, stateField)
                 .build();
 
         PaginationApiDTO pagination = PaginationApiDTO.orderBy(orderByCommodity)
@@ -1144,8 +1160,12 @@ public class EntityQueryTest {
                 + "  coalesce(\n"
                 + "    \"extractor\".\"search_entity_action\".\"severity\", \n" + "    'NORMAL'\n"
                 + "  ) as \"severity\", \n"
+                + "  coalesce(\n" + "    \"extractor\".\"search_entity\".\"environment\", \n"
+                + "    'UNKNOWN_ENV'\n" + "  ) as \"environment\", \n"
                 + "  \"extractor\".\"search_entity\".\"oid\" as \"oid\", \n"
                 + "  \"extractor\".\"search_entity\".\"name\" as \"name\", \n"
+                + "  coalesce(\n" + "    \"extractor\".\"search_entity\".\"state\", \n"
+                + "    'UNKNOWN'\n" + "  ) as \"state\", \n"
                 + "  cast(attrs->>'vmem_capacity' as double precision) as \"vmem_capacity\", \n"
                 + "  coalesce(\n" + "    \"extractor\".\"search_entity_action\".\"num_actions\", \n"
                 + "    0\n" + "  ) as \"num_actions\", \n"
@@ -1162,7 +1182,7 @@ public class EntityQueryTest {
                 + "    -1.7976931348623157E308\n" + "  ) desc nulls last, \n" + "  coalesce(\n"
                 + "    \"extractor\".\"search_entity\".\"oid\", \n" + "    -2147483648\n"
                 + "  ) desc nulls last\n" + "limit 2";
-        assertTrue(paginatedQuery.toString().equals(expectedQuery));
+        assertEquals(expectedQuery, paginatedQuery.toString());
     }
 
     /**
