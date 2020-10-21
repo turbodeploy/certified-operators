@@ -470,6 +470,14 @@ public class CloudMigrationPlanHelper {
             // Add license access commodities for VMs being migrated.
             updateLicenseAccessCommodities(entity, licenseCommodityKeyByOS);
         }
+
+         // Some active on-prem VMs are connected to storages that have state UNKNOWN.
+         // Topology Converter will skip all entities with UNKNOWN state. The resulting move action
+         // of the volume will be incorrect without the traderTO for the storage.
+         // Set state of all on-prem storage to POWERED_ON to ensure the storages traderTOs are sent
+         // to the market.
+         graph.entitiesOfType(STORAGE_VALUE).forEach(e ->
+                 e.getTopologyEntityDtoBuilder().setEntityState(EntityState.POWERED_ON));
     }
 
     private void addNewBoughtCommodities(final TopologyEntity entity) {

@@ -3126,7 +3126,7 @@ public class TopologyConverter {
                     entityForSL.getDisplayName(), skippedEntities.get(providerOid).getDisplayName());
         }
         // For Migrate to Cloud it doesn't matter if the current provider is not healthy
-        boolean isMovable = (!isProviderUnknownOrFailover || isCloudMigration)
+        boolean isMovable = !isProviderUnknownOrFailover
             // Containers cannot move off their ContainerPods
             && !(provider != null && provider.getEntityType() == EntityType.CONTAINER_POD_VALUE)
             && (commBoughtGroupingForSL.hasMovable()

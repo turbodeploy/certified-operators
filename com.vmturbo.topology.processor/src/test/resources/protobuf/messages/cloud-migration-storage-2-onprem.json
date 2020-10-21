@@ -1,0 +1,170 @@
+{
+  "entityType": 2,
+  "oid": "73433887031974",
+  "displayName": "NIMHF40:ACMDS1",
+  "commoditySoldList": [{
+    "commodityType": {
+      "type": 51,
+      "key": "PhysicalMachine::34313836-3333-5553-4537-33364e385146"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73433887032592",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 64
+    },
+    "used": 93.86666666666667,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 59,
+      "key": "free_storage_cluster"
+    },
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 22
+    },
+    "used": 33.86666666666667,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 8
+    },
+    "used": 2393045.0,
+    "capacity": 5242624.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 51,
+      "key": "PhysicalMachine::34313339-3330-5553-4537-30314e384436"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73433887033328",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 51,
+      "key": "PhysicalMachine::34313836-3333-5553-4537-33394e43424e"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73433887033008",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 6
+    },
+    "used": 5506939.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 51,
+      "key": "PhysicalMachine::34313836-3333-5553-4537-32384e374132"
+    },
+    "used": 1.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73433887033680",
+    "active": true,
+    "displayName": ""
+  }],
+  "commoditiesBoughtFromProviders": [{
+    "providerId": "73433887031971",
+    "providerEntityType": 11,
+    "movable": true,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 22
+      },
+      "used": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 60,
+        "key": "DiskArray-5cf6e809-7d9d85ad-7a3f-001cc46d09d2"
+      },
+      "used": 1.0,
+      "active": true,
+      "displayName": ""
+    }]
+  }],
+  "entityState": "UNKNOWN",
+  "entityPropertyMap": {
+    "VcTgtIdAndInternalName": "d4f84ad21aa938d3d230ce157a21374e5ac7c8ea"
+  },
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "suspendable": false,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1593106961750",
+      "discoveredTargetData": {
+        "73433887067200": {
+          "vendorId": "datastore-996"
+        },
+        "73433886535248": {
+          "vendorId": "datastore-996"
+        }
+      }
+    }
+  },
+  "tags": {
+  },
+  "typeSpecificInfo": {
+    "storage": {
+      "externalName": ["eui.08e413884234c6936c9ce900e0a44c36", "08e413884234c6936c9ce900e0a44c36"],
+      "storageType": "ISCSI",
+      "isLocal": false
+    }
+  }
+}

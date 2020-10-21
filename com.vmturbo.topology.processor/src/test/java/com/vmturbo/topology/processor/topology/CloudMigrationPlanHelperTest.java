@@ -117,6 +117,11 @@ public class CloudMigrationPlanHelperTest {
     private TopologyEntityDTO.Builder storage1OnPrem;
 
     /**
+     * On-prem source Storage DTO data read from file. This storage has state equals UNKNOWN.
+     */
+    private TopologyEntityDTO.Builder storage2OnPrem;
+
+    /**
      * Allocation plan topology info read from file.
      */
     private TopologyInfo allocationTopologyInfo;
@@ -152,6 +157,7 @@ public class CloudMigrationPlanHelperTest {
         vm1Aws = loadTopologyBuilderDTO("cloud-migration-vm-1-aws.json");
         host1OnPrem = loadTopologyBuilderDTO("cloud-migration-pm-1-onprem.json");
         storage1OnPrem = loadTopologyBuilderDTO("cloud-migration-storage-1-onprem.json");
+        storage2OnPrem = loadTopologyBuilderDTO("cloud-migration-storage-2-onprem.json");
 
         IdentityGenerator.initPrefix(1L);
     }
@@ -243,6 +249,41 @@ public class CloudMigrationPlanHelperTest {
         // calculation on the destination
         assertEquals(LicenseModel.LICENSE_INCLUDED,
             resultVm.getTypeSpecificInfo().getVirtualMachine().getLicenseModel());
+    }
+
+    /**
+     * If an on-prem storage has state UNKNOWN, it will changed to POWERED_ON by prepareEntities.
+     *
+     * @throws PipelineStageException should not happen in this test
+     */
+    @Test
+    public void prepareEntitiesStorageUnknownState() throws PipelineStageException {
+        assertNotNull(storage2OnPrem);
+        assertNotNull(vm1OnPrem);
+        assertNotNull(allocationTopologyInfo);
+
+        TopologyEntity.Builder onpremVm = TopologyEntity.newBuilder(vm1OnPrem);
+        TopologyEntity.Builder storageOnPrem = TopologyEntity.newBuilder(storage2OnPrem);
+
+        assertEquals(EntityState.UNKNOWN_VALUE,
+                storage2OnPrem.getEntityState().getNumber());
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(
+                storageOnPrem, onpremVm);
+
+        TopologyMigration migration = TopologyMigration.getDefaultInstance();
+
+        TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        when(context.getSourceEntities()).thenReturn(Collections.singleton(vm1OnPrem.getOid()));
+        when(context.getTopologyInfo()).thenReturn(allocationTopologyInfo);
+
+        cloudMigrationPlanHelper.prepareEntities(context, graph, migration, Collections.EMPTY_MAP,
+                true);
+
+        TopologyEntity resultStorage = graph.getEntity(storage2OnPrem.getOid()).orElse(null);
+        assertNotNull(resultStorage);
+
+        assertEquals(EntityState.POWERED_ON_VALUE, resultStorage.getEntityState().getNumber());
     }
 
     /**
