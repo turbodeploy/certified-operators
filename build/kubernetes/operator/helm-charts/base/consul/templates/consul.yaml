@@ -89,6 +89,12 @@ spec:
         env:
         - name: CONSUL_BIND_INTERFACE
           value: eth0
+{{- if .Values.global }}
+  {{- if or .Values.logtostdout .Values.global.logtostdout }}
+        - name: LOG_TO_STDOUT
+          value: "true"
+  {{- end }}
+{{- end }}
         ports:
           - containerPort: 8301
           - containerPort: 8302

@@ -16,6 +16,17 @@ if [ -z "$LOG_TO_STDOUT" ]; then
     echo "Successfully reached rsyslog. Starting the DB component..."
 fi
 
+# If LOG_TO_STDOUT is defined in the environment, tee the output so that it is also logged to stdout.
+# This is generally desirable in a development setup where you want to see the output on the console when
+# starting a component, but not in production where we do not want logging to be captured by Docker
+# and consume disk space (Docker JSON log driver captures and saves them then docker logs shows them).
+# In a production environment, get the logs from the rsyslog component instead.
+if [[ -z ${LOG_TO_STDOUT} ]]; then
+  export LOGGER_COMMAND="logger --tag mariadb -u /tmp/log.sock"
+else
+  export LOGGER_COMMAND="eval tee >(logger --tag mariadb -u /tmp/log.sock)"
+fi
+
 DEFAULT_MYSQL_CONF=/etc/mysql/my.cnf
 MYSQL_CONF=/var/lib/mysql/my.cnf
 USER=`/usr/bin/id -nu`
@@ -29,7 +40,7 @@ touch /var/log/mysql/mariadb-slow.log /var/log/mysql/error.log
 rm -f /tmp/rsyslog.pid; /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
 
 # write stdin to log
-function log() { logger --tag mariadb -u /tmp/log.sock; }
+function log() { ${LOGGER_COMMAND}; }
 # function to log a message
 function logmsg() { echo $(date -u +'%Y-%m-%d %H:%M:%S') "$@" | log; }
 # function to shut down mysqld
@@ -44,9 +55,9 @@ copy_mysql_default_conf_file () {
     logmsg "Copying default DB config. file from $DEFAULT_MYSQL_CONF to $MYSQL_CONF"
     # backslash suppresses any potential alias
     if [ "$USER" == "root" ]; then
-      \su mysql -c "cp -p $DEFAULT_MYSQL_CONF $MYSQL_CONF" 2>&1 | logger --tag mariadb -u /tmp/log.sock
+      \su mysql -c "cp -p $DEFAULT_MYSQL_CONF $MYSQL_CONF" 2>&1 | log
      else
-      \cp $DEFAULT_MYSQL_CONF $MYSQL_CONF 2>&1 | logger --tag mariadb -u /tmp/log.sock
+      \cp $DEFAULT_MYSQL_CONF $MYSQL_CONF 2>&1 | log
     fi
 }
 
@@ -148,4 +159,4 @@ fi
 
 # Start the database server, with network connections available
 logmsg "+++ Starting DB Server for use by components"
-exec /usr/sbin/mysqld --defaults-file=$MYSQL_CONF > >(logger --tag mariadb -u /tmp/log.sock) 2>&1
+exec /usr/sbin/mysqld --defaults-file=$MYSQL_CONF > >(log) 2>&1

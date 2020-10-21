@@ -16,7 +16,9 @@ fi
 /usr/bin/nohup /diags.py >/tmp/diags.log 2>&1 &
 /usr/bin/nohup /logrotate.sh >/tmp/logrotate.log 2>&1 &
 touch /home/vmtsyslog/rsyslog/log.txt
-tail -F /home/vmtsyslog/rsyslog/log.txt &
+if [[ ${LOG_TO_STDOUT} != false ]]; then
+  tail -F /home/vmtsyslog/rsyslog/log.txt &
+fi
 
 cp /etc/rsyslog.conf /tmp/rsyslog.conf
 

@@ -16,6 +16,17 @@ if [ -z "$LOG_TO_STDOUT" ]; then
     echo "Successfully reached rsyslog. Starting the Consul component..."
 fi
 
+# If LOG_TO_STDOUT is defined in the environment, tee the output so that it is also logged to stdout.
+# This is generally desirable in a development setup where you want to see the output on the console when
+# starting a component, but not in production where we do not want logging to be captured by Docker
+# and consume disk space (Docker JSON log driver captures and saves them then docker logs shows them).
+# In a production environment, get the logs from the rsyslog component instead.
+if [[ -z ${LOG_TO_STDOUT} ]]; then
+  export LOGGER_COMMAND="logger --tag consul -u /tmp/log.sock"
+else
+  export LOGGER_COMMAND="eval tee >(logger --tag consul -u /tmp/log.sock)"
+fi
+
 set -e
 
 # rsyslog
@@ -33,11 +44,11 @@ CONSUL_BIND=
 if [ -n "$CONSUL_BIND_INTERFACE" ]; then
     CONSUL_BIND_ADDRESS=$(ip -o -4 addr list $CONSUL_BIND_INTERFACE | awk '{print $4}' | cut -d/ -f1)
     if [ -z "$CONSUL_BIND_ADDRESS" ]; then
-        echo "Could not find IP for interface '$CONSUL_BIND_INTERFACE', exiting" 2>&1 | logger --tag consul -u /tmp/log.sock
+        echo "Could not find IP for interface '$CONSUL_BIND_INTERFACE', exiting" 2>&1 | ${LOGGER_COMMAND}
         exit 1
     fi
     CONSUL_BIND="-bind=$CONSUL_BIND_ADDRESS"
-    echo "==> Found address '$CONSUL_BIND_ADDRESS' for interface '$CONSUL_BIND_INTERFACE', setting bind option..." 2>&1 | logger --tag consul -u /tmp/log.sock
+    echo "==> Found address '$CONSUL_BIND_ADDRESS' for interface '$CONSUL_BIND_INTERFACE', setting bind option..." 2>&1 | ${LOGGER_COMMAND}
 fi
 
 # You can set CONSUL_CLIENT_INTERFACE to the name of the interface you'd like to
@@ -47,11 +58,11 @@ CONSUL_CLIENT=
 if [ -n "$CONSUL_CLIENT_INTERFACE" ]; then
     CONSUL_CLIENT_ADDRESS=$(ip -o -4 addr list $CONSUL_CLIENT_INTERFACE | awk '{print $4}' | cut -d/ -f1)
     if [ -z "$CONSUL_CLIENT_ADDRESS" ]; then
-        echo "Could not find IP for interface '$CONSUL_CLIENT_INTERFACE', exiting" 2>&1 | logger --tag consul -u /tmp/log.sock
+        echo "Could not find IP for interface '$CONSUL_CLIENT_INTERFACE', exiting" 2>&1 | ${LOGGER_COMMAND}
         exit 1
     fi
     CONSUL_CLIENT="-client=$CONSUL_CLIENT_ADDRESS"
-    echo "==> Found address '$CONSUL_CLIENT_ADDRESS' for interface '$CONSUL_CLIENT_INTERFACE', setting client option..." 2>&1 | logger --tag consul -u /tmp/log.sock
+    echo "==> Found address '$CONSUL_CLIENT_ADDRESS' for interface '$CONSUL_CLIENT_INTERFACE', setting client option..." 2>&1 | ${LOGGER_COMMAND}
 fi
 
 
@@ -87,7 +98,7 @@ fi
 # The first argument is used to decide which mode we are running in. All the
 # remaining arguments are passed along to Consul (or the executable if one of
 # the Consul modes isn't selected).
-exec > >(logger --tag consul -u /tmp/log.sock) 2>&1
+exec > >(${LOGGER_COMMAND}) 2>&1
 MODE=${1:-vmt-server}
 if [ "$MODE" = 'dev' ]; then
     shift

@@ -139,7 +139,7 @@ dependencies:
     condition: grafana.enabled,reporting.enabled
   - name: kubeturbo
     repository: file://../base/kubeturbo
-    version: 0.1.0
+    version: 1.0.0
     condition: kubeturbo.enabled
   - name: prometurbo
     repository: file://../base/prometurbo
