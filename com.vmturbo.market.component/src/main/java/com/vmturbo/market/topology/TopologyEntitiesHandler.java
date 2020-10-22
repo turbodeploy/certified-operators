@@ -185,6 +185,7 @@ public class TopologyEntitiesHandler {
             populateProducesDependencyMap(topology);
             populateRawMaterialsMap(topology);
             commsToAdjustOverheadInClone.forEach(topology::addCommsToAdjustOverhead);
+            logger.info("Created economy with " + topology.getEconomy().getMarkets().size() + " markets");
             return topology;
         }
     }

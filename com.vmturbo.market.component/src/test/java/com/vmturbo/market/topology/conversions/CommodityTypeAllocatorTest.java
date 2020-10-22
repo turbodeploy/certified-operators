@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 
 import org.hamcrest.beans.HasPropertyWithValue;
 import org.hamcrest.core.Is;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -136,5 +137,21 @@ public class CommodityTypeAllocatorTest {
         assertEquals(CommodityDTO.CommodityType.POOL_CPU_VALUE, commTypeAndSlot3.first.getType());
         assertTrue(commTypeAndSlot3.second.isPresent());
         assertEquals(2, (int)commTypeAndSlot3.second.get());
+    }
+
+    /**
+     * Verify that instances of CommoditySpecificationTO are reused.
+     */
+    @Test
+    public void testReuseCommoditySpecifications() {
+        CommodityType commodityType = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.STORAGE_VALUE)
+                .setKey("reuse_test_key")
+                .build();
+        CommoditySpecificationTO spec1 =
+                commodityTypeAllocator.commoditySpecification(commodityType, 1).iterator().next();
+        CommoditySpecificationTO spec2 =
+                commodityTypeAllocator.commoditySpecification(commodityType, 1).iterator().next();
+        Assert.assertSame(spec1, spec2);
     }
 }

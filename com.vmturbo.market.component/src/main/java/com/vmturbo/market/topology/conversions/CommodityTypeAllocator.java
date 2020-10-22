@@ -1,11 +1,11 @@
 package com.vmturbo.market.topology.conversions;
 
-import java.util.regex.Pattern;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -41,8 +41,11 @@ public class CommodityTypeAllocator {
 
     // Mapping of CommoditySpecificationTO (string representation of type and baseType from
     // CommoditySpecificationTO) to specific CommodityType.
-    private final Map<String, CommodityType>
+    private final Map<Integer, CommodityType>
             commoditySpecMap = Maps.newHashMap();
+    // Reuse commodity specifications based on (numeric) type.
+    private final Map<Integer, CommoditySpecificationTO> reusableCommoditySpecs
+            = Maps.newHashMap();
 
     // a set of commodity types that could be used as constraint in reservation
     private static final Set<Integer> reservationConstraintCommodities = Sets.newHashSet(
@@ -65,12 +68,11 @@ public class CommodityTypeAllocator {
      */
     public Map<CommodityType, Integer> getReservationCommTypeToSpecMapping() {
         Map<CommodityType, Integer> commTypeToSpecMap = Maps.newHashMap();
-        for (Map.Entry<String, CommodityType> e : commoditySpecMap.entrySet()) {
-            String commTypeAndKey = e.getKey();
+        for (Map.Entry<Integer, CommodityType> e : commoditySpecMap.entrySet()) {
+            Integer type = e.getKey();
             CommodityType topologyCommType = e.getValue();
-            if (reservationConstraintCommodities.contains(topologyCommType.getType())
-                    && !commTypeToSpecMap.containsKey(commTypeAndKey)) {
-                commTypeToSpecMap.put(topologyCommType, idAllocator.getId(commTypeAndKey));
+            if (reservationConstraintCommodities.contains(topologyCommType.getType())) {
+                commTypeToSpecMap.putIfAbsent(topologyCommType, type);
             }
         }
         return commTypeToSpecMap;
@@ -83,7 +85,7 @@ public class CommodityTypeAllocator {
      * @return the {@link CommoditySpecificationTO} for the biClique key
      */
     @Nonnull
-    public CommoditySpecificationTO commoditySpecificationBiClique(@Nonnull String bcKey) {
+    CommoditySpecificationTO commoditySpecificationBiClique(@Nonnull String bcKey) {
         return CommoditySpecificationTO.newBuilder()
                 .setBaseType(CommodityDTO.CommodityType.BICLIQUE_VALUE)
                 .setType(idAllocator.allocate(
@@ -111,19 +113,22 @@ public class CommodityTypeAllocator {
         final Collection<CommoditySpecificationTO> specs = new ArrayList<>(numberOfSlots);
         for (int i = 0; i < numberOfSlots; i++) {
 
-            final String commodityTypeString = idKeyGenerator.commodityTypeToString(topologyCommodityType,
-               i);
+            final String commodityTypeString =
+                    idKeyGenerator.commodityTypeToString(topologyCommodityType, i);
+            final int commodityType = idAllocator.allocate(commodityTypeString);
             final CommoditySpecificationTO economyCommodity =
-                    CommoditySpecificationTO.newBuilder()
-                            .setType(idAllocator.allocate(commodityTypeString))
+                    reusableCommoditySpecs.computeIfAbsent(commodityType, newType ->
+                        CommoditySpecificationTO.newBuilder()
+                            .setType(newType)
                             .setBaseType(topologyCommodityType.getType())
-                            .setDebugInfoNeverUseInCode(CommodityConverter.commodityDebugInfo(topologyCommodityType))
+                            .setDebugInfoNeverUseInCode(
+                                    CommodityConverter.commodityDebugInfo(topologyCommodityType))
                             .setCloneWithNewType(MarketAnalysisUtils.CLONE_COMMODITIES_WITH_NEW_TYPE
                                     .contains(topologyCommodityType.getType()))
-                            .build();
-            commoditySpecMap.put(commodityTypeString, topologyCommodityType);
+                            .build());
+            commoditySpecMap.put(commodityType, topologyCommodityType);
             logger.debug("Added commodity spec {} for {}",
-                    economyCommodity.toString(), topologyCommodityType);
+                    economyCommodity, topologyCommodityType);
             specs.add(economyCommodity);
         }
         return specs;
@@ -137,7 +142,6 @@ public class CommodityTypeAllocator {
         return defaultKeyGenerator;
     }
 
-
     @VisibleForTesting
     @Nonnull
     Optional<CommodityType> marketToTopologyCommodity(
@@ -145,17 +149,18 @@ public class CommodityTypeAllocator {
             Optional<Integer> slotIndex) {
         // It's possible that type is equal to or greater than the size of idAllocator.
         // For example, the type of clone of certain commodity.
-        if (marketCommodity.getType() >= idAllocator.size()) {
+        int commodityType = marketCommodity.getType();
+        if (commodityType >= idAllocator.size()) {
             return Optional.empty();
         }
 
-        final String name = idAllocator.getName(marketCommodity.getType());
-        final CommodityType topologyCommodity = commoditySpecMap.get(name);
+        final CommodityType topologyCommodity = commoditySpecMap.get(commodityType);
         if (topologyCommodity == null) {
             if (marketCommodity.getBaseType() != CommodityDTO.CommodityType.BICLIQUE_VALUE) {
                 // this is not a biclique commodity
+                final String name = idAllocator.getName(commodityType);
                 logger.error("Market commodity {} (baseType={}) registered in idAllocator for name '{}' does not have an entry in commoditySpecMap.",
-                    marketCommodity.getType(), marketCommodity.getBaseType(), name);
+                    commodityType, marketCommodity.getBaseType(), name);
             }
             return Optional.empty();
         }
@@ -204,7 +209,7 @@ public class CommodityTypeAllocator {
      * @param marketCommId the commodity id for which the name is needed
      * @return the name of the commodity
      */
-    public String getMarketCommodityName(int marketCommId) {
+    String getMarketCommodityName(int marketCommId) {
         return idAllocator.getName(marketCommId);
     }
 
@@ -214,14 +219,14 @@ public class CommodityTypeAllocator {
      * @param marketCommodity Market commodity spec
      * @return True if timeslot commodity
      */
-    public boolean isTimeSlotCommodity(final CommoditySpecificationTO marketCommodity) {
+    boolean isTimeSlotCommodity(final CommoditySpecificationTO marketCommodity) {
         if (MarketAnalysisUtils.CLONE_COMMODITIES_WITH_NEW_TYPE.contains(marketCommodity.getBaseType())) {
             return false;
         }
 
         final String commodityName = getMarketCommodityName(marketCommodity.getType());
         if (commodityName == null) {
-            logger.error("Unknown commodity for market id {}", () -> marketCommodity.getType());
+            logger.error("Unknown commodity for market id {}", marketCommodity::getType);
             return false;
         }
         // timeslot commodity name is the pattern "baseType|key|slotNumber"
@@ -229,13 +234,11 @@ public class CommodityTypeAllocator {
             TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR)).length;
     }
 
-
     /**
      * Generates the Identity key for a commodity type is built.
      * Also provides for the parsing of identity keys.
      */
     private interface CommodityIDKeyGenerator {
-
 
         /**
          * Given the type string, this will parse the key and return the CommodityType.
@@ -268,7 +271,6 @@ public class CommodityTypeAllocator {
         String commodityTypeToString(@Nonnull CommodityType commType,
                                      @Nonnull Optional<Integer> slotIndex);
 
-
         /**
          * Concatenates the type and the key of the {@link CommodityType}.
          *
@@ -278,7 +280,6 @@ public class CommodityTypeAllocator {
          */
         @Nullable
         String commodityTypeToString(@Nonnull CommodityType commType, int slotIndex);
-
 
         /**
          * Get slot number for the specified commodity name.
@@ -329,11 +330,10 @@ public class CommodityTypeAllocator {
         @Nonnull
         public String getKeyFromCommoditySpecification(@Nonnull final CommoditySpecificationTO economyCommodity,
                                                        @Nonnull final Optional<Integer> slotIndex) {
-            return (economyCommodity.getType()) +
-                    TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR +
-                    (economyCommodity.getBaseType());
+            return (economyCommodity.getType())
+                    + TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR
+                    + (economyCommodity.getBaseType());
         }
-
 
         @Override
         @Nullable
@@ -347,9 +347,10 @@ public class CommodityTypeAllocator {
         @Override
         public String commodityTypeToString(@Nonnull final CommodityType commType, final int slotIndex) {
             int type = commType.getType();
-            return type + (commType.hasKey() ?
-                TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR + commType.getKey()
-                : "");
+            return type + (
+                    commType.hasKey()
+                    ? TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR + commType.getKey()
+                    : "");
         }
 
         /**
@@ -367,7 +368,6 @@ public class CommodityTypeAllocator {
      * the slot index is part of the commodity key.
      */
     private static class TimeSlotCommodityIDKeyGenerator extends DefaultCommodityIDKeyGenerator {
-
 
         /**
          * Concatenates the type and the key of the {@link CommodityType}.
@@ -421,6 +421,4 @@ public class CommodityTypeAllocator {
             }
         }
     }
-
-
 }
