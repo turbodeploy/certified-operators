@@ -137,8 +137,8 @@ public class SsoUtilIntegrationTest {
     public void testAuthenticateUserInGroup() {
         SecurityGroupDTO securityGroup = new SecurityGroupDTO(ADMIN_GROUP, "", ADMINISTRATOR);
         ssoUtil.putSecurityGroup(GROUP_NAME, securityGroup);
-        assertNotNull(ssoUtil.authenticateUserInGroup(username, PASSWORD,
-                        Collections.singleton(PROVIDER_URI), false));
+        assertEquals(1, ssoUtil.authenticateUserInGroup(username, PASSWORD,
+                        Collections.singleton(PROVIDER_URI), false).size());
     }
 
     /**

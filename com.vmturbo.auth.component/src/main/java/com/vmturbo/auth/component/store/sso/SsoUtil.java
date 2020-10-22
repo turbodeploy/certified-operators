@@ -425,7 +425,8 @@ public class SsoUtil {
                         if (!foundGroups.isEmpty()) {
                             if (multipleGroupSupport) {
                                 matchedGroups.addAll(foundGroups);
-                            } else if (!ensureUser(userName)) {
+                            } else {
+                                ensureUser(userName);
                                 return Collections.singletonList(foundGroups.iterator().next());
                             }
                         }
@@ -599,6 +600,7 @@ public class SsoUtil {
         }
     }
 
+    // ensure user is in the ssoGroupUsers_ collection.
     @GuardedBy("usersGroupsLock")
     private boolean ensureUser(@Nonnull String userName) {
         final boolean newUser = !ssoGroupUsers_.contains(userName);
