@@ -72,6 +72,13 @@ public enum ActionSettingType {
                             .put(EntityType.STORAGE, ActionMode.RECOMMEND)
                             .put(EntityType.DISK_ARRAY, ActionMode.DISABLED)
                             .put(EntityType.LOGICAL_POOL, ActionMode.RECOMMEND)
+                            .put(EntityType.SWITCH, ActionMode.RECOMMEND)
+                            .build(),
+                        ImmutableMap.<EntityType, ActionMode>builder()
+                            .put(EntityType.SWITCH, ActionMode.DISABLED)
+                            .build(),
+                        ImmutableMap.<EntityType, ActionMode>builder()
+                            .put(EntityType.SWITCH, ActionMode.RECOMMEND)
                             .build(),
                         ActionMode.class);
                     break;
