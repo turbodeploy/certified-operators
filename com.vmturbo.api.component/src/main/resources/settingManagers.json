@@ -224,7 +224,9 @@
         "resizeVStorage",
         "preferSavingsOverReversibility",
         "dtuUtilization",
-        "allowUnlimitedHostOverprovisioning"
+        "allowUnlimitedHostOverprovisioning",
+        "minReplicas",
+        "maxReplicas"
       ]
     },
     "storagesettingsmanager": {

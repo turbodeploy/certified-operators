@@ -50,6 +50,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 
 /**
@@ -181,7 +182,9 @@ public class EntitySettingQueryExecutor {
         settingGroupsBySpecName.forEach((specName, settingGroups) -> {
             final Optional<String> mgrUuid = settingsManagerMapping.getManagerUuid(specName);
             if (!mgrUuid.isPresent()) {
-                logger.warn("No manager found for spec: {}", specName);
+                if (EntitySettingSpecs.isVisibleSetting(specName)) {
+                    logger.warn("No manager found for spec: {}", specName);
+                }
                 return;
             }
 

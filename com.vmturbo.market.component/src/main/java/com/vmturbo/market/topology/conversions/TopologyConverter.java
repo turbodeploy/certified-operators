@@ -2817,7 +2817,9 @@ public class TopologyConverter {
                     .setProviderMustClone(isProviderMustClone)
                     .setDaemon(topologyDTO.getAnalysisSettings().getDaemon())
                     .setRateOfResize(topologyDTO.getAnalysisSettings().getRateOfResize())
-                    .setConsistentScalingFactor(topologyDTO.getAnalysisSettings().getConsistentScalingFactor());
+                    .setConsistentScalingFactor(topologyDTO.getAnalysisSettings().getConsistentScalingFactor())
+                    .setMinReplicas(topologyDTO.getAnalysisSettings().getMinReplicas())
+                    .setMaxReplicas(topologyDTO.getAnalysisSettings().getMaxReplicas());
 
             final float rateOfResize = topologyDTO.getAnalysisSettings().getRateOfResize();
             if (rateOfResizeTranslationMap.containsKey(rateOfResize)) {

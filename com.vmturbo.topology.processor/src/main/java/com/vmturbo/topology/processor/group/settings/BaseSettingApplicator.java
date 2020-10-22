@@ -72,8 +72,8 @@ public abstract class BaseSettingApplicator implements SettingApplicator {
         Setting setting = settings.get(spec);
 
         if (setting == null || !setting.hasNumericSettingValue()) {
-            logger.error("The numeric setting " + spec.getDisplayName()
-                    + " is missing.  Using defaults. ");
+            logger.debug("The numeric setting " + spec.getDisplayName()
+                    + " is not set.  Using defaults.");
             return spec.getNumericDefault();
         }
 

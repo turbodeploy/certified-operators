@@ -301,7 +301,8 @@ public class EntitySettingsApplicator {
                 new ResizeIncrementApplicator(EntitySettingSpecs.DBMemScalingIncrement,
                         CommodityType.DB_MEM),
                 new EnableScaleApplicator(),
-                new EnableDeleteApplicator());
+                new EnableDeleteApplicator(),
+                new MinMaxReplicasApplicator());
     }
 
     /**
@@ -754,6 +755,55 @@ public class EntitySettingsApplicator {
                             commSoldBuilder.getCommodityType(), resizeable);
                     });
             }
+        }
+    }
+
+    /**
+     * Applies minReplicas and maxReplicas settings to entity.
+     */
+    private static class MinMaxReplicasApplicator extends BaseSettingApplicator {
+
+        @Override
+        public void apply(@Nonnull TopologyEntityDTO.Builder application,
+                          @Nonnull Map<EntitySettingSpecs, Setting> settings,
+                          @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
+            if (!EntitySettingSpecs.hasMinMaxReplicasSetting(application.getEntityType())) {
+                return;
+            }
+
+            final double minReplicasMin = EntitySettingSpecs.MinReplicas.getNumericMin();
+            final double minReplicasMax = EntitySettingSpecs.MinReplicas.getNumericMax();
+            final double minReplicasDefault = EntitySettingSpecs.MinReplicas.getNumericDefault();
+            final double maxReplicasMin = EntitySettingSpecs.MaxReplicas.getNumericMin();
+            final double maxReplicasMax = EntitySettingSpecs.MaxReplicas.getNumericMax();
+            final double maxReplicasDefault = EntitySettingSpecs.MaxReplicas.getNumericDefault();
+
+            double minReplicas = getNumericSetting(settings, EntitySettingSpecs.MinReplicas);
+            double maxReplicas = getNumericSetting(settings, EntitySettingSpecs.MaxReplicas);
+            if (minReplicas < minReplicasMin
+                    || maxReplicas < maxReplicasMin
+                    || minReplicas > minReplicasMax
+                    || maxReplicas > maxReplicasMax) {
+                logger.error("Invalid value set for minReplicas: {} or maxReplicas: {} for"
+                                + " entity {}. Valid values for minReplicas: {} to {}. Valid values"
+                                + " for maxReplicas: {} to {}. Using default values {} and {}.",
+                        minReplicas, maxReplicas, application.getDisplayName(),
+                        minReplicasMin, minReplicasMax, maxReplicasMin, maxReplicasMax,
+                        minReplicasDefault, maxReplicasDefault);
+                minReplicas = minReplicasDefault;
+                maxReplicas = maxReplicasDefault;
+            } else if (minReplicas > maxReplicas) {
+                logger.error("Invalid value set for minReplicas: {} or maxReplicas: {} for"
+                                + " entity {}. minReplicas must be less than or equal to maxReplicas."
+                                + " Using default values {} and {}.",
+                        minReplicas, maxReplicas, application.getDisplayName(),
+                        minReplicasDefault, maxReplicasDefault);
+                minReplicas = minReplicasDefault;
+                maxReplicas = maxReplicasDefault;
+            }
+            application.getAnalysisSettingsBuilder()
+                    .setMinReplicas((int)minReplicas)
+                    .setMaxReplicas((int)maxReplicas);
         }
     }
 

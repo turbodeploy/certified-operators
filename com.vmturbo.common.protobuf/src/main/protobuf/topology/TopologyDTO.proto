@@ -830,6 +830,12 @@ message TopologyEntityDTO {
         // generates actions that make sense in the unit the consistent scaling group must be
         // consistent in.
         optional float consistent_scaling_factor = 15 [default = 1.0];
+
+        // Minimum replicas of trader during horizontal scale
+        optional int32 min_replicas = 16;
+
+        // Maximum replicas of trader during horizontal scale
+        optional int32 max_replicas = 17;
     }
 
     optional Origin origin = 10;

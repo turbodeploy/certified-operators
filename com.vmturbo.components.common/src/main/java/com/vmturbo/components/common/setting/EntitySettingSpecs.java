@@ -741,6 +741,22 @@ public enum EntitySettingSpecs {
             numeric(20f, 100f, 80f), true),
 
     /**
+     * Minimum replicas.
+     */
+    MinReplicas("minReplicas", "Minimum Replicas",
+            Collections.emptyList(),
+            SettingTiebreaker.BIGGER, SettingConstants.MIN_MAX_REPLICAS_ENTITY_TYPES,
+            numeric(1, 10000, 1), true),
+
+    /**
+     * Maximum replicas.
+     */
+    MaxReplicas("maxReplicas", "Maximum Replicas",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER, SettingConstants.MIN_MAX_REPLICAS_ENTITY_TYPES,
+            numeric(1, 10000, 10000), true),
+
+    /**
      * RemainingGcCapacity utilization threshold.
      * This is not exposed to the user and has a fixed value. If we ever want to expose
      * it then add it to settingManagers.json.
@@ -1209,6 +1225,25 @@ public enum EntitySettingSpecs {
     }
 
     /**
+     * A shortcut to get the numeric minimum value.
+     *
+     * @return numeric default value
+     */
+    public double getNumericMin() {
+        return settingSpec.getNumericSettingValueType().getMin();
+    }
+
+    /**
+     * A shortcut to get the numeric maximum value.
+     *
+     * @return numeric default value
+     */
+    public double getNumericMax() {
+        return settingSpec.getNumericSettingValueType().getMax();
+    }
+
+
+    /**
      * A shortcut to get the boolean default value.
      *
      * @return boolean default value
@@ -1358,10 +1393,23 @@ public enum EntitySettingSpecs {
     }
 
     /**
+     * Return if the input entity type has min/max replicas setting or not.
+     *
+     * @param entityType the input entity type value
+     * @return true if input entity type has min/max replicas setting
+     */
+    public static boolean hasMinMaxReplicasSetting(final int entityType) {
+        return SettingConstants.MIN_MAX_REPLICAS_ENTITY_TYPES
+                .contains(EntityType.forNumber(entityType));
+    }
+
+    /**
      * Class for storing setting constants.
      */
     private static class SettingConstants {
         private static final String AGGRESSIVENESS = "Aggressiveness";
         private static final String MAX_OBSERVATION_PERIOD = "Max Observation Period";
+        private static final Set<EntityType> MIN_MAX_REPLICAS_ENTITY_TYPES =
+                ImmutableSet.of(EntityType.APPLICATION_COMPONENT);
     }
 }

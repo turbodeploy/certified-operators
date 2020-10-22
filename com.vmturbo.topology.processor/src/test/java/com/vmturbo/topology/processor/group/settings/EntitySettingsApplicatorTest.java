@@ -496,6 +496,12 @@ public class EntitySettingsApplicatorTest {
     private static final Setting.Builder SCALING_POLICY_SETTING_BUILDER = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.ScalingPolicy.getSettingName());
 
+    private static final Setting.Builder MIN_POLICY_SETTING_BUILDER = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.MinReplicas.getSettingName());
+
+    private static final Setting.Builder MAX_POLICY_SETTING_BUILDER = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.MaxReplicas.getSettingName());
+
     private static final TopologyEntityDTO PARENT_OBJECT =
             TopologyEntityDTO.newBuilder().setOid(PARENT_ID).setEntityType(100001).build();
     private static final double DELTA = 0.001;
@@ -1986,6 +1992,74 @@ public class EntitySettingsApplicatorTest {
         // With PROVISION policy, the cloneable/suspendable setting should not change
         assertEquals(originalBuilder.getAnalysisSettings().getCloneable(),
                 builder.getAnalysisSettings().getCloneable());
+    }
+
+    /**
+     * Test setting min/max replicas for application component.
+     */
+    @Test
+    public void testMinMaxReplicasForAppComponent() {
+        final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
+        applySettings(TOPOLOGY_INFO, builder,
+                MIN_POLICY_SETTING_BUILDER
+                        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(2).build())
+                        .build(),
+                MAX_POLICY_SETTING_BUILDER
+                        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(5).build())
+                        .build());
+        assertEquals(2, builder.getAnalysisSettings().getMinReplicas(), DELTA);
+        assertEquals(5, builder.getAnalysisSettings().getMaxReplicas(), DELTA);
+    }
+
+    /**
+     * Test setting invalid min replicas for application component.
+     */
+    @Test
+    public void testInvalidMinReplicasForAppComponent() {
+        final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
+        applySettings(TOPOLOGY_INFO, builder,
+                MIN_POLICY_SETTING_BUILDER
+                        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(-1).build())
+                        .build());
+        assertEquals(EntitySettingSpecs.MinReplicas.getNumericDefault(),
+                builder.getAnalysisSettings().getMinReplicas(), DELTA);
+        assertEquals(EntitySettingSpecs.MaxReplicas.getNumericDefault(),
+                builder.getAnalysisSettings().getMaxReplicas(), DELTA);
+    }
+
+    /**
+     * Test setting invalid max replicas for application component.
+     */
+    @Test
+    public void testInvalidMaxReplicasForAppComponent() {
+        final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
+        applySettings(TOPOLOGY_INFO, builder,
+                MAX_POLICY_SETTING_BUILDER
+                        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(200000).build())
+                        .build());
+        assertEquals(EntitySettingSpecs.MinReplicas.getNumericDefault(),
+                builder.getAnalysisSettings().getMinReplicas(), DELTA);
+        assertEquals(EntitySettingSpecs.MaxReplicas.getNumericDefault(),
+                builder.getAnalysisSettings().getMaxReplicas(), DELTA);
+    }
+
+    /**
+     * Test setting min replicas > max replicas.
+     */
+    @Test
+    public void testMinReplicasLargerThanMaxReplicasForAppComponent() {
+        final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
+        applySettings(TOPOLOGY_INFO, builder,
+                MIN_POLICY_SETTING_BUILDER
+                        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(5).build())
+                        .build(),
+                MAX_POLICY_SETTING_BUILDER
+                        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(2).build())
+                        .build());
+        assertEquals(EntitySettingSpecs.MinReplicas.getNumericDefault(),
+                builder.getAnalysisSettings().getMinReplicas(), DELTA);
+        assertEquals(EntitySettingSpecs.MaxReplicas.getNumericDefault(),
+                builder.getAnalysisSettings().getMaxReplicas(), DELTA);
     }
 
     /**
