@@ -249,12 +249,12 @@ public final class AnalysisToProtobuf {
      * @return The resulting {@link TraderSettingsTO}
      */
     public static @NonNull TraderSettingsTO traderSettingsTO(@NonNull TraderSettings input) {
-        return TraderSettingsTO.newBuilder()
-                        .setClonable(input.isCloneable()).setSuspendable(input.isSuspendable())
-                        .setMinDesiredUtilization((float)input.getMinDesiredUtil())
-                        .setMaxDesiredUtilization((float)input.getMaxDesiredUtil())
-                        .setGuaranteedBuyer(input.isGuaranteedBuyer())
-                        .setCanAcceptNewCustomers(input.canAcceptNewCustomers()).build();
+        return TraderSettingsTO.newBuilder().setClonable(input.isCloneable())
+                .setSuspendable(input.isSuspendable()).setControllable(input.isControllable())
+                .setMinDesiredUtilization((float)input.getMinDesiredUtil())
+                .setMaxDesiredUtilization((float)input.getMaxDesiredUtil())
+                .setGuaranteedBuyer(input.isGuaranteedBuyer())
+                .setCanAcceptNewCustomers(input.canAcceptNewCustomers()).build();
     }
 
     /**
@@ -596,7 +596,7 @@ public final class AnalysisToProtobuf {
             return null;
         }
         List<Trader> sellers = market.getActiveSellers();
-        List<Trader> mutableSellers = new ArrayList<Trader>();
+        List<Trader> mutableSellers = new ArrayList<>();
         mutableSellers.addAll(sellers);
         mutableSellers.retainAll(economy.getMarket(buyer).getActiveSellers());
         // Get cheapest quote, that will be provided by the matching template
@@ -765,7 +765,7 @@ public final class AnalysisToProtobuf {
      * @return The result {@link NewShoppingListToBuyerEntry} message
      */
     public static @NonNull List<NewShoppingListToBuyerEntry> createNewShoppingListToBuyerMap(Topology topology) {
-        List<NewShoppingListToBuyerEntry> entryList = new ArrayList<NewShoppingListToBuyerEntry>();
+        List<NewShoppingListToBuyerEntry> entryList = new ArrayList<>();
         topology.getNewShoppingListToBuyerMap().entrySet().forEach(entry -> {
             entryList.add(NewShoppingListToBuyerEntry.newBuilder().setNewShoppingList(entry
                             .getKey()).setBuyer(entry.getValue()).build());
@@ -807,9 +807,9 @@ public final class AnalysisToProtobuf {
                                 .build());
             } else {
                 // old supplier exists and its state is Active
-                Map<Double, List<Integer>> quoteDiffPerComm = new TreeMap<Double, List<Integer>>();
+                Map<Double, List<Integer>> quoteDiffPerComm = new TreeMap<>();
                 Basket basketBought = move.getTarget().getBasket();
-                Set<Integer> complianceCommSet = new HashSet<Integer>();
+                Set<Integer> complianceCommSet = new HashSet<>();
                 // iterate over all comm that the shopping list requests, calculate at the old
                 // supplier and the new supplier  the priceUsed and peakPriceUsed
                 for (int i = 0; i < basketBought.size(); i++) {
