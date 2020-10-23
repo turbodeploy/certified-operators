@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.util;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -16,7 +17,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.stats.ImmutableTimeWindow;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
+import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.Pair;
@@ -117,6 +122,119 @@ public class StatsUtils {
                 .map(scopeEntityTypes -> !Sets.intersection(SUPPORTED_RI_FILTER_TYPES, scopeEntityTypes).isEmpty())
                 // this is a global or plan scope
                 .orElse(true);
+    }
+
+    /**
+     * If ONLY one of startDate/endDate is provided, adjust their values so that are
+     * consistent in what they represent. (If both of them are provided or none of them is,
+     * there is no need to modify anything so the function does nothing.)
+     * Adjustment goes as follows:
+     * - If only endDate is provided:
+     * --- if end date is in the past, throw an exception since no assumption can be made for
+     *      the start date; it is considered invalid input.
+     * --- if end date is now* , set it to null. (When both dates are null, the most recent
+     *      timestamp is returned.)
+     * --- if end date is in the future, set the start date to current time
+     * - If only startDate is provided:
+     * --- if start date is in the past, set the end date to current time.
+     * --- if start date is now* , set it to null. (When both dates are null, the most recent
+     *      timestamp is returned.)
+     * --- if start date is in the future, set the end date equal to start date.
+     *
+     * <p>*'now' is considered a small time frame of current time up to a minute ago/after.
+     *
+     * @param period user requested dto
+     * @param clockTimeNow current time in millis
+     * @param toleranceInMillis the tolerance time within which is considered as current
+     * @return optional TimeWindow
+     */
+    public static Optional<TimeWindow> sanitizeStartDateOrEndDate(
+            @Nullable StatPeriodApiInputDTO period, final long clockTimeNow, long toleranceInMillis) {
+        if (period == null || (period.getStartDate() == null && period.getEndDate() == null)) {
+            // no need to modify
+            return Optional.empty();
+        }
+
+        // give the startTime a +/- 60 second window for delineating between "current" and
+        // "projected" stats requests. Without this window, the stats retrieval is too sensitive
+        // to clock skew issues between the browser and the server, leading to incorrect results
+        // in the UI.
+        final long currentStatsTimeWindowStart = clockTimeNow - toleranceInMillis;
+        final long currentStatsTimeWindowEnd = clockTimeNow + toleranceInMillis;
+
+        Long startTime = null;
+        Long endTime = null;
+        if (period.getStartDate() == null) {
+            // in this case we have just endDate
+            endTime = DateTimeUtil.parseTime(period.getEndDate());
+            if (endTime < currentStatsTimeWindowStart) {
+                // end date in the past
+                throw new IllegalArgumentException(
+                        "Incorrect combination of start and end date: Start date missing & end date in the past.");
+            } else if (endTime <= currentStatsTimeWindowEnd) {
+                // end date now (belongs to [currentStatsTimeWindowStart, currentStatsTimeWindowEnd])
+                endTime = null;
+            } else {
+                // end date in the future
+                startTime = clockTimeNow;
+            }
+        } else if (period.getEndDate() == null) {
+            // in this case we have just startDate
+            startTime = DateTimeUtil.parseTime(period.getStartDate());
+            if (startTime < currentStatsTimeWindowStart) {
+                // start date in the past
+                period.setEndDate(Long.toString(clockTimeNow));
+                endTime = clockTimeNow;
+            } else if (startTime <= currentStatsTimeWindowEnd) {
+                // start date now (belongs to [currentStatsTimeWindowStart, currentStatsTimeWindowEnd])
+                startTime = null;
+            } else {
+                // start date in the future
+                endTime = startTime;
+            }
+        } else {
+            // if none of startDate, endDate is null, there is no need to modify anything
+            startTime = DateTimeUtil.parseTime(period.getStartDate());
+            endTime = DateTimeUtil.parseTime(period.getEndDate());
+        }
+
+        // modify input dto
+        period.setStartDate(startTime == null ? null : Long.toString(startTime));
+        period.setEndDate(endTime == null ? null : Long.toString(endTime));
+
+        // starttime and endtime should be both nonnull or both null
+        if (startTime != null && endTime != null) {
+            // create TimeWindow based on sanitized date
+            return Optional.of(ImmutableTimeWindow.builder()
+                    .startTime(startTime)
+                    .endTime(endTime)
+                    .includeHistorical(startTime < currentStatsTimeWindowStart)
+                    .includeCurrent(startTime <= currentStatsTimeWindowEnd && endTime >= currentStatsTimeWindowStart)
+                    .includeProjected(endTime > currentStatsTimeWindowEnd)
+                    .build());
+        } else {
+            // both startTime and endTime are null
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Get the string formatted date to use for projected stat snapshot.
+     *
+     * @param timeWindow time window of input
+     * @param currentTimeInMillis current time
+     * @param liveStatsRetrievalWindow the tolerance time
+     * @return string date for projected stat
+     */
+    public static String getProjectedStatSnapshotDate(Optional<TimeWindow> timeWindow,
+            long currentTimeInMillis, Duration liveStatsRetrievalWindow) {
+        return DateTimeUtil.toString(timeWindow
+                .map(TimeWindow::endTime)
+                // If the request didn't have an explicit end time, set the time the future (and beyond).
+                // We want it to be out of the "live stats retrieval window" (to keep the semantics
+                // that anything within the live stats retrieval window = current stats), so we add
+                // a minute.
+                .orElseGet(() -> currentTimeInMillis + liveStatsRetrievalWindow.plusMinutes(1).toMillis()));
     }
 
     /**

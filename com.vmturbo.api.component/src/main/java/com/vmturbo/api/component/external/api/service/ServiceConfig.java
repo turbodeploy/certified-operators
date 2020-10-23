@@ -580,7 +580,8 @@ public class ServiceConfig {
             mapperConfig.uuidMapper(),
             statsQueryExecutor(),
             planEntityStatsFetcher(),
-            paginatedStatsExecutor());
+            paginatedStatsExecutor(),
+            Duration.ofSeconds(liveStatsRetrievalWindowSeconds));
         groupsService().setStatsService(statsService);
         return statsService;
     }

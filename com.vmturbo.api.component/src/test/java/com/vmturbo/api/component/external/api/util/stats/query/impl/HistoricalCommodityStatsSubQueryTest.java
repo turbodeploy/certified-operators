@@ -296,6 +296,9 @@ public class HistoricalCommodityStatsSubQueryTest {
         when(context.getTimeWindow()).thenReturn(Optional.of(ImmutableTimeWindow.builder()
             .startTime(startTime)
             .endTime(startTime + 1_000)
+            .includeCurrent(true)
+            .includeHistorical(false)
+            .includeProjected(false)
             .build()));
 
         // These entities in the scope.

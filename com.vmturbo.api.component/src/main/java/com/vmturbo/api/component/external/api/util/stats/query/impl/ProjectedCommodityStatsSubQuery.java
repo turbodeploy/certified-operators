@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
+import static com.vmturbo.api.component.external.api.util.StatsUtils.getProjectedStatSnapshotDate;
+
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
@@ -72,15 +74,8 @@ public class ProjectedCommodityStatsSubQuery implements StatsSubQuery {
             response.getSnapshot());
 
         // set the time of the snapshot to "future" using the "endDate" of the request
-        projectedStatSnapshot.setDate(DateTimeUtil.toString(
-            context.getTimeWindow()
-                .map(TimeWindow::endTime)
-                // If the request didn't have an explicit end time, set the time the future (and beyond).
-                // We want it to be out of the "live stats retrieval window" (to keep the semantics
-                // that anything within the live stats retrieval window = current stats), so we add
-                // a minute.
-                .orElseGet(() ->
-                    context.getCurTime() + liveStatsRetrievalWindow.plusMinutes(1).toMillis())));
+        projectedStatSnapshot.setDate(getProjectedStatSnapshotDate(context.getTimeWindow(),
+                context.getCurTime(), liveStatsRetrievalWindow));
         projectedStatSnapshot.setEpoch(Epoch.PROJECTED);
         return Collections.singletonList(projectedStatSnapshot);
     }

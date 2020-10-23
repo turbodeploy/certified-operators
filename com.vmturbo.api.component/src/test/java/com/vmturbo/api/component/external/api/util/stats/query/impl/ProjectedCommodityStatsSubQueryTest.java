@@ -79,6 +79,9 @@ public class ProjectedCommodityStatsSubQueryTest {
             .startTime(1_000)
             // At the edge of the "cur stats window."
             .endTime(1_000 + LIVE_STATS_WINDOW.toMillis())
+            .includeCurrent(true)
+            .includeHistorical(false)
+            .includeProjected(false)
             .build();
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getTimeWindow()).thenReturn(Optional.of(timeWindow));
@@ -129,6 +132,9 @@ public class ProjectedCommodityStatsSubQueryTest {
         final TimeWindow timeWindow = ImmutableTimeWindow.builder()
             .startTime(1_000)
             .endTime(3_000)
+            .includeCurrent(true)
+            .includeHistorical(false)
+            .includeProjected(true)
             .build();
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
         when(queryScope.getGlobalScope()).thenReturn(Optional.empty());

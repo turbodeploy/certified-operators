@@ -72,6 +72,9 @@ public class StatsQueryContextFactoryTest {
         assertThat(context.getTimeWindow(), is(Optional.of(ImmutableTimeWindow.builder()
             .startTime(clock.millis() - 5000)
             .endTime(clock.millis() + 5000)
+            .includeHistorical(true)
+            .includeCurrent(true)
+            .includeProjected(true)
             .build())));
         assertThat(context.includeCurrent(), is(true));
         assertThat(context.getCurTime(), is(clock.millis()));
@@ -106,6 +109,9 @@ public class StatsQueryContextFactoryTest {
         assertThat(context.getTimeWindow(), is(Optional.of(ImmutableTimeWindow.builder()
             .startTime(clock.millis() - 10000)
             .endTime(clock.millis() - 5000)
+            .includeHistorical(true)
+            .includeCurrent(false)
+            .includeProjected(false)
             .build())));
         assertThat(context.includeCurrent(), is(false));
         assertThat(context.requestProjected(), is(false));
@@ -116,8 +122,10 @@ public class StatsQueryContextFactoryTest {
         when(targetCache.getAllTargets())
             .thenReturn(Collections.emptyList());
         StatPeriodApiInputDTO inputDTO = new StatPeriodApiInputDTO();
-        inputDTO.setStartDate(DateTimeUtil.toString(clock.millis() - LIVE_STATS_WINDOW.toMillis()));
-        inputDTO.setEndDate(DateTimeUtil.toString(clock.millis() + 5000));
+        final long startTime = clock.millis() - LIVE_STATS_WINDOW.toMillis();
+        final long endTime = clock.millis() + 5000;
+        inputDTO.setStartDate(DateTimeUtil.toString(startTime));
+        inputDTO.setEndDate(DateTimeUtil.toString(endTime));
 
         final List<StatApiInputDTO> statApiDTOList = new ArrayList<>();
 
@@ -125,9 +133,13 @@ public class StatsQueryContextFactoryTest {
 
         final StatsQueryContext context = factory.newContext(mock(ApiId.class), expandedScope, inputDTO);
 
-        // Because the start date actually falls into the "current" stats window, it should get
-        // treated as null. Time window is only present if both start and end date are non-null.
-        assertThat(context.getTimeWindow(), is(Optional.empty()));
+        assertThat(context.getTimeWindow(), is(Optional.of(ImmutableTimeWindow.builder()
+                .startTime(startTime)
+                .endTime(endTime)
+                .includeHistorical(false)
+                .includeCurrent(true)
+                .includeProjected(true)
+                .build())));
         assertThat(context.includeCurrent(), is(true));
         assertThat(context.requestProjected(), is(true));
     }
@@ -158,8 +170,10 @@ public class StatsQueryContextFactoryTest {
             .thenReturn(Collections.singletonList(targetInfo));
 
         StatPeriodApiInputDTO inputDTO = new StatPeriodApiInputDTO();
-        inputDTO.setStartDate(DateTimeUtil.toString(clock.millis() - 5000));
-        inputDTO.setEndDate(DateTimeUtil.toString(clock.millis() + 5000));
+        final String startTime = DateTimeUtil.toString(clock.millis() - 5000);
+        final String endTime = DateTimeUtil.toString(clock.millis() + 5000);
+        inputDTO.setStartDate(startTime);
+        inputDTO.setEndDate(endTime);
 
         final StatsQueryContext context = factory.newContext(mock(ApiId.class), expandedScope, inputDTO);
 
@@ -167,8 +181,8 @@ public class StatsQueryContextFactoryTest {
         fooStat.setName("foo");
 
         final StatPeriodApiInputDTO input = context.newPeriodInputDto(Collections.singleton(fooStat));
-        assertThat(input.getStartDate(), is(inputDTO.getStartDate()));
-        assertThat(input.getEndDate(), is(inputDTO.getEndDate()));
+        assertThat(input.getStartDate(), is(startTime));
+        assertThat(input.getEndDate(), is(endTime));
         assertThat(input.getStatistics(), containsInAnyOrder(fooStat));
     }
 

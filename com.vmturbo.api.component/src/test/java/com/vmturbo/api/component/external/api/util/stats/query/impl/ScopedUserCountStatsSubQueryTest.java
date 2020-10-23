@@ -81,6 +81,9 @@ public class ScopedUserCountStatsSubQueryTest {
         final TimeWindow timeWindow = ImmutableTimeWindow.builder()
             .startTime(1_000)
             .endTime(3_000)
+            .includeCurrent(true)
+            .includeHistorical(false)
+            .includeProjected(true)
             .build();
         final StatsQueryContext context = mock(StatsQueryContext.class);
         final HashSet<Long> entities = new HashSet<>(Arrays.asList(1L));

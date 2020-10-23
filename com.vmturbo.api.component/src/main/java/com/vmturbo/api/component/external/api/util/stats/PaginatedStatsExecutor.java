@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.util.stats;
 import static java.util.stream.Collectors.groupingBy;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -14,7 +15,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -39,7 +39,9 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudCostsStatsSubQuery;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
@@ -165,9 +167,10 @@ public class PaginatedStatsExecutor {
      * @throws OperationFailedException when the operation fails
      */
     public EntityStatsPaginationResponse getLiveEntityStats(@Nonnull final StatScopesApiInputDTO inputDto,
-            @Nonnull final EntityStatsPaginationRequest paginationRequest)
+            @Nonnull final EntityStatsPaginationRequest paginationRequest,
+            @Nonnull final Duration liveStatsRetrievalWindow)
             throws OperationFailedException {
-        PaginatedStatsGather statsGatherer = new PaginatedStatsGather(inputDto, paginationRequest);
+        PaginatedStatsGather statsGatherer = new PaginatedStatsGather(inputDto, paginationRequest, liveStatsRetrievalWindow);
         statsGatherer.processRequest();
         return statsGatherer.getEntityStatsPaginationResponse();
     }
@@ -186,6 +189,10 @@ public class PaginatedStatsExecutor {
         private final long clockTimeNow;
 
         private final StatPeriodApiInputDTO period;
+
+        private final Optional<TimeWindow> timeWindow;
+
+        private final Duration liveStatsRetrievalWindow;
 
         /**
          * This variable will be set to the pagination response.
@@ -206,11 +213,15 @@ public class PaginatedStatsExecutor {
          * @param paginationRequest the pagination request object
          */
         PaginatedStatsGather(@Nonnull final StatScopesApiInputDTO inputDto,
-                @Nonnull final EntityStatsPaginationRequest paginationRequest) {
+                @Nonnull final EntityStatsPaginationRequest paginationRequest,
+                @Nonnull final Duration liveStatsRetrievalWindow) {
             this.inputDto = Objects.requireNonNull(inputDto);
             this.paginationRequest = Objects.requireNonNull(paginationRequest);
             this.clockTimeNow = clock.millis();
             this.period = this.inputDto.getPeriod();
+            this.liveStatsRetrievalWindow = liveStatsRetrievalWindow;
+            this.timeWindow = StatsUtils.sanitizeStartDateOrEndDate(period, clockTimeNow,
+                    liveStatsRetrievalWindow.toMillis());
         }
 
         /**
@@ -264,7 +275,6 @@ public class PaginatedStatsExecutor {
          * @throws OperationFailedException when the operation fails
          */
         void processRequest() throws OperationFailedException {
-            sanitizeStartDateOrEndDate();
             if (isEntityWithoutHistoricalDataStatsRequest()) {
                 runEntitiesWithoutHistoricalDataStatsRequest();
             } else if (isHistoricalStatsRequest()) {
@@ -274,62 +284,6 @@ public class PaginatedStatsExecutor {
             } else {
                 throw new IllegalArgumentException("Invalid start and end date combination.");
             }
-        }
-
-        /**
-         * If ONLY one of startDate/endDate is provided, adjust their values so that are
-         * consistent in what they represent. (If both of them are provided or none of them is,
-         * there is no need to modify anything so the function does nothing.)
-         * Adjustment goes as follows:
-         * - If only endDate is provided:
-         * --- if end date is in the past, throw an exception since no assumption can be made for
-         *      the start date; it is considered invalid input.
-         * --- if end date is now* , set it to null. (When both dates are null, the most recent
-         *      timestamp is returned.)
-         * --- if end date is in the future, set the start date to current time
-         * - If only startDate is provided:
-         * --- if start date is in the past, set the end date to current time.
-         * --- if start date is now* , set it to null. (When both dates are null, the most recent
-         *      timestamp is returned.)
-         * --- if start date is in the future, set the end date equal to start date.
-         *
-         * <p>*'now' is considered a small time frame of current time up to a minute ago
-         */
-        protected void sanitizeStartDateOrEndDate() {
-            if (period == null || (period.getStartDate() == null && period.getEndDate() == null)) {
-                return;
-            }
-            // Use a small tolerance time window: [clockTimeNowTolerance, clockTimeNow]
-            // Timestamps up to 1 min before 'now' are considered 'now'
-            long clockTimeNowTolerance =
-                    clockTimeNow - TimeUnit.MINUTES.toMillis(1);
-            if (period.getStartDate() == null) {        // in this case we have just endDate
-                long inputEndTime = DateTimeUtil.parseTime(period.getEndDate());
-                if (inputEndTime < clockTimeNowTolerance) {
-                    // end date in the past
-                    throw new IllegalArgumentException(
-                            "Incorrect combination of start and end date: Start date missing & end date in the past.");
-                } else if (inputEndTime <= clockTimeNow) {
-                    // end date now (belongs to [clockTimeNowTolerance, clockTimeNow])
-                    period.setEndDate(null);
-                } else {
-                    // end date in the future
-                    period.setStartDate(Long.toString(clockTimeNow));
-                }
-            } else if (period.getEndDate() == null) {   // in this case we have just startDate
-                long inputStartTime = DateTimeUtil.parseTime(period.getStartDate());
-                if (inputStartTime < clockTimeNowTolerance) {
-                    // start date in the past
-                    period.setEndDate(Long.toString(clockTimeNow));
-                } else if (inputStartTime <= clockTimeNow) {
-                    // start date now (belongs to [clockTimeNowTolerance, clockTimeNow])
-                    period.setStartDate(null);
-                } else {
-                    // start date in the future
-                    period.setEndDate(Long.toString(inputStartTime));
-                }
-            }
-            // if none of startDate, endDate is null, there is no need to modify anything
         }
 
         /**
@@ -347,11 +301,7 @@ public class PaginatedStatsExecutor {
          * @return true if startDate in the past or not provided
          */
         boolean isHistoricalStatsRequest() {
-            if (period == null || period.getStartDate() == null) {
-                return true;
-            }
-
-            return DateTimeUtil.parseTime(period.getStartDate()) < clockTimeNow;
+            return timeWindow.map(TimeWindow::includeHistorical).orElse(true);
         }
 
         /**
@@ -360,10 +310,7 @@ public class PaginatedStatsExecutor {
          * @return true only if endDate set and in the future
          */
         boolean isProjectedStatsRequest() {
-            if (period == null || period.getEndDate() == null) {
-                return false;
-            }
-            return DateTimeUtil.parseTime(period.getEndDate()) > clockTimeNow;
+            return timeWindow.map(TimeWindow::includeProjected).orElse(false);
         }
 
         /**
@@ -428,7 +375,7 @@ public class PaginatedStatsExecutor {
 
             //4. Combine Stats
             final List<EntityStatsApiDTO> combinedResultsInOrder =
-                    constructEntityStatsApiDTOFromResults(sortedList, minimalEntityMap,
+                    constructEntityStatsApiDTOFromHistoricalResults(sortedList, minimalEntityMap,
                             costStatsResponse, historyEntityStatResponse);
 
             //5. Construct paginated response
@@ -604,11 +551,9 @@ public class PaginatedStatsExecutor {
                         .findFirst()
                         .map(statsMapper::toStatSnapshotApiDTO)
                         .map(statApiDto -> {
-                            // set the time of the snapshot to "future" using the "endDate" of the request
-                            // in the
-                            Optional.ofNullable(inputDto.getPeriod())
-                                    .map(StatPeriodApiInputDTO::getEndDate)
-                                    .ifPresent(statApiDto::setDate);
+                            statApiDto.setEpoch(Epoch.PROJECTED);
+                            statApiDto.setDate(StatsUtils.getProjectedStatSnapshotDate(timeWindow,
+                                    clockTimeNow, liveStatsRetrievalWindow));
                             // add cost stats
                             entityCostStats.values().forEach(l -> statApiDto.getStatistics().addAll(l));
                             return statApiDto;
@@ -1081,7 +1026,7 @@ public class PaginatedStatsExecutor {
 
             //6. Combine Stats
             final List<EntityStatsApiDTO> combinedResultsInOrder =
-                    constructEntityStatsApiDTOFromResults(sortedNextPageEntityIds,
+                    constructEntityStatsApiDTOFromHistoricalResults(sortedNextPageEntityIds,
                             minimalEntityMap, getCloudCostStatsResponse,
                             historyEntityStatsResponse);
 
@@ -1232,7 +1177,7 @@ public class PaginatedStatsExecutor {
          * @return entityUuid to {@link EntityStatsApiDTO}
          *
          */
-        List<EntityStatsApiDTO> constructEntityStatsApiDTOFromResults(
+        List<EntityStatsApiDTO> constructEntityStatsApiDTOFromHistoricalResults(
                 @Nonnull final List<Long> sortedNextPageEntityIds,
                 @Nonnull final Map<Long, MinimalEntity> minimalEntityMap,
                 @Nonnull final List<CloudCostStatRecord> cloudCostStatsResponse,
@@ -1260,6 +1205,7 @@ public class PaginatedStatsExecutor {
                             final StatSnapshotApiDTO statSnapshotApiDTO =
                                     constructStatSnapshotApiDtO(snapShotDate);
                             statSnapshotApiDTO.setStatistics(snapShotToStats.get(snapShotDate));
+                            statSnapshotApiDTO.setEpoch(Epoch.HISTORICAL);
                             return statSnapshotApiDTO;
                         }).collect(Collectors.toList());
 

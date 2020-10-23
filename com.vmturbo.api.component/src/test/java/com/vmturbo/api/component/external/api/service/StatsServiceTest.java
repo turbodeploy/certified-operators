@@ -16,6 +16,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -107,11 +108,11 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -179,6 +180,8 @@ public class StatsServiceTest {
             .setSnapshotDate(Clock.systemUTC().millis())
             .build();
 
+    private static final Duration toleranceTime = Duration.ofSeconds(60);
+
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryServiceSpy,
             groupServiceSpy, planServiceSpy, repositoryServiceSpy);
@@ -215,7 +218,7 @@ public class StatsServiceTest {
         statsService = spy(new StatsService(statsServiceRpc, planRpcService, statsMapper,
             groupService,
             magicScopeGateway, userSessionContext, uuidMapper, statsQueryExecutor, planEntityStatsFetcher,
-            paginatedStatsExecutor));
+            paginatedStatsExecutor, toleranceTime));
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(apiId1.uuid()).thenReturn(oid1);
         when(apiId1.oid()).thenReturn(Long.parseLong(oid1));

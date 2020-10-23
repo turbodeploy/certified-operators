@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -113,6 +114,11 @@ public class StatsService implements IStatsService {
 
     private final PaginatedStatsExecutor paginatedStatsExecutor;
 
+    /**
+     * The delta (+/- 60 seconds) from now in which a requested is treated as current.
+     */
+    private final Duration liveStatsRetrievalWindow;
+
     // CLUSTER_STATS is a collection of the cluster-headroom stats calculated from nightly plans.
     // TODO: we should share the enum instead of keeping a separate copy.
     private static final Set<String> CLUSTER_EXCLUSIVE_STATS = ImmutableSet.of(
@@ -155,7 +161,8 @@ public class StatsService implements IStatsService {
                  @Nonnull final UuidMapper uuidMapper,
                  @Nonnull final StatsQueryExecutor statsQueryExecutor,
                  @Nonnull final PlanEntityStatsFetcher planEntityStatsFetcher,
-                 @Nonnull final PaginatedStatsExecutor paginatedStatsExecutor) {
+                 @Nonnull final PaginatedStatsExecutor paginatedStatsExecutor,
+                 @Nonnull final Duration liveStatsRetrievalWindow) {
         this.statsServiceRpc = Objects.requireNonNull(statsServiceRpc);
         this.planRpcService = planRpcService;
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
@@ -166,6 +173,7 @@ public class StatsService implements IStatsService {
         this.statsQueryExecutor = Objects.requireNonNull(statsQueryExecutor);
         this.planEntityStatsFetcher = Objects.requireNonNull(planEntityStatsFetcher);
         this.paginatedStatsExecutor = Objects.requireNonNull(paginatedStatsExecutor);
+        this.liveStatsRetrievalWindow = Objects.requireNonNull(liveStatsRetrievalWindow);
     }
 
     /**
@@ -598,7 +606,7 @@ public class StatsService implements IStatsService {
         } else if (isClusterStatsRequest(inputDto)) {
             return getClusterEntityStats(inputDto, paginationRequest);
         } else {
-            return paginatedStatsExecutor.getLiveEntityStats(inputDto, paginationRequest);
+            return paginatedStatsExecutor.getLiveEntityStats(inputDto, paginationRequest, liveStatsRetrievalWindow);
         }
     }
 

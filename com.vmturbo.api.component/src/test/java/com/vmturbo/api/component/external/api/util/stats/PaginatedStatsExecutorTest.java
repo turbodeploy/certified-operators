@@ -4,7 +4,6 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -17,9 +16,9 @@ import static org.mockito.Mockito.when;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -177,7 +176,8 @@ public class PaginatedStatsExecutorTest {
 
     private PaginatedStatsGather getPaginatedStatsGatherSpy(StatScopesApiInputDTO inputDto,
             EntityStatsPaginationRequest paginationRequest) {
-        return spy(paginatedStatsExecutor.new PaginatedStatsGather(inputDto, paginationRequest));
+        return spy(paginatedStatsExecutor.new PaginatedStatsGather(inputDto, paginationRequest,
+                Duration.ofMillis(200)));
     }
 
     private StatScopesApiInputDTO getInputDtoWithHistoricPeriod() {
@@ -192,18 +192,6 @@ public class PaginatedStatsExecutorTest {
         StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         StatPeriodApiInputDTO historicPeriod  = buildStatPeriodApiInputDTO(5L, "1000",
                 "1000", "a");
-        inputDto.setPeriod(historicPeriod);
-        return inputDto;
-    }
-
-    private StatScopesApiInputDTO getInputDtoWithCustomPeriod(
-            long currentDate,
-            String startDate,
-            String endDate,
-            String statName) {
-        StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
-        StatPeriodApiInputDTO historicPeriod  = buildStatPeriodApiInputDTO(currentDate, startDate,
-                endDate, statName);
         inputDto.setPeriod(historicPeriod);
         return inputDto;
     }
@@ -296,131 +284,6 @@ public class PaginatedStatsExecutorTest {
 
         //THEN
         assertFalse(paginatedStatsGatherSpy.isProjectedStatsRequest());
-    }
-
-    /**
-     * Test that if only the start date is provided and it is in the past, then the end date is set
-     * to current time.
-     */
-    @Test
-    public void testSanitizeStartDateOrEndDateWithOnlyStartDateInThePast() {
-        long currentTime = new Date().getTime();
-        long startTime = currentTime - 1000L * 60L * 60L * 24L;      // set start date to 1 day ago
-        StatScopesApiInputDTO inputDto =
-                getInputDtoAfterSanitizeStartDateOrEndDateWithCustomDates(
-                        currentTime, Long.toString(startTime), null);
-
-        // Assert that end date exists and is set to current time
-        assertNotNull(inputDto.getPeriod().getEndDate());
-        assertEquals(currentTime, Long.parseLong(inputDto.getPeriod().getEndDate()));
-    }
-
-    /**
-     * Test that if only the start date is provided and it is set to now, then both are set
-     * to null.
-     */
-    @Test
-    public void testSanitizeStartDateOrEndDateWithOnlyStartDateNow() {
-        long currentTime = new Date().getTime();
-        StatScopesApiInputDTO inputDto =
-                getInputDtoAfterSanitizeStartDateOrEndDateWithCustomDates(
-                        currentTime, Long.toString(currentTime), null);
-
-        // Assert that both dates are null
-        assertNull(inputDto.getPeriod().getEndDate());
-        assertNull(inputDto.getPeriod().getStartDate());
-    }
-
-    /**
-     * Test that if only the start date is provided and it is in the future, the end date is set to
-     * start date.
-     */
-    @Test
-    public void testSanitizeStartDateOrEndDateWithOnlyStartDateInTheFuture() {
-        long currentTime = new Date().getTime();
-        // set start date to 1 day in the future
-        long startTime = currentTime + 1000L * 60L * 60L * 24L;
-        StatScopesApiInputDTO inputDto =
-                getInputDtoAfterSanitizeStartDateOrEndDateWithCustomDates(
-                        currentTime, Long.toString(startTime), null);
-
-        // Assert that end date exists and is set to current time
-        assertNotNull(inputDto.getPeriod().getEndDate());
-        assertEquals(startTime, Long.parseLong(inputDto.getPeriod().getEndDate()));
-    }
-
-    /**
-     * Test that if only the end date is provided and it is in the past, then an exception is thrown
-     * since it is not a valid input.
-     *
-     * @throws IllegalArgumentException as expected.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void testSanitizeStartDateOrEndDateWithOnlyEndDateInThePast() {
-        long currentTime = new Date().getTime();
-        long endDate = currentTime - 1000L * 60L * 60L * 24L;      // set end date to 1 day ago
-        StatScopesApiInputDTO inputDto =
-                getInputDtoAfterSanitizeStartDateOrEndDateWithCustomDates(
-                        currentTime, null, Long.toString(endDate));
-    }
-
-    /**
-     * Test that if only the end date is provided and it is set to now, then both are set
-     * to null.
-     */
-    @Test
-    public void testSanitizeStartDateOrEndDateWithOnlyEndDateNow() {
-        long currentTime = new Date().getTime();
-        StatScopesApiInputDTO inputDto =
-                getInputDtoAfterSanitizeStartDateOrEndDateWithCustomDates(
-                        currentTime, null, Long.toString(currentTime));
-
-        // Assert that both dates are null
-        assertNull(inputDto.getPeriod().getEndDate());
-        assertNull(inputDto.getPeriod().getStartDate());
-    }
-
-    /**
-     * Test that if only the end date is provided and it is in the future, then the start date is
-     * set to now.
-     */
-    @Test
-    public void testSanitizeStartDateOrEndDateWithOnlyEndDateInTheFuture() {
-        long currentTime = new Date().getTime();
-        // set end date to 1 day in the future
-        long endTime = currentTime + 1000L * 60L * 60L * 24L;
-        StatScopesApiInputDTO inputDto =
-                getInputDtoAfterSanitizeStartDateOrEndDateWithCustomDates(
-                        currentTime, null, Long.toString(endTime));
-        // Assert that end date exists and is set to current time
-        assertNotNull(inputDto.getPeriod().getStartDate());
-        assertEquals(currentTime, Long.parseLong(inputDto.getPeriod().getStartDate()));
-    }
-
-    /**
-     * Creates a StatScopesApiInputDTO with the times provided, executes processRequest() verifying
-     * how many times runHistoricalStatsRequest() and runProjectedStatsRequest() were invoked, and
-     * returns the dto in order to provide a way to the caller function to check if the dates
-     * were altered correctly.
-     *
-     * @param currentTime a unix timestamp (milliseconds) to be considered 'now' for the execution.
-     * @param startTime a String to initialize the dto's start date with. Can be null.
-     * @param endTime a String to initialize the dto's end date with. Can be null.
-     * @return the StatScopesApiInputDTO (with the dates possibly altered by processRequest()).
-     */
-    private StatScopesApiInputDTO getInputDtoAfterSanitizeStartDateOrEndDateWithCustomDates(
-            long currentTime,
-            String startTime,
-            String endTime) {
-        EntityStatsPaginationRequest paginationRequest = mock(EntityStatsPaginationRequest.class);
-        StatScopesApiInputDTO inputDto =
-                getInputDtoWithCustomPeriod(currentTime, startTime, endTime, "a");
-        PaginatedStatsGather paginatedStatsGatherSpy =
-                getPaginatedStatsGatherSpy(inputDto, paginationRequest);
-
-        paginatedStatsGatherSpy.sanitizeStartDateOrEndDate();
-
-        return inputDto;
     }
 
     /**
@@ -1058,7 +921,7 @@ public class PaginatedStatsExecutorTest {
 
         //THEN
         List<EntityStatsApiDTO> entityStatsApiDTOS =
-                paginatedStatsGatherSpy.constructEntityStatsApiDTOFromResults(
+                paginatedStatsGatherSpy.constructEntityStatsApiDTOFromHistoricalResults(
                         sortedNextPageEntityIds, minimalEntityMap,
                         Collections.emptyList(),
                         GetEntityStatsResponse.getDefaultInstance());
@@ -1109,7 +972,7 @@ public class PaginatedStatsExecutorTest {
 
         //WHEN
         List<EntityStatsApiDTO> entityStatsApiDTOS =
-                paginatedStatsGatherSpy.constructEntityStatsApiDTOFromResults(
+                paginatedStatsGatherSpy.constructEntityStatsApiDTOFromHistoricalResults(
                         sortedNextPageEntityIds, minimalEntityMap,
                         costPriceRecords(costCommodity, entityUuid, statValue, snapShotDate),
                         historyVCPUResponse(historyCommodity, entityUuid, statValue, snapShotDate));

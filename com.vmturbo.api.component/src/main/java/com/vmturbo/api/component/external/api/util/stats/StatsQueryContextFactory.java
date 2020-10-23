@@ -19,6 +19,7 @@ import org.immutables.value.Value;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
@@ -57,45 +58,8 @@ public class StatsQueryContextFactory {
                                  @Nonnull final StatsQueryScope expandedScope,
                                  @Nonnull final StatPeriodApiInputDTO inputDTO) {
         final long clockTimeNow = clock.millis();
-        // OM-37484: give the startTime a +/- 60 second window for delineating between "current"
-        // and "projected" stats requests. Without this window, the stats retrieval is too
-        // sensitive to clock skew issues between the browser and the server, leading to incorrect
-        // results in the UI.
-        final long currentStatsTimeWindowStart = clockTimeNow - liveStatsRetrievalWindow.toMillis();
-        final long currentStatsTimeWindowEnd = clockTimeNow + liveStatsRetrievalWindow.toMillis();
-
-        final Long startTime;
-        if (inputDTO.getStartDate() == null) {
-            startTime = null;
-        } else {
-            final long inputStartTime = DateTimeUtil.parseTime(inputDTO.getStartDate());
-            if (inputStartTime >= currentStatsTimeWindowStart && inputStartTime <= currentStatsTimeWindowEnd) {
-                startTime = null;
-            } else {
-                startTime = inputStartTime;
-            }
-        }
-
-        final Long endTime;
-        final boolean requestProjected;
-        if (inputDTO.getEndDate() == null) {
-            endTime = null;
-            requestProjected = false;
-        } else {
-            endTime = DateTimeUtil.parseTime(inputDTO.getEndDate());
-            requestProjected = endTime > currentStatsTimeWindowEnd;
-        }
-
-
-        final Optional<TimeWindow> timeWindow;
-        if (startTime != null && endTime != null) {
-            timeWindow = Optional.of(ImmutableTimeWindow.builder()
-                .startTime(startTime)
-                .endTime(endTime)
-                .build());
-        } else {
-            timeWindow = Optional.empty();
-        }
+        final Optional<TimeWindow> timeWindow = StatsUtils.sanitizeStartDateOrEndDate(
+                inputDTO, clockTimeNow, liveStatsRetrievalWindow.toMillis());
 
         final List<ThinTargetInfo> targets = thinTargetCache.getAllTargets();
 
@@ -105,8 +69,7 @@ public class StatsQueryContextFactory {
             timeWindow,
             targets,
             expandedScope,
-            clockTimeNow,
-            requestProjected);
+            clockTimeNow);
     }
 
     /**
@@ -131,8 +94,6 @@ public class StatsQueryContextFactory {
 
         private Optional<PlanInstance> planInstance = null;
 
-        private final boolean requestProjected;
-
         /**
          * Use {@link StatsQueryContextFactory}.
          */
@@ -142,8 +103,7 @@ public class StatsQueryContextFactory {
                                  @Nonnull final Optional<TimeWindow> timeWindow,
                                  @Nonnull final List<ThinTargetInfo> targets,
                                  @Nonnull final StatsQueryScope expandedScope,
-                                 final long curTime,
-                                 final boolean requestProjected) {
+                                 final long curTime) {
             this.scope = Objects.requireNonNull(scope);
             this.requestedStats = Objects.requireNonNull(requestedStats);
             this.curTime = curTime;
@@ -151,17 +111,15 @@ public class StatsQueryContextFactory {
             this.userSessionContext = Objects.requireNonNull(userSessionContext);
             this.targets = Objects.requireNonNull(targets);
             this.queryScope = Objects.requireNonNull(expandedScope);
-            this.requestProjected = requestProjected;
         }
 
         @Value.Immutable
         public interface TimeWindow {
             long startTime();
             long endTime();
-
-            default boolean contains(final long time) {
-                return startTime() <= time && endTime() >= time;
-            }
+            boolean includeProjected();
+            boolean includeCurrent();
+            boolean includeHistorical();
         }
 
         /**
@@ -188,11 +146,11 @@ public class StatsQueryContextFactory {
         }
 
         public boolean includeCurrent() {
-            return timeWindow.map(window -> window.contains(curTime)).orElse(true);
+            return timeWindow.map(TimeWindow::includeCurrent).orElse(true);
         }
 
         public boolean requestProjected() {
-            return requestProjected;
+            return timeWindow.map(TimeWindow::includeProjected).orElse(false);
         }
 
         @Nonnull
@@ -208,8 +166,13 @@ public class StatsQueryContextFactory {
         public StatPeriodApiInputDTO newPeriodInputDto(@Nonnull final Set<StatApiInputDTO> stats) {
             final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
             timeWindow.ifPresent(window -> {
-                periodApiInputDTO.setStartDate(DateTimeUtil.toString(window.startTime()));
-                periodApiInputDTO.setEndDate(DateTimeUtil.toString(window.endTime()));
+                // only set start/end date if requiring stats other than current (like historical)
+                // no need to worry about projected stats here since they are handled in
+                // ProjectedCommodityStatsSubQuery
+                if (!window.includeCurrent() || window.includeHistorical()) {
+                    periodApiInputDTO.setStartDate(DateTimeUtil.toString(window.startTime()));
+                    periodApiInputDTO.setEndDate(DateTimeUtil.toString(window.endTime()));
+                }
             });
             periodApiInputDTO.setStatistics(Lists.newArrayList(stats));
             return periodApiInputDTO;

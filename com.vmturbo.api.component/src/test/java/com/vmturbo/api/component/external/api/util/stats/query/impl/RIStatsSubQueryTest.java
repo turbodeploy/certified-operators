@@ -66,8 +66,13 @@ public class RIStatsSubQueryTest {
     private static final long MILLIS = 1_000_000;
     private static final long TIER_ID = 1111L;
     private static final String TIER_NAME = "compute_medium";
-    private static final TimeWindow TIME_WINDOW =
-            ImmutableTimeWindow.builder().startTime(500_000).endTime(600_000).build();
+    private static final TimeWindow TIME_WINDOW = ImmutableTimeWindow.builder()
+            .startTime(500_000)
+            .endTime(600_000)
+            .includeCurrent(true)
+            .includeHistorical(true)
+            .includeProjected(true)
+            .build();
 
     private static final Set<Long> SCOPE_ENTITIES = ImmutableSet.of(1L, 2L);
     private static final Set<Long> SCOPE_ACCOUNT_ENTITY = ImmutableSet.of(1L);
