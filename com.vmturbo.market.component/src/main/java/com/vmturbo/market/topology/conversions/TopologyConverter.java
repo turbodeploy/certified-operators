@@ -2711,8 +2711,8 @@ public class TopologyConverter {
 
             // Overwrite flags for vSAN
             if (TopologyConversionUtils.isVsanStorage(topologyDTO)) {
-                settingsBuilder.setGuaranteedBuyer(true).setProviderMustClone(true)
-                        .setClonable(false).setSuspendable(false).setResizeThroughSupplier(true);
+                settingsBuilder.setGuaranteedBuyer(true).setClonable(false)
+                    .setSuspendable(false).setResizeThroughSupplier(true);
             }
 
             //compute biclique IDs for this entity, the clique list will be used only for
