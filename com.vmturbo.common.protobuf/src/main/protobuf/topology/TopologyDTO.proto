@@ -1032,8 +1032,17 @@ message TopologyEntityDTO {
         optional int32 provider_type = 2;
         // The closest seller, for most cloud cases it doesnt exist.
         optional int64 closest_seller = 3;
-        // Cost data is not found which contributes to the unplacement.
-        optional bool cost_not_found = 4;
+        // Reason for the unplacement, other than insufficient resources.
+        optional PlacementProblem placement_problem = 4;
+
+        // Types of placement Problems.
+        enum PlacementProblem {
+            // Cost data is not found which contributes to the unplacement.
+            COSTS_NOT_FOUND = 0;
+
+            // Entity is not controllable and it was not processed for placement.
+            NOT_CONTROLLABLE = 1;
+      }
     }
 }
 

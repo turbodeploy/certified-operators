@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.PlacementProblem;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
@@ -357,8 +358,10 @@ public class MarketRunner {
         StringBuilder sb = new StringBuilder();
         for (UnplacementReason reason : unplacedReasonList) {
             sb.append(" {");
-            if (reason.getCostNotFound()) {
-                sb.append(" cost is not found");
+            if (reason.getPlacementProblem() == PlacementProblem.COSTS_NOT_FOUND) {
+                sb.append(" Cost is not found.");
+            } else if (reason.getPlacementProblem() == PlacementProblem.NOT_CONTROLLABLE) {
+                sb.append(" VM is not controllable.");
             } else if (!reason.getFailedResourcesList().isEmpty()) {
                 reason.getFailedResourcesList().forEach( f -> {
                     sb.append(" needs resource ").append(CommodityConverter

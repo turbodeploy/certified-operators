@@ -58,6 +58,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.PlacementProblem;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -598,6 +599,13 @@ public class Analysis {
                             if (topologyInfo.hasPlanInfo()) {
                                 attachUnplacementReasons(unplacedReasonMap, projectedEntities);
                                 if (isMigrateToCloud) {
+                                    // Find all VMs that are uncontrollable and add a unplacement
+                                    // reason for each of them.
+                                    Map<Long, List<UnplacementReason.Builder>> uncontrollableReasonMap =
+                                            getUnplacementReasonForUncontrollableVm();
+                                    attachUnplacementReasons(uncontrollableReasonMap, projectedEntities);
+                                    unplacedReasonMap.putAll(uncontrollableReasonMap);
+
                                     // detach the original provider from the migrating entities in
                                     // projected topology only in MCP.
                                     unplaceProjectedEntityWithReason(projectedEntities, unplacedReasonMap);
@@ -882,8 +890,10 @@ public class Analysis {
             List<InfiniteQuoteExplanation> explanations = entry.getValue();
             List<UnplacementReason.Builder> reasonList = new ArrayList<>();
             for (InfiniteQuoteExplanation explanation : explanations) {
-                UnplacementReason.Builder reason = UnplacementReason.newBuilder()
-                        .setCostNotFound(explanation.costUnavailable);
+                UnplacementReason.Builder reason = UnplacementReason.newBuilder();
+                if (explanation.costUnavailable) {
+                    reason.setPlacementProblem(PlacementProblem.COSTS_NOT_FOUND);
+                }
                 if (explanation.providerType.isPresent()) {
                     reason.setProviderType(explanation.providerType.get());
                 }
@@ -938,6 +948,27 @@ public class Analysis {
                 projectedEntities.put(projEntity.getEntity().getOid(), builder.build());
             }
         }
+    }
+
+    /**
+     * Find all VMs that are not controllable and give them an unplacement reason (NOT_CONTROLLABLE).
+     *
+     * @return a map that maps VM ID to a list of unplacement reasons
+     */
+    private Map<Long, List<UnplacementReason.Builder>> getUnplacementReasonForUncontrollableVm() {
+        Map<Long, List<UnplacementReason.Builder>> unplacedReasonMap = new HashMap<>();
+        Set<Long> uncontrollableVmOids = topologyDTOs.values().stream()
+                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+                        && !e.getAnalysisSettings().getControllable())
+                .map(TopologyEntityDTO::getOid)
+                .collect(Collectors.toSet());
+        for (Long vmOid : uncontrollableVmOids) {
+            List<UnplacementReason.Builder> reasonList = new ArrayList<>();
+            reasonList.add(UnplacementReason.newBuilder()
+                    .setPlacementProblem(PlacementProblem.NOT_CONTROLLABLE));
+            unplacedReasonMap.put(vmOid, reasonList);
+        }
+        return unplacedReasonMap;
     }
 
     private void saveSMADiags(final SMAInput smaInput) {
