@@ -1,5 +1,4 @@
-
-!/bin/bash
+#!/bin/bash
 
 # Setup network time server using chrony
 ntpInfoFile="/tmp/ntp-information"
