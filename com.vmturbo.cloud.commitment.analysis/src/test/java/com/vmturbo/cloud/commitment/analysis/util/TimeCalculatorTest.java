@@ -9,8 +9,7 @@ import java.time.Instant;
 
 import org.junit.Test;
 
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
+import com.vmturbo.cloud.common.data.TimeInterval;
 
 public class TimeCalculatorTest {
 
@@ -36,12 +35,12 @@ public class TimeCalculatorTest {
     @Test
     public void testOverlap() {
 
-        final TimeInterval timeIntervalA = ImmutableTimeInterval.builder()
+        final TimeInterval timeIntervalA = TimeInterval.builder()
                 .startTime(Instant.ofEpochSecond(100))
                 .endTime(Instant.ofEpochSecond(200))
                 .build();
 
-        final TimeInterval timeIntervalB = ImmutableTimeInterval.builder()
+        final TimeInterval timeIntervalB = TimeInterval.builder()
                 .startTime(Instant.ofEpochSecond(175))
                 .endTime(Instant.ofEpochSecond(300))
                 .build();
@@ -52,12 +51,12 @@ public class TimeCalculatorTest {
     @Test
     public void testNoOverlap() {
 
-        final TimeInterval timeIntervalA = ImmutableTimeInterval.builder()
+        final TimeInterval timeIntervalA = TimeInterval.builder()
                 .startTime(Instant.ofEpochSecond(100))
                 .endTime(Instant.ofEpochSecond(200))
                 .build();
 
-        final TimeInterval timeIntervalB = ImmutableTimeInterval.builder()
+        final TimeInterval timeIntervalB = TimeInterval.builder()
                 .startTime(Instant.ofEpochSecond(225))
                 .endTime(Instant.ofEpochSecond(300))
                 .build();

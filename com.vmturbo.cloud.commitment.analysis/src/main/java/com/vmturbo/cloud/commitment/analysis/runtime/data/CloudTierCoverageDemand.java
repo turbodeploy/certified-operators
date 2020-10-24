@@ -4,10 +4,10 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Table;
 
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeSeriesData;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateDemandSegment;
+import com.vmturbo.cloud.common.data.TimeInterval;
+import com.vmturbo.cloud.common.data.TimeSeriesData;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory.CloudCommitment;
 
 /**

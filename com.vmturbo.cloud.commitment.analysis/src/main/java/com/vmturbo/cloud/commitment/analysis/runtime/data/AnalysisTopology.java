@@ -6,8 +6,8 @@ import javax.annotation.Nonnull;
 
 import org.immutables.value.Value.Immutable;
 
-import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
+import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 
 /**

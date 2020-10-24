@@ -11,10 +11,11 @@ import org.immutables.value.Value.Style.ImplementationVisibility;
 /**
  * A style annotation to hide the implementation class for immutable data classes.
  */
-@Target({ElementType.PACKAGE, ElementType.TYPE})
+@Target({ElementType.TYPE})
 @Retention(RetentionPolicy.CLASS)
 @Style(
         visibility = ImplementationVisibility.PACKAGE,
-        overshadowImplementation = true)
+        overshadowImplementation = true,
+        depluralize = true)
 public @interface HiddenImmutableImplementation {
 }

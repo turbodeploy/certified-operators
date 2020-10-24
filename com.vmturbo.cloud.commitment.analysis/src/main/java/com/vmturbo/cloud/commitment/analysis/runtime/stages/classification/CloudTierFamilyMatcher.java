@@ -4,7 +4,7 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierDemand;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher;
 
 /**
@@ -27,16 +27,16 @@ public class CloudTierFamilyMatcher {
     }
 
     /**
-     * Determines whether the two instances of {@link ScopedCloudTierDemand} can be covered by a single
+     * Determines whether the two instances of {@link ScopedCloudTierInfo} can be covered by a single
      * recommendation (and therefore match).
-     * @param demandA The first instance of {@link ScopedCloudTierDemand}.
-     * @param demandB The second instance of {@link ScopedCloudTierDemand}.
+     * @param demandA The first instance of {@link ScopedCloudTierInfo}.
+     * @param demandB The second instance of {@link ScopedCloudTierInfo}.
      * @return True, if the two instances of demand can be covered by the same recommendation and should
      * therefore be considered within the "family". False if a recommendation spec can not be determined
      * for either of the demand instances or the recommendation specs do not match.
      */
-    public boolean match(@Nonnull final ScopedCloudTierDemand demandA,
-                         @Nonnull final ScopedCloudTierDemand demandB) {
+    public boolean match(@Nonnull final ScopedCloudTierInfo demandA,
+                         @Nonnull final ScopedCloudTierInfo demandB) {
 
         return cloudCommitmentSpecMatcher.matchDemandToSpecs(demandA)
                 .map(matchingSpecDataA -> cloudCommitmentSpecMatcher.matchDemandToSpecs(demandB)

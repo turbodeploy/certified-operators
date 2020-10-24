@@ -9,15 +9,16 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.stringtemplate.v4.ST;
 
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.data.AnalysisTopology;
-import com.vmturbo.cloud.commitment.analysis.runtime.data.AnalysisTopologySegment;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecData;
 import com.vmturbo.cloud.commitment.analysis.spec.CommitmentSpecDemand;
 import com.vmturbo.cloud.commitment.analysis.spec.CommitmentSpecDemandSet;
@@ -34,7 +35,7 @@ import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchas
  */
 public class RecommendationSpecMatcherStage extends AbstractStage<AnalysisTopology, SpecMatcherOutput> {
 
-    private static final String STAGE_NAME = "COMMITMENT SPEC MATCHER";
+    private static final String STAGE_NAME = "Commitment Spec Matcher";
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -61,27 +62,37 @@ public class RecommendationSpecMatcherStage extends AbstractStage<AnalysisTopolo
     @Override
     public AnalysisStage.StageResult<SpecMatcherOutput> execute(AnalysisTopology analysisTopology) {
         final ReservedInstanceSpecMatcher specMatcher = (ReservedInstanceSpecMatcher)analysisContext.getCloudCommitmentSpecMatcher();
-        final Map<CloudCommitmentSpecData, Set<AggregateCloudTierDemand>> specByDemand = new HashMap<>();
+        final Map<CloudCommitmentSpecData, Set<ScopedCloudTierInfo>> specByDemand = new HashMap<>();
         analysisTopology.segments().stream().forEach(s -> {
-                    Set<AggregateCloudTierDemand> aggregateCloudTierDemandSet = s.aggregateCloudTierDemandSet();
-                    for (AggregateCloudTierDemand scopedCloudTierDemand : aggregateCloudTierDemandSet) {
-                        Optional<ReservedInstanceSpecData> reservedInstanceSpecData = specMatcher.matchDemandToSpecs(scopedCloudTierDemand);
-                        if (reservedInstanceSpecData.isPresent()) {
-                            specByDemand.computeIfAbsent(reservedInstanceSpecData.get(), t -> new HashSet<>()).add(scopedCloudTierDemand);
-                        } else {
-                            logger.debug(
-                                    "No RI Specs found for entitiesfrom account {} having tier type {} and demand {}",
-                                    scopedCloudTierDemand.accountOid(), scopedCloudTierDemand.cloudTierType(), scopedCloudTierDemand.demandAmount());
-                        }
-                    }
+
+            // Only match specs to recommendation candidate demand.
+            Set<ScopedCloudTierInfo> cloudTierInfoSet = s.aggregateCloudTierDemandSet().entries()
+                    .stream()
+                    .filter(demandEntry -> demandEntry.getValue().isRecommendationCandidate())
+                    .map(Map.Entry::getKey)
+                    .collect(ImmutableSet.toImmutableSet());
+            for (ScopedCloudTierInfo cloudTierInfo : cloudTierInfoSet) {
+                final Optional<ReservedInstanceSpecData> reservedInstanceSpecData =
+                        specMatcher.matchDemandToSpecs(cloudTierInfo);
+
+                if (reservedInstanceSpecData.isPresent()) {
+                    specByDemand.computeIfAbsent(reservedInstanceSpecData.get(), t -> new HashSet<>())
+                            .add(cloudTierInfo);
+                } else {
+                    logger.debug(
+                            "No RI Specs found for entities from account {} having tier type {}",
+                            cloudTierInfo.accountOid(), cloudTierInfo.cloudTierType());
                 }
-                );
+            }
+        });
         final CCARecommendationSpecMatcherStageSummary recommendationSpecMatcherStageSummary = new CCARecommendationSpecMatcherStageSummary(logDetailedSummary);
         Builder specMatcherOutputBuilder = SpecMatcherOutput.builder();
         CommitmentSpecDemandSet.Builder commitmentSpecDemandSetBuilder = CommitmentSpecDemandSet.builder();
-        for (Map.Entry<CloudCommitmentSpecData, Set<AggregateCloudTierDemand>> entry : specByDemand.entrySet()) {
-            CommitmentSpecDemand commitmentSpecDemand = CommitmentSpecDemand.builder().addAllAggregateCloudTierDemandSet(
-                    entry.getValue()).cloudCommitmentSpecData(entry.getKey()).build();
+        for (Map.Entry<CloudCommitmentSpecData, Set<ScopedCloudTierInfo>> entry : specByDemand.entrySet()) {
+            CommitmentSpecDemand commitmentSpecDemand = CommitmentSpecDemand.builder()
+                    .addAllCloudTierInfo(entry.getValue())
+                    .cloudCommitmentSpecData(entry.getKey())
+                    .build();
             commitmentSpecDemandSetBuilder.addCommitmentSpecDemand(commitmentSpecDemand);
         }
         specMatcherOutputBuilder.analysisTopology(analysisTopology);
@@ -115,34 +126,23 @@ public class RecommendationSpecMatcherStage extends AbstractStage<AnalysisTopolo
             this.logDetailedSummary = logDetailedSummary;
         }
 
-        private static final String ccaRecommendationSpecMatcherStageSummaryTemplate =
-                "Number of demand records: <numDemandRecords>\n"
-                        + "Number of RI Specs matched: <numRISpecsMatched>\n"
-                        + "Percentage of RI Specs Matched: <percentageOfRISpecsMatched>\n";
+        private static final String SPEC_MATCHER_SUMMARY =
+                "Number of scoped info records: <numDemandRecords>\n"
+                        + "Number of RI Specs matched: <numRISpecsMatched>\n";
 
         public String toSummaryCollector(final AnalysisTopology analysisTopology,
-                final Map<CloudCommitmentSpecData, Set<AggregateCloudTierDemand>> specByDemandMap) {
-            int specByDemandMapSize = specByDemandMap.size();
-            final ST template = new ST(ccaRecommendationSpecMatcherStageSummaryTemplate);
-            template.add("TOTAL RI SPECS MATCHED:", specByDemandMapSize);
-            for (AnalysisTopologySegment segment: analysisTopology.segments()) {
-                Set<AggregateCloudTierDemand> cloudTierCoverageDemand = segment.aggregateCloudTierDemandSet();
-                int cloudTierCoverageDemandSize = cloudTierCoverageDemand.size();
-                template.add("NUMBER OF RECORDS TO MATCH IN THIS SEGMENT:", cloudTierCoverageDemandSize);
-                if (logDetailedSummary) {
-                    for (Map.Entry<CloudCommitmentSpecData, Set<AggregateCloudTierDemand>> entry : specByDemandMap
-                            .entrySet()) {
-                        CloudCommitmentSpecData spec = entry.getKey();
-                        Set<AggregateCloudTierDemand> demand = entry.getValue();
-                        template.add("Spec: ", spec.spec());
-                        // This is basically the percentage of records an RI spec matches to. Lets say you have
-                        // 100 demand records and this RI spec matched to 2 of them. The percentage should be
-                        // 2 %.
-                        template.add("matched to % of demand: ",
-                                (float)demand.size() / (float)cloudTierCoverageDemandSize * 100);
-                    }
-                }
-            }
+                final Map<CloudCommitmentSpecData, Set<ScopedCloudTierInfo>> specByDemandMap) {
+
+            final long scopedInfoSize = specByDemandMap.values()
+                    .stream()
+                    .mapToLong(Set::size)
+                    .reduce(0L, Long::sum);
+            final int specByDemandMapSize = specByDemandMap.size();
+
+            final ST template = new ST(SPEC_MATCHER_SUMMARY);
+            template.add("numDemandRecords", scopedInfoSize);
+            template.add("numRISpecsMatched", specByDemandMapSize);
+
             return template.render();
         }
     }

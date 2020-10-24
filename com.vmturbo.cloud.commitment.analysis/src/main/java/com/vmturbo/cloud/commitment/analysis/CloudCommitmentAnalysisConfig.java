@@ -21,13 +21,14 @@ import com.vmturbo.cloud.commitment.analysis.config.CloudCommitmentSpecMatcherCo
 import com.vmturbo.cloud.commitment.analysis.config.CoverageCalculationConfig;
 import com.vmturbo.cloud.commitment.analysis.config.DemandClassificationConfig;
 import com.vmturbo.cloud.commitment.analysis.config.DemandTransformationConfig;
+import com.vmturbo.cloud.commitment.analysis.config.PricingResolverConfig;
+import com.vmturbo.cloud.commitment.analysis.config.RecommendationAnalysisConfig;
 import com.vmturbo.cloud.commitment.analysis.config.SharedFactoriesConfig;
 import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.inventory.CloudCommitmentBoughtResolver;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReader;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReaderImpl;
-import com.vmturbo.cloud.commitment.analysis.pricing.CloudCommitmentPricingAnalyzer;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisPipelineFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext.AnalysisContextFactory;
@@ -36,10 +37,11 @@ import com.vmturbo.cloud.commitment.analysis.runtime.ImmutableStaticAnalysisConf
 import com.vmturbo.cloud.commitment.analysis.runtime.StaticAnalysisConfig;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.CloudCommitmentInventoryResolverStage.CloudCommitmentInventoryResolverStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.InitializationStageFactory;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.PricingResolverStage.PricingResolverStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.RecommendationSpecMatcherStage.RecommendationSpecMatcherStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCalculationStage.CoverageCalculationFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.pricing.PricingResolverStage.PricingResolverStageFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.RecommendationAnalysisStage.RecommendationAnalysisFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationStage.DemandTransformationFactory;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher.CloudCommitmentSpecMatcherFactory;
@@ -62,6 +64,8 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
         DemandClassificationConfig.class,
         DemandTransformationConfig.class,
         CoverageCalculationConfig.class,
+        PricingResolverConfig.class,
+        RecommendationAnalysisConfig.class,
         SharedFactoriesConfig.class,
 })
 @Configuration
@@ -72,9 +76,6 @@ public class CloudCommitmentAnalysisConfig {
 
     @Autowired
     private CloudCommitmentBoughtResolver cloudCommitmentBoughtResolver;
-
-    @Autowired
-    private CloudCommitmentPricingAnalyzer cloudCommitmentPricingAnalyzer;
 
     @Autowired
     private RepositoryServiceBlockingStub repositoryServiceBlockingStub;
@@ -94,14 +95,25 @@ public class CloudCommitmentAnalysisConfig {
     @Autowired
     private ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory;
 
+    @Lazy
     @Autowired
     private DemandTransformationFactory demandTransformationFactory;
 
+    @Lazy
     @Autowired
     private BillingFamilyRetrieverFactory billingFamilyRetrieverFactory;
 
+    @Lazy
     @Autowired
     private CoverageCalculationFactory coverageCalculationFactory;
+
+    @Lazy
+    @Autowired
+    private PricingResolverStageFactory pricingResolverStageFactory;
+
+    @Lazy
+    @Autowired
+    private RecommendationAnalysisFactory recommendationAnalysisFactory;
 
     @Value("${cca.analysisStatusLogInterval:PT1M}")
     private String analysisStatusLogInterval;
@@ -164,7 +176,8 @@ public class CloudCommitmentAnalysisConfig {
                 cloudCommitmentInventoryResolverStageFactory(),
                 coverageCalculationFactory,
                 ccaRecommendationSpecMatcherStageFactory(),
-                pricingResolverStageFactory());
+                pricingResolverStageFactory,
+                recommendationAnalysisFactory);
     }
 
     /**
@@ -213,15 +226,7 @@ public class CloudCommitmentAnalysisConfig {
         return new RecommendationSpecMatcherStageFactory();
     }
 
-    /**
-     * Creates an instance of the PricingResolverStageFactory.
-     *
-     * @return The Pricing resolver stage factory.
-     */
-    @Bean
-    public PricingResolverStageFactory pricingResolverStageFactory() {
-        return new PricingResolverStageFactory(cloudCommitmentPricingAnalyzer);
-    }
+
 
     /**
      * Bean for the analysis context factory.

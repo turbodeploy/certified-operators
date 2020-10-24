@@ -1,4 +1,5 @@
 package com.vmturbo.cost.calculation.pricing;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,7 +22,10 @@ import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value.Derived;
 import org.immutables.value.Value.Immutable;
+import org.immutables.value.Value.Style;
+import org.immutables.value.Value.Style.ImplementationVisibility;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Pricing.DbTierOnDemandPriceTable;
@@ -68,9 +72,6 @@ public class CloudRateExtractor {
 
     private static final Set<String> TIERS_WITH_PRIORITY = ImmutableSet.of("IO2");
 
-    /**
-     * The DB engine map.
-     */
     private static final Map<DatabaseEngine, String> DB_ENGINE_MAP = ImmutableMap.<DatabaseEngine, String>builder()
             .put(DatabaseEngine.AURORA, "Aurora")
             .put(DatabaseEngine.MARIADB, "MariaDb")
@@ -80,9 +81,6 @@ public class CloudRateExtractor {
             .put(DatabaseEngine.SQLSERVER, "SqlServer")
             .put(DatabaseEngine.UNKNOWN, "Unknown").build();
 
-    /**
-     * The DB edition map.
-     */
     private static final Map<DatabaseEdition, String> DB_EDITION_MAP = ImmutableMap.<DatabaseEdition, String>builder()
             .put(DatabaseEdition.ENTERPRISE, "Enterprise")
             .put(DatabaseEdition.STANDARD, "Standard")
@@ -91,9 +89,6 @@ public class CloudRateExtractor {
             .put(DatabaseEdition.WEB, "Web")
             .put(DatabaseEdition.EXPRESS, "Express").build();
 
-    /**
-     * The deployment map.
-     */
     private static final Map<DeploymentType, String> DEPLOYMENT_TYPE_MAP = ImmutableMap.<DeploymentType, String>builder()
             .put(DeploymentType.MULTI_AZ, "MultiAz")
             .put(DeploymentType.SINGLE_AZ, "SingleAz").build();
@@ -188,7 +183,7 @@ public class CloudRateExtractor {
                         final double totalLicensePrice = licensePrice.getImplicitOnDemandLicensePrice() * discount
                                 + licensePrice.getExplicitOnDemandLicensePrice();
                         priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(), osType,
-                                basePriceWithDiscount + totalLicensePrice, osType == baseOsType);
+                                basePriceWithDiscount, totalLicensePrice, osType == baseOsType);
                     });
         });
         return priceBuilder.build();
@@ -466,61 +461,6 @@ public class CloudRateExtractor {
         return priceBuilder.build();
     }
 
-
-    /**
-     * Gets the Reserved Instance Prices for a given tier and region condensed into a ComputeTierPrice
-     * bundle.
-     *
-     * @param accountPricingData The account specific pricing data.
-     * @param regionOid The region oid to get the pricing for.
-     * @param tier The compute tier to get the pricing for.
-     *
-     * @return The ComputeTierPriceBundle.
-     */
-    public ComputePriceBundle getReservedLicensePriceBundle(AccountPricingData accountPricingData, Long regionOid,
-            TopologyEntityDTO tier) {
-        final ComputePriceBundle.Builder priceBuilder = ComputePriceBundle.newBuilder();
-        if (accountPricingData == null) {
-            logger.debug("Account Pricing data not found.");
-            return priceBuilder.build();
-        }
-        long tierId = tier.getOid();
-        OnDemandPriceTable regionPriceTable = getOnDemandPriceTable(tierId, regionOid, accountPricingData);
-
-        if (regionPriceTable == null) {
-            logger.debug("No prices found for region with oid {}, for account pricing data with id {}",
-                    regionOid, accountPricingData.getAccountPricingDataOid());
-            return priceBuilder.build();
-        }
-
-        ComputeTierPriceList computeTierPrices = regionPriceTable.getComputePricesByTierIdMap().get(tierId);
-        if (computeTierPrices == null) {
-            logger.debug("Price list not found for tier {} in region {}'s price table."
-                            + " Cost data might not have been uploaded, or the tier is not available in the region.",
-                    tierId, regionOid);
-            return priceBuilder.build();
-        }
-        final OSType baseOsType = computeTierPrices.getBasePrice().getGuestOsType();
-        entityInfoExtractor.getComputeTierConfig(tier).ifPresent(computeTierConfig -> {
-            tier.getCommoditySoldListList().stream()
-                    .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
-                    .map(CommoditySoldDTO::getCommodityType)
-                    .map(licenceCommodityType -> OS_TYPE_MAP.get(licenceCommodityType.getKey()))
-                    .forEach(osType -> {
-                        // Get the license price tuple and get the reserved license price.
-                        final LicensePriceTuple licensePrice = accountPricingData.getLicensePrice(osType,
-                                computeTierConfig.getNumCores(), computeTierPrices, computeTierConfig.isBurstableCPU());
-                        double reservedLicensePrice = licensePrice.getReservedInstanceLicensePrice();
-                        logger.debug("Found reserved instance license price {} for region {} and tier {}"
-                                        + " and account pricing data oid {}", reservedLicensePrice, regionOid,
-                                tier.getDisplayName(), accountPricingData.getAccountPricingDataOid());
-                        priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(), osType,
-                                reservedLicensePrice, osType == baseOsType);
-                    });
-        });
-        return priceBuilder.build();
-    }
-
     /**
      * Get the reserved license price bundles from the price table for a given tier.
      *
@@ -576,6 +516,24 @@ public class CloudRateExtractor {
                         }).collect(Collectors.<CoreBasedLicensePriceBundle>toSet()))
 
                 .orElse(Collections.emptySet());
+    }
+
+    /**
+     * A factory class for creating {@link CloudRateExtractor} instances.
+     */
+    public static class CloudRateExtractorFactory {
+
+        /**
+         * Creates a new rate extractor.
+         * @param cloudTopology The cloud topology containing referenced cloud tiers.
+         * @param entityInfoExtractor The entity info extractor.
+         * @return The newly constructed rate extractor.
+         */
+        @Nonnull
+        public CloudRateExtractor newRateExtractor(@Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology,
+                                                   @Nonnull final EntityInfoExtractor<TopologyEntityDTO> entityInfoExtractor) {
+            return new CloudRateExtractor(cloudTopology, entityInfoExtractor);
+        }
     }
 
     /**
@@ -698,16 +656,26 @@ public class CloudRateExtractor {
              *
              * @param accountId The account id.
              * @param osType The operating system.
-             * @param hourlyPrice The hourly price.
+             * @param computePrice The price for compute.
+             * @param licensePrice The license price for {@code osType}.
              * @param isBasePrice True if price is for linux.
              *
              * @return The builder.
              */
             @Nonnull
-            public Builder addPrice(final long accountId, final OSType osType,
-                    final double hourlyPrice, final boolean isBasePrice) {
+            public Builder addPrice(long accountId,
+                                    OSType osType,
+                                    double computePrice,
+                                    double licensePrice,
+                                    boolean isBasePrice) {
                 // TODO (roman, September 25) - Replace with CostTuple
-                priceBuilder.add(new ComputePrice(accountId, osType, hourlyPrice, isBasePrice));
+                priceBuilder.add(ComputePrice.builder()
+                        .accountId(accountId)
+                        .osType(osType)
+                        .hourlyComputeRate(computePrice)
+                        .hourlyLicenseRate(licensePrice)
+                        .isBasePrice(isBasePrice)
+                        .build());
                 return this;
             }
 
@@ -722,72 +690,68 @@ public class CloudRateExtractor {
             }
         }
 
-
         /**
          * Temporary object for integration with CostTuples.
          * In the future it may be good to have the {@link CloudRateExtractor} return cost tuples
          * directly.
          */
-        public static class ComputePrice {
-            private final long accountId;
-            private final OSType osType;
-            private final double hourlyPrice;
-            private final boolean isBasePrice;
+        @Style(visibility = ImplementationVisibility.PACKAGE, overshadowImplementation = true)
+        @Immutable
+        public interface ComputePrice {
 
             /**
-             * Constructor for the compute prices.
-             *
-             * @param accountId The account id.
-             * @param osType The operating system type.
-             * @param hourlyPrice The hourly price.
-             * @param isBasePrice True if pricing is linux.
+             * The account ID (really the pricing data OID).
+             * @return The account ID
              */
-            public ComputePrice(final long accountId,
-                    final OSType osType,
-                    final double hourlyPrice,
-                    final boolean isBasePrice) {
-                this.accountId = accountId;
-                this.osType = osType;
-                this.hourlyPrice = hourlyPrice;
-                this.isBasePrice = isBasePrice;
+            long accountId();
+
+            /**
+             * The platform.
+             * @return The platform.
+             */
+            @Nonnull
+            OSType osType();
+
+            /**
+             * The hourly compute rate.
+             * @return The hourly compute rate.
+             */
+            double hourlyComputeRate();
+
+            /**
+             * The hourly license rate associated with {@link #osType()}.
+             * @return The hourly license rate associated with {@link #osType()}.
+             */
+            double hourlyLicenseRate();
+
+            /**
+             * Whether this price is the lowest rate for the compute tier.
+             * @return Whether this price is the lowest rate for the compute tier.
+             */
+            boolean isBasePrice();
+
+            /**
+             * The hourly rate encompassing the compute and license rates.
+             * @return The hourly rate encompassing the compute and license rates.
+             */
+            @Derived
+            default double hourlyPrice() {
+                return hourlyComputeRate() + hourlyLicenseRate();
             }
 
-            public long getAccountId() {
-                return accountId;
+            /**
+             * Constructs and returns a new {@link Builder} instance.
+             * @return The newly constructed builder instance.
+             */
+            @Nonnull
+            static Builder builder() {
+                return new Builder();
             }
 
-            public OSType getOsType() {
-                return osType;
-            }
-
-            public double getHourlyPrice() {
-                return hourlyPrice;
-            }
-
-            public boolean isBasePrice() {
-                return isBasePrice;
-            }
-
-            @Override
-            public boolean equals(Object other) {
-                if (other == this) {
-                    return true;
-                }
-                if (other instanceof ComputePrice) {
-                    ComputePrice otherPrice = (ComputePrice)other;
-                    return accountId == otherPrice.accountId
-                            && osType == otherPrice.osType
-                            && hourlyPrice == otherPrice.hourlyPrice
-                            && isBasePrice == otherPrice.isBasePrice;
-                } else {
-                    return false;
-                }
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(accountId, osType, hourlyPrice, isBasePrice);
-            }
+            /**
+             * A builder class for constructing {@link ComputePrice} instances.
+             */
+            class Builder extends ImmutableComputePrice.Builder {}
         }
     }
 
@@ -1074,5 +1038,14 @@ public class CloudRateExtractor {
          * @return The price for the license bundle.
          */
         Optional<Double> price();
+
+        /**
+         * Checks whether {@link #price()} is set.
+         * @return A boolean indicating whether {@link #price()} is set.
+         */
+        @Derived
+        default boolean hasPrice() {
+            return price().isPresent();
+        }
     }
 }

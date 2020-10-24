@@ -7,10 +7,9 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
 
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
+import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection;
@@ -56,7 +55,7 @@ public class InitializationStage extends AbstractStage {
         // to the closest (earlier) hour.
         final Instant analysisStartTime = lookBackStartTime.truncatedTo(
                 analysisContext.getAnalysisBucket().unit());
-        final TimeInterval analysisWindow = ImmutableTimeInterval.builder()
+        final TimeInterval analysisWindow = TimeInterval.builder()
                 .startTime(analysisStartTime)
                 .endTime(Instant.now())
                 .build();

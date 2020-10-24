@@ -311,12 +311,11 @@ public class CloudRateExtractorTest {
             0.0);
         when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.WINDOWS, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
             .thenReturn(windowsLicenseTuple);
-        LicensePriceTuple windowsSqlWebPriceTuple = createLicensePriceTuple(WINDOWS_PRICE_ADJUSTMENT,
-            WINDOWS_SQL_WEB_LICENSE_PRICE);
+        LicensePriceTuple windowsSqlWebPriceTuple = createLicensePriceTuple(WINDOWS_SQL_WEB_PRICE_ADJUSTMENT,
+            0.0);
         when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
             .thenReturn(windowsSqlWebPriceTuple);
-        LicensePriceTuple redHatLpPriceTuple = createLicensePriceTuple(0.0,
-            RHEL_LICENSE_PRICE);
+        LicensePriceTuple redHatLpPriceTuple = createLicensePriceTuple(RHEL_PRICE_ADJUSTMENT, 0.0);
         when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePrice(OSType.RHEL, NUM_OF_CORES, priceList, NOT_BURSTABLE_CPUS ))
             .thenReturn(redHatLpPriceTuple);
     }
@@ -343,13 +342,34 @@ public class CloudRateExtractorTest {
         ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(AWS_COMPUTE_TIER, REGION_ID, accountPricingData1);
 
         assertThat(priceBundle.getPrices(), containsInAnyOrder(
-            new ComputePrice(baId, OSType.LINUX, LINUX_PRICE, true),
-            new ComputePrice(baId, OSType.WINDOWS, LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT,
-                false),
-            new ComputePrice(baId, OSType.WINDOWS_WITH_SQL_WEB, LINUX_PRICE
-                    + WINDOWS_SQL_WEB_PRICE_ADJUSTMENT, false),
-            new ComputePrice(baId, OSType.RHEL, LINUX_PRICE + RHEL_PRICE_ADJUSTMENT,
-                false)));
+                ComputePrice.builder()
+                        .accountId(baId)
+                        .osType(OSType.LINUX)
+                        .hourlyComputeRate(LINUX_PRICE)
+                        .hourlyLicenseRate(0.0)
+                        .isBasePrice(true)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(baId)
+                        .osType(OSType.WINDOWS)
+                        .hourlyComputeRate(LINUX_PRICE)
+                        .hourlyLicenseRate(WINDOWS_PRICE_ADJUSTMENT)
+                        .isBasePrice(false)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(baId)
+                        .osType(OSType.WINDOWS_WITH_SQL_WEB)
+                        .hourlyComputeRate(LINUX_PRICE)
+                        .hourlyLicenseRate(WINDOWS_SQL_WEB_PRICE_ADJUSTMENT)
+                        .isBasePrice(false)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(baId)
+                        .osType(OSType.RHEL)
+                        .hourlyComputeRate(LINUX_PRICE)
+                        .hourlyLicenseRate(RHEL_PRICE_ADJUSTMENT)
+                        .isBasePrice(false)
+                        .build()));
     }
 
     /**
@@ -372,13 +392,34 @@ public class CloudRateExtractorTest {
         ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(AZURE_COMPUTE_TIER, REGION_ID, accountPricingData1);
 
         assertThat(priceBundle.getPrices(), containsInAnyOrder(
-            new ComputePrice(baId, OSType.LINUX, LINUX_PRICE, true),
-            new ComputePrice(baId, OSType.WINDOWS, LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT,
-                false),
-            new ComputePrice(baId, OSType.WINDOWS_WITH_SQL_WEB, LINUX_PRICE
-                    + WINDOWS_PRICE_ADJUSTMENT + WINDOWS_SQL_WEB_LICENSE_PRICE, false),
-            new ComputePrice(baId, OSType.RHEL, LINUX_PRICE + RHEL_LICENSE_PRICE,
-                false)));
+                ComputePrice.builder()
+                        .accountId(baId)
+                        .osType(OSType.LINUX)
+                        .hourlyComputeRate(LINUX_PRICE)
+                        .hourlyLicenseRate(0.0)
+                        .isBasePrice(true)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(baId)
+                        .osType(OSType.WINDOWS)
+                        .hourlyComputeRate(LINUX_PRICE)
+                        .hourlyLicenseRate(WINDOWS_PRICE_ADJUSTMENT)
+                        .isBasePrice(false)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(baId)
+                        .osType(OSType.WINDOWS_WITH_SQL_WEB)
+                        .hourlyComputeRate(LINUX_PRICE)
+                        .hourlyLicenseRate(WINDOWS_SQL_WEB_PRICE_ADJUSTMENT)
+                        .isBasePrice(false)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(baId)
+                        .osType(OSType.RHEL)
+                        .hourlyComputeRate(LINUX_PRICE)
+                        .hourlyLicenseRate(RHEL_PRICE_ADJUSTMENT)
+                        .isBasePrice(false)
+                        .build()));
     }
 
     /**
@@ -418,22 +459,64 @@ public class CloudRateExtractorTest {
         final ComputePriceBundle priceBundle2 = mktPriceTable.getComputePriceBundle(AWS_COMPUTE_TIER, REGION_ID, accountPricingData2);
 
         assertThat(priceBundle1.getPrices(), containsInAnyOrder(
-                new ComputePrice(noDiscountBaId, OSType.LINUX, LINUX_PRICE, true),
-                new ComputePrice(noDiscountBaId, OSType.WINDOWS, LINUX_PRICE
-                        + WINDOWS_PRICE_ADJUSTMENT, false),
-                new ComputePrice(noDiscountBaId, OSType.WINDOWS_WITH_SQL_WEB,
-                    LINUX_PRICE + WINDOWS_SQL_WEB_PRICE_ADJUSTMENT, false),
-                new ComputePrice(noDiscountBaId, OSType.RHEL, LINUX_PRICE
-                        + RHEL_PRICE_ADJUSTMENT, false)));
+                ComputePrice.builder()
+                        .accountId(noDiscountBaId)
+                        .osType(OSType.LINUX)
+                        .hourlyComputeRate(LINUX_PRICE)
+                        .hourlyLicenseRate(0.0)
+                        .isBasePrice(true)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(noDiscountBaId)
+                        .osType(OSType.WINDOWS)
+                        .hourlyComputeRate(LINUX_PRICE)
+                        .hourlyLicenseRate(WINDOWS_PRICE_ADJUSTMENT)
+                        .isBasePrice(false)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(noDiscountBaId)
+                        .osType(OSType.WINDOWS_WITH_SQL_WEB)
+                        .hourlyComputeRate(LINUX_PRICE)
+                        .hourlyLicenseRate(WINDOWS_SQL_WEB_PRICE_ADJUSTMENT)
+                        .isBasePrice(false)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(noDiscountBaId)
+                        .osType(OSType.RHEL)
+                        .hourlyComputeRate(LINUX_PRICE)
+                        .hourlyLicenseRate(RHEL_PRICE_ADJUSTMENT)
+                        .isBasePrice(false)
+                        .build()));
 
-        assertThat(priceBundle2.getPrices(), containsInAnyOrder(new ComputePrice(discountBaId, OSType.LINUX,
-                        LINUX_PRICE * 0.8, true),
-                new ComputePrice(discountBaId, OSType.WINDOWS,
-                    (LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT) * 0.8, false),
-                new ComputePrice(discountBaId, OSType.WINDOWS_WITH_SQL_WEB,
-                    (LINUX_PRICE + WINDOWS_SQL_WEB_PRICE_ADJUSTMENT) * 0.8, false),
-                new ComputePrice(discountBaId, OSType.RHEL,
-                    (LINUX_PRICE + RHEL_PRICE_ADJUSTMENT) * 0.8, false)));
+        assertThat(priceBundle2.getPrices(), containsInAnyOrder(
+                ComputePrice.builder()
+                        .accountId(discountBaId)
+                        .osType(OSType.LINUX)
+                        .hourlyComputeRate(LINUX_PRICE * 0.8)
+                        .hourlyLicenseRate(0.0)
+                        .isBasePrice(true)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(discountBaId)
+                        .osType(OSType.WINDOWS)
+                        .hourlyComputeRate(LINUX_PRICE * 0.8)
+                        .hourlyLicenseRate(WINDOWS_PRICE_ADJUSTMENT * 0.8)
+                        .isBasePrice(false)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(discountBaId)
+                        .osType(OSType.WINDOWS_WITH_SQL_WEB)
+                        .hourlyComputeRate(LINUX_PRICE * 0.8)
+                        .hourlyLicenseRate(WINDOWS_SQL_WEB_PRICE_ADJUSTMENT * 0.8)
+                        .isBasePrice(false)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(discountBaId)
+                        .osType(OSType.RHEL)
+                        .hourlyComputeRate(LINUX_PRICE * 0.8)
+                        .hourlyLicenseRate(RHEL_PRICE_ADJUSTMENT * 0.8)
+                        .isBasePrice(false)
+                        .build()));
 
     }
 
@@ -474,23 +557,64 @@ public class CloudRateExtractorTest {
         final ComputePriceBundle priceBundle2 = mktPriceTable.getComputePriceBundle(AZURE_COMPUTE_TIER, REGION_ID, accountPricingData2);
 
         assertThat(priceBundle1.getPrices(), containsInAnyOrder(
-                new ComputePrice(noDiscountBaId, OSType.LINUX, LINUX_PRICE, true),
-                new ComputePrice(noDiscountBaId, OSType.WINDOWS, LINUX_PRICE
-                        + WINDOWS_PRICE_ADJUSTMENT, false),
-                new ComputePrice(noDiscountBaId, OSType.WINDOWS_WITH_SQL_WEB,
-                        LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT + WINDOWS_SQL_WEB_LICENSE_PRICE,
-                        false),
-                new ComputePrice(noDiscountBaId, OSType.RHEL, LINUX_PRICE + RHEL_LICENSE_PRICE,
-                        false)));
+                ComputePrice.builder()
+                        .accountId(noDiscountBaId)
+                        .osType(OSType.LINUX)
+                        .hourlyComputeRate(LINUX_PRICE)
+                        .hourlyLicenseRate(0.0)
+                        .isBasePrice(true)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(noDiscountBaId)
+                        .osType(OSType.WINDOWS)
+                        .hourlyComputeRate(LINUX_PRICE)
+                        .hourlyLicenseRate(WINDOWS_PRICE_ADJUSTMENT)
+                        .isBasePrice(false)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(noDiscountBaId)
+                        .osType(OSType.WINDOWS_WITH_SQL_WEB)
+                        .hourlyComputeRate(LINUX_PRICE)
+                        .hourlyLicenseRate(WINDOWS_SQL_WEB_PRICE_ADJUSTMENT)
+                        .isBasePrice(false)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(noDiscountBaId)
+                        .osType(OSType.RHEL)
+                        .hourlyComputeRate(LINUX_PRICE)
+                        .hourlyLicenseRate(RHEL_PRICE_ADJUSTMENT)
+                        .isBasePrice(false)
+                        .build()));
 
-        assertThat(priceBundle2.getPrices(), containsInAnyOrder(new ComputePrice(discountBaId, OSType.LINUX, LINUX_PRICE * 0.8, true),
-                new ComputePrice(discountBaId, OSType.WINDOWS,
-                        (LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT) * 0.8, false),
-                new ComputePrice(discountBaId, OSType.WINDOWS_WITH_SQL_WEB,
-                        (LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT) * 0.8
-                                + WINDOWS_SQL_WEB_LICENSE_PRICE, false),
-                new ComputePrice(discountBaId, OSType.RHEL,
-                        LINUX_PRICE * 0.8 + RHEL_LICENSE_PRICE, false)));
+        assertThat(priceBundle2.getPrices(), containsInAnyOrder(
+                ComputePrice.builder()
+                        .accountId(discountBaId)
+                        .osType(OSType.LINUX)
+                        .hourlyComputeRate(LINUX_PRICE * 0.8)
+                        .hourlyLicenseRate(0.0)
+                        .isBasePrice(true)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(discountBaId)
+                        .osType(OSType.WINDOWS)
+                        .hourlyComputeRate(LINUX_PRICE * 0.8)
+                        .hourlyLicenseRate(WINDOWS_PRICE_ADJUSTMENT * 0.8)
+                        .isBasePrice(false)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(discountBaId)
+                        .osType(OSType.WINDOWS_WITH_SQL_WEB)
+                        .hourlyComputeRate(LINUX_PRICE * 0.8)
+                        .hourlyLicenseRate(WINDOWS_SQL_WEB_PRICE_ADJUSTMENT * 0.8)
+                        .isBasePrice(false)
+                        .build(),
+                ComputePrice.builder()
+                        .accountId(discountBaId)
+                        .osType(OSType.RHEL)
+                        .hourlyComputeRate(LINUX_PRICE * 0.8)
+                        .hourlyLicenseRate(RHEL_PRICE_ADJUSTMENT * 0.8)
+                        .isBasePrice(false)
+                        .build()));
     }
 
     /**

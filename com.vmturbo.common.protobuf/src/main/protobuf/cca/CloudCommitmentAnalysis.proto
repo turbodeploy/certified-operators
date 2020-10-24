@@ -275,6 +275,14 @@ message CommitmentPurchaseProfile {
         // can be justified, based on the percentage of demand specified.
         optional double max_demand_percent = 2 [default = 100.0];
 
+        oneof type_specific_settings {
+            ReservedInstanceRecommendationSettings reserved_instance_settings = 3;
+        }
+
+        message ReservedInstanceRecommendationSettings {
+            optional bool include_reserved_license = 1 [default = true];
+        }
+
     }
 
     // A purchase profile specific to buying a reserved instance.

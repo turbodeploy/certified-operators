@@ -19,11 +19,11 @@ import org.junit.Test;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityCloudTierMapping;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReader;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
+import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
@@ -91,7 +91,7 @@ public class DemandRetrievalStageTest {
 
         // setup the lookback time in the context
         when(analysisContext.getAnalysisWindow()).thenReturn(Optional.of(
-                ImmutableTimeInterval.builder()
+                TimeInterval.builder()
                         .startTime(lookbackStartTime)
                         .endTime(Instant.now())
                         .build()));
@@ -103,7 +103,7 @@ public class DemandRetrievalStageTest {
 
         // set demand reader response
         final EntityCloudTierMapping entityCloudTierMappingA = ImmutableEntityCloudTierMapping.builder()
-                .timeInterval(ImmutableTimeInterval.builder()
+                .timeInterval(TimeInterval.builder()
                         .startTime(lookbackStartTime.minus(3, ChronoUnit.DAYS))
                         .endTime(lookbackStartTime.plus(1, ChronoUnit.DAYS))
                         .build())
@@ -119,7 +119,7 @@ public class DemandRetrievalStageTest {
                 .build();
 
         final EntityCloudTierMapping entityCloudTierMappingB = ImmutableEntityCloudTierMapping.builder()
-                .timeInterval(ImmutableTimeInterval.builder()
+                .timeInterval(TimeInterval.builder()
                         .startTime(lookbackStartTime.plus(1, ChronoUnit.DAYS))
                         .endTime(Instant.now())
                         .build())
@@ -146,8 +146,10 @@ public class DemandRetrievalStageTest {
 
         // setup expected output
         final EntityCloudTierMapping expectedMappingA = ImmutableEntityCloudTierMapping.copyOf(entityCloudTierMappingA)
-                .withTimeInterval(ImmutableTimeInterval.copyOf(entityCloudTierMappingA.timeInterval())
-                        .withStartTime(lookbackStartTime));
+                .withTimeInterval(entityCloudTierMappingA.timeInterval()
+                        .toBuilder()
+                        .startTime(lookbackStartTime)
+                        .build());
         final EntityCloudTierMapping expectedMappingB = entityCloudTierMappingB;
 
 

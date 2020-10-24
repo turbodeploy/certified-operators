@@ -119,7 +119,7 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
         final AnalysisCoverageTopology coverageTopology = coverageTopologyFactory.newTopology(
                 cloudTierTopology,
                 cloudTopology,
-                analysisSegment.aggregateCloudTierDemandSet(),
+                analysisSegment.aggregateCloudTierDemandSet().values(),
                 commitmentAggregates,
                 commitmentCapacityById);
 
@@ -189,12 +189,19 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
         final SetMultimap<AggregateCloudTierDemand, CoverageInfo> coverageInfoDemandMap =
                 coverageAllocation.totalCoverageTable().cellSet()
                         .stream()
+                        // Need to convert the coverage amount (in coupons) to the aggregate demand
+                        // unit (generally hours). In the future, the allocators coverage table
+                        // should be in a percentage.
+                        .map(allocation -> coverageTopology.convertAllocationDemandToAggregate(
+                                allocation.getRowKey(),
+                                allocation.getColumnKey(),
+                                allocation.getValue()))
                         .collect(ImmutableSetMultimap.toImmutableSetMultimap(
-                                (cell) -> aggregateDemandById.get(cell.getRowKey()),
-                                (cell) -> CoverageInfo.builder()
+                                (allocation) -> aggregateDemandById.get(allocation.getLeft()),
+                                (allocation) -> CoverageInfo.builder()
                                         .cloudCommitmentAggregate(
-                                                commitmentAggregatesById.get(cell.getColumnKey()))
-                                        .coverageAmount(cell.getValue())
+                                                commitmentAggregatesById.get(allocation.getMiddle()))
+                                        .coverageAmount(allocation.getRight())
                                         .build()));
 
         return CoverageCalculationResult.builder()
@@ -211,6 +218,7 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
                 .mapToDouble(CoverageInfo::coverageAmount)
                 .sum();
         final double totalDemand = analysisSegment.aggregateCloudTierDemandSet()
+                .values()
                 .stream()
                 .mapToDouble(AggregateCloudTierDemand::demandAmount)
                 .sum();
@@ -290,8 +298,8 @@ public class CoverageCalculationTask implements Callable<CoverageCalculationInfo
         double coveredDemand();
 
         /**
-         * The amount of total aggregate demand (in coupons).
-         * @return The amount of total aggregate demand (in coupons).
+         * The amount of total aggregate demand.
+         * @return The amount of total aggregate demand.
          */
         double aggregateDemand();
 

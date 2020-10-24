@@ -1,4 +1,4 @@
-package com.vmturbo.cloud.commitment.analysis.demand;
+package com.vmturbo.cloud.common.data;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -130,6 +130,11 @@ public interface TimeSeries<T> extends NavigableSet<T> {
 
         private ConcurrentTimeSeries(Comparator<T> comparator) {
             super(comparator);
+        }
+
+        private ConcurrentTimeSeries(Collection<T> c, Comparator<T> comparator) {
+            super(comparator);
+            addAll(c);
         }
     }
 }

@@ -68,11 +68,12 @@ public interface AnalysisStage<StageInputT, StageOutputT> {
 
         /**
          * Constructs and returns a new builder instance.
+         * @param <StageOutputT> The stage output expected.
          * @return The newly constructed builder instance.
          */
         @Nonnull
-        static Builder builder() {
-            return new Builder();
+        static <StageOutputT> Builder<StageOutputT> builder() {
+            return new Builder<StageOutputT>();
         }
 
         /**

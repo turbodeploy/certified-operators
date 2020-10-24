@@ -31,12 +31,11 @@ import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
 import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext.AnalysisContextFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext.DefaultAnalysisContextFactory;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher.CloudCommitmentSpecMatcherFactory;
+import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetriever;
 import com.vmturbo.cloud.common.topology.BillingFamilyRetrieverFactory;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
@@ -356,11 +355,11 @@ public class CloudCommitmentAnalysisContextTest {
     @Test
     public void testAnalysisWindow() {
 
-        final TimeInterval firstWindow = ImmutableTimeInterval.builder()
+        final TimeInterval firstWindow = TimeInterval.builder()
                 .startTime(Instant.now().minus(10, ChronoUnit.DAYS))
                 .endTime(Instant.now())
                 .build();
-        final TimeInterval secondWindow = ImmutableTimeInterval.builder()
+        final TimeInterval secondWindow = TimeInterval.builder()
                 .startTime(Instant.now())
                 .endTime(Instant.now())
                 .build();

@@ -7,7 +7,6 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.time.Instant;
 import java.util.Optional;
 
 import com.google.common.collect.ImmutableMap;
@@ -16,9 +15,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierDemand;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecMatcher.ReservedInstanceSpecMatcherFactory;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -72,15 +69,10 @@ public class ReservedInstanceSpecMatcherTest {
     @Test
     public void testMatching() {
 
-        final ScopedCloudTierDemand scopedCloudTierDemand = ImmutableEntityComputeTierAllocation.builder()
-                .entityOid(5L)
+        final ScopedCloudTierInfo scopedCloudTierDemand = ScopedCloudTierInfo.builder()
                 .accountOid(6L)
                 .regionOid(matchingCoverageScope.regionOid())
                 .serviceProviderOid(7L)
-                .timeInterval(ImmutableTimeInterval.builder()
-                        .startTime(Instant.now().minusSeconds(60))
-                        .endTime(Instant.now())
-                        .build())
                 .cloudTierDemand(ComputeTierDemand.builder()
                         .cloudTierOid(matchingCoverageScope.cloudTierOid())
                         .osType(matchingCoverageScope.osType())

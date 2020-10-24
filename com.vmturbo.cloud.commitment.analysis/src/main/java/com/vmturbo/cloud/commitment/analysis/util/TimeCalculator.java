@@ -7,7 +7,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
 
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
+import com.vmturbo.cloud.common.data.TimeInterval;
 
 /**
  * A utility class for doing time math.

@@ -26,13 +26,13 @@ import com.google.common.collect.ImmutableSet;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
 import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableComputeTierAllocationDatapoint;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ImmutableEntityComputeTierAllocationFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter.TimeComparator;
+import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.topology.TopologyInfoTracker;
@@ -334,7 +334,7 @@ public class SQLComputeTierAllocationStoreTest {
                 .regionOid(allocationDatapoint.regionOid())
                 .availabilityZoneOid(allocationDatapoint.availabilityZoneOid())
                 .serviceProviderOid(allocationDatapoint.serviceProviderOid())
-                .timeInterval(ImmutableTimeInterval.builder()
+                .timeInterval(TimeInterval.builder()
                         .startTime(startTime)
                         .endTime(endTime)
                         .build())

@@ -5,7 +5,7 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierDemand;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecMatcher.ReservedInstanceSpecMatcherFactory;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -27,7 +27,7 @@ public interface CloudCommitmentSpecMatcher<SPEC_TYPE> {
      * @return Matching ReservedInstanceSpecData if found.
      */
     <T extends CloudCommitmentSpecData<SPEC_TYPE>> Optional<T> matchDemandToSpecs(
-            ScopedCloudTierDemand cloudTierDemand);
+            ScopedCloudTierInfo cloudTierDemand);
 
     /**
      * A factory interface for creating instances of {@link CloudCommitmentSpecMatcher}.

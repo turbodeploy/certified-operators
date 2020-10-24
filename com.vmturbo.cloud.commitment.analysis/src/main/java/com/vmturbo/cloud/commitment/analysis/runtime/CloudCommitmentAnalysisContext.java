@@ -15,9 +15,9 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.commons.lang3.NotImplementedException;
 
 import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher.CloudCommitmentSpecMatcherFactory;
+import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;

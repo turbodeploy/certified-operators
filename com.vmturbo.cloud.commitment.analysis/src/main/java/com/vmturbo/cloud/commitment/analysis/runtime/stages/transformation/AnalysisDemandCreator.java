@@ -7,11 +7,10 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries.ConcurrentTimeSeries;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationJournal.DemandTransformationResult;
+import com.vmturbo.cloud.common.data.TimeInterval;
+import com.vmturbo.cloud.common.data.TimeSeries;
+import com.vmturbo.cloud.common.data.TimeSeries.ConcurrentTimeSeries;
 
 /**
  * An aggregator responsible for converting all entity demand to an aggregated type, based on the scope,
@@ -78,7 +77,7 @@ public class AnalysisDemandCreator {
 
             final Instant endTime = currentStartTime.plus(analysisBucket.duration());
             analysisIntervals.add(
-                    ImmutableTimeInterval.builder()
+                    TimeInterval.builder()
                             .startTime(currentStartTime)
                             .endTime(endTime)
                             .build());

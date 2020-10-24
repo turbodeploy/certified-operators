@@ -7,12 +7,12 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.AbstractStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandSet;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationJournal.DemandTransformationResult;
+import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 
 /**
@@ -58,7 +58,7 @@ public class DemandTransformationStage extends AbstractStage<ClassifiedEntityDem
         final TimeInterval analysisWindow = analysisContext.getAnalysisWindow()
                 .orElseThrow(() -> new IllegalStateException("Analysis window must be set"));
         final DemandTransformationResult transformationResult = transformationJournal.getTransformationResult();
-        return StageResult.builder()
+        return StageResult.<AggregateAnalysisDemand>builder()
                 .output(AnalysisDemandCreator.createAnalysisDemand(
                         transformationResult, analysisWindow, analysisContext.getAnalysisBucket()))
                 .resultSummary(DemandTransformationSummary.generateSummary(

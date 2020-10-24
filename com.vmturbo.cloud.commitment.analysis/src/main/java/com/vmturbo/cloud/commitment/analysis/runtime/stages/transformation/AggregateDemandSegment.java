@@ -1,17 +1,17 @@
 package com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation;
 
-import java.util.Set;
-
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.SetMultimap;
 
 import org.immutables.value.Value.Immutable;
 import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
 
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeSeriesData;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
+import com.vmturbo.cloud.common.data.TimeInterval;
+import com.vmturbo.cloud.common.data.TimeSeriesData;
 
 /**
  * Wraps an aggregate set of classified cloud tier demand. The segment corresponds to a single
@@ -26,7 +26,7 @@ public interface AggregateDemandSegment extends TimeSeriesData {
      * @return The aggregate set of classified cloud tier demand.
      */
     @Nonnull
-    Set<AggregateCloudTierDemand> aggregateCloudTierDemand();
+    SetMultimap<ScopedCloudTierInfo, AggregateCloudTierDemand> aggregateCloudTierDemand();
 
     /**
      * Constructs and returns a new builder instance.

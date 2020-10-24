@@ -10,8 +10,8 @@ import org.immutables.value.Value.Immutable;
 import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
 
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
 import com.vmturbo.cloud.commitment.analysis.runtime.data.DoubleStatistics;
+import com.vmturbo.cloud.common.data.TimeInterval;
 
 /**
  * Contains statistics collected during demand transformation.

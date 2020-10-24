@@ -19,14 +19,13 @@ import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
 import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandSet;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ImmutableClassifiedEntityDemandSet;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationStage.DemandTransformationFactory;
+import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 
 public class DemandTransformationStageTest {
@@ -39,7 +38,7 @@ public class DemandTransformationStageTest {
     private final DemandTransformationFactory demandTransformationFactory = new DemandTransformationFactory(
             allocatedTransformationPipelineFactory);
 
-    private final TimeInterval analysisWindow = ImmutableTimeInterval.builder()
+    private final TimeInterval analysisWindow = TimeInterval.builder()
             .startTime(Instant.ofEpochSecond(Duration.ofDays(1).getSeconds()))
             .endTime(Instant.ofEpochSecond(Duration.ofDays(2).getSeconds()))
             .build();

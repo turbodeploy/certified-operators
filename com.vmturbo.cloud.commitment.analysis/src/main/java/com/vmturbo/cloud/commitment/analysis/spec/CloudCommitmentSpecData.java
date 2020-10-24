@@ -5,6 +5,7 @@ import javax.annotation.Nonnull;
 import org.immutables.value.Value;
 import org.immutables.value.Value.Immutable;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 /**
@@ -26,6 +27,12 @@ public interface CloudCommitmentSpecData<SpecTypeT> {
      * @return The spec ID.
      */
     long specId();
+
+    /**
+     * The cloud commitment type.
+     * @return The cloud commitment type.
+     */
+    CloudCommitmentType type();
 
     /**
      * The cloud tier associated with {@link #spec()}. This value is not used

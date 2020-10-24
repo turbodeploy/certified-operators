@@ -19,6 +19,7 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Table;
 import com.google.common.collect.Tables;
 
@@ -28,12 +29,12 @@ import org.immutables.value.Value.Immutable;
 import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
 
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
 import com.vmturbo.cloud.commitment.analysis.runtime.data.DoubleStatistics;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate.DemandTimeSeries;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassification;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.EntityInfo;
+import com.vmturbo.cloud.common.data.TimeInterval;
 
 /**
  * A journal for recording aggregated entity demand.
@@ -214,14 +215,17 @@ public class DemandTransformationJournal {
                 .map(timeEntry ->
                         AggregateDemandSegment.builder()
                                 .timeInterval(timeEntry.getKey())
-                                .addAllAggregateCloudTierDemand(timeEntry.getValue().entrySet()
+                                .putAllAggregateCloudTierDemand(timeEntry.getValue()
+                                        .entrySet()
                                         .stream()
                                         // Add all the recorded entity demand to the aggregate scope
                                         .map(scopeEntry ->
                                                 scopeEntry.getKey().toBuilder()
                                                         .putAllDemandByEntity(scopeEntry.getValue().demandMap())
                                                         .build())
-                                        .collect(Collectors.toList()))
+                                        .collect(ImmutableSetMultimap.toImmutableSetMultimap(
+                                                AggregateCloudTierDemand::cloudTierInfo,
+                                                Function.identity())))
                                 .build())
                 .collect(ImmutableMap.toImmutableMap(
                         AggregateDemandSegment::timeInterval,

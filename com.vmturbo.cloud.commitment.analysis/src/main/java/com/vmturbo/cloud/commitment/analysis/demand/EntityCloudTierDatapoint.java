@@ -3,7 +3,7 @@ package com.vmturbo.cloud.commitment.analysis.demand;
 /**
  * A data point representing the allocation of an entity on a cloud tier for a single point in time.
  */
-public interface EntityCloudTierDatapoint extends ScopedCloudTierDemand {
+public interface EntityCloudTierDatapoint extends ScopedCloudTierInfo {
 
     /**
      * The entity OID.

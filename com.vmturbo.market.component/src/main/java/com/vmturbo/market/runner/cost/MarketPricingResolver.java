@@ -18,17 +18,21 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
 
+import sun.reflect.generics.reflectiveObjects.NotImplementedException;
+
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Pricing.GetAccountPriceTableRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTablesRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.ResolverPricing;
@@ -72,7 +76,14 @@ public class MarketPricingResolver extends ResolverPricing {
 
     @Override
     public Map<Long, AccountPricingData<TopologyEntityDTO>> getAccountPricingDataByBusinessAccount(
-            @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopo) {
+            @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) throws CloudCostDataRetrievalException {
+
+        // Get the set of business accounts in the topology.
+        Set<Long> accountOids = cloudTopology.getAllEntitiesOfType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .stream()
+                .map(TopologyEntityDTO::getOid)
+                .collect(Collectors.toSet());
+
         // A map of the PricingDataIdentifier to the Account Pricing data.
         // This map helps reusing AccountPricingData which often is identical for many BAs.
         Map<PricingDataIdentifier, AccountPricingData<TopologyEntityDTO>>
@@ -85,14 +96,13 @@ public class MarketPricingResolver extends ResolverPricing {
 
         Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDataByBusinessAccountOid
                 = new HashMap<>();
-        // Get the set of business accounts in the topology.
-        Set<Long> baOids = cloudTopo.getAllEntitiesOfType(EntityType.BUSINESS_ACCOUNT_VALUE).stream()
-                .map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
+
 
         // Get a mapping of business account oid -> price table key oid.
         final Map<Long, Long> priceTableKeyOidByBusinessAccountOid = pricingServiceClient.getAccountPriceTable(
-                GetAccountPriceTableRequest.newBuilder().addAllBusinessAccountOid(baOids).build())
-                        .getBusinessAccountPriceTableKeyMap();
+                GetAccountPriceTableRequest.newBuilder()
+                        .addAllBusinessAccountOid(accountOids)
+                        .build()).getBusinessAccountPriceTableKeyMap();
         logger.debug("priceTableKeyOidByBusinessAccountOid = {}", priceTableKeyOidByBusinessAccountOid);
 
         // Get a mapping of price table key oid to price table.
@@ -109,13 +119,19 @@ public class MarketPricingResolver extends ResolverPricing {
 
             logPriceTableProps(priceTable, baOid, priceTableOid);
 
-            buildPricingDataByBizAccount(cloudTopo, accountPricingDataMapByPricingDataIdentifier, discountsByAccount,
+            buildPricingDataByBizAccount(cloudTopology, accountPricingDataMapByPricingDataIdentifier, discountsByAccount,
                     accountPricingDataByBusinessAccountOid, baOid, priceTable, priceTableOid);
         }
 
         logAccountPricingDataByBA(accountPricingDataByBusinessAccountOid);
 
         return accountPricingDataByBusinessAccountOid;
+    }
+
+    @Override
+    public Map<Long, ReservedInstancePriceTable> getRIPriceTablesByAccount(
+            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
+        throw new NotImplementedException();
     }
 
     private void logPriceTableProps(PriceTable priceTable, Long businessAccountOid, Long priceTableOid) {

@@ -155,7 +155,7 @@ public class CostDTOCreatorTest {
                 .build();
         when(marketCloudRateExtractor.getDatabasePriceBundle(TIER_ID, REGION_ID, accountPricingData)).thenReturn(databasePriceBundle);
         ComputePriceBundle computeBundle = ComputePriceBundle.newBuilder()
-                .addPrice(BA_ID, OSType.LINUX, 0.5, true)
+                .addPrice(BA_ID, OSType.LINUX, 0.5, 0.0,true)
                 .build();
 
         final TopologyDTO.CommoditySoldDTO topologyIoTpSold =

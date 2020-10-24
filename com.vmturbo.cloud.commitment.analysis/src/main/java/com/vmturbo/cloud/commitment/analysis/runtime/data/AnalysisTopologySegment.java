@@ -1,15 +1,17 @@
 package com.vmturbo.cloud.commitment.analysis.runtime.data;
 
 import java.util.Map;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.SetMultimap;
+
 import org.immutables.value.Value.Immutable;
 
-import com.vmturbo.cloud.commitment.analysis.demand.TimeSeriesData;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.inventory.CloudCommitmentCapacity;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
+import com.vmturbo.cloud.common.data.TimeSeriesData;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 
 /**
@@ -25,7 +27,7 @@ public interface AnalysisTopologySegment extends TimeSeriesData {
      * @return The aggregate demand contained within this analysis segment.
      */
     @Nonnull
-    Set<AggregateCloudTierDemand> aggregateCloudTierDemandSet();
+    SetMultimap<ScopedCloudTierInfo, AggregateCloudTierDemand> aggregateCloudTierDemandSet();
 
     /**
      * The capacity for each cloud commitment within the analysis topology. The capacity may vary

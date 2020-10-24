@@ -10,12 +10,15 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
@@ -106,5 +109,38 @@ public class LocalCostPricingResolver extends ResolverPricing {
                     accountPricingDataByBusinessAccountOid, baOid, priceTable, priceTableKeyOid);
         }
         return accountPricingDataByBusinessAccountOid;
+    }
+
+    @Override
+    public Map<Long, ReservedInstancePriceTable> getRIPriceTablesByAccount(
+            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
+
+        Set<Long> accountOids = cloudTopology.getAllEntitiesOfType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .stream()
+                .map(TopologyEntityDTO::getOid)
+                .collect(Collectors.toSet());
+
+        Map<Long, Long> priceTableKeyOidByBusinessAccountOid = ImmutableMap.copyOf(
+                businessAccountPriceTableKeyStore.fetchPriceTableKeyOidsByBusinessAccount(accountOids));
+        Map<Long, ReservedInstancePriceTable> riPriceTableByPriceTableKeyOid =
+                priceTableStore.getRiPriceTables(priceTableKeyOidByBusinessAccountOid.values());
+
+        // The RI price table indexed by the business account oid.
+        final ImmutableMap.Builder<Long, ReservedInstancePriceTable> priceTableMap = ImmutableMap.builder();
+        for (Map.Entry<Long, Long> entry: priceTableKeyOidByBusinessAccountOid.entrySet()) {
+
+            final Long accountOid = entry.getKey();
+            final Long priceTableKeyOid = entry.getValue();
+
+            if (riPriceTableByPriceTableKeyOid.containsKey(priceTableKeyOid)) {
+                ReservedInstancePriceTable priceTable = riPriceTableByPriceTableKeyOid.get(priceTableKeyOid);
+                priceTableMap.put(accountOid, priceTable);
+            } else {
+                logger.error("Unable to find RI price table for account (Account OID={} Price Table Key={})",
+                        accountOid, priceTableKeyOid);
+            }
+        }
+
+        return priceTableMap.build();
     }
 }

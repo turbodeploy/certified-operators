@@ -17,8 +17,6 @@ import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
 import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateDemandCollector.AggregateDemandCollectorFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationPipeline.DemandTransformationPipelineFactory;
@@ -27,6 +25,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selec
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.AnalysisSelector.AnalysisSelectorFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.RecommendationSelector;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.RecommendationSelector.RecommendationSelectorFactory;
+import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
@@ -83,7 +82,7 @@ public class AllocatedTransformationPipelineFactoryTest {
     @Test
     public void testSuccessfulPipelineCreation() {
         when(analysisContext.getRecommendationType()).thenReturn(CloudCommitmentType.RESERVED_INSTANCE);
-        final TimeInterval analysisWindow = ImmutableTimeInterval.builder()
+        final TimeInterval analysisWindow = TimeInterval.builder()
                 .startTime(Instant.ofEpochSecond(1))
                 .endTime(Instant.ofEpochSecond(3))
                 .build();
@@ -109,7 +108,7 @@ public class AllocatedTransformationPipelineFactoryTest {
         when(recommendationSelectorFactory.fromDemandSelection(any())).thenReturn(recommendationSelector);
 
         final AggregateDemandCollector aggregateDemandCollector = mock(AggregateDemandCollector.class);
-        when(aggregateDemandCollectorFactory.newCollector(any(), any(), any(), any()))
+        when(aggregateDemandCollectorFactory.newCollector(any(), any(), any()))
                 .thenReturn(aggregateDemandCollector);
 
         final CloudCommitmentAnalysisConfig analysisConfig = TestUtils.createBaseConfig();
@@ -150,7 +149,6 @@ public class AllocatedTransformationPipelineFactoryTest {
                 ArgumentCaptor.forClass(BoundedDuration.class);
         verify(aggregateDemandCollectorFactory).newCollector(
                 journalCaptor.capture(),
-                cloudTopologyCaptor.capture(),
                 timeIntervalCaptor.capture(),
                 boundedDurationCaptor.capture());
         assertThat(journalCaptor.getValue(), equalTo(transformationJournal));

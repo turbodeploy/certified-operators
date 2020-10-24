@@ -4,21 +4,20 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSetMultimap;
 
 import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.data.AnalysisTopology;
@@ -38,6 +37,8 @@ import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecMatcher;
 import com.vmturbo.cloud.commitment.analysis.spec.SpecMatcherOutput;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
 import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
+import com.vmturbo.cloud.common.data.TimeInterval;
+import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CommitmentPurchaseProfile;
@@ -92,8 +93,13 @@ public class RecommendationSpecMatcherStageTest {
             .putDemandByEntity(EntityInfo.builder().entityOid(13L).build(), .5)
             .putDemandByEntity(EntityInfo.builder().entityOid(14L).build(), .5)
             .putDemandByEntity(EntityInfo.builder().entityOid(15L).build(), .5)
-            .accountOid(Account_Aws).regionOid(REGION_AWS).serviceProviderOid(awsServiceProviderId)
-            .cloudTierDemand(computeTierDemand)
+            .cloudTierInfo(ScopedCloudTierInfo.builder()
+                    .accountOid(Account_Aws)
+                    .regionOid(REGION_AWS)
+                    .serviceProviderOid(awsServiceProviderId)
+                    .cloudTierDemand(computeTierDemand)
+                    .build())
+            .isRecommendationCandidate(true)
             .classification(DemandClassification.of(AllocatedDemandClassification.ALLOCATED)).build();
 
     private static final CloudCommitmentSpecMatcher reservedInstanceSpecMatcher = mock(ReservedInstanceSpecMatcher.class);
@@ -120,11 +126,15 @@ public class RecommendationSpecMatcherStageTest {
                             ReservedInstanceBoughtCoupons.newBuilder().setNumberOfCoupons(4).setNumberOfCouponsUsed(2).build())
                             .build()).setId(10L).build()).spec(spec1).build();
 
-    AnalysisTopologySegment analysisSegment = AnalysisTopologySegment.builder().addAggregateCloudTierDemandSet(cloudTierDemand).timeInterval(
-            ImmutableTimeInterval.builder()
-                    .startTime(Instant.now().minusSeconds(700))
-                    .endTime(Instant.now())
-                    .build()).build();
+    AnalysisTopologySegment analysisSegment = AnalysisTopologySegment.builder()
+            .putAggregateCloudTierDemandSet(
+                    cloudTierDemand.cloudTierInfo(),
+                    cloudTierDemand)
+            .timeInterval(
+                    TimeInterval.builder()
+                            .startTime(Instant.now().minusSeconds(700))
+                            .endTime(Instant.now())
+                            .build()).build();
 
     TimeSeries<AnalysisTopologySegment> analysisSegmentTimeSeries = TimeSeries.newTimeSeries(analysisSegment);
 
@@ -162,12 +172,13 @@ public class RecommendationSpecMatcherStageTest {
                         .setRiPurchaseProfile(ReservedInstancePurchaseProfile.newBuilder().putAllRiTypeByRegionOid(purchaseConstraints).build())
                         .setRecommendationSettings(RecommendationSettings.newBuilder()))
                 .build();
-        when(classifiedDemandSegment.aggregateCloudTierDemand()).thenReturn(Collections.singleton(cloudTierDemand));
+        when(classifiedDemandSegment.aggregateCloudTierDemand()).thenReturn(
+                ImmutableSetMultimap.of(cloudTierDemand.cloudTierInfo(), cloudTierDemand));
         when(cloudTierCoverageDemand.demandSegment()).thenReturn(classifiedDemandSegment);
 
         RecommendationSpecMatcherStageFactory
                 recommendationSpecMatcherStageFactory = new RecommendationSpecMatcherStageFactory();
-        when(reservedInstanceSpecMatcher.matchDemandToSpecs(cloudTierDemand)).thenReturn(riSpecData);
+        when(reservedInstanceSpecMatcher.matchDemandToSpecs(cloudTierDemand.cloudTierInfo())).thenReturn(riSpecData);
         final AnalysisStage ccaRecommendationSpecMatcherStage = recommendationSpecMatcherStageFactory
                 .createStage(id, analysisConfig, analysisContext);
 
@@ -178,10 +189,10 @@ public class RecommendationSpecMatcherStageTest {
 
         Optional<CommitmentSpecDemand> commitmentSpecDemand = output.commitmentSpecDemand().stream().findFirst();
         assert (commitmentSpecDemand.isPresent());
-        Set<AggregateCloudTierDemand> aggregateCloudTierDemand = commitmentSpecDemand.get().aggregateCloudTierDemandSet();
-        assert (!aggregateCloudTierDemand.isEmpty());
-        aggregateCloudTierDemand.iterator().next();
-        assert (aggregateCloudTierDemand.iterator().next().equals(cloudTierDemand));
+        Set<ScopedCloudTierInfo> cloudTierInfoSet = commitmentSpecDemand.get().cloudTierInfo();
+        assert (!cloudTierInfoSet.isEmpty());
+        cloudTierInfoSet.iterator().next();
+        assert (cloudTierInfoSet.iterator().next().equals(cloudTierDemand.cloudTierInfo()));
     }
 
     private Map<Long, CloudCommitmentData> createCloudCommitmentDataByOidMap() {

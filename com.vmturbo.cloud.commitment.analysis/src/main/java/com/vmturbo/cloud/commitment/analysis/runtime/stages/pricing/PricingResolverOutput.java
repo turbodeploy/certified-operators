@@ -1,9 +1,10 @@
-package com.vmturbo.cloud.commitment.analysis.pricing;
+package com.vmturbo.cloud.commitment.analysis.runtime.stages.pricing;
 
 import java.util.Set;
 
 import org.immutables.value.Value.Immutable;
 
+import com.vmturbo.cloud.commitment.analysis.pricing.RateAnnotatedCommitmentContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.data.AnalysisTopology;
 
 /**

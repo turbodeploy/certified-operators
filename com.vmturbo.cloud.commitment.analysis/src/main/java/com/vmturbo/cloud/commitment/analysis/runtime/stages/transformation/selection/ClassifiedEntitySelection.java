@@ -6,10 +6,10 @@ import org.immutables.value.Value.Immutable;
 import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
 
-import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierDemand;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassification;
+import com.vmturbo.cloud.common.data.TimeInterval;
+import com.vmturbo.cloud.common.data.TimeSeries;
 
 /**
  * A data class representing a single (entity, cloud tier) tuple. Each instance of this class
@@ -18,7 +18,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.Deman
  */
 @Style(visibility = ImplementationVisibility.PACKAGE, overshadowImplementation = true)
 @Immutable
-public interface ClassifiedEntitySelection extends ScopedCloudTierDemand {
+public interface ClassifiedEntitySelection extends ScopedCloudTierInfo {
 
     /**
      * The entity OID.

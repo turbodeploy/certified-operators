@@ -10,7 +10,7 @@ import java.util.Optional;
 
 import org.junit.Test;
 
-import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierDemand;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.CloudTierFamilyMatcher.CloudTierFamilyMatcherFactory;
 import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecData;
 import com.vmturbo.cloud.commitment.analysis.spec.ReservedInstanceSpecMatcher;
@@ -23,10 +23,10 @@ public class CloudTierFamilyMatcherTest {
     private final ReservedInstanceSpecMatcher cloudCommitmentSpecMatcher =
             mock(ReservedInstanceSpecMatcher.class);
 
-    private final ScopedCloudTierDemand demandA = mock(ScopedCloudTierDemand.class);
+    private final ScopedCloudTierInfo demandA = mock(ScopedCloudTierInfo.class);
     private final ReservedInstanceSpecData specDataA = mock(ReservedInstanceSpecData.class);
 
-    private final ScopedCloudTierDemand demandB = mock(ScopedCloudTierDemand.class);
+    private final ScopedCloudTierInfo demandB = mock(ScopedCloudTierInfo.class);
     private final ReservedInstanceSpecData specDataB = mock(ReservedInstanceSpecData.class);
 
     @Test

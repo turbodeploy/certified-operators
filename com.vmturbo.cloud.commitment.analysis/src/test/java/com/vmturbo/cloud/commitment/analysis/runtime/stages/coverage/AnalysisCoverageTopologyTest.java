@@ -7,6 +7,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -19,9 +21,11 @@ import java.util.OptionalLong;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassification;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.AnalysisCoverageTopology.AnalysisCoverageTopologyFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
@@ -32,6 +36,8 @@ import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateI
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregateInfo.TierInfo;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
@@ -58,8 +64,14 @@ public class AnalysisCoverageTopologyTest {
 
     private final MinimalCloudTopology cloudTopology = mock(MinimalCloudTopology.class);
 
+    private final ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory =
+            mock(ComputeTierFamilyResolverFactory.class);
+
+    private final ComputeTierFamilyResolver computeTierFamilyResolver =
+            mock(ComputeTierFamilyResolver.class);
+
     private final AnalysisCoverageTopologyFactory topologyFactory = new AnalysisCoverageTopologyFactory(
-            identityProvider, thinTargetCache);
+            identityProvider, thinTargetCache, computeTierFamilyResolverFactory);
 
 
     private final ReservedInstanceAggregateInfo riAggregateInfoA = ReservedInstanceAggregateInfo.builder()
@@ -94,16 +106,18 @@ public class AnalysisCoverageTopologyTest {
 
     // Setup the aggregated cloud tier demand
     private final AggregateCloudTierDemand demandA = AggregateCloudTierDemand.builder()
-            .cloudTierDemand(ComputeTierDemand.builder()
-                    .cloudTierOid(1)
-                    .osType(OSType.RHEL)
-                    .tenancy(Tenancy.DEFAULT)
+            .cloudTierInfo(ScopedCloudTierInfo.builder()
+                    .cloudTierDemand(ComputeTierDemand.builder()
+                            .cloudTierOid(1)
+                            .osType(OSType.RHEL)
+                            .tenancy(Tenancy.DEFAULT)
+                            .build())
+                    .accountOid(2)
+                    .billingFamilyId(11L)
+                    .regionOid(3)
+                    .availabilityZoneOid(12L)
+                    .serviceProviderOid(4)
                     .build())
-            .accountOid(2)
-            .billingFamilyId(11L)
-            .regionOid(3)
-            .availabilityZoneOid(12L)
-            .serviceProviderOid(4)
             .classification(DemandClassification.of(AllocatedDemandClassification.ALLOCATED))
             .putDemandByEntity(
                     EntityInfo.builder().entityOid(6).build(),
@@ -114,8 +128,16 @@ public class AnalysisCoverageTopologyTest {
             .build();
     private final AggregateCloudTierDemand demandB = AggregateCloudTierDemand.builder()
             .from(demandA)
-            .accountOid(5)
+            .cloudTierInfo(ScopedCloudTierInfo.builder()
+                    .from(demandA.cloudTierInfo())
+                    .accountOid(5)
+                    .build())
             .build();
+
+    @Before
+    public void setup() {
+        when(computeTierFamilyResolverFactory.createResolver(any())).thenReturn(computeTierFamilyResolver);
+    }
 
     @Test
     public void testGetAggregatedDemandById() {
@@ -174,6 +196,9 @@ public class AnalysisCoverageTopologyTest {
     @Test
     public void testGetCoverageCapacityForEntity() {
 
+        // setup the compute tier family resolver
+        when(computeTierFamilyResolver.getNumCoupons(anyLong())).thenReturn(Optional.of(4L));
+
         // construct analysis topology
         final AnalysisCoverageTopology analysisTopology = topologyFactory.newTopology(
                 cloudTierTopology,
@@ -189,7 +214,8 @@ public class AnalysisCoverageTopologyTest {
                 .map(Map.Entry::getKey)
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("Cant find demand ID"));
-        assertThat(analysisTopology.getCoverageCapacityForEntity(demandAID), equalTo(3.0));
+        // should be equal to 3.0 (from aggregate) * 4 (for coupon value)
+        assertThat(analysisTopology.getCoverageCapacityForEntity(demandAID), equalTo(12.0));
         // check a random ID not contained within the aggregate demand map
         assertThat(analysisTopology.getCoverageCapacityForEntity(1231232L), equalTo(0.0));
     }
@@ -220,7 +246,7 @@ public class AnalysisCoverageTopologyTest {
         assertThat(entityInfo.get(), instanceOf(VirtualMachineInfo.class));
         final VirtualMachineInfo vmInfo = (VirtualMachineInfo)entityInfo.get();
         assertThat(vmInfo.entityState(), equalTo(EntityState.POWERED_ON));
-        assertThat(vmInfo.platform(), equalTo(((ComputeTierDemand)demandA.cloudTierDemand()).osType()));
+        assertThat(vmInfo.platform(), equalTo(((ComputeTierDemand)demandA.cloudTierInfo().cloudTierDemand()).osType()));
         // check an empty ID
         assertThat(analysisTopology.getEntityInfo(21129323L), equalTo(Optional.empty()));
     }
@@ -246,11 +272,12 @@ public class AnalysisCoverageTopologyTest {
 
         final Optional<CloudAggregationInfo> aggregationInfo = analysisTopology.getAggregationInfo(demandAID);
 
+        final ScopedCloudTierInfo demandATierInfo = demandA.cloudTierInfo();
         assertTrue(aggregationInfo.isPresent());
-        assertThat(aggregationInfo.get().billingFamilyId(), equalTo(OptionalLong.of(demandA.billingFamilyId().get())));
-        assertThat(aggregationInfo.get().accountOid(), equalTo(demandA.accountOid()));
-        assertThat(aggregationInfo.get().regionOid(), equalTo(demandA.regionOid()));
-        assertThat(aggregationInfo.get().zoneOid(), equalTo(OptionalLong.of(demandA.availabilityZoneOid().get())));
+        assertThat(aggregationInfo.get().billingFamilyId(), equalTo(OptionalLong.of(demandATierInfo.billingFamilyId().get())));
+        assertThat(aggregationInfo.get().accountOid(), equalTo(demandATierInfo.accountOid()));
+        assertThat(aggregationInfo.get().regionOid(), equalTo(demandATierInfo.regionOid()));
+        assertThat(aggregationInfo.get().zoneOid(), equalTo(OptionalLong.of(demandATierInfo.availabilityZoneOid().get())));
         // check a random ID
         assertFalse(analysisTopology.getAggregationInfo(12321321L).isPresent());
     }
@@ -260,7 +287,7 @@ public class AnalysisCoverageTopologyTest {
 
         // setup the cloud tier topology
         final String family = "familyTest";
-        final long computeTierOid = demandA.cloudTierDemand().cloudTierOid();
+        final long computeTierOid = demandA.cloudTierInfo().cloudTierDemand().cloudTierOid();
         final TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder()
                 .setOid(computeTierOid)
                 .setEntityType(EntityType.COMPUTE_TIER_VALUE)

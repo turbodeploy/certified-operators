@@ -1,5 +1,6 @@
 package com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -14,11 +15,17 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.commons.lang3.tuple.ImmutableTriple;
+import org.apache.commons.lang3.tuple.Triple;
+
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.commitment.aggregator.ReservedInstanceAggregate;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
+import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -45,6 +52,8 @@ public class AnalysisCoverageTopology implements CoverageTopology {
 
     private final MinimalCloudTopology<MinimalEntity> cloudTopology;
 
+    private final ComputeTierFamilyResolver computeTierFamilyResolver;
+
     private final Map<Long, AggregateCloudTierDemand> aggregatedDemandById;
 
     private final ThinTargetCache targetCache;
@@ -56,6 +65,7 @@ public class AnalysisCoverageTopology implements CoverageTopology {
 
     private AnalysisCoverageTopology(@Nonnull CloudTopology<TopologyEntityDTO> cloudTierTopology,
                                      @Nonnull MinimalCloudTopology<MinimalEntity> cloudTopology,
+                                     @Nonnull ComputeTierFamilyResolver computeTierFamilyResolver,
                                      @Nonnull Map<Long, AggregateCloudTierDemand> aggregatedDemandById,
                                      @Nonnull ThinTargetCache targetCache,
                                      @Nonnull Set<CloudCommitmentAggregate> commitmentAggregateSet,
@@ -63,6 +73,7 @@ public class AnalysisCoverageTopology implements CoverageTopology {
 
         this.cloudTierTopology = Objects.requireNonNull(cloudTierTopology);
         this.cloudTopology = Objects.requireNonNull(cloudTopology);
+        this.computeTierFamilyResolver = Objects.requireNonNull(computeTierFamilyResolver);
         this.aggregatedDemandById = ImmutableMap.copyOf(Objects.requireNonNull(aggregatedDemandById));
         this.targetCache = Objects.requireNonNull(targetCache);
         this.commitmentAggregatesMap = Objects.requireNonNull(commitmentAggregateSet)
@@ -93,6 +104,36 @@ public class AnalysisCoverageTopology implements CoverageTopology {
     @Nonnull
     public Map<Long, CloudCommitmentAggregate> getCommitmentAggregatesById() {
         return commitmentAggregatesMap;
+    }
+
+    /**
+     * Converts the allocation demand as output from the coverage allocated into aggregate demand.
+     * Generally, this will convert from coupons (for RIs) to hours of demand.
+     * @param aggregateId The aggregate ID.
+     * @param commitmentId The commitment ID.
+     * @param coverageAmount The coverage amount (generally in coupons).
+     * @return The aggregate demand amount (generally in terms of hours of uptime).
+     */
+    public Triple<Long, Long, Double> convertAllocationDemandToAggregate(
+            long aggregateId,
+            long commitmentId,
+            double coverageAmount) {
+
+        if (aggregatedDemandById.containsKey(aggregateId)) {
+            // assumes compute tier demand
+            final AggregateCloudTierDemand aggregateDemand = aggregatedDemandById.get(aggregateId);
+
+            // This will need to be abstracted when multiple commitment types are supported
+            final Optional<Long> normalizationFactor = computeTierFamilyResolver.getNumCoupons(
+                    aggregateDemand.cloudTierInfo().cloudTierDemand().cloudTierOid());
+
+            // TODO(ejf) log error
+            final double aggregateAmount = coverageAmount / normalizationFactor.orElse(1L);
+            return ImmutableTriple.of(aggregateId, commitmentId, aggregateAmount);
+        } else {
+            // TODO(ejf) log error
+            return ImmutableTriple.of(aggregateId, commitmentId, coverageAmount);
+        }
     }
 
     /**
@@ -152,7 +193,7 @@ public class AnalysisCoverageTopology implements CoverageTopology {
             // For aggregate demand, we look up the discovering target IDs for the associated
             // account.
             final AggregateCloudTierDemand aggregateDemand = aggregatedDemandById.get(entityOid);
-            entity = cloudTopology.getEntity(aggregateDemand.accountOid());
+            entity = cloudTopology.getEntity(aggregateDemand.cloudTierInfo().accountOid());
         } else {
             entity = cloudTopology.getEntity(entityOid);
         }
@@ -178,9 +219,13 @@ public class AnalysisCoverageTopology implements CoverageTopology {
         if (aggregatedDemandById.containsKey(entityOid)) {
             // assumes compute tier demand
             final AggregateCloudTierDemand aggregateDemand = aggregatedDemandById.get(entityOid);
-            // Aggregate demand is already stored as coupons so it directly maps to the
-            // demand's capacity.
-            return aggregateDemand.demandAmount();
+
+            // This will need to be abstracted when multiple commitment types are supported
+            final Optional<Long> normalizationFactor = computeTierFamilyResolver.getNumCoupons(
+                    aggregateDemand.cloudTierInfo().cloudTierDemand().cloudTierOid());
+
+            // TODO(ejf) log error
+            return aggregateDemand.demandAmount() * normalizationFactor.orElse(1L);
         } else {
             return 0.0;
         }
@@ -194,13 +239,14 @@ public class AnalysisCoverageTopology implements CoverageTopology {
     public Optional<CloudAggregationInfo> getAggregationInfo(final long entityOid) {
         if (aggregatedDemandById.containsKey(entityOid)) {
             final AggregateCloudTierDemand aggregateDemand = aggregatedDemandById.get(entityOid);
+            final ScopedCloudTierInfo cloudTierInfo = aggregateDemand.cloudTierInfo();
             return Optional.of(CloudAggregationInfo.builder()
-                    .billingFamilyId(aggregateDemand.billingFamilyId()
+                    .billingFamilyId(cloudTierInfo.billingFamilyId()
                             .map(OptionalLong::of)
                             .orElse(OptionalLong.empty()))
-                    .accountOid(aggregateDemand.accountOid())
-                    .regionOid(aggregateDemand.regionOid())
-                    .zoneOid(aggregateDemand.availabilityZoneOid()
+                    .accountOid(cloudTierInfo.accountOid())
+                    .regionOid(cloudTierInfo.regionOid())
+                    .zoneOid(cloudTierInfo.availabilityZoneOid()
                             .map(OptionalLong::of)
                             .orElse(OptionalLong.empty()))
                     .build());
@@ -218,8 +264,8 @@ public class AnalysisCoverageTopology implements CoverageTopology {
         if (aggregatedDemandById.containsKey(entityOid)) {
             final AggregateCloudTierDemand aggregateDemand = aggregatedDemandById.get(entityOid);
 
-            if (aggregateDemand.cloudTierType() == CloudTierType.COMPUTE_TIER) {
-                final ComputeTierDemand tierDemand = (ComputeTierDemand)aggregateDemand.cloudTierDemand();
+            if (aggregateDemand.cloudTierInfo().cloudTierType() == CloudTierType.COMPUTE_TIER) {
+                final ComputeTierDemand tierDemand = (ComputeTierDemand)aggregateDemand.cloudTierInfo().cloudTierDemand();
                 return Optional.of(VirtualMachineInfo.builder()
                         .entityState(EntityState.POWERED_ON)
                         .platform(tierDemand.osType())
@@ -227,7 +273,7 @@ public class AnalysisCoverageTopology implements CoverageTopology {
                         .build());
             } else {
                 throw new UnsupportedOperationException(
-                        String.format("Cloud tier type %s not supported", aggregateDemand.cloudTierType()));
+                        String.format("Cloud tier type %s not supported", aggregateDemand.cloudTierInfo().cloudTierType()));
             }
         } else {
             return Optional.empty();
@@ -243,9 +289,10 @@ public class AnalysisCoverageTopology implements CoverageTopology {
         if (aggregatedDemandById.containsKey(entityOid)) {
 
             final AggregateCloudTierDemand aggregateDemand = aggregatedDemandById.get(entityOid);
-            if (aggregateDemand.cloudTierType() == CloudTierType.COMPUTE_TIER) {
+            final ScopedCloudTierInfo cloudTierInfo = aggregateDemand.cloudTierInfo();
+            if (cloudTierInfo.cloudTierType() == CloudTierType.COMPUTE_TIER) {
 
-                return cloudTierTopology.getEntity(aggregateDemand.cloudTierDemand().cloudTierOid())
+                return cloudTierTopology.getEntity(cloudTierInfo.cloudTierDemand().cloudTierOid())
                         .filter(entity -> entity.getEntityType() == EntityType.COMPUTE_TIER_VALUE)
                         .map(computeTier -> ComputeTierInfo.builder()
                                 .family(computeTier.getTypeSpecificInfo().getComputeTier().getFamily())
@@ -268,15 +315,21 @@ public class AnalysisCoverageTopology implements CoverageTopology {
 
         private final ThinTargetCache thinTargetCache;
 
+        private final ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory;
+
         /**
          * Constructs a new factory instance.
          * @param identityProvider The {@link IdentityProvider}, used to assign IDs to {@link AggregateCloudTierDemand}.
          * @param thinTargetCache The {@link ThinTargetCache}, used to determine the probe type of entities.
+         * @param computeTierFamilyResolverFactory A factory class for creating {@link ComputeTierFamilyResolver}
+         *                                         instances.
          */
         public AnalysisCoverageTopologyFactory(@Nonnull IdentityProvider identityProvider,
-                                               @Nonnull ThinTargetCache thinTargetCache) {
+                                               @Nonnull ThinTargetCache thinTargetCache,
+                                               @Nonnull ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory) {
             this.identityProvider = Objects.requireNonNull(identityProvider);
             this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
+            this.computeTierFamilyResolverFactory = Objects.requireNonNull(computeTierFamilyResolverFactory);
         }
 
         /**
@@ -292,7 +345,7 @@ public class AnalysisCoverageTopology implements CoverageTopology {
         @Nonnull
         public AnalysisCoverageTopology newTopology(@Nonnull CloudTopology<TopologyEntityDTO> cloudTierTopology,
                                                     @Nonnull MinimalCloudTopology<MinimalEntity> cloudTopology,
-                                                    @Nonnull Set<AggregateCloudTierDemand> aggregatedDemandSet,
+                                                    @Nonnull Collection<AggregateCloudTierDemand> aggregatedDemandSet,
                                                     @Nonnull Set<CloudCommitmentAggregate> commitmentAggregateSet,
                                                     @Nonnull Map<Long, Double> commitmentCapacityById) {
             // Assign an ID to each aggregate demand instance
@@ -304,6 +357,7 @@ public class AnalysisCoverageTopology implements CoverageTopology {
             return new AnalysisCoverageTopology(
                     cloudTierTopology,
                     cloudTopology,
+                    computeTierFamilyResolverFactory.createResolver(cloudTierTopology),
                     aggregateDemandById,
                     thinTargetCache,
                     commitmentAggregateSet,

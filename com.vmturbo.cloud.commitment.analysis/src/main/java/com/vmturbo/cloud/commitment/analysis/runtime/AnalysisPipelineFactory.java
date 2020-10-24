@@ -8,10 +8,11 @@ import com.google.common.base.Preconditions;
 
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.CloudCommitmentInventoryResolverStage.CloudCommitmentInventoryResolverStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.InitializationStageFactory;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.PricingResolverStage.PricingResolverStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.RecommendationSpecMatcherStage.RecommendationSpecMatcherStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCalculationStage.CoverageCalculationFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.pricing.PricingResolverStage.PricingResolverStageFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.RecommendationAnalysisStage.RecommendationAnalysisFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationStage.DemandTransformationFactory;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
@@ -32,13 +33,15 @@ public class AnalysisPipelineFactory {
 
     private final DemandTransformationFactory demandTransformationFactory;
 
-    private final CloudCommitmentInventoryResolverStageFactory cloudCommitmentInventoryResolverStageFactory;
+    private final CloudCommitmentInventoryResolverStageFactory inventoryResolverStageFactory;
 
     private final CoverageCalculationFactory coverageCalculationFactory;
 
     private final RecommendationSpecMatcherStageFactory recommendationSpecMatcherStageFactory;
 
     private final PricingResolverStageFactory pricingResolverStageFactory;
+
+    private final RecommendationAnalysisFactory recommendationAnalysisFactory;
 
     /**
      * Constructs an analysis pipeline factory.
@@ -51,7 +54,7 @@ public class AnalysisPipelineFactory {
      *                                    stage to demand selection.
      * @param demandTransformationFactory The {@link DemandTransformationFactory} to create the demand
      *                                    transformation stage.
-     * @param cloudCommitmentInventoryResolverStageFactory The {@link CloudCommitmentInventoryResolverStageFactory} to
+     * @param inventoryResolverStageFactory The {@link CloudCommitmentInventoryResolverStageFactory} to
      *                                    create the CloudCommitmentInventoryResolverStage.
      * @param coverageCalculationFactory  The {@link CoverageCalculationFactory} to create the coverage
      *                                    calculation stage after commitment inventory resolution.
@@ -59,26 +62,30 @@ public class AnalysisPipelineFactory {
      *                                    create the spec matcher recommendation stage.
      * @param pricingResolverStageFactory The {@link PricingResolverStageFactory} to create the pricing
      *                                    resolver stage after the spec recommendation stage.
+     * @param recommendationAnalysisFactory  The {@link RecommendationAnalysisFactory} to create the
+     *                                       recommendation analysis stage.
      */
     public AnalysisPipelineFactory(@Nonnull IdentityProvider identityProvider,
                                    @Nonnull InitializationStageFactory initializationStageFactory,
                                    @Nonnull DemandRetrievalFactory demandRetrievalFactory,
                                    @Nonnull DemandClassificationFactory demandClassificationFactory,
                                    @Nonnull DemandTransformationFactory demandTransformationFactory,
-            @Nonnull CloudCommitmentInventoryResolverStageFactory cloudCommitmentInventoryResolverStageFactory,
-            @Nonnull CoverageCalculationFactory coverageCalculationFactory,
-            @Nonnull RecommendationSpecMatcherStageFactory recommendationSpecMatcherStageFactory,
-            @Nonnull PricingResolverStageFactory pricingResolverStageFactory) {
+                                   @Nonnull CloudCommitmentInventoryResolverStageFactory inventoryResolverStageFactory,
+                                   @Nonnull CoverageCalculationFactory coverageCalculationFactory,
+                                   @Nonnull RecommendationSpecMatcherStageFactory recommendationSpecMatcherStageFactory,
+                                   @Nonnull PricingResolverStageFactory pricingResolverStageFactory,
+                                   @Nonnull RecommendationAnalysisFactory recommendationAnalysisFactory) {
 
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.initializationStageFactory = Objects.requireNonNull(initializationStageFactory);
         this.demandRetrievalFactory = Objects.requireNonNull(demandRetrievalFactory);
         this.demandClassificationFactory = Objects.requireNonNull(demandClassificationFactory);
         this.demandTransformationFactory = Objects.requireNonNull(demandTransformationFactory);
-        this.cloudCommitmentInventoryResolverStageFactory = Objects.requireNonNull(cloudCommitmentInventoryResolverStageFactory);
+        this.inventoryResolverStageFactory = Objects.requireNonNull(inventoryResolverStageFactory);
         this.coverageCalculationFactory = Objects.requireNonNull(coverageCalculationFactory);
-        this.recommendationSpecMatcherStageFactory = recommendationSpecMatcherStageFactory;
-        this.pricingResolverStageFactory = pricingResolverStageFactory;
+        this.recommendationSpecMatcherStageFactory = Objects.requireNonNull(recommendationSpecMatcherStageFactory);
+        this.pricingResolverStageFactory = Objects.requireNonNull(pricingResolverStageFactory);
+        this.recommendationAnalysisFactory = Objects.requireNonNull(recommendationAnalysisFactory);
     }
 
     /**
@@ -99,40 +106,38 @@ public class AnalysisPipelineFactory {
                         identityProvider.next(),
                         analysisConfig,
                         analysisContext))
-                .addStage(
-                        demandRetrievalFactory.createStage(
-                                identityProvider.next(),
-                                analysisConfig,
-                                analysisContext))
-                .addStage(
-                        demandClassificationFactory.createStage(
-                                identityProvider.next(),
-                                analysisConfig,
-                                analysisContext))
-                .addStage(
-                        demandTransformationFactory.createStage(
-                                identityProvider.next(),
-                                analysisConfig,
-                                analysisContext))
-                .addStage(
-                        cloudCommitmentInventoryResolverStageFactory.createStage(
-                                identityProvider.next(),
-                                analysisConfig,
-                                analysisContext))
-                .addStage(
-                        coverageCalculationFactory.createStage(
-                                identityProvider.next(),
-                                analysisConfig,
-                                analysisContext))
+                .addStage(demandRetrievalFactory.createStage(
+                        identityProvider.next(),
+                        analysisConfig,
+                        analysisContext))
+                .addStage(demandClassificationFactory.createStage(
+                        identityProvider.next(),
+                        analysisConfig,
+                        analysisContext))
+                .addStage(demandTransformationFactory.createStage(
+                        identityProvider.next(),
+                        analysisConfig,
+                        analysisContext))
+                .addStage(inventoryResolverStageFactory.createStage(
+                        identityProvider.next(),
+                        analysisConfig,
+                        analysisContext))
+                .addStage(coverageCalculationFactory.createStage(
+                        identityProvider.next(),
+                        analysisConfig,
+                        analysisContext))
                 .addStage(recommendationSpecMatcherStageFactory.createStage(
                         identityProvider.next(),
                         analysisConfig,
-                        analysisContext
-                )).addStage(pricingResolverStageFactory.createStage(
+                        analysisContext))
+                .addStage(pricingResolverStageFactory.createStage(
                         identityProvider.next(),
                         analysisConfig,
-                        analysisContext
-                ))
+                        analysisContext))
+                .addStage(recommendationAnalysisFactory.createStage(
+                        identityProvider.next(),
+                        analysisConfig,
+                        analysisContext))
                 .build();
     }
 }

@@ -13,34 +13,29 @@ import org.immutables.value.Value.Style.ImplementationVisibility;
 public interface RIPricingData extends CloudCommitmentPricingData {
 
     /**
-     * If RI pricing data cant be found for any reason we return empty RI pricing data.
-     */
-    RIPricingData EMPTY_RI_PRICING_DATA = RIPricingData.builder().reservedInstanceRecurringRate(0f)
-            .reservedInstanceUpfrontRate(0f).build();
-
-    /**
      * The up-front rate for an RI spec, amortized over the term. For example, if the up-front
      * cost is $12 and it's a one year RI spec, this method with return $1.
      *
      * @return The up-front rate, amortized over the life of the RI spec.
      */
-    float reservedInstanceUpfrontRate();
+    double hourlyUpFrontRate();
 
     /**
      * The recurring rate for an RI spec.
      *
      * @return The recurring rate.
      */
-    float reservedInstanceRecurringRate();
+    double hourlyRecurringRate();
 
     /**
      * The amortized rate for the target RI spec.
      *
      * @return The amortized rate for the RI spec.
      */
+    @Override
     @Value.Derived
-    default float reservedInstanceRate() {
-        return reservedInstanceUpfrontRate() + reservedInstanceRecurringRate();
+    default double amortizedHourlyRate() {
+        return hourlyUpFrontRate() + hourlyRecurringRate();
     }
 
     /**

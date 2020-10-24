@@ -6,7 +6,7 @@ import org.immutables.value.Value.Immutable;
 import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
 
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 
 /**
  * Interface representing aggregated cloud tier demand being matched with cloud commitment spec data.
@@ -27,7 +27,7 @@ public interface CommitmentSpecDemand {
      *
      * @return The set of aggregated cloud tier demand.
      */
-    Set<AggregateCloudTierDemand> aggregateCloudTierDemandSet();
+    Set<ScopedCloudTierInfo> cloudTierInfo();
 
     /**
      * Returns a builder of the CommitmentSpecDemand class.

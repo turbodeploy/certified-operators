@@ -1,4 +1,4 @@
-package com.vmturbo.cloud.commitment.analysis.demand;
+package com.vmturbo.cloud.common.data;
 
 import javax.annotation.Nonnull;
 

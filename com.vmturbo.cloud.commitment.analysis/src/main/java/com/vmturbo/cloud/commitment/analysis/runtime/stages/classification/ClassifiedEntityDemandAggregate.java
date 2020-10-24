@@ -15,8 +15,8 @@ import org.immutables.value.Value.Style;
 import org.immutables.value.Value.Style.ImplementationVisibility;
 
 import com.vmturbo.cloud.commitment.analysis.demand.CloudTierDemand;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries;
+import com.vmturbo.cloud.common.data.TimeInterval;
+import com.vmturbo.cloud.common.data.TimeSeries;
 
 /**
  * Represents all {@link CloudTierDemand} associated with a single entity, aggregated and classified.

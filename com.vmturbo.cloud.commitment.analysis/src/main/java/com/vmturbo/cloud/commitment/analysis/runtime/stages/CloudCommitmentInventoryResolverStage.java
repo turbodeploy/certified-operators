@@ -12,7 +12,6 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries;
 import com.vmturbo.cloud.commitment.analysis.inventory.CloudCommitmentBoughtResolver;
 import com.vmturbo.cloud.commitment.analysis.inventory.CloudCommitmentCapacity;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
@@ -21,6 +20,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.data.AnalysisTopology;
 import com.vmturbo.cloud.commitment.analysis.runtime.data.AnalysisTopologySegment;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateAnalysisDemand;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
+import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;

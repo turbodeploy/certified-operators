@@ -12,18 +12,20 @@ import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.SetMultimap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.data.AnalysisTopology;
@@ -36,6 +38,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCal
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.CoverageInfo;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
+import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -169,13 +172,16 @@ public class CoverageCalculationStage extends AbstractStage<AnalysisTopology, An
             final SetMultimap<AggregateCloudTierDemand, CoverageInfo> coverageInfoDemandMap =
                     calculationResult.coverageInfoByDemand();
 
-            final Set<AggregateCloudTierDemand> updatedDemandAggregates =
+            final SetMultimap<ScopedCloudTierInfo, AggregateCloudTierDemand> updatedDemandAggregates =
                     originalSegment.aggregateCloudTierDemandSet()
+                            .values()
                             .stream()
                             .map(demandAggregate -> demandAggregate.toBuilder()
                                     .coverageInfo(coverageInfoDemandMap.get(demandAggregate))
                                     .build())
-                            .collect(ImmutableSet.toImmutableSet());
+                            .collect(ImmutableSetMultimap.toImmutableSetMultimap(
+                                    AggregateCloudTierDemand::cloudTierInfo,
+                                    Function.identity()));
 
             updatedSegments.add(originalSegment.toBuilder()
                     .aggregateCloudTierDemandSet(updatedDemandAggregates)

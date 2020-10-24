@@ -13,7 +13,6 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate.DemandTimeSeries;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassification;
@@ -21,6 +20,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.Deman
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.AnalysisSelector;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.ClassifiedEntitySelection;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.RecommendationSelector;
+import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;

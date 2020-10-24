@@ -47,6 +47,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle.ComputePrice;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.CoreBasedLicensePriceBundle;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
@@ -80,7 +81,7 @@ public class SMAInput {
     //keep retrieved compute price bundles
     private final Map<PriceTableKey, ComputePriceBundle> computePriceBundleMap = new HashMap<>();
     //keep retrieved reserved license price bundles
-    private final Map<PriceTableKey, ComputePriceBundle> reservedLicenseBundleMap = new HashMap<>();
+    private final Map<PriceTableKey, Set<CoreBasedLicensePriceBundle>> reservedLicenseMap = new HashMap<>();
 
     /**
      * Constructor for SMAInput.
@@ -697,17 +698,19 @@ public class SMAInput {
     /**
      * Get reserved license price bundle.
      * @param accountPricingData account pricing data
-     * @param region region
+     * @param region The region, used only for the PriceTableKey. It is not a constraint on the reserved
+     *               license price
      * @param computeTier compute tier
      * @return reserved license price bundle.
      */
-    private ComputePriceBundle getReservedLicenseBundle(@NotNull AccountPricingData accountPricingData,
-            @NotNull TopologyEntityDTO region, @NotNull TopologyEntityDTO computeTier) {
+    private Set<CoreBasedLicensePriceBundle> getReservedLicenseBundle(
+            @NotNull AccountPricingData accountPricingData,
+            @Nonnull TopologyEntityDTO region,
+            @NotNull TopologyEntityDTO computeTier) {
         final PriceTableKey key = new PriceTableKey(accountPricingData.getAccountPricingDataOid(),
                 region.getOid(), computeTier.getOid());
-        return reservedLicenseBundleMap.computeIfAbsent(key,
-                k -> marketCloudRateExtractor.getReservedLicensePriceBundle(accountPricingData, region.getOid(),
-                        computeTier));
+        return reservedLicenseMap.computeIfAbsent(key,
+                k -> marketCloudRateExtractor.getReservedLicensePriceBundles(accountPricingData, computeTier));
     }
 
     /**
@@ -748,8 +751,8 @@ public class SMAInput {
             }
             double hourlyRate    = 0.0d;
             for (ComputePrice price: computePrices) {
-                if (price.getOsType() == osType) {  // FYI, UKNOWN_OS has a price, therefore can scale to natural template.
-                    hourlyRate = price.getHourlyPrice();
+                if (price.osType() == osType) {  // FYI, UKNOWN_OS has a price, therefore can scale to natural template.
+                    hourlyRate = price.hourlyPrice();
                     break;
                 }
             }
@@ -776,21 +779,21 @@ public class SMAInput {
                 return;
             } else {
                 TopologyEntityDTO region = regionOptional.get();
-                bundle = getReservedLicenseBundle(accountPricingData, region, computeTier);
-                computePrices = bundle.getPrices();
-                hourlyRate = 0.0d;
-                computePriceSize = computePrices.size();
-                if (computePriceSize == 0) {
+                final Set<CoreBasedLicensePriceBundle> reservedLicensePrices =
+                        getReservedLicenseBundle(accountPricingData, region, computeTier);
+
+                if (reservedLicensePrices == null || reservedLicensePrices.isEmpty()) {
                     logger.trace("updateTemplateRate: template ID={}:name={} has discount license computePrice.size() == 0 for accountId={} in {}",
                         oid, name, businessAccountId, context);
                     return;
                 }
-                for (ComputePrice price : computePrices) {
-                    if (price.getOsType() == osType) {  // FYI, UKNOWN_OS has a price, therefore can scale to natural template.
-                        hourlyRate = price.getHourlyPrice();
-                        break;
-                    }
-                }
+
+                hourlyRate = reservedLicensePrices.stream()
+                        .filter(CoreBasedLicensePriceBundle::hasPrice)
+                        .filter(priceBundle -> priceBundle.osType() == osType)
+                        .map(priceBundle -> priceBundle.price().get())
+                        .findFirst()
+                        .orElse(0.0);
                 if (osType != OSType.UNKNOWN_OS) {
                     logger.trace("updateTemplateRate: template ID={}:name={} discount license Rate={} accountId={} in {}",
                         oid, name, hourlyRate, businessAccountId, context);

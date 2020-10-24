@@ -4,12 +4,15 @@ import javax.annotation.Nonnull;
 
 import org.immutables.value.Value.Immutable;
 
+import com.vmturbo.cloud.common.data.TimeInterval;
+import com.vmturbo.cloud.common.data.TimeSeriesData;
+
 /**
  * A mapping of an entity to cloud tier over a period of time, as represented by the start and end
  * times of the mapping.
  */
 @Immutable
-public interface EntityCloudTierMapping extends TimeSeriesData, ScopedCloudTierDemand {
+public interface EntityCloudTierMapping extends TimeSeriesData, ScopedCloudTierInfo {
 
     /**
      * The time interval (recorded in UTC) of the mapping between the entity and cloud tier.

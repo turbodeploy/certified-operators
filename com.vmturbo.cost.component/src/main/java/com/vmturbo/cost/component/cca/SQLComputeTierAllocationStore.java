@@ -41,10 +41,10 @@ import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierAllocationDatapoi
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
 import com.vmturbo.cloud.commitment.analysis.demand.TimeFilter;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
 import com.vmturbo.cloud.commitment.analysis.demand.store.EntityComputeTierAllocationFilter;
+import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.Tables;
@@ -522,7 +522,7 @@ public class SQLComputeTierAllocationStore extends SQLCloudScopedStore implement
         final EntityCloudScopeRecord entityCloudScopeRecord = record.into(EntityCloudScopeRecord.class);
 
         return ImmutableEntityComputeTierAllocation.builder()
-                .timeInterval(ImmutableTimeInterval.builder()
+                .timeInterval(TimeInterval.builder()
                         .startTime(allocationRecord.getStartTime().toInstant(ZoneOffset.UTC))
                         .endTime(allocationRecord.getEndTime().toInstant(ZoneOffset.UTC))
                         .build())

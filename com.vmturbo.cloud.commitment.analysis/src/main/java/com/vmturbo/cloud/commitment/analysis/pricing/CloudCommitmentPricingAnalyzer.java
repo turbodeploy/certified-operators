@@ -2,9 +2,12 @@ package com.vmturbo.cloud.commitment.analysis.pricing;
 
 import java.util.Set;
 
-import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierDemand;
+import javax.annotation.Nonnull;
+
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecData;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 
 /**
@@ -17,11 +20,10 @@ public interface CloudCommitmentPricingAnalyzer {
      * Returns the tier demand pricing data for demand scoped to a tier, account and OS.
      *
      * @param cloudTierDemand The cloud tier demand we wish to get pricing for.
-     * @param cloudTopology The cloud tier topology used for constructing pricing info and getting the tiers.
      *
      * @return The tier demand pricing data.
      */
-    TierDemandPricingData getTierDemandPricing(ScopedCloudTierDemand cloudTierDemand, CloudTopology<TopologyEntityDTO> cloudTopology);
+    CloudTierPricingData getTierDemandPricing(ScopedCloudTierInfo cloudTierDemand);
 
     /**
      * This method resolves the CCA related pricing. For example, resolves the RI recurring and upfront cost.
@@ -29,11 +31,29 @@ public interface CloudCommitmentPricingAnalyzer {
      * to demand.
      *
      * @param cloudCommitmentSpecData The spec data to resolve pricing for.
-     * @param businessAccountOids The set of business account ids.
-     * @param cloudTopology The cloud topology used for constructing pricing info and getting the tiers.
+     * @param potentialPurchasingAccountOids The set of business account ids.
      *
      * @return The cloud commitment pricing data.
      */
-    CloudCommitmentPricingData getCloudCommitmentPricing(CloudCommitmentSpecData cloudCommitmentSpecData,
-            Set<Long> businessAccountOids, CloudTopology<TopologyEntityDTO> cloudTopology);
+    CloudCommitmentPricingData getCloudCommitmentPricing(
+            CloudCommitmentSpecData cloudCommitmentSpecData,
+            Set<Long> potentialPurchasingAccountOids);
+
+    /**
+     * A factory class for creating {@link CloudCommitmentPricingAnalyzer} instances.
+     */
+    interface CloudCommitmentPricingAnalyzerFactory {
+
+        /**
+         * Constructs a new pricing analyzer.
+         * @param cloudTierTopology A topology containing the cloud tiers relevant to any queried
+         *                          pricing information.
+         * @return The newly constructed pricing analyzer.
+         * @throws CloudCostDataRetrievalException An exception indicating the cloud cost data could
+         * not be successfully retrieved.
+         */
+        @Nonnull
+        CloudCommitmentPricingAnalyzer newPricingAnalyzer(
+                @Nonnull CloudTopology<TopologyEntityDTO> cloudTierTopology) throws CloudCostDataRetrievalException;
+    }
 }

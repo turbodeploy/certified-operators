@@ -16,8 +16,7 @@ import org.junit.Test;
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
 import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.inventory.CloudCommitmentBoughtResolver;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage.StageResult;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
@@ -31,6 +30,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.Deman
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationStatistics;
 import com.vmturbo.cloud.common.commitment.CloudCommitmentData;
 import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
+import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentInventory;
@@ -63,7 +63,7 @@ public class CloudCommitmentInventoryResolverStageTest {
             CloudCommitment.newBuilder().setType(CloudCommitmentType.RESERVED_INSTANCE).setCapacity(
                     CloudCommitmentCapacity.newBuilder().build())).build();
 
-    private final TimeInterval analysisWindow = ImmutableTimeInterval.builder()
+    private final TimeInterval analysisWindow = TimeInterval.builder()
             .startTime(Instant.ofEpochSecond(0))
             .endTime(Instant.ofEpochSecond(Duration.ofHours(3).getSeconds()))
             .build();
@@ -134,41 +134,43 @@ public class CloudCommitmentInventoryResolverStageTest {
     }
 
     public DemandTransformationResult createDemandTransformationResult() {
-        final TimeInterval firstHour = ImmutableTimeInterval.builder()
+        final TimeInterval firstHour = TimeInterval.builder()
                 .startTime(analysisWindow.startTime())
                 .endTime(analysisWindow.startTime().plus(1, ChronoUnit.HOURS))
                 .build();
         final AggregateCloudTierDemand aggregateDemand = AggregateCloudTierDemand.builder()
-                .accountOid(1)
-                .regionOid(2)
-                .serviceProviderOid(3)
-                .cloudTierDemand(ComputeTierDemand.builder()
-                        .cloudTierOid(4)
-                        .osType(OSType.RHEL)
-                        .tenancy(Tenancy.DEFAULT)
+                .cloudTierInfo(ScopedCloudTierInfo.builder()
+                        .accountOid(1)
+                        .regionOid(2)
+                        .serviceProviderOid(3)
+                        .cloudTierDemand(ComputeTierDemand.builder()
+                                .cloudTierOid(4)
+                                .osType(OSType.RHEL)
+                                .tenancy(Tenancy.DEFAULT)
+                                .build())
                         .build())
                 .classification(DemandClassification.of(AllocatedDemandClassification.ALLOCATED))
                 .build();
 
         final AggregateDemandSegment firstDemandSegment = AggregateDemandSegment.builder()
                 .timeInterval(firstHour)
-                .addAggregateCloudTierDemand(aggregateDemand)
+                .putAggregateCloudTierDemand(aggregateDemand.cloudTierInfo(), aggregateDemand)
                 .build();
-        final TimeInterval secondHour = ImmutableTimeInterval.builder()
+        final TimeInterval secondHour = TimeInterval.builder()
                 .startTime(analysisWindow.startTime().plus(1, ChronoUnit.HOURS))
                 .endTime(analysisWindow.startTime().plus(2, ChronoUnit.HOURS))
                 .build();
         final AggregateDemandSegment secondDemandSegment = AggregateDemandSegment.builder()
                 .timeInterval(secondHour)
-                .addAggregateCloudTierDemand(aggregateDemand)
+                .putAggregateCloudTierDemand(aggregateDemand.cloudTierInfo(), aggregateDemand)
                 .build();
-        final TimeInterval thirdHour = ImmutableTimeInterval.builder()
+        final TimeInterval thirdHour = TimeInterval.builder()
                 .startTime(analysisWindow.startTime().plus(2, ChronoUnit.HOURS))
                 .endTime(analysisWindow.startTime().plus(3, ChronoUnit.HOURS))
                 .build();
         final AggregateDemandSegment thirdDemandSegment = AggregateDemandSegment.builder()
                 .timeInterval(thirdHour)
-                .addAggregateCloudTierDemand(aggregateDemand)
+                .putAggregateCloudTierDemand(aggregateDemand.cloudTierInfo(), aggregateDemand)
                 .build();
         final DemandTransformationResult transformationResult = DemandTransformationResult.builder()
                 .transformationStats(DemandTransformationStatistics.EMPTY_STATS)

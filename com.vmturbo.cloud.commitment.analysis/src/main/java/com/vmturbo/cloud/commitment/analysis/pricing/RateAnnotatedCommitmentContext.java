@@ -1,9 +1,14 @@
 package com.vmturbo.cloud.commitment.analysis.pricing;
 
-import java.util.Set;
+import java.util.Map;
 
+import javax.annotation.Nonnull;
+
+import org.immutables.value.Value.Derived;
 import org.immutables.value.Value.Immutable;
 
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
+import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecData;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 
 /**
@@ -19,14 +24,32 @@ public interface RateAnnotatedCommitmentContext {
      *
      * @return A set of rate annotated demand pricing.
      */
-    Set<RateAnnotatedDemandPricing> scopedDemandPricingData();
+    @Nonnull
+    Map<ScopedCloudTierInfo, CloudTierPricingData> cloudTierPricingByScope();
 
     /**
      * The cloud commitment pricing data which reflects the pricing of the cloud commitment spec data.
      *
      * @return The cloud commitment pricing data.
      */
+    @Nonnull
     CloudCommitmentPricingData cloudCommitmentPricingData();
+
+    /**
+     * The cloud commitment spec data.
+     * @return The cloud commitment spec data.
+     */
+    @Nonnull
+    CloudCommitmentSpecData cloudCommitmentSpecData();
+
+    /**
+     * The commitment spec ID.
+     * @return The commitment spec ID.
+     */
+    @Derived
+    default long commitmentSpecId() {
+        return cloudCommitmentSpecData().specId();
+    }
 
     /**
      *  Static inner class for extending generated or yet to be generated builder.
@@ -38,6 +61,7 @@ public interface RateAnnotatedCommitmentContext {
      *
      * @return The builder.
      */
+    @Nonnull
     static RateAnnotatedCommitmentContext.Builder builder() {
         return new RateAnnotatedCommitmentContext.Builder();
     }

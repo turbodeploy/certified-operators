@@ -337,7 +337,7 @@ public class ReservedInstanceConverterTest {
      */
     @Test
     public void testFractionalRICostInCbtpCostDtoWithoutReservedLicensePricing() {
-        ComputePriceBundle bundle = ComputePriceBundle.newBuilder().addPrice(accountPricingOid, OSType.LINUX, 0.007, true).build();
+        ComputePriceBundle bundle = ComputePriceBundle.newBuilder().addPrice(accountPricingOid, OSType.LINUX, 0.007, 0.0,true).build();
         when(marketCloudRateExtractor.getComputePriceBundle(mockComputeTier(), REGION_ID, accountPricingData)).thenReturn(bundle);
         final List<TraderTO> traders = createMarketTierTraderTOs(true, false, false);
         final TraderTO traderTO = traders.iterator().next();
@@ -378,7 +378,7 @@ public class ReservedInstanceConverterTest {
     public void testRIPricingInCbtpCostDTOWithReservedLicenseandFractionalPricing() {
         when(marketCloudRateExtractor.getReservedLicensePriceBundles(accountPricingData, mockComputeTier()))
                 .thenReturn(reservedLicenseBundle);
-        ComputePriceBundle bundle = ComputePriceBundle.newBuilder().addPrice(accountPricingOid, OSType.LINUX, 0.007, true).build();
+        ComputePriceBundle bundle = ComputePriceBundle.newBuilder().addPrice(accountPricingOid, OSType.LINUX, 0.007, 0.0,true).build();
         when(marketCloudRateExtractor.getComputePriceBundle(mockComputeTier(), REGION_ID, accountPricingData)).thenReturn(bundle);
         final List<TraderTO> traders = createMarketTierTraderTOs(true, false, false);
         final TraderTO traderTO = traders.iterator().next();

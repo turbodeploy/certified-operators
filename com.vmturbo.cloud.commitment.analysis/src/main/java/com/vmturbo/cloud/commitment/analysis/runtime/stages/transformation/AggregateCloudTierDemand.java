@@ -11,7 +11,7 @@ import org.immutables.value.Value.Default;
 import org.immutables.value.Value.Derived;
 import org.immutables.value.Value.Immutable;
 
-import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierDemand;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassification;
 import com.vmturbo.cloud.common.commitment.aggregator.CloudCommitmentAggregate;
 import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
@@ -22,10 +22,17 @@ import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
  */
 @HiddenImmutableImplementation
 @Immutable(lazyhash = true)
-public interface AggregateCloudTierDemand extends ScopedCloudTierDemand {
+public interface AggregateCloudTierDemand {
 
     /**
-     * A map of the demand amount by entity.
+     * The cloud tier information, including scope info.
+     * @return The cloud tier information, including scope info.
+     */
+    @Nonnull
+    ScopedCloudTierInfo cloudTierInfo();
+
+    /**
+     * A map of the demand amount (e.g. hours) by entity.
      * @return An immutable map of the demand amount by {@link EntityInfo}.
      */
     @Auxiliary
@@ -76,6 +83,18 @@ public interface AggregateCloudTierDemand extends ScopedCloudTierDemand {
     @Default
     default Set<CoverageInfo> coverageInfo() {
         return Collections.emptySet();
+    }
+
+    /**
+     * The coverage amount, as expressed in the same unit as demand.
+     * @return The coverage amount.
+     */
+    @Auxiliary
+    @Derived
+    default double coverageAmount() {
+        return coverageInfo().stream()
+                .mapToDouble(CoverageInfo::coverageAmount)
+                .sum();
     }
 
     /**

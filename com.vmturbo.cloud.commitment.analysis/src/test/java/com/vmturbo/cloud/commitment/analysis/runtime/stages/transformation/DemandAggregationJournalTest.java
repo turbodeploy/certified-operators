@@ -16,15 +16,15 @@ import org.junit.Test;
 
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.data.DoubleStatistics;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate.DemandTimeSeries;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassification;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.EntityInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.DemandTransformationJournal.DemandTransformationResult;
+import com.vmturbo.cloud.common.data.TimeInterval;
+import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -41,28 +41,33 @@ public class DemandAggregationJournalTest {
     @Test
     public void testRecordingDemand() {
 
-        final TimeInterval bucketA = ImmutableTimeInterval.builder()
+        final TimeInterval bucketA = TimeInterval.builder()
                 .startTime(Instant.ofEpochSecond(60 * 60))
                 .endTime(Instant.ofEpochSecond(60 * 60 * 2))
                 .build();
-        final TimeInterval bucketB = ImmutableTimeInterval.builder()
+        final TimeInterval bucketB = TimeInterval.builder()
                 .startTime(Instant.ofEpochSecond(60 * 60 * 2))
                 .endTime(Instant.ofEpochSecond(60 * 60 * 3))
                 .build();
         final AggregateCloudTierDemand demandA = AggregateCloudTierDemand.builder()
-                .cloudTierDemand(ComputeTierDemand.builder()
-                        .cloudTierOid(1)
-                        .osType(OSType.RHEL)
-                        .tenancy(Tenancy.DEFAULT)
+                .cloudTierInfo(ScopedCloudTierInfo.builder()
+                        .cloudTierDemand(ComputeTierDemand.builder()
+                                .cloudTierOid(1)
+                                .osType(OSType.RHEL)
+                                .tenancy(Tenancy.DEFAULT)
+                                .build())
+                        .accountOid(2)
+                        .regionOid(3)
+                        .serviceProviderOid(4)
                         .build())
-                .accountOid(2)
-                .regionOid(3)
-                .serviceProviderOid(4)
                 .classification(DemandClassification.of(AllocatedDemandClassification.ALLOCATED))
                 .build();
         final AggregateCloudTierDemand demandB = AggregateCloudTierDemand.builder()
                 .from(demandA)
-                .accountOid(5)
+                .cloudTierInfo(ScopedCloudTierInfo.builder()
+                        .from(demandA.cloudTierInfo())
+                        .accountOid(5)
+                        .build())
                 .build();
 
         // setup entity info
@@ -97,22 +102,28 @@ public class DemandAggregationJournalTest {
         // setup expected result
         final AggregateDemandSegment expectedDemandSetA = AggregateDemandSegment.builder()
                 .timeInterval(bucketA)
-                .addAggregateCloudTierDemand(AggregateCloudTierDemand.builder()
-                        .from(demandA)
-                        .putDemandByEntity(entityInfoA, 1.5)
-                        .build())
-                .addAggregateCloudTierDemand(AggregateCloudTierDemand.builder()
-                        .from(demandB)
-                        .putDemandByEntity(entityInfoB, 1.0)
-                        .putDemandByEntity(entityInfoC, 1.0)
-                        .build())
+                .putAggregateCloudTierDemand(
+                        demandA.cloudTierInfo(),
+                        AggregateCloudTierDemand.builder()
+                                .from(demandA)
+                                .putDemandByEntity(entityInfoA, 1.5)
+                                .build())
+                .putAggregateCloudTierDemand(
+                        demandB.cloudTierInfo(),
+                        AggregateCloudTierDemand.builder()
+                                .from(demandB)
+                                .putDemandByEntity(entityInfoB, 1.0)
+                                .putDemandByEntity(entityInfoC, 1.0)
+                                .build())
                 .build();
         final AggregateDemandSegment expectedDemandSetB = AggregateDemandSegment.builder()
                 .timeInterval(bucketB)
-                .addAggregateCloudTierDemand(AggregateCloudTierDemand.builder()
-                        .from(demandA)
-                        .putDemandByEntity(entityInfoA, 1.0)
-                        .build())
+                .putAggregateCloudTierDemand(
+                        demandA.cloudTierInfo(),
+                        AggregateCloudTierDemand.builder()
+                                .from(demandA)
+                                .putDemandByEntity(entityInfoA, 1.0)
+                                .build())
                 .build();
 
 
@@ -206,7 +217,7 @@ public class DemandAggregationJournalTest {
                         .tenancy(Tenancy.DEFAULT)
                         .build())
                 .demandIntervals(TimeSeries.newTimeline(
-                        ImmutableTimeInterval.builder()
+                        TimeInterval.builder()
                                 .startTime(Instant.ofEpochSecond(0))
                                 .endTime(Instant.ofEpochSecond(10))
                                 .build()))
@@ -218,7 +229,7 @@ public class DemandAggregationJournalTest {
                         .tenancy(Tenancy.DEFAULT)
                         .build())
                 .demandIntervals(TimeSeries.newTimeline(
-                        ImmutableTimeInterval.builder()
+                        TimeInterval.builder()
                                 .startTime(Instant.ofEpochSecond(20))
                                 .endTime(Instant.ofEpochSecond(40))
                                 .build()))

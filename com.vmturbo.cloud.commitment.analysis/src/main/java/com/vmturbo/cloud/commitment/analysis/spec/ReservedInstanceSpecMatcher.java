@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
-import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierDemand;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
 
 /**
@@ -43,7 +43,7 @@ public class ReservedInstanceSpecMatcher implements CloudCommitmentSpecMatcher<R
      */
     @Override
     public Optional<ReservedInstanceSpecData> matchDemandToSpecs(
-            @Nonnull ScopedCloudTierDemand scopedCloudTierDemand) {
+            @Nonnull ScopedCloudTierInfo scopedCloudTierDemand) {
 
         if (scopedCloudTierDemand.cloudTierType() == CloudTierType.COMPUTE_TIER) {
             final ComputeTierDemand computeTierDemand =

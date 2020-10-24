@@ -15,18 +15,20 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.cloud.commitment.analysis.TestUtils;
-import com.vmturbo.cloud.commitment.analysis.pricing.PricingResolverOutput;
 import com.vmturbo.cloud.commitment.analysis.runtime.data.AnalysisTopology;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.CloudCommitmentInventoryResolverStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.CloudCommitmentInventoryResolverStage.CloudCommitmentInventoryResolverStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.InitializationStageFactory;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.PricingResolverStage;
-import com.vmturbo.cloud.commitment.analysis.runtime.stages.PricingResolverStage.PricingResolverStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.RecommendationSpecMatcherStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.RecommendationSpecMatcherStage.RecommendationSpecMatcherStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandSet;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCalculationStage.CoverageCalculationFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.pricing.PricingResolverOutput;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.pricing.PricingResolverStage;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.pricing.PricingResolverStage.PricingResolverStageFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.CloudCommitmentRecommendations;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.RecommendationAnalysisStage.RecommendationAnalysisFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.EntityCloudTierDemandSet;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateAnalysisDemand;
@@ -61,6 +63,8 @@ public class AnalysisPipelineTest {
 
     private final PricingResolverStageFactory pricingResolverStageFactory = mock(PricingResolverStageFactory.class);
 
+    private final RecommendationAnalysisFactory recommendationAnalysisFactory = mock(RecommendationAnalysisFactory.class);
+
 
     private final AnalysisPipelineFactory analysisPipelineFactory =
             new AnalysisPipelineFactory(identityProvider,
@@ -69,8 +73,10 @@ public class AnalysisPipelineTest {
                     demandClassificationFactory,
                     demandTransformationFactory,
                     cloudCommitmentInventoryResolverStageFactory,
-                    coverageCalculationFactory, recommendationSpecMatcherStageFactory,
-                    pricingResolverStageFactory);
+                    coverageCalculationFactory,
+                    recommendationSpecMatcherStageFactory,
+                    pricingResolverStageFactory,
+                    recommendationAnalysisFactory);
 
     /**
      * Test for the analysis pipeline and factory.
@@ -115,6 +121,11 @@ public class AnalysisPipelineTest {
         final AnalysisStage<SpecMatcherOutput, PricingResolverOutput> pricingResolverStage =
                 mock(PricingResolverStage.class);
         when(pricingResolverStageFactory.createStage(anyLong(), any(), any())).thenReturn(pricingResolverStage);
+
+        // Recommendation analysis stage
+        final AnalysisStage<PricingResolverOutput, CloudCommitmentRecommendations> recommendationsAnalysisStage =
+                mock(AnalysisStage.class);
+        when(recommendationAnalysisFactory.createStage(anyLong(), any(), any())).thenReturn(recommendationsAnalysisStage);
 
         // invoke pipeline factory
         final AnalysisPipeline analysisPipeline = analysisPipelineFactory.createAnalysisPipeline(
@@ -162,7 +173,7 @@ public class AnalysisPipelineTest {
         assertThat(analysisContextCaptor.getValue(), equalTo((analysisContext)));
 
         // check the analysis pipeline structure
-        assertThat(analysisPipeline.stages(), hasSize(8));
+        assertThat(analysisPipeline.stages(), hasSize(9));
         assertThat(analysisPipeline.stages().get(0), equalTo(initializationStage));
         assertThat(analysisPipeline.stages().get(1), equalTo(demandRetrievalStage));
         assertThat(analysisPipeline.stages().get(2), equalTo(demandClassificationStage));
@@ -171,5 +182,6 @@ public class AnalysisPipelineTest {
         assertThat(analysisPipeline.stages().get(5), equalTo(coverageCalculationStage));
         assertThat(analysisPipeline.stages().get(6), equalTo(ccaSpecRecommendationStage));
         assertThat(analysisPipeline.stages().get(7), equalTo(pricingResolverStage));
+        assertThat(analysisPipeline.stages().get(8), equalTo(recommendationsAnalysisStage));
     }
 }

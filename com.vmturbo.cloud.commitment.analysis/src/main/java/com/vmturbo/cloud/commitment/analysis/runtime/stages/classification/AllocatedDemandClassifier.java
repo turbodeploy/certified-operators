@@ -14,9 +14,9 @@ import com.google.common.collect.Maps;
 
 import com.vmturbo.cloud.commitment.analysis.demand.CloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandAggregate.DemandTimeSeries;
+import com.vmturbo.cloud.common.data.TimeInterval;
+import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 
 /**

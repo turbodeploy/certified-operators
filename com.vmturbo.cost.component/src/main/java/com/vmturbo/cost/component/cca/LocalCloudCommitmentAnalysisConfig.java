@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.cloud.commitment.analysis.inventory.CloudCommitmentBoughtResolver;
-import com.vmturbo.cloud.commitment.analysis.pricing.CloudCommitmentPricingAnalyzer;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecResolver;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -64,18 +63,6 @@ public class LocalCloudCommitmentAnalysisConfig {
     @Bean
     public CloudCommitmentBoughtResolver cloudCommitmentBoughtResolver() {
         return new LocalCloudCommitmentBoughtResolver(reservedInstanceConfig.reservedInstanceBoughtStore(), reservedInstanceSpecConfig.reservedInstanceSpecStore());
-    }
-
-
-    /**
-     * Bean for creating the CCA Pricing Analyzer.
-     *
-     * @return The CCA pricing analyzer/
-     */
-    @Bean
-    public CloudCommitmentPricingAnalyzer cloudCommitmentPricingAnalyzer() {
-        return new LocalCloudCommitmentPricingAnalyzer(localCostPricingResolver(),
-                pricingConfig.businessAccountPriceTableKeyStore(), pricingConfig.priceTableStore(), topologyEntityInfoExtractor());
     }
 
     /**

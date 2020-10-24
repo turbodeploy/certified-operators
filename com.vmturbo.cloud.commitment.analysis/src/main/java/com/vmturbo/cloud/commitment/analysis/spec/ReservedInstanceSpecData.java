@@ -1,7 +1,10 @@
 package com.vmturbo.cloud.commitment.analysis.spec;
 
+import javax.annotation.Nonnull;
+
 import org.immutables.value.Value;
 
+import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 
 /**
@@ -9,6 +12,15 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
  */
 @Value.Immutable
 public interface ReservedInstanceSpecData extends CloudCommitmentSpecData<ReservedInstanceSpec> {
+
+    /**
+     * The cloud tier OID.
+     * @return The cloud tier OID.
+     */
+    @Value.Derived
+    default long tierOid() {
+        return spec().getReservedInstanceSpecInfo().getTierId();
+    }
 
     /**
      * The coupons per instance of RI spec. This is derived from the compute tier of the RI spec.
@@ -33,5 +45,12 @@ public interface ReservedInstanceSpecData extends CloudCommitmentSpecData<Reserv
     @Override
     default long specId() {
         return spec().getId();
+    }
+
+    @Value.Derived
+    @Nonnull
+    @Override
+    default CloudCommitmentType type() {
+        return CloudCommitmentType.RESERVED_INSTANCE;
     }
 }

@@ -26,9 +26,7 @@ public class CoverageCalculationSummary {
                     + "Coverage Amount: <coverageAmount>\n"
                     + "Coverage Percentage: <coveragePercentage>%\n"
                     + "Demand Amount: <demandAmount>\n"
-                    + "Empty Demand Segments: <emptySegmentCount>\n"
-                    + "Commitment Capacity: <commitmentCapacity>\n"
-                    + "Commitment Utilization: <commitmentUtilization>%";
+                    + "Empty Demand Segments: <emptySegmentCount>\n";
 
     private final AnalysisTopology analysisTopology;
 
@@ -51,7 +49,6 @@ public class CoverageCalculationSummary {
         final DurationStatistics.Collector taskDurationCollector = DurationStatistics.collector();
         final DoubleSummaryStatistics coverageStats = new DoubleSummaryStatistics();
         final DoubleSummaryStatistics demandStats = new DoubleSummaryStatistics();
-        final DoubleSummaryStatistics commitmentStats = new DoubleSummaryStatistics();
         final MutableLong emptySegmentCount = new MutableLong(0);
 
         coverageCalculationList.forEach(calculationInfo -> {
@@ -60,7 +57,6 @@ public class CoverageCalculationSummary {
             taskDurationCollector.collect(calculationSummary.calculationDuration());
             coverageStats.accept(calculationSummary.coveredDemand());
             demandStats.accept(calculationSummary.aggregateDemand());
-            commitmentStats.accept(calculationSummary.commitmentCapacity());
 
             if (DoubleMath.fuzzyCompare(calculationSummary.aggregateDemand(), 0.0, .01) == 0) {
                 emptySegmentCount.increment();
@@ -77,11 +73,6 @@ public class CoverageCalculationSummary {
                         : 0);
         template.add("demandAmount", demandStats);
         template.add("emptySegmentCount", emptySegmentCount.getValue());
-        template.add("commitmentCapacity", commitmentStats);
-        template.add("commitmentUtilization",
-                commitmentStats.getSum() > 0
-                        ? coverageStats.getSum() / commitmentStats.getSum() * 100
-                        : 0);
 
         return template.render();
     }

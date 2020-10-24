@@ -15,6 +15,7 @@ import org.hamcrest.collection.IsIterableContainingInOrder;
 import org.junit.Test;
 
 import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassification;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.AggregateDemandPreference.AggregateDemandPreferenceFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand;
@@ -41,19 +42,24 @@ public class AggregateDemandPreferenceTest {
 
         // setup the aggregate demand
         final AggregateCloudTierDemand recommendationDemand = AggregateCloudTierDemand.builder()
-                .accountOid(1)
-                .regionOid(2)
-                .serviceProviderOid(3)
-                .cloudTierDemand(ComputeTierDemand.builder()
-                        .cloudTierOid(4)
-                        .osType(OSType.LINUX)
-                        .tenancy(Tenancy.DEFAULT)
+                .cloudTierInfo(ScopedCloudTierInfo.builder()
+                        .accountOid(1)
+                        .regionOid(2)
+                        .serviceProviderOid(3)
+                        .cloudTierDemand(ComputeTierDemand.builder()
+                                .cloudTierOid(4)
+                                .osType(OSType.LINUX)
+                                .tenancy(Tenancy.DEFAULT)
+                                .build())
                         .build())
                 .classification(DemandClassification.of(AllocatedDemandClassification.ALLOCATED))
                 .isRecommendationCandidate(true)
                 .build();
         final AggregateCloudTierDemand coverageDemand = recommendationDemand.toBuilder()
-                .accountOid(5)
+                .cloudTierInfo(ScopedCloudTierInfo.builder()
+                        .from(recommendationDemand.cloudTierInfo())
+                        .accountOid(5)
+                        .build())
                 .isRecommendationCandidate(false)
                 .build();
 
@@ -84,20 +90,25 @@ public class AggregateDemandPreferenceTest {
 
         // setup the aggregate demand
         final AggregateCloudTierDemand largeDemand = AggregateCloudTierDemand.builder()
-                .accountOid(1)
-                .regionOid(2)
-                .serviceProviderOid(3)
-                .cloudTierDemand(ComputeTierDemand.builder()
-                        .cloudTierOid(4)
-                        .osType(OSType.LINUX)
-                        .tenancy(Tenancy.DEFAULT)
+                .cloudTierInfo(ScopedCloudTierInfo.builder()
+                        .accountOid(1)
+                        .regionOid(2)
+                        .serviceProviderOid(3)
+                        .cloudTierDemand(ComputeTierDemand.builder()
+                                .cloudTierOid(4)
+                                .osType(OSType.LINUX)
+                                .tenancy(Tenancy.DEFAULT)
+                                .build())
                         .build())
                 .classification(DemandClassification.of(AllocatedDemandClassification.ALLOCATED))
                 .isRecommendationCandidate(true)
                 .putDemandByEntity(EntityInfo.builder().entityOid(8).build(), 10.0)
                 .build();
         final AggregateCloudTierDemand smallDemand = largeDemand.toBuilder()
-                .accountOid(5)
+                .cloudTierInfo(ScopedCloudTierInfo.builder()
+                        .from(largeDemand.cloudTierInfo())
+                        .accountOid(5)
+                        .build())
                 .demandByEntity(ImmutableMap.of(
                         EntityInfo.builder().entityOid(9).build(), 1.0))
                 .build();

@@ -12,18 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
-import com.vmturbo.cloud.commitment.analysis.demand.CloudTierDemand;
-import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries;
+import com.vmturbo.cloud.commitment.analysis.demand.ScopedCloudTierInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.AggregateCloudTierDemand.EntityInfo;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.transformation.selection.ClassifiedEntitySelection;
 import com.vmturbo.cloud.commitment.analysis.util.TimeCalculator;
-import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver;
-import com.vmturbo.cloud.common.topology.ComputeTierFamilyResolver.ComputeTierFamilyResolverFactory;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cloud.common.data.TimeInterval;
+import com.vmturbo.cloud.common.data.TimeSeries;
 
 /**
  * Responsible for collecting entity demand and grouping it into {@link AggregateCloudTierDemand}
@@ -37,17 +31,13 @@ public class AggregateDemandCollector {
 
     private final BoundedDuration analysisInterval;
 
-    private final ComputeTierFamilyResolver computeTierFamilyResolver;
-
     private DemandTransformationJournal transformationJournal;
 
     private AggregateDemandCollector(@Nonnull DemandTransformationJournal transformationJournal,
-                                     @Nonnull ComputeTierFamilyResolver computeTierFamilyResolver,
                                      @Nonnull TimeInterval analysisWindow,
                                      @Nonnull BoundedDuration analysisInterval) {
 
         this.transformationJournal = Objects.requireNonNull(transformationJournal);
-        this.computeTierFamilyResolver = Objects.requireNonNull(computeTierFamilyResolver);
         this.analysisWindow = Objects.requireNonNull(analysisWindow);
         this.analysisInterval = Objects.requireNonNull(analysisInterval);
     }
@@ -63,18 +53,19 @@ public class AggregateDemandCollector {
         final long entityOid = entitySelection.entityOid();
 
         try {
-
             if (!entitySelection.demandTimeline().isEmpty()) {
 
                 final AggregateCloudTierDemand demandScope = AggregateCloudTierDemand.builder()
-                        .accountOid(entitySelection.accountOid())
-                        .billingFamilyId(entitySelection.billingFamilyId())
-                        .availabilityZoneOid(entitySelection.availabilityZoneOid())
-                        .regionOid(entitySelection.regionOid())
-                        .serviceProviderOid(entitySelection.serviceProviderOid())
+                        .cloudTierInfo(ScopedCloudTierInfo.builder()
+                                .accountOid(entitySelection.accountOid())
+                                .billingFamilyId(entitySelection.billingFamilyId())
+                                .availabilityZoneOid(entitySelection.availabilityZoneOid())
+                                .regionOid(entitySelection.regionOid())
+                                .serviceProviderOid(entitySelection.serviceProviderOid())
+                                .cloudTierDemand(entitySelection.cloudTierDemand())
+                                .build())
                         .isRecommendationCandidate(entitySelection.isRecommendationCandidate())
                         .classification(entitySelection.classification())
-                        .cloudTierDemand(entitySelection.cloudTierDemand())
                         .build();
 
                 // Suspension/termination is kept in entity info as auxiliary data (not uniquely
@@ -86,15 +77,13 @@ public class AggregateDemandCollector {
                         .isTerminated(entitySelection.isTerminated())
                         .build();
 
-
-                final double normalizationFactor = resolveNormalizationFactor(entitySelection);
                 convertDemandIntervalsToBucketDemand(entitySelection.demandTimeline())
                         .forEach((analysisInterval, amount) ->
                                 transformationJournal.recordAggregateDemand(
                                         analysisInterval,
                                         demandScope,
                                         entityInfo,
-                                        amount * normalizationFactor));
+                                        amount));
             }
         } catch (Exception e) {
             logger.warn("Exception in collecting aggregate demand for entity (Entity OID={})",
@@ -107,24 +96,11 @@ public class AggregateDemandCollector {
      */
     public static class AggregateDemandCollectorFactory {
 
-        private final ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory;
-
-        /**
-         * Constructs a new factory instance.
-         * @param computeTierFamilyResolverFactory The compute tier family resolver factory, used to determine
-         *                                         the normalization factor for compute tier demand.
-         */
-        public AggregateDemandCollectorFactory(
-                @Nonnull ComputeTierFamilyResolverFactory computeTierFamilyResolverFactory) {
-            this.computeTierFamilyResolverFactory = Objects.requireNonNull(computeTierFamilyResolverFactory);
-        }
-
         /**
          * Constructs a new {@link AggregateDemandCollector} instance.
          *
          * @param transformationJournal  The demand transformation journal, used to record the
          *                               aggregate demand.
-         * @param cloudTierTopology      The {@link CloudTopology} containing the clout tier entities.
          * @param analysisWindow         The analysis window, which is the full start/end time of the analyzed
          *                               demand.
          * @param analysisBucketDuration The analysis buckets i.e. how to break up the analysis window
@@ -134,13 +110,11 @@ public class AggregateDemandCollector {
         @Nonnull
         public AggregateDemandCollector newCollector(
                 @Nonnull DemandTransformationJournal transformationJournal,
-                @Nonnull CloudTopology<TopologyEntityDTO> cloudTierTopology,
                 @Nonnull TimeInterval analysisWindow,
                 @Nonnull BoundedDuration analysisBucketDuration) {
 
             return new AggregateDemandCollector(
                     transformationJournal,
-                    computeTierFamilyResolverFactory.createResolver(cloudTierTopology),
                     analysisWindow,
                     analysisBucketDuration);
         }
@@ -173,7 +147,7 @@ public class AggregateDemandCollector {
 
             while (currentBucketStartTime.isBefore(demandInterval.endTime())) {
 
-                final TimeInterval currentBucket = ImmutableTimeInterval.builder()
+                final TimeInterval currentBucket = TimeInterval.builder()
                         .startTime(currentBucketStartTime)
                         .endTime(currentBucketStartTime.plus(analysisInterval.duration()))
                         .build();
@@ -190,23 +164,5 @@ public class AggregateDemandCollector {
         }
 
         return demandByTimeInterval;
-    }
-
-    private double resolveNormalizationFactor(@Nonnull ClassifiedEntitySelection entitySelection) {
-
-        final CloudTierDemand cloudTierDemand = entitySelection.cloudTierDemand();
-        if (cloudTierDemand instanceof ComputeTierDemand) {
-            return computeTierFamilyResolver.getNumCoupons(cloudTierDemand.cloudTierOid())
-                    .map(Long::doubleValue)
-                    .orElseGet(() -> {
-                        logger.debug("Unable to resolve normalization factor (Tier OID={})",
-                                cloudTierDemand.cloudTierOid());
-                        return 1.0;
-                    });
-        } else {
-            logger.warn("Unsupported cloud tier type for normalization (Type={}, Tier OID={})",
-                    cloudTierDemand.getClass().getSimpleName(), cloudTierDemand.cloudTierOid());
-            return 1.0;
-        }
     }
 }

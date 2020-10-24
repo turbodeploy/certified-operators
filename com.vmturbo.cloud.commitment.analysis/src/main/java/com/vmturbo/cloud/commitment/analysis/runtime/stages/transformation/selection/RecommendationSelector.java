@@ -41,15 +41,19 @@ public class RecommendationSelector {
 
     private final ClassificationFilter classificationFilter;
 
+    private final boolean includeStandaloneAccounts;
+
     private RecommendationSelector(@Nonnull ScopedEntityFilter scopedEntityFilter,
                                    @Nonnull EntityStateFilter entityStateFilter,
                                    @Nonnull CloudTierFilter cloudTierFilter,
-                                   @Nonnull ClassificationFilter classificationFilter) {
+                                   @Nonnull ClassificationFilter classificationFilter,
+                                   @Nonnull boolean includeStandaloneAccounts) {
 
         this.scopedEntityFilter = scopedEntityFilter;
         this.entityStateFilter = entityStateFilter;
         this.cloudTierFilter = cloudTierFilter;
         this.classificationFilter = classificationFilter;
+        this.includeStandaloneAccounts = includeStandaloneAccounts;
     }
 
     /**
@@ -97,6 +101,7 @@ public class RecommendationSelector {
             @Nonnull CloudTierFilter cloudTierFilter) {
 
 
+        final boolean passesOrganizationFilter = organizationFilter(entityAggregate);
         final ClassifiedEntitySelection.Builder selectionBuilder = ClassifiedEntitySelection.builder()
                 .entityOid(entityAggregate.entityOid())
                 .accountOid(entityAggregate.accountOid())
@@ -122,12 +127,17 @@ public class RecommendationSelector {
                                     .cloudTierDemand(demandSeries.cloudTierDemand())
                                     .demandTimeline(demandSeries.demandIntervals())
                                     .isRecommendationCandidate(passesClassificationFilter
+                                            && passesOrganizationFilter
                                             && cloudTierFilter.filter(demandSeries.cloudTierDemand()))
                                     .build())
                             .collect(Collectors.toList());
 
                 }).flatMap(List::stream)
                 .collect(ImmutableSet.toImmutableSet());
+    }
+
+    private boolean organizationFilter(ClassifiedEntityDemandAggregate entityAggregate) {
+        return entityAggregate.billingFamilyId().isPresent() || includeStandaloneAccounts;
     }
 
     /**
@@ -143,22 +153,29 @@ public class RecommendationSelector {
 
         private final ClassificationFilterFactory classificationFilterFactory;
 
+        boolean includeStandaloneAccounts;
+
         /**
          * Constructs a new recommendation selector factory.
          * @param cloudTierFilterFactory A factory for producing cloud tier filters.
          * @param scopedEntityFilterFactory A factory for producing scoped entity filters.
          * @param entityStateFilterFactory A factory fro producing entity state filters.
          * @param classificationFilterFactory A factory for producing demand classification filters.
+         * @param includeStandaloneAccounts A flag indicating whether demand without an associated
+         *                                  billing family should be considered as a potential
+         *                                  recommendation candidate.
          */
         public RecommendationSelectorFactory(@Nonnull CloudTierFilterFactory cloudTierFilterFactory,
                                              @Nonnull ScopedEntityFilterFactory scopedEntityFilterFactory,
                                              @Nonnull EntityStateFilterFactory entityStateFilterFactory,
-                                             @Nonnull ClassificationFilterFactory classificationFilterFactory) {
+                                             @Nonnull ClassificationFilterFactory classificationFilterFactory,
+                                             @Nonnull boolean includeStandaloneAccounts) {
 
             this.cloudTierFilterFactory = Objects.requireNonNull(cloudTierFilterFactory);
             this.scopedEntityFilterFactory = Objects.requireNonNull(scopedEntityFilterFactory);
             this.entityStateFilterFactory = Objects.requireNonNull(entityStateFilterFactory);
             this.classificationFilterFactory = Objects.requireNonNull(classificationFilterFactory);
+            this.includeStandaloneAccounts = Objects.requireNonNull(includeStandaloneAccounts);
         }
 
         /**
@@ -186,7 +203,8 @@ public class RecommendationSelector {
                     scopedEntityFilter,
                     entityStateFilter,
                     cloudTierFilter,
-                    classificationFilter);
+                    classificationFilter,
+                    includeStandaloneAccounts);
         }
     }
 }

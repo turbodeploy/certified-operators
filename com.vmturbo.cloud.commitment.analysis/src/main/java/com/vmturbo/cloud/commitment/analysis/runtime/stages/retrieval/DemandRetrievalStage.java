@@ -21,12 +21,11 @@ import org.stringtemplate.v4.ST;
 import com.vmturbo.cloud.commitment.analysis.demand.CloudTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityCloudTierMapping;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeInterval;
 import com.vmturbo.cloud.commitment.analysis.persistence.CloudCommitmentDemandReader;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.AbstractStage;
+import com.vmturbo.cloud.common.data.TimeInterval;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
@@ -135,8 +134,10 @@ public class DemandRetrievalStage extends AbstractStage<Void, EntityCloudTierDem
         if (cloudTierMapping.timeInterval().startTime().isBefore(lookBackStartTime)) {
             return ImmutableEntityCloudTierMapping.builder()
                     .from(cloudTierMapping)
-                    .timeInterval(ImmutableTimeInterval.copyOf(cloudTierMapping.timeInterval())
-                            .withStartTime(lookBackStartTime))
+                    .timeInterval(cloudTierMapping.timeInterval()
+                            .toBuilder()
+                            .startTime(lookBackStartTime)
+                            .build())
                     .build();
         } else {
             return cloudTierMapping;

@@ -117,8 +117,8 @@ public class CostDTOCreator {
                 CloudRateExtractor.ComputePriceBundle priceBundle = marketCloudRateExtractor.getComputePriceBundle(tier, region.getOid(), accountPricingData);
                 Map<Long, Map<OSType, ComputePrice>> computePrices = Maps.newHashMap();
                 priceBundle.getPrices().forEach(price ->
-                        computePrices.computeIfAbsent(price.getAccountId(), ba -> Maps.newHashMap())
-                                .computeIfAbsent(price.getOsType(), os -> price));
+                        computePrices.computeIfAbsent(price.accountId(), ba -> Maps.newHashMap())
+                                .computeIfAbsent(price.osType(), os -> price));
                 Set<CommodityType> licenseCommoditySet = tier.getCommoditySoldListList().stream()
                         .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
                         .map(CommoditySoldDTO::getCommodityType)
@@ -136,7 +136,7 @@ public class CostDTOCreator {
                         if (osType != null) {
                             ComputePrice computePrice = pricesForBa.get(osType);
                             if (computePrice != null) {
-                                price = computePrice.getHourlyPrice();
+                                price = computePrice.hourlyPrice();
                                 // If the price is a base price, then add this as a cost tuple with
                                 // license commodity id -1. Base price is usually the cost of the tier
                                 // with LINUX OS. Inside the analysis library, we use this price if the
@@ -389,10 +389,8 @@ public class CostDTOCreator {
                     region.getOid(), accountPricingData);
 
             computePriceBundle.getPrices().forEach(computePrice -> {
-                        if (computePrice.getHourlyPrice() >
-                                maxComputePriceByOS.getOrDefault(computePrice.getOsType(), 0.0)) {
-
-                            maxComputePriceByOS.put(computePrice.getOsType(), computePrice.getHourlyPrice());
+                        if (computePrice.hourlyPrice() > maxComputePriceByOS.getOrDefault(computePrice.osType(), 0.0)) {
+                            maxComputePriceByOS.put(computePrice.osType(), computePrice.hourlyPrice());
                         }
                     });
 

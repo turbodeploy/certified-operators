@@ -5,13 +5,17 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import org.immutables.value.Value;
+import org.immutables.value.Value.Immutable;
 
+import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
 
 /**
  * {@link CloudTierDemand} scoped to cloud infrastructure.
  */
-public interface ScopedCloudTierDemand {
+@HiddenImmutableImplementation
+@Immutable(lazyhash = true)
+public interface ScopedCloudTierInfo {
 
     /**
      * The OID of the account tied to the associated demand.
@@ -69,4 +73,18 @@ public interface ScopedCloudTierDemand {
             throw new UnsupportedOperationException("Unknown cloud tier demand type");
         }
     }
+
+    /**
+     * Constructs and returns a new {@link Builder} instance.
+     * @return The newly constructed builder instance.
+     */
+    @Nonnull
+    static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * A builder class for constructing {@link ScopedCloudTierInfo} instances.
+     */
+    class Builder extends ImmutableScopedCloudTierInfo.Builder {}
 }

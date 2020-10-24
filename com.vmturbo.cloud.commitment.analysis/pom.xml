@@ -37,6 +37,12 @@
             <version>${immutables.version}</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>org.immutables</groupId>
+            <artifactId>encode</artifactId>
+            <version>${immutables.version}</version>
+            <scope>provided</scope>
+        </dependency>
 
         <dependency>
             <groupId>org.antlr</groupId>

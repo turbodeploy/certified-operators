@@ -27,8 +27,6 @@ import com.vmturbo.cloud.commitment.analysis.demand.ComputeTierDemand;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityCloudTierMapping;
 import com.vmturbo.cloud.commitment.analysis.demand.EntityComputeTierAllocation;
 import com.vmturbo.cloud.commitment.analysis.demand.ImmutableEntityComputeTierAllocation;
-import com.vmturbo.cloud.commitment.analysis.demand.ImmutableTimeInterval;
-import com.vmturbo.cloud.commitment.analysis.demand.TimeSeries;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.AnalysisStage.StageResult;
 import com.vmturbo.cloud.commitment.analysis.runtime.CloudCommitmentAnalysisContext;
@@ -39,6 +37,8 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.Deman
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.EntityCloudTierDemandSet;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.ImmutableEntityCloudTierDemandSet;
 import com.vmturbo.cloud.commitment.analysis.spec.CloudCommitmentSpecMatcher;
+import com.vmturbo.cloud.common.data.TimeInterval;
+import com.vmturbo.cloud.common.data.TimeSeries;
 import com.vmturbo.cloud.common.topology.MinimalCloudTopology;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.AllocatedDemandClassification;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisConfig;
@@ -127,7 +127,7 @@ public class DemandClassificationStageTest {
                 .accountOid(2L)
                 .regionOid(3L)
                 .serviceProviderOid(4L)
-                .timeInterval(ImmutableTimeInterval.builder()
+                .timeInterval(TimeInterval.builder()
                         .startTime(Instant.now().minusSeconds(1000))
                         .endTime(Instant.now().minusSeconds(900))
                         .build())
@@ -139,7 +139,7 @@ public class DemandClassificationStageTest {
                 .build();
         final EntityComputeTierAllocation entityAllocationA2 =
                 ImmutableEntityComputeTierAllocation.copyOf(entityAllocationA1)
-                        .withTimeInterval(ImmutableTimeInterval.builder()
+                        .withTimeInterval(TimeInterval.builder()
                                 .startTime(Instant.now().minusSeconds(700))
                                 .endTime(Instant.now())
                                 .build());
@@ -149,7 +149,7 @@ public class DemandClassificationStageTest {
                         .withEntityOid(6L);
         final EntityComputeTierAllocation entityAllocationB2 =
                 ImmutableEntityComputeTierAllocation.copyOf(entityAllocationB1)
-                        .withTimeInterval(ImmutableTimeInterval.builder()
+                        .withTimeInterval(TimeInterval.builder()
                                 .startTime(Instant.now().minusSeconds(700))
                                 .endTime(Instant.now())
                                 .build());

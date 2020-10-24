@@ -46,6 +46,8 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.ComputePriceBundle.ComputePrice;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor.CoreBasedLicensePriceBundle;
+import com.vmturbo.cost.calculation.pricing.ImmutableCoreBasedLicensePriceBundle;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupAndMembers;
@@ -249,22 +251,33 @@ public class SMAInputTest {
         doReturn(gAndMOptional).when(cloudTopology).getBillingFamilyForEntity(anyLong());
 
         //create compute price
-        final ComputePrice computePrice = new ComputePrice(accountId, OSType.LINUX, 0.2f, true);
+        final ComputePrice computePrice = ComputePrice.builder().accountId(accountId)
+                .osType(OSType.LINUX)
+                .hourlyComputeRate(0.2f)
+                .hourlyLicenseRate(0)
+                .isBasePrice(true)
+                .build();
         final AccountPricingData accountPricingData = mock(AccountPricingData.class);
         final ComputePriceBundle computePriceBundle1 = mock(ComputePriceBundle.class);
         when(computePriceBundle1.getPrices()).thenReturn(ImmutableList.of(computePrice));
 
         //create ri price
-        final ComputePrice riPrice = new ComputePrice(accountId, OSType.LINUX, 0.1f, true);
-        final ComputePriceBundle riPriceBundle1 = mock(ComputePriceBundle.class);
-        when(riPriceBundle1.getPrices()).thenReturn(ImmutableList.of(riPrice));
+        final CoreBasedLicensePriceBundle riPrice = ImmutableCoreBasedLicensePriceBundle.builder()
+                .osType(OSType.LINUX)
+                .price(0.1f)
+                .numCores(1)
+                .isBurstableCPU(false)
+                .licenseCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                        .build())
+                .build();
 
         // create MarketPriceTable
         final CloudRateExtractor marketCloudRateExtractor = mock(CloudRateExtractor.class);
         when(marketCloudRateExtractor.getComputePriceBundle(ct1Dto, regionId,
                 accountPricingData)).thenReturn(computePriceBundle1);
-        when(marketCloudRateExtractor.getReservedLicensePriceBundle(accountPricingData, regionDto.getOid(),
-                ct1Dto)).thenReturn(riPriceBundle1);
+        when(marketCloudRateExtractor.getReservedLicensePriceBundles(accountPricingData,
+                ct1Dto)).thenReturn(ImmutableSet.of(riPrice));
 
         //create CloudCostData
         final CloudCostData<TopologyEntityDTO> cloudCostData = mock(CloudCostData.class);
