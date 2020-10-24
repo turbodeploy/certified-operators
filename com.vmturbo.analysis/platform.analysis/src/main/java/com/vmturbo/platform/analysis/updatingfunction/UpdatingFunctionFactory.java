@@ -8,14 +8,17 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.MapMaker;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.matrix.component.external.MatrixInterface;
@@ -25,12 +28,15 @@ import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderWithSettings;
 import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.MM1Commodity;
 import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Create commodity updating functions.
@@ -38,9 +44,17 @@ import com.vmturbo.platform.analysis.topology.Topology;
 public final class UpdatingFunctionFactory {
 
     private static final Logger logger = LogManager.getLogger(UpdatingFunctionFactory.class);
+    private static final String MM1_DF = "MM1-DF";
 
     private UpdatingFunctionFactory() {
     }
+
+    /**
+     * Cache instances of {@link UpdatingFunction} that should be cleared from the cache
+     * between analysis cycles.
+     */
+    private static final ConcurrentMap<@NonNull String, @NonNull UpdatingFunction> mm1Cache =
+            new MapMaker().weakValues().makeMap();
 
     /**
      * Creates {@link UpdatingFunction} for a given seller.
@@ -70,6 +84,10 @@ public final class UpdatingFunctionFactory {
                 return createCouponUpdatingFunction(costDTO);
             case STANDARD_DISTRIBUTION:
                 return STANDARD_DISTRIBUTION;
+            case MM1_DISTRIBUTION:
+                return createMM1DistributionUpdatingFunction(updateFunctionTO
+                        .getMm1Distribution()
+                        .getDependentCommoditiesList());
             case UPDATINGFUNCTIONTYPE_NOT_SET:
             default:
                 return null;
@@ -421,6 +439,32 @@ public final class UpdatingFunctionFactory {
                     return new double[]{projectedQuantity, projectedPeakQuantity};
                 };
 
+    /**
+     * Create a distribution function which distributes commodity values based on M/M/1 queuing
+     * model.
+     * Provision, projected = current x (N x capacity - N x VCPUUtil)/((N+1) x capacity - N x VCPUUtil) ^ elasticity
+     * Suspension, projected = current x (N x capacity - N x VCPUUtil)/((N-1) x capacity - N x VCPUUtil) ^ elasticity
+     *
+     * @param dependentCommodities a list dependent commodities required to compute MM1 distribution
+     * @return {@link UpdatingFunction}
+     */
+    public static @Nonnull
+    UpdatingFunction createMM1DistributionUpdatingFunction(List<MM1Commodity> dependentCommodities) {
+        String key = String.format(
+                "%s-%s",
+                MM1_DF,
+                dependentCommodities.stream()
+                        .map(mm1Comm -> String.format(
+                                "%.2f-%d",
+                                mm1Comm.getElasticity(),
+                                mm1Comm.getCommodityType()))
+                        .collect(Collectors.joining("-")));
+        return mm1Cache.computeIfAbsent(
+                key,
+                k -> new MM1Distribution()
+                        .setDependentCommodities(dependentCommodities));
+    }
+
     // when a user by mistake sets addComm as the updatingFn, we iterate over all the consumers and sum up the
     // usage for the comm across customers and set that as the usage on the soldComm. This is when consumers move in or out
     private static Set<UpdatingFunction> explicitCombinators = ImmutableSet.of(AVG_COMMS, MAX_COMM, MIN_COMM, ADD_COMM);
@@ -437,11 +481,12 @@ public final class UpdatingFunctionFactory {
     /**
      * Check the validity of an updating function.
      *
-     * @param updatingFunction the updating function to check
+     * @param distributionFunction the updating function to check
      * @return if the input {@link UpdatingFunction} is a valid updating function
      */
-    public static boolean isValidDistributionFunction(UpdatingFunction updatingFunction) {
-        return distributionFunctions.contains(updatingFunction);
+    public static boolean isValidDistributionFunction(UpdatingFunction distributionFunction) {
+        return distributionFunctions.contains(distributionFunction)
+                || (distributionFunction != null && mm1Cache.containsValue(distributionFunction));
     }
 
     /**
@@ -467,26 +512,43 @@ public final class UpdatingFunctionFactory {
      * @param updatedQuantity     the quantity to update on the existing shopping lists
      * @param updatedPeakQuantity the peak quantity to update on the existing shopping lists
      */
-    private static void distributeOnCurrent(@Nonnull Set<ShoppingList> currentSLs,
-                                            final int boughtIndex,
-                                            final double updatedQuantity,
-                                            final double updatedPeakQuantity) {
-        for (ShoppingList currentSL : currentSLs) {
-            String buyerName = currentSL.getBuyer().getDebugInfoNeverUseInCode();
-            CommoditySpecification commSpec = currentSL.getBasket().get(boughtIndex);
+    public static void distributeOnCurrent(Set<ShoppingList> currentSLs,
+                                           final int boughtIndex,
+                                           final double updatedQuantity,
+                                           final double updatedPeakQuantity) {
+        distributeOnCurrent(currentSLs, boughtIndex, updatedQuantity, updatedPeakQuantity, null);
+    }
+
+    /**
+     * A helper function to update SLO commodity values on existing shopping lists.
+     *
+     * @param currentSLs          a set of shopping lists sponsored by a guaranteed buyer
+     * @param boughtIndex          the index to the commodity specification in a basket
+     * @param updatedQuantity      the quantity to update on the existing shopping lists
+     * @param updatedPeakQuantity  the peak quantity to update on the existing shopping lists
+     * @param dependentCommodities the dependent commodities to update
+     */
+    public static void distributeOnCurrent(Set<ShoppingList> currentSLs,
+                                           final int boughtIndex,
+                                           final double updatedQuantity,
+                                           final double updatedPeakQuantity,
+                                           List<Pair<Integer, Double>> dependentCommodities) {
+        for (ShoppingList existingSL : currentSLs) {
+            String buyerName = existingSL.getBuyer().getDebugInfoNeverUseInCode();
+            CommoditySpecification commSpec = existingSL.getBasket().get(boughtIndex);
             String commName = commSpec.getDebugInfoNeverUseInCode();
-            double originalBought = currentSL.getQuantity(boughtIndex);
-            double originalBoughtPeak = currentSL.getPeakQuantity(boughtIndex);
+            double originalBought = existingSL.getQuantity(boughtIndex);
+            double originalBoughtPeak = existingSL.getPeakQuantity(boughtIndex);
             if (logger.isTraceEnabled()) {
                 logger.info("Updating {} bought on existing buyer {}: {} -> {}",
                         commName, buyerName, originalBought, updatedQuantity);
             }
-            currentSL.setQuantity(boughtIndex, updatedQuantity)
+            existingSL.setQuantity(boughtIndex, updatedQuantity)
                     .setPeakQuantity(boughtIndex, updatedPeakQuantity);
             // update commSold that the shoppingList consume as a result of changing
             // quantity and peak quantity of shoppingList, the commSold is from existing
             // sellers
-            Trader supplier = currentSL.getSupplier();
+            Trader supplier = existingSL.getSupplier();
             if (supplier == null) {
                 continue;
             }
@@ -506,6 +568,7 @@ public final class UpdatingFunctionFactory {
                             originalSold, originalBought, updatedQuantity);
                 }
             }
+            updateDependentCommodities(supplier, dependentCommodities);
         }
     }
 
@@ -517,10 +580,27 @@ public final class UpdatingFunctionFactory {
      * @param projectedQuantity     the quantity to set on the cloned shopping list
      * @param projectedPeakQuantity the peak quantity to set on the cloned shopping list
      */
-    private static void distributeOnClone(final int index,
-                                          ShoppingList clonedSL,
-                                          double projectedQuantity,
-                                          double projectedPeakQuantity) {
+    public static void distributeOnClone(final int index,
+                                         ShoppingList clonedSL,
+                                         double projectedQuantity,
+                                         double projectedPeakQuantity) {
+        distributeOnClone(index, clonedSL, projectedQuantity, projectedPeakQuantity, null);
+    }
+
+    /**
+     * A helper function to set projected SLO commodity values on the cloned shopping list.
+     *
+     * @param index                 the index to the commodity specification in a basket
+     * @param clonedSL              the cloned shopping list
+     * @param projectedQuantity     the quantity to set on the cloned shopping list
+     * @param projectedPeakQuantity the peak quantity to set on the cloned shopping list
+     * @param dependentCommodities  the dependent commodities to update
+     */
+    public static void distributeOnClone(final int index,
+                                         ShoppingList clonedSL,
+                                         double projectedQuantity,
+                                         double projectedPeakQuantity,
+                                         List<Pair<Integer, Double>> dependentCommodities) {
         if (clonedSL == null) {
             // Could be suspension or provision rollback
             return;
@@ -541,6 +621,24 @@ public final class UpdatingFunctionFactory {
                 newSupplier.getCommoditySold(clonedSL.getBasket().get(index));
         commSoldOnClone.setQuantity(clonedSL.getQuantity(index));
         commSoldOnClone.setPeakQuantity(clonedSL.getPeakQuantity(index));
+        updateDependentCommodities(newSupplier, dependentCommodities);
+    }
+
+    /**
+     * A helper function to update dependent commodities.
+     *
+     * @param trader               the trader to update
+     * @param dependentCommodities the dependent commodities to update
+     */
+    private static void updateDependentCommodities(Trader trader,
+                                                   List<Pair<Integer, Double>> dependentCommodities) {
+        if (dependentCommodities == null) {
+            return;
+        }
+        if (trader instanceof TraderWithSettings) {
+            dependentCommodities.forEach(comm -> ((TraderWithSettings)trader)
+                    .setBoughtQuantity(comm.getFirst(), comm.getSecond()));
+        }
     }
 }
 

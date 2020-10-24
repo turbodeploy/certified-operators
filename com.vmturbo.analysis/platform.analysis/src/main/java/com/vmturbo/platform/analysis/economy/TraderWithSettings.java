@@ -10,6 +10,8 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -19,8 +21,13 @@ import org.checkerframework.dataflow.qual.Pure;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunction;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 public final class TraderWithSettings extends Trader implements TraderSettings {
+    /**
+     * Logger.
+     */
+    private static final Logger logger = LogManager.getLogger();
     // Internal fields
     private final @NonNull Map<@NonNull ShoppingList,@NonNull Market> marketsAsBuyer_ = new LinkedHashMap<>();
     private final @NonNull List<Market> marketsAsSeller_ = new ArrayList<>();
@@ -359,5 +366,76 @@ public final class TraderWithSettings extends Trader implements TraderSettings {
         super.clearShoppingAndMarketData();
         marketsAsBuyer_.clear();
         marketsAsSeller_.clear();
+    }
+
+    /**
+     * A helper function for MM1 distribution to get the quantity of a commodity that this trader
+     * buys, and the capacity of this commodity that the supplier sells.
+     *
+     * @param commType the requested commodity type
+     * @return an optional of a {@link Pair} of quantity and capacity of the requested commodity if
+     * the commodity exists, otherwise, return an empty optional
+     */
+    public Optional<Pair<Double, Double>> getBoughtQuantityAndCapacity(final int commType) {
+        for (final ShoppingList sl : getMarketsAsBuyer().keySet()) {
+            int boughtIndex = sl.getBasket().indexOf(commType);
+            if (boughtIndex == -1) {
+                logger.warn("Cannot find dependent commodity for trader {}",
+                        getDebugInfoNeverUseInCode());
+                continue;
+            }
+            Trader supplier = sl.getSupplier();
+            if (supplier == null) {
+                logger.warn("Cannot find supplier of dependent commodity for trader {}",
+                        getDebugInfoNeverUseInCode());
+                continue;
+            }
+            CommoditySold commSold = supplier
+                    .getCommoditySold(sl.getBasket().get(boughtIndex));
+            if (commSold == null) {
+                logger.warn("Cannot find sold commodity on the supplier {} for trader {}",
+                        supplier.getDebugInfoNeverUseInCode(), getDebugInfoNeverUseInCode());
+                continue;
+            }
+            return Optional.of(new Pair<>(
+                    sl.getQuantity(boughtIndex),
+                    commSold.getCapacity()));
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * A helper function for MM1 distribution to update the quantity of a commodity that this trader
+     * buys, and also update the quantity of the corresponding commodity sold by the provider of
+     * this trader.
+     *
+     * @param commType the requested commodity type
+     * @param quantity the quantity to update
+     */
+    public void setBoughtQuantity(final int commType, final double quantity) {
+        for (final ShoppingList sl : getMarketsAsBuyer().keySet()) {
+            int boughtIndex = sl.getBasket().indexOf(commType);
+            if (boughtIndex == -1) {
+                logger.warn("Cannot find dependent commodity for trader {}",
+                        getDebugInfoNeverUseInCode());
+                continue;
+            }
+            sl.setQuantity(boughtIndex, quantity);
+            Trader supplier = sl.getSupplier();
+            if (supplier == null) {
+                logger.warn("Cannot find supplier of dependent commodity for trader {}",
+                        getDebugInfoNeverUseInCode());
+                continue;
+            }
+            CommoditySold commSold = supplier
+                    .getCommoditySold(sl.getBasket().get(boughtIndex));
+            if (commSold == null) {
+                logger.warn("Cannot find sold commodity on the supplier {} for trader {}",
+                        supplier.getDebugInfoNeverUseInCode(), getDebugInfoNeverUseInCode());
+                continue;
+            }
+            commSold.setQuantity(quantity);
+            break;
+        }
     }
 } // end TraderWithSettings class

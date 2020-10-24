@@ -8,7 +8,9 @@ import static org.junit.Assert.fail;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -26,6 +28,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
 
 /**
@@ -231,5 +234,56 @@ public class DeactivateTest {
                     @NonNull Deactivate deactivate2, boolean expect) {
         assertEquals(expect, deactivate1.equals(deactivate2));
         assertEquals(expect, deactivate1.hashCode() == deactivate2.hashCode());
+    }
+
+    /**
+     * Case: One service consume on two apps, each hosted by a container.
+     * Each app sells 300(ms) response time. The service requests 50(ms) response time from each app.
+     * The containers sells 575(MHz) VCPU. The two applications requests 200(MHz) and 150(MHz) VCPU
+     * respectively.
+     * Suspension through MM1Distribution with dependent commodities:
+     * - VCPU with default elasticity 1.0
+     * - VMEM with elasticity 0.0
+     * After one suspension, the service should request 178(ms) response time from the remaining 1 app.
+     * After two suspension, the service will have no active seller.
+     */
+    @Test
+    public void testDeactivationWithMM1Distribution() {
+        Economy e = new Economy();
+        Basket b1 = new Basket(TestUtils.VCPU, TestUtils.VMEM);
+        Trader c1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app1.getSettings().setProviderMustClone(true);
+        ShoppingList sl1 = e.addBasketBought(app1, b1);
+        TestUtils.moveSlOnSupplier(e, sl1, c1, new double[]{200, 1024});
+        Trader app2 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app2.getSettings().setProviderMustClone(true);
+        ShoppingList sl2 = e.addBasketBought(app2, b1);
+        Trader c2 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        TestUtils.moveSlOnSupplier(e, sl2, c2, new double[]{150, 2048});
+        Trader svc = TestUtils.createTrader(e, TestUtils.SERVICE_TYPE, Collections.singletonList(0L),
+                Collections.emptyList(), new double[]{}, true, true);
+        Basket b2 = new Basket(TestUtils.RESPONSE_TIME);
+        ShoppingList sl3 = e.addBasketBought(svc, b2);
+        TestUtils.moveSlOnSupplier(e, sl3, app1, new double[]{50});
+        ShoppingList sl4 = e.addBasketBought(svc, b2);
+        TestUtils.moveSlOnSupplier(e, sl4, app2, new double[]{50});
+        // Suspend once, one remaining app is left
+        new Deactivate(e, app1, b2).take();
+        final double expected = 50 * (575D * 2 - (200D + 150D)) / (575D - (200D + 150D));
+        assertEquals(expected, sl4.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        // Suspend twice, confirm no active sellers
+        new Deactivate(e, app2, b2).take();
+        final @NonNull List<@NonNull Trader> sellers =
+                e.getMarket(sl4).getActiveSellersAvailableForPlacement();
+        assertEquals(0, sellers.size());
     }
 } // end DeactivateTest class

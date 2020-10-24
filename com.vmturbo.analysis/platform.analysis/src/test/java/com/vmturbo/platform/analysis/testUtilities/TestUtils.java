@@ -10,11 +10,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-import org.checkerframework.checker.nullness.qual.NonNull;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
@@ -44,6 +44,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceLimitation;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRatioDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.MM1Commodity;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
@@ -131,6 +132,10 @@ public class TestUtils {
      */
     public static final CommoditySpecification TRANSACTION = createNewCommSpec();
     public static final CommoditySpecification SEGMENTATION_COMMODITY = createNewCommSpec();
+    /**
+     * Construct the commodity specification for Response Time commodity with MM1
+     * distribution function.
+     */
     public static final CommoditySpecification RESPONSE_TIME = createNewCommSpec();
     public static final CommoditySpecification STORAGE = createNewCommSpec();
     public static final CommoditySpecification POWER = createNewCommSpec();
@@ -203,6 +208,17 @@ public class TestUtils {
                 commSold.getSettings()
                         .setPriceFunction(Cache.createStepPriceFunction(
                                 1, 0.0001f, Float.POSITIVE_INFINITY));
+            }
+            if (commSpec.equals(RESPONSE_TIME)) {
+                commSold.getSettings().setUpdatingFunction(UpdatingFunctionFactory
+                        .createMM1DistributionUpdatingFunction(Arrays
+                                .asList(MM1Commodity.newBuilder()
+                                                .setCommodityType(VCPU.getType())
+                                                .build(),
+                                        MM1Commodity.newBuilder()
+                                                .setCommodityType(VMEM.getType())
+                                                .setElasticity(0.0F)
+                                                .build())));
             }
             if (commSpec.equals(Q16_VCPU)) {
                 commSold.getSettings().setUpdatingFunction(UpdatingFunctionFactory

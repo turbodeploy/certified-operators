@@ -47,6 +47,26 @@ message UpdatingFunctionTO {
     message StandardDistribution {
     }
 
+    // The dependent resource commodity required for MM1 commodity distribution.
+    message MM1Commodity {
+        // The type of the resource commodity.
+        required int32 commodity_type = 1;
+        // The elasticity of the resource commodity.
+        optional float elasticity = 2 [default = 1.0];
+    }
+
+    // The distribution function which distributes SLO commodity values based on M/M/1 queue model.
+    // projected = current x (current headroom/projected headroom)^elasticity
+    // headroom = commodity capacity - commodity quantity
+    // For example, during a provision of application due to response time congestion, market will
+    // project the response time after a new app is cloned. Based on the MM1 distribution, the
+    // response time of an application is dependent on the VCPU headroom
+    // (i.e., VCPU capacity - VCPU used). In this case, MM1Distribution updating function is set on
+    // the Response Time commodity, and the dependent commodity is VCPU.
+    message MM1Distribution {
+        repeated MM1Commodity dependent_commodities = 1;
+    }
+
     // Which one of the available functions this message contains.
     oneof updating_function_type {
         Max max = 1;
@@ -59,5 +79,6 @@ message UpdatingFunctionTO {
         ExternalUpdateFunction external_update = 8;
         UpdateCoupon update_coupon = 9;
         StandardDistribution standard_distribution = 10;
+        MM1Distribution mm1_distribution = 11;
     }
 }

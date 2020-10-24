@@ -1,6 +1,11 @@
 package com.vmturbo.platform.analysis.actions;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -11,25 +16,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
+
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-import com.vmturbo.platform.analysis.ede.Suspension;
-import com.vmturbo.platform.analysis.ledger.Ledger;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
 
 /**
  * A test case for the {@link ProvisionBySupply} class.
@@ -419,55 +422,55 @@ public class ProvisionBySupplyTest {
      */
     @Test
     public void testTakeAndRollback_provisionBySupplyWithGuaranteedBuyer() {
-       Economy e = new Economy();
-       Basket b1 = new Basket(TestUtils.VCPU);
-       Basket b2 = new Basket(TestUtils.TRANSACTION);
-       Trader c1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+        Economy e = new Economy();
+        Basket b1 = new Basket(TestUtils.VCPU);
+        Trader c1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Arrays.asList(0l),
                         Arrays.asList(TestUtils.VCPU),
                         new double[]{200}, true, false);
-       Trader c2 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Arrays.asList(0l),
-                                          Arrays.asList(TestUtils.VCPU),
-                                          new double[]{200}, true, false);
-       Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Arrays.asList(0l),
-                                            Arrays.asList(TestUtils.TRANSACTION),
-                                            new double[]{150}, true, false);
-       app1.getSettings().setProviderMustClone(true);
-       ShoppingList sl1 = e.addBasketBought(app1, b1);
-       TestUtils.moveSlOnSupplier(e, sl1, c1, new double[]{70});
-       Trader app2 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Arrays.asList(0l),
-                                            Arrays.asList(TestUtils.TRANSACTION),
-                                            new double[]{150}, true, false);
-       app2.getSettings().setProviderMustClone(true);
-       ShoppingList sl2 = e.addBasketBought(app2, b1);
-       TestUtils.moveSlOnSupplier(e, sl2, c2, new double[]{70});
-       Trader vapp = TestUtils.createTrader(e, TestUtils.VAPP_TYPE, Arrays.asList(0l),
-                                            Arrays.asList(), new double[]{}, true, true);
-       ShoppingList sl3 = e.addBasketBought(vapp, b2);
-       TestUtils.moveSlOnSupplier(e, sl3, app1, new double[]{150});
-       ShoppingList sl4 = e.addBasketBought(vapp, b2);
-       TestUtils.moveSlOnSupplier(e, sl4, app2, new double[]{150});
+        Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Arrays.asList(0l),
+               Arrays.asList(TestUtils.TRANSACTION),
+               new double[]{150}, true, false);
+        app1.getSettings().setProviderMustClone(true);
+        ShoppingList sl1 = e.addBasketBought(app1, b1);
+        TestUtils.moveSlOnSupplier(e, sl1, c1, new double[]{70});
+        Trader app2 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Arrays.asList(0l),
+                Arrays.asList(TestUtils.TRANSACTION),
+                new double[]{150}, true, false);
+        app2.getSettings().setProviderMustClone(true);
+        ShoppingList sl2 = e.addBasketBought(app2, b1);
+        Trader c2 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Arrays.asList(0l),
+                Arrays.asList(TestUtils.VCPU),
+                new double[]{200}, true, false);
+        TestUtils.moveSlOnSupplier(e, sl2, c2, new double[]{70});
+        Trader vapp = TestUtils.createTrader(e, TestUtils.VAPP_TYPE, Arrays.asList(0l),
+                Arrays.asList(), new double[]{}, true, true);
+        Basket b2 = new Basket(TestUtils.TRANSACTION);
+        ShoppingList sl3 = e.addBasketBought(vapp, b2);
+        TestUtils.moveSlOnSupplier(e, sl3, app1, new double[]{150});
+        ShoppingList sl4 = e.addBasketBought(vapp, b2);
+        TestUtils.moveSlOnSupplier(e, sl4, app2, new double[]{150});
 
-       ProvisionBySupply provision1 = (ProvisionBySupply)new ProvisionBySupply(e, app1, CPU).take();
+        ProvisionBySupply provision1 = (ProvisionBySupply) new ProvisionBySupply(e, app1, CPU).take();
 
-       assertTrue(e.getTraders().size() == 7);
-       assertTrue(e.getMarketsAsBuyer(vapp).keySet().size() == 3);
-       assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.CONTAINER_TYPE)
+        assertTrue(e.getTraders().size() == 7);
+        assertTrue(e.getMarketsAsBuyer(vapp).keySet().size() == 3);
+        assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.CONTAINER_TYPE)
                   .count() == 3);
-       assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.APP_TYPE)
+        assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.APP_TYPE)
                   .count() == 3);
-       assertTrue(provision1.getActionTarget().getCustomers().size() == 1);
-       assertEquals(100.0, provision1.getActionTarget().getCustomers().get(0).getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
-       assertEquals(100.0, sl3.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
-       assertEquals(100.0, sl4.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertTrue(provision1.getActionTarget().getCustomers().size() == 1);
+        assertEquals(100.0, provision1.getActionTarget().getCustomers().get(0).getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(100.0, sl3.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(100.0, sl4.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
 
-       provision1.rollback();
-       assertTrue(e.getTraders().size() == 5);
-       assertTrue(e.getMarketsAsBuyer(vapp).keySet().size() == 2);
-       assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.CONTAINER_TYPE)
+        provision1.rollback();
+        assertTrue(e.getTraders().size() == 5);
+        assertTrue(e.getMarketsAsBuyer(vapp).keySet().size() == 2);
+        assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.CONTAINER_TYPE)
                   .count() == 2);
-       assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.APP_TYPE)
+        assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.APP_TYPE)
                   .count() == 2);
-       assertTrue(e.getMarketsAsBuyer(vapp).keySet().stream()
+        assertTrue(e.getMarketsAsBuyer(vapp).keySet().stream()
                   .allMatch(sl -> sl.getQuantities()[0] == 150));
     }
 
@@ -496,6 +499,117 @@ public class ProvisionBySupplyTest {
                 TestUtils.FLOATING_POINT_DELTA);
         assertEquals(90.0, provision.getActionTarget().getCommoditySold(bvSan.get(1)).getQuantity(),
                 TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Case: One service consume on two apps, each hosted by a container.
+     * Each app sells 300(ms) response time. The service requests 2000(ms) response time from each app.
+     * The containers sells 575(MHz) VCPU. The two applications requests 515(MHz) and 495(MHz) VCPU
+     * respectively.
+     * Provision through MM1Distribution with one dependent VCPU commodity of default elasticity 1.0:
+     * After one provision, the service should request 391(ms) response time from each of the 3 apps.
+     * After another provision, the service should request 134(ms) response time from each of the 4 apps.
+     */
+    @Test
+    public void testProvisionBySupplyTwiceWithMM1Distribution() {
+        Economy e = new Economy();
+        Basket b1 = new Basket(TestUtils.VCPU, TestUtils.VMEM);
+        Basket b2 = new Basket(TestUtils.RESPONSE_TIME);
+        Trader c1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        Trader c2 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app1.getSettings().setProviderMustClone(true);
+        ShoppingList sl1 = e.addBasketBought(app1, b1);
+        TestUtils.moveSlOnSupplier(e, sl1, c1, new double[]{515, 256});
+        Trader app2 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app2.getSettings().setProviderMustClone(true);
+        ShoppingList sl2 = e.addBasketBought(app2, b1);
+        TestUtils.moveSlOnSupplier(e, sl2, c2, new double[]{495, 256});
+        Trader svc = TestUtils.createTrader(e, TestUtils.SERVICE_TYPE, Collections.singletonList(0L),
+                Collections.emptyList(), new double[]{}, true, true);
+        ShoppingList sl3 = e.addBasketBought(svc, b2);
+        TestUtils.moveSlOnSupplier(e, sl3, app1, new double[]{2000});
+        ShoppingList sl4 = e.addBasketBought(svc, b2);
+        TestUtils.moveSlOnSupplier(e, sl4, app2, new double[]{2000});
+        // Provision once
+        ProvisionBySupply provision1 = (ProvisionBySupply)
+                new ProvisionBySupply(e, app1, TestUtils.RESPONSE_TIME).take();
+        // 2000 -> 391
+        final double expected1 = 2000D * (575D * 2 - (515D + 495D)) / (575D * 3 - (515D + 495D));
+        assertEquals(expected1, provision1.getActionTarget().getCustomers().get(0).getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected1, sl3.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected1, sl4.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        final double expected2 = (515D + 495D) / 3;
+        assertEquals(expected2, sl1.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected2, sl2.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected2, c1.getCommoditySold(TestUtils.VCPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected2, c2.getCommoditySold(TestUtils.VCPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        // Provision twice
+        ProvisionBySupply provision2 = (ProvisionBySupply)
+                new ProvisionBySupply(e, app1, TestUtils.RESPONSE_TIME).take();
+        // 391 -> 134
+        final double expected3 = expected1 * (575D * 3 - (515D + 495D)) / (575D * 4 - (515D + 495D));
+        assertEquals(expected3, provision2.getActionTarget().getCustomers().get(0).getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected3, provision1.getActionTarget().getCustomers().get(0).getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected3, sl3.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected3, sl4.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        final double expected4 = (515D + 495D) / 4;
+        assertEquals(expected4, sl1.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected4, sl2.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected4, c1.getCommoditySold(TestUtils.VCPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected4, c2.getCommoditySold(TestUtils.VCPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Case: One service consume on one apps hosted by a container.
+     * The app sells 300(ms) response time. The service requests 2000(ms) response time from the app.
+     * The container sells 575(MHz) VCPU. The application requests 515(MHz) VCPU.
+     * Provision through MM1Distribution with dependent commodities:
+     * - VCPU with default elasticity 1.0
+     * - VMEM with elasticity 0.0
+     * After one provision, the service should request 378(ms) response time from each of the 2 apps.
+     * After rollback of the provision, the service should request 3944(ms) from the original app
+     * because the projected VCPU after rollback will be capped.
+     */
+    @Test
+    public void testTakeAndRollbackOfProvisionBySupplyWithMM1Distribution() {
+        Economy e = new Economy();
+        Basket b1 = new Basket(TestUtils.VCPU, TestUtils.VMEM);
+        Basket b2 = new Basket(TestUtils.RESPONSE_TIME);
+        Trader c1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Collections.singletonList(0L),
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM),
+                new double[]{575, 65536}, true, false);
+        Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Collections.singletonList(0L),
+                Collections.singletonList(TestUtils.RESPONSE_TIME),
+                new double[]{300}, true, false);
+        app1.getSettings().setProviderMustClone(true);
+        ShoppingList sl1 = e.addBasketBought(app1, b1);
+        TestUtils.moveSlOnSupplier(e, sl1, c1, new double[]{515, 1024});
+        Trader svc = TestUtils.createTrader(e, TestUtils.SERVICE_TYPE, Collections.singletonList(0L),
+                Collections.emptyList(), new double[]{}, true, true);
+        ShoppingList sl3 = e.addBasketBought(svc, b2);
+        TestUtils.moveSlOnSupplier(e, sl3, app1, new double[]{2000});
+        // Provision
+        ProvisionBySupply provision = (ProvisionBySupply)
+                new ProvisionBySupply(e, app1, TestUtils.RESPONSE_TIME).take();
+        // 2000 -> 189
+        final double expected1 = 2000D * (575D - 515D) / (575D * 2 - 515D);
+        assertEquals(expected1, provision.getActionTarget().getCustomers().get(0).getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(expected1, sl3.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
+        // Rollback
+        provision.rollback();
+        // Assert projected VCPU used is capped when it is larger than capacity
+        // 189 -> 2000
+        final double expected2 = expected1 * (575D * 2 - 515D) / (575D - 515D);
+        assertEquals(expected2, sl3.getQuantity(0), TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
