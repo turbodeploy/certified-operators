@@ -101,15 +101,15 @@ dependencies:
 # Logging dependencies
   - name: elasticsearch
     repository: file://../base/elasticsearch
-    version: 1.24.0
+    version: 7.9.2
     condition: global.elk
   - name: kibana
     repository: file://../base/kibana
-    version: 2.2.0
+    version: 7.9.2
     condition: global.elk
   - name: logstash
     repository: file://../base/logstash
-    version: 1.7.0
+    version: 7.9.2
     condition: global.elk
   - name: loki
     repository: file://../base/loki
