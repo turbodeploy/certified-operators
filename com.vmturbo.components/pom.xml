@@ -97,6 +97,32 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+            <plugin>
+               <groupId>com.github.spotbugs</groupId>
+               <artifactId>spotbugs-maven-plugin</artifactId>
+               <version>${spotbugs.version}</version>
+               <configuration>
+                   <!-- min|less|default|more|max -->
+                   <effort>More</effort>
+                   <!-- Report on Low, Medium, High bugs -->
+                   <threshold>High</threshold>
+                   <failOnError>true</failOnError>
+                   <maxHeap>1024</maxHeap>
+                   <!--
+                    <includeFilterFile></includeFilterFile>
+                    <excludeFilterFile></excludeFilterFile>
+                   -->
+               </configuration>
+               <executions>
+                   <execution>
+                       <goals>
+                           <goal>check</goal>
+                       </goals>
+                   </execution>
+               </executions>
+            </plugin>
+        </plugins>
     </build>
 
     <profiles>
