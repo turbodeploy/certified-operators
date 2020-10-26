@@ -251,7 +251,6 @@ public class SearchProtoUtil {
             .build();
     }
 
-
     /**
      * Regex matching in ArangoDB's query language will match any part
      * of the candidate string to the regex pattern. To force matching

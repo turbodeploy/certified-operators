@@ -953,6 +953,9 @@ public class GroupsService implements IGroupsService {
                 .orElseThrow(() ->
                     new IllegalArgumentException("Can't get members in invalid group: " + uuid));
             logger.info("Number of members for group {} is {}", uuid, groupAndMembers.members().size());
+            if ( groupAndMembers.members().isEmpty() ) {
+               return request.allResultsResponse( Collections.emptyList());
+            }
 
             if (GroupProtoUtil.isNestedGroup(groupAndMembers.group())) {
                 final Collection<GroupApiDTO> groups = getGroupApiDTOS(GetGroupsRequest.newBuilder()

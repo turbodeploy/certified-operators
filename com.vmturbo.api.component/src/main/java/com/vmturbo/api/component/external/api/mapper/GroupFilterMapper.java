@@ -295,15 +295,25 @@ public class GroupFilterMapper {
         final MapFilter mapFilter = propFilter.getMapFilter();
         final FilterApiDTO filterApiDTO = new FilterApiDTO();
         if (mapFilter.hasRegex()) {
-            // regex matching
-            filterApiDTO.setExpVal(
-                    mapFilter.getKey() + "=" +
-                    mapFilter.getRegex().substring(1, mapFilter.getRegex().length() - 1));
+
+             // Given a regex - (corresponds to second case in Search.proto) key and value
+             // are regular expressions separated by equal sign and as a whole stored in map
+             // filter regex.
+            final StringBuilder regexBuilder = new StringBuilder();
+            if ( mapFilter.hasKey() && !mapFilter.getKey().isEmpty() ) {
+
+             // Given a key and a regex - (corresponds to third case in Search.proto) key
+             // is not a regex but an exact value and has to be included in regex.
+                regexBuilder.append(mapFilter.getKey());
+                regexBuilder.append("=");
+            }
+            regexBuilder.append(mapFilter.getRegex().substring(1, mapFilter.getRegex().length() - 1));
+            filterApiDTO.setExpVal(regexBuilder.toString());
             filterApiDTO.setExpType(mapFilter.getPositiveMatch() ?
                             EntityFilterMapper.REGEX_MATCH :
                             EntityFilterMapper.REGEX_NO_MATCH);
         } else {
-            // exact matching
+            // exact matching - key and value are actual pre-defined string values.
             filterApiDTO.setExpVal(
                     mapFilter.getValuesList().stream()
                             .map(v -> mapFilter.getKey() + "=" + v)
