@@ -24,14 +24,6 @@
                     <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
                 </configuration>
             </plugin>
-            <plugin>
-               <groupId>com.github.spotbugs</groupId>
-               <artifactId>spotbugs-maven-plugin</artifactId>
-               <version>${spotbugs.version}</version>
-               <configuration>
-                   <maxAllowedViolations>1</maxAllowedViolations>
-               </configuration>
-            </plugin>
         </plugins>
     </build>
 

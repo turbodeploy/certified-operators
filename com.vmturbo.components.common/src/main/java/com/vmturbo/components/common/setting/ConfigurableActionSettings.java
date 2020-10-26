@@ -73,7 +73,7 @@ public enum ConfigurableActionSettings {
      * such as ResizeVcpuUpInBetweenThresholds.</p>
      */
     Resize("resize", "Resize",
-        EnumSet.of(EntityType.STORAGE, EntityType.CONTAINER, EntityType.SWITCH,
+        EnumSet.of(EntityType.STORAGE, EntityType.CONTAINER,
             EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
             EntityType.DATABASE_SERVER, EntityType.WORKLOAD_CONTROLLER)),
 
