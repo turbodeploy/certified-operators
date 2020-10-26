@@ -1,19 +1,11 @@
 package com.vmturbo.components.common.setting;
 
-import static org.hamcrest.Matchers.is;
-
-import java.util.Arrays;
-
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
-import com.vmturbo.common.protobuf.setting.SettingProto.AvailableEnumValues;
-import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValueTypeCase;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Verifies that {@link ActionSettingSpecs} generates sub settings for each action mode setting.
@@ -116,22 +108,5 @@ public class ActionSettingSpecsTest {
         Assert.assertNotNull(settingSpec);
         Assert.assertEquals(settingName, settingSpec.getName());
         Assert.assertEquals(expectedSettingValueTypeCase, settingSpec.getSettingValueTypeCase());
-    }
-
-    /**
-     * Test EntityEnumValuesMap.
-     */
-    @Test
-    public void testEntityEnumValues() {
-        final EnumSettingValueType resizeEnum = ActionSettingSpecs.getSettingSpec(
-            ConfigurableActionSettings.Resize.getSettingName()).getEnumSettingValueType();
-        Assert.assertEquals(Arrays.asList(ActionMode.DISABLED.name(), ActionMode.RECOMMEND.name(),
-            ActionMode.EXTERNAL_APPROVAL.name(), ActionMode.MANUAL.name(), ActionMode.AUTOMATIC.name()),
-            resizeEnum.getEnumValuesList());
-        Assert.assertThat(resizeEnum.getEntityEnumValuesCount(), is(1));
-        Assert.assertTrue(resizeEnum.getEntityEnumValuesMap().containsKey(EntityType.SWITCH_VALUE));
-        Assert.assertEquals(AvailableEnumValues.newBuilder().addAllEnumValues(
-            Arrays.asList(ActionMode.DISABLED.name(), ActionMode.RECOMMEND.name())).build(),
-            resizeEnum.getEntityEnumValuesMap().get(EntityType.SWITCH_VALUE));
     }
 }

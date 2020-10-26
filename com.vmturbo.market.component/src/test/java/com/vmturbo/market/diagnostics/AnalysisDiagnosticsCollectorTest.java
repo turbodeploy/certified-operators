@@ -78,7 +78,7 @@ public class AnalysisDiagnosticsCollectorTest {
     private List<Deactivate> replayDeactivateActions = new ArrayList<>();
     // To run your own diagnostics, change this to the location of your unzipped analysis diags.
     // For ex., change it to "/Users/thiru_arun/Downloads/analysisDiags-777777-73588629312080"
-    private final String unzippedAnalysisDiagsLocation = "/Users/hongyuelan/Downloads";
+    private final String unzippedAnalysisDiagsLocation = "target/test-classes/analysisDiags";
 
     //Change this to the location of unzipped analysis diags.
     private final String unzippedSMADiagsLocation = "src/test/resources/cloudvmscaling/smaDiags";

@@ -1311,7 +1311,7 @@ public class SettingsMapper {
             final SettingApiDTO<String> apiDto = new SettingApiDTO<>();
             apiDto.setScope(SettingScope.GLOBAL);
             apiDto.setEntityType(GLOBAL_SETTING_ENTITY_TYPES.get(settingSpec.getName()));
-            fillSkeleton(settingSpec, settingValue, apiDto, Optional.empty());
+            fillSkeleton(settingSpec, settingValue, apiDto);
             return apiDto;
         }
 
@@ -1360,8 +1360,7 @@ public class SettingsMapper {
                         }
 
                         apiDto.setEntityType(entityType);
-                        fillSkeleton(settingSpec, settingValue, apiDto,
-                            Optional.of(ApiEntityType.fromString(entityType).typeNumber()));
+                        fillSkeleton(settingSpec, settingValue, apiDto);
                         return apiDto;
                     }).collect(Collectors.toMap(SettingApiDTO::getEntityType, Function.identity()));
         }
@@ -1374,13 +1373,11 @@ public class SettingsMapper {
          * @param settingSpec The {@link SettingSpec} the {@link SettingApiDTO} is derived from.
          * @param settingVal An {@link Optional} containing a {@link Setting} value. May be absent
          *                   if we just want to provide a description of the setting.
-         * @param dtoSkeleton A {@link SettingApiDTO} that will be modified by this method
-         * @param entityType entity type
+         * @param dtoSkeleton A {@link SettingApiDTO} that will be modified by this method.
          */
         private static void fillSkeleton(@Nonnull final SettingSpec settingSpec,
                                          @Nonnull final Optional<Setting> settingVal,
-                                         @Nonnull final SettingApiDTO<String> dtoSkeleton,
-                                         @Nonnull final Optional<Integer> entityType) {
+                                         @Nonnull final SettingApiDTO<String> dtoSkeleton) {
             dtoSkeleton.setUuid(settingSpec.getName());
             dtoSkeleton.setDisplayName(settingSpec.getDisplayName());
 
@@ -1428,11 +1425,7 @@ public class SettingsMapper {
                     if (enumDefaultValue != null) {
                         dtoSkeleton.setDefaultValue(enumDefaultValue);
                     }
-                    List<String> options = enumType.getEnumValuesList();
-                    if (entityType.isPresent() && enumType.getEntityEnumValuesMap().containsKey(entityType.get())) {
-                        options = enumType.getEntityEnumValuesMap().get(entityType.get()).getEnumValuesList();
-                    }
-                    dtoSkeleton.setOptions(options.stream()
+                    dtoSkeleton.setOptions(enumType.getEnumValuesList().stream()
                             .map(enumValue -> {
                                 final SettingOptionApiDTO enumOption = new SettingOptionApiDTO();
                                 enumOption.setLabel(SETTING_ENUM_NAME_TO_LABEL.getOrDefault(enumValue,
