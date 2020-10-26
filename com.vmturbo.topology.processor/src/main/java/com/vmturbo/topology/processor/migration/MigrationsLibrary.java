@@ -95,7 +95,9 @@ public class MigrationsLibrary {
             .put("V_01_01_03__Target_IsProxySecure_Flag",
                     new V_01_01_03__Target_IsProxySecure_Flag(targetStore, probeStore, groupScopeResolver))
             .put("V_01_01_04__Fix_Orphaned_Target_Removal_Migration",
-                new V_01_01_04__Fix_Orphaned_Target_Removal_Migration(targetStore, probeStore, targetDao));
+                new V_01_01_04__Fix_Orphaned_Target_Removal_Migration(targetStore, probeStore, targetDao))
+            .put("V_01_01_05__Target_Common_Proxy_Settings",
+                new V_01_01_05__Target_Common_Proxy_Settings(targetStore, probeStore, groupScopeResolver));
         return builder.build();
     }
 }

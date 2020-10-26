@@ -46,8 +46,8 @@ public class V_01_01_03__Target_IsProxySecure_Flag extends AbstractMigration {
 
     private final Logger logger = LogManager.getLogger();
 
-    private final TargetStore targetStore;
-    private final ProbeStore probeStore;
+    protected final TargetStore targetStore;
+    protected final ProbeStore probeStore;
     private final GroupScopeResolver groupScopeResolver;
 
     /**
@@ -97,21 +97,35 @@ public class V_01_01_03__Target_IsProxySecure_Flag extends AbstractMigration {
     private void updateProbeInfo() throws ProbeException {
         final Optional<ProbeInfo> infoOpt = probeStore.getProbeInfoForType(SDKProbeType.APPDYNAMICS.getProbeType());
         if (infoOpt.isPresent()) {
-            final ProbeInfo info = infoOpt.get();
-            final List<AccountDefEntry> adeList = info.getAccountDefinitionList();
-            final boolean hasDefEntry = adeList.stream()
-                    .anyMatch(entry -> entry.hasCustomDefinition()
-                            && entry.getCustomDefinition().getName().equals(SECURE_PROXY));
-            if (!hasDefEntry) {
+            // Add 'secureProxy' definition if it doesn't exist.
+            if (!hasSecureProxyAccountDefinitionEntry(infoOpt.get())) {
                 probeStore.updateProbeInfo(
-                        info.toBuilder().addAccountDefinition(createProxySecureDefEntry()).build()
+                        infoOpt.get().toBuilder().addAccountDefinition(createProxySecureDefEntry()).build()
                 );
             }
         }
     }
 
+    protected boolean hasSecureProxyAccountDefinitionEntry(@Nonnull ProbeInfo info) {
+        return findAccountDefEntry(info, SECURE_PROXY).isPresent();
+    }
+
+    protected boolean hasSecureProxyAccountValue(@Nonnull Target target) {
+        return target.getSpec().getAccountValueList().stream()
+                .anyMatch(val -> val.getKey().equals(SECURE_PROXY));
+    }
+
     @Nonnull
-    private AccountDefEntry createProxySecureDefEntry() {
+    @ParametersAreNonnullByDefault
+    protected Optional<AccountDefEntry> findAccountDefEntry(ProbeInfo info, String entryName) {
+        return info.getAccountDefinitionList().stream()
+                .filter(entry -> entry.hasCustomDefinition()
+                        && entry.getCustomDefinition().getName().equals(entryName))
+                .findFirst();
+    }
+
+    @Nonnull
+    protected AccountDefEntry createProxySecureDefEntry() {
         return AccountDefEntry
                 .newBuilder()
                 .setCustomDefinition(Discovery.CustomAccountDefEntry.newBuilder()
@@ -127,7 +141,12 @@ public class V_01_01_03__Target_IsProxySecure_Flag extends AbstractMigration {
 
     @Nonnull
     private List<Target> getAppDynamicsTargets() {
-        final Optional<Long> probeIdOpt = probeStore.getProbeIdForType(SDKProbeType.APPDYNAMICS.getProbeType());
+        return getTargetsByType(SDKProbeType.APPDYNAMICS);
+    }
+
+    @Nonnull
+    protected List<Target> getTargetsByType(@Nonnull SDKProbeType probeType) {
+        final Optional<Long> probeIdOpt = probeStore.getProbeIdForType(probeType.getProbeType());
         if (probeIdOpt.isPresent()) {
             final Long appDynamicsProbeId = probeIdOpt.get();
             return targetStore.getProbeTargets(appDynamicsProbeId);
@@ -149,12 +168,18 @@ public class V_01_01_03__Target_IsProxySecure_Flag extends AbstractMigration {
                 .findFirst();
         if (secureOpt.isPresent()) {
             final AccountValue secure = secureOpt.get();
-            final TopologyProcessorDTO.AccountValue secureProxy = TopologyProcessorDTO.AccountValue
-                    .newBuilder()
-                    .setKey(SECURE_PROXY)
-                    .setStringValue(secure.getStringValue())
-                    .build();
+            final TopologyProcessorDTO.AccountValue secureProxy =
+                    createSecureProxyAccountValue(secure.getStringValue());
             targetStore.updateTarget(target.getId(), Collections.singletonList(secureProxy));
         }
+    }
+
+    @Nonnull
+    protected TopologyProcessorDTO.AccountValue createSecureProxyAccountValue(@Nonnull String val) {
+        return TopologyProcessorDTO.AccountValue
+                .newBuilder()
+                .setKey(SECURE_PROXY)
+                .setStringValue(val)
+                .build();
     }
 }
