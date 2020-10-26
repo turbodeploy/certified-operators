@@ -1328,6 +1328,14 @@ public class MarketsService implements IMarketsService {
         }
         seEntity.setPlacedOn(placedOnJoiner.toString());
         seEntity.setNotPlacedOn(notPlacedOnJoiner.toString());
+
+        // Set explanation for non-controllable entities. It will
+        // likely to change with the design:
+        // https://vmturbo.atlassian.net/wiki/spaces/XD/pages/1692271430/Data+Attribution+Research+and+Implementation
+        if (!entity.getAnalysisSettings().getControllable()
+                && Strings.isBlank(seEntity.getUnplacedExplanation())) {
+            seEntity.setUnplacedExplanation("Entity does not participate in analysis");
+        }
         return seEntity;
     }
 

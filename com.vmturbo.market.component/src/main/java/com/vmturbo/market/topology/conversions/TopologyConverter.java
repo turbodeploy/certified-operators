@@ -1231,6 +1231,7 @@ public class TopologyConverter {
                 .setIsAvailableAsProvider(traderSetting.getCanAcceptNewCustomers())
                 .setShopTogether(traderSetting.getIsShopTogether())
                 .setCloneable(traderSetting.getClonable())
+                .setControllable(traderSetting.getControllable())
                 .setSuspendable(traderSetting.getSuspendable())
                 .setDesiredUtilizationTarget((traderSetting.getMaxDesiredUtilization()
                        + traderSetting.getMinDesiredUtilization()) / 2)
