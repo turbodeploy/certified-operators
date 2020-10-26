@@ -114,22 +114,13 @@
                     <effort>More</effort>
                     <!-- Report on Low, Medium, High bugs -->
                     <threshold>High</threshold>
-                    <!-- All new projects must pass spotbugs.
-                         Existing projects override the maxAllowedViolations to prevent new bugs from sneaking in.-->
-                    <failOnError>true</failOnError>
+                    <failOnError>false</failOnError>
                     <maxHeap>1024</maxHeap>
                     <!--
                      <includeFilterFile></includeFilterFile>
                      <excludeFilterFile></excludeFilterFile>
                     -->
                 </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>
