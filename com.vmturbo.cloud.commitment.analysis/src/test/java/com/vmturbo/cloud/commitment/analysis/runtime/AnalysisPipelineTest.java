@@ -24,6 +24,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.RecommendationSpecMa
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.ClassifiedEntityDemandSet;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCalculationStage.CoverageCalculationFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.persistence.ResultsPersistenceStage.ResultsPersistenceFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.pricing.PricingResolverOutput;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.pricing.PricingResolverStage;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.pricing.PricingResolverStage.PricingResolverStageFactory;
@@ -65,6 +66,7 @@ public class AnalysisPipelineTest {
 
     private final RecommendationAnalysisFactory recommendationAnalysisFactory = mock(RecommendationAnalysisFactory.class);
 
+    private final ResultsPersistenceFactory resultsPersistenceFactory = mock(ResultsPersistenceFactory.class);
 
     private final AnalysisPipelineFactory analysisPipelineFactory =
             new AnalysisPipelineFactory(identityProvider,
@@ -76,7 +78,8 @@ public class AnalysisPipelineTest {
                     coverageCalculationFactory,
                     recommendationSpecMatcherStageFactory,
                     pricingResolverStageFactory,
-                    recommendationAnalysisFactory);
+                    recommendationAnalysisFactory,
+                    resultsPersistenceFactory);
 
     /**
      * Test for the analysis pipeline and factory.
@@ -127,6 +130,11 @@ public class AnalysisPipelineTest {
                 mock(AnalysisStage.class);
         when(recommendationAnalysisFactory.createStage(anyLong(), any(), any())).thenReturn(recommendationsAnalysisStage);
 
+        // Results persistence stage
+        final AnalysisStage<CloudCommitmentRecommendations, CloudCommitmentRecommendations> resultsPersistenceStage =
+                mock(AnalysisStage.class);
+        when(resultsPersistenceFactory.createStage(anyLong(), any(), any())).thenReturn(resultsPersistenceStage);
+
         // invoke pipeline factory
         final AnalysisPipeline analysisPipeline = analysisPipelineFactory.createAnalysisPipeline(
                 analysisConfig, analysisContext);
@@ -173,7 +181,7 @@ public class AnalysisPipelineTest {
         assertThat(analysisContextCaptor.getValue(), equalTo((analysisContext)));
 
         // check the analysis pipeline structure
-        assertThat(analysisPipeline.stages(), hasSize(9));
+        assertThat(analysisPipeline.stages(), hasSize(10));
         assertThat(analysisPipeline.stages().get(0), equalTo(initializationStage));
         assertThat(analysisPipeline.stages().get(1), equalTo(demandRetrievalStage));
         assertThat(analysisPipeline.stages().get(2), equalTo(demandClassificationStage));
@@ -183,5 +191,6 @@ public class AnalysisPipelineTest {
         assertThat(analysisPipeline.stages().get(6), equalTo(ccaSpecRecommendationStage));
         assertThat(analysisPipeline.stages().get(7), equalTo(pricingResolverStage));
         assertThat(analysisPipeline.stages().get(8), equalTo(recommendationsAnalysisStage));
+        assertThat(analysisPipeline.stages().get(9), equalTo(resultsPersistenceStage));
     }
 }

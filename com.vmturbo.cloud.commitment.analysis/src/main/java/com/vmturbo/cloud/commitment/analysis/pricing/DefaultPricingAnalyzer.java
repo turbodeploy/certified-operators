@@ -271,7 +271,6 @@ public class DefaultPricingAnalyzer implements CloudCommitmentPricingAnalyzer {
             final CloudRateExtractor cloudRateExtractor = cloudRateExtractorFactory.newRateExtractor(
                     cloudTierTopology, topologyEntityInfoExtractor);
 
-            // HACK - the pricing resolver will look for all account IDs in the cloud topology.
             // The cloud tier topology does not contain account accounts. It will pass an empty
             // set into the business account price table key store, which will return all
             // account -> price table key mappings.

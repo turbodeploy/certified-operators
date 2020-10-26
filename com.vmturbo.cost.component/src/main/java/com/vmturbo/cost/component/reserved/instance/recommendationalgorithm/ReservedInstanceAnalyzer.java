@@ -28,6 +28,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
+
+import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyDemandCluster;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -94,6 +96,8 @@ public class ReservedInstanceAnalyzer {
 
     private static final Logger logger = LogManager.getLogger();
 
+    private final IdentityProvider identityProvider;
+
     private final BuyReservedInstanceStore buyRiStore;
 
     private final SettingServiceBlockingStub settingsServiceClient;
@@ -146,6 +150,7 @@ public class ReservedInstanceAnalyzer {
                                     @Nonnull ReservedInstanceActionsSender actionsSender,
                                     @Nonnull BuyReservedInstanceStore buyRiStore,
                                     @Nonnull ActionContextRIBuyStore actionContextRIBuyStore,
+                                    @Nonnull IdentityProvider identityProvider,
                                     final long realtimeTopologyContextId,
                                     final int riMinimumDataPoints) {
         this.settingsServiceClient = Objects.requireNonNull(settingsServiceClient);
@@ -156,6 +161,7 @@ public class ReservedInstanceAnalyzer {
         this.actionsSender = Objects.requireNonNull(actionsSender);
         this.buyRiStore = Objects.requireNonNull(buyRiStore);
         this.actionContextRIBuyStore = Objects.requireNonNull(actionContextRIBuyStore);
+        this.identityProvider = Objects.requireNonNull(identityProvider);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.riMinimumDataPoints = riMinimumDataPoints;
     }
@@ -171,6 +177,7 @@ public class ReservedInstanceAnalyzer {
         this.demandCalculatorFactory = null;
         this.realtimeTopologyContextId = 1L;
         this.analysisContextProvider = null;
+        this.identityProvider = null;
         this.riMinimumDataPoints = 1;
     }
 
@@ -517,18 +524,20 @@ public class ReservedInstanceAnalyzer {
         int riPotentialInCoupons = kernelResult.getRiNormalizedCouponsMap().get(numberOfRIsToBuy);
         float riUsedInCoupons = kernelResult.getRiNormalizedCouponsUsedMap().get(numberOfRIsToBuy);
         ReservedInstanceAnalysisRecommendation recommendation =
-            new ReservedInstanceAnalysisRecommendation(recommendationTag,
-                actionGoal,
-                regionalContext,
-                demandCalculationInfo.primaryAccountOid(),
-                numberOfRIsToBuy,
-                pricing,
-                hourlyCostSavings,
-                kernelResult.getAverageHourlyCouponDemand(),
-                kernelResult.getTotalHours(),
-                demandCalculationInfo.activeHours(),
-                riPotentialInCoupons,
-                riUsedInCoupons);
+            new ReservedInstanceAnalysisRecommendation(
+                    identityProvider.next(),
+                    recommendationTag,
+                    actionGoal,
+                    regionalContext,
+                    demandCalculationInfo.primaryAccountOid(),
+                    numberOfRIsToBuy,
+                    pricing,
+                    hourlyCostSavings,
+                    kernelResult.getAverageHourlyCouponDemand(),
+                    kernelResult.getTotalHours(),
+                    demandCalculationInfo.activeHours(),
+                    riPotentialInCoupons,
+                    riUsedInCoupons);
         return recommendation;
     }
 

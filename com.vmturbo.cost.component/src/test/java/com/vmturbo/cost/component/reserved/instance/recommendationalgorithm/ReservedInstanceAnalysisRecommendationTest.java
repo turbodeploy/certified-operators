@@ -91,6 +91,7 @@ public class ReservedInstanceAnalysisRecommendationTest {
         final float riUtilization = couponsUsed / coupons;
         ReservedInstanceAnalysisRecommendation recommendation =
                 new ReservedInstanceAnalysisRecommendation(
+                        123,
                         RECOMMENDATION_TAG,
                         ACTION_GOAL,
                         regionalContext,

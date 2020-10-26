@@ -1,5 +1,7 @@
 package com.vmturbo.cloud.commitment.analysis.spec;
 
+import java.time.Period;
+
 import javax.annotation.Nonnull;
 
 import org.immutables.value.Value;
@@ -52,5 +54,11 @@ public interface ReservedInstanceSpecData extends CloudCommitmentSpecData<Reserv
     @Override
     default CloudCommitmentType type() {
         return CloudCommitmentType.RESERVED_INSTANCE;
+    }
+
+    @Value.Derived
+    @Override
+    default Period term() {
+        return Period.ofYears(spec().getReservedInstanceSpecInfo().getType().getTermYears());
     }
 }

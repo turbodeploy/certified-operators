@@ -35,9 +35,12 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.cca.configuration.CloudCommitmentAnalysisConfigurationHolder;
 import com.vmturbo.cost.component.cca.configuration.ImmutableCloudCommitmentAnalysisConfigurationHolder;
 import com.vmturbo.cost.component.reserved.instance.PlanReservedInstanceStore;
+import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
@@ -60,6 +63,9 @@ public class CloudCommitmentAnalysisRunnerTest {
     private RepositoryServiceBlockingStub repositoryClient;
 
     private CloudCommitmentAnalysisRunner cloudCommitmentAnalysisRunner;
+
+    private TopologyEntityCloudTopologyFactory cloudTopologyFactory =
+            new DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class));
 
     private CloudCommitmentAnalysisManager cloudCommitmentAnalysisManager = mock(CloudCommitmentAnalysisManager.class);
 
@@ -118,12 +124,12 @@ public class CloudCommitmentAnalysisRunnerTest {
         repositoryClient = RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
         startGrpcTestServer();
         cloudCommitmentAnalysisRunner = new CloudCommitmentAnalysisRunner(cloudCommitmentAnalysisManager,
-                cloudCommitmentSettingsFetcher, planReservedInstanceStore, repositoryClient);
+                cloudCommitmentSettingsFetcher, planReservedInstanceStore, repositoryClient, cloudTopologyFactory);
         when(cloudCommitmentSettingsFetcher.allocationFlexible()).thenReturn(true);
         when(cloudCommitmentSettingsFetcher.allocationSuspended()).thenReturn(true);
         when(cloudCommitmentSettingsFetcher.includeTerminatedEntities()).thenReturn(true);
-        when(cloudCommitmentSettingsFetcher.maxDemandPercentage()).thenReturn(75);
-        when(cloudCommitmentSettingsFetcher.minimumSavingsOverOnDemand()).thenReturn(80);
+        when(cloudCommitmentSettingsFetcher.maxDemandPercentage()).thenReturn(75f);
+        when(cloudCommitmentSettingsFetcher.minimumSavingsOverOnDemand()).thenReturn(80f);
         when(planReservedInstanceStore.getReservedInstanceBoughtByPlanId(topologyContextId)).thenReturn(reservedInstancesBoughtList);
         when(cloudCommitmentAnalysisManager.startAnalysis(any())).thenReturn(cloudCommitmentAnalysisInfo);
     }

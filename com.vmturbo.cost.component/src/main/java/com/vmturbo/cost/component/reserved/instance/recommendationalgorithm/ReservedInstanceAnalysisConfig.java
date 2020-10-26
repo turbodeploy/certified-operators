@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
@@ -75,6 +76,9 @@ public class ReservedInstanceAnalysisConfig {
     @Autowired
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
 
+    @Autowired
+    private IdentityProvider identityProvider;
+
     @Bean
     public SettingServiceBlockingStub settingServiceClient() {
         return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
@@ -91,6 +95,7 @@ public class ReservedInstanceAnalysisConfig {
                 reservedInstanceActionsSenderConfig.actionSender(),
                 reservedInstanceConfig.buyReservedInstanceStore(),
                 reservedInstanceConfig.actionContextRIBuyStore(),
+                identityProvider,
                 realtimeTopologyContextId,
                 riMinimumDataPoints);
     }

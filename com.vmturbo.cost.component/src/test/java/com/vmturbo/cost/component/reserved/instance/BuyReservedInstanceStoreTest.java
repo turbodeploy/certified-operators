@@ -24,6 +24,7 @@ import org.mockito.Mockito;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.util.CollectionUtils;
 
+import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
 import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
@@ -248,11 +249,17 @@ public class BuyReservedInstanceStoreTest {
     @Test
     public void testUpdateBuyRIs() {
         insertOldBuyRIRecords();
-        ReservedInstanceAnalysisRecommendation recommendation = Mockito.mock(ReservedInstanceAnalysisRecommendation.class);
-        when(recommendation.getRiSpec()).thenReturn(riSpec);
-        when(recommendation.getRiBoughtInfo()).thenReturn(newRInfo);
 
-        buyRiStore.updateBuyReservedInstances(Collections.singletonList(recommendation), 1L);
+        final long recommendationId = 123L;
+        final ReservedInstanceData riData = ReservedInstanceData.builder()
+                .commitment(ReservedInstanceBought.newBuilder()
+                        .setId(recommendationId)
+                        .setReservedInstanceBoughtInfo(newRInfo)
+                        .build())
+                .spec(riSpec)
+                .build();
+
+        buyRiStore.updateBuyReservedInstances(Collections.singletonList(riData), 1L);
 
         final List<BuyReservedInstanceRecord> records = dsl.selectFrom(Tables.BUY_RESERVED_INSTANCE).fetch();
         Map<Long, List<BuyReservedInstanceRecord>> recordsByContextId = records.stream().collect(
@@ -289,11 +296,17 @@ public class BuyReservedInstanceStoreTest {
      */
     @Test
     public void testInsertBuyRIs() {
-        ReservedInstanceAnalysisRecommendation recommendation = Mockito.mock(ReservedInstanceAnalysisRecommendation.class);
-        when(recommendation.getRiSpec()).thenReturn(riSpec);
-        when(recommendation.getRiBoughtInfo()).thenReturn(newRInfo);
 
-        buyRiStore.updateBuyReservedInstances(Collections.singletonList(recommendation), 1L);
+        final long recommendationId = 123L;
+        final ReservedInstanceData riData = ReservedInstanceData.builder()
+                .commitment(ReservedInstanceBought.newBuilder()
+                        .setId(recommendationId)
+                        .setReservedInstanceBoughtInfo(newRInfo)
+                        .build())
+                .spec(riSpec)
+                .build();
+
+        buyRiStore.updateBuyReservedInstances(Collections.singletonList(riData), 1L);
 
         final List<BuyReservedInstanceRecord> records = dsl.selectFrom(Tables.BUY_RESERVED_INSTANCE).fetch();
         assertEquals(1, records.size());
@@ -309,11 +322,17 @@ public class BuyReservedInstanceStoreTest {
                 .setReservedInstanceSpec(100L)
                 .setNumBought(18)
                 .build();
-        ReservedInstanceAnalysisRecommendation recommendation = Mockito.mock(ReservedInstanceAnalysisRecommendation.class);
-        when(recommendation.getRiSpec()).thenReturn(riSpec);
-        when(recommendation.getRiBoughtInfo()).thenReturn(newRInfo);
 
-        buyRiStore.updateBuyReservedInstances(Arrays.asList(recommendation), 1L);
+        final long recommendationId = 123L;
+        final ReservedInstanceData riData = ReservedInstanceData.builder()
+                .commitment(ReservedInstanceBought.newBuilder()
+                        .setId(recommendationId)
+                        .setReservedInstanceBoughtInfo(newRInfo)
+                        .build())
+                .spec(riSpec)
+                .build();
+
+        buyRiStore.updateBuyReservedInstances(Arrays.asList(riData), 1L);
     }
 
     private void insertDefaultReservedInstanceSpec() {

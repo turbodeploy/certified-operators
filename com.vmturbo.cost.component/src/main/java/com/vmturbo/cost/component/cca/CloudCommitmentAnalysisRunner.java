@@ -1,14 +1,20 @@
 package com.vmturbo.cost.component.cca;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.cloud.commitment.analysis.CloudCommitmentAnalysisManager;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
@@ -27,6 +33,7 @@ import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandScope;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.DemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.HistoricalDemandSelection.CloudTierType;
+import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.TopologyReference;
 import com.vmturbo.common.protobuf.cloud.CloudCommitment.CloudCommitmentType;
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -37,6 +44,9 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.reserved.instance.PlanReservedInstanceStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
@@ -46,13 +56,17 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
  */
 public class CloudCommitmentAnalysisRunner {
 
-    private CloudCommitmentSettingsFetcher cloudCommitmentSettingsFetcher;
+    private final Logger logger = LogManager.getLogger();
 
-    private PlanReservedInstanceStore planReservedInstanceStore;
+    private final CloudCommitmentSettingsFetcher cloudCommitmentSettingsFetcher;
 
-    private CloudCommitmentAnalysisManager cloudCommitmentAnalysisManager;
+    private final PlanReservedInstanceStore planReservedInstanceStore;
 
-    private RepositoryServiceBlockingStub repositoryClient;
+    private final CloudCommitmentAnalysisManager cloudCommitmentAnalysisManager;
+
+    private final RepositoryServiceBlockingStub repositoryClient;
+
+    private final TopologyEntityCloudTopologyFactory cloudTopologyFactory;
 
     /**
      * Constructor for the CloudCommitmentAnalysisRunner.
@@ -62,16 +76,20 @@ public class CloudCommitmentAnalysisRunner {
      * @param planReservedInstanceStore The plan reserved instance store is used to fetch specific plan
      * Cloud commitments to be included in the CCA request.
      * @param repositoryClient The repository client used to fetch any required entities from the Repository service.
+     * @param cloudTopologyFactory A cloud topology factory, used to resolve the relationship between regions and
+     *                             service providers in determining RI purchase profiles for each region.
      */
     public CloudCommitmentAnalysisRunner(
             @Nonnull CloudCommitmentAnalysisManager cloudCommitmentAnalysisManager,
             @Nonnull CloudCommitmentSettingsFetcher cloudCommitmentSettingsFetcher,
             @Nonnull PlanReservedInstanceStore planReservedInstanceStore,
-            @Nonnull final RepositoryServiceBlockingStub repositoryClient) {
+            @Nonnull final RepositoryServiceBlockingStub repositoryClient,
+            @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory) {
         this.cloudCommitmentAnalysisManager = cloudCommitmentAnalysisManager;
         this.cloudCommitmentSettingsFetcher = cloudCommitmentSettingsFetcher;
         this.planReservedInstanceStore = planReservedInstanceStore;
         this.repositoryClient = repositoryClient;
+        this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
     }
 
     /**
@@ -81,10 +99,13 @@ public class CloudCommitmentAnalysisRunner {
      * @param responseObserver Contains the response of the cca run.
      */
     public void runCloudCommitmentAnalysis(StartBuyRIAnalysisRequest request, StreamObserver<StartBuyRIAnalysisResponse> responseObserver) {
-        cloudCommitmentSettingsFetcher.populateSettingsMap();
         boolean logDetailedSummary = cloudCommitmentSettingsFetcher.logDetailedSummary();
-        Builder cloudCommitmentAnalysisConfigBuilder = CloudCommitmentAnalysisConfig.newBuilder();
-        cloudCommitmentAnalysisConfigBuilder.setAnalysisTag("CCA-" + request.getTopologyInfo().getTopologyContextId());
+        Builder cloudCommitmentAnalysisConfigBuilder = CloudCommitmentAnalysisConfig.newBuilder()
+                .setAnalysisTag("CCA-" + request.getTopologyInfo().getTopologyContextId())
+                .setAnalysisTopology(TopologyReference.newBuilder()
+                        .setTopologyContextId(request.getTopologyInfo().getTopologyContextId())
+                        .setTopologyId(request.getTopologyInfo().getTopologyId())
+                        .build());
 
         // Set demand selection
         cloudCommitmentAnalysisConfigBuilder.setDemandSelection(HistoricalDemandSelection.newBuilder()
@@ -126,7 +147,8 @@ public class CloudCommitmentAnalysisRunner {
                         .setDemandSelection(demandSelection))
                         .setRecommendationSettings(RecommendationSettings.newBuilder().setMaxDemandPercent(cloudCommitmentSettingsFetcher.maxDemandPercentage())
                         .setMinimumSavingsOverOnDemandPercent(cloudCommitmentSettingsFetcher.minimumSavingsOverOnDemand()).build())
-                        .setRiPurchaseProfile(ReservedInstancePurchaseProfile.newBuilder().putAllRiTypeByRegionOid(getRITypeByOid(request)).build()));
+                        .setRiPurchaseProfile(ReservedInstancePurchaseProfile.newBuilder()
+                                .putAllRiTypeByRegionOid(getRITypeByOid(request)).build()));
 
         CloudCommitmentAnalysisConfig cloudCommitmentAnalysisConfig = cloudCommitmentAnalysisConfigBuilder.build();
 
@@ -150,34 +172,49 @@ public class CloudCommitmentAnalysisRunner {
     }
 
     private Map<Long, ReservedInstanceType> getRITypeByOid(StartBuyRIAnalysisRequest request) {
+
         // Get a list of regions from the request. if the request does not contain any regions,
         // get all the regions from the repository service.
-        List<Long> regionOidList;
-        if (request.getRegionsList() != null) {
-            regionOidList = request.getRegionsList();
-        } else {
-            final RetrieveTopologyEntitiesRequest.Builder retrieveTopologyRequest =
-                    RetrieveTopologyEntitiesRequest.newBuilder()
-                            .setReturnType(Type.FULL)
-                            .setTopologyType(TopologyType.SOURCE)
-                            .addEntityType(EntityType.REGION_VALUE);
+        final Stream<TopologyEntityDTO> entities = RepositoryDTOUtil.topologyEntityStream(
+                repositoryClient.retrieveTopologyEntities(
+                        RetrieveTopologyEntitiesRequest.newBuilder()
+                                .setReturnType(Type.FULL)
+                                .setTopologyType(TopologyType.SOURCE)
+                                .addEntityType(EntityType.REGION_VALUE)
+                                .addEntityType(EntityType.SERVICE_PROVIDER_VALUE)
+                                .build()))
+                .map(PartialEntity::getFullEntity);
+        final TopologyEntityCloudTopology staticTopology =
+                cloudTopologyFactory.newCloudTopology(entities);
 
-            regionOidList = RepositoryDTOUtil.topologyEntityStream(
-                    repositoryClient.retrieveTopologyEntities(retrieveTopologyRequest.build()))
-                    .map(PartialEntity::getMinimal).map(s -> s.getOid()).collect(Collectors.toList());
-        }
+        final Map<String, RIPurchaseProfile> normalizedPurchaseProfileByCloudType =
+                request.getPurchaseProfileByCloudtypeMap().entrySet()
+                        .stream()
+                        .collect(ImmutableMap.toImmutableMap(
+                                // convert provider to upper case
+                                (e) -> e.getKey().toUpperCase(),
+                                Map.Entry::getValue));
 
-        Map<Long, ReservedInstanceType> regionByRITypeMap = new HashMap<>();
+        final ImmutableMap.Builder<Long, ReservedInstanceType> purchaseProfileByRegionMap = ImmutableMap.builder();
+        for (TopologyEntityDTO region : staticTopology.getAllEntitiesOfType(EntityType.REGION_VALUE)) {
 
-        // Get a list of RIPurchaseProfiles from the request.
-        List<RIPurchaseProfile> riPurchaseProfileList = new ArrayList<>(request.getPurchaseProfileByCloudtypeMap().values());
+            Optional<TopologyEntityDTO> serviceProvider = staticTopology.getServiceProvider(region.getOid());
 
-        // For every region, map the oid to th RIType.
-        for (Long regionOid: regionOidList) {
-            for (RIPurchaseProfile riPurchaseProfile: riPurchaseProfileList) {
-                regionByRITypeMap.put(regionOid, riPurchaseProfile.getRiType());
+            if (serviceProvider.isPresent()) {
+
+                final RIPurchaseProfile purchaseProfile = normalizedPurchaseProfileByCloudType.get(
+                        serviceProvider.get().getDisplayName().toUpperCase());
+                if (purchaseProfile != null) {
+                    purchaseProfileByRegionMap.put(region.getOid(), purchaseProfile.getRiType());
+                } else {
+                    logger.error("Unable to find purchase constraints for region (Region OID={} SP OID={})",
+                            region.getOid(), serviceProvider.get().getOid());
+                }
+            } else {
+                logger.error("Unable to find service provider connection for region (Region OID={})", region.getOid());
             }
         }
-        return regionByRITypeMap;
+
+        return purchaseProfileByRegionMap.build();
     }
 }

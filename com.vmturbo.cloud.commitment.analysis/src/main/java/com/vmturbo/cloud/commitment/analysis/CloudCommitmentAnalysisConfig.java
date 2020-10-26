@@ -23,6 +23,7 @@ import com.vmturbo.cloud.commitment.analysis.config.DemandClassificationConfig;
 import com.vmturbo.cloud.commitment.analysis.config.DemandTransformationConfig;
 import com.vmturbo.cloud.commitment.analysis.config.PricingResolverConfig;
 import com.vmturbo.cloud.commitment.analysis.config.RecommendationAnalysisConfig;
+import com.vmturbo.cloud.commitment.analysis.config.ResultsPersistenceConfig;
 import com.vmturbo.cloud.commitment.analysis.config.SharedFactoriesConfig;
 import com.vmturbo.cloud.commitment.analysis.demand.BoundedDuration;
 import com.vmturbo.cloud.commitment.analysis.demand.store.ComputeTierAllocationStore;
@@ -40,6 +41,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.RecommendationSpecMatcherStage.RecommendationSpecMatcherStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCalculationStage.CoverageCalculationFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.persistence.ResultsPersistenceStage.ResultsPersistenceFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.pricing.PricingResolverStage.PricingResolverStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.RecommendationAnalysisStage.RecommendationAnalysisFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
@@ -66,6 +68,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
         CoverageCalculationConfig.class,
         PricingResolverConfig.class,
         RecommendationAnalysisConfig.class,
+        ResultsPersistenceConfig.class,
         SharedFactoriesConfig.class,
 })
 @Configuration
@@ -114,6 +117,10 @@ public class CloudCommitmentAnalysisConfig {
     @Lazy
     @Autowired
     private RecommendationAnalysisFactory recommendationAnalysisFactory;
+
+    @Lazy
+    @Autowired
+    private ResultsPersistenceFactory resultsPersistenceFactory;
 
     @Value("${cca.analysisStatusLogInterval:PT1M}")
     private String analysisStatusLogInterval;
@@ -177,7 +184,8 @@ public class CloudCommitmentAnalysisConfig {
                 coverageCalculationFactory,
                 ccaRecommendationSpecMatcherStageFactory(),
                 pricingResolverStageFactory,
-                recommendationAnalysisFactory);
+                recommendationAnalysisFactory,
+                resultsPersistenceFactory);
     }
 
     /**

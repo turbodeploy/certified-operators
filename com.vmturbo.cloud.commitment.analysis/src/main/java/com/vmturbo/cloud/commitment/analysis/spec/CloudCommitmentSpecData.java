@@ -1,5 +1,7 @@
 package com.vmturbo.cloud.commitment.analysis.spec;
 
+import java.time.Period;
+
 import javax.annotation.Nonnull;
 
 import org.immutables.value.Value;
@@ -14,6 +16,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
  */
 @Immutable
 public interface CloudCommitmentSpecData<SpecTypeT> {
+
+    /**
+     * Canonical hours in a month for cloud providers (avg hours per month over a year).
+     */
+    long HOURS_IN_A_MONTH = 730;
 
     /**
      * The wrapped cloud commitment spec.
@@ -33,6 +40,21 @@ public interface CloudCommitmentSpecData<SpecTypeT> {
      * @return The cloud commitment type.
      */
     CloudCommitmentType type();
+
+    /**
+     * The term of the spec.
+     * @return The term of the spec.
+     */
+    Period term();
+
+    /**
+     * The term of the spec in hours.
+     * @return The term of the spec in hours.
+     */
+    @Value.Derived
+    default long termInHours() {
+        return term().toTotalMonths() * CloudCommitmentSpecData.HOURS_IN_A_MONTH;
+    }
 
     /**
      * The cloud tier associated with {@link #spec()}. This value is not used

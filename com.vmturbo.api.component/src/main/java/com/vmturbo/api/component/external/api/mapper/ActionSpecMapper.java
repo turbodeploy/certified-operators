@@ -2121,11 +2121,11 @@ public class ActionSpecMapper {
                 RIBuyActionDetailsApiDTO detailsDto = new RIBuyActionDetailsApiDTO();
                 // set est RI Coverage
                 ActionDTO.Explanation.BuyRIExplanation buyRIExplanation = actionSpec.getRecommendation().getExplanation().getBuyRI();
-                float covered = buyRIExplanation.getCoveredAverageDemand();
-                float capacity = buyRIExplanation.getTotalAverageDemand();
-                detailsDto.setEstimatedRICoverage((covered / capacity) * 100);
+                final double covered = buyRIExplanation.getCoveredAverageDemand();
+                final double capacity = buyRIExplanation.getTotalAverageDemand();
+                detailsDto.setEstimatedRICoverage((float)(covered / capacity) * 100);
                 // set est. on-demand cost
-                detailsDto.setEstimatedOnDemandCost(buyRIExplanation.getEstimatedOnDemandCost());
+                detailsDto.setEstimatedOnDemandCost((float)buyRIExplanation.getEstimatedOnDemandCost());
                 // set demand data
                 Cost.riBuyDemandStats snapshots = riStub
                         .getRIBuyContextData(Cost.GetRIBuyContextRequest.newBuilder()
@@ -2609,25 +2609,26 @@ public class ActionSpecMapper {
      */
     @Nonnull
     private List<StatSnapshotApiDTO> createRiHistoricalContextStatSnapshotDTO(final List<Stats.StatSnapshot> snapshots) {
+
         final List<StatSnapshotApiDTO> statSnapshotApiDTOList = new ArrayList<>();
+
         for (Stats.StatSnapshot snapshot : snapshots) {
-            // The records we obtain start one week back in time from snapshot.getTimestamp()
-            // So we subtract a week from that.
-            // Each of the subsequent record has an 1 hour incremental timestamp from its previous record.
-            final Long contextStartDate = snapshot.getSnapshotDate() - ((long)Units.WEEK_MS);
-            int index = 0;
             // Create 168 snapshots in hourly intervals
             for (Stats.StatSnapshot.StatRecord record : snapshot.getStatRecordsList()) {
-                final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
-                List<StatApiDTO> statApiDTOList = new ArrayList<>();
-                StatApiDTO statApiDTO = new StatApiDTO();
+
+                final List<StatApiDTO> statApiDTOList = new ArrayList<>();
+
+                final StatApiDTO statApiDTO = new StatApiDTO();
                 statApiDTO.setValue((record.getValues().getAvg()));
+                statApiDTO.setUnits(record.getUnits());
                 statApiDTOList.add(statApiDTO);
+
+                final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
                 statSnapshotApiDTO.setStatistics(statApiDTOList);
                 statSnapshotApiDTO.setDisplayName(record.getStatKey());
-                statSnapshotApiDTO.setDate(Long.toString(contextStartDate + (index * (long)Units.HOUR_MS)));
+                statSnapshotApiDTO.setDate(Long.toString(snapshot.getSnapshotDate()));
+
                 statSnapshotApiDTOList.add(statSnapshotApiDTO);
-                index++;
             }
         }
         return statSnapshotApiDTOList;

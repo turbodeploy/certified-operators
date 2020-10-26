@@ -12,6 +12,10 @@ public interface CloudTierPricingData {
      */
     CloudTierPricingData EMPTY_PRICING_DATA = new CloudTierPricingData() {};
 
+    /**
+     * Checks whether this pricing data container is empty.
+     * @return True, if the pricing data is empty.
+     */
     @Derived
     default boolean isEmpty() {
         return this.equals(EMPTY_PRICING_DATA);

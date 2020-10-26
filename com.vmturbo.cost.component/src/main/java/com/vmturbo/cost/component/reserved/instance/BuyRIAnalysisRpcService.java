@@ -73,10 +73,6 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
             DemandType.ALLOCATION, ReservedInstanceHistoricalDemandDataType.ALLOCATION,
             DemandType.CONSUMPTION, ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
 
-    private final CloudCommitmentAnalysisConfigurationHolder cloudCommitmentAnalysisConfigurationHolder;
-
-    private final SettingServiceBlockingStub settingServiceBlockingStub;
-
     private final CloudCommitmentAnalysisRunner cloudCommitmentAnalysisRunner;
 
     private final CloudCommitmentSettingsFetcher cloudCommitmentSettingsFetcher;
@@ -87,22 +83,17 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
             @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
             @Nonnull final ReservedInstanceAnalyzer reservedInstanceAnalyzer,
             @Nonnull final ComputeTierDemandStatsStore computeTierDemandStatsStore,
-            final long realtimeTopologyContextId,
-            @Nonnull final CloudCommitmentAnalysisConfigurationHolder cloudCommitmentAnalysisConfigurationHolder,
-            @Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
-            @Nonnull final PlanReservedInstanceStore planReservedInstanceStore,
-            @Nonnull final CloudCommitmentAnalysisManager cloudCommitmentAnalysisManager) {
+            @Nonnull final CloudCommitmentSettingsFetcher cloudCommitmentSettingsFetcher,
+            @Nonnull final CloudCommitmentAnalysisRunner cloudCommitmentAnalysisRunner,
+            final long realtimeTopologyContextId) {
         this.buyRIAnalysisScheduler = Objects.requireNonNull(buyRIAnalysisScheduler);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
         this.reservedInstanceAnalyzer = Objects.requireNonNull(reservedInstanceAnalyzer);
         this.computeTierDemandStatsStore = Objects.requireNonNull(computeTierDemandStatsStore);
+        this.cloudCommitmentSettingsFetcher = Objects.requireNonNull(cloudCommitmentSettingsFetcher);
+        this.cloudCommitmentAnalysisRunner = Objects.requireNonNull(cloudCommitmentAnalysisRunner);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
-        this.cloudCommitmentAnalysisConfigurationHolder = cloudCommitmentAnalysisConfigurationHolder;
-        this.settingServiceBlockingStub = settingServiceBlockingStub;
-        this.cloudCommitmentSettingsFetcher = new CloudCommitmentSettingsFetcher(settingServiceBlockingStub, cloudCommitmentAnalysisConfigurationHolder);
-        this.cloudCommitmentAnalysisRunner = new CloudCommitmentAnalysisRunner(cloudCommitmentAnalysisManager, cloudCommitmentSettingsFetcher,
-                planReservedInstanceStore, repositoryClient);
     }
 
     /**
@@ -155,7 +146,7 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
                 runRealtimeBuyRIAnalysis(request, responseObserver);
             }
         } catch (Exception e) {
-            logger.error("Unexpected exception occurred in buy RI analysis.");
+            logger.error("Unexpected exception occurred in buy RI analysis.", e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
     }

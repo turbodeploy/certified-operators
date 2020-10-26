@@ -20,6 +20,8 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
+import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisRunner;
+import com.vmturbo.cost.component.cca.CloudCommitmentSettingsFetcher;
 import com.vmturbo.cost.component.cca.configuration.CloudCommitmentAnalysisConfigurationHolder;
 import com.vmturbo.cost.component.cca.configuration.ImmutableCloudCommitmentAnalysisConfigurationHolder;
 import com.vmturbo.cost.component.pricing.PricingConfig;
@@ -138,9 +140,26 @@ public class BuyRIAnalysisConfig {
                 repositoryServiceClient(), cloudTopologyFactory(),
                 reservedInstanceAnalysisConfig.reservedInstanceAnalyzer(),
                 computeTierDemandStatsConfig.riDemandStatsStore(),
-                realtimeTopologyContextId, cloudCommitmentAnalysisConfigurationHolder(), settingServiceClient(),
+                cloudCommitmentSettingsFetcher(),
+                cloudCommitmentAnalysisRunner(),
+                realtimeTopologyContextId);
+    }
+
+    @Bean
+    public CloudCommitmentSettingsFetcher cloudCommitmentSettingsFetcher() {
+        return new CloudCommitmentSettingsFetcher(
+                settingServiceClient(),
+                cloudCommitmentAnalysisConfigurationHolder());
+    }
+
+    @Bean
+    public CloudCommitmentAnalysisRunner cloudCommitmentAnalysisRunner() {
+        return new CloudCommitmentAnalysisRunner(
+                cloudCommitmentAnalysisConfig.cloudCommitmentAnalysisManager(),
+                cloudCommitmentSettingsFetcher(),
                 reservedInstanceConfig.planReservedInstanceStore(),
-                cloudCommitmentAnalysisConfig.cloudCommitmentAnalysisManager());
+                repositoryServiceClient(),
+                cloudTopologyFactory());
     }
 
     /**

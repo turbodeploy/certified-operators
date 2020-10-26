@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -19,6 +20,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
@@ -47,7 +49,7 @@ public class ReservedInstanceAnalysisRecommendation {
     private static final Logger logger = LogManager.getLogger();
 
     // The Id of the buy RI record in the buy_reserved_instance table.
-    private long buyRiId;
+    private final long buyRiId;
 
     // What is the context in which this reserved instance was bought; e.g. instanceType, region, platform, tenancy
     private final RIBuyRegionalContext regionalContext;
@@ -128,7 +130,8 @@ public class ReservedInstanceAnalysisRecommendation {
     */
     private Map<TopologyEntityDTO, float[]> templateTypeHourlyDemand;
 
-    public ReservedInstanceAnalysisRecommendation(@Nonnull String logTag,
+    public ReservedInstanceAnalysisRecommendation(long recommendationId,
+                                                  @Nonnull String logTag,
                                                   @Nonnull String actionGoal,
                                                   @Nonnull RIBuyRegionalContext regionalContext,
                                                   long purchasingAccountOid,
@@ -140,6 +143,8 @@ public class ReservedInstanceAnalysisRecommendation {
                                                   int activeHours,
                                                   int riNormalizedCouponsCoupons,
                                                   float riNormalizedCouponsUsed) {
+
+        this.buyRiId = recommendationId;
         this.logTag = Objects.requireNonNull(logTag);
         this.actionGoal = Objects.requireNonNull(actionGoal);
         this.regionalContext = Objects.requireNonNull(regionalContext);
@@ -390,7 +395,8 @@ public class ReservedInstanceAnalysisRecommendation {
      * @return Action DTO
      */
     public ActionDTO.Action createAction() {
-        BuyRI buyRI = BuyRI.newBuilder()
+
+        final BuyRI buyRI = BuyRI.newBuilder()
             .setBuyRiId(buyRiId)
             .setComputeTier(ActionEntity.newBuilder()
                 .setId(getComputeTier().getOid())
@@ -437,12 +443,16 @@ public class ReservedInstanceAnalysisRecommendation {
         return action;
     }
 
-    /**
-     * Set the Id of the buy RI record in the buy_reserved_instance table.
-     *
-     * @param buyRiId
-     */
-    public void setBuyRiId(final long buyRiId) {
-        this.buyRiId = buyRiId;
+    public ReservedInstanceData asReservedInstanceData() {
+
+        final ReservedInstanceBought riBought = ReservedInstanceBought.newBuilder()
+                .setId(buyRiId)
+                .setReservedInstanceBoughtInfo(riBoughtInfo)
+                .build();
+
+        return ReservedInstanceData.builder()
+                .commitment(riBought)
+                .spec(riSpec)
+                .build();
     }
 }

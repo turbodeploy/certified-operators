@@ -122,35 +122,37 @@ message TopologyReference {
 // A configuration for a complete cloud commitment analysis.
 message CloudCommitmentAnalysisConfig {
 
+    optional TopologyReference analysis_topology = 1;
+
     // The topology associated with the analysis. This topology info will be used to verify
     // entity termination and check the validity of cloud commitment specs against the existing
     // cloud tiers. If the topology reference is not specified, the latest realtime topology will
     // be used.
-    optional TopologyReference topology_reference = 1;
+    optional TopologyReference topology_reference = 2;
 
     // A tag used by the analysis in any log messages. The contents of the tag have no impact on
     // the analysis.
-    optional string analysis_tag = 2 [default = ""];
+    optional string analysis_tag = 3 [default = ""];
 
     // The configuration for which demand should be considered by the entire analysis. This specifies
     // which demand should be pulled from the database
-    required HistoricalDemandSelection demand_selection = 3;
+    required HistoricalDemandSelection demand_selection = 4;
 
     // The configuration for how selected demand should be classified and which demand should be
     // selected for analysis (uncovered demand calculations & recommendations). Generally, configuration
     // provides a way for allocated recommendations to ignore stale demand,
-    optional DemandClassificationSettings demand_classification_settings = 4;
+    optional DemandClassificationSettings demand_classification_settings = 5;
 
     // The purchase profiles to recommend. The purchase profiles are scoped to demand so that a single
     // analysis may recommend a certain RI configuration for AWS and another for Azure. The purchase
     // profile will also indicates which demand classifications can drive the recommendations.
-    required CommitmentPurchaseProfile purchase_profile = 5;
+    required CommitmentPurchaseProfile purchase_profile = 6;
 
     // The cloud commitment (RI, savings plan, etc) inventory to consider in calculating uncovered
     // demand from the total demand stored in the DB.
-    optional CloudCommitmentInventory cloud_commitment_inventory = 6;
+    optional CloudCommitmentInventory cloud_commitment_inventory = 7;
 
-    optional DebugConfiguration debug_configuration = 7;
+    optional DebugConfiguration debug_configuration = 8;
 }
 
 // The historical demand to select as the source of the analysis.
@@ -371,9 +373,10 @@ message CloudCommitmentAnalysisInfo {
 
     required int64 creation_time = 3;
 
-    optional TopologyReference topology_reference = 4;
+    // This is the topology under which results should be stored.
+    optional TopologyReference analysis_topology = 4;
 
-
+    optional TopologyReference topology_reference = 5;
 }
 
 

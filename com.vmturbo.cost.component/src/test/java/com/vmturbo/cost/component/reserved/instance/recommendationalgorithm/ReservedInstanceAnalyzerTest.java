@@ -18,6 +18,7 @@ import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.vmturbo.cloud.common.identity.IdentityProvider.DefaultIdentityProvider;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
@@ -182,6 +183,7 @@ public class ReservedInstanceAnalyzerTest {
                         mock(ReservedInstanceActionsSender.class),
                         mock(BuyReservedInstanceStore.class),
                         mock(ActionContextRIBuyStore.class),
+                        new DefaultIdentityProvider(0),
                         7777, 1);
         final Map<String, ReservedInstancePurchaseConstraints> constraints
                 = analyzer.getPurchaseConstraints();
@@ -224,7 +226,8 @@ public class ReservedInstanceAnalyzerTest {
         ReservedInstanceAnalysisScope scope = mock(ReservedInstanceAnalysisScope.class);
         when(scope.getRiPurchaseProfiles()).thenReturn(profileMap);
         final ReservedInstanceAnalyzer analyzer =
-                new ReservedInstanceAnalyzer(settingsService,
+                new ReservedInstanceAnalyzer(
+                        settingsService,
                         mock(PriceTableStore.class),
                         mock(BusinessAccountPriceTableKeyStore.class),
                         mock(RIBuyAnalysisContextProvider.class),
@@ -232,6 +235,7 @@ public class ReservedInstanceAnalyzerTest {
                         mock(ReservedInstanceActionsSender.class),
                         mock(BuyReservedInstanceStore.class),
                         mock(ActionContextRIBuyStore.class),
+                        new DefaultIdentityProvider(0),
                         7777, 1);
 
 

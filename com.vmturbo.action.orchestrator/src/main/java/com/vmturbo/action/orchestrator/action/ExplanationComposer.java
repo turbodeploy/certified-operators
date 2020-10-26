@@ -857,7 +857,7 @@ public class ExplanationComposer {
         if (keepItShort) {
             return BUY_RI_EXPLANATION;
         }
-        float coverageIncrease = (buyRI.getCoveredAverageDemand() / buyRI.getTotalAverageDemand()) * 100;
+        final double coverageIncrease = (buyRI.getCoveredAverageDemand() / buyRI.getTotalAverageDemand()) * 100;
         return BUY_RI_EXPLANATION + " by " + Math.round(coverageIncrease) + "%";
     }
 

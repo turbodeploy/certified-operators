@@ -54,7 +54,6 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
     private final ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate;
 
-
     private final BusinessAccountHelper businessAccountHelper;
 
     private final CostJournalRecorder journalRecorder;

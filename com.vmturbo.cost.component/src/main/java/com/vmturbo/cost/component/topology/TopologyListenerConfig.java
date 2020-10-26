@@ -1,5 +1,9 @@
 package com.vmturbo.cost.component.topology;
 
+import javax.annotation.PostConstruct;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -62,6 +66,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         CloudCommitmentAnalysisStoreConfig.class,
         CostClientConfig.class})
 public class TopologyListenerConfig {
+
+    private final Logger logger = LogManager.getLogger();
 
     @Autowired
     private TopologyProcessorListenerConfig topologyProcessorListenerConfig;
@@ -243,17 +249,5 @@ public class TopologyListenerConfig {
     @Bean
     public CostJournalRecorderController costJournalRecorderController() {
         return new CostJournalRecorderController(costJournalRecorder());
-    }
-
-    @Bean
-    public TopologyInfoTracker liveTopologyInfoTracker() {
-
-        final TopologyInfoTracker topologyInfoTracker = new TopologyInfoTracker(
-                TopologyInfoTracker.SUCCESSFUL_REALTIME_TOPOLOGY_SUMMARY_SELECTOR,
-                maxTrackedLiveTopologies);
-
-        topologyProcessorListenerConfig.topologyProcessor()
-                .addTopologySummaryListener(topologyInfoTracker);
-        return topologyInfoTracker;
     }
 }

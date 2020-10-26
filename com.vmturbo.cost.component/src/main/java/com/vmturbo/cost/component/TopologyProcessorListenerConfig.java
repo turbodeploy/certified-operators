@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -21,6 +22,9 @@ public class TopologyProcessorListenerConfig {
     @Autowired
     private TopologyProcessorClientConfig topologyClientConfig;
 
+    @Value("${maxTrackedLiveTopologies:10}")
+    private int maxTrackedLiveTopologies;
+
     @Bean
     public TopologyProcessor topologyProcessor() {
         return topologyClientConfig.topologyProcessor(
@@ -29,7 +33,7 @@ public class TopologyProcessorListenerConfig {
                 TopologyProcessorSubscription.forTopic(Topic.Notifications),
                 // used for snapshotting plan data
                 TopologyProcessorSubscription.forTopic(Topic.PlanTopologies),
-                // used by TopologyInforTracker
+                // used by TopologyInfoTracker
                 TopologyProcessorSubscription.forTopic(Topic.TopologySummaries));
     }
 
@@ -43,7 +47,7 @@ public class TopologyProcessorListenerConfig {
 
         final TopologyInfoTracker topologyInfoTracker = new TopologyInfoTracker(
                 TopologyInfoTracker.SUCCESSFUL_REALTIME_TOPOLOGY_SUMMARY_SELECTOR,
-                10);
+                maxTrackedLiveTopologies);
 
         topologyProcessor().addTopologySummaryListener(topologyInfoTracker);
         return topologyInfoTracker;

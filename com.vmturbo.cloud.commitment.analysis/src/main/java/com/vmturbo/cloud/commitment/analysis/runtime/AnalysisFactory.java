@@ -66,6 +66,7 @@ public class AnalysisFactory {
                 .setOid(identityProvider.next())
                 .setAnalysisTag(analysisConfig.getAnalysisTag())
                 .setCreationTime(Instant.now().toEpochMilli())
+                .setAnalysisTopology(analysisConfig.getAnalysisTopology())
                 .setTopologyReference(analysisConfig.getTopologyReference())
                 .build();
     }

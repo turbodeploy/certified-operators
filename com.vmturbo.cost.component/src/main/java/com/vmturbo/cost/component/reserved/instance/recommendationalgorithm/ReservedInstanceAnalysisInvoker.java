@@ -227,6 +227,8 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
             Thread.currentThread().interrupt();
         } catch (CommunicationException e) {
             logger.error("Exception while publishing Buy RI actions", e);
+        } catch (Exception e) {
+            logger.error("Error executing RI Buy analysis", e);
         }
     }
 

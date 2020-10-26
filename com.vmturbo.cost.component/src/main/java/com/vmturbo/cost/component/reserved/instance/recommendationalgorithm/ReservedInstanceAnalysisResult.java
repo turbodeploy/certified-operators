@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -17,7 +18,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
@@ -217,7 +220,12 @@ public class ReservedInstanceAnalysisResult {
      * Also insert RI Buy recommendations into action_context_ri_buy table.
      */
     public void persistResults() {
-        buyRiStore.updateBuyReservedInstances(recommendations, manifest.getTopologyContextId());
+
+        final Set<ReservedInstanceData> recommendationDataSet = recommendations.stream()
+                .map(ReservedInstanceAnalysisRecommendation::asReservedInstanceData)
+                .collect(ImmutableSet.toImmutableSet());
+
+        buyRiStore.updateBuyReservedInstances(recommendationDataSet, manifest.getTopologyContextId());
 
     }
 

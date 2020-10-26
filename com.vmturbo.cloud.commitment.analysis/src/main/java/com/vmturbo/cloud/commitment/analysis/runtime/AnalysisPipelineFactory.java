@@ -11,6 +11,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.InitializationStage.
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.RecommendationSpecMatcherStage.RecommendationSpecMatcherStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.classification.DemandClassificationStage.DemandClassificationFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.coverage.CoverageCalculationStage.CoverageCalculationFactory;
+import com.vmturbo.cloud.commitment.analysis.runtime.stages.persistence.ResultsPersistenceStage.ResultsPersistenceFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.pricing.PricingResolverStage.PricingResolverStageFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.RecommendationAnalysisStage.RecommendationAnalysisFactory;
 import com.vmturbo.cloud.commitment.analysis.runtime.stages.retrieval.DemandRetrievalStage.DemandRetrievalFactory;
@@ -43,6 +44,8 @@ public class AnalysisPipelineFactory {
 
     private final RecommendationAnalysisFactory recommendationAnalysisFactory;
 
+    private final ResultsPersistenceFactory resultsPersistenceFactory;
+
     /**
      * Constructs an analysis pipeline factory.
      * @param identityProvider The identity provider, used to assign IDs to individual stages.
@@ -64,6 +67,8 @@ public class AnalysisPipelineFactory {
      *                                    resolver stage after the spec recommendation stage.
      * @param recommendationAnalysisFactory  The {@link RecommendationAnalysisFactory} to create the
      *                                       recommendation analysis stage.
+     * @param resultsPersistenceFactory The {@link ResultsPersistenceFactory} to creat the results
+     *                                  persistence stage.
      */
     public AnalysisPipelineFactory(@Nonnull IdentityProvider identityProvider,
                                    @Nonnull InitializationStageFactory initializationStageFactory,
@@ -74,7 +79,8 @@ public class AnalysisPipelineFactory {
                                    @Nonnull CoverageCalculationFactory coverageCalculationFactory,
                                    @Nonnull RecommendationSpecMatcherStageFactory recommendationSpecMatcherStageFactory,
                                    @Nonnull PricingResolverStageFactory pricingResolverStageFactory,
-                                   @Nonnull RecommendationAnalysisFactory recommendationAnalysisFactory) {
+                                   @Nonnull RecommendationAnalysisFactory recommendationAnalysisFactory,
+                                   @Nonnull ResultsPersistenceFactory resultsPersistenceFactory) {
 
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.initializationStageFactory = Objects.requireNonNull(initializationStageFactory);
@@ -86,6 +92,7 @@ public class AnalysisPipelineFactory {
         this.recommendationSpecMatcherStageFactory = Objects.requireNonNull(recommendationSpecMatcherStageFactory);
         this.pricingResolverStageFactory = Objects.requireNonNull(pricingResolverStageFactory);
         this.recommendationAnalysisFactory = Objects.requireNonNull(recommendationAnalysisFactory);
+        this.resultsPersistenceFactory = Objects.requireNonNull(resultsPersistenceFactory);
     }
 
     /**
@@ -135,6 +142,10 @@ public class AnalysisPipelineFactory {
                         analysisConfig,
                         analysisContext))
                 .addStage(recommendationAnalysisFactory.createStage(
+                        identityProvider.next(),
+                        analysisConfig,
+                        analysisContext))
+                .addStage(resultsPersistenceFactory.createStage(
                         identityProvider.next(),
                         analysisConfig,
                         analysisContext))

@@ -22,6 +22,7 @@ import org.jooq.Record4;
 import org.jooq.Result;
 import org.jooq.impl.TableImpl;
 
+import com.vmturbo.cloud.common.commitment.ReservedInstanceData;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -172,7 +173,7 @@ public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore,
      * @param newRecommendations new Buy RI recommendations
      * @param topologyContextId the topology context id
      */
-    public void updateBuyReservedInstances(@Nonnull final Collection<ReservedInstanceAnalysisRecommendation> newRecommendations,
+    public void updateBuyReservedInstances(@Nonnull final Collection<ReservedInstanceData> newRecommendations,
                                            final long topologyContextId) {
         // First, delete the existing buy RIs for the given topologyContextId. (Deleting applies
         // to real time buy RIs). Then create the new buy RIs.
@@ -187,7 +188,7 @@ public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore,
      * @param recommendations a list of {@link ReservedInstanceAnalysisRecommendation} to buy.
      * @param topologyContextId the topology context id
      */
-    private void createBuyReservedInstances(@Nonnull final Collection<ReservedInstanceAnalysisRecommendation> recommendations,
+    private void createBuyReservedInstances(@Nonnull final Collection<ReservedInstanceData> recommendations,
                                             final long topologyContextId) {
         final List<BuyReservedInstanceRecord> buyRiRecordsToAdd =
             recommendations.stream()
@@ -215,11 +216,12 @@ public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore,
      * @return The BuyReservedInstanceRecord created in the database
      */
     private BuyReservedInstanceRecord createBuyReservedInstance(
-            @Nonnull final ReservedInstanceAnalysisRecommendation recommendation,
+            @Nonnull final ReservedInstanceData recommendation,
             final long topologyContextId) {
-        ReservedInstanceBoughtInfo riBoughtInfo = recommendation.getRiBoughtInfo();
-        ReservedInstanceSpec riSpec = recommendation.getRiSpec();
-        recommendation.setBuyRiId(identityProvider.next());
+        final ReservedInstanceBought riBought = recommendation.commitment();
+        final ReservedInstanceSpec riSpec = recommendation.spec();
+        final ReservedInstanceBoughtInfo riBoughtInfo = riBought.getReservedInstanceBoughtInfo();
+
 
         logger.debug("FixedCost: {}, Recurring Cost: {}, Term: {}, AmortizedCost: {}", () -> riBoughtInfo
                                         .getReservedInstanceBoughtCost()
@@ -227,9 +229,9 @@ public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore,
                                         .getAmount(),
                         () -> riBoughtInfo.getReservedInstanceBoughtCost().getRecurringCostPerHour().getAmount(),
                         () -> riSpec.getReservedInstanceSpecInfo().getType().getTermYears(),
-                        () -> recommendation.getRiHourlyCost());
+                        () -> riBoughtInfo.getReservedInstanceDerivedCost().getAmortizedCostPerHour().getAmount());
         return dsl.newRecord(BUY_RESERVED_INSTANCE, new BuyReservedInstanceRecord(
-                        recommendation.getBuyRiId(),
+                        riBought.getId(),
                         topologyContextId,
                         riBoughtInfo.getBusinessAccountId(),
                         riSpec.getReservedInstanceSpecInfo().getRegionId(),
@@ -238,7 +240,7 @@ public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore,
                         riBoughtInfo,
                         riBoughtInfo.getReservedInstanceBoughtCost().getFixedCost().getAmount(),
                         riBoughtInfo.getReservedInstanceBoughtCost().getRecurringCostPerHour().getAmount(),
-                        recommendation.getRiHourlyCost()));
+                        riBoughtInfo.getReservedInstanceDerivedCost().getAmortizedCostPerHour().getAmount()));
     }
 
     /**

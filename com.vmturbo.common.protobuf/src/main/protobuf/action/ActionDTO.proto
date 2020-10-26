@@ -257,13 +257,13 @@ message Explanation {
 
     message BuyRIExplanation {
         // How much demand of a particular context we have in terms of coupons.
-        optional float totalAverageDemand = 1;
+        optional double totalAverageDemand = 1;
 
         // How much demand out of totalAverageDemand is covered in terms of coupons.
-        optional float coveredAverageDemand = 2;
+        optional double coveredAverageDemand = 2;
 
         // Estimated on demand cost of RI for the term of the RI
-        optional float estimatedOnDemandCost = 3;
+        optional double estimatedOnDemandCost = 3;
     }
 
     message AllocateExplanation {

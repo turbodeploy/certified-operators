@@ -6,7 +6,12 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.TEMPLATE_TYPE;
 import static com.vmturbo.cost.component.db.Tables.ACTION_CONTEXT_RI_BUY;
 
 import java.sql.Timestamp;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -17,19 +22,26 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value.Default;
+import org.immutables.value.Value.Immutable;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Record1;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 
+import com.vmturbo.cloud.common.immutable.HiddenImmutableImplementation;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.stats.Stats;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.component.db.tables.records.ActionContextRiBuyRecord;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisRecommendation;
@@ -65,6 +77,20 @@ public class ActionContextRIBuyStore {
     }
 
     /**
+     * Inserts the {@code instanceDemandLIst} into the table.
+     * @param instanceDemandList The list of {@link RIBuyInstanceDemand} records to insert.
+     */
+    public void insertRIBuyInstanceDemand(@Nonnull List<RIBuyInstanceDemand> instanceDemandList) {
+
+        Preconditions.checkNotNull(instanceDemandList);
+
+        final List<ActionContextRiBuyRecord> actionContextRIBuyRecords =
+                createActionContextRIBuys(instanceDemandList);
+
+        dsl.batchInsert(actionContextRIBuyRecords).execute();
+    }
+
+    /**
      * Get the IDs of all topology contexts that have data.
      *
      * @return The set of topology context ids.
@@ -82,7 +108,7 @@ public class ActionContextRIBuyStore {
      * Creates a list of ActionContextRiBuyRecord records.
      * @param actionToRecommendationMapping mapping from action to RI buy recommendations.
      */
-    public List<ActionContextRiBuyRecord> createActionContextRIBuys(final Map<ActionDTO.Action, ReservedInstanceAnalysisRecommendation>
+    private List<ActionContextRiBuyRecord> createActionContextRIBuys(final Map<ActionDTO.Action, ReservedInstanceAnalysisRecommendation>
                                                                             actionToRecommendationMapping, long topologyContextId) {
         final List<ActionContextRiBuyRecord> actionContextRiBuyRecords = new ArrayList<>();
         for (ActionDTO.Action action : actionToRecommendationMapping.keySet()) {
@@ -99,9 +125,12 @@ public class ActionContextRIBuyStore {
                 actionContextRiBuyRecord.setActionId(action.getId());
                 actionContextRiBuyRecord.setPlanId(topologyContextId);
                 actionContextRiBuyRecord.setCreateTime(now);
+                actionContextRiBuyRecord.setDemandType(DemandType.TYPICAL_DEMAND.ordinal());
                 actionContextRiBuyRecord.setTemplateType(topologyEntityDTO.getDisplayName());
                 actionContextRiBuyRecord.setTemplateFamily(topologyEntityDTO.getTypeSpecificInfo()
                         .getComputeTier().getFamily());
+                // The old RI buy analysis always has 1 hour demand intervals
+                actionContextRiBuyRecord.setDatapointInterval(Duration.ofHours(1).toString());
                 List<Float> weeklyDemandList = new ArrayList<>();
                 for (float f : weeklyDemand) {
                     weeklyDemandList.add(f);
@@ -117,14 +146,58 @@ public class ActionContextRIBuyStore {
         return actionContextRiBuyRecords;
     }
 
+    private List<ActionContextRiBuyRecord> createActionContextRIBuys(@Nonnull List<RIBuyInstanceDemand> instanceDemandList) {
+
+        final ImmutableList.Builder recordsList = ImmutableList.builder();
+
+        for (RIBuyInstanceDemand instanceDemand : instanceDemandList) {
+
+            final ActionContextRiBuyRecord actionContextRiBuyRecord = dsl.newRecord(ACTION_CONTEXT_RI_BUY);
+
+            actionContextRiBuyRecord.setActionId(instanceDemand.actionId());
+            actionContextRiBuyRecord.setPlanId(instanceDemand.topologyContextId());
+            actionContextRiBuyRecord.setCreateTime(instanceDemand.lastDatapointTime());
+            actionContextRiBuyRecord.setDemandType(instanceDemand.demandType().ordinal());
+            actionContextRiBuyRecord.setDatapointInterval(instanceDemand.datapointInterval().toString());
+            actionContextRiBuyRecord.setTemplateType(instanceDemand.instanceType());
+
+            final String demand = instanceDemand.datapoints().stream()
+                    .map(Object::toString)
+                    .collect(Collectors.joining(","));
+            actionContextRiBuyRecord.setData(demand);
+
+            recordsList.add(actionContextRiBuyRecord);
+        }
+
+        return recordsList.build();
+    }
+
     /**
      * Retrieves records from ACTION_CONTEXT_RI_BUY table for a given action ID.
      * @param actionId the action ID for which we want to obtain the records from.
      * @return List<ActionContextRiBuyRecord>.
      */
-    public List<ActionContextRiBuyRecord> getRecordsFromActionContextRiBuy(String actionId) {
+    public List<RIBuyInstanceDemand> getRecordsFromActionContextRiBuy(String actionId) {
         return dsl.selectFrom(ACTION_CONTEXT_RI_BUY)
-                .where(ACTION_CONTEXT_RI_BUY.ACTION_ID.eq(Long.parseLong(actionId))).fetch();
+                .where(ACTION_CONTEXT_RI_BUY.ACTION_ID.eq(Long.parseLong(actionId)))
+                .fetchStream()
+                .map(this::convertRecordToInstanceDemand)
+                .collect(ImmutableList.toImmutableList());
+    }
+
+    private RIBuyInstanceDemand convertRecordToInstanceDemand(@Nonnull ActionContextRiBuyRecord record) {
+        return RIBuyInstanceDemand.builder()
+                .actionId(record.getActionId())
+                .topologyContextId(record.getPlanId())
+                .demandType(DemandType.fromInteger(record.getDemandType()))
+                .datapointInterval(Duration.parse(record.getDatapointInterval()))
+                .instanceType(record.getTemplateType())
+                .lastDatapointTime(record.getCreateTime())
+                .datapoints(Stream.of(record.getData().split(","))
+                        .map(String::trim)
+                        .map(Float::parseFloat)
+                        .collect(ImmutableList.toImmutableList()))
+                .build();
     }
 
     /**
@@ -133,40 +206,49 @@ public class ActionContextRIBuyStore {
      * @return List of Stats.StatSnapshot.
      */
     public List<Stats.StatSnapshot> getHistoricalContextForRIBuyAction(String actionId) {
+
         // needs to return List<EntitySnapshot> like in classic
         if (actionId == null) {
-            return new ArrayList<>();
+            return Collections.emptyList();
         }
-        // run query
-        List<ActionContextRiBuyRecord> records = getRecordsFromActionContextRiBuy(actionId);
 
-        final Map<String, Stats.StatSnapshot> result = Maps.newLinkedHashMap();
-        for (Record record : records) {
-            // set properties in proto
-            final Long currentTime = record.getValue(CREATE_TIME, Timestamp.class).getTime();
-            List<String> demandData = new ArrayList<>(Arrays.asList((record.getValue(DATA, String.class))
-                    .split("\\s*,\\s*")));
-            String templateType = record.getValue(TEMPLATE_TYPE, String.class);
-            List<Stats.StatSnapshot.StatRecord> allRecords = new ArrayList<>();
-            for (String demandPoint : demandData) {
-                Float demandValue = Float.parseFloat(demandPoint);
-                // create statValue for demand values
-                Stats.StatSnapshot.StatRecord.StatValue demandValStat = Stats.StatSnapshot.StatRecord.StatValue
+        // run query
+        final List<RIBuyInstanceDemand> instanceDemandList = getRecordsFromActionContextRiBuy(actionId);
+
+        final ImmutableList.Builder<StatSnapshot> statsList = ImmutableList.builder();
+
+        for (RIBuyInstanceDemand instanceDemand : instanceDemandList) {
+
+            final Duration dataTimeSpan = instanceDemand.datapointInterval()
+                    .multipliedBy(instanceDemand.datapoints().size() - 1);
+            ZonedDateTime currentTime = instanceDemand.lastDatapointTime().atZone(ZoneId.systemDefault())
+                    .minus(dataTimeSpan);
+
+            for (Float demandDatapoint : instanceDemand.datapoints()) {
+
+                final Stats.StatSnapshot.StatRecord.StatValue demandValStat = Stats.StatSnapshot.StatRecord.StatValue
                         .newBuilder()
-                        .setAvg(demandValue)
+                        .setAvg(demandDatapoint)
                         .build();
 
                 final Stats.StatSnapshot.StatRecord statRecord = Stats.StatSnapshot.StatRecord.newBuilder()
                         .setValues(demandValStat)
-                        .setStatKey(templateType)
+                        .setStatKey(instanceDemand.instanceType())
+                        .setUnits(instanceDemand.demandType().toString())
                         .build();
-                allRecords.add(statRecord);
+
+                final Stats.StatSnapshot stat = Stats.StatSnapshot.newBuilder()
+                        .setSnapshotDate(currentTime.toInstant().toEpochMilli())
+                        .addStatRecords(statRecord)
+                        .build();
+
+                statsList.add(stat);
+                currentTime = currentTime.plus(instanceDemand.datapointInterval());
+
             }
-            Stats.StatSnapshot stat = Stats.StatSnapshot.newBuilder()
-                    .addAllStatRecords(allRecords).setSnapshotDate(currentTime).build();
-            result.put(templateType, stat);
         }
-        return new ArrayList<>(result.values());
+
+        return statsList.build();
     }
 
     /**
@@ -179,5 +261,109 @@ public class ActionContextRIBuyStore {
         int rowsDeleted = dsl.deleteFrom(ACTION_CONTEXT_RI_BUY).where(ACTION_CONTEXT_RI_BUY.PLAN_ID
                 .eq(topologyContextId)).execute();
         return rowsDeleted;
+    }
+
+    /**
+     * An immmutable implemenation of {@link ActionContextRiBuyRecord}.
+     */
+    @HiddenImmutableImplementation
+    @Immutable
+    public interface RIBuyInstanceDemand {
+
+        /**
+         * The associated action ID.
+         * @return The associated action ID.
+         */
+        long actionId();
+
+        /**
+         * The associated topology context ID.
+         * @return The associated topology context ID.
+         */
+        long topologyContextId();
+
+        /**
+         * The demand type.
+         * @return The demand type.
+         */
+        @Nonnull
+        DemandType demandType();
+
+        /**
+         * The timestamp for the last data point in {@link #datapoints()}.
+         * @return The timestamp for the last datapoint in {@link #datapoints()}.
+         */
+        @Nonnull
+        LocalDateTime lastDatapointTime();
+
+        /**
+         * The time interval between data points in {@link #datapoints()}.
+         * @return The time interval between data points in {@link #datapoints()}.
+         */
+        @Default
+        @Nonnull
+        default Duration datapointInterval() {
+            return Duration.ofHours(1);
+        }
+
+        /**
+         * The instance type of the demand.
+         * @return The instance type of the demand.
+         */
+        @Nonnull
+        String instanceType();
+
+        /**
+         * The list of demand data points.
+         * @return The list of demand data points.
+         */
+        @Nonnull
+        List<Float> datapoints();
+
+        /**
+         * Constructs and returns a new {@link Builder} instance.
+         * @return The newly constructed builder instance.
+         */
+        @Nonnull
+        static Builder builder() {
+            return new Builder();
+        }
+
+        /**
+         * A builder class for constructing {@link RIBuyInstanceDemand} instances.
+         */
+        class Builder extends ImmutableRIBuyInstanceDemand.Builder {}
+    }
+
+    /**
+     * The types of demand stored within this store.
+     */
+    public enum DemandType {
+
+        /**
+         * Typical demand represents the weighted average demand collected for RI buy 1.0.
+         */
+        TYPICAL_DEMAND,
+        /**
+         * Observed demand corresponds to the direct recorded demand at the associated time (i.e. it
+         * is an approximation of the billed usage). Observed demand is used by CCA.
+         */
+        OBSERVED_DEMAND;
+
+        /**
+         * Converts {@code value} to {@link DemandType}.
+         * @param value The value to convert.
+         * @return The {@link DemandType} associated with {@code value} or null, if no demand type
+         * is associated with the value.
+         */
+        public static DemandType fromInteger(int value) {
+            switch(value) {
+                case 0:
+                    return TYPICAL_DEMAND;
+                case 1:
+                    return OBSERVED_DEMAND;
+            }
+            return null;
+        }
     }
 }

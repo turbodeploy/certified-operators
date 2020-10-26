@@ -2,15 +2,10 @@ package com.vmturbo.cost.component.cca;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Lists;
-
-import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
@@ -25,16 +20,6 @@ public class CloudCommitmentSettingsFetcher {
     private final SettingServiceBlockingStub settingServiceClient;
 
     private final CloudCommitmentAnalysisConfigurationHolder cloudCommitmentAnalysisConfigurationHolder;
-
-    /**
-     * List of settings to retrieve from global spec settings.
-     */
-    private final List<String> settingsToFetch = Lists.newArrayList(GlobalSettingSpecs.CloudCommitmentMinimumSavingsOverOnDemand.createSettingSpec().getName(),
-            GlobalSettingSpecs.CloudCommitmentMaxDemandPercentage.createSettingSpec().getName(), GlobalSettingSpecs
-                    .CloudCommitmentHistoricalLookbackPeriod.createSettingSpec().getName(), GlobalSettingSpecs.RunCloudCommitmentAnalysis.createSettingSpec().getName(),
-            GlobalSettingSpecs.CloudCommitmentLogDetailedSummary.createSettingSpec().getName(), GlobalSettingSpecs.CloudCommitmentIncludeTerminatedEntities.createSettingSpec().getName());
-
-    private Map<String, Setting> settingsMap = new HashMap<>();
 
     /**
      * The constructor of the CloudCommitmentSettingsFetcher. Takes in the settings service client.
@@ -56,28 +41,21 @@ public class CloudCommitmentSettingsFetcher {
      *
      * @return The integer value for the setting we want to retrieve.
      */
-    private int fetchCloudCommitmentIntegerSetting(SettingSpec settingSpec) {
-        final Setting setting = settingsMap.get(settingSpec.getName());
+    private float fetchCloudCommitmentFloatSetting(SettingSpec settingSpec) {
+
+        final GetSingleGlobalSettingRequest request = GetSingleGlobalSettingRequest.newBuilder()
+                .setSettingSpecName(settingSpec.getName())
+                .build();
+
+        final Setting setting = settingServiceClient.getGlobalSetting(request).getSetting();
 
         final boolean validRetentionSetting = setting != null
                 && setting.hasNumericSettingValue()
                 && setting.getNumericSettingValue().hasValue();
 
         return validRetentionSetting
-                ? (int)setting.getNumericSettingValue().getValue()
-                : (int)settingSpec.getNumericSettingValueType().getDefault();
-    }
-
-    /**
-     * Populate the settings map which has the list of settings to fetch.
-     */
-    public void populateSettingsMap() {
-        settingServiceClient.getMultipleGlobalSettings(
-                GetMultipleGlobalSettingsRequest.newBuilder()
-                        .addAllSettingSpecName(settingsToFetch).build())
-                        .forEachRemaining(setting -> {
-                            settingsMap.put(setting.getSettingSpecName(), setting);
-                        });
+                ? setting.getNumericSettingValue().getValue()
+                : settingSpec.getNumericSettingValueType().getDefault();
     }
 
     /**
@@ -88,7 +66,11 @@ public class CloudCommitmentSettingsFetcher {
      * @return The boolean value for the setting we want to retrieve.
      */
     private boolean fetchCloudCommitmentBooleanSetting(SettingSpec settingSpec) {
-        final Setting setting = settingsMap.get(settingSpec.getName());
+        final GetSingleGlobalSettingRequest request = GetSingleGlobalSettingRequest.newBuilder()
+                .setSettingSpecName(settingSpec.getName())
+                .build();
+
+        final Setting setting = settingServiceClient.getGlobalSetting(request).getSetting();
 
         final boolean validRetentionSetting = setting != null
                 && setting.hasBooleanSettingValue();
@@ -111,7 +93,7 @@ public class CloudCommitmentSettingsFetcher {
      * @return the historical look back period.
      */
     public long historicalLookBackPeriod() {
-        return Instant.now().minus(fetchCloudCommitmentIntegerSetting(GlobalSettingSpecs
+        return Instant.now().minus((int)fetchCloudCommitmentFloatSetting(GlobalSettingSpecs
                 .CloudCommitmentHistoricalLookbackPeriod.createSettingSpec()), ChronoUnit.DAYS).toEpochMilli();
     }
 
@@ -138,8 +120,8 @@ public class CloudCommitmentSettingsFetcher {
      *
      * @return Integer representing the maximum demand percentage.
      */
-    public int maxDemandPercentage() {
-        return fetchCloudCommitmentIntegerSetting(GlobalSettingSpecs.CloudCommitmentMaxDemandPercentage.createSettingSpec());
+    public float maxDemandPercentage() {
+        return fetchCloudCommitmentFloatSetting(GlobalSettingSpecs.CloudCommitmentMaxDemandPercentage.createSettingSpec());
     }
 
     /**
@@ -147,8 +129,8 @@ public class CloudCommitmentSettingsFetcher {
      *
      * @return Integer representing the minimum savings over on demand.
      */
-    public int minimumSavingsOverOnDemand() {
-        return fetchCloudCommitmentIntegerSetting(GlobalSettingSpecs.CloudCommitmentMinimumSavingsOverOnDemand.createSettingSpec());
+    public float minimumSavingsOverOnDemand() {
+        return fetchCloudCommitmentFloatSetting(GlobalSettingSpecs.CloudCommitmentMinimumSavingsOverOnDemand.createSettingSpec());
     }
 
     /**
