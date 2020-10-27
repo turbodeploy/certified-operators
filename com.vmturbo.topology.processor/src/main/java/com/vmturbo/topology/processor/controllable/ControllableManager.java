@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.controllable;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nonnull;

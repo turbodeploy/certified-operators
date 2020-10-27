@@ -30,9 +30,9 @@ public interface EntityActionDao {
      * @param actionType action type
      * @param entityIds a set of entity ids.
      */
-    void insertAction(final long actionId,
-                      @Nonnull final ActionItemDTO.ActionType actionType,
-                      @Nonnull final Set<Long> entityIds)
+    void insertAction(long actionId,
+                      @Nonnull ActionItemDTO.ActionType actionType,
+                      @Nonnull Set<Long> entityIds)
             throws IllegalArgumentException;
 
     /**
@@ -43,7 +43,7 @@ public interface EntityActionDao {
      * @param newState new state of action.
      * @throws ActionRecordNotFoundException if there is no records with actionId.
      */
-    void updateActionState(final long actionId, @Nonnull final ActionState newState)
+    void updateActionState(long actionId, @Nonnull ActionState newState)
             throws ActionRecordNotFoundException;
 
     /**
@@ -51,7 +51,7 @@ public interface EntityActionDao {
      *
      * @param entityOid The unique OID of the topology entity for which to remove the records.
      */
-    void deleteActions(final long entityOid);
+    void deleteActions(long entityOid);
 
     /**
      * First it will delete all expired action records, for different status records, it may has different expired
