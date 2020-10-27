@@ -1,5 +1,7 @@
 package com.vmturbo.components.common.setting;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -13,6 +15,7 @@ import javax.annotation.concurrent.Immutable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.AvailableEnumValues;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.Builder;
@@ -32,6 +35,16 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
     private final Class<T> enumClass;
 
     /**
+     * Entity-specific overrides for min value.
+     */
+    private final Map<EntityType, T> entityMins;
+
+    /**
+     * Entity-specific overrides for max value.
+     */
+    private final Map<EntityType, T> entityMaxs;
+
+    /**
      * Constructs enum data type holding specified default value.
      *
      * @param defaultValue default value
@@ -49,7 +62,7 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
      * @param minValue minimum value
      * @param enumClass class of an enum
      */
-    public EnumSettingDataType(
+    EnumSettingDataType(
             @Nullable T defaultValue,
             @Nullable T maxValue,
             @Nullable T minValue,
@@ -57,6 +70,8 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
         super(defaultValue);
         this.maxValue = maxValue;
         this.minValue = minValue;
+        this.entityMins = Collections.emptyMap();
+        this.entityMaxs = Collections.emptyMap();
         this.enumClass = enumClass;
     }
 
@@ -69,7 +84,7 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
      * @param entityDefaults entity-specific overrides for default values
      * @param enumClass class of an enum
      */
-    public EnumSettingDataType(
+    EnumSettingDataType(
             @Nonnull T defaultValue,
             @Nullable T maxValue,
             @Nullable T minValue,
@@ -78,6 +93,35 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
         super(defaultValue, entityDefaults);
         this.maxValue = maxValue;
         this.minValue = minValue;
+        this.entityMins = Collections.emptyMap();
+        this.entityMaxs = Collections.emptyMap();
+        this.enumClass = enumClass;
+    }
+
+    /**
+     * Constructs enum data type holding specified default value.
+     *
+     * @param defaultValue default value
+     * @param maxValue maximum value
+     * @param minValue minimum value
+     * @param entityDefaults entity-specific overrides for default values
+     * @param entityMins entity-specific overrides for min values
+     * @param entityMaxs entity-specific overrides for max values
+     * @param enumClass class of an enum
+     */
+    EnumSettingDataType(
+        @Nonnull T defaultValue,
+        @Nullable T maxValue,
+        @Nullable T minValue,
+        @Nonnull Map<EntityType, T> entityDefaults,
+        @Nonnull Map<EntityType, T> entityMins,
+        @Nonnull Map<EntityType, T> entityMaxs,
+        @Nonnull Class<T> enumClass) {
+        super(defaultValue, entityDefaults);
+        this.maxValue = maxValue;
+        this.minValue = minValue;
+        this.entityMins = entityMins;
+        this.entityMaxs = entityMaxs;
         this.enumClass = enumClass;
     }
 
@@ -86,19 +130,47 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
         final EnumSettingValueType.Builder settingBuilder = EnumSettingValueType.newBuilder();
         final T defaultValue = getDefault();
         if (defaultValue != null) {
-            final List<String> values = Stream.of(getDefault().getDeclaringClass().getEnumConstants())
-                    .filter(t -> ((this.maxValue == null) || (t.ordinal() <= this.maxValue.ordinal())))
-                    .filter(t -> ((this.minValue == null) || (t.ordinal() >= this.minValue.ordinal())))
-                    .map(Enum::name)
-                    .collect(Collectors.toList());
-            settingBuilder.addAllEnumValues(values).setDefault(defaultValue.name());
+            settingBuilder.setDefault(defaultValue.name())
+                .addAllEnumValues(getAvailableEnumValues(this.minValue, this.maxValue));
         }
         final Map<Integer, String> entityDefaults = getEntityDefaults().entrySet()
                 .stream()
                 .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().name()));
+
+        // Construct the map of entity type to available enum values
+        final Map<Integer, AvailableEnumValues> entityEnumValues = new HashMap<>();
+        for (EntityType entityType : this.entityMins.keySet()) {
+            T min = this.entityMins.get(entityType);
+            T max = this.entityMaxs.getOrDefault(entityType, this.maxValue);
+            entityEnumValues.put(entityType.ordinal(), AvailableEnumValues.newBuilder()
+                .addAllEnumValues(getAvailableEnumValues(min, max)).build());
+        }
+        for (EntityType entityType : this.entityMaxs.keySet()) {
+            if (entityEnumValues.containsKey(entityType.ordinal())) {
+                continue;
+            }
+            T min = this.entityMins.getOrDefault(entityType, this.minValue);
+            T max = this.entityMaxs.get(entityType);
+            entityEnumValues.put(entityType.ordinal(), AvailableEnumValues.newBuilder()
+                .addAllEnumValues(getAvailableEnumValues(min, max)).build());
+        }
+
         builder.setEnumSettingValueType(settingBuilder
-                .putAllEntityDefaults(entityDefaults)
-                .build());
+            .putAllEntityDefaults(entityDefaults)
+            .putAllEntityEnumValues(entityEnumValues)
+            .build());
+    }
+
+    private List<String> getAvailableEnumValues(@Nullable T min, @Nullable T max) {
+        if (getDefault() != null) {
+            return Stream.of(getDefault().getDeclaringClass().getEnumConstants())
+                .filter(t -> ((max == null) || (t.ordinal() <= max.ordinal())))
+                .filter(t -> ((min == null) || (t.ordinal() >= min.ordinal())))
+                .map(Enum::name)
+                .collect(Collectors.toList());
+        } else {
+            return Collections.emptyList();
+        }
     }
 
     @Override

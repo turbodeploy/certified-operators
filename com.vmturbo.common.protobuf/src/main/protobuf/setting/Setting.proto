@@ -193,6 +193,15 @@ message EnumSettingValueType {
     // Entity type -specific defaults to overrride the global default for this setting.
     // They are only used if there should be different default values for different entity types
     map<int32, string> entityDefaults = 4;
+
+    // Map of entity type to available enum values
+    // They are only used if there should be different set of values than the default.
+    map<int32, AvailableEnumValues> entity_enum_values = 5;
+}
+
+// Available enum values
+message AvailableEnumValues {
+    repeated string enum_values = 1;
 }
 
 // This is used to indicate that a setting is carrying a list type of oids which are strictly ordered.
