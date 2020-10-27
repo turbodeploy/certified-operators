@@ -162,9 +162,10 @@ public class EntityActionDaoImp implements EntityActionDao {
     }
 
     @Override
-    public void deleteActions(final long entityOid) {
+    public void deleteMoveActions(final long entityOid) {
         dsl.deleteFrom(ENTITY_ACTION)
-            .where(ENTITY_ACTION.ENTITY_ID.eq(entityOid))
+            .where(ENTITY_ACTION.ENTITY_ID.eq(entityOid)
+                .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move)))
             .execute();
     }
 

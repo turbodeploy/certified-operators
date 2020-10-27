@@ -26,6 +26,11 @@ public interface EntityActionDao {
      * Insert a list of new records to action tables, and their status are 'queued' by default.
      * For each of entity id of input entity set, it will create a new record.
      *
+     * <p>Note that implementations of this method are allowed to (and currently do) collapse
+     * different action types into one. I.e. using a different argument for <b>actionType</b>
+     * doesn't guarantee a different value will be written to the database. e.g. MOVE_TOGETHER and
+     * MOVE are collapsed into a single move type.</p>
+     *
      * @param actionId id of action.
      * @param actionType action type
      * @param entityIds a set of entity ids.
@@ -47,11 +52,12 @@ public interface EntityActionDao {
             throws ActionRecordNotFoundException;
 
     /**
-     * Deletes all action records pertaining to a particular entity from the entity_action table.
+     * Deletes all action records effecting the controllable attribute and pertaining to a
+     * particular entity OID from the entity_action table.
      *
      * @param entityOid The unique OID of the topology entity for which to remove the records.
      */
-    void deleteActions(long entityOid);
+    void deleteMoveActions(long entityOid);
 
     /**
      * First it will delete all expired action records, for different status records, it may has different expired

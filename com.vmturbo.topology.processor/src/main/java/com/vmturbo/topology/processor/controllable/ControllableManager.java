@@ -52,7 +52,7 @@ public class ControllableManager {
                 if (entityBuilder.getEntityState() == EntityState.MAINTENANCE) {
                     // Clear action information regarding this entity from ENTITY_ACTION table so
                     // that when entity exits maintenance mode it will be controllable.
-                    entityActionDao.deleteActions(entityOid);
+                    entityActionDao.deleteMoveActions(entityOid);
                     // Entities in maintenance mode are always controllable.
                     continue;
                 }

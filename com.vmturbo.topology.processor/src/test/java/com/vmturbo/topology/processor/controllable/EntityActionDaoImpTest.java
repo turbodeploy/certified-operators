@@ -79,6 +79,8 @@ public class EntityActionDaoImpTest {
 
     private static final long SCALE_ENTITY_ID = 400L;
 
+    private static final long COMMON_ENTITY_ID = 1;
+
     @Test
     public void testInsertQueuedControllable() {
         controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
@@ -91,6 +93,41 @@ public class EntityActionDaoImpTest {
         assertTrue(records.stream()
                 .allMatch(record -> record.getStatus().equals(EntityActionStatus.queued)));
     }
+
+    @Test
+    public void testDeleteMoveActions() {
+        // Populate database.
+        controllableDaoImp.insertAction(MOVE_ACTION_ID, ActionType.MOVE,
+                                        Sets.newHashSet(10L, COMMON_ENTITY_ID, 2L));
+        controllableDaoImp.insertAction(MOVE_ACTION_ID+1, ActionType.MOVE_TOGETHER,
+                                        Sets.newHashSet(20L, COMMON_ENTITY_ID, 3L));
+        controllableDaoImp.insertAction(RESIZE_ACTION_ID, ActionType.RIGHT_SIZE,
+                                        Sets.newHashSet(COMMON_ENTITY_ID));
+        controllableDaoImp.insertAction(SCALE_ACTION_ID, ActionType.SCALE,
+                                        Sets.newHashSet(SCALE_ENTITY_ID));
+
+        // Call method-under-test.
+        controllableDaoImp.deleteMoveActions(1L);
+
+        // Assert post-execution state of the database.
+        final List<EntityActionRecord> records = dsl.selectFrom(ENTITY_ACTION)
+                                        .orderBy(ENTITY_ACTION.ACTION_ID, ENTITY_ACTION.ENTITY_ID)
+                                        .fetch();
+        assertEquals(6, records.size());
+        assertEquals(MOVE_ACTION_ID, (long)records.get(0).getActionId());
+        assertEquals(2L, (long)records.get(0).getEntityId());
+        assertEquals(MOVE_ACTION_ID, (long)records.get(1).getActionId());
+        assertEquals(10L, (long)records.get(1).getEntityId());
+        assertEquals(MOVE_ACTION_ID+1, (long)records.get(2).getActionId());
+        assertEquals(3L, (long)records.get(2).getEntityId());
+        assertEquals(MOVE_ACTION_ID+1, (long)records.get(3).getActionId());
+        assertEquals(20L, (long)records.get(3).getEntityId());
+        assertEquals(RESIZE_ACTION_ID, (long)records.get(4).getActionId());
+        assertEquals(COMMON_ENTITY_ID, (long)records.get(4).getEntityId());
+        assertEquals(SCALE_ACTION_ID, (long)records.get(5).getActionId());
+        assertEquals(SCALE_ENTITY_ID, (long)records.get(5).getEntityId());
+    }
+
 
     @Test
     public void testUpdateInProgressControllable() throws ActionRecordNotFoundException {
