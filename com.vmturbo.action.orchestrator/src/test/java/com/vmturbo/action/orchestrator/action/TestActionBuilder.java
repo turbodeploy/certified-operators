@@ -6,18 +6,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
-import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfoOrBuilder;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
-import com.vmturbo.common.protobuf.action.ActionDTO.Provision.Builder;
-import com.vmturbo.common.protobuf.action.ActionDTO.ProvisionOrBuilder;
 
 public class TestActionBuilder {
 
@@ -29,9 +25,19 @@ public class TestActionBuilder {
                                   int sourceType,
                                   long destinationId,
                                   int destinationType) {
+        return buildMoveAction(targetId, sourceId, sourceType, destinationId, destinationType, null);
+    }
+
+    @Nonnull
+    public Action buildMoveAction(long targetId,
+                                  long sourceId,
+                                  int sourceType,
+                                  long destinationId,
+                                  int destinationType,
+                                  @Nullable String scalingGroupId) {
         return Action.newBuilder().setId(actionId.getAndIncrement()).setDeprecatedImportance(1)
             .setExplanation(Explanation.newBuilder().build())
-            .setInfo(makeMoveInfo(targetId, sourceId, sourceType, destinationId, destinationType))
+            .setInfo(makeMoveInfo(targetId, sourceId, sourceType, destinationId, destinationType, scalingGroupId))
             .setSupportingLevel(SupportLevel.SUPPORTED)
             .build();
     }
@@ -42,8 +48,18 @@ public class TestActionBuilder {
             int sourceType,
             long destinationId,
             int destinationType) {
+        return makeMoveInfo(targetId, sourceId, sourceType, destinationId, destinationType, null);
+    }
 
-        return ActionInfo.newBuilder().setMove(Move.newBuilder()
+    public static ActionInfo.Builder makeMoveInfo(
+            long targetId,
+            long sourceId,
+            int sourceType,
+            long destinationId,
+            int destinationType,
+            @Nullable String scalingGroupId) {
+
+        Move.Builder moveBuilder = Move.newBuilder()
                 .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId))
                 .addChanges(ChangeProvider.newBuilder()
                         .setSource(ActionEntity.newBuilder()
@@ -54,8 +70,11 @@ public class TestActionBuilder {
                                 .setId(destinationId)
                                 .setType(destinationType)
                                 .build())
-                        .build())
-                .build());
+                        .build());
+        if (scalingGroupId != null) {
+            moveBuilder.setScalingGroupId(scalingGroupId);
+        }
+        return ActionInfo.newBuilder().setMove(moveBuilder.build());
     }
 
     @Nonnull
@@ -71,7 +90,7 @@ public class TestActionBuilder {
     public static ActionInfo.Builder makeProvisionInfo(long entityToCloneId,
                                                        @Nullable Long provisionedSeller) {
 
-        Builder provisionOrBuilder = Provision.newBuilder()
+        Provision.Builder provisionOrBuilder = Provision.newBuilder()
                 .setEntityToClone(ActionOrchestratorTestUtils.createActionEntity(entityToCloneId));
         if (provisionedSeller != null) {
             provisionOrBuilder.setProvisionedSeller(provisionedSeller);

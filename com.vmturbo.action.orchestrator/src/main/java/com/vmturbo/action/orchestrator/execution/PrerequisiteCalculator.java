@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
-
+import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStore;
@@ -71,15 +71,22 @@ class PrerequisiteCalculator {
             action, target, snapshot, probeCategory);
         final Set<Prerequisite> coreQuotaPrerequisites = calculateQuotaPrerequisite(
             action, target, snapshot, probeCategory, actionConstraintStoreFactory.getCoreQuotaStore());
+        final Set<Prerequisite> azureScaleSetPrerequisites = calculateAzureScaleSetPrerequisite(
+                action, target, snapshot);
 
-        if (generalPrerequisites.isEmpty() && coreQuotaPrerequisites.isEmpty()) {
+        if (generalPrerequisites.isEmpty()
+                && coreQuotaPrerequisites.isEmpty()
+                && azureScaleSetPrerequisites.isEmpty()) {
             return Collections.emptySet();
         }
 
         final Set<Prerequisite> prerequisites =
-            new HashSet<>(generalPrerequisites.size() + coreQuotaPrerequisites.size());
+            new HashSet<>(generalPrerequisites.size()
+                    + coreQuotaPrerequisites.size()
+                    + azureScaleSetPrerequisites.size());
         prerequisites.addAll(generalPrerequisites);
         prerequisites.addAll(coreQuotaPrerequisites);
+        prerequisites.addAll(azureScaleSetPrerequisites);
         return prerequisites;
     }
 
@@ -103,10 +110,10 @@ class PrerequisiteCalculator {
 
     // A list of single calculators for different type of pre-requisite.
     private static List<GeneralPrerequisiteCalculator> generalPrerequisiteCalculators = ImmutableList.of(
-        PrerequisiteCalculator::calculateEnaPrerequisite,
-        PrerequisiteCalculator::calculateNVMePrerequisite,
-        PrerequisiteCalculator::calculateArchitecturePrerequisite,
-        PrerequisiteCalculator::calculateVirtualizationTypePrerequisite,
+            PrerequisiteCalculator::calculateEnaPrerequisite,
+            PrerequisiteCalculator::calculateNVMePrerequisite,
+            PrerequisiteCalculator::calculateArchitecturePrerequisite,
+            PrerequisiteCalculator::calculateVirtualizationTypePrerequisite,
             PrerequisiteCalculator::calculateLockPrerequisite
     );
 
@@ -129,9 +136,9 @@ class PrerequisiteCalculator {
         // action is a Move action and the target of the action has virtual machine type specific info.
         // If not, there's no need to calculate pre-requisites for this action because
         // no pre-requisites will be generated for such an action.
-        if (probeCategory != ProbeCategory.CLOUD_MANAGEMENT ||
-            action.getInfo().getActionTypeCase() != ActionTypeCase.MOVE ||
-            !target.getTypeSpecificInfo().hasVirtualMachine()) {
+        if (probeCategory != ProbeCategory.CLOUD_MANAGEMENT
+                || action.getInfo().getActionTypeCase() != ActionTypeCase.MOVE
+                || !target.getTypeSpecificInfo().hasVirtualMachine()) {
             return Collections.emptySet();
         }
 
@@ -471,5 +478,21 @@ class PrerequisiteCalculator {
         return Optional.of(Prerequisite.newBuilder()
             .setPrerequisiteType(PrerequisiteType.CORE_QUOTAS)
             .setRegionId(regionId).setQuotaName(quotaName).build());
+    }
+
+    private static Set<Prerequisite> calculateAzureScaleSetPrerequisite(
+            @Nonnull final Action action,
+            @Nonnull final ActionPartialEntity target,
+            @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
+        // We don't support Action execution if the target entity belongs to an Azure Scale Set.
+        // I'm using the Resource Group to know if it's Azure.
+        Optional<Long> resourceGroup = snapshot.getResourceGroupForEntity(target.getOid());
+        if (!resourceGroup.isPresent() || !action.hasInfo() || !action.getInfo().hasMove()
+                || !action.getInfo().getMove().hasScalingGroupId()) {
+            return Sets.newHashSet();
+        }
+        return Collections.singleton(Prerequisite.newBuilder()
+                .setPrerequisiteType(PrerequisiteType.SCALE_SET)
+                .build());
     }
 }

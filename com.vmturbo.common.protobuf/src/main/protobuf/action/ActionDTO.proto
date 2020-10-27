@@ -642,9 +642,10 @@ message Action {
         VIRTUALIZATION_TYPE = 4;
         // Azure execution pre-requisites
         CORE_QUOTAS = 5;
-
         // Azure read-only locks preventing writes.
         LOCKS = 6;
+        // Azure Scale Set preventing execution.
+        SCALE_SET = 7;
     }
 
     // Defines if actions is disruptive.

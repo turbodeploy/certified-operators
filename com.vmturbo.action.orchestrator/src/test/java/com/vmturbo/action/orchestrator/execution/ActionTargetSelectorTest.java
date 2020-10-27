@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.Optional;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
@@ -90,6 +89,8 @@ public class ActionTargetSelectorTest {
     @Before
     public void setup() {
         Mockito.when(snapshot.getOwnerAccountOfEntity(Mockito.anyLong()))
+                .thenReturn(Optional.empty());
+        Mockito.when(snapshot.getResourceGroupForEntity(Mockito.anyLong()))
                 .thenReturn(Optional.empty());
         Mockito.when(probeCapabilityCache.getCachedCapabilities()).thenReturn(cachedCapabilities);
         Mockito.when(entitySettingsCache.emptySnapshot())
@@ -450,5 +451,44 @@ public class ActionTargetSelectorTest {
                 ImmutableMap.of(targetActionPartialEntity.getOid(), targetActionPartialEntity,
                         sourceActionPartialEntity.getOid(), sourceActionPartialEntity), snapshot);
         Assert.assertEquals(targetId2, (long)targetInfo.targetId().get());
+    }
+
+    @Test
+    public void testTargetInfoScaleSetPrerequisite() throws UnsupportedActionException {
+        final ActionDTO.Action action = testActionBuilder.buildMoveAction(1, 2L, 1,
+                3L, 1, "ScaleGroupId");
+        final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
+        final long target1Id = 1;
+        final long probe1Id = 11;
+        final long target2Id = 2;
+        final long probe2Id = 22;
+        final ActionPartialEntity actionPartialEntity = ActionPartialEntity.newBuilder()
+                .setOid(actionEntity.getId())
+                .addAllDiscoveringTargetIds(Arrays.asList(target1Id, target2Id))
+                .build();
+
+        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe1Id))
+                .thenReturn(MergedActionCapability.createSupported());
+        // Target 1 has a lower priority.
+        Mockito.when(cachedCapabilities.getProbeCategory(probe1Id))
+                .thenReturn(Optional.of(ProbeCategory.CLOUD_MANAGEMENT));
+        Mockito.when(cachedCapabilities.getMergedActionCapability(action, actionEntity, probe2Id))
+                .thenReturn(MergedActionCapability.createSupported());
+        // Target 2 has a higher priority.
+        Mockito.when(cachedCapabilities.getProbeCategory(probe2Id))
+                .thenReturn(Optional.of(ProbeCategory.CLOUD_NATIVE));
+        Mockito.when(cachedCapabilities.getProbeFromTarget(target1Id))
+                .thenReturn(Optional.of(probe1Id));
+        Mockito.when(cachedCapabilities.getProbeFromTarget(target2Id))
+                .thenReturn(Optional.of(probe2Id));
+        Mockito.when(snapshot.getResourceGroupForEntity(target1Id))
+                .thenReturn(Optional.of(10L));
+
+        final ActionTargetInfo targetInfo = targetInfoResolver.getTargetInfoForAction(action,
+                Collections.singletonMap(actionPartialEntity.getOid(), actionPartialEntity),
+                snapshot);
+        Assert.assertEquals(1, targetInfo.prerequisites().size());
+        Assert.assertEquals(Action.PrerequisiteType.SCALE_SET,
+                targetInfo.prerequisites().iterator().next().getPrerequisiteType());
     }
 }

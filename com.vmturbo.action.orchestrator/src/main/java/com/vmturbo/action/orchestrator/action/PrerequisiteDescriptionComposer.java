@@ -9,11 +9,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
@@ -48,13 +47,16 @@ public class PrerequisiteDescriptionComposer {
         "Can not give a proper pre-requisite description as action type is not defined";
     private static final String LOCK_PREREQUISITE_FORMAT =
             "To execute action on {0}, please remove these read-only locks: {1}";
+    private static final String SCALESET_PREREQUISITE_FORMAT =
+            "To execute action on {0}, navigate to the Azure portal and adjust the scale set instance size";
 
     // A mapping from PrerequisiteType to the display string.
     private static final Map<PrerequisiteType, String> prerequisiteTypeToString = ImmutableMap.of(
-        PrerequisiteType.ENA, ENA_PREREQUISITE_FORMAT,
-        PrerequisiteType.NVME, NVME_PREREQUISITE_FORMAT,
-        PrerequisiteType.ARCHITECTURE, ARCHITECTURE_PREREQUISITE_FORMAT,
-        PrerequisiteType.VIRTUALIZATION_TYPE, VIRTUALIZATION_TYPE_PREREQUISITE_FORMAT
+            PrerequisiteType.ENA, ENA_PREREQUISITE_FORMAT,
+            PrerequisiteType.NVME, NVME_PREREQUISITE_FORMAT,
+            PrerequisiteType.ARCHITECTURE, ARCHITECTURE_PREREQUISITE_FORMAT,
+            PrerequisiteType.VIRTUALIZATION_TYPE, VIRTUALIZATION_TYPE_PREREQUISITE_FORMAT,
+            PrerequisiteType.SCALE_SET, SCALESET_PREREQUISITE_FORMAT
     );
 
     /**
