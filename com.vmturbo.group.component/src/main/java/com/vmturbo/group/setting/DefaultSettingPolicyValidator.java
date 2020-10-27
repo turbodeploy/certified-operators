@@ -208,7 +208,7 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
                         errors.add("The schedule " + schedule.getDisplayName() + " that has been "
                             + "associated to policy and cannot be parsed.");
                     }
-                    if (!schedule.hasNextOccurrence() && !schedule.hasActive()) {
+                    if (!schedule.hasNextOccurrence()) {
                             errors.add("The schedule " + schedule.getDisplayName() + " that has been "
                             + "associated to policy does not have any future occurrences and "
                             + "cannot be used.");
@@ -216,6 +216,7 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
                 }
             }
         }
+
         if (!errors.isEmpty()) {
             throw new InvalidItemException("Invalid Policy Setting: " + settingPolicyInfo.getName()
                     + System.lineSeparator() + StringUtils.join(errors, System.lineSeparator()));

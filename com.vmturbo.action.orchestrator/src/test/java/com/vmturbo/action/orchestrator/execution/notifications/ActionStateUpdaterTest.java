@@ -182,29 +182,6 @@ public class ActionStateUpdaterTest {
         verify(notificationSender).notifyActionProgress(progress);
     }
 
-    /**
-     * Test if action state update (i.g. {@link ActionProgress} hasn't description (or has
-     * blank description) then actionStateUpdatesSender sends messages with default description.
-     *
-     * @throws Exception if something goes wrong
-     */
-    @Test
-    public void testStateUpdateDescription() throws Exception {
-        final ActionProgress progress = ActionProgress.newBuilder()
-                .setActionId(externalApprovalAction.getId())
-                .setProgressPercentage(33)
-                .build();
-        actionStateUpdater.onActionProgress(progress);
-        final String defaultDescription = String.format("Action with %s OID %s",
-                externalApprovalAction.getRecommendationOid(), "in progress");
-        verify(actionStateUpdatesSender).sendMessage(ActionResponse.newBuilder()
-                .setProgress(progress.getProgressPercentage())
-                .setResponseDescription(defaultDescription)
-                .setActionOid(externalApprovalAction.getRecommendationOid())
-                .setActionResponseState(ActionResponseState.IN_PROGRESS)
-                .build());
-    }
-
     @Test
     public void testActionProgressNotFound() throws Exception {
         ActionProgress progress = ActionProgress.newBuilder()

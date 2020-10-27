@@ -30,7 +30,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto;
-import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Active;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
@@ -258,28 +257,6 @@ public class SettingPolicyValidatorTest {
             return;
         }
         Assert.fail("Test should not reach here.");
-    }
-
-    /**
-     * Verifies that validation passes for a policy with an active schedule but without next
-     * occurrences.
-     */
-    @Test
-    public void testValidatePolicyWithActiveSchedule() {
-        when(scheduleStore.getSchedules(context, Collections.singleton(SCHEDULE_OID))).thenReturn(
-                Collections.singletonList((ScheduleProto.Schedule.newBuilder()
-                        .setId(SCHEDULE_OID)
-                        .setDisplayName("Test Schedule")
-                        .setOneTime(ScheduleProto.Schedule.OneTime.getDefaultInstance())
-                        .setActive(Active.newBuilder().setRemainingActiveTimeMs(100).build())
-                        .build())));
-        SettingPolicyInfo settingPolicyInfo = setupScheduledMovePolicy();
-
-        try {
-            validator.validateSettingPolicy(context, settingPolicyInfo, Type.USER);
-        } catch (InvalidItemException e) {
-            Assert.fail("Test should not reach here.");
-        }
     }
 
     /**
