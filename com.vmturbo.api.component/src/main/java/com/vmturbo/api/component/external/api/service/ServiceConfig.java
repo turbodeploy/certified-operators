@@ -581,7 +581,8 @@ public class ServiceConfig {
             statsQueryExecutor(),
             planEntityStatsFetcher(),
             paginatedStatsExecutor(),
-            Duration.ofSeconds(liveStatsRetrievalWindowSeconds));
+            Duration.ofSeconds(liveStatsRetrievalWindowSeconds),
+            communicationConfig.groupExpander());
         groupsService().setStatsService(statsService);
         return statsService;
     }

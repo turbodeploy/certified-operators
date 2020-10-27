@@ -31,6 +31,7 @@ import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.util.stats.PaginatedStatsExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
@@ -50,7 +51,6 @@ import com.vmturbo.api.utils.EncodingUtil;
 import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -58,7 +58,6 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -72,6 +71,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -106,6 +106,8 @@ public class StatsService implements IStatsService {
     private final UuidMapper uuidMapper;
 
     private final StatsQueryExecutor statsQueryExecutor;
+
+    private final GroupExpander groupExpander;
 
     /**
      * For fetching plan entities and their related stats.
@@ -162,7 +164,8 @@ public class StatsService implements IStatsService {
                  @Nonnull final StatsQueryExecutor statsQueryExecutor,
                  @Nonnull final PlanEntityStatsFetcher planEntityStatsFetcher,
                  @Nonnull final PaginatedStatsExecutor paginatedStatsExecutor,
-                 @Nonnull final Duration liveStatsRetrievalWindow) {
+                 @Nonnull final Duration liveStatsRetrievalWindow,
+                 @Nonnull final GroupExpander groupExpander) {
         this.statsServiceRpc = Objects.requireNonNull(statsServiceRpc);
         this.planRpcService = planRpcService;
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
@@ -174,6 +177,7 @@ public class StatsService implements IStatsService {
         this.planEntityStatsFetcher = Objects.requireNonNull(planEntityStatsFetcher);
         this.paginatedStatsExecutor = Objects.requireNonNull(paginatedStatsExecutor);
         this.liveStatsRetrievalWindow = Objects.requireNonNull(liveStatsRetrievalWindow);
+        this.groupExpander = Objects.requireNonNull(groupExpander);
     }
 
     /**
@@ -404,8 +408,8 @@ public class StatsService implements IStatsService {
                     if (GroupProtoUtil.isCluster(grouping)) {
                         clusters.put(grouping.getId(), grouping.getDefinition());
                     } else if (GroupProtoUtil.isGroupOfClusters(grouping)) {
-                        idsOfMembers.addAll(GroupProtoUtil.getAllStaticMembers(
-                                                grouping.getDefinition()));
+                        GroupAndMembers groupAndMembers = groupExpander.getMembersForGroup(grouping);
+                        idsOfMembers.addAll(groupAndMembers.members());
                     } else {
                         throw new IllegalArgumentException(
                             "The group with id " + grouping.getId()

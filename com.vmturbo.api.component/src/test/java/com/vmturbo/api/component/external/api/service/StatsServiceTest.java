@@ -113,6 +113,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.group.api.GroupAndMembers;
+import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -218,7 +220,7 @@ public class StatsServiceTest {
         statsService = spy(new StatsService(statsServiceRpc, planRpcService, statsMapper,
             groupService,
             magicScopeGateway, userSessionContext, uuidMapper, statsQueryExecutor, planEntityStatsFetcher,
-            paginatedStatsExecutor, toleranceTime));
+            paginatedStatsExecutor, toleranceTime, groupExpander));
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(apiId1.uuid()).thenReturn(oid1);
         when(apiId1.oid()).thenReturn(Long.parseLong(oid1));
@@ -538,6 +540,17 @@ public class StatsServiceTest {
         final List<Grouping> secondGroupResponse = ImmutableList.of(cluster2, cluster3);
         when(groupServiceSpy.getGroups(secondGroupRequest)).thenReturn(secondGroupResponse);
 
+        List<Long> membersList = new ArrayList<Long>() {{
+            add(clusterId2);
+            add(clusterId3);
+        }};
+        GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
+                .group(secondGroupResponse.get(0))
+                .members(membersList)
+                .entities(membersList)
+                .build();
+
+        when(groupExpander.getMembersForGroup(any())).thenReturn(groupAndMembers);
         // expected input / output to the internal history gRPC call
         final OrderBy orderBy = OrderBy.newBuilder()
                                     .setEntityStats(EntityStatsOrderBy.newBuilder()
