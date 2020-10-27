@@ -42,6 +42,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingVal
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -776,6 +777,57 @@ public class CloudMigrationPlanHelperTest {
         assertTrue(commBoughtGrouping.isPresent());
         assertEquals(commBoughtGrouping.get().getMovable(), expectedValue);
         assertEquals(commBoughtGrouping.get().getScalable(), expectedValue);
+    }
+
+    /**
+     * Test that we create a numDisk commodity for On Prem or AWS VMs that migrate to Azure.
+     *
+     * @throws PipelineStageException should not happen in this test and indicates failure
+     */
+    @Test
+    public void testAddNumVMsCommodity() throws PipelineStageException {
+        assertNotNull(vm1Aws);
+        assertNotNull(vm1OnPrem);
+        assertNotNull(allocationTopologyInfo);
+
+        TopologyEntity.Builder awsVm = TopologyEntity.newBuilder(vm1Aws);
+        TopologyEntity.Builder onPremVm = TopologyEntity.newBuilder(vm1OnPrem);
+
+        final TopologyGraph<TopologyEntity> awsGraph = TopologyEntityUtils.topologyGraphOf(awsVm);
+        final TopologyGraph<TopologyEntity> onPremGraph = TopologyEntityUtils.topologyGraphOf(onPremVm);
+
+        TopologyMigration migration = TopologyMigration.getDefaultInstance();
+
+        TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        when(context.getTopologyInfo()).thenReturn(consumptionTopologyInfo);
+
+        // AWS to Azure
+        when(context.getSourceEntities()).thenReturn(Collections.singleton(awsVm.getOid()));
+        cloudMigrationPlanHelper.prepareEntities(context, awsGraph, migration, Collections.EMPTY_MAP,
+                false);
+        assertNumDiskCommodity(awsGraph, awsVm.getOid(), EntityType.COMPUTE_TIER_VALUE, 1);
+
+        // OnPrem to Azure
+        when(context.getSourceEntities()).thenReturn(Collections.singleton(onPremVm.getOid()));
+        cloudMigrationPlanHelper.prepareEntities(context, onPremGraph, migration, Collections.EMPTY_MAP,
+                false);
+        assertNumDiskCommodity(onPremGraph, onPremVm.getOid(), EntityType.PHYSICAL_MACHINE_VALUE, 4);
+    }
+
+    private void assertNumDiskCommodity(@Nonnull final TopologyGraph<TopologyEntity> graph, long oid,
+                                        int providerType, double expectedNumDiskUsed) {
+        TopologyEntity resultVm = graph.getEntity(oid).orElse(null);
+        assertNotNull(resultVm);
+        CommoditiesBoughtFromProvider commBoughtFromPr = resultVm.getTopologyEntityDtoBuilder()
+                .getCommoditiesBoughtFromProvidersList().stream()
+                .filter(pr -> providerType == pr.getProviderEntityType())
+                .findFirst().orElse(null);
+        assertNotNull(commBoughtFromPr);
+        CommodityBoughtDTO numDiskComm = commBoughtFromPr.getCommodityBoughtList().stream()
+                .filter(comm -> comm.getCommodityType().getType() == CommodityType.NUM_DISK_VALUE)
+                .findFirst().orElse(null);
+        assertNotNull(numDiskComm);
+        assertEquals(expectedNumDiskUsed, numDiskComm.getUsed(), 0);
     }
 }
 

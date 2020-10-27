@@ -240,7 +240,8 @@
     "VcTgtIdAndInternalName": "fef5e79d1437d322b883a67649e2242ceff845ed",
     "targetAddress": "vsphere-dc17.eng.vmturbo.com",
     "instanceUuid": "501d08ee-7831-2a4b-b35c-9100d0e468dc",
-    "vmHardwareCompatibilityVersion": "vmx-11"
+    "vmHardwareCompatibilityVersion": "vmx-11",
+    "numVirtualDisks": "4"
   },
   "analysisSettings": {
     "isAvailableAsProvider": true,

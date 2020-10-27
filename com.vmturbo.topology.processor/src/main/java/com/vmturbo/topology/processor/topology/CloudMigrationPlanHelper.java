@@ -499,13 +499,14 @@ public class CloudMigrationPlanHelper {
     public static boolean shouldBuyNumDisk(
             @Nonnull final TopologyEntityDTO.Builder vmBuilder,
             @Nonnull final Map<String, String> entityPropertyMap) {
-        if (!entityPropertyMap.containsKey(StringConstants.NUM_VIRTUAL_DISKS)) {
+        Set<CommoditiesBoughtFromProvider> attachedVolumes = vmBuilder.getCommoditiesBoughtFromProvidersList().stream()
+                .filter(p -> p.getProviderEntityType() == EntityType.VIRTUAL_VOLUME_VALUE).collect(Collectors.toSet());
+        if (!entityPropertyMap.containsKey(StringConstants.NUM_VIRTUAL_DISKS) && attachedVolumes.isEmpty()) {
             return false;
         }
         final boolean buysNumDisk = vmBuilder.getCommoditiesBoughtFromProvidersList().stream()
                 .flatMap(commBought -> commBought.getCommodityBoughtList().stream())
-                .anyMatch(boughtCommodity ->
-                        CommodityDTO.CommodityType.NUM_DISK.equals(boughtCommodity.getCommodityType()));
+                .anyMatch(boughtComm -> CommodityType.NUM_DISK_VALUE == boughtComm.getCommodityType().getType());
         return buysNumDisk ? false : true;
     }
 
@@ -521,9 +522,12 @@ public class CloudMigrationPlanHelper {
         final Map<String, String> entityPropertyMap = entityBuilder.getEntityPropertyMapMap();
         if (shouldBuyNumDisk(entityBuilder, entityPropertyMap)) {
             try {
-                addNumDiskBoughtCommodity(
-                        entityBuilder,
-                        Double.valueOf(entityPropertyMap.get(StringConstants.NUM_VIRTUAL_DISKS)));
+                Set<CommoditiesBoughtFromProvider> volumes = entityBuilder.getCommoditiesBoughtFromProvidersList()
+                        .stream().filter(p -> p.getProviderEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                        .collect(Collectors.toSet());
+                double numDiskToBuy = volumes.size() > 0 ? volumes.size()
+                        : Double.valueOf(entityPropertyMap.get(StringConstants.NUM_VIRTUAL_DISKS));
+                addNumDiskBoughtCommodity(entityBuilder, numDiskToBuy);
             } catch (NumberFormatException e) {
                 logger.error("Error converting numVirtualDisks from entityPropertyMap in "
                         + "cloud migration plan. Placement of {} ({}) may be disk capacity unaware.",
