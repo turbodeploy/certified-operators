@@ -283,7 +283,7 @@ public class CostDTOCreator {
                                 createCostTuple(accountPricingData.getAccountPricingDataOid(), spec.getType(), price, region.getOid(),
                                         dependentCostTuples));
                     } else {
-                        logger.warn("Storage Options is empty for {}, {}", tier.getDisplayName(), region.getDisplayName());
+                        logger.debug("Storage Options are empty for {}, {}", tier.getDisplayName(), region.getDisplayName());
                     }
 
                 }
