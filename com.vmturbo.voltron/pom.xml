@@ -11,18 +11,7 @@
     </parent>
 
     <artifactId>voltron</artifactId>
-    <build>
-        <plugins>
-            <plugin>
-               <groupId>com.github.spotbugs</groupId>
-               <artifactId>spotbugs-maven-plugin</artifactId>
-               <version>${spotbugs.version}</version>
-               <configuration>
-                   <maxAllowedViolations>1</maxAllowedViolations>
-               </configuration>
-            </plugin>
-        </plugins>
-    </build>
+
     <dependencies>
         <dependency>
             <groupId>com.vmturbo</groupId>

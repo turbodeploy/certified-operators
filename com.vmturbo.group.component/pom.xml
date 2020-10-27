@@ -375,14 +375,6 @@
                 <groupId>org.xolstice.maven.plugins</groupId>
                 <artifactId>protobuf-maven-plugin</artifactId>
             </plugin>
-            <plugin>
-               <groupId>com.github.spotbugs</groupId>
-               <artifactId>spotbugs-maven-plugin</artifactId>
-               <version>${spotbugs.version}</version>
-               <configuration>
-                   <maxAllowedViolations>6</maxAllowedViolations>
-               </configuration>
-            </plugin>
         </plugins>
     </build>
 </project>

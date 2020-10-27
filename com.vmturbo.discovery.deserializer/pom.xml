@@ -26,18 +26,6 @@
         <reactor.version>3.0.3.RELEASE</reactor.version>
         <ical4j.version>3.0.10</ical4j.version>
     </properties>
-    <build>
-        <plugins>
-            <plugin>
-               <groupId>com.github.spotbugs</groupId>
-               <artifactId>spotbugs-maven-plugin</artifactId>
-               <version>${spotbugs.version}</version>
-               <configuration>
-                   <maxAllowedViolations>1</maxAllowedViolations>
-               </configuration>
-            </plugin>
-        </plugins>
-    </build>
     <profiles>
         <profile>
             <id>release</id>
