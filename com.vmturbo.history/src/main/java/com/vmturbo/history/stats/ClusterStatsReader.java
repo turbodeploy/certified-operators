@@ -300,17 +300,28 @@ public class ClusterStatsReader {
         long now = System.currentTimeMillis();
         final StatsFilter filter = request.hasStats() ? request.getStats()
                                                       : StatsFilter.getDefaultInstance();
-        final Optional<Long> startDate = filter != null && filter.hasStartDate()
-                                                ? Optional.of(filter.getStartDate()) : Optional.empty();
-        final Optional<Long> endDate = filter != null && filter.hasEndDate()
-                                                ? Optional.of(filter.getEndDate()) : Optional.empty();
-        if ((endDate.isPresent() && !startDate.isPresent())
-                || startDate.orElse(now) > Math.min(now, endDate.orElse(now))) {
+        // flag used to tell whether the start date is the future, in which case post processing
+        // will be done to remove current and historical stats while only keeping projected
+        boolean startDateInFuture = false;
+        final Optional<Long> startDate;
+        if (filter.hasStartDate()) {
+            if (filter.getStartDate() > now) {
+                // if start date is in the future, set it to now
+                startDate = Optional.of(now);
+                startDateInFuture = true;
+            } else {
+                startDate = Optional.of(filter.getStartDate());
+            }
+        } else {
+            startDate = Optional.empty();
+        }
+        final Optional<Long> endDate = filter.hasEndDate() ? Optional.of(filter.getEndDate()) : Optional.empty();
+        if ((endDate.isPresent() && !startDate.isPresent()) || startDate.orElse(now) > endDate.orElse(now)) {
             throw new IllegalArgumentException("Invalid date range for retrieving cluster statistics.");
         }
 
         // extract cluster ids
-        final Set<Long> clusterIds = request.getClusterIdsList().stream().collect(Collectors.toSet());
+        final Set<Long> clusterIds = new HashSet<>(request.getClusterIdsList());
 
         // extract the pagination parameters
         final PaginationParameters paginationParameters;
@@ -361,6 +372,11 @@ public class ClusterStatsReader {
         // add projections
         if (includeProjectedStats) {
             statsPerCluster.values().forEach(s -> s.addProjectedStats(endDate.get()));
+        }
+
+        // remove current and historical and only keep projected, if start date is in the future
+        if (startDateInFuture) {
+            statsPerCluster.values().forEach(SingleClusterStats::removeNonProjectedStats);
         }
 
         // paginate
@@ -797,6 +813,17 @@ public class ClusterStatsReader {
                 statSnapshotBuilder.addAllStatRecords(projectedStatRecords);
                 projectedStatSnapshots.addFirst(statSnapshotBuilder.build());
             }
+        }
+
+        /**
+         * Clear all stats (current + historical) which are not projected.
+         */
+        public void removeNonProjectedStats() {
+            mostRecentRecordForDailyStats = null;
+            mostRecentRecordForNonDailyStats = null;
+            allStats.clear();
+            projectedStatSnapshots.removeIf(statSnapshot ->
+                    statSnapshot.getStatEpoch() != StatEpoch.PROJECTED);
         }
 
         /**

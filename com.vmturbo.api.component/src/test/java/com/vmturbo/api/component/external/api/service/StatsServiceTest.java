@@ -2,6 +2,8 @@ package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getStatsByUuidsQuery;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
@@ -220,7 +222,7 @@ public class StatsServiceTest {
         statsService = spy(new StatsService(statsServiceRpc, planRpcService, statsMapper,
             groupService,
             magicScopeGateway, userSessionContext, uuidMapper, statsQueryExecutor, planEntityStatsFetcher,
-            paginatedStatsExecutor, toleranceTime, groupExpander));
+            paginatedStatsExecutor, toleranceTime, groupExpander, Clock.systemUTC()));
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(apiId1.uuid()).thenReturn(oid1);
         when(apiId1.oid()).thenReturn(Long.parseLong(oid1));
@@ -390,6 +392,7 @@ public class StatsServiceTest {
         final EntityStatsPaginationRequest paginationRequest =
                 new EntityStatsPaginationRequest(cursor, limit, true, statRequested);
         final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
+        periodApiInputDTO.setStartDate("+1d");
         final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
         statApiInputDTO.setName(StringConstants.CPU_HEADROOM);
         periodApiInputDTO.setStatistics(Collections.singletonList(statApiInputDTO));
@@ -453,6 +456,11 @@ public class StatsServiceTest {
         // call service
         final EntityStatsPaginationResponse response =
                 statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
+
+        // verify that start date and end date are sanitized. endDate should be set to same as
+        // startDate since startDate is in future and endDate not provided
+        assertThat(inputDto.getPeriod().getEndDate(), not(nullValue()));
+        assertThat(inputDto.getPeriod().getEndDate(), is(inputDto.getPeriod().getStartDate()));
 
         // mapping from external input to internal input happened
         verify(statsMapper).newPeriodStatsFilter(periodApiInputDTO, true);

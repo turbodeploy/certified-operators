@@ -14,16 +14,18 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.TOTAL_HEADROOM;
 import static com.vmturbo.common.protobuf.utils.StringConstants.USED;
 import static com.vmturbo.common.protobuf.utils.StringConstants.VALUE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.VM_GROWTH;
+import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByMonth.CLUSTER_STATS_BY_MONTH;
-
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
+import java.sql.Connection;
 import java.sql.Date;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,7 +35,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -43,6 +47,7 @@ import com.google.common.collect.Sets;
 import org.hamcrest.Matchers;
 import org.jooq.Record;
 import org.jooq.Table;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -145,6 +150,17 @@ public class ClusterStatsReaderTest {
         historydbIO.init(false, null, testDbName, Optional.empty());
     }
 
+    /**
+     * Performed after each unit test, to clean up data to avoid conflict with other tests.
+     *
+     * @throws SQLException db error
+     * @throws VmtDbException db error
+     */
+    @After
+    public void after() throws SQLException, VmtDbException {
+        // clear data in cluster tables before each test so it doesn't affect each other
+        clearClusterTableStats();
+    }
 
     /**
      * Tear down our database when tests are complete.
@@ -324,7 +340,7 @@ public class ClusterStatsReaderTest {
     }
 
     private final long nowMillis = System.currentTimeMillis();
-    private final long todayMillis = nowMillis / ONE_DAY_IN_MILLIS;
+    private final long todayMillis = (nowMillis / ONE_DAY_IN_MILLIS) * ONE_DAY_IN_MILLIS;
     private final long yesterdayMillis = todayMillis - ONE_DAY_IN_MILLIS;
     private final long tomorrowMillis = todayMillis + ONE_DAY_IN_MILLIS;
 
@@ -354,11 +370,15 @@ public class ClusterStatsReaderTest {
         try (SimpleBulkLoaderFactory loaders = new SimpleBulkLoaderFactory(historydbIO, config,
                 Executors.newSingleThreadExecutor())) {
             insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, yesterday, CLUSTER_ID_3,
-                              CPU_HEADROOM, NUM_VMS, 30.0);
+                    CPU_HEADROOM, USED, 20.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, yesterday, CLUSTER_ID_3,
+                    CPU_HEADROOM, CAPACITY, 30.0);
             insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, today, CLUSTER_ID_3,
-                              CPU_HEADROOM, NUM_VMS, 30.0);
+                    CPU_HEADROOM, USED, 20.0);
             insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, today, CLUSTER_ID_3,
-                              VM_GROWTH, VM_GROWTH, -20.0);
+                    CPU_HEADROOM, CAPACITY, 30.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, today, CLUSTER_ID_3,
+                    VM_GROWTH, VM_GROWTH, 300.0);
         }
         return true;
     }
@@ -376,6 +396,19 @@ public class ClusterStatsReaderTest {
     }
 
     /**
+     * Clear all cluster stats tables.
+     *
+     * @throws SQLException sql error
+     * @throws VmtDbException db error
+     */
+    private void clearClusterTableStats() throws SQLException, VmtDbException {
+        try (Connection conn = historydbIO.connection()) {
+            Stream.of(CLUSTER_STATS_BY_MONTH, CLUSTER_STATS_BY_DAY, CLUSTER_STATS_BY_HOUR,
+                    CLUSTER_STATS_LATEST).forEach(table -> historydbIO.using(conn).deleteFrom(table).execute());
+        }
+    }
+
+    /**
      * Test projection feature.
      *
      * @throws Exception should not happen
@@ -386,7 +419,8 @@ public class ClusterStatsReaderTest {
             return;
         }
         final ClusterStatsRequest request = constructTestInputWithDates(
-                Optional.empty(), Optional.of(new Timestamp(tomorrowMillis)));
+                Optional.of(new Timestamp(todayMillis)),
+                Optional.of(new Timestamp(tomorrowMillis)), true);
         PaginationResponse paginationResponse = null;
         List<EntityStats> entityStats = new ArrayList<>();
         List<ClusterStatsResponse> response = clusterStatsReader.getStatsRecords(request);
@@ -407,23 +441,22 @@ public class ClusterStatsReaderTest {
         }
 
         // check values and epochs for the four records:
-        // there should be two historical (yesterday, today), one current (now),
-        // and one projected (tomorrow)
+        // there should be one historical, one current (now, extra current snapshot),
+        // and two projected (tomorrow + day after tomorrow, due to days difference + 1)
         final EntityStats stats = entityStats.get(0);
 
-        // First record is a projection
+        // First & second record are projections
         Assert.assertEquals(StatEpoch.PROJECTED, stats.getStatSnapshots(0).getStatEpoch());
-        Assert.assertEquals(10, stats.getStatSnapshots(0) .getStatRecords(0).getValues().getAvg(), 0.1);
+        Assert.assertEquals(0, stats.getStatSnapshots(0).getStatRecords(0).getUsed().getAvg(), 0.1);
+        Assert.assertEquals(StatEpoch.PROJECTED, stats.getStatSnapshots(1).getStatEpoch());
+        Assert.assertEquals(10, stats.getStatSnapshots(1).getStatRecords(0).getUsed().getAvg(), 0.1);
 
-        // Second record is "current" and the values agree with that of the latest historical record
-        Assert.assertEquals(StatEpoch.CURRENT, stats.getStatSnapshots(1).getStatEpoch());
-        Assert.assertEquals(30, stats.getStatSnapshots(1).getStatRecords(0).getValues().getAvg(), 0.1);
-
-        // Third and fourth records are "historical" and they come from the database
-        Assert.assertEquals(StatEpoch.HISTORICAL, stats.getStatSnapshots(2).getStatEpoch());
-        Assert.assertEquals(30, stats.getStatSnapshots(2).getStatRecords(0).getValues().getAvg(), 0.1);
+        // Third record is "current" and the values agree with that of the latest historical record
+        Assert.assertEquals(StatEpoch.CURRENT, stats.getStatSnapshots(2).getStatEpoch());
+        Assert.assertEquals(20, stats.getStatSnapshots(2).getStatRecords(0).getUsed().getAvg(), 0.1);
+        // fourth records are "historical" and they come from the database
         Assert.assertEquals(StatEpoch.HISTORICAL, stats.getStatSnapshots(3).getStatEpoch());
-        Assert.assertEquals(30, stats.getStatSnapshots(3).getStatRecords(0).getValues().getAvg(), 0.1);
+        Assert.assertEquals(20, stats.getStatSnapshots(3).getStatRecords(0).getUsed().getAvg(), 0.1);
     }
 
     /**
@@ -818,7 +851,7 @@ public class ClusterStatsReaderTest {
     public void testEndDateWithNoStartDate() throws Exception {
         populateTestDataBig();
         clusterStatsReader.getStatsRecords(constructTestInputWithDates(
-                Optional.empty(), Optional.of(LATEST_DATE_TIMESTAMP)));
+                Optional.empty(), Optional.of(LATEST_DATE_TIMESTAMP), false));
     }
 
     /**
@@ -830,20 +863,31 @@ public class ClusterStatsReaderTest {
     public void testStartAfterEnd() throws Exception {
         populateTestDataBig();
         clusterStatsReader.getStatsRecords(constructTestInputWithDates(
-                Optional.of(NEXT_DATE_TIMESTAMP), Optional.of(LATEST_DATE_TIMESTAMP)));
+                Optional.of(NEXT_DATE_TIMESTAMP), Optional.of(LATEST_DATE_TIMESTAMP), false));
     }
 
     /**
-     * The start date in a cluster stats request should not be in the future.
+     * If the start date in a cluster stats request is in the future, only projected stats will be
+     * returned.
      *
-     * @throws Exception expected
+     * @throws Exception any error happens
      */
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testStartAfterNow() throws Exception {
-        final Timestamp future = new Timestamp(System.currentTimeMillis() + 100_000_000);
-        populateTestDataBig();
-        clusterStatsReader.getStatsRecords(constructTestInputWithDates(
-                                                Optional.of(future), Optional.empty()));
+        if (!populateTestDataNow()) {
+            return;
+        }
+        final Timestamp future = new Timestamp(System.currentTimeMillis() + TimeUnit.DAYS.toMillis(1));
+        ClusterStatsRequest request = constructTestInputWithDates(Optional.of(future), Optional.of(future), true);
+        List<ClusterStatsResponse> response = clusterStatsReader.getStatsRecords(request);
+        assertEquals(2, response.size());
+        response.stream().filter(ClusterStatsResponse::hasSnapshotsChunk).forEach(stat -> {
+            stat.getSnapshotsChunk().getSnapshotsList().forEach(entityStats -> {
+                entityStats.getStatSnapshotsList().forEach(statSnapshot -> {
+                    assertEquals(StatEpoch.PROJECTED, statSnapshot.getStatEpoch());
+                });
+            });
+        });
     }
 
     /**
@@ -858,7 +902,7 @@ public class ClusterStatsReaderTest {
         populateTestDataBig();
         final List<ClusterStatsResponse> response =
             clusterStatsReader.getStatsRecords(constructTestInputWithDates(
-                    Optional.of(PREVIOUS_DATE_TIMESTAMP), Optional.empty()));
+                    Optional.of(PREVIOUS_DATE_TIMESTAMP), Optional.empty(), false));
         final List<EntityStats> entityStats = new ArrayList<>();
         for (ClusterStatsResponse responseChunk : response) {
             entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
@@ -883,7 +927,8 @@ public class ClusterStatsReaderTest {
         populateTestDataBig();
         final List<ClusterStatsResponse> response =
                 clusterStatsReader.getStatsRecords(constructTestInputWithDates(
-                        Optional.of(PREVIOUS_DATE_TIMESTAMP), Optional.of(PREVIOUS_DATE_TIMESTAMP)));
+                        Optional.of(PREVIOUS_DATE_TIMESTAMP), Optional.of(PREVIOUS_DATE_TIMESTAMP),
+                        false));
         final List<EntityStats> entityStats = new ArrayList<>();
         for (ClusterStatsResponse responseChunk : response) {
             entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
@@ -908,7 +953,8 @@ public class ClusterStatsReaderTest {
         final Timestamp now = new Timestamp(System.currentTimeMillis() - 1);
         final List<ClusterStatsResponse> response =
                 clusterStatsReader.getStatsRecords(
-                        constructTestInputWithDates(Optional.of(fiveMinutesAgo), Optional.of(now), MEM));
+                        constructTestInputWithDates(Optional.of(fiveMinutesAgo), Optional.of(now), MEM,
+                                false));
         final List<EntityStats> entityStats = new ArrayList<>();
         for (ClusterStatsResponse responseChunk : response) {
             entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
@@ -1056,15 +1102,15 @@ public class ClusterStatsReaderTest {
                     .build();
     }
 
-    private ClusterStatsRequest constructTestInputWithDates(
-            @Nonnull Optional<Timestamp> startDate, @Nonnull Optional<Timestamp> endDate,
-            @Nonnull String stat) {
+    private ClusterStatsRequest constructTestInputWithDates(@Nonnull Optional<Timestamp> startDate,
+            @Nonnull Optional<Timestamp> endDate, @Nonnull String stat, boolean requestProjected) {
         final CommodityRequest.Builder commodityRequest = CommodityRequest.newBuilder()
                                                                 .setCommodityName(stat);
         final StatsFilter.Builder statsFilterBuilder = StatsFilter.newBuilder()
                                                             .addCommodityRequests(commodityRequest);
         startDate.ifPresent(t -> statsFilterBuilder.setStartDate(t.getTime()));
         endDate.ifPresent(t -> statsFilterBuilder.setEndDate(t.getTime()));
+        statsFilterBuilder.setRequestProjectedHeadroom(requestProjected);
         return ClusterStatsRequest.newBuilder()
                     .addClusterIds(Long.valueOf(CLUSTER_ID_3))
                     .setStats(statsFilterBuilder)
@@ -1072,7 +1118,7 @@ public class ClusterStatsReaderTest {
     }
 
     private ClusterStatsRequest constructTestInputWithDates(@Nonnull Optional<Timestamp> startDate,
-                                                            @Nonnull Optional<Timestamp> endDate) {
-        return constructTestInputWithDates(startDate, endDate, CPU_HEADROOM);
+            @Nonnull Optional<Timestamp> endDate, boolean requestProjected) {
+        return constructTestInputWithDates(startDate, endDate, CPU_HEADROOM, requestProjected);
     }
 }

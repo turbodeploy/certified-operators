@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,6 +34,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
+import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.stats.PaginatedStatsExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
@@ -120,6 +122,7 @@ public class StatsService implements IStatsService {
      * The delta (+/- 60 seconds) from now in which a requested is treated as current.
      */
     private final Duration liveStatsRetrievalWindow;
+    private final Clock clock;
 
     // CLUSTER_STATS is a collection of the cluster-headroom stats calculated from nightly plans.
     // TODO: we should share the enum instead of keeping a separate copy.
@@ -165,7 +168,8 @@ public class StatsService implements IStatsService {
                  @Nonnull final PlanEntityStatsFetcher planEntityStatsFetcher,
                  @Nonnull final PaginatedStatsExecutor paginatedStatsExecutor,
                  @Nonnull final Duration liveStatsRetrievalWindow,
-                 @Nonnull final GroupExpander groupExpander) {
+                 @Nonnull final GroupExpander groupExpander,
+                 @Nonnull final Clock clock) {
         this.statsServiceRpc = Objects.requireNonNull(statsServiceRpc);
         this.planRpcService = planRpcService;
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
@@ -178,6 +182,7 @@ public class StatsService implements IStatsService {
         this.paginatedStatsExecutor = Objects.requireNonNull(paginatedStatsExecutor);
         this.liveStatsRetrievalWindow = Objects.requireNonNull(liveStatsRetrievalWindow);
         this.groupExpander = Objects.requireNonNull(groupExpander);
+        this.clock = Objects.requireNonNull(clock);
     }
 
     /**
@@ -348,6 +353,10 @@ public class StatsService implements IStatsService {
                 @Nonnull final StatScopesApiInputDTO inputDto,
                 @Nonnull final EntityStatsPaginationRequest paginationRequest)
             throws Exception {
+        final StatPeriodApiInputDTO period = inputDto.getPeriod();
+        // sanitize start and end date in input dto
+        StatsUtils.sanitizeStartDateOrEndDate(period, clock.millis(),
+                liveStatsRetrievalWindow.toMillis());
         // translate pagination parameters
         final PaginationParameters.Builder paginationParametersBuilder = PaginationParameters.newBuilder();
         paginationRequest.getCursor()
@@ -360,7 +369,7 @@ public class StatsService implements IStatsService {
                 .setLimit(paginationRequest.getLimit());
 
         // translate data request
-        final StatsFilter statsFilter = statsMapper.newPeriodStatsFilter(inputDto.getPeriod(), true);
+        final StatsFilter statsFilter = statsMapper.newPeriodStatsFilter(period, true);
 
         // if there is no order-by in the pagination request
         // we use the first stat requested in statsFilter
