@@ -166,6 +166,8 @@ public class V_01_01_05__Target_Common_Proxy_Settings extends V_01_01_03__Target
         final Pair<String, String> portRename = new Pair<>("port", "proxyPort");
         final Pair<String, String> userRename = new Pair<>("proxyUser", "proxyUsername");
         final Map<SDKProbeType, List<Pair<String, String>>> map = Maps.newHashMap();
+        map.put(SDKProbeType.APPINSIGHTS,
+                Arrays.asList(hostRename, portRename, userRename));
         map.put(SDKProbeType.AWS,
                 Arrays.asList(hostRename, portRename, userRename));
         map.put(SDKProbeType.AWS_BILLING,
