@@ -7,6 +7,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -143,8 +144,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
             try {
                 notificationSender.notifyActionProgress(actionProgress);
                 sendStateUpdateIfNeeded(action,
-                        actionProgress.hasDescription() ? actionProgress.getDescription()
-                                : action.getRecommendationOid() + " in progress",
+                        getActionStateUpdateDescription(actionProgress.getDescription(),
+                                "in progress", action.getRecommendationOid()),
                         actionProgress.getProgressPercentage());
             } catch (CommunicationException | InterruptedException e) {
                 logger.error("Unable to send notification for progress of " + actionProgress, e);
@@ -197,8 +198,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
             auditSender.sendActionEvents(Collections.singleton(action));
             notificationSender.notifyActionSuccess(actionSuccess);
             sendStateUpdateIfNeeded(action,
-                    actionSuccess.hasSuccessDescription() ? actionSuccess.getSuccessDescription()
-                            : action.getRecommendationOid() + " executed successfully", 100);
+                    getActionStateUpdateDescription(actionSuccess.getSuccessDescription(),
+                            "executed successfully", action.getRecommendationOid()), 100);
         } catch (CommunicationException | InterruptedException e) {
             logger.error("Unable to send notification for success of " + actionSuccess, e);
         }
@@ -285,8 +286,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
     private void failAction(@Nonnull final Action action,
                             @Nonnull final ActionFailure actionFailure) {
         final String errorDescription =
-                actionFailure.hasErrorDescription() ? actionFailure.getErrorDescription()
-                        : action.getId() + " failed execution";
+                getActionStateUpdateDescription(actionFailure.getErrorDescription(),
+                        "failed execution", action.getRecommendationOid());
         // Notify the action of the failure, possibly triggering a transition
         // within the action's state machine.
         final TransitionResult<ActionState> transitionResult =
@@ -487,6 +488,16 @@ public class ActionStateUpdater implements ActionExecutionListener {
             logger.error("Failed to start next executable step of action {}.",
                 action.getId());
             action.receive(new FailureEvent("Failed to start next execution step of action."));
+        }
+    }
+
+    private String getActionStateUpdateDescription(@Nonnull String stateUpdateDescription,
+            @Nonnull String defaultStateUpdateDescription, long recommendationID) {
+        if (StringUtils.isNotBlank(stateUpdateDescription)) {
+            return stateUpdateDescription;
+        } else {
+            return String.format("Action with %s OID %s", recommendationID,
+                    defaultStateUpdateDescription);
         }
     }
 }
