@@ -4,7 +4,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -13,13 +12,10 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Constant;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.MM1Commodity;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.MM1Distribution;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -152,8 +148,7 @@ public final class MarketAnalysisUtils {
      * e.g. for those commodities with fake capacity.
      */
     public static final Set<Integer> VALID_COMMODITIES_TO_CAP =
-                    ImmutableSet.of(CommodityDTO.CommodityType.SLA_COMMODITY_VALUE,
-                                    CommodityDTO.CommodityType.VCPU_VALUE);
+                    ImmutableSet.of(CommodityDTO.CommodityType.SLA_COMMODITY_VALUE);
 
     /**
      * Commodities that are not capped but skipped for used > capacity check. They are sent
@@ -277,17 +272,8 @@ public final class MarketAnalysisUtils {
      * Use STANDARD distribution for TRANSACTION commodity.
      */
     public static final Set<Integer> STANDARD_DISTRIBUTION_TYPES =
-                    ImmutableSet.of(CommodityDTO.CommodityType.TRANSACTION_VALUE);
-
-    /**
-     * Use MM1 distribution for RESPONSE_TIME commodity. Currently we only set one dependent
-     * commodity VCPU and hardcode elasticity 1.0.
-     */
-    public static final Map<Integer, Set<Pair<CommodityType, Float>>> MM1_DISTRIBUTION_TYPES =
-            ImmutableMap.of(CommodityDTO.CommodityType.RESPONSE_TIME_VALUE,
-                    ImmutableSet.of(new Pair<>(CommodityType.newBuilder()
-                            .setType(CommodityDTO.CommodityType.VCPU_VALUE)
-                            .build(), 1.0F)));
+                    ImmutableSet.of(CommodityDTO.CommodityType.TRANSACTION_VALUE,
+                                    CommodityDTO.CommodityType.RESPONSE_TIME_VALUE);
 
     /**
      * Create the instance of standard distribution {@link UpdatingFunctionTO}.
@@ -297,26 +283,6 @@ public final class MarketAnalysisUtils {
                     .setStandardDistribution(UpdatingFunctionTO.StandardDistribution.newBuilder()
                             .build())
                     .build();
-
-    /**
-     * Create the instance of mm1 distribution {@link UpdatingFunctionTO}.
-     *
-     * @param dependentCommodities a list of dependent commodities required to compute MM1 distribution,
-     *                             each depend commodity is a {@link Pair} of market commodity ID,
-     *                             and elasticity value
-     * @return a {@link UpdatingFunctionTO}
-     */
-    @Nonnull
-    public static UpdatingFunctionTO mm1DistributionFunction(
-            List<Pair<Integer, Float>> dependentCommodities) {
-        MM1Distribution.Builder mm1Builder = MM1Distribution.newBuilder();
-        dependentCommodities.forEach(comm ->
-                mm1Builder.addDependentCommodities(MM1Commodity.newBuilder()
-                        .setCommodityType(comm.first)
-                        .setElasticity(comm.second)
-                        .build()));
-        return UpdatingFunctionTO.newBuilder().setMm1Distribution(mm1Builder.build()).build();
-    }
 
     /**
      *  Updating functions are used when taking actions in computing the new
@@ -465,21 +431,13 @@ public final class MarketAnalysisUtils {
      * Select the right {@link UpdatingFunctionTO} based on the commodity sold type.
      *
      * @param commSoldType the numerical commodity sold type
-     * @param commodityTypeAllocator the commodity type allocator
      * @return a (reusable) instance of UpdatingFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
-    public static UpdatingFunctionTO updateFunction(final CommodityType commSoldType,
-                                                    final CommodityTypeAllocator commodityTypeAllocator) {
+    public static UpdatingFunctionTO updateFunction(final CommodityType commSoldType) {
         int commType = commSoldType.getType();
         if (STANDARD_DISTRIBUTION_TYPES.contains(commType)) {
             return STANDARD_DISTRIBUTION_FUNCTION;
-        } else if (MM1_DISTRIBUTION_TYPES.containsKey(commType)) {
-            return mm1DistributionFunction(MM1_DISTRIBUTION_TYPES.get(commType)
-                    .stream()
-                    .map(p -> new Pair<>(commodityTypeAllocator.topologyToMarketCommodityId(p.first),
-                            p.second))
-                    .collect(Collectors.toList()));
         } else if (FINITE_SWP_PRICE_TYPES.contains(commType)
                         || commType == CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE) {
             return AVERAGE_UPDATING_FUNCTION;

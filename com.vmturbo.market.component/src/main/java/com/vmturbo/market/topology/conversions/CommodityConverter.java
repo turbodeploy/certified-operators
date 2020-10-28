@@ -243,7 +243,7 @@ public class CommodityConverter {
                         .setUtilizationUpperBound(utilizationUpperBound)
                         .setPriceFunction(priceFunction(topologyCommSold.getCommodityType(),
                                 scale, dto))
-                        .setUpdateFunction(updateFunction(topologyCommSold, commodityTypeAllocator));
+                        .setUpdateFunction(updateFunction(topologyCommSold));
 
         // Set thresholds for the commodity sold (min/Max of VCPU/VMem for on-prem VMs).
         if (topologyCommSold.hasThresholds()) {
@@ -512,16 +512,13 @@ public class CommodityConverter {
     /**
      * Select the right {@link UpdatingFunctionTO} based on the commodity sold type.
      *
-     * @param topologyCommSold       a commodity sold for which to add an updating function
-     * @param commodityTypeAllocator a commodity type allocator
+     * @param topologyCommSold a commodity sold for which to add an updating function
      * @return a (reusable) instance of UpdatingFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
     private static UpdatingFunctionTO
-                    updateFunction(final TopologyDTO.CommoditySoldDTO topologyCommSold,
-                                   final CommodityTypeAllocator commodityTypeAllocator) {
-        return MarketAnalysisUtils.updateFunction(topologyCommSold.getCommodityType(),
-                commodityTypeAllocator);
+                    updateFunction(final TopologyDTO.CommoditySoldDTO topologyCommSold) {
+        return MarketAnalysisUtils.updateFunction(topologyCommSold.getCommodityType());
     }
 
     /**
