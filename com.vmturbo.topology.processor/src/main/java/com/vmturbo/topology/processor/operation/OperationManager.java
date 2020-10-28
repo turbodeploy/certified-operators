@@ -1009,17 +1009,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             final Optional<Target> target = targetStore.getTarget(targetId);
             if (change) {
                 if (target.isPresent()) {
-                    if (discovery.getCompletionTime() != null) {
-                        try {
-                            DISCOVERY_TIMES.labels(getProbeTypeWithCheck(target.get()), discoveryType.toString(), Boolean.toString(success))
-                                            .observe((double)discovery.getStartTime().until(
-                                                            discovery.getCompletionTime(),
-                                                            ChronoUnit.SECONDS));
-                        } catch (ProbeException e) {
-                            logger.warn("Probe type is missing for target {}. Exception is {}", target, e);
-                        }
-                    }
-
                     if (success) {
                         try {
                             // TODO: (DavidBlinn 3/14/2018) if information makes it into the entityStore but fails later
@@ -1103,6 +1092,16 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 }
             }
             operationComplete(discovery, success, response.getErrorDTOList());
+            if (discovery.getCompletionTime() != null) {
+                try {
+                    DISCOVERY_TIMES.labels(getProbeTypeWithCheck(target.get()), discoveryType.toString(), Boolean.toString(success))
+                            .observe((double)discovery.getStartTime().until(
+                                    discovery.getCompletionTime(),
+                                    ChronoUnit.SECONDS));
+                } catch (ProbeException e) {
+                    logger.warn("Probe type is missing for target {}. Exception is {}", target, e);
+                }
+            }
         } catch (IdentityServiceException | RuntimeException e) {
             final String messageDetail = e.getLocalizedMessage() != null
                 ? e.getLocalizedMessage()
