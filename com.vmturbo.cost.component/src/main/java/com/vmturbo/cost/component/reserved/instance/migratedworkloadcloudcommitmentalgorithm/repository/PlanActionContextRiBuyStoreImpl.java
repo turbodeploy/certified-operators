@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommit
 
 import static com.vmturbo.cost.component.db.Tables.ACTION_CONTEXT_RI_BUY;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Repository;
 
 import com.vmturbo.cost.component.db.tables.pojos.ActionContextRiBuy;
 import com.vmturbo.cost.component.db.tables.records.ActionContextRiBuyRecord;
+import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
 
 /**
  * Spring Repository implementation used to interact with the action_context_ri_buy cost database table.
@@ -42,6 +44,8 @@ public class PlanActionContextRiBuyStoreImpl implements PlanActionContextRiBuySt
         actionContextRiBuyRecord.setCreateTime(LocalDateTime.now());
         actionContextRiBuyRecord.setTemplateType(actionContextRiBuy.getTemplateType());
         actionContextRiBuyRecord.setTemplateFamily(actionContextRiBuy.getTemplateFamily());
+        actionContextRiBuyRecord.setDemandType(ActionContextRIBuyStore.DemandType.TYPICAL_DEMAND.ordinal());
+        actionContextRiBuyRecord.setDatapointInterval(Duration.ofHours(1).toString());
 
         // Build a weekly demand list (only used to avoid runtime API errors)
         // Note: this is a hack, these values are meaningless, but needed by the action details API call
