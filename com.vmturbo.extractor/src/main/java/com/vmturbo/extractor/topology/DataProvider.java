@@ -3,7 +3,6 @@ package com.vmturbo.extractor.topology;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.Set;
@@ -32,6 +31,7 @@ import com.vmturbo.extractor.topology.fetcher.DataFetcher;
 import com.vmturbo.extractor.topology.fetcher.GroupFetcher;
 import com.vmturbo.extractor.topology.fetcher.GroupFetcher.GroupData;
 import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher;
+import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher.SupplyChain;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
 
@@ -49,7 +49,7 @@ public class DataProvider {
 
     // data cached until next cycle
     private volatile GroupData groupData;
-    private volatile Map<Long, Map<Integer, Set<Long>>> entityToRelatedEntities;
+    private volatile SupplyChain supplyChain;
     private volatile TopologyGraph<SupplyChainEntity> graph;
 
     DataProvider(GroupServiceBlockingStub groupService) {
@@ -127,17 +127,16 @@ public class DataProvider {
      *
      * @param timer a {@link MultiStageTimer} to collect overall timing information
      * @param graph The topology graph contains all entities and relations between entities.
-     * @param requireSupplyChainForAllEntities whether or not to require full supply chain for all entities
+     * @param requireFullSupplyChain whether or not to require full supply chain for all entities
      */
     public void fetchData(@Nonnull MultiStageTimer timer,
                           @Nonnull TopologyGraph<SupplyChainEntity> graph,
-                          boolean requireSupplyChainForAllEntities) {
+                          boolean requireFullSupplyChain) {
         this.graph = graph;
         // prepare all needed fetchers
         final List<DataFetcher<?>> dataFetchers = ImmutableList.of(
                 new GroupFetcher(groupService, timer, this::setGroupData),
-                new SupplyChainFetcher(graph, timer, this::setEntityToRelatedEntities,
-                        requireSupplyChainForAllEntities)
+                new SupplyChainFetcher(graph, timer, this::setSupplyChain, requireFullSupplyChain)
                 // todo: add more fetchers for cost, etc
         );
         // run all fetchers in parallel
@@ -158,9 +157,8 @@ public class DataProvider {
         this.groupData = groupData;
     }
 
-    private void setEntityToRelatedEntities(
-            Map<Long, Map<Integer, Set<Long>>> entityToRelatedEntities) {
-        this.entityToRelatedEntities = entityToRelatedEntities;
+    private void setSupplyChain(SupplyChain supplyChain) {
+        this.supplyChain = supplyChain;
     }
 
     /**
@@ -329,8 +327,7 @@ public class DataProvider {
      * @return set of related entities oids
      */
     public Set<Long> getRelatedEntities(long entityOid) {
-        return entityToRelatedEntities.getOrDefault(entityOid, Collections.emptyMap()).values()
-                .stream()
+        return supplyChain.getRelatedEntities(entityOid).values().stream()
                 .flatMap(Collection::stream)
                 .collect(Collectors.toSet());
     }
@@ -354,8 +351,7 @@ public class DataProvider {
      * @return set of related entities oids
      */
     public Set<Long> getRelatedEntitiesOfType(long entityOid, int relatedEntityType) {
-        return entityToRelatedEntities.getOrDefault(entityOid, Collections.emptyMap())
-                .getOrDefault(relatedEntityType, Collections.emptySet());
+        return supplyChain.getRelatedEntitiesOfType(entityOid, relatedEntityType);
     }
 
     /**
@@ -494,7 +490,7 @@ public class DataProvider {
      *
      * @return related entities in supply chain for entity for different entity types
      */
-    public Map<Long, Map<Integer, Set<Long>>> getSupplyChain() {
-        return entityToRelatedEntities;
+    public SupplyChain getSupplyChain() {
+        return supplyChain;
     }
 }

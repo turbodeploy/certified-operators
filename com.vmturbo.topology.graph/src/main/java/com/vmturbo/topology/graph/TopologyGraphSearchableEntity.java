@@ -30,10 +30,13 @@ public interface TopologyGraphSearchableEntity<E extends TopologyGraphSearchable
     }
 
     /**
-     * Get the searchable properties of this entity.
+     * Get the searchable properties of this entity. It's null by default if no prop is available
+     * for search.
      *
      * @return The {@link SearchableProps}.
      */
-    @Nonnull
-    SearchableProps getSearchableProps();
+    @Nullable
+    default SearchableProps getSearchableProps() {
+        return null;
+    }
 }

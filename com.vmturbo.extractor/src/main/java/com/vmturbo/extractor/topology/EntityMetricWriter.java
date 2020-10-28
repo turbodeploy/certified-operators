@@ -168,7 +168,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
     }
 
     @Override
-    public boolean requireSupplyChainForAllEntities() {
+    public boolean requireFullSupplyChain() {
         return true;
     }
 

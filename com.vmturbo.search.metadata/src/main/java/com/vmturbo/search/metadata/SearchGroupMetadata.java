@@ -5,7 +5,7 @@ import static com.vmturbo.api.dto.searchquery.RelatedEntityFieldApiDTO.entityNam
 import static com.vmturbo.search.metadata.SearchGroupMetadata.Constants.COMPUTE_HOST_CLUSTER_METADATA;
 import static com.vmturbo.search.metadata.SearchGroupMetadata.Constants.GROUP_COMMON_FIELDS;
 import static com.vmturbo.search.metadata.SearchGroupMetadata.Constants.RESOURCE_GROUP_METADATA;
-import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_ACCOUNT;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_BUSINESS_ACCOUNT;
 
 import java.util.Map;
 
@@ -105,7 +105,8 @@ public enum SearchGroupMetadata {
                 // common fields
                 .putAll(GROUP_COMMON_FIELDS)
                 // related entities
-                .put(entityNames(EntityType.BusinessAccount), RELATED_ACCOUNT)
+                //TODO: resource group and business account relation should be handled separately as complex data
+                .put(entityNames(EntityType.BusinessAccount), RELATED_BUSINESS_ACCOUNT)
                 .build();
 
         static final Map<FieldApiDTO, SearchMetadataMapping> COMPUTE_HOST_CLUSTER_METADATA = ImmutableMap.<FieldApiDTO, SearchMetadataMapping>builder()

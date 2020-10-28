@@ -6,6 +6,8 @@ import static com.vmturbo.extractor.models.ModelDefinitions.SEARCH_ENTITY_ACTION
 import static com.vmturbo.extractor.models.ModelDefinitions.SEVERITY_ENUM;
 
 import java.sql.SQLException;
+import java.util.AbstractMap;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
@@ -13,6 +15,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -22,6 +25,7 @@ import com.google.common.collect.Sets;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectArrayMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 
@@ -46,10 +50,16 @@ import com.vmturbo.extractor.action.ActionWriter.IActionWriter;
 import com.vmturbo.extractor.models.DslReplaceRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
 import com.vmturbo.extractor.models.Table.TableWriter;
+import com.vmturbo.extractor.search.EnumUtils.SearchEntityTypeUtils;
 import com.vmturbo.extractor.search.EnumUtils.SeverityUtils;
+import com.vmturbo.extractor.search.SearchMetadataUtils;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.WriterConfig;
+import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher;
+import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher.SupplyChain;
+import com.vmturbo.search.metadata.utils.SearchFiltersMapper;
+import com.vmturbo.search.metadata.utils.SearchFiltersMapper.SearchFilterSpec;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -130,24 +140,21 @@ class SearchActionWriter implements IActionWriter {
             logger.error("Topology graph is not ready, skipping writing search actions for this cycle");
             return;
         }
-        final Map<Long, Map<Integer, Set<Long>>> supplyChain = dataProvider.getSupplyChain();
-        if (supplyChain == null) {
-            logger.error("Supply chain is not ready, skipping writing search actions for this cycle");
-            return;
-        }
         final Long2ObjectMap<List<Long>> groupToLeafEntityIds = dataProvider.getGroupToLeafEntities();
+        final SupplyChain supplyChain = calculateRelatedEntities(topology, timer);
+
         // process and write to db
         try (DSLContext dsl = dbEndpoint.dslContext();
              TableWriter actionsReplacer = SEARCH_ENTITY_ACTION_TABLE.open(getSearchActionReplacerSink(dsl))) {
             // write action data for entities (only write those with actions)
             timer.start("Write action data for search entities");
-            topology.entities().parallel()
-                    .forEach(entity -> {
+            topology.entities()
+                    .filter(e -> SearchMetadataUtils.hasMetadata(e.getEntityType()))
+                    .parallel().forEach(entity -> {
                 final long entityId = entity.getOid();
                 final int entityType = entity.getEntityType();
                 final InvolvedEntityCalculation calcType = getInvolvedEntityCalculation(entityType);
-                final int count = (int)getActionsForEntity(entityId, entityType, calcType,
-                        supplyChain).count();
+                final int count = (int)getActionsForEntity(entityId, entityType, calcType, supplyChain).count();
                 if (count > 0) {
                     actionsReplacer.accept(newActionRecord(entityId, count,
                             severityMap.getSeverity(entityId)));
@@ -160,14 +167,82 @@ class SearchActionWriter implements IActionWriter {
             if (groupToLeafEntityIds != null) {
                 groupToLeafEntityIds.long2ObjectEntrySet().parallelStream()
                         .forEach(entry -> {
-                            final Record record = newActionRecord(entry.getLongKey(),
-                                    getActionCountForGroup(entry.getValue(), topology, supplyChain),
-                                    severityMap.calculateSeverity(entry.getValue()));
-                            actionsReplacer.accept(record);
+                            final int count = getActionCountForGroup(entry.getValue(), topology, supplyChain);
+                            if (count > 0) {
+                                final Record record = newActionRecord(entry.getLongKey(), count,
+                                        severityMap.calculateSeverity(entry.getValue()));
+                                actionsReplacer.accept(record);
+                            }
                         });
             }
             timer.stop();
         }
+    }
+
+    /**
+     * Get the related entities required for ARM entities and some aggregated entities, whose
+     * action count should be retrieved from related entities.
+     *
+     * @param topology topology graph
+     * @param timer timer
+     * @return partial calculated supply chain
+     */
+    private SupplyChain calculateRelatedEntities(TopologyGraph<SupplyChainEntity> topology,
+                                       MultiStageTimer timer) {
+        final SupplyChain cachedSupplyChain = dataProvider.getSupplyChain();
+        if (cachedSupplyChain != null && cachedSupplyChain.isFull()) {
+            // use the cached supply chain if it's full
+            return cachedSupplyChain;
+        }
+        // calculate supply chain on demand if it's not ready or partially calculated
+        final Map<Long, Map<Integer, Set<Long>>> entityToRelated = new Long2ObjectOpenHashMap<>();
+        final Map<Long, Map<Integer, Set<Long>>> syncEntityToRelated =
+                Collections.synchronizedMap(entityToRelated);
+        // calculate related entities for ARM entities first
+        // TODO (OM-63758): maybe only calculate the supply chains from the top ARM entities
+        timer.start("Calculate related entities for ARM entities");
+        ARMEntityUtil.ARM_ENTITY_TYPE.forEach(type -> {
+            topology.entitiesOfType(type).parallel().forEach(entity ->
+                    SupplyChainFetcher.calculateFullSupplyChain(entity, topology, syncEntityToRelated));
+        });
+        timer.stop();
+
+        // then process aggregated entities
+        timer.start("Calculate related entities for aggregated entities");
+        ApiEntityType.PROTO_ENTITY_TYPES_TO_EXPAND.forEach((type, relatedTypes) -> {
+            final Map<Integer, SearchFilterSpec> searchFilterSpecs = getSearchFilterSpecs(type, relatedTypes);
+            // if we have search filters defined for all related types, then use it.
+            // these are for entity types (like DataCenter) with very few expanded types
+            if (searchFilterSpecs.keySet().containsAll(relatedTypes)) {
+                topology.entitiesOfType(type).parallel().forEach(entity ->
+                        SupplyChainFetcher.calculatePartialSupplyChain(
+                                entity, topology, searchFilterSpecs, syncEntityToRelated));
+            } else {
+                // otherwise use SupplyChainCalculator, these are usually for cloud entities
+                // it's fine since there should not be many regions, zones, etc.
+                topology.entitiesOfType(type).parallel().forEach(entity ->
+                        SupplyChainFetcher.calculateFullSupplyChain(entity, topology, syncEntityToRelated));
+            }
+        });
+        timer.stop();
+        return new SupplyChain(entityToRelated, false);
+    }
+
+    /**
+     * Get search filter specs for the related types of a given entity type.
+     *
+     * @param fromType from entity type
+     * @param relatedTypes related entity types
+     * @return map from related type to corresponding search filters
+     */
+    private Map<Integer, SearchFilterSpec> getSearchFilterSpecs(int fromType, Set<Integer> relatedTypes) {
+        return relatedTypes.stream()
+                .filter(related -> related != fromType)
+                .map(related -> new AbstractMap.SimpleEntry<>(related, SearchFiltersMapper.getSearchFilterSpec(
+                        SearchEntityTypeUtils.protoIntToApi(fromType),
+                        SearchEntityTypeUtils.protoIntToApi(related))))
+                .filter(entry -> entry.getValue() != null)
+                .collect(Collectors.toMap(SimpleEntry::getKey, SimpleEntry::getValue));
     }
 
     @VisibleForTesting
@@ -185,7 +260,7 @@ class SearchActionWriter implements IActionWriter {
      * @return stream of action ids
      */
     private Stream<Long> getActionsForEntity(long entityId, int entityType,
-            InvolvedEntityCalculation calcType, Map<Long, Map<Integer, Set<Long>>> supplyChain) {
+            InvolvedEntityCalculation calcType, SupplyChain supplyChain) {
         // check if we need to expand to related types
         final Set<Integer> expandedEntityTypes;
         if (ARMEntityUtil.isARMEntityType(entityType)) {
@@ -201,8 +276,7 @@ class SearchActionWriter implements IActionWriter {
             // Region to all workloads in the region. we should also include the region itself,
             // since actions like buyRi involves region id in its action spec
             expandedEntityTypes.forEach(expandedEntityType -> entities.addAll(
-                    supplyChain.getOrDefault(entityId, Collections.emptyMap())
-                            .getOrDefault(expandedEntityType, Collections.emptySet())));
+                    supplyChain.getRelatedEntitiesOfType(entityId, expandedEntityType)));
         }
         return entities.stream().flatMap(entity -> {
             EnumMap<InvolvedEntityCalculation, LongSet> relatedActionsByCalcType =
@@ -242,8 +316,7 @@ class SearchActionWriter implements IActionWriter {
      * @return action count for the group
      */
     private int getActionCountForGroup(List<Long> leafEntities,
-            TopologyGraph<SupplyChainEntity> graph,
-            Map<Long, Map<Integer, Set<Long>>> supplyChain) {
+            TopologyGraph<SupplyChainEntity> graph, SupplyChain supplyChain) {
         // for groups, we need to check if all members are ARM entities
         final boolean areAllARMEntities = leafEntities.stream()
                 .map(graph::getEntity)

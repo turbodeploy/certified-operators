@@ -38,15 +38,15 @@ public interface ITopologyWriter {
             throws IOException, UnsupportedDialectException, SQLException, InterruptedException;
 
     /**
-     * Whether or not we need the supply chain for all entities in the topology. This is needed
+     * Whether or not we need the full supply chain for entities in the topology. This is needed
      * for performance improvement. If search is enabled but reporting is not, which is usually
-     * the case for large customers, we only need to calculate supply chain for those entities
-     * defined in {@link SearchEntityMetadata} and {@link SearchGroupMetadata}, not all entities
-     * in the topology.
+     * the case for large customers, we only need to calculate supply chain for those related
+     * entities defined in {@link SearchEntityMetadata} and {@link SearchGroupMetadata}, not all
+     * related entities in the supply chain.
      *
      * @return false by default; true if the writer (like reporting) requires all
      */
-    default boolean requireSupplyChainForAllEntities() {
+    default boolean requireFullSupplyChain() {
         return false;
     }
 

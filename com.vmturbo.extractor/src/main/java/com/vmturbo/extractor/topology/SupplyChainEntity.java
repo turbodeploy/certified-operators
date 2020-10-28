@@ -17,12 +17,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
+import com.vmturbo.topology.graph.TopologyGraphSearchableEntity;
 
 /**
  * {@link SupplyChainEntity} for use in the extractor. The intention is to make it as small as
  * possible while supporting all the basic data needed for reporting/search data ingestion.
  */
-public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity> {
+public class SupplyChainEntity implements TopologyGraphEntity<SupplyChainEntity>,
+        TopologyGraphSearchableEntity<SupplyChainEntity> {
 
     private final long oid;
 

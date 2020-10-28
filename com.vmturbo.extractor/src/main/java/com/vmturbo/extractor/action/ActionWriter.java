@@ -110,8 +110,8 @@ public class ActionWriter implements ActionsListener {
         this.reportingActionWriterSupplier = reportingActionWriterSupplier;
         logger.info("Initialized action writer. Reporting action ingestion {}, "
                         + "search action ingestion {}",
-                enableReportingActionIngestion ? "enabled" : "disable",
-                enableSearchActionIngestion ? "enabled" : "disable");
+                enableReportingActionIngestion ? "enabled" : "disabled",
+                enableSearchActionIngestion ? "enabled" : "disabled");
     }
 
     @Override

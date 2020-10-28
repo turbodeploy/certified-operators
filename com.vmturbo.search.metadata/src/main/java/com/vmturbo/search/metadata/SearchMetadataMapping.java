@@ -1,6 +1,7 @@
 package com.vmturbo.search.metadata;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -26,6 +27,7 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.GroupType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.SelectionCriteriaCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.VirtualVolumeData.AttachmentState;
@@ -97,7 +99,11 @@ public enum SearchMetadataMapping {
             entity.getTypeSpecificInfo().getVirtualVolume().getAttachmentState())),
 
     PRIMITIVE_CONNECTED_NETWORKS("attrs", "connected_networks", Type.MULTI_TEXT, null,
-            entity -> Optional.of(entity.getTypeSpecificInfo().getVirtualMachine().getConnectedNetworksList())),
+            entity -> {
+                final List<String> connectedNetworks =
+                        entity.getTypeSpecificInfo().getVirtualMachine().getConnectedNetworksList();
+                return conditionallySet(!connectedNetworks.isEmpty(), connectedNetworks);
+            }),
 
     PRIMITIVE_CPU_MODEL("attrs", "cpu_model", Type.TEXT, null,
         entity -> conditionallySet(entity.getTypeSpecificInfo().getPhysicalMachine().hasCpuModel(),
@@ -128,15 +134,13 @@ public enum SearchMetadataMapping {
             entity.getTypeSpecificInfo().getVirtualMachine().getNumCpus())),
 
     PRIMITIVE_VENDOR_ID("attrs", "vendor_id", Type.TEXT, null,
-            entity -> entity.getOrigin().hasDiscoveryOrigin()
-                    ? entity.getOrigin()
-                        .getDiscoveryOrigin()
-                        .getDiscoveredTargetDataMap()
-                        .values()
-                        .stream()
-                        .map(perTargetEntityInformation -> (Object) perTargetEntityInformation.getVendorId())
-                        .findFirst()
-                    : Optional.empty()),
+            entity -> conditionallySet(entity.getOrigin().hasDiscoveryOrigin(), entity.getOrigin()
+                    .getDiscoveryOrigin()
+                    .getDiscoveredTargetDataMap()
+                    .values()
+                    .stream()
+                    .map(PerTargetEntityInformation::getVendorId)
+                    .findFirst())),
 
     PRIMITIVE_IS_EPHEMERAL_VOLUME("attrs", "is_ephemeral_volume", Type.BOOLEAN, ImmutableSet.of(EntityType.VirtualVolume)),
 
@@ -424,63 +428,53 @@ public enum SearchMetadataMapping {
     /**
      * Related entities.
      */
-    RELATED_ACCOUNT("attrs", "related_account", Collections.singleton(EntityType.BusinessAccount),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_BUSINESS_APPLICATION("attrs", "related_business_application",
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT, EntityType.BusinessApplication),
 
-    RELATED_APPLICATION_COMPONENT("attrs", "related_application_component", Collections.singleton(EntityType.ApplicationComponent),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_BUSINESS_TRANSACTION("attrs", "related_business_transaction",
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT, EntityType.BusinessTransaction),
 
-    RELATED_BUSINESS_APPLICATION("attrs", "related_business_application", Collections.singleton(EntityType.BusinessApplication),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_SERVICE("attrs", "related_service", RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT, EntityType.Service),
 
-    RELATED_BUSINESS_TRANSACTION("attrs", "related_business_transaction", Collections.singleton(EntityType.BusinessTransaction),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_NAMESPACE("attrs", "related_namespace", RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT, EntityType.Namespace),
 
-    RELATED_CONTAINER_POD("attrs", "related_container_pod", Collections.singleton(EntityType.ContainerPod),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_CONTAINER_POD("attrs", "related_container_pod", RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT,
+            EntityType.ContainerPod),
 
-    RELATED_DISKARRAY("attrs", "related_diskarray", Collections.singleton(EntityType.DiskArray),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_APPLICATION_COMPONENT("attrs", "related_application_component",
+            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT, EntityType.ApplicationComponent),
 
-    RELATED_HOST("attrs", "related_host", Collections.singleton(EntityType.PhysicalMachine),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_VM("attrs", "related_vm", RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT, EntityType.VirtualMachine),
 
-    RELATED_DATA_CENTER("attrs", "related_dc", Collections.singleton(EntityType.DataCenter),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_HOST("attrs", "related_host", RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT,
+            EntityType.PhysicalMachine),
 
-    RELATED_NAMESPACE("attrs", "related_namespace", Collections.singleton(EntityType.Namespace),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_STORAGE("attrs", "related_storage", RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT,
+            EntityType.Storage),
 
-    RELATED_REGION("attrs", "related_region", Collections.singleton(EntityType.Region),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_STORAGE_TIER("attrs", "related_storage_tier", RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT,
+            EntityType.StorageTier),
 
-    RELATED_SERVICE("attrs", "related_service", Collections.singleton(EntityType.Service),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_DISK_ARRAY("attrs", "related_diskarray", RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT,
+            EntityType.DiskArray),
 
-    RELATED_STORAGE("attrs", "related_storage", Collections.singleton(EntityType.Storage),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_SWITCH("attrs", "related_switch", RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT, EntityType.Switch),
 
-    RELATED_STORAGE_TIER("attrs", "related_storage_tier", Collections.singleton(EntityType.StorageTier),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_DATA_CENTER("attrs", "related_dc", RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT, EntityType.DataCenter),
 
-    RELATED_SWITCH("attrs", "related_switch", Collections.singleton(EntityType.Switch),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_BUSINESS_ACCOUNT("attrs", "related_account", RelatedEntitiesProperty.NAMES,
+            Type.MULTI_TEXT, EntityType.BusinessAccount),
 
-    RELATED_TRANSACTION("attrs", "related_transaction", Collections.singleton(EntityType.BusinessTransaction),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_REGION("attrs", "related_region", RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT,
+            EntityType.Region),
 
-    RELATED_VM("attrs", "related_vm", Collections.singleton(EntityType.VirtualMachine),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_SERVICE_PROVIDER("attrs", "related_service_provider", RelatedEntitiesProperty.NAMES,
+            Type.MULTI_TEXT, EntityType.ServiceProvider),
 
-    RELATED_SERVICE_PROVIDER("attrs", "related_service_provider", Collections.singleton(EntityType.ServiceProvider),
-            RelatedEntitiesProperty.NAMES, Type.MULTI_TEXT),
+    RELATED_VM_COUNT("attrs", "num_vms", RelatedEntitiesProperty.COUNT, Type.INTEGER, EntityType.VirtualMachine),
 
-    NUM_VMS("attrs", "num_vms", Collections.singleton(EntityType.VirtualMachine),
-            RelatedEntitiesProperty.COUNT, Type.INTEGER),
-
-    NUM_WORKLOADS("attrs", "num_workloads",
-            ImmutableSet.of(EntityType.VirtualMachine, EntityType.Application, EntityType.Database),
-            RelatedEntitiesProperty.COUNT, Type.INTEGER),
+    NUM_WORKLOADS("attrs", "num_workloads", RelatedEntitiesProperty.COUNT, Type.INTEGER,
+            ImmutableSet.of(EntityType.VirtualMachine, EntityType.Application, EntityType.Database)),
 
     /**
      * Basic fields for group.
@@ -519,11 +513,11 @@ public enum SearchMetadataMapping {
     DIRECT_MEMBER_COUNT_PM("attrs", "host_count", EntityType.PhysicalMachine, Property.COUNT, true,
             Type.INTEGER),
     /** Related vms count (only used by cluster for now). */
-    RELATED_MEMBER_COUNT_VM("attrs", "vm_count", ImmutableSet.of(EntityType.VirtualMachine),
-            RelatedEntitiesProperty.COUNT, Type.INTEGER),
+    RELATED_MEMBER_COUNT_VM("attrs", "vm_count", RelatedEntitiesProperty.COUNT, Type.INTEGER,
+            EntityType.PhysicalMachine, EntityType.VirtualMachine),
     /** related storages count (only used by cluster for now). */
-    RELATED_MEMBER_COUNT_ST("attrs", "st_count", ImmutableSet.of(EntityType.Storage),
-            RelatedEntitiesProperty.COUNT, Type.INTEGER),
+    RELATED_MEMBER_COUNT_ST("attrs", "st_count", RelatedEntitiesProperty.COUNT, Type.INTEGER,
+            EntityType.PhysicalMachine, EntityType.Storage),
 
     /**
      * CPU commodity for groups. For now, this is only used by cluster, and is only for leaf entities
@@ -608,7 +602,7 @@ public enum SearchMetadataMapping {
         this.columnName = Objects.requireNonNull(columnName);
         this.jsonKeyName = Objects.requireNonNull(jsonKeyName);
         this.relatedGroupType = Objects.requireNonNull(relatedGroupType);
-        this.memberType = Objects.requireNonNull(relatedEntityTypeInGroup);
+        this.relatedEntityTypes = Collections.singleton(relatedEntityTypeInGroup);
         this.relatedGroupProperty = Objects.requireNonNull(relatedGroupProperty);
         this.apiDatatype = Objects.requireNonNull(apiDatatype);
     }
@@ -759,21 +753,22 @@ public enum SearchMetadataMapping {
      * Constructor of {@link SearchMetadataMapping} for group related member field.
      *
      * @param columnName db column name
-     * @param jsonKeyName key name inside the jsonb column
-     * @param relatedEntityTypes types of related entities
-     * @param memberProperty property of the member
-     * @param apiDatatype data structure descriptor of column data
+     * @param jsonKeyName db json column key
+     * @param relatedEntityProperty related entity property
+     * @param apiDatatype api data structure descriptor of column data
+     * @param memberEntityType group member entity type
+     * @param relatedEntityType type of related entity
      */
-    SearchMetadataMapping(@Nonnull String columnName,
-                          @Nonnull String jsonKeyName,
-                          @Nullable Set<EntityType> relatedEntityTypes,
-                          @Nonnull Property memberProperty,
-                          @Nonnull Type apiDatatype) {
+    SearchMetadataMapping(@Nonnull String columnName, @Nonnull String jsonKeyName,
+            @Nonnull RelatedEntitiesProperty relatedEntityProperty, @Nonnull Type apiDatatype,
+            @Nullable EntityType memberEntityType,
+            @Nonnull EntityType relatedEntityType) {
         this.columnName = Objects.requireNonNull(columnName);
         this.jsonKeyName = Objects.requireNonNull(jsonKeyName);
-        this.relatedEntityTypes = Objects.requireNonNull(relatedEntityTypes);
-        this.memberProperty = memberProperty;
+        this.relatedEntityProperty = Objects.requireNonNull(relatedEntityProperty);
         this.apiDatatype = Objects.requireNonNull(apiDatatype);
+        this.memberType = Objects.requireNonNull(memberEntityType);
+        this.relatedEntityTypes = Collections.singleton(relatedEntityType);
     }
 
     /**
@@ -813,20 +808,38 @@ public enum SearchMetadataMapping {
      *
      * @param columnName db column name
      * @param jsonKeyName db json column key
-     * @param relatedEntityTypes types of related entities
      * @param relatedEntityProperty related entity property
      * @param apiDatatype api data structure descriptor of column data
+     * @param relatedEntityType type of related entity
      */
-    SearchMetadataMapping(@Nonnull String columnName,
-                          @Nonnull String jsonKeyName,
-                          @Nonnull Set<EntityType> relatedEntityTypes,
-                          @Nonnull RelatedEntitiesProperty relatedEntityProperty,
-                          @Nonnull Type apiDatatype) {
+    SearchMetadataMapping(@Nonnull String columnName, @Nonnull String jsonKeyName,
+            @Nonnull RelatedEntitiesProperty relatedEntityProperty, @Nonnull Type apiDatatype,
+            @Nonnull EntityType relatedEntityType) {
         this.columnName = Objects.requireNonNull(columnName);
         this.jsonKeyName = Objects.requireNonNull(jsonKeyName);
-        this.relatedEntityTypes = Objects.requireNonNull(relatedEntityTypes);
         this.relatedEntityProperty = Objects.requireNonNull(relatedEntityProperty);
         this.apiDatatype = Objects.requireNonNull(apiDatatype);
+        this.relatedEntityTypes = Collections.singleton(relatedEntityType);
+    }
+
+    /**
+     * Constructor of {@link SearchMetadataMapping} for related entity data. This is put into
+     * a jsonb table column, which contains key/value pairs.
+     *
+     * @param columnName db column name
+     * @param jsonKeyName db json column key
+     * @param relatedEntityProperty related entity property
+     * @param apiDatatype api data structure descriptor of column data
+     * @param relatedEntityTypes types of related entities
+     */
+    SearchMetadataMapping(@Nonnull String columnName, @Nonnull String jsonKeyName,
+            @Nonnull RelatedEntitiesProperty relatedEntityProperty, @Nonnull Type apiDatatype,
+            @Nonnull Set<EntityType> relatedEntityTypes) {
+        this.columnName = Objects.requireNonNull(columnName);
+        this.jsonKeyName = Objects.requireNonNull(jsonKeyName);
+        this.relatedEntityProperty = Objects.requireNonNull(relatedEntityProperty);
+        this.apiDatatype = Objects.requireNonNull(apiDatatype);
+        this.relatedEntityTypes = relatedEntityTypes;
     }
 
     /**

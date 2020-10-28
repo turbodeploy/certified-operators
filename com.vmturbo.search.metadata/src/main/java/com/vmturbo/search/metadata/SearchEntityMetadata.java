@@ -62,9 +62,7 @@ import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VMEM_P
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VMEM_USED;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VSTORAGE_USED;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.COMMODITY_VSTORAGE_WEIGHTED_UTILIZATION;
-import static com.vmturbo.search.metadata.SearchMetadataMapping.NUM_VMS;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_ATTACHMENT_STATE;
-import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_SERVICE_PROVIDER;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_CONNECTED_NETWORKS;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_CPU_MODEL;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_ENTITY_TYPE;
@@ -82,16 +80,16 @@ import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_STATE;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_TIMEZONE;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_VENDOR_ID;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.PRIMITIVE_VM_NUM_CPUS;
-import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_ACCOUNT;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_ACTION_COUNT;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_APPLICATION_COMPONENT;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_BILLING_FAMILY_NAME;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_BUSINESS_ACCOUNT;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_BUSINESS_APPLICATION;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_BUSINESS_TRANSACTION;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_COMPUTE_HOST_CLUSTER_NAME;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_CONTAINER_POD;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_DATA_CENTER;
-import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_DISKARRAY;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_DISK_ARRAY;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_HOST;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_NAMESPACE;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_REGION;
@@ -99,11 +97,13 @@ import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_RESOURCE
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_RESOURCE_GROUP_NAME_FOR_VM;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_RESOURCE_GROUP_NAME_FOR_VV;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_SERVICE;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_SERVICE_PROVIDER;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_STORAGE;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_STORAGE_CLUSTER_NAME;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_STORAGE_TIER;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_SWITCH;
 import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_VM;
+import static com.vmturbo.search.metadata.SearchMetadataMapping.RELATED_VM_COUNT;
 
 import java.util.Map;
 
@@ -217,17 +217,18 @@ public enum SearchEntityMetadata {
             .put(used(CommodityType.VSTORAGE), COMMODITY_VSTORAGE_USED)
             .put(weightedHistoricalUtilization(CommodityType.VSTORAGE), COMMODITY_VSTORAGE_WEIGHTED_UTILIZATION)
             // related entities
+            .put(entityNames(EntityType.BusinessApplication), SearchMetadataMapping.RELATED_BUSINESS_APPLICATION)
+            .put(entityNames(EntityType.Service), RELATED_SERVICE)
             .put(entityNames(EntityType.ApplicationComponent), RELATED_APPLICATION_COMPONENT)
-            .put(entityNames(EntityType.BusinessAccount), RELATED_ACCOUNT)
+            .put(entityNames(EntityType.BusinessAccount), RELATED_BUSINESS_ACCOUNT)
             .put(entityNames(EntityType.DataCenter), RELATED_DATA_CENTER)
-            .put(entityNames(EntityType.DiskArray), RELATED_DISKARRAY)
+            .put(entityNames(EntityType.DiskArray), RELATED_DISK_ARRAY)
             .put(entityNames(EntityType.PhysicalMachine), RELATED_HOST)
             .put(entityNames(EntityType.Region), RELATED_REGION)
-            .put(entityNames(EntityType.Storage), RELATED_STORAGE)
-            .putAll(Constants.BASIC_APPLICATION_FIELDS)
+            .put(entityNames(EntityType.Storage), SearchMetadataMapping.RELATED_STORAGE)
             // related groups
             .put(groupNames(GroupType.Resource), RELATED_RESOURCE_GROUP_NAME_FOR_VM)
-            .put(groupNames(GroupType.Cluster), RELATED_COMPUTE_HOST_CLUSTER_NAME)
+            .put(groupNames(GroupType.Cluster), SearchMetadataMapping.RELATED_COMPUTE_HOST_CLUSTER_NAME)
             .build();
     }
 
@@ -261,7 +262,7 @@ public enum SearchEntityMetadata {
             .put(entityNames(EntityType.DataCenter), RELATED_DATA_CENTER)
             .put(entityNames(EntityType.Storage), RELATED_STORAGE)
             .put(entityNames(EntityType.Switch), RELATED_SWITCH)
-            .put(entityCount(EntityType.VirtualMachine), NUM_VMS)
+            .put(entityCount(EntityType.VirtualMachine), RELATED_VM_COUNT)
             // related groups
             .put(groupNames(GroupType.Cluster), RELATED_COMPUTE_HOST_CLUSTER_NAME)
             .build();
@@ -299,11 +300,11 @@ public enum SearchEntityMetadata {
             // commodities
             .put(capacity(CommodityType.STORAGE_AMOUNT), COMMODITY_STORAGE_AMOUNT_CAPACITY)
             // related entities
-            .put(entityNames(EntityType.BusinessAccount), RELATED_ACCOUNT)
+            .put(entityNames(EntityType.BusinessAccount), RELATED_BUSINESS_ACCOUNT)
             .put(entityNames(EntityType.Region), RELATED_REGION)
             .put(entityNames(EntityType.Storage), RELATED_STORAGE)
             .put(entityNames(EntityType.StorageTier), RELATED_STORAGE_TIER)
-            .put(entityNames(EntityType.VirtualMachine), RELATED_VM)
+            .put(entityNames(EntityType.VirtualMachine), SearchMetadataMapping.RELATED_VM)
             .put(entityNames(EntityType.ServiceProvider), RELATED_SERVICE_PROVIDER)
             // related groups
             .put(groupNames(GroupType.Resource), RELATED_RESOURCE_GROUP_NAME_FOR_VV)
@@ -357,7 +358,7 @@ public enum SearchEntityMetadata {
             .put(currentUtilization(CommodityType.STORAGE_PROVISIONED),
                     COMMODITY_STORAGE_PROVISIONED_CURRENT_UTILIZATION)
             // related entities
-            .put(entityNames(EntityType.DataCenter), RELATED_DATA_CENTER)
+            .put(entityNames(EntityType.DataCenter), SearchMetadataMapping.RELATED_DATA_CENTER)
             .put(entityNames(EntityType.VirtualMachine), RELATED_VM)
             // related groups
             .put(groupNames(GroupType.Cluster), RELATED_COMPUTE_HOST_CLUSTER_NAME)
@@ -631,7 +632,8 @@ public enum SearchEntityMetadata {
             .put(used(CommodityType.RESPONSE_TIME), COMMODITY_RESPONSE_TIME_USED)
             .put(used(CommodityType.TRANSACTION), COMMODITY_TRANSACTION_USED)
             // related entities
-            .put(entityNames(EntityType.BusinessTransaction), RELATED_BUSINESS_TRANSACTION)
+            .put(entityNames(EntityType.BusinessTransaction),
+                    SearchMetadataMapping.RELATED_BUSINESS_TRANSACTION)
             .build();
     }
 
@@ -667,7 +669,8 @@ public enum SearchEntityMetadata {
             .put(used(CommodityType.RESPONSE_TIME), COMMODITY_RESPONSE_TIME_USED)
             .put(used(CommodityType.TRANSACTION), COMMODITY_TRANSACTION_USED)
             // related entities
-            .put(entityNames(EntityType.BusinessApplication), RELATED_BUSINESS_APPLICATION)
+            .put(entityNames(EntityType.BusinessApplication),
+                    SearchMetadataMapping.RELATED_BUSINESS_APPLICATION)
             .put(entityNames(EntityType.BusinessTransaction), RELATED_BUSINESS_TRANSACTION)
             .build();
     }
@@ -708,7 +711,7 @@ public enum SearchEntityMetadata {
             .put(used(CommodityType.VSTORAGE), COMMODITY_VSTORAGE_USED)
             .put(weightedHistoricalUtilization(CommodityType.VSTORAGE), COMMODITY_VSTORAGE_WEIGHTED_UTILIZATION)
             // related entities
-            .put(entityNames(EntityType.BusinessAccount), RELATED_ACCOUNT)
+            .put(entityNames(EntityType.BusinessAccount), RELATED_BUSINESS_ACCOUNT)
             .put(entityNames(EntityType.Region), RELATED_REGION)
             .putAll(Constants.BASIC_APPLICATION_FIELDS)
             .build();
@@ -728,7 +731,7 @@ public enum SearchEntityMetadata {
             .put(used(CommodityType.VSTORAGE), COMMODITY_VSTORAGE_USED)
             .put(weightedHistoricalUtilization(CommodityType.VSTORAGE), COMMODITY_VSTORAGE_WEIGHTED_UTILIZATION)
             // related entities
-            .put(entityNames(EntityType.BusinessAccount), RELATED_ACCOUNT)
+            .put(entityNames(EntityType.BusinessAccount), RELATED_BUSINESS_ACCOUNT)
             .put(entityNames(EntityType.Region), RELATED_REGION)
             .putAll(Constants.BASIC_APPLICATION_FIELDS)
             // related groups
@@ -763,7 +766,9 @@ public enum SearchEntityMetadata {
         static final Map<FieldApiDTO, SearchMetadataMapping> BASIC_APPLICATION_FIELDS =
             ImmutableMap.<FieldApiDTO, SearchMetadataMapping>builder()
                 // RELATED ENTITIES
-                .put(entityNames(EntityType.BusinessApplication), RELATED_BUSINESS_APPLICATION)
+                .put(entityNames(EntityType.BusinessApplication),
+                        SearchMetadataMapping.RELATED_BUSINESS_APPLICATION)
+                //todo: check if we really need it for different entity types with PM
                 .put(entityNames(EntityType.BusinessTransaction), RELATED_BUSINESS_TRANSACTION)
                 .put(entityNames(EntityType.Service), RELATED_SERVICE)
                 .build();

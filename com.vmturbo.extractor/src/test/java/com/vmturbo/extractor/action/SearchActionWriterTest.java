@@ -54,6 +54,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.severity.SeverityMapper;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.ExtractorDbConfig;
 import com.vmturbo.extractor.models.DslRecordSink;
@@ -66,6 +69,7 @@ import com.vmturbo.extractor.topology.ImmutableWriterConfig;
 import com.vmturbo.extractor.topology.SupplyChainEntity;
 import com.vmturbo.extractor.topology.SupplyChainEntity.Builder;
 import com.vmturbo.extractor.topology.WriterConfig;
+import com.vmturbo.extractor.topology.fetcher.SupplyChainFetcher.SupplyChain;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -229,6 +233,9 @@ public class SearchActionWriterTest {
         TopologyEntityDTO vmDTO = TopologyEntityDTO.newBuilder()
                 .setOid(vm1)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(region1)
+                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
                 .build();
         TopologyEntityDTO regionDTO = TopologyEntityDTO.newBuilder()
                 .setOid(region1)
@@ -237,6 +244,9 @@ public class SearchActionWriterTest {
         TopologyEntityDTO accountDTO = TopologyEntityDTO.newBuilder()
                 .setOid(account1)
                 .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityId(vm1)
+                        .setConnectionType(ConnectionType.OWNS_CONNECTION))
                 .build();
         doReturn(new TopologyGraphCreator<Builder, SupplyChainEntity>()
                 .addEntity(SupplyChainEntity.newBuilder(vmDTO))
@@ -248,33 +258,45 @@ public class SearchActionWriterTest {
         groupToLeafEntityIds.put(regionGroup1, Lists.newArrayList(region1));
         groupToLeafEntityIds.put(billingFamily1, Lists.newArrayList(account1));
         doReturn(groupToLeafEntityIds).when(dataProvider).getGroupToLeafEntities();
+
+        final Map<Long, Integer> expectedActionCount = ImmutableMap.<Long, Integer>builder()
+                .put(vm1, 1)
+                .put(region1, 2)
+                .put(account1, 2)
+                .put(regionGroup1, 2)
+                .put(billingFamily1, 2)
+                .build();
         // mock related entities
-        final Map<Long, Map<Integer, Set<Long>>> supplychain = ImmutableMap.of(
+        final Map<Long, Map<Integer, Set<Long>>> entityToRelated = ImmutableMap.of(
                 region1, ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, Sets.newHashSet(vm1)),
                 account1, ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, Sets.newHashSet(vm1))
         );
-        doReturn(supplychain).when(dataProvider).getSupplyChain();
-
-        // write
+        doReturn(new SupplyChain(entityToRelated, true)).when(dataProvider).getSupplyChain();
+        // write with full supply chain and verify
         actionWriter.write(new HashMap<>(), TypeInfoCase.MARKET, timer);
-        // verify total number of records
-        assertThat(searchActionReplacerCapture.size(), is(5));
+        verifyActionCount(expectedActionCount);
 
+        // write with partial supply chain and verify
+        doReturn(new SupplyChain(entityToRelated, false)).when(dataProvider).getSupplyChain();
+        searchActionReplacerCapture.clear();
+        actionWriter.write(new HashMap<>(), TypeInfoCase.MARKET, timer);
+        verifyActionCount(expectedActionCount);
+    }
+
+    private void verifyActionCount(Map<Long, Integer> expectedCountByEntity) {
+        // verify total number of records
+        assertThat(searchActionReplacerCapture.size(), is(expectedCountByEntity.size()));
         final Map<Long, Record> recordsByEntity = searchActionReplacerCapture.stream()
                 .collect(Collectors.toMap(record -> record.get(ENTITY_OID_AS_OID),
                         record -> record));
-        // verify action count for different entities
-        assertThat(recordsByEntity.get(vm1).get(NUM_ACTIONS), is(1));
-        assertThat(recordsByEntity.get(region1).get(NUM_ACTIONS), is(2));
-        assertThat(recordsByEntity.get(account1).get(NUM_ACTIONS), is(2));
-        // check groups
-        assertThat(recordsByEntity.get(regionGroup1).get(NUM_ACTIONS), is(2));
-        assertThat(recordsByEntity.get(billingFamily1).get(NUM_ACTIONS), is(2));
+        expectedCountByEntity.forEach((id, count) -> {
+            assertThat(recordsByEntity.get(id).get(NUM_ACTIONS), is(count));
+        });
     }
 
     /**
      * Test the action count for ARM entities. Entity relationship is:
-     *     businessApp1 --> vm1 --> host1
+     *     businessApp1 --> businessTransaction1 --> service1 --> app1 --> vm1 --> host1
      *     vm2 --> host2
      * There are 2 actions: scale vm1, move vm2 from host2 to host1. For businessApp1, only
      * the first action should be counted.
@@ -293,6 +315,9 @@ public class SearchActionWriterTest {
         final long host1 = 21L;
         final long host2 = 22L;
         final long businessApp1 = 31L;
+        final long businessTransaction1 = 41L;
+        final long service1 = 51L;
+        final long app1 = 61L;
 
         // mock actions
         // scale vm1
@@ -336,52 +361,68 @@ public class SearchActionWriterTest {
                         .setActionSpec(actionSpec).build()));
 
         // mock entities
-        TopologyEntityDTO baDTO1 = TopologyEntityDTO.newBuilder()
-                .setOid(businessApp1)
-                .setEntityType(EntityType.BUSINESS_APPLICATION_VALUE)
-                .build();
-        TopologyEntityDTO vmDTO1 = TopologyEntityDTO.newBuilder()
-                .setOid(vm1)
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .build();
-        TopologyEntityDTO vmDTO2 = TopologyEntityDTO.newBuilder()
-                .setOid(vm2)
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .build();
-        TopologyEntityDTO hostDTO1 = TopologyEntityDTO.newBuilder()
-                .setOid(host1)
-                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                .build();
-        TopologyEntityDTO hostDTO2 = TopologyEntityDTO.newBuilder()
-                .setOid(host2)
-                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                .build();
+        TopologyEntityDTO baDTO1 = entity(businessApp1, EntityType.BUSINESS_APPLICATION, businessTransaction1);
+        TopologyEntityDTO btDTO1 = entity(businessTransaction1, EntityType.BUSINESS_TRANSACTION, service1);
+        TopologyEntityDTO serviceDTO1 = entity(service1, EntityType.SERVICE, app1);
+        TopologyEntityDTO appDTO1 = entity(app1, EntityType.APPLICATION_COMPONENT, vm1);
+        TopologyEntityDTO vmDTO1 = entity(vm1, EntityType.VIRTUAL_MACHINE, host1);
+        TopologyEntityDTO vmDTO2 = entity(vm2, EntityType.VIRTUAL_MACHINE, host2);
+        TopologyEntityDTO hostDTO1 = entity(host1, EntityType.PHYSICAL_MACHINE);
+        TopologyEntityDTO hostDTO2 = entity(host2, EntityType.PHYSICAL_MACHINE);
         doReturn(new TopologyGraphCreator<Builder, SupplyChainEntity>()
                 .addEntity(SupplyChainEntity.newBuilder(baDTO1))
+                .addEntity(SupplyChainEntity.newBuilder(btDTO1))
+                .addEntity(SupplyChainEntity.newBuilder(serviceDTO1))
+                .addEntity(SupplyChainEntity.newBuilder(appDTO1))
                 .addEntity(SupplyChainEntity.newBuilder(vmDTO1))
-                .addEntity(SupplyChainEntity.newBuilder(vmDTO2))
                 .addEntity(SupplyChainEntity.newBuilder(hostDTO1))
+                .addEntity(SupplyChainEntity.newBuilder(vmDTO2))
                 .addEntity(SupplyChainEntity.newBuilder(hostDTO2))
                 .build()).when(dataProvider).getTopologyGraph();
-        // mock related entities
-        final Map<Long, Map<Integer, Set<Long>>> supplychain = ImmutableMap.of(
-                businessApp1, ImmutableMap.of(
-                        EntityType.VIRTUAL_MACHINE_VALUE, Sets.newHashSet(vm1),
-                        EntityType.PHYSICAL_MACHINE_VALUE, Sets.newHashSet(host1)));
-        doReturn(supplychain).when(dataProvider).getSupplyChain();
 
-        // write
+        final Map<Long, Integer> expectedActionCount = ImmutableMap.<Long, Integer>builder()
+                .put(businessApp1, 1)
+                .put(businessTransaction1, 1)
+                .put(service1, 1)
+                .put(vm1, 1)
+                .put(host1, 1)
+                .put(vm2, 1)
+                .put(host2, 1)
+                .build();
+
+        // mock that related entities are FULLY calculated
+        final Map<Long, Map<Integer, Set<Long>>> entityToRelated = new HashMap<>();
+        Stream.of(businessApp1, businessTransaction1, service1, app1, vm1, host1).forEach(oid -> {
+            entityToRelated.put(oid, ImmutableMap.<Integer, Set<Long>>builder()
+                    .put(EntityType.BUSINESS_APPLICATION_VALUE, Sets.newHashSet(businessApp1))
+                    .put(EntityType.BUSINESS_TRANSACTION_VALUE, Sets.newHashSet(businessTransaction1))
+                    .put(EntityType.SERVICE_VALUE, Sets.newHashSet(service1))
+                    .put(EntityType.APPLICATION_COMPONENT_VALUE, Sets.newHashSet(app1))
+                    .put(EntityType.VIRTUAL_MACHINE_VALUE, Sets.newHashSet(vm1))
+                    .put(EntityType.PHYSICAL_MACHINE_VALUE, Sets.newHashSet(host1))
+                    .build());
+        });
+        doReturn(new SupplyChain(entityToRelated, true)).when(dataProvider).getSupplyChain();
+
+        // write with full supply chain and verify
         actionWriter.write(new HashMap<>(), TypeInfoCase.MARKET, timer);
-        // verify total number of records
-        assertThat(searchActionReplacerCapture.size(), is(5));
+        verifyActionCount(expectedActionCount);
 
-        final Map<Long, Record> recordsByEntity = searchActionReplacerCapture.stream()
-                .collect(Collectors.toMap(record -> record.get(ENTITY_OID_AS_OID), record -> record));
-        // verify action count for different entities
-        assertThat(recordsByEntity.get(businessApp1).get(NUM_ACTIONS), is(1));
-        assertThat(recordsByEntity.get(vm1).get(NUM_ACTIONS), is(1));
-        assertThat(recordsByEntity.get(host1).get(NUM_ACTIONS), is(1));
-        assertThat(recordsByEntity.get(vm2).get(NUM_ACTIONS), is(1));
-        assertThat(recordsByEntity.get(host2).get(NUM_ACTIONS), is(1));
+        // write with partial supply chain and verify
+        searchActionReplacerCapture.clear();
+        doReturn(new SupplyChain(entityToRelated, false)).when(dataProvider).getSupplyChain();
+        actionWriter.write(new HashMap<>(), TypeInfoCase.MARKET, timer);
+        verifyActionCount(expectedActionCount);
+    }
+
+    private TopologyEntityDTO entity(long oid, EntityType entityType, long... providers) {
+        TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
+                .setOid(oid)
+                .setEntityType(entityType.getNumber());
+        for (long provider : providers) {
+            builder.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(provider));
+        }
+        return builder.build();
     }
 }

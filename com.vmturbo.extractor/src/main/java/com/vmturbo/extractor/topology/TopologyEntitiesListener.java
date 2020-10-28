@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.utils.GuestLoadFilters;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.RemoteIteratorDrain;
@@ -177,7 +178,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
                     for (Pair<Consumer<TopologyEntityDTO>, ITopologyWriter> consumer : entityConsumers) {
                         timer.start(getIngestionPhaseLabel(consumer.getRight()));
                         for (final DataSegment dataSegment : chunk) {
-                            if (dataSegment.hasEntity()) {
+                            if (shouldIngest(dataSegment)) {
                                 consumer.getLeft().accept(dataSegment.getEntity());
                             }
                         }
@@ -187,10 +188,9 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
                 // fetch all data from other components for use in finish stage
                 if (!writers.isEmpty()) {
-                    final boolean requireSupplyChainForAllEntities = writers.stream()
-                            .anyMatch(ITopologyWriter::requireSupplyChainForAllEntities);
-                    dataProvider.fetchData(timer, graphBuilder.build(),
-                            requireSupplyChainForAllEntities);
+                    final boolean requireFullSupplyChain = writers.stream()
+                            .anyMatch(ITopologyWriter::requireFullSupplyChain);
+                    dataProvider.fetchData(timer, graphBuilder.build(), requireFullSupplyChain);
                 }
 
                 for (final ITopologyWriter writer : writers) {
@@ -221,7 +221,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
         private void scrapeChunk(final Collection<DataSegment> chunk,
                                  final DataProvider dataProvider) {
             for (DataSegment dataSegment : chunk) {
-                if (dataSegment.hasEntity()) {
+                if (shouldIngest(dataSegment)) {
                     TopologyEntityDTO topologyEntityDTO = dataSegment.getEntity();
                     // add entity to graph
                     graphBuilder.addEntity(SupplyChainEntity.newBuilder(topologyEntityDTO));
@@ -229,6 +229,16 @@ public class TopologyEntitiesListener implements EntitiesListener {
                     dataProvider.scrapeData(topologyEntityDTO);
                 }
             }
+        }
+
+        /**
+         * Check if the entity should be ingested or not. Do not ingest Guestload application.
+         *
+         * @param dataSegment the segment which contains entity
+         * @return true if entity should be ingested, otherwise false
+         */
+        private boolean shouldIngest(DataSegment dataSegment) {
+            return dataSegment.hasEntity() && GuestLoadFilters.isNotGuestLoad(dataSegment.getEntity());
         }
     }
 }

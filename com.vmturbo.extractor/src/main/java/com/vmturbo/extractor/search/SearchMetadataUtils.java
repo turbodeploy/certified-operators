@@ -17,10 +17,8 @@ import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 import com.google.common.collect.Tables;
 
-import com.vmturbo.api.dto.searchquery.FieldApiDTO;
 import com.vmturbo.api.dto.searchquery.FieldApiDTO.FieldType;
 import com.vmturbo.api.enums.EntityType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.extractor.search.EnumUtils.CommodityTypeUtils;
 import com.vmturbo.extractor.search.EnumUtils.GroupTypeUtils;
 import com.vmturbo.extractor.search.EnumUtils.SearchEntityTypeUtils;
@@ -28,6 +26,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.search.metadata.SearchEntityMetadata;
 import com.vmturbo.search.metadata.SearchGroupMetadata;
 import com.vmturbo.search.metadata.SearchMetadataMapping;
+import com.vmturbo.search.metadata.utils.SearchFiltersMapper;
+import com.vmturbo.search.metadata.utils.SearchFiltersMapper.SearchFilterSpec;
 
 /**
  * Utils for obtaining metadata for entity and group during search data ingestion.
@@ -205,47 +205,60 @@ public class SearchMetadataUtils {
     }
 
     /**
-     * Set of entity types to compute supply chain for.
+     * List of SearchFilters (based on which to compute partial supply chain) for different entity type.
+     * The key of the outer map is the starting entity type, and the key of inner map is the stopping
+     * entity type. Given a pair of starting and stopping entity type, it gives us the search filters
+     * describing the path of how to reach the stopping entity.
      */
-    private static final Set<Integer> ENTITY_TYPES_TO_COMPUTE_SUPPLY_CHAIN;
+    public static final Map<Integer, Map<Integer, SearchFilterSpec>>
+            SEARCH_FILTER_SPEC_BASED_ON_METADATA;
 
     static {
-        final Set<Integer> set = new HashSet<>();
-        for (SearchEntityMetadata searchEntityMetadata : SearchEntityMetadata.values()) {
-            if (searchEntityMetadata.getMetadataMappingMap().entrySet().stream()
-                    .anyMatch(entry -> entry.getKey().getFieldType() == FieldType.RELATED_ENTITY)) {
-                set.add(SearchEntityTypeUtils.apiToProto(searchEntityMetadata.getEntityType())
-                        .getNumber());
-            }
+        final Map<Integer, Map<Integer, SearchFilterSpec>> searchFilterSpecMap = new HashMap<>();
+        for (SearchEntityMetadata metadata : SearchEntityMetadata.values()) {
+            final EntityType startEntityType = metadata.getEntityType();
+            metadata.getMetadataMappingMap().forEach((fieldApiDTO, metadataMapping) -> {
+                if (fieldApiDTO.getFieldType() == FieldType.RELATED_ENTITY
+                        || fieldApiDTO.getFieldType() == FieldType.RELATED_GROUP) {
+                    populateSearchFilterSpecsMap(startEntityType,
+                            metadataMapping.getRelatedEntityTypes(), searchFilterSpecMap);
+                }
+            });
         }
-
-        // if the group has related entities (like related vm count for cluster), we also need to
-        // calculate supply chain for the direct member type of the group (pm for cluster)
-        for (SearchGroupMetadata searchGroupMetadata : SearchGroupMetadata.values()) {
-            Set<Entry<FieldApiDTO, SearchMetadataMapping>> entries =
-                    searchGroupMetadata.getMetadataMappingMap().entrySet();
-            if (entries.stream().anyMatch(entry -> entry.getKey().getFieldType() == FieldType.RELATED_ENTITY)) {
-                Set<Integer> groupMemberTypes = entries.stream()
-                        .filter(e -> e.getKey().getFieldType() == FieldType.MEMBER)
-                        .map(e -> e.getValue().getMemberType())
-                        .filter(Objects::nonNull)
-                        .map(type -> SearchEntityTypeUtils.apiToProto(type).getNumber())
-                        .collect(Collectors.toSet());
-                set.addAll(groupMemberTypes);
-            }
+        for (SearchGroupMetadata metadata : SearchGroupMetadata.values()) {
+            metadata.getMetadataMappingMap().entrySet().stream()
+                    .filter(entry -> entry.getKey().getFieldType() == FieldType.RELATED_ENTITY)
+                    .map(Entry::getValue)
+                    // can be removed once resource group and business account relationship is handled
+                    .filter(mapping -> mapping.getMemberType() != null)
+                    .forEach(mapping -> populateSearchFilterSpecsMap(mapping.getMemberType(),
+                            mapping.getRelatedEntityTypes(), searchFilterSpecMap));
         }
-        ENTITY_TYPES_TO_COMPUTE_SUPPLY_CHAIN = Collections.unmodifiableSet(set);
+        SEARCH_FILTER_SPEC_BASED_ON_METADATA = Collections.unmodifiableMap(searchFilterSpecMap);
     }
 
     /**
-     * Whether or not it requires supply chain calculation for the given entity type, based on
-     * the definition in search metadata.
+     * Helper method to populate the given searchFilterSpecMap for given start entity type and
+     * related entity types.
      *
-     * @param entityType type of the entity
-     * @return true if supply chain should be calculated, otherwise false
+     * @param startEntityType start entity type
+     * @param relatedEntityTypes related entity types
+     * @param searchFilterSpecMap the map to populate
      */
-    public static boolean shouldComputeSupplyChain(int entityType) {
-        return ENTITY_TYPES_TO_COMPUTE_SUPPLY_CHAIN.contains(entityType)
-                || ApiEntityType.PROTO_ENTITY_TYPES_TO_EXPAND.containsKey(entityType);
+    private static void populateSearchFilterSpecsMap(final EntityType startEntityType,
+            final Set<EntityType> relatedEntityTypes,
+            final Map<Integer, Map<Integer, SearchFilterSpec>> searchFilterSpecMap) {
+        relatedEntityTypes.forEach(relatedEntityType -> {
+            if (relatedEntityType == startEntityType) {
+                // same type, no need to have search filters
+                return;
+            }
+            // search filter must be provided for the given start and related entity type
+            SearchFilterSpec searchFilterSpec = Objects.requireNonNull(
+                    SearchFiltersMapper.getSearchFilterSpec(startEntityType, relatedEntityType));
+            searchFilterSpecMap.computeIfAbsent(
+                    SearchEntityTypeUtils.apiToProto(startEntityType).getNumber(), k -> new HashMap<>())
+                    .put(SearchEntityTypeUtils.apiToProto(relatedEntityType).getNumber(), searchFilterSpec);
+        });
     }
 }

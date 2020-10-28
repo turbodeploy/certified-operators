@@ -61,11 +61,24 @@ public class SearchResolver<E extends TopologyGraphSearchableEntity<E>> {
     public Stream<E> search(@Nonnull final SearchParameters search,
                             @Nonnull final TopologyGraph<E> graph) {
         Stream<E> matchingEntities = startingEntities(search.getStartingFilter(), graph);
+        return search(matchingEntities, search.getSearchFilterList(), graph);
+    }
 
-        for (SearchFilter filter : search.getSearchFilterList()) {
+    /**
+     * Perform a search starting from given entities using list of {@link SearchFilter}.
+     *
+     * @param startingEntities stream of starting entities
+     * @param searchFilters list of {@link SearchFilter}s describing the search.
+     * @param graph The {@link TopologyGraph} to use for the search.
+     * @return A {@link Stream} of {@link TopologyGraphEntity}s that match the parameters.
+     */
+    public Stream<E> search(@Nonnull final Stream<E> startingEntities,
+                            @Nonnull List<SearchFilter> searchFilters,
+                            @Nonnull final TopologyGraph<E> graph) {
+        Stream<E> matchingEntities = startingEntities;
+        for (SearchFilter filter : searchFilters) {
             matchingEntities = filterFactory.filterFor(filter).apply(matchingEntities, graph);
         }
-
         return matchingEntities;
     }
 

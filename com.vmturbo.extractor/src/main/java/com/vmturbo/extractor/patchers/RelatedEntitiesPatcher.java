@@ -40,7 +40,10 @@ public class RelatedEntitiesPatcher implements EntityRecordPatcher<DataProvider>
                     .collect(Collectors.toList());
             switch (metadata.getRelatedEntityProperty()) {
                 case NAMES:
-                    recordInfo.putAttrs(metadata.getJsonKeyName(), relatedEntityNames);
+                    // do not persist if it's empty to save space
+                    if (!relatedEntityNames.isEmpty()) {
+                        recordInfo.putAttrs(metadata.getJsonKeyName(), relatedEntityNames);
+                    }
                     break;
                 case COUNT:
                     recordInfo.putAttrs(metadata.getJsonKeyName(), relatedEntityNames.size());

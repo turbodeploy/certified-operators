@@ -91,6 +91,16 @@ public class EnumUtils {
         public static EntityType protoIntToDb(int protoEntityTypeInt) {
             return protoIntToDb(protoEntityTypeInt, null);
         }
+
+        /**
+         * Convert a Protobuf entity type numeric value to an API entity type.
+         *
+         * @param protoEntityTypeInt Protobuf entity type numeric value
+         * @return API entity type, or null if conversion fails
+         */
+        public static com.vmturbo.api.enums.EntityType protoIntToApi(int protoEntityTypeInt) {
+            return SUPPORTED_ENTITY_TYPE_MAPPING.inverse().get(EntityDTO.EntityType.forNumber(protoEntityTypeInt));
+        }
     }
 
     /**

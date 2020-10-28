@@ -30,7 +30,6 @@ import org.jooq.DSLContext;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.utils.GuestLoadFilters;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.models.DslReplaceRecordSink;
@@ -47,7 +46,6 @@ import com.vmturbo.extractor.patchers.RelatedGroupsPatcher;
 import com.vmturbo.extractor.topology.DataProvider;
 import com.vmturbo.extractor.topology.TopologyWriterBase;
 import com.vmturbo.extractor.topology.WriterConfig;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -133,15 +131,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
     @Override
     protected void writeEntity(final TopologyEntityDTO entity) {
         if (!SearchMetadataUtils.hasMetadata(entity.getEntityType())) {
-            // this is legitimate, since not all entities are ingested
-            logger.trace("Skipping entity {} of type {} due to lack of metadata definition",
-                    entity.getOid(), EntityType.forNumber(entity.getEntityType()));
-            return;
-        }
-
-        if (GuestLoadFilters.isGuestLoad(entity)) {
-            logger.trace("Skipping entity {} of type {} because GuestLoad",
-                    entity.getOid(), EntityType.forNumber(entity.getEntityType()));
+            // do not ingest if the entity type is not defined in search metadata
             return;
         }
 

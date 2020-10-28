@@ -8,6 +8,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -26,6 +27,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.search.metadata.utils.SearchFiltersMapper.SearchFilterSpec;
 
 /**
  * Unit tests verify that all fields in {@link SearchEntityMetadata} for different field types
@@ -169,6 +171,32 @@ public class SearchEntityMetadataTest {
         assertFalse(maybeNumCpus.isPresent());
     }
 
+    /**
+     * Test that {@link SearchFilterSpec} are defined in metadata as expected.
+     */
+    @Test
+    public void testSearchFilterSpecSetCorrectly() {
+        for (SearchEntityMetadata metadata : SearchEntityMetadata.values()) {
+            metadata.getMetadataMappingMap().forEach((fieldApiDTO, metadataMapping) -> {
+                if (fieldApiDTO.getFieldType() == FieldType.RELATED_ENTITY
+                        || fieldApiDTO.getFieldType() == FieldType.RELATED_GROUP) {
+                    assertNotNull(metadataMapping.getRelatedEntityTypes());
+                }
+            });
+        }
+        for (SearchGroupMetadata metadata : SearchGroupMetadata.values()) {
+            metadata.getMetadataMappingMap().entrySet().stream()
+                    .filter(entry -> entry.getKey().getFieldType() == FieldType.RELATED_ENTITY)
+                    .map(Entry::getValue)
+                    .forEach(mapping -> {
+                        if (mapping != SearchMetadataMapping.RELATED_BUSINESS_ACCOUNT) {
+                            assertNotNull(mapping.toString(), mapping.getMemberType());
+                        }
+                        assertNotNull(mapping.getRelatedEntityTypes());
+                    });
+        }
+    }
+
     @FunctionalInterface
     private interface MetadataVerifier {
 
@@ -231,7 +259,7 @@ public class SearchEntityMetadataTest {
             commonVerify(metadata);
             assertNotNull(metadata.getJsonKeyName());
             assertNotNull(metadata.getRelatedGroupType());
-            assertNotNull(metadata.getMemberType());
+            assertNotNull(metadata.getRelatedEntityTypes());
             assertNotNull(metadata.getRelatedGroupProperty());
         }
     }
