@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.historical;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import com.google.common.collect.Maps;
@@ -12,8 +13,16 @@ public class HistoricalInfo {
 
     private Map<Long, HistoricalServiceEntityInfo> oidToHistoricalSEInfo = null;
 
+    // A map to keep track of entity oids and consecutive discovery failure counts.
+    private Map<Long, Integer> oidToMissingConsecutiveCycleCounts = new HashMap<>();
+
     public HistoricalInfo() {
         oidToHistoricalSEInfo = Maps.newHashMap();
+    }
+
+    // Returns the map which keeps track of entity oids and consecutive discovery failure counts.
+    public Map<Long, Integer> getOidToMissingConsecutiveCycleCounts() {
+        return oidToMissingConsecutiveCycleCounts;
     }
 
     // Exposes the overall object. The following methods are convenience methods for easier use

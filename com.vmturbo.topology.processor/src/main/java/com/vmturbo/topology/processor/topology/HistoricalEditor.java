@@ -26,6 +26,8 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import jdk.nashorn.internal.ir.annotations.Immutable;
+
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.HistoricalInfo.HistoricalInfoDTO;
@@ -64,7 +66,8 @@ public class HistoricalEditor {
 
     private final ExecutorService executorService;
 
-    private HistoricalInfo historicalInfo;
+    @VisibleForTesting
+    protected HistoricalInfo historicalInfo;
 
     // commodity types already logged as missing historical info - recreated on
     // each invocation of applyCommodityEdits()
@@ -75,6 +78,9 @@ public class HistoricalEditor {
 
     // the weight of the historical peak value in the calculation of the weighted peak value
     private static final float globalPeakHistoryWeight = 0.99f;
+
+    // if the entity is missing consecutive 6 cycles, it should be considered as a deleted entity
+    private static final int entityMissingMaxCycles = 6;
 
     public static final float E = 0.00001f; // to compare floats for equality
 
@@ -200,26 +206,35 @@ public class HistoricalEditor {
             });
             copyHistoricalValuesToClonedEntities(graph, changes);
         } else {
-            Stream<TopologyEntity> entities = graph.entities();
-            Iterable<TopologyEntity> entitiesIterable = entities::iterator;
-            this.commodityTypesAlreadyLoggedAsMissingHistory = new HashSet<>();
-
-            // Clean historical utilization data structure
-            // Construct the set of all oids existing from previous iterations
-            Set<Long> histOids = new HashSet<Long>(historicalInfo.keySet());
-            // Remove the set of oids existing in this iteration.
-            // The oids not existing any more remaining
-            for (TopologyEntity entity : entitiesIterable) {
-                histOids.remove(entity.getOid());
+            // Construct the set of all oids discovered from current cycle.
+            Set<Long> currentCycleEntities = graph.entities().map(TopologyEntity::getOid)
+                    .collect(Collectors.toSet());
+            Set<Long> oidsToRemove = new HashSet<>();
+            for (Long existingOid : historicalInfo.keySet()) {
+                // current cycle did not discovery the entity with existing oid, increment failure count
+                if (!currentCycleEntities.contains(existingOid)) {
+                    Integer failedCount = historicalInfo.getOidToMissingConsecutiveCycleCounts()
+                            .get(existingOid);
+                    int newCount = failedCount == null ? 1 : failedCount + 1;
+                    if (newCount >= entityMissingMaxCycles) {
+                        oidsToRemove.add(existingOid);
+                    } else {
+                        historicalInfo.getOidToMissingConsecutiveCycleCounts().put(existingOid,
+                                newCount);
+                    }
+                } else { // current cycle discovery the entity with existing oid, remove it from map
+                    // because we only keep track of failures from consecutive cycles
+                    historicalInfo.getOidToMissingConsecutiveCycleCounts().remove(existingOid);
+                }
             }
-
-            // Remove the oids not existing any more.
-            for (Long oid : histOids) {
+            // Remove the oids that did not show up for 6 consecutive cycles.
+            for (Long oid : oidsToRemove) {
                 historicalInfo.remove(oid);
             }
 
-            entities = graph.entities();
-            entitiesIterable = entities::iterator;
+            this.commodityTypesAlreadyLoggedAsMissingHistory = new HashSet<>();
+            Stream<TopologyEntity> entities = graph.entities();
+            Iterable<TopologyEntity> entitiesIterable = entities::iterator;
 
             for (TopologyEntity entity : entitiesIterable) {
                 if (!historicalInfo.containsKey(entity.getOid())) {
@@ -949,9 +964,14 @@ public class HistoricalEditor {
         @Nonnull final Function<T, HistoricalValues.Builder> historicalPeakExtractor) {
         // Iterate over the map to copy historical values from original entities to cloned entities.
         for (Entry<CommodityType, T> entry : clonedCommTypeToCommodity.entrySet()) {
+            // Print warning for non-access commodity types only, because access commodity has key
+            // that can be different between clone and original.
             if (!originalCommTypeToCommodity.containsKey(entry.getKey())) {
-                logger.warn("Original commodity of commType {} of entity {} ({}) not found.",
-                    entry.getKey(), clonedEntityBuilder.getDisplayName(), clonedEntityBuilder.getOid());
+                if (!entry.getKey().hasKey()) {
+                    logger.warn("Original commodity of commType {} of entity {} ({}) not found.",
+                            entry.getKey(), clonedEntityBuilder.getDisplayName(),
+                            clonedEntityBuilder.getOid());
+                }
                 continue;
             }
 

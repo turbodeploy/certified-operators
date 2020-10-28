@@ -4,7 +4,9 @@ import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.buildT
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.createGraph;
 import static org.mockito.Mockito.mock;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -379,6 +381,29 @@ public class HistoricalEditorTest {
             PlanTopologyInfo.newBuilder().setPlanType(PlanProjectType.USER.name())).build();
 
         testApplyCommodityEditsNoUpdate(changes, topologyInfo);
+    }
+
+    /**
+     * Test historical value removal of entities which no longer exists.
+     */
+    @Test
+    public void testHistoricalInfoEntityDeletion() {
+        // The first broadcast cycle historical values cached for pm oid 1L, vm oid 2L
+        TopologyGraph<TopologyEntity> graph = createGraph(CommodityDTO.CommodityType.MEM, 10, 100, 10, 100);
+        historicalEditor.applyCommodityEdits(graph, new ArrayList<>(), TopologyInfo.newBuilder()
+                .setTopologyContextId(777777).build());
+        // Suppose the pm with oid 1L failed to be discovered 5 times, and vm with oid 2L failed to
+        // be discovered 3 times
+        historicalEditor.historicalInfo.getOidToMissingConsecutiveCycleCounts().put(1L, 5);
+        historicalEditor.historicalInfo.getOidToMissingConsecutiveCycleCounts().put(2L, 3);
+        // This broadcast cycle no thing discovered
+        historicalEditor.applyCommodityEdits(TopologyEntityTopologyGraphCreator.newGraph(new HashMap<>()),
+                new ArrayList<>(), TopologyInfo.newBuilder().setTopologyContextId(777777).build());
+        // Pm with oid 1L failed to be discovered 6 times, it should be deleted from historicalEditor cache
+        Assert.assertFalse(historicalEditor.historicalInfo.getOidToHistoricalSEInfo().containsKey(1L));
+        // Vm with oid 2L failed to be discovered 4 times, it should still exists in historicalEditor cache
+        Assert.assertTrue(historicalEditor.historicalInfo.getOidToHistoricalSEInfo().containsKey(2L));
+        Assert.assertTrue(historicalEditor.historicalInfo.getOidToMissingConsecutiveCycleCounts().get(2L) == 4);
     }
 
     /**
