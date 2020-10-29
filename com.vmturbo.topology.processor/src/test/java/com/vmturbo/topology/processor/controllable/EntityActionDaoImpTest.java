@@ -94,6 +94,11 @@ public class EntityActionDaoImpTest {
                 .allMatch(record -> record.getStatus().equals(EntityActionStatus.queued)));
     }
 
+    /**
+     * Tests that a call to the {@link EntityActionDaoImp#deleteMoveActions(long)} method removes
+     * move entries pertaining to the supplied entity from the database, but doesn't effect other
+     * action types nor other entities.
+     */
     @Test
     public void testDeleteMoveActions() {
         // Populate database.
