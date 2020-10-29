@@ -778,8 +778,13 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             }
             //time frames.
             context.getTimeWindow().ifPresent(timeWindow -> {
-                cloudCostStatsQuery.setStartDate(timeWindow.startTime());
-                cloudCostStatsQuery.setEndDate(timeWindow.endTime());
+                if (timeWindow.includeHistorical() || !timeWindow.includeCurrent()) {
+                    // The cost component will fetch the latest stats if both start and end times
+                    // are not provided. When don't want to use the current time as the start time
+                    // because the latest stats time can be in the past.
+                    cloudCostStatsQuery.setStartDate(timeWindow.startTime());
+                    cloudCostStatsQuery.setEndDate(timeWindow.endTime());
+                }
             });
 
             if (!buyRiScopeHandler.shouldIncludeBuyRiDiscount(context.getInputScope())) {
