@@ -856,6 +856,7 @@ public class ActionSpecMapper {
             final ActionTypeCase actionTypeCase = action.getInfo().getActionTypeCase();
             // Filter virtual disks if it is MOVE virtual volume action in migration plan.
             final Predicate<VirtualDiskApiDTO> filter = actionTypeCase == ActionTypeCase.MOVE
+                && ApiEntityType.VIRTUAL_VOLUME.apiStr().equals(targetEntity.getClassName())
                     ? vd -> targetEntityUuid.equals(vd.getUuid())
                     : vd -> true;
 
