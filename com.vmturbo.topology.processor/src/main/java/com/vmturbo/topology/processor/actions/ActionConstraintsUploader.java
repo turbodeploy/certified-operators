@@ -8,11 +8,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.Iterators;
 import com.google.protobuf.Empty;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import io.grpc.stub.StreamObserver;
 
@@ -153,24 +153,24 @@ public class ActionConstraintsUploader {
                         entity.getDisplayName(), entity.getOid(), property.getName());
                     continue;
                 }
-                final String family = coreQuota[2];
-                final int quota = Integer.valueOf(property.getValue());
 
-                Optional<Long> businessAccountId =
-                    entityStore.getTargetEntityIdMap(entity.getTargetId()).map(localIdToEntityId ->
-                        // Get business account id from subscription id.
-                        // TODO: Is there a better way to get the business account id?
-                        //  The format of the subscription id in localIdToEntityId can change.
-                        //  It was changed from BUSINESS_ACCOUNT::subscriptionId to subscriptionId.
-                        //  If it is changed by someone without modifying the format here, then
-                        //  we can't populate the coreQuotaInfoMap.
-                        localIdToEntityId.get(coreQuota[1]));
+                // Get business account id from subscription id.
+                // TODO: Is there a better way to get the business account id?
+                //  The format of the subscription id in localIdToEntityId can change.
+                //  It was changed from BUSINESS_ACCOUNT::subscriptionId to subscriptionId.
+                //  If it is changed by someone without modifying the format here, then
+                //  we can't populate the coreQuotaInfoMap.
+                final String subscriptionId = coreQuota[1];
+                final Optional<Long> businessAccountId = entityStore.getEntityIdByLocalId(
+                        subscriptionId);
                 if (businessAccountId.isPresent()) {
                     final CoreQuotaByRegion.Builder builder = coreQuotaInfoMap
                         .computeIfAbsent(businessAccountId.get(), key -> new HashMap<>())
                         .computeIfAbsent(entity.getOid(), key ->
                             CoreQuotaByRegion.newBuilder().setRegionId(entity.getOid()));
 
+                    final int quota = Integer.parseInt(property.getValue());
+                    final String family = coreQuota[2];
                     if (StringConstants.TOTAL_CORE_QUOTA.equals(family)) {
                         builder.setTotalCoreQuota(quota);
                     } else {
@@ -178,7 +178,7 @@ public class ActionConstraintsUploader {
                             CoreQuotaByFamily.newBuilder().setFamily(family).setQuota(quota));
                     }
                 } else {
-                    logger.warn("Subscription id {} not found", coreQuota[1]);
+                    logger.warn("Subscription id {} not found", subscriptionId);
                 }
             } catch (RuntimeException e) {
                 logger.error("Error in processing entity property {} of entity {}: {}",

@@ -51,7 +51,6 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.proactivesupport.DataMetricGauge;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -284,6 +283,24 @@ public class EntityStore {
             } else {
                 return Optional.empty();
             }
+        }
+    }
+
+    /**
+     * Get entity {@code Long} ID based on local ID discovered by a specific target. ID is searched
+     * in the maps for all targets.
+     *
+     * @param localId Local ID.
+     * @return {@code Long} ID if it is found in target entities map.
+     */
+    @Nonnull
+    public Optional<Long> getEntityIdByLocalId(final String localId) {
+        synchronized (topologyUpdateLock) {
+            return targetEntities.values().stream()
+                    .map(TargetEntityIdInfo::getLocalIdToEntityId)
+                    .map(localIdToEntityId -> localIdToEntityId.get(localId))
+                    .filter(Objects::nonNull)
+                    .findAny();
         }
     }
 

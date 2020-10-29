@@ -35,8 +35,8 @@ import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintTy
 import com.vmturbo.common.protobuf.action.ActionConstraintDTO.UploadActionConstraintInfoRequest;
 import com.vmturbo.common.protobuf.action.ActionConstraintDTOMoles.ActionConstraintsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionConstraintsServiceGrpc;
-import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -145,9 +145,9 @@ public class ActionConstraintsUploaderTest {
         final Map<String, Long> localIdToEntityId = new HashMap<>();
         for (int i = 0; i < numOfSubscriptionIds; i++) {
             localIdToEntityId.put(subscriptionId + i, businessAccountId + i);
+            when(entityStore.getEntityIdByLocalId(subscriptionId + i))
+                    .thenReturn(Optional.of(businessAccountId + i));
         }
-
-        when(entityStore.getTargetEntityIdMap(targetId)).thenReturn(Optional.of(localIdToEntityId));
 
         // Start uploading. Use a variable to store upload requests.
         List<UploadActionConstraintInfoRequest> requests = new ArrayList<>();

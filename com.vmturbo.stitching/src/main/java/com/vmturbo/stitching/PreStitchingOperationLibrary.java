@@ -55,7 +55,6 @@ public class PreStitchingOperationLibrary {
         EntityType.COMPUTE_TIER,
         EntityType.DATABASE_TIER,
         EntityType.STORAGE_TIER,
-        EntityType.REGION,
         EntityType.RESERVED_INSTANCE);
 
     /**
@@ -76,13 +75,13 @@ public class PreStitchingOperationLibrary {
         ImmutableList.Builder<PreStitchingOperation> listBuilder = new ImmutableList.Builder<>();
         listBuilder.addAll(createCloudEntityPreStitchingOperations());
         preStitchingOperations = listBuilder.add(
+                new SharedAzureRegionPreStitchingOperation(),
                 new RemoveNonMarketEntitiesPreStitchingOperation(),
                 new SharedStoragePreStitchingOperation(),
                 new SharedEntityDefaultPreStitchingOperation(
                         stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(
                                 SDKProbeType.HYPERV.getProbeType(), EntityType.DATACENTER)),
                 new StorageVolumePreStitchingOperation(),
-                new SharedAzureRegionPreStitchingOperation(),
                 new SharedVirtualVolumePreStitchingOperation(),
                 new ConnectedNetworkPreStitchingOperation(),
                 new ADGroupsPreStitchingOperation(),

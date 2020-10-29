@@ -58,15 +58,15 @@ import com.vmturbo.topology.processor.targets.TargetStoreListener;
 public class EntityStoreTest {
     private final long targetId = 1234;
 
-    private TargetStore targetStore = Mockito.mock(TargetStore.class);
+    private final TargetStore targetStore = Mockito.mock(TargetStore.class);
 
-    private IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
+    private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
 
     private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
 
-
     private EntityStore entityStore = new EntityStore(targetStore, identityProvider,
         sender, Clock.systemUTC());
+
     /**
      * Expected exception rule.
      */
@@ -92,7 +92,7 @@ public class EntityStoreTest {
 
         Assert.assertTrue(entityStore.getTargetEntityIdMap(targetId).isPresent());
         Assert.assertTrue(entityStore.getEntity(1L).isPresent());
-        Assert.assertTrue(entityStore.discoveredByTarget(targetId).equals(entitiesMap));
+        assertEquals(entitiesMap, entityStore.discoveredByTarget(targetId));
     }
 
     /**
@@ -211,6 +211,52 @@ public class EntityStoreTest {
 
         Assert.assertFalse(entityStore.getTargetEntityIdMap(targetId).isPresent());
         Assert.assertFalse(entityStore.getEntity(1L).isPresent());
+    }
+
+    /**
+     * Tests {@link EntityStore#getEntityIdByLocalId} method.
+     *
+     * @throws TargetNotFoundException Should not happen.
+     * @throws IdentityServiceException Should not happen.
+     */
+    @Test
+    public void testGetEntityIdByLocalId()
+            throws TargetNotFoundException, IdentityServiceException {
+
+        // Pretend that any target exists
+        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
+
+        // Add entity 1 from target 1
+        final String localId1 = "localId1";
+        final long id1 = 1L;
+        addVmEntity(id1, localId1, 12345L);
+
+        // Add entity 2 from target 2
+        final String localId2 = "localId2";
+        final long id2 = 2L;
+        addVmEntity(id2, localId2, 23456L);
+
+        // Check entity 1
+        final Optional<Long> id1Opt = entityStore.getEntityIdByLocalId(localId1);
+        assertTrue(id1Opt.isPresent());
+        assertEquals(id1, id1Opt.get().longValue());
+
+        // Check entity 2
+        final Optional<Long> id2Opt = entityStore.getEntityIdByLocalId(localId2);
+        assertTrue(id2Opt.isPresent());
+        assertEquals(id2, id2Opt.get().longValue());
+
+        // Check not existing entity
+        assertFalse(entityStore.getEntityIdByLocalId("nonExistingLocalId").isPresent());
+    }
+
+    private void addVmEntity(final long id, final String localId, final long targetId)
+            throws TargetNotFoundException, IdentityServiceException {
+        final EntityDTO entity = EntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                .setId(localId)
+                .build();
+        addEntities(ImmutableMap.of(id, entity), targetId, 0, DiscoveryType.FULL, 0);
     }
 
     /**
@@ -397,7 +443,7 @@ public class EntityStoreTest {
 
         Assert.assertTrue(entityStore.getTargetEntityIdMap(targetId).isPresent());
         Assert.assertTrue(entityStore.getEntity(1L).isPresent());
-        Assert.assertTrue(entityStore.discoveredByTarget(targetId).equals(entitiesMap));
+        assertEquals(entitiesMap, entityStore.discoveredByTarget(targetId));
     }
 
     /**
@@ -452,8 +498,8 @@ public class EntityStoreTest {
         Assert.assertTrue(entityStore.getTargetEntityIdMap(target2Id).isPresent());
         Assert.assertEquals(2, entityStore.getEntity(sharedOid).get().getPerTargetInfo().size());
 
-        Assert.assertTrue(entityStore.discoveredByTarget(targetId).equals(target1Map));
-        Assert.assertTrue(entityStore.discoveredByTarget(target2Id).equals(target1Map));
+        assertEquals(target1Map, entityStore.discoveredByTarget(targetId));
+        assertEquals(target1Map, entityStore.discoveredByTarget(target2Id));
     }
 
     private TopologyStitchingEntity entityByLocalId(@Nonnull final TopologyStitchingGraph graph,
