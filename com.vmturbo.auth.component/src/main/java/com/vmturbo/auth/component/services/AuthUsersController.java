@@ -419,11 +419,12 @@ public class AuthUsersController {
     /**
      * delete an existing Active Directory group
      * DELETE /users/ad/groups/{groupName}
-     *
+     * Note: Adding a slash at the end of @RequestMapping to support group with period in the name.
+     * This will enclose our variable protecting it from Spring's default behavior.
      * @return true if succeeded, false if failure
      */
     @ApiOperation(value = "Delete an existing Active Directory group")
-    @RequestMapping(value = "ad/groups/{groupName}", method = RequestMethod.DELETE,
+    @RequestMapping(value = "ad/groups/{groupName}/", method = RequestMethod.DELETE,
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
     public Boolean deleteSSOGroup(

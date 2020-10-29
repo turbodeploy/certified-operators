@@ -827,6 +827,40 @@ public class RestTest {
         }
     }
 
+    /**
+     * Test delete external group with period in the name.
+     * @throws Exception if failed.
+     */
+    @Test
+    public void testDeleteSSOGroupWithPeriodInName() throws Exception {
+        logon("ADMINISTRATOR");
+        try {
+            // setup
+            final String groupNameWithPeriod = "g.aVirtualCenter_Admin";
+            final String jsonGroup = GSON.toJson(
+                    new SecurityGroupDTO(groupNameWithPeriod, "group", ADMINISTRATOR.toUpperCase()),
+                    SecurityGroupDTO.class);
+
+            // create group with period in the name.
+            mockMvc.perform(post("/users/ad/groups").content(jsonGroup)
+                    .contentType(RET_TYPE)
+                    .accept(RET_TYPE))
+                    .andExpect(status().isOk())
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+
+            // delete the group
+            mockMvc.perform(
+                    delete("/users/ad/groups/" + groupNameWithPeriod + "/").accept(RET_TYPE))
+                    .andExpect(status().isOk())
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+        } finally {
+            SecurityContextHolder.getContext().setAuthentication(null);
+        }
+    }
 
     @ControllerAdvice
     static class TestExceptionHandler {

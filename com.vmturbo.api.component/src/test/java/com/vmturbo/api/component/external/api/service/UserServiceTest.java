@@ -160,7 +160,7 @@ public class UserServiceTest {
                         .scheme("http")
                         .host("")
                         .port(0)
-                        .path("/users/ad/groups/" + AD_GROUP_NAME)
+                        .path("/users/ad/groups/" + AD_GROUP_NAME + "/")
                         .build().toUriString()),
                 Matchers.eq(HttpMethod.DELETE),
                 Matchers.<HttpEntity>any(),

@@ -867,7 +867,9 @@ public class UsersService implements IUsersService {
     public Boolean deleteActiveDirectoryGroup(final String groupName) {
         Preconditions.checkArgument(!StringUtils.isBlank(groupName), "Group name cannot be empty");
         try {
-            UriComponentsBuilder builder = baseRequest().path("/users/ad/groups/" + groupName);
+            // Adding a slash at the end of parameter to support group with period in the name.
+            // This will enclose our variable protecting it from Spring's default behavior
+            UriComponentsBuilder builder = baseRequest().path("/users/ad/groups/" + groupName + "/");
             final String request = builder.build().toUriString();
             HttpEntity<Boolean> entity = new HttpEntity<>(composeHttpHeaders());
             final String details = String.format("Delete external group: %s", groupName);
