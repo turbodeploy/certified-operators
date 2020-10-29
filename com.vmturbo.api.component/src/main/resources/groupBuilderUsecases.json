@@ -141,7 +141,8 @@
     "Namespace" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "namespacesByName"},
-            {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "namespacesByK8sCluster"}
+            {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "namespacesByK8sCluster"},
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "namespacesByTag", "loadOptions": true}
         ]
     },
 
