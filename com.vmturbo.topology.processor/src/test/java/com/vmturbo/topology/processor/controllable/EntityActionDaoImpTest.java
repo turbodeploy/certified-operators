@@ -112,7 +112,7 @@ public class EntityActionDaoImpTest {
                                         Sets.newHashSet(SCALE_ENTITY_ID));
 
         // Call method-under-test.
-        controllableDaoImp.deleteMoveActions(1L);
+        controllableDaoImp.deleteMoveActions(Collections.singletonList(1L));
 
         // Assert post-execution state of the database.
         final List<EntityActionRecord> records = dsl.selectFrom(ENTITY_ACTION)

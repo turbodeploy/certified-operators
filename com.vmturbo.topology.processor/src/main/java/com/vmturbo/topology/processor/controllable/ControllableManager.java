@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.controllable;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -44,6 +46,8 @@ public class ControllableManager {
      */
     public int applyControllable(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
         int numModified = 0;
+        List<Long> oidsToRemoveFromDB = new ArrayList<>();
+
         for (long entityOid : entityActionDao.getNonControllableEntityIds()) {
             Builder builder = topology.get(entityOid);
             if (builder != null) {
@@ -52,7 +56,9 @@ public class ControllableManager {
                 if (entityBuilder.getEntityState() == EntityState.MAINTENANCE) {
                     // Clear action information regarding this entity from ENTITY_ACTION table so
                     // that when entity exits maintenance mode it will be controllable.
-                    entityActionDao.deleteMoveActions(entityOid);
+                    // We collect all such entity OIDs in a list so we can make a single call to
+                    // the database. That reduces overhead and makes the removal transactional.
+                    oidsToRemoveFromDB.add(entityOid);
                     // Entities in maintenance mode are always controllable.
                     continue;
                 }
@@ -75,6 +81,8 @@ public class ControllableManager {
                     entityBuilder.getDisplayName());
             } // end if
         } // end foreach
+
+        entityActionDao.deleteMoveActions(oidsToRemoveFromDB);
         return numModified;
     }
 

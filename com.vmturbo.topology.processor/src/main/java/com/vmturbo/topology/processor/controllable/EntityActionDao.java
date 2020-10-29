@@ -1,8 +1,11 @@
 package com.vmturbo.topology.processor.controllable;
 
+import java.util.List;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
@@ -52,12 +55,12 @@ public interface EntityActionDao {
             throws ActionRecordNotFoundException;
 
     /**
-     * Deletes all action records effecting the controllable attribute and pertaining to a
-     * particular entity OID from the entity_action table.
+     * Deletes all action records effecting the controllable attribute and pertaining to entities
+     * from a given list of entity OIDs from the entity_action table.
      *
-     * @param entityOid The unique OID of the topology entity for which to remove the records.
+     * @param entityOids The unique OIDs of the topology entities for which to remove the records.
      */
-    void deleteMoveActions(long entityOid);
+    void deleteMoveActions(@NonNull List<@NonNull Long> entityOids);
 
     /**
      * First it will delete all expired action records, for different status records, it may has different expired

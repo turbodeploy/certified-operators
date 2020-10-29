@@ -13,6 +13,7 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.nullness.qual.NonNull;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -162,9 +163,9 @@ public class EntityActionDaoImp implements EntityActionDao {
     }
 
     @Override
-    public void deleteMoveActions(final long entityOid) {
+    public void deleteMoveActions(final @NonNull List<@NonNull Long> entityOids) {
         dsl.deleteFrom(ENTITY_ACTION)
-            .where(ENTITY_ACTION.ENTITY_ID.eq(entityOid)
+            .where(ENTITY_ACTION.ENTITY_ID.in(entityOids)
                 .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move)))
             .execute();
     }
