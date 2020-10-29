@@ -2,7 +2,6 @@ package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -16,18 +15,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
-import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -65,13 +60,11 @@ import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.VirtualMachineDat
  */
 public class CloudAspectMapper extends AbstractAspectMapper {
     private static final Logger logger = LogManager.getLogger();
-    private static final Map<Integer, Integer> WORKLOAD_ENTITY_TYPE_TO_TIER_TYPE =
-            ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, EntityType.COMPUTE_TIER_VALUE,
-                    EntityType.DATABASE_SERVER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
-                    EntityType.DATABASE_VALUE, EntityType.DATABASE_TIER_VALUE);
-
-    private static final Set<Integer> AVAILABILITY_ZONE_AND_REGION =
-            ImmutableSet.of(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE);
+    private static final Map<Integer, Integer> WORKLOAD_ENTITY_TYPE_TO_TIER_TYPE = ImmutableMap.of(
+            EntityType.VIRTUAL_MACHINE_VALUE, EntityType.COMPUTE_TIER_VALUE,
+            EntityType.DATABASE_SERVER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
+            EntityType.DATABASE_VALUE, EntityType.DATABASE_TIER_VALUE,
+            EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE);
 
     private final RepositoryApi repositoryApi;
     private final ReservedInstanceUtilizationCoverageServiceBlockingStub riCoverageService;
