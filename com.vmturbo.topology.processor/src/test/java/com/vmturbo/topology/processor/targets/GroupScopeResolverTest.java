@@ -339,7 +339,7 @@ public class GroupScopeResolverTest {
         groupScopeResolver = Mockito.spy(new GroupScopeResolver(groupServer.getChannel(),
                 repositoryServer.getChannel(), targetStore, entityStore));
         for (int i = 0; i < memberId.length; i++) {
-            Mockito.doReturn(Optional.of(guestLoadId[i]))
+            Mockito.doReturn(guestLoadId[i])
                     .when(groupScopeResolver).guestLoadOid(memberId[i]);
         }
 

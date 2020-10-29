@@ -819,7 +819,7 @@ public class Stages {
         public StageResult<TopologyGraph<TopologyEntity>> execute(@NotNull @Nonnull final Map<Long, TopologyEntity.Builder> input) {
             final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(input);
             if (groupScopeResolver != null) {
-                groupScopeResolver.setTopologyGraph(graph);
+                groupScopeResolver.updateGuestLoadIds(graph);
             }
             return StageResult.withResult(graph)
                 .andStatus(Status.success());

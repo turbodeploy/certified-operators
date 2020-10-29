@@ -12,14 +12,17 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Functions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
+
+import it.unimi.dsi.fastutil.longs.Long2LongMap;
+import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -97,7 +100,10 @@ public class GroupScopeResolver {
 
     private final CustomScopingOperationLibrary scopingOperationLibrary = new CustomScopingOperationLibrary();
 
-    private TopologyGraph<TopologyEntity> graph;
+    private final Object guestLoadIdsLock = new Object();
+
+    @GuardedBy("guestLoadIdsLock")
+    private final Long2LongOpenHashMap guestLoadIds = new Long2LongOpenHashMap();
 
     /**
      * Constructor of a GroupScopeResolver.
@@ -120,14 +126,22 @@ public class GroupScopeResolver {
     }
 
     /**
-     * Set the topology graph that is used to resolve consumers/producers of
-     * entities in scope. This is called by the pipeline stage that computes
-     * the graph.
+     * Process the currently-broadcast topology graph and record the guest load ids.
+     * This is called by the pipeline stage that computes the graph.
      *
      * @param graph the topology graph from the pipeline
      */
-    public void setTopologyGraph(@Nonnull TopologyGraph graph) {
-        this.graph = graph;
+    public void updateGuestLoadIds(@Nonnull TopologyGraph<TopologyEntity> graph) {
+        synchronized (guestLoadIdsLock) {
+            graph.entities().forEach(entity -> {
+                entity.getConsumers().stream()
+                    .filter(GroupScopeResolver::isGuestLoad)
+                    .findFirst()
+                    .ifPresent(guestLoad -> guestLoadIds.put(entity.getOid(), guestLoad.getOid()));
+            });
+            // Reduces memory usage of the map.
+            guestLoadIds.trim();
+        }
     }
 
     private Map<String, CustomAccountDefEntry> generateGroupScopeMap(
@@ -265,9 +279,7 @@ public class GroupScopeResolver {
 
         // retrieve the relationship between group scoped entity DTO and guest load entity DTO, and
         // wrap the result into GroupScopedEntity
-        final List<GroupScopedEntity> groupScopedEntities = constructGroupScopedEntities(
-                scopedTopologyEntityDTOs.stream()
-                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Functions.identity())));
+        final List<GroupScopedEntity> groupScopedEntities = constructGroupScopedEntities(scopedTopologyEntityDTOs);
 
         final List<PropertyValueList> propertyValueLists = Lists.newArrayList();
         // iterate over entities in the group and add their properties to the group scope
@@ -334,20 +346,36 @@ public class GroupScopeResolver {
      * Construct {@link GroupScopedEntity} with the {@link TopologyEntityDTO} of scoped
      * entity.
      *
-     * @param oidToGroupScopedEntities the map with scoped entity OID to its entity
+     * @param scopedTopologyEntityDTOs The scoped entities.
      * @return list of {@link GroupScopedEntity}
      */
     @Nonnull
     private List<GroupScopedEntity> constructGroupScopedEntities(
-            @Nonnull final Map<Long, TopologyEntityDTO> oidToGroupScopedEntities) {
+            @Nonnull final List<TopologyEntityDTO> scopedTopologyEntityDTOs) {
 
-        Map<Long, Optional<Long>> oidsMapping = oidToGroupScopedEntities.keySet().stream()
-                .collect(Collectors.toMap(Function.identity(), this::guestLoadOid));
+        // Construct the map in one shot while holding the lock.
+        final Long2LongMap guestLoads = new Long2LongOpenHashMap(scopedTopologyEntityDTOs.size());
+        synchronized (guestLoadIdsLock) {
+            scopedTopologyEntityDTOs.forEach(e -> {
+                final long guestLoadId = guestLoadOid(e.getOid());
+                if (guestLoadId > 0) {
+                    guestLoads.put(e.getOid(), guestLoadId);
+                }
+            });
+        }
 
         // construct the GroupScopedEntity list
         final List<GroupScopedEntity> groupScopedEntities = Lists.newArrayList();
-        oidToGroupScopedEntities.values().stream().forEach(scopedEntityDTO -> {
-            final Optional<String> guestLoadOid = oidsMapping.get(scopedEntityDTO.getOid()).map(Object::toString);
+        scopedTopologyEntityDTOs.forEach(scopedEntityDTO -> {
+
+            final long guestLoadId = guestLoads.get(scopedEntityDTO.getOid());
+            final Optional<String> guestLoadOid;
+            if (guestLoadId > 0) {
+                guestLoadOid = Optional.of(Long.toString(guestLoadId));
+            } else {
+                guestLoadOid = Optional.empty();
+            }
+
             final Optional<String> targetAddress = scopedEntityDTO.getOrigin().getDiscoveryOrigin()
                     .getDiscoveredTargetDataMap().keySet().stream()
                     .findAny()
@@ -363,8 +391,7 @@ public class GroupScopeResolver {
             } catch (EntityNotFoundException e) {
                 logger.warn("Could not find entity {} for group scope.  "
                         + "It may have been deleted.", scopedEntityDTO.getDisplayName());
-                logger.debug("Exception while processing GroupScope: {}",
-                        () -> e.getMessage(), () -> e);
+                logger.debug("Exception while processing GroupScope: {}", e.getMessage(), e);
             }
             groupScopedEntities.add(new GroupScopedEntity(scopedEntityDTO, guestLoadOid,
                     targetAddress, localName));
@@ -379,41 +406,8 @@ public class GroupScopeResolver {
     }
 
     @VisibleForTesting
-    Optional<Long> guestLoadOid(Long vmOid) {
-        return graph == null
-            ? Optional.empty()
-            : graph.getEntity(vmOid)
-                .map(entity -> entity.getConsumers().stream()
-                    .filter(GroupScopeResolver::isGuestLoad)
-                    .findFirst()
-                    .map(TopologyEntity::getOid))
-                .orElse(Optional.empty());
-    }
-
-    /**
-     * The method to check if there is a target belong to {@link guestLoadOriginProbeCategories}
-     * using the parameter of target OIDs. The entities discovered from application probe won't
-     * pass the check here.
-     *
-     * @param targetOids The origin target OIDs for both scoped entity and its guest load entity.
-     * @return True if there is a target which its probe category in the set
-     * {@link guestLoadOriginProbeCategories}.
-     */
-    private boolean hasValidGuestLoadTarget(@Nonnull final Collection<Long> targetOids) {
-        return targetOids.stream().anyMatch(targetOid -> {
-            final Optional<SDKProbeType> probeType = targetStore.getProbeTypeForTarget(targetOid);
-            if (!probeType.isPresent()) {
-                logger.error("No probe type found for target OID {}.", targetOid);
-                return false;
-            }
-            Optional<ProbeCategory> probeCategoryForTarget =
-                    targetStore.getProbeCategoryForTarget(targetOid);
-            if (!probeCategoryForTarget.isPresent()) {
-                logger.error("No probe category found for target OID {}.", targetOid);
-                return false;
-            }
-            return guestLoadOriginProbeCategories.contains(probeCategoryForTarget.get());
-        });
+    long guestLoadOid(long vmOid) {
+        return guestLoadIds.get(vmOid);
     }
 
     /**
