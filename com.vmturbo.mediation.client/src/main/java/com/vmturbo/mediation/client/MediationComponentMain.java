@@ -50,7 +50,7 @@ public class MediationComponentMain extends BaseVmtComponent {
     private long chunkSendDelay;
     @Value("${chunk.timeout.sec:900}")
     private long chunkTimeoutSec;
-    @Value("${mediation.dataSharingMaxSizeKb:1024}")
+    @Value("${mediation.dataSharingMaxSizeKb:10240}")
     private long dataSharingMaxSizeKb;
 
     @Autowired
