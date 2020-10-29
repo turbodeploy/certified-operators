@@ -6,7 +6,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -79,6 +79,8 @@ public class EntityActionDaoImpTest {
 
     private static final long SCALE_ENTITY_ID = 400L;
 
+    private static final long COMMON_ENTITY_ID = 1;
+
     @Test
     public void testInsertQueuedControllable() {
         controllableDaoImp.insertAction(actionId, ActionItemDTO.ActionType.MOVE, entityIds);
@@ -91,6 +93,46 @@ public class EntityActionDaoImpTest {
         assertTrue(records.stream()
                 .allMatch(record -> record.getStatus().equals(EntityActionStatus.queued)));
     }
+
+    /**
+     * Tests that a call to the {@link EntityActionDaoImp#deleteMoveActions(long)} method removes
+     * move entries pertaining to the supplied entity from the database, but doesn't effect other
+     * action types nor other entities.
+     */
+    @Test
+    public void testDeleteMoveActions() {
+        // Populate database.
+        controllableDaoImp.insertAction(MOVE_ACTION_ID, ActionType.MOVE,
+                                        Sets.newHashSet(10L, COMMON_ENTITY_ID, 2L));
+        controllableDaoImp.insertAction(MOVE_ACTION_ID + 1, ActionType.MOVE_TOGETHER,
+                                        Sets.newHashSet(20L, COMMON_ENTITY_ID, 3L));
+        controllableDaoImp.insertAction(RESIZE_ACTION_ID, ActionType.RIGHT_SIZE,
+                                        Sets.newHashSet(COMMON_ENTITY_ID));
+        controllableDaoImp.insertAction(SCALE_ACTION_ID, ActionType.SCALE,
+                                        Sets.newHashSet(SCALE_ENTITY_ID));
+
+        // Call method-under-test.
+        controllableDaoImp.deleteMoveActions(Collections.singletonList(1L));
+
+        // Assert post-execution state of the database.
+        final List<EntityActionRecord> records = dsl.selectFrom(ENTITY_ACTION)
+                                        .orderBy(ENTITY_ACTION.ACTION_ID, ENTITY_ACTION.ENTITY_ID)
+                                        .fetch();
+        assertEquals(6, records.size());
+        assertEquals(MOVE_ACTION_ID, (long)records.get(0).getActionId());
+        assertEquals(2L, (long)records.get(0).getEntityId());
+        assertEquals(MOVE_ACTION_ID, (long)records.get(1).getActionId());
+        assertEquals(10L, (long)records.get(1).getEntityId());
+        assertEquals(MOVE_ACTION_ID + 1, (long)records.get(2).getActionId());
+        assertEquals(3L, (long)records.get(2).getEntityId());
+        assertEquals(MOVE_ACTION_ID + 1, (long)records.get(3).getActionId());
+        assertEquals(20L, (long)records.get(3).getEntityId());
+        assertEquals(RESIZE_ACTION_ID, (long)records.get(4).getActionId());
+        assertEquals(COMMON_ENTITY_ID, (long)records.get(4).getEntityId());
+        assertEquals(SCALE_ACTION_ID, (long)records.get(5).getActionId());
+        assertEquals(SCALE_ENTITY_ID, (long)records.get(5).getEntityId());
+    }
+
 
     @Test
     public void testUpdateInProgressControllable() throws ActionRecordNotFoundException {
@@ -210,22 +252,22 @@ public class EntityActionDaoImpTest {
 
     @Test
     public void testGetNonSuspendableEntityIdsAfterActionSucceed() {
-        controllableDaoImp.insertAction(100l,
+        controllableDaoImp.insertAction(100L,
                 ActionItemDTO.ActionType.START,
-                new HashSet<>(Arrays.asList(200l)));
-        controllableDaoImp.insertAction(101l,
+                new HashSet<>(Collections.singletonList(200L)));
+        controllableDaoImp.insertAction(101L,
                 ActionItemDTO.ActionType.START,
-                new HashSet<>(Arrays.asList(201l)));
+                new HashSet<>(Collections.singletonList(201L)));
         final LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
         // update the status of the activate action for entity with id 100l to succeed and make sure
-        // the timstamp is within the period of ACTIVATE_SUCCEED_SECONDS
+        // the timestamp is within the period of ACTIVATE_SUCCEED_SECONDS
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, currentTime.minusSeconds(ACTIVATE_SUCCEED_SECONDS / 2))
                 .set(ENTITY_ACTION.STATUS, EntityActionStatus.succeed)
                 .where(ENTITY_ACTION.ACTION_ID.eq(100L))
                 .execute();
         // update the status of the activate action for entity with id 101l to succeed and make sure
-        // the timstamp is beyond the period of ACTIVATE_SUCCEED_SECONDS
+        // the timestamp is beyond the period of ACTIVATE_SUCCEED_SECONDS
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, currentTime.minusSeconds(ACTIVATE_SUCCEED_SECONDS * 2))
                 .set(ENTITY_ACTION.STATUS, EntityActionStatus.succeed)
@@ -233,38 +275,38 @@ public class EntityActionDaoImpTest {
                 .execute();
         final Set<Long> results = controllableDaoImp.getNonSuspendableEntityIds();
         // only entity 100l will be considered as non-suspendable
-        assertTrue(results.size() == 1);
-        assertTrue(results.contains(200l));
+        assertEquals(1, results.size());
+        assertTrue(results.contains(200L));
     }
 
     @Test
     public void testGetNonSuspendableEntityIdsAfterRecordExpired() {
-        controllableDaoImp.insertAction(100l,
+        controllableDaoImp.insertAction(100L,
                 ActionItemDTO.ActionType.START,
-                new HashSet<>(Arrays.asList(200l)));
-        controllableDaoImp.insertAction(101l,
+                new HashSet<>(Collections.singletonList(200L)));
+        controllableDaoImp.insertAction(101L,
                 ActionItemDTO.ActionType.START,
-                new HashSet<>(Arrays.asList(201l)));
-        controllableDaoImp.insertAction(102l,
+                new HashSet<>(Collections.singletonList(201L)));
+        controllableDaoImp.insertAction(102L,
                 ActionItemDTO.ActionType.START,
-                new HashSet<>(Arrays.asList(202l)));
+                new HashSet<>(Collections.singletonList(202L)));
         final LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
         // update the status of the activate action for entity with id 100l to in_progress and make sure
-        // the timstamp is beyond the period of IN_PROGRESS_EXPIRED_SECONDS
+        // the timestamp is beyond the period of IN_PROGRESS_EXPIRED_SECONDS
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, currentTime.minusSeconds(IN_PROGRESS_EXPIRED_SECONDS * 2))
                 .set(ENTITY_ACTION.STATUS, EntityActionStatus.in_progress)
                 .where(ENTITY_ACTION.ACTION_ID.eq(100L))
                 .execute();
         // update the status of the activate action for entity with id 101l to queued and make sure
-        // the timstamp is beyond the period of IN_PROGRESS_EXPIRED_SECONDS
+        // the timestamp is beyond the period of IN_PROGRESS_EXPIRED_SECONDS
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, currentTime.minusSeconds(IN_PROGRESS_EXPIRED_SECONDS * 3))
                 .set(ENTITY_ACTION.STATUS, EntityActionStatus.queued)
                 .where(ENTITY_ACTION.ACTION_ID.eq(101L))
                 .execute();
         // update the status of the activate action for entity with id 102l to in_progress and make sure
-        // the timstamp is within the period of IN_PROGRESS_EXPIRED_SECONDS
+        // the timestamp is within the period of IN_PROGRESS_EXPIRED_SECONDS
         dsl.update(ENTITY_ACTION)
                 .set(ENTITY_ACTION.UPDATE_TIME, currentTime.minusSeconds(IN_PROGRESS_EXPIRED_SECONDS / 2))
                 .set(ENTITY_ACTION.STATUS, EntityActionStatus.in_progress)
@@ -272,8 +314,8 @@ public class EntityActionDaoImpTest {
                 .execute();
         final Set<Long> results = controllableDaoImp.getNonSuspendableEntityIds();
         // only entity 100l will be considered as non-suspendable
-        assertTrue(results.size() == 1);
-        assertTrue(results.contains(202l));
+        assertEquals(1, results.size());
+        assertTrue(results.contains(202L));
     }
 
     /**

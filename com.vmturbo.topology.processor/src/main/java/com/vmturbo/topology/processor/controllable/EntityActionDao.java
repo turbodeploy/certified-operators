@@ -1,8 +1,11 @@
 package com.vmturbo.topology.processor.controllable;
 
+import java.util.List;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
@@ -26,13 +29,18 @@ public interface EntityActionDao {
      * Insert a list of new records to action tables, and their status are 'queued' by default.
      * For each of entity id of input entity set, it will create a new record.
      *
+     * <p>Note that implementations of this method are allowed to (and currently do) collapse
+     * different action types into one. I.e. using a different argument for <b>actionType</b>
+     * doesn't guarantee a different value will be written to the database. e.g. MOVE_TOGETHER and
+     * MOVE are collapsed into a single move type.</p>
+     *
      * @param actionId id of action.
      * @param actionType action type
      * @param entityIds a set of entity ids.
      */
-    void insertAction(final long actionId,
-                      @Nonnull final ActionItemDTO.ActionType actionType,
-                      @Nonnull final Set<Long> entityIds)
+    void insertAction(long actionId,
+                      @Nonnull ActionItemDTO.ActionType actionType,
+                      @Nonnull Set<Long> entityIds)
             throws IllegalArgumentException;
 
     /**
@@ -43,8 +51,16 @@ public interface EntityActionDao {
      * @param newState new state of action.
      * @throws ActionRecordNotFoundException if there is no records with actionId.
      */
-    void updateActionState(final long actionId, @Nonnull final ActionState newState)
+    void updateActionState(long actionId, @Nonnull ActionState newState)
             throws ActionRecordNotFoundException;
+
+    /**
+     * Deletes all action records effecting the controllable attribute and pertaining to entities
+     * from a given list of entity OIDs from the entity_action table.
+     *
+     * @param entityOids The unique OIDs of the topology entities for which to remove the records.
+     */
+    void deleteMoveActions(@NonNull List<@NonNull Long> entityOids);
 
     /**
      * First it will delete all expired action records, for different status records, it may has different expired
