@@ -14,6 +14,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -294,51 +295,19 @@ public class EntityActionDaoImp implements EntityActionDao {
                     now.minusSeconds(inProgressActionExpiredSeconds);
             final LocalDateTime expiredSucceedThresholdTime =
                     now.minusSeconds(actionSucceedThresholdTime);
-            final List<EntityActionRecord> deletedQueuedOrInProgressActionRecords = transactionDsl
-                    .selectFrom(ENTITY_ACTION)
-                    .where((ENTITY_ACTION.STATUS.eq(EntityActionStatus.in_progress)
-                            .or(ENTITY_ACTION.STATUS.eq(EntityActionStatus.queued)))
-                            .and(ENTITY_ACTION.ACTION_TYPE.eq(actionType))
-                            .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredInProgressThresholdTime)))
-                    .fetch();
-            deletedQueuedOrInProgressActionRecords.forEach(r -> {
-                transactionDsl.deleteFrom(ENTITY_ACTION)
-                        .where((ENTITY_ACTION.ACTION_ID.eq(r.getActionId()))
-                                .and(ENTITY_ACTION.ENTITY_ID.eq(r.getEntityId())))
-                        .execute();
-                logger.warn("Deleted out of date queued or in progress action with id {}, entity {}"
-                                + " which update time is less than {}.",
-                        r.getActionId(), r.getEntityId(), expiredInProgressThresholdTime);
-            });
 
-            // delete all failed entity action records.
-            List<EntityActionRecord> failedActionRecords = transactionDsl.selectFrom(ENTITY_ACTION)
-                    .where(ENTITY_ACTION.STATUS.eq(EntityActionStatus.failed)
-                            .and(ENTITY_ACTION.ACTION_TYPE.eq(actionType)))
-                    .fetch();
-            failedActionRecords.forEach(r -> {
-                transactionDsl.deleteFrom(ENTITY_ACTION)
-                        .where((ENTITY_ACTION.ACTION_ID.eq(r.getActionId()))
-                                .and(ENTITY_ACTION.ENTITY_ID.eq(r.getEntityId())))
-                        .execute();
-                logger.debug("Deleted failed action records with id {}, entity {}",
-                        r.getActionId(), r.getEntityId());
-            });
-            // delete all expired succeed records.
-            List<EntityActionRecord> expiredSucceededActionRecords = transactionDsl.selectFrom(ENTITY_ACTION)
-                    .where(ENTITY_ACTION.STATUS.eq(EntityActionStatus.succeed)
-                            .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredSucceedThresholdTime))
-                            .and(ENTITY_ACTION.ACTION_TYPE.eq(actionType)))
-                    .fetch();
-            expiredSucceededActionRecords.forEach(r -> {
-                transactionDsl.deleteFrom(ENTITY_ACTION)
-                        .where((ENTITY_ACTION.ACTION_ID.eq(r.getActionId()))
-                                .and(ENTITY_ACTION.ENTITY_ID.eq(r.getEntityId())))
-                        .execute();
-                logger.debug("Deleted expired successful action records with id {}, entity {} "
-                                + "which update time is less then {}.", r.getActionId(), r.getEntityId(),
-                        expiredSucceedThresholdTime);
-            });
+            final Condition queuedOrInProgressCondition =
+                (ENTITY_ACTION.STATUS.eq(EntityActionStatus.in_progress)
+                    .or(ENTITY_ACTION.STATUS.eq(EntityActionStatus.queued)))
+                    .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredInProgressThresholdTime));
+            final Condition failedCondition = ENTITY_ACTION.STATUS.eq(EntityActionStatus.failed);
+            final Condition succeedCondition = ENTITY_ACTION.STATUS.eq(EntityActionStatus.succeed)
+                .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredSucceedThresholdTime));
+
+            transactionDsl.deleteFrom(ENTITY_ACTION)
+                .where(ENTITY_ACTION.ACTION_TYPE.eq(actionType)
+                    .and(queuedOrInProgressCondition.or(failedCondition).or(succeedCondition)))
+                .execute();
 
             // after deleted expired records, the rest of 'succeed' or 'in progress' or 'queued' status
             // records are the entities which are relevant..

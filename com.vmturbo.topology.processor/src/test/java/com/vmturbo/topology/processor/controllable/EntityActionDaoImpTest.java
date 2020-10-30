@@ -369,10 +369,16 @@ public class EntityActionDaoImpTest {
         // Only scale action is affected
         assertTrue(controllableDaoImp.ineligibleForScaleEntityIds().isEmpty());
         assertTrue(controllableDaoImp.ineligibleForResizeDownEntityIds().contains(RESIZE_ENTITY_ID));
+        assertEquals(0, dsl.selectFrom(ENTITY_ACTION)
+            .where(ENTITY_ACTION.STATUS.eq(EntityActionStatus.failed))
+            .fetch().size());
 
         // Update state of RESIZE action
         controllableDaoImp.updateActionState(RESIZE_ACTION_ID, ActionState.FAILED);
         assertTrue(controllableDaoImp.ineligibleForResizeDownEntityIds().isEmpty());
+        assertEquals(0, dsl.selectFrom(ENTITY_ACTION)
+            .where(ENTITY_ACTION.STATUS.eq(EntityActionStatus.failed))
+            .fetch().size());
     }
 
     private void insertActions() {
