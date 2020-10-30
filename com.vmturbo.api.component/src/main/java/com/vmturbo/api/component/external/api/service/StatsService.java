@@ -536,7 +536,7 @@ public class StatsService implements IStatsService {
                                     : com.vmturbo.api.enums.EnvironmentType.ONPREM);
                     return entityStatsApiDTO;
                 } else {
-                    logger.error("Could not get information about cluster with id "
+                    logger.trace("Could not get information about cluster with id "
                                         + entityStats.getOid());
                     // The cluster had stats in the database, but does not exist in the current
                     // topology. This can happen because we don't clean out cluster stats, since
