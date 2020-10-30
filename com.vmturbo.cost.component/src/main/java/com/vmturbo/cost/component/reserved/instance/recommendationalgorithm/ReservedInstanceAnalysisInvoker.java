@@ -156,7 +156,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
 
         // We don't want to run Buy RI twice (once for reason A, another for reason B).
         boolean hasRIBuyRun = false;
-        hasRIBuyRun = invokeRIBuyIfBusinessAccountsUpdated(allBusinessAccounts);
+        hasRIBuyRun = invokeRIBuyIfBusinessAccountsUpdated(allBusinessAccounts, cloudTopology);
         if (!hasRIBuyRun && enableRIBuyAfterPricingChange) {
             hasRIBuyRun = invokeRIBuyIfPriceTablesChanged(allBusinessAccounts);
         }
@@ -283,13 +283,15 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      * Invoke RI Buy Analysis if the number of BAs has changed.
      *
      * @param allBusinessAccounts OIDs of all BAs present.
+     * @param cloudTopology The given cloud topology.
      *
      * @return true if BuyRI Analysis was invoked or if there are no targets/BAs to process,
      *         false otherwise.
      */
-    public boolean invokeRIBuyIfBusinessAccountsUpdated(Set<ImmutablePair<Long, String>> allBusinessAccounts) {
+    public boolean invokeRIBuyIfBusinessAccountsUpdated(Set<ImmutablePair<Long, String>> allBusinessAccounts,
+            CloudTopology<TopologyEntityDTO> cloudTopology) {
         boolean runRiBuy = false;
-        final StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
+        final StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest(cloudTopology);
         logger.debug("Business accounts received in topology broadcast: {}", allBusinessAccounts);
         final int newAccountsCount = addNewBAsWithCost(allBusinessAccounts);
         if (newAccountsCount > 0) {
@@ -364,24 +366,48 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                 .map(a -> a.getOid())
                 .collect(Collectors.toSet());
 
+        return constructRIBuyAnalysisRequest(regionIds, baIds);
+    }
+
+    /**
+     * Given a cloud topology, constructs the RI buy request.
+     *
+     * @param cloudTopology The cloud topology.
+     *
+     * @return The constructed RI buy request.
+     */
+    public StartBuyRIAnalysisRequest getStartBuyRIAnalysisRequest(CloudTopology<TopologyEntityDTO> cloudTopology) {
+
+        // Gets all Business Account Ids.
+        final Set<Long> baIds = cloudTopology.getAllEntitiesOfType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .stream().map(s -> s.getOid()).collect(Collectors.toSet());
+
+        // Gets all Cloud Region Ids.
+        final Set<Long> regionIds = cloudTopology.getAllEntitiesOfType(EntityType.REGION_VALUE).stream()
+                .map(s -> s.getOid()).collect(Collectors.toSet());
+
+        return constructRIBuyAnalysisRequest(regionIds, baIds);
+    }
+
+    private StartBuyRIAnalysisRequest constructRIBuyAnalysisRequest(Set<Long> regionIds, Set<Long> baIds) {
         RISetting riSetting = getRIBuySettings(settingsServiceClient);
         Map<String, RIPurchaseProfile> riPurchaseProfileMap = Maps.newHashMap();
         // Convert the RISettings to RIPurchaseProfile, if a Setting value is not present, use the default.
         riSetting.getRiSettingByCloudtypeMap().entrySet().forEach(riSettingEntry -> {
                     String cloudType = riSettingEntry.getKey();
                     RIProviderSetting riProviderSetting = riSettingEntry.getValue();
-                    ReservedInstanceType.OfferingClass defaultOffering = cloudType.equals(CloudType.AZURE.name()) ?
-                            ReservedInstanceType.OfferingClass.CONVERTIBLE : ReservedInstanceType.OfferingClass.STANDARD;
+                    ReservedInstanceType.OfferingClass defaultOffering = cloudType.equals(CloudType.AZURE.name())
+                            ? ReservedInstanceType.OfferingClass.CONVERTIBLE : ReservedInstanceType.OfferingClass.STANDARD;
                     ReservedInstanceType.PaymentOption defaultPayment = ReservedInstanceType.PaymentOption.ALL_UPFRONT;
                     int defaultTerm = 1;
                     RIPurchaseProfile riPurchaseProfile = RIPurchaseProfile.newBuilder()
                             .setRiType(ReservedInstanceType.newBuilder().setOfferingClass(
-                                    riProviderSetting.hasPreferredOfferingClass() ?
-                                            riProviderSetting.getPreferredOfferingClass() : defaultOffering)
-                                    .setPaymentOption(riProviderSetting.hasPreferredPaymentOption() ?
-                                            riProviderSetting.getPreferredPaymentOption() : defaultPayment)
-                                    .setTermYears(riProviderSetting.hasPreferredTerm() ?
-                                            riProviderSetting.getPreferredTerm() : defaultTerm)
+                                    riProviderSetting.hasPreferredOfferingClass()
+                                            ? riProviderSetting.getPreferredOfferingClass() : defaultOffering)
+                                    .setPaymentOption(riProviderSetting.hasPreferredPaymentOption()
+                                            ? riProviderSetting.getPreferredPaymentOption() : defaultPayment)
+                                    .setTermYears(riProviderSetting.hasPreferredTerm()
+                                            ? riProviderSetting.getPreferredTerm() : defaultTerm)
                             ).build();
                     riPurchaseProfileMap.put(cloudType, riPurchaseProfile);
                 }
@@ -399,7 +425,6 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         if (!baIds.isEmpty()) {
             buyRiRequest.addAllAccounts(baIds);
         }
-
         return buyRiRequest.build();
     }
 
