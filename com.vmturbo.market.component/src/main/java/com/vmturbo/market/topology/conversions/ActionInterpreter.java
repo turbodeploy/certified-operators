@@ -1174,9 +1174,6 @@ public class ActionInterpreter {
         ChangeProviderExplanation.Builder changeProviderExplanation =
                 changeExplanation(actionTO, moveTO, savings, projectedTopology, true);
         scaleExpBuilder.addChangeProviderExplanation(changeProviderExplanation);
-        if (moveTO.hasScalingGroupId()) {
-            scaleExpBuilder.setScalingGroupId(moveTO.getScalingGroupId());
-        }
         return scaleExpBuilder.build();
     }
 

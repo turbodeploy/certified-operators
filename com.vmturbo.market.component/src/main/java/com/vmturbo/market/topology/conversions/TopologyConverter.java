@@ -2924,7 +2924,10 @@ public class TopologyConverter {
                 } else {
                     shoppingLists.add(createShoppingList(entityForSL, topologyEntity, entityForSL.getEntityType(),
                             topologyEntity.getAnalysisSettings().getShopTogether(), providerId.first,
-                            commBoughtGroupingForSL, providers, scalingGroupUsage));
+                            // Pass scalingGroupUsage down to underlying methods only when creating shoppingList
+                            // for topologyEntity. If shoppingList is created for entityForSL(which is different
+                            // from topologyEntity), no need to use scalingGroupUsage which is for topologyEntity.
+                            commBoughtGroupingForSL, providers, entityForSL == topologyEntity ? scalingGroupUsage : Optional.empty()));
                 }
             }
         }
