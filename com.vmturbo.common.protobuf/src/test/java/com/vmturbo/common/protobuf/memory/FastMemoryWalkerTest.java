@@ -1,5 +1,6 @@
 package com.vmturbo.common.protobuf.memory;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -248,6 +249,60 @@ public class FastMemoryWalkerTest {
     private static Iterable<HistogramRow> histResults(@Nonnull final Matcher matcher) {
         final Iterator<HistogramRow> it = new HistIterator(matcher);
         return () -> it;
+    }
+
+    /**
+     * testHistogramSubtractionNoDifferences.
+     */
+    @Test
+    public void testHistogramSubtractionNoDifferences() {
+        final ClassHistogramSizeVisitor histA =
+            new ClassHistogramSizeVisitor(Collections.emptySet(), -1, -1);
+        new FastMemoryWalker(histA).traverse(foo);
+
+        final ClassHistogramSizeVisitor histB =
+            new ClassHistogramSizeVisitor(Collections.emptySet(), -1, -1);
+        new FastMemoryWalker(histB).traverse(foo);
+
+        final String difference = histA.subtract(histB);
+        assertThat(difference, containsString("0 Bytes"));
+        assertThat(difference, containsString("0 TOTAL"));
+    }
+
+    /**
+     * testHistogramSubtractionBigger.
+     */
+    @Test
+    public void testHistogramSubtractionBigger() {
+        final ClassHistogramSizeVisitor histA =
+            new ClassHistogramSizeVisitor(Collections.emptySet(), -1, -1);
+        new FastMemoryWalker(histA).traverse(foo);
+
+        final ClassHistogramSizeVisitor histB =
+            new ClassHistogramSizeVisitor(Collections.emptySet(), -1, -1);
+        new FastMemoryWalker(histB).traverse(baz);
+
+        final String difference = histA.subtract(histB);
+        // We should have 3 extra objects in the histA histogram (a TestObject, a String, and a char[])
+        assertThat(difference, containsString("3 TOTAL"));
+    }
+
+    /**
+     * testHistogramSubtractionSmaller.
+     */
+    @Test
+    public void testHistogramSubtractionSmaller() {
+        final ClassHistogramSizeVisitor histA =
+            new ClassHistogramSizeVisitor(Collections.emptySet(), -1, -1);
+        new FastMemoryWalker(histA).traverse(foo);
+
+        final ClassHistogramSizeVisitor histB =
+            new ClassHistogramSizeVisitor(Collections.emptySet(), -1, -1);
+        new FastMemoryWalker(histB).traverse(baz);
+
+        final String difference = histB.subtract(histA);
+        // We should have 3 extra objects in the histB histogram (a TestObject, a String, and a char[])
+        assertThat(difference, containsString("-3 TOTAL"));
     }
 
     /**

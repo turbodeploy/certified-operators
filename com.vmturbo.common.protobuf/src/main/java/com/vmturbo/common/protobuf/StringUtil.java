@@ -56,6 +56,10 @@ public class StringUtil {
      * @return a human readable description for a size given in bytes.
      */
     public static String getHumanReadableSize(long sizeInBytes) {
+        if (sizeInBytes < 0) {
+            return "-" + getHumanReadableSize(-sizeInBytes);
+        }
+
         // Reference:
         // https://stackoverflow.com/questions/3758606/how-to-convert-byte-size-into-human-readable-format-in-java
         if (sizeInBytes < 1024) {

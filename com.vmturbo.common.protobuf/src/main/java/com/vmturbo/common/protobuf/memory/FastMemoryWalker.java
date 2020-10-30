@@ -52,8 +52,6 @@ public class FastMemoryWalker extends MemoryWalker {
      * @param roots The root set of objects from which to begin the memory walk.
      */
     public void traverse(final Object... roots) {
-        visited.clear();
-
         List<Object> curLayer = new ArrayList<>();
         List<Object> nextLayer = new ArrayList<>();
         final Map<Class<?>, List<String>> inaccessibleFields = new HashMap<>();

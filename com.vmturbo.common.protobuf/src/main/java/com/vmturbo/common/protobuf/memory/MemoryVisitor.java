@@ -94,7 +94,7 @@ public abstract class MemoryVisitor<T> {
      * @return Whether or not to continue the walk to this object's descendants.
      */
     protected abstract boolean handleVisit(@Nonnull Class<?> klass, long size,
-                                        int depth, @Nullable T data);
+                                           int depth, @Nullable T data);
 
     /**
      * Get the total count of objects visited by this visitor.
@@ -223,7 +223,7 @@ public abstract class MemoryVisitor<T> {
 
         @Override
         public boolean handleVisit(@Nonnull final Class<?> klass, final long size,
-                                final int depth, @Nullable final Object data) {
+                                   final int depth, @Nullable final Object data) {
             totalSize += size;
             totalCount++;
             return true;
@@ -270,7 +270,7 @@ public abstract class MemoryVisitor<T> {
 
         @Override
         protected boolean handleVisit(@Nonnull final Class<?> klass, final long size,
-                                   final int depth, @Nullable final Object data) {
+                                      final int depth, @Nullable final Object data) {
             classCounts.compute(klass, (k, v) -> v == null
                 ? new SizeAndCount(size)
                 : v.increment(size));
@@ -312,6 +312,77 @@ public abstract class MemoryVisitor<T> {
          */
         @Override
         public String toString() {
+            return stringify(classCounts, totalSize(), totalCount());
+        }
+
+        /**
+         * Subtract another memory histogram from this one to produce a stringified
+         * tabular result of the differences.
+         *
+         * @param other The other histogram to subtract from this one.
+         * @return A stringified table of the memory usage differences per-class between
+         *         the other histogram and this histogram.
+         */
+        public String subtract(@Nonnull ClassHistogramSizeVisitor other) {
+            final Map<Class<?>, SizeAndCount> diff = new IdentityHashMap<>(classCounts.size());
+
+            // Iterate keys in this object's classCounts
+            classCounts.forEach((klass, sizeAndCount) -> {
+                final SizeAndCount otherSizeAndCount = other.classCounts.get(klass);
+                if (otherSizeAndCount == null) {
+                    diff.put(klass, sizeAndCount);
+                } else {
+                    final SizeAndCount diffSizeAndCount = new SizeAndCount(
+                        sizeAndCount.totalSize - otherSizeAndCount.totalSize,
+                        sizeAndCount.count - otherSizeAndCount.count);
+                    if (diffSizeAndCount.totalSize != 0 || diffSizeAndCount.count != 0) {
+                        diff.put(klass, diffSizeAndCount);
+                    }
+                }
+            });
+
+            // Iterate keys in the other's classCounts
+            other.classCounts.forEach((klass, sizeAndCount) -> {
+                // We already accounted for keys in common. Now we just need to account for keys
+                // in the other but not in ours.
+                if (!classCounts.containsKey(klass)) {
+                    diff.put(klass, new SizeAndCount(-sizeAndCount.totalSize, -sizeAndCount.count));
+                }
+            });
+
+            final long diffSize = diff.values().stream()
+                .mapToLong(i -> i.totalSize)
+                .sum();
+            final long diffCounts = diff.values().stream()
+                .mapToLong(i -> i.count)
+                .sum();
+            return stringify(diff, diffSize, diffCounts);
+        }
+
+        /**
+         * Example output excerpt:
+         * 2020-06-23 12:46:22,955 INFO [grpc-default-executor-4] [MemoryMetricsRpcService] : Class Histogram:
+         *            SIZE        COUNT TYPE
+         *        198.2 MB    4,367,733 TOTAL
+         * 1       47.7 MB      521,767 [C
+         * 2       11.9 MB      521,375 java.lang.String
+         * 3       11.6 MB      120,524 [Ljava.util.HashMap$Node;f
+         * 4       10.0 MB      326,117 java.util.HashMap$Node
+         * 5        9.5 MB      112,626 java.lang.reflect.Method
+         * 6        8.0 MB      200,179 [Ljava.lang.Object;
+         * 7        7.5 MB      196,423 java.util.LinkedHashMap$Entry
+         * 8        6.0 MB       26,846 [B
+         * 9        5.7 MB      248,037 java.util.ArrayList
+         * 10       5.2 MB       97,825 java.util.LinkedHashMap
+         * ...
+         *
+         * @param classCounts A map of class sizes to their sizes and counts.
+         * @param totalSizeInBytes The total size in bytes of all the class counts.
+         * @param totalCountInBytes The total count of all instances in the class counts.
+         * @return The String ClassHistogram.
+         */
+        private static String stringify(@Nonnull final Map<Class<?>, SizeAndCount> classCounts,
+                                        final long totalSizeInBytes, final long totalCountInBytes) {
             final int numberSpaces = Integer.toString(classCounts.size()).length();
             final String nsStr =  " %-" + numberSpaces + "d";
             final String header = String.format(" %" + numberSpaces + "s %10s %12s %s%n",
@@ -323,8 +394,8 @@ public abstract class MemoryVisitor<T> {
             pw.printf(header);
             pw.printf(" %" + numberSpaces + "s %10s %12s %s%n",
                 "",
-                StringUtil.getHumanReadableSize(totalSize()),
-                String.format("%,d", totalCount()), "TOTAL");
+                StringUtil.getHumanReadableSize(totalSizeInBytes),
+                String.format("%,d", totalCountInBytes), "TOTAL");
 
             final AtomicInteger curIndex = new AtomicInteger(1);
             classCounts.entrySet().stream()
@@ -358,6 +429,18 @@ public abstract class MemoryVisitor<T> {
         public SizeAndCount(final long totalSize) {
             this.totalSize = totalSize;
             this.count = 1;
+        }
+
+        /**
+         * Construct a new {@link com.vmturbo.common.protobuf.memory.MemoryVisitor.SizeAndCount} with
+         * a starting count of one and the given starting size.
+         *
+         * @param totalSize The starting size for the size and count.
+         * @param count The count.
+         */
+        public SizeAndCount(final long totalSize, final long count) {
+            this.totalSize = totalSize;
+            this.count = count;
         }
 
         /**
@@ -431,7 +514,7 @@ public abstract class MemoryVisitor<T> {
 
         @Override
         protected boolean handleVisit(@Nonnull Class<?> klass, long size, int depth,
-                                   @Nullable MemoryReferenceNode data) {
+                                      @Nullable MemoryReferenceNode data) {
             if (depth != currentDepth) {
                 // Depth should be monotonically increasing across handleVisit calls.
                 assert (depth > currentDepth);
@@ -822,7 +905,11 @@ public abstract class MemoryVisitor<T> {
      *                        I         <-- Added as descendant of subgraph at bottom depth of 1
      */
     public static class MemorySubgraph {
-        private final MemoryReferenceNode subgraphRoot;
+        /**
+         * The root of this memory subgraph.
+         */
+        public final MemoryReferenceNode subgraphRoot;
+
         private final List<MemorySubgraph> subgraphChildren;
         private final List<MemoryReferenceNode> descendants;
         private final SizeAndCount sizeAndCount;

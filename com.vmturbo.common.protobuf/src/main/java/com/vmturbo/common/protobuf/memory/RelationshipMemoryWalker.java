@@ -75,8 +75,6 @@ public class RelationshipMemoryWalker extends MemoryWalker {
      * @param roots The roots to use as a root set in the walk.
      */
     public void traverseNamed(final Collection<NamedObject> roots) {
-        visited.clear();
-
         List<MemoryReferenceNode> curLayer = new ArrayList<>();
         List<MemoryReferenceNode> nextLayer = new ArrayList<>();
         final Map<Class<?>, List<String>> inaccessibleFields = new HashMap<>();
