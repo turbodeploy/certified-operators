@@ -9,8 +9,10 @@ import javax.annotation.Nonnull;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -384,6 +386,157 @@ public class RequestAndLimitCommodityThresholdsInjectorTest {
         injector.injectMinThresholdsFromUsage(graph);
 
         // commodity min threshold is capped to max threshold 80 with current usage 100.
+        assertTrue(comm.hasThresholds());
+        assertEquals(80, comm.getThresholds().getMin(), 0);
+        assertEquals(80, comm.getThresholds().getMax(), 0);
+    }
+
+    /**
+     * injectMinThresholdsFromReservationEmpty.
+     */
+    @Test
+    public void injectMinThresholdsFromReservationEmpty() {
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf();
+        final InjectionStats stats = injector.injectMinThresholdsFromReservation(graph);
+
+        assertEquals(0, stats.getEntitiesModified());
+        assertEquals(0, stats.getCommoditiesModified());
+    }
+
+    /**
+     * injectMinThresholdsFromReservationNoVM.
+     */
+    @Test
+    public void injectMinThresholdsFromReservationNoVM() {
+        final TopologyEntity.Builder stEntity = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "ST", EntityType.STORAGE);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(stEntity);
+        final InjectionStats stats = injector.injectMinThresholdsFromReservation(graph);
+
+        assertEquals(0, stats.getEntitiesModified());
+        assertEquals(0, stats.getCommoditiesModified());
+    }
+
+    /**
+     * injectMinThresholdsFromReservationNoCommodities.
+     */
+    @Test
+    public void injectMinThresholdsFromReservationNoCommodities() {
+        final TopologyEntity.Builder vm1 = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "VM1", EntityType.VIRTUAL_MACHINE);
+        final TopologyEntity.Builder vm2 = TopologyEntityUtils
+            .topologyEntity(1, 0, 0, "VM2", EntityType.VIRTUAL_MACHINE);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(vm1, vm2);
+        final InjectionStats stats = injector.injectMinThresholdsFromReservation(graph);
+
+        assertEquals(0, stats.getEntitiesModified());
+        assertEquals(0, stats.getCommoditiesModified());
+    }
+
+    /**
+     * testInjectMinThresholdsFromReservationNoThresholds.
+     */
+    @Test
+    public void testInjectMinThresholdsFromReservationNoThresholds() {
+        final TopologyEntity.Builder vm1 = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "VM1", EntityType.VIRTUAL_MACHINE);
+        final CommoditySoldDTO.Builder comm =
+            addCommoditySold(vm1, CommodityType.VCPU_VALUE, 50.0, 20.0, true);
+
+        final CommodityBoughtDTO commBought = CommodityBoughtDTO.newBuilder()
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CPU_VALUE))
+            .setReservedCapacity(20).build();
+        vm1.getEntityBuilder().addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .addCommodityBought(commBought));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(vm1);
+        injector.injectMinThresholdsFromReservation(graph);
+
+        // commodity min threshold is updated to 20 and max threshold is still 100.
+        assertTrue(comm.hasThresholds());
+        assertEquals(20, comm.getThresholds().getMin(), 0);
+        // commodity has no max thresholds.
+        assertFalse(comm.getThresholds().hasMax());
+    }
+
+    /**
+     * testInjectMinThresholdsFromReservationWithExistingThresholds.
+     */
+    @Test
+    public void testInjectMinThresholdsFromReservationWithExistingThresholds() {
+        final TopologyEntity.Builder vm1 = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "VM1", EntityType.VIRTUAL_MACHINE);
+        final CommoditySoldDTO.Builder comm =
+            addCommoditySold(vm1, CommodityType.VCPU_VALUE, 50.0, 20.0, true);
+        comm.setThresholds(Thresholds.newBuilder().setMin(10).setMax(100).build());
+
+        final CommodityBoughtDTO commBought = CommodityBoughtDTO.newBuilder()
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CPU_VALUE))
+            .setReservedCapacity(20).build();
+        vm1.getEntityBuilder().addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .addCommodityBought(commBought));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(vm1);
+        injector.injectMinThresholdsFromReservation(graph);
+
+        // commodity min threshold is updated to 20 and max threshold is still 100.
+        assertTrue(comm.hasThresholds());
+        assertEquals(20, comm.getThresholds().getMin(), 0);
+        assertEquals(100, comm.getThresholds().getMax(), 0);
+    }
+
+    /**
+     * testInjectMinThresholdsFromReservationWithOnlyExistingMinThresholds.
+     */
+    @Test
+    public void testInjectMinThresholdsFromReservationWithReservationSmallerThanMinThresholds() {
+        final TopologyEntity.Builder vm1 = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "VM1", EntityType.VIRTUAL_MACHINE);
+        final CommoditySoldDTO.Builder comm =
+            addCommoditySold(vm1, CommodityType.VCPU_VALUE, 50.0, 20.0, true);
+        comm.setThresholds(Thresholds.newBuilder().setMin(10).build());
+
+        final CommodityBoughtDTO commBought = CommodityBoughtDTO.newBuilder()
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CPU_VALUE))
+            .setReservedCapacity(5).build();
+        vm1.getEntityBuilder().addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .addCommodityBought(commBought));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(vm1);
+        injector.injectMinThresholdsFromReservation(graph);
+
+        // commodity min threshold is not updated.
+        assertTrue(comm.hasThresholds());
+        assertEquals(10, comm.getThresholds().getMin(), 0);
+        // commodity has no max thresholds.
+        assertFalse(comm.getThresholds().hasMax());
+    }
+
+    /**
+     * testInjectMinThresholdsFromReservationWithReservationLargerThanMaxThresholdsAndNoMinThresholds.
+     */
+    @Test
+    public void testInjectMinThresholdsFromReservationWithReservationLargerThanMaxThresholdsAndNoMinThresholds() {
+        final TopologyEntity.Builder vm1 = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "VM1", EntityType.VIRTUAL_MACHINE);
+        final CommoditySoldDTO.Builder comm =
+            addCommoditySold(vm1, CommodityType.VCPU_VALUE, 50.0, 20.0, true);
+        comm.setThresholds(Thresholds.newBuilder().setMax(80).build());
+
+        final CommodityBoughtDTO commBought = CommodityBoughtDTO.newBuilder()
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.CPU_VALUE))
+            .setReservedCapacity(100).build();
+        vm1.getEntityBuilder().addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .addCommodityBought(commBought));
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(vm1);
+        injector.injectMinThresholdsFromReservation(graph);
+
+        // commodity min threshold is capped to max threshold 80 with current reservation 100.
         assertTrue(comm.hasThresholds());
         assertEquals(80, comm.getThresholds().getMin(), 0);
         assertEquals(80, comm.getThresholds().getMax(), 0);

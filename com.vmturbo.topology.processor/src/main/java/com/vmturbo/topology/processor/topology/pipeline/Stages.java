@@ -1793,6 +1793,7 @@ public class Stages {
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
             requestAndLimitCommodityThresholdsInjector.injectThresholds(graph);
             requestAndLimitCommodityThresholdsInjector.injectMinThresholdsFromUsage(graph);
+            requestAndLimitCommodityThresholdsInjector.injectMinThresholdsFromReservation(graph);
             return Status.success();
         }
     }
