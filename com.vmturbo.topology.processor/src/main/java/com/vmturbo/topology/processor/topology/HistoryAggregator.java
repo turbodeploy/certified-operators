@@ -112,46 +112,53 @@ public class HistoryAggregator {
         if (editorsToRun.isEmpty()) {
             return;
         }
-        final Stopwatch stopwatch = Stopwatch.createStarted();
-        Map<IHistoricalEditor<?>, List<EntityCommodityReference>> commsToUpdate =
-                        gatherEligibleCommodities(graph.getTopologyGraph(), editorsToRun);
-        // store reference to the current settings for policies access
-        // set up commodity builders lazy/fast access
-        HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo, graph, !CollectionUtils
-                        .isEmpty(changes));
-
-        // this may initiate background loading of certain data
-        forEachEditor(editorsToRun,
-                      editor -> editor.initContext(context, commsToUpdate.get(editor)),
-                      "initialization",
-                      "The time spent initializing historical data cache for {}");
 
         try {
-            // submit the preparation tasks and wait for completion
-            executeTasks(context, commsToUpdate, IHistoricalEditor::createPreparationTasks,
-                         true, true, "chunked prepare", LOAD_HISTORY_SUMMARY_METRIC);
+            final Stopwatch stopwatch = Stopwatch.createStarted();
+            Map<IHistoricalEditor<?>, List<EntityCommodityReference>> commsToUpdate =
+                            gatherEligibleCommodities(graph.getTopologyGraph(), editorsToRun);
+            // store reference to the current settings for policies access
+            // set up commodity builders lazy/fast access
+            HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo, graph, !CollectionUtils
+                            .isEmpty(changes));
 
-            // submit the calculation tasks and wait for completion
-            executeTasks(context, commsToUpdate, IHistoricalEditor::createCalculationTasks,
-                         false, false, "calculate", CALCULATE_HISTORY_SUMMARY_METRIC);
-        } catch (RejectedExecutionException | InterruptedException | ExecutionException e) {
-            Throwable reason = e;
-            // any failure of a mandatory sub-task stops everything (typically first failure to load from db)
-            // next broadcast will initiate loading again
-            // executor failure or interruption stop everything regardless of editor type
-            if (e instanceof ExecutionException && e.getCause() != null) {
-                reason = e.getCause();
+            // this may initiate background loading of certain data
+            forEachEditor(editorsToRun,
+                          editor -> editor.initContext(context, commsToUpdate.get(editor)),
+                          "initialization",
+                          "The time spent initializing historical data cache for {}");
+
+            try {
+                // submit the preparation tasks and wait for completion
+                executeTasks(context, commsToUpdate, IHistoricalEditor::createPreparationTasks,
+                             true, true, "chunked prepare", LOAD_HISTORY_SUMMARY_METRIC);
+
+                // submit the calculation tasks and wait for completion
+                executeTasks(context, commsToUpdate, IHistoricalEditor::createCalculationTasks,
+                             false, false, "calculate", CALCULATE_HISTORY_SUMMARY_METRIC);
+            } catch (RejectedExecutionException | InterruptedException | ExecutionException e) {
+                Throwable reason = e;
+                // any failure of a mandatory sub-task stops everything (typically first failure to load from db)
+                // next broadcast will initiate loading again
+                // executor failure or interruption stop everything regardless of editor type
+                if (e instanceof ExecutionException && e.getCause() != null) {
+                    reason = e.getCause();
+                }
+                throw new PipelineStageException(FAILURE_CAUSE, reason);
             }
-            throw new PipelineStageException(FAILURE_CAUSE, reason);
+
+            forEachEditor(editorsToRun, editor -> editor.completeBroadcast(context), "completion",
+                          "The time spent completing historical data broadcast preparation for {}");
+
+            logger.info("History aggregator commodities modified: {} in {}", editorsToRun.stream()
+                            .map(editor -> editor.getClass().getSimpleName() + ":" + context.getAccessor()
+                                            .getUpdateCount(editor.getClass().getSimpleName()))
+                            .collect(Collectors.joining(" ")), stopwatch.stop());
+        } catch (PipelineStageException e) {
+            // double handling - because pipeline runner swallows stack trace for non-mandatory stages
+            logger.warn("History aggregation stage failed", e);
+            throw e;
         }
-
-        forEachEditor(editorsToRun, editor -> editor.completeBroadcast(context), "completion",
-                      "The time spent completing historical data broadcast preparation for {}");
-
-        logger.info("History aggregator commodities modified: {} in {}", editorsToRun.stream()
-                        .map(editor -> editor.getClass().getSimpleName() + ":" + context.getAccessor()
-                                        .getUpdateCount(editor.getClass().getSimpleName()))
-                        .collect(Collectors.joining(" ")), stopwatch.stop());
     }
 
     /**

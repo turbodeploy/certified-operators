@@ -128,22 +128,23 @@ public class UtilizationCountArray {
      */
     public void addPoint(float usage, float newCapacity, String key, long timestamp) {
         if (newCapacity <= 0F) {
-            logger.warn("Skipping non-positive capacity usage point for " + key + ": " + newCapacity);
+            logger.trace("Skipping non-positive capacity usage point for " + key + ": " + newCapacity);
             return;
         }
 
         if (usage < 0F) {
-            logger.warn("Skipping negative percentile usage point {} for {}", usage, key);
+            logger.trace("Skipping negative percentile usage point {} for {}", usage, key);
             return;
         }
 
         if (Double.isNaN(usage)) {
-            logger.warn("Skipping NaN percentile usage point {} for {}", usage, key);
+            logger.trace("Skipping NaN percentile usage point {} for {}", usage, key);
             return;
         }
 
         if (usage > newCapacity) {
-            logger.warn("Percentile usage point {} exceeds capacity {} for {}", usage, newCapacity, key);
+            // TODO consider accumulating the number of these warnings in the context and printing in the end of the stage
+            logger.trace("Percentile usage point {} exceeds capacity {} for {}", usage, newCapacity, key);
             usage = newCapacity;
         }
 
