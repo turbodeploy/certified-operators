@@ -1217,8 +1217,9 @@ public class ActionSpecMapperTest {
         assertEquals(ENTITY_TO_RESIZE_NAME, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
+        assertEquals(1, actionApiDTO.getRisk().getReasonCommodities().size());
         assertEquals(CommodityDTO.CommodityType.CPU.name(),
-                actionApiDTO.getRisk().getReasonCommodity());
+                actionApiDTO.getRisk().getReasonCommodities().iterator().next());
         assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertEquals(DC1_NAME, actionApiDTO.getNewLocation().getDisplayName());
     }
@@ -1250,10 +1251,11 @@ public class ActionSpecMapperTest {
         verify(req).contextId(CONTEXT_ID);
 
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
+        assertEquals(1, actionApiDTO.getRisk().getReasonCommodities().size());
         assertEquals(UICommodityType.VMEM.apiStr(),
-                actionApiDTO.getRisk().getReasonCommodity());
+                actionApiDTO.getRisk().getReasonCommodities().iterator().next());
         assertEquals("2097152.0", actionApiDTO.getCurrentValue());
-        assertEquals("1048576.0", actionApiDTO.getResizeToValue());
+        assertEquals("1048576.0", actionApiDTO.getNewValue());
         assertEquals(CommodityTypeUnits.VMEM.getUnits(), actionApiDTO.getValueUnits());
     }
 
@@ -1285,7 +1287,8 @@ public class ActionSpecMapperTest {
         verify(req).contextId(CONTEXT_ID);
 
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
-        assertEquals(UICommodityType.HEAP.apiStr(), actionApiDTO.getRisk().getReasonCommodity());
+        assertEquals(1, actionApiDTO.getRisk().getReasonCommodities().size());
+        assertEquals(UICommodityType.HEAP.apiStr(), actionApiDTO.getRisk().getReasonCommodities().iterator().next());
     }
 
     /**
@@ -1323,10 +1326,11 @@ public class ActionSpecMapperTest {
         verify(req).contextId(CONTEXT_ID);
 
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
-        assertEquals(UICommodityType.HEAP.apiStr(), actionApiDTO.getRisk().getReasonCommodity());
+        assertEquals(1, actionApiDTO.getRisk().getReasonCommodities().size());
+        assertEquals(UICommodityType.HEAP.apiStr(), actionApiDTO.getRisk().getReasonCommodities().iterator().next());
         // Check that the resize values are formatted in a consistent, API backwards-compatible way.
         assertEquals(String.format("%.1f", oldCapacity), actionApiDTO.getCurrentValue());
-        assertEquals(String.format("%.1f", newCapacity), actionApiDTO.getResizeToValue());
+        assertEquals(String.format("%.1f", newCapacity), actionApiDTO.getNewValue());
     }
 
     /**
@@ -1367,7 +1371,8 @@ public class ActionSpecMapperTest {
         verify(req).contextId(CONTEXT_ID);
         assertEquals(ENTITY_TO_RESIZE_NAME, actionApiDTO.getTarget().getDisplayName());
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
-        assertEquals(UICommodityType.MEM.apiStr(), actionApiDTO.getRisk().getReasonCommodity());
+        assertEquals(1, actionApiDTO.getRisk().getReasonCommodities().size());
+        assertEquals(UICommodityType.MEM.apiStr(), actionApiDTO.getRisk().getReasonCommodities().iterator().next());
     }
 
     /**
@@ -1432,9 +1437,8 @@ public class ActionSpecMapperTest {
         assertEquals("EntityToActivate", actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.START, actionApiDTO.getActionType());
-        Assert.assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
-            IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
-                UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()));
+        Assert.assertEquals(ImmutableSet.of(UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()),
+            actionApiDTO.getRisk().getReasonCommodities());
         assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertNull(actionApiDTO.getNewLocation());
     }
@@ -1471,9 +1475,8 @@ public class ActionSpecMapperTest {
         assertEquals(entityToActivateName, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.START, actionApiDTO.getActionType());
-        assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
-                IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
-                    UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()));
+        assertEquals(ImmutableSet.of(UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()),
+            actionApiDTO.getRisk().getReasonCommodities());
         assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertNull(actionApiDTO.getNewLocation());
     }
@@ -1504,9 +1507,8 @@ public class ActionSpecMapperTest {
         assertEquals(entityToDeactivateName, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.SUSPEND, actionApiDTO.getActionType());
-        assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
-            IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
-                UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()));
+        assertEquals(ImmutableSet.of(UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()),
+            actionApiDTO.getRisk().getReasonCommodities());
         assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertNull(actionApiDTO.getNewLocation());
     }
@@ -1573,9 +1575,8 @@ public class ActionSpecMapperTest {
         assertEquals(entityToDeactivateName, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.SUSPEND, actionApiDTO.getActionType());
-        assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
-                IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
-                    UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()));
+        assertEquals(ImmutableSet.of(UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()),
+            actionApiDTO.getRisk().getReasonCommodities());
     }
 
     @Test

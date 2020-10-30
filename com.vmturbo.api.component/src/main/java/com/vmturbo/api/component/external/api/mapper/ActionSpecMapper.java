@@ -1228,7 +1228,8 @@ public class ActionSpecMapper {
         }
         wrapperDto.addCompoundActions(actions);
 
-        wrapperDto.getRisk().setReasonCommodity(getReasonCommodities(changeProviderExplanationList));
+        wrapperDto.getRisk().addAllReasonCommodities(getReasonCommodities(changeProviderExplanationList));
+        wrapperDto.getRisk().setReasonCommodity(getReasonCommodities(changeProviderExplanationList).stream().collect(Collectors.joining(", ")));
 
         // set current location, new location and cloud aspects for cloud resize actions
         if (target.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
@@ -1283,7 +1284,7 @@ public class ActionSpecMapper {
             });
     }
 
-    private String getReasonCommodities(List<ChangeProviderExplanation> changeProviderExplanations) {
+    private Set<String> getReasonCommodities(List<ChangeProviderExplanation> changeProviderExplanations) {
         // Using set to avoid duplicates
         Set<ReasonCommodity> reasonCommodities = new HashSet<>();
         for (ChangeProviderExplanation changeProviderExplanation : changeProviderExplanations) {
@@ -1294,6 +1295,9 @@ public class ActionSpecMapper {
                 case CONGESTION:
                     reasonCommodities.addAll(changeProviderExplanation.getCongestion().getCongestedCommoditiesList());
                     break;
+                case EFFICIENCY:
+                    reasonCommodities.addAll(changeProviderExplanation.getEfficiency().getUnderUtilizedCommoditiesList());
+                    break;
             }
         }
 
@@ -1301,7 +1305,7 @@ public class ActionSpecMapper {
                 .map(ReasonCommodity::getCommodityType)
                 .map(UICommodityType::fromType)
                 .map(UICommodityType::apiStr)
-                .collect(Collectors.joining(", "));
+                .collect(Collectors.toSet());
     }
 
     private ActionApiDTO singleMove(ActionType actionType, ActionApiDTO compoundDto,
@@ -1575,8 +1579,6 @@ public class ActionSpecMapper {
                                     @Nonnull final ActionSpecMappingContext context) {
         ActionApiDTO actionApiDTO = new ActionApiDTO();
         actionApiDTO.setTarget(new ServiceEntityApiDTO());
-        actionApiDTO.setCurrentEntity(new ServiceEntityApiDTO());
-        actionApiDTO.setNewEntity(new ServiceEntityApiDTO());
 
         actionApiDTO.setActionMode(compoundDto.getActionMode());
         actionApiDTO.setActionState(compoundDto.getActionState());
@@ -1588,8 +1590,6 @@ public class ActionSpecMapper {
         final ActionEntity targetEntity = resizeInfo.getTarget();
 
         actionApiDTO.setTarget(getServiceEntityDTO(context, targetEntity));
-        actionApiDTO.setCurrentEntity(getServiceEntityDTO(context, originalEntity));
-        actionApiDTO.setNewEntity(getServiceEntityDTO(context, originalEntity));
         setRelatedDatacenter(originalEntity.getId(), actionApiDTO, context, false);
         setRelatedDatacenter(originalEntity.getId(), actionApiDTO, context, true);
 
@@ -1602,6 +1602,7 @@ public class ActionSpecMapper {
             actionApiDTO.setResizeAttribute(resizeInfo.getCommodityAttribute().name());
         }
         actionApiDTO.setCurrentValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getOldCapacity()));
+        actionApiDTO.setNewValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
         actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
         try {
             String units = CommodityTypeUnits.valueOf(commodityType.name()).getUnits();
@@ -1629,6 +1630,7 @@ public class ActionSpecMapper {
         // map the recommendation info
         LogEntryApiDTO risk = new LogEntryApiDTO();
         risk.setImportance((float)0.0);
+        risk.addReasonCommodity(UICommodityType.fromType(resizeInfo.getCommodityType()).apiStr());
         risk.setReasonCommodity(UICommodityType.fromType(resizeInfo.getCommodityType()).apiStr());
         actionApiDTO.setRisk(risk);
 
@@ -1664,20 +1666,21 @@ public class ActionSpecMapper {
 
         final ActionEntity originalEntity = resize.getTarget();
         actionApiDTO.setTarget(getServiceEntityDTO(context, originalEntity));
-        actionApiDTO.setCurrentEntity(getServiceEntityDTO(context, originalEntity));
-        actionApiDTO.setNewEntity(getServiceEntityDTO(context, originalEntity));
         setRelatedDatacenter(originalEntity.getId(), actionApiDTO, context, false);
         setRelatedDatacenter(originalEntity.getId(), actionApiDTO, context, true);
 
         final CommodityDTO.CommodityType commodityType = CommodityDTO.CommodityType.forNumber(
                 resize.getCommodityType().getType());
+
         Objects.requireNonNull(commodityType, "Commodity for number "
                 + resize.getCommodityType().getType());
+        actionApiDTO.getRisk().addReasonCommodity(UICommodityType.fromType(resize.getCommodityType()).apiStr());
         actionApiDTO.getRisk().setReasonCommodity(UICommodityType.fromType(resize.getCommodityType()).apiStr());
         if (resize.hasCommodityAttribute()) {
             actionApiDTO.setResizeAttribute(resize.getCommodityAttribute().name());
         }
         actionApiDTO.setCurrentValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getOldCapacity()));
+        actionApiDTO.setNewValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
         actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
         try {
             String units = CommodityTypeUnits.valueOf(commodityType.name()).getUnits();
@@ -1764,7 +1767,8 @@ public class ActionSpecMapper {
             newEntity.setDisplayName(riApiDTO.getTemplate().getDisplayName());
             newEntity.setClassName(riApiDTO.getClassName());
             actionApiDTO.setNewEntity(newEntity);
-            actionApiDTO.setResizeToValue(formatBuyRIResizeToValue(riApiDTO));
+            actionApiDTO.setNewValue(formatBuyRINewValue(riApiDTO));
+            actionApiDTO.setResizeToValue(formatBuyRINewValue(riApiDTO));
         } catch (NotFoundMatchPaymentOptionException e) {
             logger.error("Payment Option not found for RI : {}", buyRI.getBuyRiId(),  e);
         } catch (NotFoundMatchTenancyException e) {
@@ -1781,7 +1785,7 @@ public class ActionSpecMapper {
      * @param ri ReservedInstanceApiDTO to format
      * @return a String contains all the necessary information to buy an RI
      */
-    private final String formatBuyRIResizeToValue(ReservedInstanceApiDTO ri) {
+    private String formatBuyRINewValue(ReservedInstanceApiDTO ri) {
         String platform = ri.getPlatform().name();
         String payment = ri.getPayment().name();
         String type = ri.getType().name();
@@ -1801,14 +1805,14 @@ public class ActionSpecMapper {
         actionApiDTO.setCurrentEntity(getServiceEntityDTO(context, targetEntity));
         setRelatedDatacenter(targetEntity.getId(), actionApiDTO, context, false);
 
-        final List<String> reasonCommodityNames =
+        final Set<String> reasonCommodityNames =
             activate.getTriggeringCommoditiesList().stream()
                 .map(UICommodityType::fromType)
                 .map(UICommodityType::apiStr)
-                .collect(Collectors.toList());
+                .collect(Collectors.toSet());
 
-        actionApiDTO.getRisk()
-            .setReasonCommodity(reasonCommodityNames.stream().collect(Collectors.joining(",")));
+        actionApiDTO.getRisk().addAllReasonCommodities(reasonCommodityNames);
+        actionApiDTO.getRisk().setReasonCommodity(reasonCommodityNames.stream().collect(Collectors.joining(",")));
     }
 
     private void addDeactivateInfo(@Nonnull final ActionApiDTO actionApiDTO,
@@ -1821,12 +1825,13 @@ public class ActionSpecMapper {
 
         actionApiDTO.setActionType(ActionType.SUSPEND);
 
-        final List<String> reasonCommodityNames =
+        final Set<String> reasonCommodityNames =
                 deactivate.getTriggeringCommoditiesList().stream()
                         .map(UICommodityType::fromType)
                         .map(UICommodityType::apiStr)
-                        .collect(Collectors.toList());
+                        .collect(Collectors.toSet());
 
+        actionApiDTO.getRisk().addAllReasonCommodities(reasonCommodityNames);
         actionApiDTO.getRisk().setReasonCommodity(
             reasonCommodityNames.stream().collect(Collectors.joining(",")));
     }
