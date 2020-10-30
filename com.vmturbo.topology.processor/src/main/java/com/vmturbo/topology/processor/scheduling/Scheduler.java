@@ -510,7 +510,6 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
         }
 
         final long broadcastIntervalMillis = TimeUnit.MILLISECONDS.convert(broadcastInterval, unit);
-        saveScheduleData(new ScheduleData(broadcastIntervalMillis), BROADCAST_SCHEDULE_KEY);
 
         final Optional<TopologyBroadcastSchedule> existingSchedule = stopAndRemoveBroadcastSchedule();
         final long initialDelayMillis = calculateInitialDelayMillis(broadcastIntervalMillis, existingSchedule);
@@ -840,10 +839,8 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
     }
 
     /**
-     * Initialize the broadcast data, with the broadcast interval set by a value specified in minutes.
-     *
-     * First attempt to restore the broadcast data from its persisted location. If no data can be
-     * restored, attempt to use the injected initialization value.
+     * Initialize the broadcast data, with the broadcast interval set by the injected
+     * initialization value in minutes.
      *
      * If an error occurs when attempting to create the broadcast data, resort to creating the data
      * using a hardcoded default.
@@ -855,9 +852,7 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
      *                                 and logs an error if it is not.
      */
     private void initializeBroadcastSchedule(final long initialBroadcastIntervalMinutes, boolean requireSavedScheduleData) {
-        long broadcastIntervalMillis = loadScheduleData(BROADCAST_SCHEDULE_KEY, ScheduleData.class, requireSavedScheduleData)
-            .map(ScheduleData::getScheduleIntervalMillis)
-            .orElse(TimeUnit.MILLISECONDS.convert(initialBroadcastIntervalMinutes, TimeUnit.MINUTES));
+        long broadcastIntervalMillis = TimeUnit.MILLISECONDS.convert(initialBroadcastIntervalMinutes, TimeUnit.MINUTES);
 
         try {
             broadcastSchedule = Optional.of(setBroadcastSchedule(broadcastIntervalMillis, TimeUnit.MILLISECONDS));

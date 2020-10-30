@@ -442,18 +442,6 @@ public class SchedulerTest {
     }
 
     @Test
-    public void testSetBroadcastScheduleSavesSchedule() throws Exception {
-        long broadcastIntervalMillis =
-            scheduler.getBroadcastSchedule().get().getScheduleInterval(TimeUnit.MILLISECONDS);
-
-        // SetBroadcastSchedule should be called in the constructor
-        verify(keyValueStore).put(
-            scheduleKey(Scheduler.BROADCAST_SCHEDULE_KEY),
-            new Gson().toJson(new ScheduleData(broadcastIntervalMillis))
-        );
-    }
-
-    @Test
     public void testIllegalBroadcastIntervalZero() throws Exception {
         expectedException.expect(IllegalArgumentException.class);
         expectedException.expectMessage("Illegal broadcast interval: 0");
@@ -495,20 +483,6 @@ public class SchedulerTest {
             Scheduler.FAILOVER_INITIAL_BROADCAST_INTERVAL_MINUTES,
             schedulerWithIllegalInitialInterval.getBroadcastSchedule().get().getScheduleInterval(TimeUnit.MINUTES)
         );
-    }
-
-    @Test
-    public void testInitialBroadcastScheduleWhenLoaded() throws Exception {
-        when(keyValueStore.get(scheduleKey(Scheduler.BROADCAST_SCHEDULE_KEY)))
-            .thenReturn(Optional.of(new Gson().toJson(new ScheduleData(TEST_SCHEDULE_MILLIS))));
-
-        Scheduler scheduler = new Scheduler(operationManager, targetStore, probeStore,
-            topologyHandler, keyValueStore, journalFactory, (name) -> fullDiscoveryExecutorSpy1,
-            (name) -> incrementalDiscoveryExecutorSpy1, broadcastExecutorSpy, expirationExecutorSpy,
-            INITIAL_BROADCAST_INTERVAL_MINUTES);
-        scheduler.initialize();
-        TopologyBroadcastSchedule schedule = scheduler.getBroadcastSchedule().get();
-        assertEquals(TEST_SCHEDULE_MILLIS, schedule.getScheduleInterval(TimeUnit.MILLISECONDS));
     }
 
     @Test
