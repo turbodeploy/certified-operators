@@ -667,9 +667,33 @@ public class ResizerTest {
 
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
-        assertEquals(0, actions.size());
+        assertEquals(2, actions.size());
     }
 
+    /**
+     * Setup economy with one PM, one VM and one application.
+     * PM CPU capacity = 160, VM buys 70 from it. App buys 20 of VM's VCPU.
+     * PM MEM capacity = 160, VM buys 70 from it. App buys 20 of VM's VMEM.
+     * VM's VMEM and VCPU have low ROI.
+     * Rate of resize is 6 and utilization upper bound set to 0.7.
+     * VM's VCPU and VMEM have capacities of 150 each, which do not exceeds PM's capacity, but does
+     * exceeds PM's effective capacity.
+     * The capacity increment is 1.
+     * The desired capacity is 27.58 - result of calling calculateDesiredCapacity.
+     * We are not going to have resize down actions because the VM original capacity is lower than PM. (rb-42219)
+     * */
+    @Test
+    public void testResizeDecisions_resizeDownExceedsSellerCapacityButSellerOriginalCapacityIsGreater() {
+        Economy economy = setupTopologyForResizeTest(160, 160,
+            150, 150, 70, 70, 20, 20, 0.65, 0.8,
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
+        vm.getSettings().setRateOfResize(6);
+        pm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setUtilizationUpperBound(0.7));
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(0, actions.size());
+    }
     /**
      * Setup economy with one PM, one VM and one application.
      * PM CPU capacity = 100, VM buys 70 from it. App buys 20 of VM's VCPU.
@@ -860,7 +884,7 @@ public class ResizerTest {
         vm.getSettings().setRateOfResize(1000000);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
-        assertEquals(0, actions.size());
+        assertEquals(2, actions.size());
     }
 
     /**
@@ -925,7 +949,7 @@ public class ResizerTest {
         vm.getSettings().setRateOfResize(1000000);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
-        assertEquals(0, actions.size());
+        assertEquals(2, actions.size());
     }
 
     /**

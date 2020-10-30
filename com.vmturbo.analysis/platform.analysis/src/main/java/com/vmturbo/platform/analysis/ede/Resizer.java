@@ -566,12 +566,15 @@ public class Resizer {
         if (currentCapacity - amount < capacityIncrement) {
             amount = currentCapacity >= 2 * capacityIncrement ? currentCapacity - capacityIncrement : 0.0;
         }
-        // If the final number to go to is greater than the raw material capacity, then restrict
-        // it to the raw material capacity. (This can happen when the current capacity is greater
-        // than the raw material's capacity)
+        // If the final number to go to is greater than the raw material capacity, and if the resize
+        // commodity original capacity is less than the rawMaterial's, then adjusted amount
+        // will be 0. When the resize commodity's original capacity is bigger than the rawMaterial's
+        // probably due to hyper-threading, then allow the new capacity after resize down to be greater
+        // than its rawMaterial.
         double newCapacity = currentCapacity - amount;
         for (CommoditySold rawMaterial : rawMaterials) {
-            if (rawMaterial != null && newCapacity > rawMaterial.getEffectiveCapacity()) {
+            if (rawMaterial != null && resizeCommodity.getCapacity() < rawMaterial.getCapacity()
+                    && newCapacity > rawMaterial.getEffectiveCapacity()) {
                 amount = 0;
                 if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
                     logger.info("New resized capacity for {}/{} is {}. But this is above rawMaterial "
