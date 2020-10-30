@@ -163,6 +163,10 @@ public class ReservedInstanceAnalysisScope {
                 startAnalysisRequest.getAccountsList(), -1, false,
                 startAnalysisRequest.getPurchaseProfileByCloudtypeMap(),
                 startAnalysisRequest.getTopologyInfo());
+
+        if (!startAnalysisRequest.getEntitiesList().isEmpty()) {
+            throw new UnsupportedOperationException("Entity scoped RI buy analysis is not supported!");
+        }
     }
 
     /**

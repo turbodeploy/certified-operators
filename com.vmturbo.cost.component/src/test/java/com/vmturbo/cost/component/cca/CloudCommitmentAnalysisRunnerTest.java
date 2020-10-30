@@ -33,12 +33,12 @@ import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
-import com.vmturbo.cost.component.cca.configuration.CloudCommitmentAnalysisConfigurationHolder;
-import com.vmturbo.cost.component.cca.configuration.ImmutableCloudCommitmentAnalysisConfigurationHolder;
 import com.vmturbo.cost.component.reserved.instance.PlanReservedInstanceStore;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -62,15 +62,14 @@ public class CloudCommitmentAnalysisRunnerTest {
 
     private RepositoryServiceBlockingStub repositoryClient;
 
+    private SearchServiceBlockingStub searchServiceStub;
+
     private CloudCommitmentAnalysisRunner cloudCommitmentAnalysisRunner;
 
     private TopologyEntityCloudTopologyFactory cloudTopologyFactory =
             new DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class));
 
     private CloudCommitmentAnalysisManager cloudCommitmentAnalysisManager = mock(CloudCommitmentAnalysisManager.class);
-
-    private final CloudCommitmentAnalysisConfigurationHolder cloudCommitmentAnalysisConfigurationHolder =
-            ImmutableCloudCommitmentAnalysisConfigurationHolder.builder().allocationSuspended(false).allocationFlexible(false).minStabilityMillis(1).build();
 
     private final CloudCommitmentSettingsFetcher cloudCommitmentSettingsFetcher = mock(CloudCommitmentSettingsFetcher.class);
 
@@ -122,9 +121,11 @@ public class CloudCommitmentAnalysisRunnerTest {
     @Before
     public void setup() throws IOException {
         repositoryClient = RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        searchServiceStub = SearchServiceGrpc.newBlockingStub(grpcServer.getChannel());
         startGrpcTestServer();
         cloudCommitmentAnalysisRunner = new CloudCommitmentAnalysisRunner(cloudCommitmentAnalysisManager,
-                cloudCommitmentSettingsFetcher, planReservedInstanceStore, repositoryClient, cloudTopologyFactory);
+                cloudCommitmentSettingsFetcher, planReservedInstanceStore,
+                repositoryClient, searchServiceStub, cloudTopologyFactory);
         when(cloudCommitmentSettingsFetcher.allocationFlexible()).thenReturn(true);
         when(cloudCommitmentSettingsFetcher.allocationSuspended()).thenReturn(true);
         when(cloudCommitmentSettingsFetcher.includeTerminatedEntities()).thenReturn(true);

@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostREST.BuyRIAnalysisServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
@@ -23,7 +24,6 @@ import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.cca.CloudCommitmentAnalysisRunner;
 import com.vmturbo.cost.component.cca.CloudCommitmentSettingsFetcher;
 import com.vmturbo.cost.component.cca.configuration.CloudCommitmentAnalysisConfigurationHolder;
-import com.vmturbo.cost.component.cca.configuration.ImmutableCloudCommitmentAnalysisConfigurationHolder;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.rpc.RIBuyContextFetchRpcService;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisConfig;
@@ -82,6 +82,10 @@ public class BuyRIAnalysisConfig {
     @Autowired
     private CloudCommitmentAnalysisConfig cloudCommitmentAnalysisConfig;
 
+    // Autowired from RepositoryClientConfig
+    @Autowired
+    private SearchServiceBlockingStub searchServiceBlockingStub;
+
     @Value("${disableRealtimeRIBuyAnalysis:false}")
     private boolean disableRealtimeRIBuyAnalysis;
 
@@ -97,13 +101,16 @@ public class BuyRIAnalysisConfig {
     @Value("${min_Stability_millis: 0}")
     private int minStabilityMillis;
 
-    @Value("${allocation_flexible: false}")
+    @Value("${cca.scopeHistoricalDemandSelection:false}")
+    private boolean scopeHistoricalDemandSelection;
+
+    @Value("${allocationFlexible:false}")
     private boolean allocationFlexible;
 
-    @Value("${minimum_savings_over_onDemand: 80}")
+    @Value("${minimumSavingsOverOnDemand: 80}")
     private float minimumsSavingsOverOnDemand;
 
-    @Value("${max_demand_percentage: 80}")
+    @Value("${maxDemandPercentage: 80}")
     private float maxDemandPercentage;
 
     /**
@@ -159,6 +166,7 @@ public class BuyRIAnalysisConfig {
                 cloudCommitmentSettingsFetcher(),
                 reservedInstanceConfig.planReservedInstanceStore(),
                 repositoryServiceClient(),
+                searchServiceBlockingStub,
                 cloudTopologyFactory());
     }
 
@@ -258,9 +266,11 @@ public class BuyRIAnalysisConfig {
      */
     @Bean
     public CloudCommitmentAnalysisConfigurationHolder cloudCommitmentAnalysisConfigurationHolder() {
-        return ImmutableCloudCommitmentAnalysisConfigurationHolder.builder().allocationFlexible(
-                allocationFlexible)
-                .allocationSuspended(allocationSuspended).minStabilityMillis(minStabilityMillis).build();
+        return CloudCommitmentAnalysisConfigurationHolder.builder()
+                .scopeHistoricalDemandSelection(scopeHistoricalDemandSelection)
+                .allocationFlexible(allocationFlexible)
+                .allocationSuspended(allocationSuspended)
+                .minStabilityMillis(minStabilityMillis).build();
     }
 
 }

@@ -18,6 +18,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.collections4.SetUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
@@ -53,6 +57,8 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
  * This class provides support for PlanRpcService.
  */
 public class PlanRpcServiceUtil {
+
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Create StartBuyRIAnalysisRequest.
@@ -108,14 +114,26 @@ public class PlanRpcServiceUtil {
                 .putAllPurchaseProfileByCloudtype(riPurchaseProfileMap);
         final Map<Integer, Set<Long>> scopeObjectByClass = getClassNameToOids(scenarioInfo.getScope()
                         .getScopeEntriesList(), groupServiceClient, repositoryServiceClient);
-        final Set<Long> regionIds = scopeObjectByClass.get(EntityType.REGION.getNumber());
-        if (regionIds != null && !regionIds.isEmpty()) {
-            buyRiRequest.addAllRegions(regionIds);
-        }
-        final Set<Long> baIds = scopeObjectByClass.get(EntityType.BUSINESS_ACCOUNT.getNumber());
-        if (baIds != null && !baIds.isEmpty()) {
-            buyRiRequest.addAllAccounts(baIds);
-        }
+
+        scopeObjectByClass.forEach((entityType, entityOids) -> {
+
+            entityOids = SetUtils.emptyIfNull(entityOids);
+            switch (entityType) {
+                case EntityType.REGION_VALUE:
+                    buyRiRequest.addAllRegions(entityOids);
+                    break;
+                case EntityType.BUSINESS_ACCOUNT_VALUE:
+                    buyRiRequest.addAllAccounts(entityOids);
+                    break;
+                case EntityType.VIRTUAL_MACHINE_VALUE:
+                    buyRiRequest.addAllEntities(entityOids);
+                    break;
+                default:
+                    logger.warn("Unsupported entity type for Buy RI request (Entity Type={}, Entity Count={})",
+                            entityType, entityOids.size());
+            }
+        });
+
         if (isScalingEnabled(scenarioInfo)) {
             buyRiRequest.setDemandType(DemandType.CONSUMPTION);
         } else {

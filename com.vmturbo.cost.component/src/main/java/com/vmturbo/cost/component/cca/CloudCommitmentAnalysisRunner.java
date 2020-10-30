@@ -1,15 +1,18 @@
 package com.vmturbo.cost.component.cca;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import io.grpc.stub.StreamObserver;
 
@@ -42,7 +45,14 @@ import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
+import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
@@ -66,6 +76,8 @@ public class CloudCommitmentAnalysisRunner {
 
     private final RepositoryServiceBlockingStub repositoryClient;
 
+    private final SearchServiceBlockingStub searchServiceStub;
+
     private final TopologyEntityCloudTopologyFactory cloudTopologyFactory;
 
     /**
@@ -76,6 +88,7 @@ public class CloudCommitmentAnalysisRunner {
      * @param planReservedInstanceStore The plan reserved instance store is used to fetch specific plan
      * Cloud commitments to be included in the CCA request.
      * @param repositoryClient The repository client used to fetch any required entities from the Repository service.
+     * @param searchServiceBlockingStub The search service blocking stub.
      * @param cloudTopologyFactory A cloud topology factory, used to resolve the relationship between regions and
      *                             service providers in determining RI purchase profiles for each region.
      */
@@ -84,11 +97,13 @@ public class CloudCommitmentAnalysisRunner {
             @Nonnull CloudCommitmentSettingsFetcher cloudCommitmentSettingsFetcher,
             @Nonnull PlanReservedInstanceStore planReservedInstanceStore,
             @Nonnull final RepositoryServiceBlockingStub repositoryClient,
+            @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
             @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory) {
         this.cloudCommitmentAnalysisManager = cloudCommitmentAnalysisManager;
         this.cloudCommitmentSettingsFetcher = cloudCommitmentSettingsFetcher;
         this.planReservedInstanceStore = planReservedInstanceStore;
         this.repositoryClient = repositoryClient;
+        this.searchServiceStub = Objects.requireNonNull(searchServiceBlockingStub);
         this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
     }
 
@@ -107,20 +122,31 @@ public class CloudCommitmentAnalysisRunner {
                         .setTopologyId(request.getTopologyInfo().getTopologyId())
                         .build());
 
+        final DemandSelection demandSelection = DemandSelection.newBuilder()
+                .setIncludeSuspendedEntities(cloudCommitmentSettingsFetcher.allocationSuspended())
+                .setIncludeTerminatedEntities(cloudCommitmentSettingsFetcher.includeTerminatedEntities())
+                .setScope(createDemandScopeFromRequest(request))
+                .build();
+
         // Set demand selection
-        cloudCommitmentAnalysisConfigBuilder.setDemandSelection(HistoricalDemandSelection.newBuilder()
-                .setCloudTierType(CloudTierType.COMPUTE_TIER)
-                .setAllocatedSelection(AllocatedDemandSelection.newBuilder()
-                        .build())
-                .setLookBackStartTime(cloudCommitmentSettingsFetcher.historicalLookBackPeriod())
-                .setLogDetailedSummary(logDetailedSummary));
+        cloudCommitmentAnalysisConfigBuilder.setDemandSelection(
+                HistoricalDemandSelection.newBuilder()
+                        .setCloudTierType(CloudTierType.COMPUTE_TIER)
+                        .setAllocatedSelection(AllocatedDemandSelection.newBuilder()
+                                .setDemandSelection(cloudCommitmentSettingsFetcher.scopeHistoricalDemandSelection()
+                                        ? demandSelection
+                                        : createBaseScopeForRequest(request)))
+                        .setLookBackStartTime(cloudCommitmentSettingsFetcher.historicalLookBackPeriod())
+                        .setLogDetailedSummary(logDetailedSummary));
 
         // Set the demand classification settings
         cloudCommitmentAnalysisConfigBuilder.setDemandClassificationSettings(
                 DemandClassificationSettings.newBuilder()
                         .setAllocatedClassificationSettings(
                                 AllocatedClassificationSettings.newBuilder()
-                                        .setMinStabilityMillis(cloudCommitmentSettingsFetcher.minSatbilityMilis()).build()).setLogDetailedSummary(logDetailedSummary));
+                                        .setMinStabilityMillis(cloudCommitmentSettingsFetcher.minSatbilityMilis())
+                                        .build())
+                        .setLogDetailedSummary(logDetailedSummary));
 
         List<Long> rIBoughtIdList = getCloudCommitmentsFromRequest(request);
 
@@ -136,10 +162,7 @@ public class CloudCommitmentAnalysisRunner {
                                     .collect(Collectors.toSet())));
         }
 
-        DemandSelection demandSelection = DemandSelection.newBuilder().setIncludeSuspendedEntities(cloudCommitmentSettingsFetcher.allocationSuspended())
-                .setIncludeTerminatedEntities(cloudCommitmentSettingsFetcher.includeTerminatedEntities())
-                .setScope(createDemandScopeFromRequest(request))
-                .build();
+
 
         cloudCommitmentAnalysisConfigBuilder.setPurchaseProfile(
                 CommitmentPurchaseProfile.newBuilder().setAllocatedSelection(AllocatedDemandSelection
@@ -167,8 +190,78 @@ public class CloudCommitmentAnalysisRunner {
     }
 
     private DemandScope createDemandScopeFromRequest(StartBuyRIAnalysisRequest request) {
-        return DemandScope.newBuilder().addAllAccountOid(request.getAccountsList())
-                .addAllRegionOid(request.getRegionsList()).build();
+        return DemandScope.newBuilder()
+                .addAllAccountOid(request.getAccountsList())
+                .addAllRegionOid(request.getRegionsList())
+                .addAllEntityOid(request.getEntitiesList())
+                .build();
+    }
+
+    @Nonnull
+    private Set<Long> searchForAggregatingEntities(@Nonnull Collection<Long> seedOids,
+                                                   @Nonnull EntityType entityType) {
+        final SearchParameters serviceProviderSearchParams =
+                SearchParameters.newBuilder()
+                        .setStartingFilter(SearchProtoUtil.idFilter(seedOids))
+                        .addSearchFilter(SearchProtoUtil.searchFilterTraversal(
+                                SearchProtoUtil.traverseToType(
+                                        TraversalDirection.AGGREGATED_BY,
+                                        entityType)))
+                        .build();
+        final SearchEntitiesRequest searchRequest = SearchEntitiesRequest.newBuilder()
+                .setSearch(SearchQuery.newBuilder()
+                        .addSearchParameters(serviceProviderSearchParams))
+                .setReturnType(Type.MINIMAL)
+                .build();
+        return RepositoryDTOUtil.topologyEntityStream(searchServiceStub.searchEntitiesStream(searchRequest))
+                .map(PartialEntity::getMinimal)
+                .map(MinimalEntity::getOid)
+                .collect(ImmutableSet.toImmutableSet());
+    }
+
+    /**
+     * If the analyzed demand is not scoped to match the recommendation demand, this method scopes
+     * the request to remove irrelevant data based on RI scoping. For example, if a group of VMs is
+     * selected as the plan scope, the analysis demand selection will be limited to only those regions
+     * in which the VMs are present. For account requests, the demand selection will be limited to the
+     * associated service providers.
+     * @param request The buy RI analysis request.
+     * @return The demand selection.
+     */
+    @Nonnull
+    private DemandSelection createBaseScopeForRequest(StartBuyRIAnalysisRequest request) {
+
+        // It is assumed that only one scope type of the request will be set.
+        final DemandScope demandScope;
+        if (!request.getRegionsList().isEmpty()) {
+            demandScope = DemandScope.newBuilder()
+                    .addAllRegionOid(request.getRegionsList())
+                    .build();
+        } else if (!request.getAccountsList().isEmpty()) {
+            final Set<Long> serviceProviderOids = searchForAggregatingEntities(
+                    request.getAccountsList(),
+                    EntityType.SERVICE_PROVIDER);
+
+            demandScope = DemandScope.newBuilder()
+                    .addAllServiceProviderOid(serviceProviderOids)
+                    .build();
+        } else if (!request.getEntitiesList().isEmpty()) {
+            final Set<Long> regionOids = searchForAggregatingEntities(
+                    request.getEntitiesList(),
+                    EntityType.REGION);
+
+            demandScope = DemandScope.newBuilder()
+                    .addAllRegionOid(regionOids)
+                    .build();
+        } else { // default scope
+            demandScope = DemandScope.getDefaultInstance();
+        }
+
+        return DemandSelection.newBuilder()
+                .setScope(demandScope)
+                .setIncludeSuspendedEntities(cloudCommitmentSettingsFetcher.allocationSuspended())
+                .setIncludeTerminatedEntities(cloudCommitmentSettingsFetcher.includeTerminatedEntities())
+                .build();
     }
 
     private Map<Long, ReservedInstanceType> getRITypeByOid(StartBuyRIAnalysisRequest request) {

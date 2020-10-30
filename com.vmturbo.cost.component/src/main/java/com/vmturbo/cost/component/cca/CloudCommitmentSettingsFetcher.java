@@ -159,4 +159,15 @@ public class CloudCommitmentSettingsFetcher {
     public boolean allocationFlexible() {
         return cloudCommitmentAnalysisConfigurationHolder.allocationFlexible();
     }
+
+    /**
+     * Indicates whether the historical demand selection will be scoped to match the purchasing scope.
+     * If historical demand selection is not scoped, all recorded demand will be used in calculating
+     * covered demand.
+     * @return True, if historical demand selection should be scoped to match the purchase recommendation
+     * scope.
+     */
+    public boolean scopeHistoricalDemandSelection() {
+        return cloudCommitmentAnalysisConfigurationHolder.scopeHistoricalDemandSelection();
+    }
 }

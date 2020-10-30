@@ -1182,6 +1182,10 @@ message StartBuyRIAnalysisRequest {
 
     // the demand type
     optional common_dto.DemandType demandType = 8;
+
+    // This setting is only supported by CCA. If it is populated and CCA is not enabled,
+    // the cost component will fail the request.
+    repeated int64 entities = 9;
 }
 
 message GetTierPriceForEntitiesRequest{
