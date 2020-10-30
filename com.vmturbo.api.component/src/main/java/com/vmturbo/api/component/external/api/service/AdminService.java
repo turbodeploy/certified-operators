@@ -21,6 +21,7 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -401,6 +402,7 @@ public class AdminService implements IAdminService {
         // TODO: 'checkForUpdates' is not yet implemented
         product.setUpdates(UPDATES_NOT_IMPLEMENTED);
         product.setMarketVersion(MARKET_VERSION);
+        product.setApiVersion(getApiVersion());
         return product;
     }
 
@@ -578,6 +580,13 @@ public class AdminService implements IAdminService {
                 componentDefaultsEntry.getValue().get(COMPONENT_VERSION_KEY)))
             .sorted()
             .collect(Collectors.joining("\n"));
+    }
+
+    private String getApiVersion() {
+        Package representativeApiPackage = ProductVersionDTO.class.getPackage();
+        String fullApiVersion = representativeApiPackage.getImplementationVersion();
+        // Show only the major and minor versions, hiding the build number
+        return FilenameUtils.removeExtension(fullApiVersion);
     }
 
     /**
