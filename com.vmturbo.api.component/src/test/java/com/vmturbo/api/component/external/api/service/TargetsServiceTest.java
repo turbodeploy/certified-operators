@@ -133,6 +133,8 @@ public class TargetsServiceTest {
 
     private static final String TGT_NOT_FOUND = "Target not found: ";
     private static final String TGT_NOT_EDITABLE = "cannot be changed through public APIs.";
+    private static final String TGT_CANT_BE_CREATED = "cannot be created through public APIs.";
+    private static final String TGT_CANT_BE_REMOVED = "cannot be removed through public APIs.";
     private static final String PROBE_NOT_FOUND = "Probe not found: ";
 
     private static final String TARGET_DISPLAY_NAME = "target name";
@@ -278,7 +280,7 @@ public class TargetsServiceTest {
         when(targetInfo.getId()).thenReturn(targetId);
         when(targetInfo.getProbeId()).thenReturn(probeId);
         when(targetInfo.getAccountData()).thenReturn(
-                        new HashSet<>(Arrays.asList(accountValues)));
+                new HashSet<>(Arrays.asList(accountValues)));
         when(targetInfo.getStatus()).thenReturn("Validated");
         when(targetInfo.isHidden()).thenReturn(false);
         when(targetInfo.getDisplayName()).thenReturn(TARGET_DISPLAY_NAME);
@@ -286,17 +288,30 @@ public class TargetsServiceTest {
         return targetInfo;
     }
 
-    private TargetInfo createMockHiddenTargetInfo(long probeId, long targetId, AccountValue... accountValues)
+    private TargetInfo createMockTargetInfo(long probeId, long targetId,
+            boolean isHidden, boolean isReadOnly, AccountValue... accountValues)
             throws Exception {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
         when(targetInfo.getProbeId()).thenReturn(probeId);
         when(targetInfo.getAccountData()).thenReturn(
-                        new HashSet<>(Arrays.asList(accountValues)));
+                new HashSet<>(Arrays.asList(accountValues)));
         when(targetInfo.getStatus()).thenReturn("Validated");
-        when(targetInfo.isHidden()).thenReturn(true);
+        when(targetInfo.isHidden()).thenReturn(isHidden);
+        when(targetInfo.isReadOnly()).thenReturn(isReadOnly);
+        when(targetInfo.getDisplayName()).thenReturn(TARGET_DISPLAY_NAME);
         registeredTargets.put(targetId, targetInfo);
         return targetInfo;
+    }
+
+    private TargetInfo createMockHiddenTargetInfo(long probeId, long targetId, AccountValue... accountValues)
+            throws Exception {
+        return createMockTargetInfo(probeId, targetId, true, false, accountValues);
+    }
+
+    private TargetInfo createMockReadOnlyTargetInfo(long probeId, long targetId,
+            AccountValue... accountValues) throws Exception {
+        return createMockTargetInfo(probeId, targetId, false, true, accountValues);
     }
 
     /**
@@ -656,6 +671,32 @@ public class TargetsServiceTest {
     }
 
     /**
+     * Tests adding derived target (, and Target Listener's setValidatedFirstTarget method
+     * should be invoked with argument "true".
+     *
+     * @throws Exception on exceptions occur.
+     */
+    @Test
+    public void testAddDerivedTarget() throws Exception {
+        final long probeId = 1;
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", "uiCategory",
+                CreationMode.DERIVED, createAccountDef("key"));
+        final TargetApiDTO targetDto = new TargetApiDTO();
+        targetDto.setType(probe.getType());
+        targetDto.setInputFields(Arrays.asList(inputField("key", "value")));
+        final String targetString = GSON.toJson(targetDto);
+        when(topologyProcessor.getAllTargets()).thenReturn(Collections.EMPTY_SET);
+        final MvcResult result = mockMvc.perform(MockMvcRequestBuilders.post("/targets")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(targetString)
+                .accept(MediaType.APPLICATION_JSON_VALUE))
+                .andExpect(MockMvcResultMatchers.status().is4xxClientError()).andReturn();
+        final ErrorApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
+                ErrorApiDTO.class);
+        Assert.assertThat(resp.getMessage(), CoreMatchers.containsString(TGT_CANT_BE_CREATED));
+    }
+
+    /**
      * Tests for modifying target.
      *
      * @throws Exception on exceptions occurred
@@ -744,15 +785,35 @@ public class TargetsServiceTest {
     public void deleteAbsentTarget() throws Exception {
         final long targetId = 2;
         Mockito.doThrow(new TopologyProcessorException(TGT_NOT_FOUND)).when(topologyProcessor)
-                        .removeTarget(Mockito.anyLong());
+                .getTarget(Mockito.anyLong());
         final MvcResult result = mockMvc
-                        .perform(MockMvcRequestBuilders.delete("/targets/" + targetId).accept(
-                                        MediaType.APPLICATION_JSON_UTF8_VALUE))
-                        .andExpect(MockMvcResultMatchers.status().is4xxClientError()).andReturn();
+                .perform(MockMvcRequestBuilders.delete("/targets/" + targetId).accept(
+                        MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().is4xxClientError()).andReturn();
         final ErrorApiDTO resp =
-                        GSON.fromJson(result.getResponse().getContentAsString(), ErrorApiDTO.class);
-        Mockito.verify(topologyProcessor).removeTarget(targetId);
+                GSON.fromJson(result.getResponse().getContentAsString(), ErrorApiDTO.class);
+        Mockito.verify(topologyProcessor).getTarget(targetId);
         Assert.assertThat(resp.getMessage(), CoreMatchers.containsString(TGT_NOT_FOUND));
+    }
+
+    /**
+     * Tests removal of a read-only target.
+     *
+     * @throws Exception on exceptions occurred.
+     */
+    @Test
+    public void deleteReadOnlyTarget() throws Exception {
+        final long prpbeId = 1;
+        final long targetId = 2;
+        final ProbeInfo probe = createMockProbeInfo(prpbeId, "type", "category", "uiCategory");
+        final TargetInfo targetInfo = createMockReadOnlyTargetInfo(probe.getId(), targetId);
+        final MvcResult result = mockMvc
+                .perform(MockMvcRequestBuilders.delete("/targets/" + targetId).accept(
+                        MediaType.APPLICATION_JSON_VALUE))
+                .andExpect(MockMvcResultMatchers.status().is4xxClientError()).andReturn();
+        final ErrorApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
+                ErrorApiDTO.class);
+        Assert.assertThat(resp.getMessage(), CoreMatchers.containsString(TGT_CANT_BE_REMOVED));
     }
 
     /**

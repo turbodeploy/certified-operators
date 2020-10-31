@@ -1,10 +1,11 @@
 package com.vmturbo.topology.processor.rest;
 
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import org.junit.Assert;
@@ -18,13 +19,8 @@ public class TargetOperationTest {
      * Testing the mapping between Target creation mode to its invalid operations.
      */
     public static final Map<TargetOperation, Set<CreationMode>> testTargetOperationToCreationMode =
-        new ImmutableMap.Builder<TargetOperation, Set<CreationMode>>()
-            .put(TargetOperation.ADD, Sets.newHashSet(CreationMode.DERIVED, CreationMode.OTHER))
-            .put(TargetOperation.DISCOVER, Collections.emptySet())
-            .put(TargetOperation.VALIDATE, Collections.emptySet())
-            .put(TargetOperation.REMOVE, Sets.newHashSet(CreationMode.DERIVED, CreationMode.OTHER))
-            .put(TargetOperation.UPDATE, Sets.newHashSet(CreationMode.DERIVED, CreationMode.OTHER))
-            .build();
+            Arrays.stream(TargetOperation.values()).collect(Collectors.toMap(
+                    Function.identity(), TargetOperation::getInvalidCreationModes));
 
     /**
      * Validating that the real creationModeToRestrictedTargetOperations structure.

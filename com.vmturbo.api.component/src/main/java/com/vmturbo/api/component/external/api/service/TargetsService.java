@@ -54,6 +54,7 @@ import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -64,6 +65,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -401,7 +403,7 @@ public class TargetsService implements ITargetsService {
     @Override
     public TargetApiDTO createTarget(@Nonnull String probeType,
             @Nonnull Collection<InputFieldApiDTO> inputFields)
-            throws OperationFailedException, InterruptedException {
+            throws OperationFailedException, InterruptedException, InvalidOperationException {
         logger.debug("Add target {}", probeType);
         Objects.requireNonNull(probeType);
         Objects.requireNonNull(inputFields);
@@ -411,14 +413,14 @@ public class TargetsService implements ITargetsService {
         // create a target
         try {
             final Collection<ProbeInfo> probes = topologyProcessor.getAllProbes();
-            final Optional<ProbeInfo> probe =
-                    probes.stream().filter(pr -> probeType.equals(pr.getType())).findFirst();
-            final long probeId;
-            if (probe.isPresent()) {
-                probeId = probe.get().getId();
-            } else {
-                throw new OperationFailedException("Could not find probe by type " + probeType);
+            final ProbeInfo probeInfo = probes.stream()
+                    .filter(pr -> probeType.equals(pr.getType())).findFirst()
+                    .orElseThrow(() -> new OperationFailedException("Could not find probe by type " + probeType));
+            if (probeInfo.getCreationMode() == CreationMode.DERIVED) {
+                throw new InvalidOperationException(
+                        "Derived targets cannot be created through public APIs.");
             }
+            final long probeId = probeInfo.getId();
             final TargetData newtargetData = new NewTargetData(probeType, inputFields);
             try {
                 // store the target number to determine if to send notification to UI.
@@ -539,12 +541,14 @@ public class TargetsService implements ITargetsService {
      * @throws OperationFailedException if the attempt to edit the target fails.
      * @throws UnauthorizedObjectException If the attempt to edit the target is unauthorized.
      * @throws InterruptedException if attempt to edit is interrupted.
+     * @throws InvalidOperationException in case the operation is invalid.
      */
     @Nonnull
     @Override
     public TargetApiDTO editTarget(@Nonnull String uuid,
             @Nonnull Collection<InputFieldApiDTO> inputFields)
-            throws OperationFailedException, UnauthorizedObjectException, InterruptedException {
+            throws OperationFailedException, UnauthorizedObjectException, InterruptedException,
+            InvalidOperationException {
         logger.debug("Edit target {}", uuid);
         Preconditions.checkState(allowTargetManagement,
                 "Targets management public APIs are not allowed in integration mode");
@@ -553,8 +557,9 @@ public class TargetsService implements ITargetsService {
         try {
             TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
             if (targetInfo.isReadOnly()) {
-                throw new OperationFailedException(
-                        "Target " + targetId + " cannot be changed through public APIs.");
+                throw new InvalidOperationException("Read-only target "
+                        + targetInfo.getDisplayName() + " (id " + targetId
+                        + ") cannot be changed through public APIs.");
             }
             topologyProcessor.modifyTarget(targetId, updatedTargetData);
             return createTargetDtoWithRelationships(targetInfo, Collections.emptySet(), getProbeIdToProbeInfoMap());
@@ -569,14 +574,22 @@ public class TargetsService implements ITargetsService {
      * Remove a target given the uuid. Note this is a blocking operation.
      *
      * @param uuid the ID of the target to be removed
+     * @throws InvalidOperationException in case the operation is invalid.
      */
     @Override
-    public void deleteTarget(@Nonnull String uuid) throws UnknownObjectException {
+    public void deleteTarget(@Nonnull String uuid)
+            throws UnknownObjectException, InvalidOperationException {
         logger.debug("Delete target {}", uuid);
         long targetId = Long.valueOf(uuid);
         Preconditions.checkState(allowTargetManagement,
                 "Targets management public APIs are not allowed in integration mode");
         try {
+            TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
+            if (targetInfo.isReadOnly()) {
+                throw new InvalidOperationException("Read-only target "
+                        + targetInfo.getDisplayName() + " (id " + targetId
+                        + ") cannot be removed through public APIs.");
+            }
             topologyProcessor.removeTarget(targetId);
         } catch (CommunicationException e) {
             throw new CommunicationError(e);

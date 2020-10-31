@@ -25,6 +25,7 @@ import org.bouncycastle.util.encoders.Base64;
 
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.serviceinterfaces.IClassicMigrationService;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -74,12 +75,14 @@ public class ClassicMigrationService implements IClassicMigrationService {
      * @return target info object, if new target has been created, {@code null} if validation
      *     or rediscovery is requested instead of target addition.
      * @throws OperationFailedException if target addition failed due to another reason
+     * @throws InvalidOperationException in case the operation is invalid.
      */
     @Nonnull
     @Override
     public TargetApiDTO migrateClassicTarget(@Nonnull String probeType,
                                              @Nonnull Collection<InputFieldApiDTO> inputFields)
-        throws OperationFailedException, InterruptedException, IOException, GeneralSecurityException {
+        throws OperationFailedException, InterruptedException, IOException,
+            GeneralSecurityException, InvalidOperationException {
         List<InputFieldApiDTO> updatedInputFields = new ArrayList<>();
         List<InputFieldApiDTO> secretFields = new ArrayList<>();
         String encryptionKey = null;

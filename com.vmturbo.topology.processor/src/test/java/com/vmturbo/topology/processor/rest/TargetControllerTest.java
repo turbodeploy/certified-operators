@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
@@ -89,6 +90,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.actions.ActionMergeSpecsRepository;
+import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
@@ -346,6 +348,29 @@ public class TargetControllerTest {
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(oneMandatory));
         adder.setAccountField("mandatory", "1");
         return adder.postAndExpect(httpStatus);
+    }
+
+    /**
+     * Creates a probe with derived creation mode and checks that a derived target can be added from
+     * the internal api call; it is now only blocked from the public APIs -
+     * see "TargetsServiceTest.testAddDerivedTarget" in the api component.
+     *
+     * @throws Exception on exceptions occur
+     */
+    @Test
+    public void addDerivedTarget() throws Exception {
+        final long probeId = createProbeWithOneField(derivedProbeInfo);
+        final TargetAdder adder = new TargetAdder(probeId);
+        final String mandatoryKey = "mandatory";
+        final String stringValue = "foo";
+        adder.setAccountField(mandatoryKey, stringValue);
+        final TargetInfo targetInfo = adder.postAndExpect(HttpStatus.OK);
+        Assert.assertNotNull(targetInfo.getTargetId());
+        Assert.assertNotNull(targetInfo.getAccountData());
+        Assert.assertEquals(1, targetInfo.getAccountData().size());
+        Assert.assertEquals(Collections.singleton(stringValue),
+                targetInfo.getAccountData().stream().filter(av -> mandatoryKey.equals(av.getName()))
+                        .map(AccountValue::getStringValue).collect(Collectors.toSet()));
     }
 
     /**
@@ -864,6 +889,19 @@ public class TargetControllerTest {
         Assert.assertThat(notDeletedTarget.getErrors().iterator().next(), CoreMatchers.allOf(
                 CoreMatchers.containsString("Cannot remove target " + target1.getDisplayName()),
                 CoreMatchers.containsString(blockedPolicyName)));
+
+        // Clean up the workflow policies so tests following this will not have undesired results
+        // due to the policies introduced here.  This is because the way we use the
+        // CachingTargetStore in these tests means the targetId here could be the same/re-used as
+        // in some other tests.  Workflow policies created here could adversely affect the test
+        // results of those tests.
+        //
+        Mockito.when(settingPolicyServiceMole.listSettingPolicies(
+                ListSettingPoliciesRequest.newBuilder().addWorkflowId(workflowId).build()))
+                .thenReturn(Collections.emptyList());
+        Mockito.when(workflowServiceMole.fetchWorkflows(
+                FetchWorkflowsRequest.newBuilder().addTargetId(target1.getId()).build()))
+                .thenReturn(FetchWorkflowsResponse.newBuilder().build());
     }
 
     /**
@@ -921,19 +959,21 @@ public class TargetControllerTest {
     }
 
     /**
-     * Creates a probe with derived creation mode and checks that it cannot be edited from the api call.
+     * Creates a probe with derived creation mode and checks that it can be edited from the
+     * internal api call; it is now only blocked from the public APIs -
+     * see "TargetsServiceTest.testEditTarget_readOnlyTarget" in the api component.
      *
      * @throws Exception on exceptions occur
      */
     @Test
-    public void invalidUpdateExistingTarget() throws Exception {
+    public void updateDerivedTarget() throws Exception {
         final long probeId = createProbeWithOneField(derivedProbeInfo);
         final Target targetBeforeOperation = createTarget(probeId, "1");
         final TopologyProcessorDTO.TargetSpec newTargetSpec = createTargetSpec(probeId, "77");
-        final MvcResult mvcResult = requestModifyTarget(targetBeforeOperation.getId(), new TargetSpec(newTargetSpec))
-                .andExpect(status().isForbidden()).andReturn();
+        requestModifyTarget(targetBeforeOperation.getId(), new TargetSpec(newTargetSpec))
+                .andExpect(status().isOk()).andReturn();
         final Target targetAfterOperation = targetStore.getTarget(targetBeforeOperation.getId()).get();
-        Assert.assertNotEquals(newTargetSpec, targetAfterOperation.getNoSecretDto().getSpec());
+        Assert.assertEquals(newTargetSpec, targetAfterOperation.getNoSecretDto().getSpec());
     }
 
     /**
@@ -958,18 +998,32 @@ public class TargetControllerTest {
     }
 
     /**
-     * Creates a probe with derived creation mode and checks that it cannot be removed from the api call.
+     * Creates a probe with derived creation mode and checks that it can be removed from the
+     * internal api call; it is now only blocked from the public APIs -
+     * see "TargetsServiceTest.deleteReadOnlyTarget" in the api component.
      *
      * @throws Exception on exceptions occur
      */
     @Test
-    public void removeInvalidTarget() throws Exception {
+    public void removeDerivedTarget() throws Exception {
         final long probeId = createProbeWithOneField(derivedProbeInfo);
-        final Target target = createTarget(probeId, "7");
+        final Target target = createTarget(probeId, "43");
         Assert.assertEquals(1, targetStore.getAll().size());
-        requestRemoveTarget(target.getId()).andExpect(status().isForbidden()).andReturn();
-        Assert.assertEquals(1, targetStore.getAll().size());
-        Assert.assertEquals(target, targetStore.getAll().iterator().next());
+        //
+        // Remove target calls check the workflow policies associated with the target, and the
+        // way we use the CachingTargetStore in these tests means the targetId here could be the
+        // same as some previous tests.  Therefore, we set up a "distinct" workflowId to avoid a
+        // previously established one comes with some undesired policies that would interfere the
+        // test results.
+        //
+        final long workflowId = 43;
+        Mockito.when(workflowServiceMole.fetchWorkflows(
+                FetchWorkflowsRequest.newBuilder().addTargetId(target.getId()).build()))
+                .thenReturn(FetchWorkflowsResponse.newBuilder()
+                        .addWorkflows(Workflow.newBuilder().setId(workflowId).build())
+                        .build());
+        requestRemoveTarget(target.getId()).andExpect(status().isOk()).andReturn();
+        Assert.assertEquals(0, targetStore.getAll().size());
     }
 
     // Using this instead of overriding equals because tests are the only
