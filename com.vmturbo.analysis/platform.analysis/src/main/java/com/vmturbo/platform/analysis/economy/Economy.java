@@ -883,9 +883,10 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      */
     public void composeMarketSubsetForPlacement() {
         marketsForPlacement_.clear();
-        getMarkets().stream().filter(market -> market.getBuyers().stream().filter(sl ->
-            sl.isMovable()).count() != 0).collect(Collectors.toCollection(() ->
-            marketsForPlacement_));
+        getMarkets().stream()
+                .filter(market ->
+                            market.getBuyers().stream().anyMatch(ShoppingList::isMovable))
+                .collect(Collectors.toCollection(() -> marketsForPlacement_));
     }
 
     /**
