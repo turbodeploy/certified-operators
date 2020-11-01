@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 
 # Script to configure MariaDB on the VM
 
@@ -63,7 +63,7 @@ for i in `seq 1 5`
     do
         echo "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY 'vmturbo' WITH GRANT OPTION; \
               GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY 'vmturbo' WITH GRANT OPTION; \
-              FLUSH PRIVILEGES; " | /usr/bin/mysql  -uroot
+              FLUSH PRIVILEGES; " | sudo /usr/bin/mysql  -uroot
         if [ "$?" -eq 0 ]; then
             log_msg '+++ MariaDB privileges granted successful.'
             break
