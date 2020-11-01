@@ -20,6 +20,7 @@ import com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation.Cloud
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.CloudCommitmentAnalysisInfo;
 import com.vmturbo.common.protobuf.cca.CloudCommitmentAnalysis.TopologyReference;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.IMessageSender;
 
@@ -33,6 +34,7 @@ public class DefaultActionPlanBroadcastTest {
 
     @Before
     public void setup() {
+        IdentityGenerator.initPrefix(0);
         actionPlanBroadcast = new DefaultActionPlanBroadcast(actionPlanSender, actionTranslator);
     }
 
