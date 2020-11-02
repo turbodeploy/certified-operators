@@ -100,6 +100,10 @@ http {
         ''      close;
     }
 
+    # set up for security-related response headers that we always supply if they're not
+    # present from upstream processing
+    include /etc/nginx/includes/security-headers-setup.conf;
+
     server {
         listen 8000;
 
@@ -114,6 +118,9 @@ http {
             include /etc/nginx/includes/security-headers.conf;
             return 200 OK;
         }
+
+        # include any additional server config files for the insecure port
+        include /etc/nginx/userconf/insecure/*.conf;
     }
 
     server {
