@@ -4,8 +4,8 @@
 --
 -- Table structure for Container Platform Cluster entity stats tables
 --
-DROP TABLE IF EXISTS container_platform_cluster_stats_latest;
-CREATE TABLE IF NOT EXISTS container_platform_cluster_stats_latest (
+DROP TABLE IF EXISTS container_cluster_stats_latest;
+CREATE TABLE IF NOT EXISTS container_cluster_stats_latest (
   snapshot_time datetime DEFAULT NULL,
   uuid varchar(80) DEFAULT NULL,
   producer_uuid varchar(80) DEFAULT NULL,
@@ -31,8 +31,8 @@ PARTITION BY RANGE (to_seconds(snapshot_time)) (
   PARTITION future VALUES LESS THAN MAXVALUE
 );
 
-DROP TABLE IF EXISTS container_platform_cluster_stats_by_hour;
-CREATE TABLE IF NOT EXISTS container_platform_cluster_stats_by_hour (
+DROP TABLE IF EXISTS container_cluster_stats_by_hour;
+CREATE TABLE IF NOT EXISTS container_cluster_stats_by_hour (
   snapshot_time datetime NOT NULL,
   uuid varchar(80) DEFAULT NULL,
   producer_uuid varchar(80) DEFAULT NULL,
@@ -60,8 +60,8 @@ PARTITION BY RANGE (to_seconds(snapshot_time)) (
   PARTITION future VALUES LESS THAN MAXVALUE
 );
 
-DROP TABLE IF EXISTS container_platform_cluster_stats_by_day;
-CREATE TABLE IF NOT EXISTS container_platform_cluster_stats_by_day (
+DROP TABLE IF EXISTS container_cluster_stats_by_day;
+CREATE TABLE IF NOT EXISTS container_cluster_stats_by_day (
   snapshot_time datetime NOT NULL,
   uuid varchar(80) DEFAULT NULL,
   producer_uuid varchar(80) DEFAULT NULL,
@@ -88,8 +88,8 @@ PARTITION BY RANGE (to_seconds(snapshot_time)) (
   PARTITION future VALUES LESS THAN MAXVALUE
 );
 
-DROP TABLE IF EXISTS container_platform_cluster_stats_by_month;
-CREATE TABLE IF NOT EXISTS container_platform_cluster_stats_by_month (
+DROP TABLE IF EXISTS container_cluster_stats_by_month;
+CREATE TABLE IF NOT EXISTS container_cluster_stats_by_month (
   snapshot_time datetime NOT NULL,
   uuid varchar(80) DEFAULT NULL,
   producer_uuid varchar(80) DEFAULT NULL,
