@@ -10,6 +10,7 @@ import com.cisco.intersight.client.ApiClient;
 import com.cisco.intersight.client.ApiException;
 import com.cisco.intersight.client.api.AssetApi;
 import com.cisco.intersight.client.model.AssetTarget;
+import com.cisco.intersight.client.model.AssetWorkloadOptimizerService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -28,14 +29,6 @@ import com.vmturbo.topology.processor.api.TopologyProcessorException;
  */
 public class IntersightTargetUpdater {
     private static final Logger logger = LogManager.getLogger();
-
-    /**
-     * Object type of the workload optimizer service class in the Intersight model.
-     * Needed here because the Intersight Java SDK only casts it as AssetService during
-     * deserialization and we compare this string with the object type field to classify it as a
-     * workload optimizer service.
-     */
-    private static final String IWO_SERVICE_OBJECT_TYPE = "asset.WorkloadOptimizerService";
 
     /**
      * API client to access Intersight.
@@ -150,7 +143,8 @@ public class IntersightTargetUpdater {
             throws ApiException, JsonProcessingException {
         final long changedCount = Optional.ofNullable(target.intersight().getServices())
                 .orElse(Collections.emptyList()).stream()
-                .filter(service -> Objects.equals(IWO_SERVICE_OBJECT_TYPE, service.getObjectType()))
+                .filter(AssetWorkloadOptimizerService.class::isInstance)
+                .map(AssetWorkloadOptimizerService.class::cast)
                 .filter(target::needsUpdate)
                 .map(service -> service.status(target.getNewStatusEnum(service))) // update status enum
                 .map(service -> service.statusErrorReason(target.getNewStatusErrorReason(service))) // update err string
