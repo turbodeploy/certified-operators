@@ -28,6 +28,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * An abstract class for collecting data needed for Move or Scale action execution.
@@ -47,8 +49,10 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
     protected ChangeProviderContext(@Nonnull final ExecuteActionRequest request,
                         @Nonnull final ActionDataManager dataManager,
                         @Nonnull final EntityStore entityStore,
-                        @Nonnull final EntityRetriever entityRetriever) {
-        super(request, dataManager, entityStore, entityRetriever);
+                        @Nonnull final EntityRetriever entityRetriever,
+                        @Nonnull final TargetStore targetStore,
+                        @Nonnull final ProbeStore probeStore) {
+        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore);
     }
 
     /**

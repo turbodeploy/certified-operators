@@ -54,6 +54,7 @@ import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.IOperationManager.OperationCallback;
 import com.vmturbo.topology.processor.operation.actionaudit.ActionAudit;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
@@ -83,6 +84,8 @@ public class ActionAuditServiceTest {
     @Mock
     private TargetStore targetStore;
     @Mock
+    private ProbeStore probeStore;
+    @Mock
     private IOperationManager operationManager;
     @Mock
     private SpanContext spanContext;
@@ -108,7 +111,9 @@ public class ActionAuditServiceTest {
         MockitoAnnotations.initMocks(this);
         this.threadPool = new MockScheduledService();
         counter = new AtomicLong(0);
-        final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
+        Target target = Mockito.mock(Target.class);
+        Mockito.when(targetStore.getTarget(Mockito.anyLong())).thenReturn(Optional.of(target));
+        Mockito.when(target.getProbeId()).thenReturn(555L);
         final ProbeInfo probeInfo = ProbeInfo.newBuilder()
                 .setProbeType("test probe")
                 .setProbeCategory("generic")

@@ -173,7 +173,7 @@ public class DeleteContextTest {
         destinationEntity.setHostedBy(awsTargetId, sourceEntityId);
 
         DeleteContext context = new DeleteContext(request, actionDataManagerMock,
-            entityStoreMock, entityRetrieverMock);
+            entityStoreMock, entityRetrieverMock, targetStoreMock, probeStoreMock);
 
         long result = context.getPrimaryEntityId();
         assertEquals(destinationEntityId, result);

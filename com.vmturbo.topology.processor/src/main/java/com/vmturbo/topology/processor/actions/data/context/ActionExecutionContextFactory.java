@@ -111,19 +111,26 @@ public class ActionExecutionContextFactory {
                 return new MoveContext(request, dataManager, entityStore, entityRetriever,
                     targetStore, probeStore);
             case SCALE:
-                return new ScaleContext(request, dataManager, entityStore, entityRetriever);
+                return new ScaleContext(request, dataManager, entityStore, entityRetriever,
+                    targetStore, probeStore);
             case RESIZE:
-                return new ResizeContext(request, dataManager, entityStore, entityRetriever);
+                return new ResizeContext(request, dataManager, entityStore, entityRetriever,
+                    targetStore, probeStore);
             case ACTIVATE:
-                return new ActivateContext(request, dataManager, entityStore, entityRetriever);
+                return new ActivateContext(request, dataManager, entityStore, entityRetriever,
+                    targetStore, probeStore);
             case DEACTIVATE:
-                return  new DeactivateContext(request, dataManager, entityStore, entityRetriever);
+                return  new DeactivateContext(request, dataManager, entityStore, entityRetriever,
+                    targetStore, probeStore);
             case PROVISION:
-                return new ProvisionContext(request, dataManager, entityStore, entityRetriever);
+                return new ProvisionContext(request, dataManager, entityStore, entityRetriever,
+                    targetStore, probeStore);
             case DELETE:
-                return new DeleteContext(request, dataManager, entityStore, entityRetriever);
+                return new DeleteContext(request, dataManager, entityStore, entityRetriever,
+                    targetStore, probeStore);
             case ATOMICRESIZE:
-                return new AtomicResizeContext(request, dataManager, entityStore, entityRetriever);
+                return new AtomicResizeContext(request, dataManager, entityStore, entityRetriever,
+                    targetStore, probeStore);
             default:
                 throw new IllegalArgumentException("Unsupported action type: " +
                         actionInfo.getActionTypeCase());

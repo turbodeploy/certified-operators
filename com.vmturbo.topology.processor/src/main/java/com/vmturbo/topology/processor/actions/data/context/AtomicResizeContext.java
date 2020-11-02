@@ -19,6 +19,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * Build Merge action execution context.
@@ -33,12 +35,16 @@ public class AtomicResizeContext extends AbstractActionExecutionContext {
      * @param dataManager action data manager
      * @param entityStore entity store
      * @param entityRetriever entity retriever
+     * @param targetStore the target store.
+     * @param probeStore the probe store.
      */
     public AtomicResizeContext(@Nonnull final ActionExecution.ExecuteActionRequest request,
                                @Nonnull final ActionDataManager dataManager,
                                @Nonnull final EntityStore entityStore,
-                               @Nonnull final EntityRetriever entityRetriever) {
-        super(request, dataManager, entityStore, entityRetriever);
+                               @Nonnull final EntityRetriever entityRetriever,
+                               @Nonnull final TargetStore targetStore,
+                               @Nonnull final ProbeStore probeStore) {
+        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore);
     }
 
     @Override
@@ -83,7 +89,8 @@ public class AtomicResizeContext extends AbstractActionExecutionContext {
         return builders;
     }
 
-    private ActionItemDTO.Builder buildActionItem(final EntityDTO targetEntityDTO, final EntityDTO originalEntityDTO) {
+    private ActionItemDTO.Builder buildActionItem(final EntityDTO targetEntityDTO,
+              final EntityDTO originalEntityDTO) throws ContextCreationException {
         final ActionItemDTO.Builder actionItemBuilder = ActionItemDTO.newBuilder();
         actionItemBuilder.setActionType(getSDKActionType());
         actionItemBuilder.setUuid(Long.toString(getActionId()));

@@ -11,6 +11,8 @@ import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * A class for collecting data needed for Delete action execution.
@@ -20,11 +22,15 @@ public class DeleteContext extends AbstractActionExecutionContext {
     protected DeleteContext(@Nonnull final ExecuteActionRequest request,
                             @Nonnull final ActionDataManager dataManager,
                             @Nonnull final EntityStore entityStore,
-                            @Nonnull final EntityRetriever entityRetriever) {
+                            @Nonnull final EntityRetriever entityRetriever,
+                            @Nonnull final TargetStore targetStore,
+                            @Nonnull final ProbeStore probeStore) {
         super(Objects.requireNonNull(request),
               Objects.requireNonNull(dataManager),
               Objects.requireNonNull(entityStore),
-              Objects.requireNonNull(entityRetriever));
+              Objects.requireNonNull(entityRetriever),
+              targetStore,
+              probeStore);
     }
 
     /**

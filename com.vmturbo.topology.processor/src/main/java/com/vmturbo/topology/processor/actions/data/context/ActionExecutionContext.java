@@ -52,9 +52,10 @@ public interface ActionExecutionContext {
      * action.
      *
      * @return the SDK (probe-facing) type of the over-arching action being executed
+     * @throws ContextCreationException when the SDK type cannot be calculated.
      */
-    @Nonnull
-    ActionItemDTO.ActionType getSDKActionType();
+    @Nullable
+    ActionItemDTO.ActionType getSDKActionType() throws ContextCreationException;
 
     /**
      * The id of the overarching action. This is the ID that gets assigned by the Action Orchestrator.

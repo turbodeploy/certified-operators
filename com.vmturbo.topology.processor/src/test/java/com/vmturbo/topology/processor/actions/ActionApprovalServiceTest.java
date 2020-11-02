@@ -131,7 +131,6 @@ public class ActionApprovalServiceTest {
         final Entity vmEntity = new Entity(ENTITY_ID, EntityType.VIRTUAL_MACHINE);
         vmEntity.addTargetInfo(TGT_ID, vm);
         Mockito.when(entityStoreMock.getEntity(ENTITY_ID)).thenReturn(Optional.of(vmEntity));
-        final ProbeStore probeStoreMock = Mockito.mock(ProbeStore.class);
 
         this.scheduledService = new MockScheduledService();
         this.targetStore = Mockito.mock(TargetStore.class);
@@ -168,7 +167,7 @@ public class ActionApprovalServiceTest {
                 invocation -> new GetActionState(PROBE_ID, TGT_ID, identityProvider));
 
         this.contextFactory = new ActionExecutionContextFactory(actionDataManagerMock,
-                entityStoreMock, entityRetriever, targetStore, probeStoreMock);
+                entityStoreMock, entityRetriever, targetStore, probeStore);
         final ActionApprovalService svc = new ActionApprovalService(actionApprovalRequests,
                 actionStateSender, approvalResponseSender, operationManager, contextFactory,
                 targetStore, scheduledService, 10);

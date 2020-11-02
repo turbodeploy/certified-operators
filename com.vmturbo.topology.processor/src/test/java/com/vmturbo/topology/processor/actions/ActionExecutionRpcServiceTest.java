@@ -100,6 +100,11 @@ public class ActionExecutionRpcServiceTest {
         Mockito.doThrow(new EntityRetrievalException("No entity found "))
                 .when(entityRetriever)
                 .fetchAndConvertToEntityDTO(Mockito.anyLong());
+        Target target = Mockito.mock(Target.class);
+        Mockito.when(target.getProbeId()).thenReturn(555L);
+        Mockito.when(targetStoreMock.getTarget(Mockito.anyLong())).thenReturn(Optional.of(target));
+        Mockito.when(probeStoreMock.getProbe(555L))
+            .thenReturn(Optional.of(ProbeInfo.getDefaultInstance()));
         actionExecutionStub = ActionExecutionServiceGrpc.newBlockingStub(server.getChannel());
     }
 

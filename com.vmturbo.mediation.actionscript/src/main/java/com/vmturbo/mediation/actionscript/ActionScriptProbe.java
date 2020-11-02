@@ -99,6 +99,11 @@ public class ActionScriptProbe implements IDiscoveryProbe<ActionScriptProbeAccou
             ActionPolicyDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE).build());
     }
 
+    @Override
+    public boolean supportsVersion2ActionTypes() {
+        return true;
+    }
+
     /**
      * Validate the target. In this case we validate the path to the ActionScript folder.
      *

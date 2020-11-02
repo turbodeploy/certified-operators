@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.actions.data.context;
 
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -25,13 +24,13 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionPolicyElement;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
-import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -41,17 +40,6 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 public class MoveContext extends ChangeProviderContext {
 
     private static final Logger logger = LogManager.getLogger();
-
-    /**
-     * Used for determining the target type of a given target.
-     */
-    private final TargetStore targetStore;
-
-    /**
-     * Used for determining the action policy of a given target.
-     */
-    private final ProbeStore probeStore;
-
     /**
      * If true, this move action represents a cross-target move, which means the entity is being
      * moved from a provider discovered on one target to a new provider discovered on a different
@@ -67,9 +55,7 @@ public class MoveContext extends ChangeProviderContext {
                        @Nonnull final EntityRetriever entityRetriever,
                        @Nonnull final TargetStore targetStore,
                        @Nonnull final ProbeStore probeStore) {
-        super(request, dataManager, entityStore, entityRetriever);
-        this.targetStore = Objects.requireNonNull(targetStore);
-        this.probeStore = Objects.requireNonNull(probeStore);
+        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore);
     }
 
     @Override
@@ -218,20 +204,20 @@ public class MoveContext extends ChangeProviderContext {
     @Override
     protected boolean isCrossTargetMove() {
         if (crossTargetMove == null) {
-            Optional<Target> target = targetStore.getTarget(getTargetId());
-            if (!target.isPresent()) {
-                logger.warn("While checking for cross target move, couldn't find the target with ID: " + getTargetId());
+            Optional<MediationMessage.ProbeInfo> probeInfo = getProbeInfo();
+            if (!probeInfo.isPresent()) {
+                logger.warn("While checking for cross target move, couldn't find the probe for "
+                    + "action with ID: " + getActionId());
                 return false;
             }
 
-            final long probeId = target.get().getProbeId();
             final Optional<Entity> entity = getEntityStore().getEntity(getPrimaryEntityId());
             if (!entity.isPresent()) {
                 logger.warn("Cannot find the primary entity with ID " + getPrimaryEntityId());
                 return false;
             }
             final EntityType entityType = entity.get().getEntityType();
-            boolean crossTargetSupported = probeStore.getProbe(probeId).get().getActionPolicyList()
+            boolean crossTargetSupported = probeInfo.get().getActionPolicyList()
                 .stream()
                 .filter(ActionPolicyDTO::hasEntityType)
                 .filter(actionPolicyDTO -> actionPolicyDTO.getEntityType().equals(entityType))
@@ -280,7 +266,7 @@ public class MoveContext extends ChangeProviderContext {
     }
 
     private SDKProbeType getTargetType(long targetId) throws TargetNotFoundException {
-        return targetStore.getProbeTypeForTarget(targetId)
+        return getTargetStore().getProbeTypeForTarget(targetId)
                 .orElseThrow(() -> new TargetNotFoundException(targetId));
     }
 

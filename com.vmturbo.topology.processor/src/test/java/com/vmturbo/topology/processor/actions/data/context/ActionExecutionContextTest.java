@@ -20,12 +20,14 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.topology.processor.actions.ActionExecutionTestUtils;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 public class ActionExecutionContextTest {
@@ -46,6 +48,11 @@ public class ActionExecutionContextTest {
 
     @Before
     public void setup() {
+        Target target = Mockito.mock(Target.class);
+        Mockito.when(target.getProbeId()).thenReturn(555L);
+        Mockito.when(targetStoreMock.getTarget(Mockito.anyLong())).thenReturn(Optional.of(target));
+        Mockito.when(probeStoreMock.getProbe(555L))
+            .thenReturn(Optional.of(MediationMessage.ProbeInfo.getDefaultInstance()));
         actionExecutionContextFactory = new ActionExecutionContextFactory(
                 actionDataManagerMock,
                 entityStoreMock,

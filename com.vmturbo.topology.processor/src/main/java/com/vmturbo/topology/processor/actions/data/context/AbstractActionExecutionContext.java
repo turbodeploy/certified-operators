@@ -11,6 +11,9 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -29,19 +32,24 @@ import com.vmturbo.platform.common.dto.ActionExecution.Workflow.ActionScriptPhas
 import com.vmturbo.platform.common.dto.CommonDTO.ContextData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.operation.ActionConversions;
-import com.vmturbo.topology.processor.targets.TargetNotFoundException;
+import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * A super-class for action execution context implementations.
  * Contains logic common to all action execution contexts.
  */
 public abstract class AbstractActionExecutionContext implements ActionExecutionContext {
+
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Token to use generating error logging during entity lookup. This corresponds to the
@@ -50,12 +58,12 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     private static final String TARGET_LOOKUP_TOKEN = "primary";
 
     /**
-     * The id of this action, as sent from Action Orchestrator
+     * The id of this action, as sent from Action Orchestrator.
      */
     private final long actionId;
 
     /**
-     * The id of the target on which to execute this action, as sent from Action Orchestrator
+     * The id of the target on which to execute this action, as sent from Action Orchestrator.
      */
     private final long targetId;
 
@@ -66,7 +74,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     private final Workflow workflow;
 
     /**
-     * The action type-specific data associated with this action, as sent from Action Orchestrator
+     * The action type-specific data associated with this action, as sent from Action Orchestrator.
      */
     private final ActionInfo actionInfo;
 
@@ -80,6 +88,16 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      * action.
      */
     private final EntityStore entityStore;
+
+    /**
+     * Used for determining the target type of a given target.
+     */
+    private final TargetStore targetStore;
+
+    /**
+     * Used for determining the action policy of a given target.
+     */
+    private final ProbeStore probeStore;
 
     /**
      * Retrieves and converts an entity in order to provide the full entity data for action execution.
@@ -108,7 +126,9 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     protected AbstractActionExecutionContext(@Nonnull final ExecuteActionRequest request,
                                              @Nonnull final ActionDataManager dataManager,
                                              @Nonnull final EntityStore entityStore,
-                                             @Nonnull final EntityRetriever entityRetriever) {
+                                             @Nonnull final EntityRetriever entityRetriever,
+                                             @Nonnull final TargetStore targetStore,
+                                             @Nonnull final ProbeStore probeStore) {
         Objects.requireNonNull(request);
         this.actionId = request.getActionId();
         this.targetId = request.getTargetId();
@@ -117,22 +137,87 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         this.dataManager = Objects.requireNonNull(dataManager);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.entityRetriever = Objects.requireNonNull(entityRetriever);
+        this.targetStore = Objects.requireNonNull(targetStore);
+        this.probeStore = Objects.requireNonNull(probeStore);
         this.actionType = Objects.requireNonNull(request.getActionType());
         this.explanation = request.getExplanation();
     }
 
     @Nonnull
     @Override
-    public ActionItemDTO.ActionType getSDKActionType() {
+    public final ActionItemDTO.ActionType getSDKActionType() throws ContextCreationException {
         if (SDKActionType == null) {
-            SDKActionType = calculateSDKActionType(actionType);
+            SDKActionType = doesProbeSupportV2ActionType()
+                ? getApiActionType() : getLegacySDKActionType();
         }
         return SDKActionType;
     }
 
     /**
+     * Determines if action type should be populate V2 action type which is consistent with API
+     * action types
+     * of not.
+     *
+     * @return true if the probe executing action supports API consistent action types.
+     * @throws ContextCreationException if we cannot lookup target or probe for the action.
+     */
+    private boolean doesProbeSupportV2ActionType() throws ContextCreationException {
+        return getProbeInfo().map(MediationMessage.ProbeInfo::getSupportsV2ActionTypes)
+            .orElseThrow(() -> new ContextCreationException("Cannot find the target or probe "
+                + "associated with the action with id \"" + actionId + "\" and target id \""
+                + targetId + "\"."));
+    }
+
+    /**
+     * Gets the SDK (probe-facing) type of the over-arching action being executed. This returns the
+     * action type which is supported by the probes in legacy way. Already implemented probes do
+     * expect action types that are not consistent with what is seen in API. These probes will
+     * be updated over time to expect action types that are consistent with API.
+     *
+     * @return the sdk action type.
+     * @throws ContextCreationException the SDK type cannot be determined.
+     */
+    @Nonnull
+    protected ActionItemDTO.ActionType getLegacySDKActionType() throws ContextCreationException {
+        ActionType sdkActionType = calculateSDKActionType(actionType);
+        if (sdkActionType == null) {
+            throw new ContextCreationException("The SDK type for action with Id \""
+                + actionId + "\" with internal type \"" + actionType
+                + "\" cannot be calculated using legacy logic.");
+        }
+
+        return sdkActionType;
+    }
+
+    /**
+     * Gets the probe-facing type of the over-arching action being executed.
+     * {@link ActionItemDTO.ActionType} is what is used by the probes to identify the type of an
+     * action.
+     *
+     * <p>This type should be consistent with the type seen in the API. This is very critical as
+     * customers start to write their own probes (for example to handle action execution), the
+     * expect to see the same action type seen in the API in the probe. We are in the process of
+     * updating all probe to support API consistent action type.
+     * </p>
+     *
+     * @return the sdk action type.
+     * @throws ContextCreationException the SDK type cannot be determined.
+     */
+    @Nonnull
+    protected ActionItemDTO.ActionType getApiActionType() throws ContextCreationException {
+        ActionType sdkActionType = ActionConversions.convertToSdkV2ActionType(actionType);
+        if (sdkActionType == null) {
+            throw new ContextCreationException("The SDK type for action with Id \""
+                + actionId + "\" with internal type \"" + actionType
+                + "\" cannot be calculated using api consistent logic.");
+        }
+
+        return sdkActionType;
+    }
+
+    /**
      * Calculates the {@link ActionItemDTO.ActionType} that will be sent to probes from the one
-     * received from Action Orchestrator {@link ActionDTO.ActionType}
+     * received from Action Orchestrator {@link ActionDTO.ActionType}.
      *
      * @param actionType The {@link ActionDTO.ActionType} received from AO
      * @return The {@link ActionItemDTO.ActionType} that will be sent to the probes
@@ -455,5 +540,33 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
             propBUilder.setValue(workflowProperty.getValue());
         }
         return propBUilder.build();
+    }
+
+    /**
+     * Returns the target store.
+     *
+     * @return the target store.
+     */
+    @Nonnull
+    TargetStore getTargetStore() {
+        return targetStore;
+    }
+
+    /**
+     * Gets the information about probe associated with this action.
+     *
+     * @return the information about probe info.
+     */
+    @Nonnull
+    Optional<MediationMessage.ProbeInfo> getProbeInfo() {
+        Optional<Target> target = targetStore.getTarget(targetId);
+        if (!target.isPresent()) {
+            logger.error("Couldn't find the target with ID {} for action \"{}\" ", getTargetId(),
+                actionInfo);
+            return Optional.empty();
+        }
+
+        final long probeId = target.get().getProbeId();
+        return probeStore.getProbe(probeId);
     }
 }

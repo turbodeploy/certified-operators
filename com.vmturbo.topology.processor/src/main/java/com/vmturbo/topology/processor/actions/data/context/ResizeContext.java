@@ -21,6 +21,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VMemData;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  *  A class for collecting data needed for Resize action execution
@@ -32,8 +34,10 @@ public class ResizeContext extends AbstractActionExecutionContext {
     public ResizeContext(@Nonnull final ExecuteActionRequest request,
                          @Nonnull final ActionDataManager dataManager,
                          @Nonnull final EntityStore entityStore,
-                         @Nonnull final EntityRetriever entityRetriever) {
-        super(request, dataManager, entityStore, entityRetriever);
+                         @Nonnull final EntityRetriever entityRetriever,
+                         @Nonnull final TargetStore targetStore,
+                         @Nonnull final ProbeStore probeStore) {
+        super(request, dataManager, entityStore, entityRetriever, targetStore, probeStore);
     }
 
     /**
