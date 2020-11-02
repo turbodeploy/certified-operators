@@ -981,6 +981,15 @@ public abstract class MemoryVisitor<T> {
         }
 
         /**
+         * Compute the shallow size for this particular subgraph node.
+         *
+         * @return the shallow size for this particular subgraph node.
+         */
+        public long shallowSize() {
+            return sizeAndCount.totalSize;
+        }
+
+        /**
          * Get the depth at which we visited the root object of this subgraph during
          * the memory walk.
          *

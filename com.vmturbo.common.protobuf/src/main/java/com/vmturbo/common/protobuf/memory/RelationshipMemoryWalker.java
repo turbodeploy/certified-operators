@@ -53,6 +53,7 @@ public class RelationshipMemoryWalker extends MemoryWalker {
 
     /**
      * Walk the graph of memory references reachable from the roots in breadth-first order.
+     * Multiple calls to {@link #traverse(Object...)} remember objects traversed in prior calls.
      *
      * @param roots The roots to use as a root set in the walk.
      */
@@ -71,6 +72,7 @@ public class RelationshipMemoryWalker extends MemoryWalker {
 
     /**
      * Walk the graph of memory references reachable from the roots in breadth-first order.
+     * Multiple calls to {@link #traverseNamed(Collection)} remember objects traversed in prior calls.
      *
      * @param roots The roots to use as a root set in the walk.
      */

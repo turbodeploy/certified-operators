@@ -261,9 +261,11 @@ public class TopologyEntitiesHandler {
                     Optional.of(classicTracer));
             }
             final long stop = System.nanoTime();
-            results = AnalysisToProtobuf.analysisResults(actions,
-                topology.getShoppingListOids(), stop - start,
-                topology, startPriceStatement);
+            try (TracingScope ignored = Tracing.trace("build_analysis_results")) {
+                results = AnalysisToProtobuf.analysisResults(actions,
+                    topology.getShoppingListOids(), stop - start,
+                    topology, startPriceStatement);
+            }
             try {
                 if (isRealtime) {
                     // run another round of analysis on the new state of the economy with provisions enabled

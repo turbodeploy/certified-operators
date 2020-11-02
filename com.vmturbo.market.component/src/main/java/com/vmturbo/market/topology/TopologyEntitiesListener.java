@@ -21,12 +21,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.common.protobuf.memory.FlyweightTopologyProto;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.market.runner.MarketRunner;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.matrix.component.external.MatrixInterface;
@@ -92,6 +95,8 @@ public class TopologyEntitiesListener implements EntitiesListener {
                                        @Nonnull final SpanContext tracingContext) {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
+        final FlyweightTopologyProto flyweights = new FlyweightTopologyProto();
+
         // Do not cache {@link TopologyEntityDTO}'s if analysis is already running on a RT topology
         if (marketRunner.isAnalysisRunningForRtTopology(topologyInfo)) {
             drainTopologyEntities(entityIterator, topologyContextId, topologyId);
@@ -107,12 +112,13 @@ public class TopologyEntitiesListener implements EntitiesListener {
         // for the entire EntityDTO object would be expensive as it would need
         // to look at all the fields.
         final Set<TopologyEntityDTO> entities = new HashSet<>();
+
         Collection<TopologyDTO.TopologyExtension> exts = new ArrayList<>();
-        try {
+        try (TracingScope scope = Tracing.trace("receive_topology", tracingContext)) {
             while (entityIterator.hasNext()) {
                 for (DataSegment ds : entityIterator.nextChunk()) {
                     if (ds.hasEntity()) {
-                        entities.add(ds.getEntity());
+                        entities.add(flyweights.tryDeduplicate(ds.getEntity()));
                     } else if (ds.hasExtension()) {
                         exts.add(ds.getExtension());
                     }
@@ -125,14 +131,16 @@ public class TopologyEntitiesListener implements EntitiesListener {
             }
         } catch (CommunicationException | TimeoutException e) {
             logger.error("Error occurred while receiving topology " + topologyId + " for " +
-                    "context " + topologyContextId, e);
+                "context " + topologyContextId, e);
         } catch (InterruptedException e) {
             logger.info("Thread interrupted receiving topology " + topologyId + " for " +
-                    "context " + topologyContextId, e);
+                "context " + topologyContextId, e);
         }
+
+        logger.info("Topology {} {} deduplication results: {}", topologyId, topologyContextId, flyweights);
         marketRunner.scheduleAnalysis(topologyInfo, entities, tracingContext, false, maxPlacementsOverride,
-                    useQuoteCacheDuringSNM, replayProvisionsForRealTime, rightsizeLowerWatermark,
-                    rightsizeUpperWatermark, discountedComputeCostFactor);
+            useQuoteCacheDuringSNM, replayProvisionsForRealTime, rightsizeLowerWatermark,
+            rightsizeUpperWatermark, discountedComputeCostFactor);
     }
 
     /**
@@ -208,10 +216,10 @@ public class TopologyEntitiesListener implements EntitiesListener {
             }
         } catch (CommunicationException | TimeoutException e) {
             logger.error("Error occurred while receiving topology " + topologyId + " for " +
-                    "context " + topologyContextId, e);
+                "context " + topologyContextId, e);
         } catch (InterruptedException e) {
             logger.info("Thread interrupted receiving topology " + topologyId + " for " +
-                    "context " + topologyContextId, e);
+                "context " + topologyContextId, e);
         }
     }
 }

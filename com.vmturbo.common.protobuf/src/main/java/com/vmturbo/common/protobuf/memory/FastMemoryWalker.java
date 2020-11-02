@@ -48,6 +48,7 @@ public class FastMemoryWalker extends MemoryWalker {
 
     /**
      * Walk the graph of memory references reachable from the roots in breadth-first order.
+     * Multiple calls to {@link #traverse(Object...)} remember objects traversed in prior calls.
      *
      * @param roots The root set of objects from which to begin the memory walk.
      */
