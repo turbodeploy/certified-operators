@@ -41,7 +41,6 @@ import com.google.common.collect.Maps;
 
 import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -330,13 +329,13 @@ public class ActionSpecMapper {
                 actionSpecMappingContextFactory.createActionSpecMappingContext(recommendations,
                         topologyContextId, uuidMapper);
         final ImmutableList.Builder<ActionApiDTO> actionApiDTOS = ImmutableList.builder();
-        final List<Long> entityUuids = actionSpecs.stream()
-                .map(ActionSpecMapper::getEntityUuidFromActionSpec)
+        final List<Long> cloudEntityUuids = actionSpecs.stream()
+                .map(ActionSpecMapper::getCloudEntityUuidFromActionSpec)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
         final Map<Long, Cost.EntityReservedInstanceCoverage> coverageMap = getEntityRiCoverageMap(
                 topologyContextId,
-                EntityFilter.newBuilder().addAllEntityId(entityUuids).build());
+                EntityFilter.newBuilder().addAllEntityId(cloudEntityUuids).build());
         for (ActionSpec spec : actionSpecs) {
             final ActionApiDTO actionApiDTO =
                     mapActionSpecToActionApiDTOInternal(spec, context, topologyContextId, coverageMap, detailLevel);
@@ -2144,8 +2143,8 @@ public class ActionSpecMapper {
             }
 
             if (shouldGetDetailsForActionType(actionSpec.getRecommendation())) {
-                Long entityUuid = getEntityUuidFromActionSpec(actionSpec);
-                if (Objects.isNull(entityUuid)) {
+                Long cloudEntityUuid = getCloudEntityUuidFromActionSpec(actionSpec);
+                if (Objects.isNull(cloudEntityUuid)) {
                     continue;
                 }
                 ActionEntity entity;
@@ -2158,10 +2157,10 @@ public class ActionSpecMapper {
                 final String actionIdString = Long.toString(action.getActionId());
                 // Scaling cloud volume action
                 if (actionType == SCALE && entity.getType() == EntityType.VIRTUAL_VOLUME_VALUE) {
-                    scaleCloudVolumeActionToVolumeUuidMap.put(actionIdString, entityUuid);
+                    scaleCloudVolumeActionToVolumeUuidMap.put(actionIdString, cloudEntityUuid);
                 } else {
                     // Scaling cloud VM/DB/DBS action
-                    actionToEntityUuidMap.put(actionIdString, entityUuid);
+                    actionToEntityUuidMap.put(actionIdString, cloudEntityUuid);
                 }
             }
         }
@@ -2187,7 +2186,7 @@ public class ActionSpecMapper {
      * @param actionSpec the {@link ActionSpec} corresponding to a given action
      * @return the UUID of the primary entity involved in a given action
      */
-    private static Long getEntityUuidFromActionSpec(final ActionSpec actionSpec) {
+    private static Long getCloudEntityUuidFromActionSpec(final ActionSpec actionSpec) {
         long entityUuid;
         ActionEntity entity;
         try {
@@ -2198,7 +2197,6 @@ public class ActionSpecMapper {
             return null;
         }
         if (entity.getEnvironmentType() != EnvironmentTypeEnum.EnvironmentType.CLOUD) {
-            logger.warn("Cannot create action details for on-prem actions");
             return null;
         }
         return entityUuid;
