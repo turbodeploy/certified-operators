@@ -18,6 +18,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.collections4.SetUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -115,6 +116,8 @@ public class PlanRpcServiceUtil {
                         .getScopeEntriesList(), groupServiceClient, repositoryServiceClient);
 
         scopeObjectByClass.forEach((entityType, entityOids) -> {
+
+            entityOids = SetUtils.emptyIfNull(entityOids);
             switch (entityType) {
                 case EntityType.REGION_VALUE:
                     buyRiRequest.addAllRegions(entityOids);

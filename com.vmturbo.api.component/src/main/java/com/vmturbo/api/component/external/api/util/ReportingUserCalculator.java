@@ -16,37 +16,23 @@ import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 public class ReportingUserCalculator {
 
     /**
-     * The name of the user that gets mapped to a "real" reporting user. Other users get mapped
-     * to the "viewer" user.
-     *
-     * <p/>TODO (roman, Oct 30 2020): Make this configurable from the UI. When it changes, delete
-     *                                the previous one from Grafana.
-     */
-    private final String reportUsername = "administrator";
-
-    /**
-     * The name of the "viewer" user. By default, users share the same "viewer" user,
+     * The name of the "viewer" user. All non-administrator users share the same "viewer" user,
      * since that user is read-only.
      */
     private final String viewerUsername;
 
     private final boolean enableReporting;
 
-    private final boolean samlEnabled;
-
     /**
      * Create a new instance.
      *
      * @param enableReporting Whether or not reporting is enabled in the system.
-     * @param samlEnabled If SAML SSO is enabled.
      * @param viewerUsername The username for the reporting viewer. All non-administrators share
      *                       this "view-only" guest-like username.
      */
     public ReportingUserCalculator(final boolean enableReporting,
-            final boolean samlEnabled,
             @Nonnull final String viewerUsername) {
         this.viewerUsername = viewerUsername;
-        this.samlEnabled = samlEnabled;
         this.enableReporting = enableReporting;
     }
 
@@ -61,17 +47,7 @@ public class ReportingUserCalculator {
     public LoggedInUserInfo getMe(@Nonnull final UserApiDTO me) {
         if (enableReporting) {
             String reportingUsername = viewerUsername;
-            if (samlEnabled) {
-                // In the SSO case there is no "administrator" user available via the API, so we
-                // fall back to role. This means that multiple SSO administrators will result in
-                // multiple Grafana administrators, which will exceed the license limits.
-                // We will fix that issue when we make the "Reporting" user configurable from the UI.
-                if (StringUtils.equalsIgnoreCase(me.getRoleName(), SecurityConstant.ADMINISTRATOR)) {
-                    reportingUsername = me.getUsername();
-                }
-            } else if (StringUtils.equalsIgnoreCase(me.getUsername(), reportUsername)) {
-                // In the normal case there is a single "administrator" user, which we can use
-                // to schedule reports.
+            if (StringUtils.equalsIgnoreCase(me.getRoleName(), SecurityConstant.ADMINISTRATOR)) {
                 reportingUsername = me.getUsername();
             }
             return new LoggedInUserInfo(me, reportingUsername);
