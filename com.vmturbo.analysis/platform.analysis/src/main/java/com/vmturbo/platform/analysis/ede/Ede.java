@@ -55,6 +55,8 @@ public final class Ede {
 
     private PlacementResults edePlacementResults;
 
+    private ActionClassifier classifier;
+
     // Constructor
 
     /**
@@ -173,10 +175,9 @@ public final class Ede {
             String analysisLabel = "Analysis ";
             logger.info(analysisLabel + "Started.");
             ActionStats actionStats = new ActionStats(actions, M2Utils.getTopologyId(economy));
-            ActionClassifier classifier = null;
             final ITracer tracer = optTracer.orElseGet(NoopTracer::new);
             try (ITracerScope tracerScope = tracer.trace("create_action_classifier")) {
-                if (classifyActions) {
+                if (classifyActions && classifier == null) {
                     classifier = new ActionClassifier(economy);
                 }
             } catch (Exception e) {
