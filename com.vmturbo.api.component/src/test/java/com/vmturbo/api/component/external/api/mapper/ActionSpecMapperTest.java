@@ -90,6 +90,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
+import com.vmturbo.common.protobuf.action.ActionDTO.AtomicResize;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
@@ -114,6 +115,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -1222,6 +1224,47 @@ public class ActionSpecMapperTest {
                 actionApiDTO.getRisk().getReasonCommodities().iterator().next());
         assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertEquals(DC1_NAME, actionApiDTO.getNewLocation().getDisplayName());
+    }
+
+    /**
+     * Test the mapping of atomic resizes.
+     * @throws Exception exception can be thrown from mapActionSpecToActionApiDTO
+     */
+    @Test
+    public void testMapAtomicResize() throws Exception {
+        final long targetId = 1;
+        final ActionInfo resizeInfo = ActionInfo.newBuilder()
+            .setAtomicResize(AtomicResize.newBuilder()
+                .setExecutionTarget(ApiUtilsTest.createActionEntity(targetId))
+                .addResizes(ResizeInfo.newBuilder()
+                    .setCommodityType(CPU.getCommodityType())
+                    .setTarget(ApiUtilsTest.createActionEntity(targetId))
+                    .setOldCapacity(9)
+                    .setNewCapacity(10)))
+            .build();
+
+        Explanation resizeExplanation = Explanation.newBuilder()
+            .setResize(ResizeExplanation.newBuilder()
+                .setDeprecatedStartUtilization(0.2f)
+                .setDeprecatedEndUtilization(0.4f).build())
+            .build();
+
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+            new TestEntity(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE))));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(targetId)))
+            .thenReturn(req);
+
+        final ActionApiDTO actionApiDTO =
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resizeExplanation), CONTEXT_ID);
+
+        assertEquals(ENTITY_TO_RESIZE_NAME, actionApiDTO.getTarget().getDisplayName());
+        assertEquals(1, actionApiDTO.getCompoundActions().size());
+        ActionApiDTO subAction = actionApiDTO.getCompoundActions().get(0);
+        assertEquals(9.0f, Float.parseFloat(subAction.getCurrentValue()), 0.01);
+        assertEquals(10.0f, Float.parseFloat(subAction.getNewValue()), 0.01);
+        assertEquals("CPU Congestion in EntityToResize", subAction.getDetails());
+        assertEquals(targetId, Long.parseLong(subAction.getTarget().getUuid()));
+        assertEquals(ActionType.RESIZE, subAction.getActionType());
     }
 
     @Test

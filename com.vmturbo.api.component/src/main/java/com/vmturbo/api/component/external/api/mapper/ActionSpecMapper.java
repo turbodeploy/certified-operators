@@ -1653,7 +1653,7 @@ public class ActionSpecMapper {
         }
 
         String message = MessageFormat.format("{0} in {1}", actionDetails.toString(),
-                    actionApiDTO.getCurrentEntity().getDisplayName());
+                    actionApiDTO.getTarget().getDisplayName());
 
         return message;
     }
