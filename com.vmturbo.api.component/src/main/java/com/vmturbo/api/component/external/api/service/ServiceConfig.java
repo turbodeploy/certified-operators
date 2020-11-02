@@ -713,7 +713,7 @@ public class ServiceConfig {
      */
     @Bean
     public ReportingUserCalculator reportingUserCalculator() {
-        return new ReportingUserCalculator(enableReporting, grafanaViewerUsername);
+        return new ReportingUserCalculator(enableReporting, samlEnabled, grafanaViewerUsername);
     }
 
     /**
