@@ -663,7 +663,7 @@ public class Analysis {
                         // Get it from TopologyConverter and pass it along to use for calculation of
                         // savings
                         projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology,
-                            converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage(), true);
+                            converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage());
                     }
                 }
 
