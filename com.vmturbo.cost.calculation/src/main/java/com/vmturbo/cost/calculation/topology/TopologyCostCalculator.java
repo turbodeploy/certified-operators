@@ -79,7 +79,7 @@ public class TopologyCostCalculator {
     @Nonnull
     public Map<Long, CostJournal<TopologyEntityDTO>> calculateCosts(final CloudTopology<TopologyEntityDTO> cloudTopology) {
         logger.info("Starting cost calculation on cloud topology of size: {}", cloudTopology.size());
-        return calculateCosts(cloudTopology, cloudCostData.getCurrentRiCoverage());
+        return calculateCosts(cloudTopology, cloudCostData.getCurrentRiCoverage(), false);
     }
 
     /**
@@ -90,10 +90,17 @@ public class TopologyCostCalculator {
      */
     @Nonnull
     public Map<Long, CostJournal<TopologyEntityDTO>> calculateCosts(final CloudTopology<TopologyEntityDTO> cloudTopology,
-                                                                    final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage) {
+                                                                    final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage,
+                                                                    final boolean isProjectedTopology) {
         logger.info("Starting cost calculation on cloud topology of size: {}", cloudTopology.size());
         return calculateCostsInTopology(cloudTopology.getEntities().values(), cloudTopology,
-                    projectedRiCoverage);
+                    projectedRiCoverage, isProjectedTopology);
+    }
+
+    @Nonnull
+    public Map<Long, CostJournal<TopologyEntityDTO>> calculateCosts(final CloudTopology<TopologyEntityDTO> cloudTopology,
+                                                                    final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage) {
+        return calculateCosts(cloudTopology, projectedRiCoverage, false);
     }
 
     /**
@@ -113,7 +120,7 @@ public class TopologyCostCalculator {
         entities.addAll(cloudTopology.getAttachedVolumes(cloudEntity.getOid()));
         final Map<Long, CostJournal<TopologyEntityDTO>> costsForEntities =
                 calculateCostsInTopology(entities, cloudTopology,
-                        cloudCostData.getCurrentRiCoverage());
+                        cloudCostData.getCurrentRiCoverage(), false);
         return Optional.ofNullable(costsForEntities.get(cloudEntity.getOid()));
     }
 
@@ -131,7 +138,8 @@ public class TopologyCostCalculator {
     private Map<Long, CostJournal<TopologyEntityDTO>> calculateCostsInTopology(
             final Collection<TopologyEntityDTO> entities,
             final CloudTopology<TopologyEntityDTO> cloudTopology,
-            final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage) {
+            final Map<Long, EntityReservedInstanceCoverage> topologyRICoverage,
+            final boolean isProjectedTopology) {
         final CloudCostCalculator<TopologyEntityDTO> costCalculator;
         final Map<Long, CostJournal<TopologyEntityDTO>> retCosts = new HashMap<>(cloudTopology.size());
         final DependentCostLookup<TopologyEntityDTO> dependentCostLookup = entity -> retCosts.get(entity.getOid());
@@ -142,7 +150,7 @@ public class TopologyCostCalculator {
                 dependentCostLookup,
                 topologyRICoverage);
         entities.forEach(entity -> {
-            retCosts.put(entity.getOid(), costCalculator.calculateCost(entity));
+            retCosts.put(entity.getOid(), costCalculator.calculateCost(entity, isProjectedTopology));
         });
         return retCosts;
     }
