@@ -2418,8 +2418,10 @@ public class TopologyConverter {
                 .map(commType -> {
                     Optional<CommodityBoughtDTO> boughtDTObyTraderFromProjectedSellerInRealTopology =
                         getCommodityIndex().getCommBought(traderOid, supplierOid, commType, volumeId);
-                    float currentUsage = getOriginalUsedValue(commBoughtTO, traderOid,
+                    double currentUsage = getOriginalUsedValue(commBoughtTO, traderOid,
                             supplierOid, commType, volumeId, originalEntity);
+                    currentUsage = TopologyConversionUtils.convertMarketUnitToTopologyUnit(
+                            commType.getType(), currentUsage, originalEntity);
                     final Builder builder = CommodityBoughtDTO.newBuilder();
                     builder.setUsed(reverseScaleComm(currentUsage, boughtDTObyTraderFromProjectedSellerInRealTopology,
                                     CommodityBoughtDTO::getScalingFactor))

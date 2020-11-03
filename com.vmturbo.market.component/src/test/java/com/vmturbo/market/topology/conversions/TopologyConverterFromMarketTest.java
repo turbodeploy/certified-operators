@@ -481,7 +481,6 @@ public class TopologyConverterFromMarketTest {
      * All the traders are sent to convert to topology entities and we assert to check
      * if conversion was successful. Assert conversion from ActionTO to ActionDTO as well.
      * </p>
-     * @throws Exception not supposed to happen in this test
      */
     @Test
     public void testProvByDemandTraderToEntityConversion() {
@@ -527,8 +526,12 @@ public class TopologyConverterFromMarketTest {
                 .putEntityPropertyMap("dummy", "dummy").build();
 
         // Fill in the original topo dto map
-        Map<Long, TopologyEntityDTO> origTopoMap =
-                ImmutableMap.of(dsTopo.getOid(), dsTopo, daTopo.getOid(), daTopo);
+        Map<Long, TopologyEntityDTO> origTopoMap = ImmutableMap.of(
+                dsTopo.getOid(), dsTopo,
+                daTopo.getOid(), daTopo,
+                // Also add mappings for cloned traders
+                dsTopo.getOid() + 100L, dsTopo,
+                daTopo.getOid() + 100L, daTopo);
 
         // 3. Create Trader that is copy of Storage TopoDTO from step 2
         CommoditySpecificationTO stAmtCommSpecTO = CommoditySpecificationTO.newBuilder()
@@ -2123,6 +2126,13 @@ public class TopologyConverterFromMarketTest {
         // set
         Assert.assertFalse(commoditySoldDTO.hasHistoricalUsed());
         Assert.assertFalse(commoditySoldDTO.getHistoricalUsed().hasPercentile());
+
+        // Check projected volume bought commodities
+        final List<CommoditiesBoughtFromProvider> commBoughtList = projectedVolume1.getEntity()
+                .getCommoditiesBoughtFromProvidersList();
+        Assert.assertEquals(1, commBoughtList.size());
+        Assert.assertEquals(storageAmountCapacity,
+                commBoughtList.get(0).getCommodityBought(0).getUsed(), DELTA);
     }
 
     /**
@@ -2207,12 +2217,18 @@ public class TopologyConverterFromMarketTest {
         assertEquals(ImmutableSet.of(volume1Oid), projectedProviders);
     }
 
-    private TopologyEntityDTO createVirtualVolume(boolean isEphemeral, CommodityType commodityType,
-            long volumeOid, long storageTierOid, Origin volumeOrigin, long storageAmountCapacity) {
+    private static TopologyEntityDTO createVirtualVolume(
+            final boolean isEphemeral,
+            @Nonnull final CommodityType commodityType,
+            final long volumeOid,
+            final long storageTierOid,
+            @Nonnull final Origin volumeOrigin,
+            final long storageAmountCapacity) {
         final TopologyDTO.TopologyEntityDTO.Builder volumeBuilder = TopologyEntityDTO.newBuilder()
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                         .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                .setCommodityType(commodityType))
+                                .setCommodityType(commodityType)
+                                .setUsed(storageAmountCapacity))
                         .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
                         .setProviderId(storageTierOid))
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
@@ -2228,6 +2244,7 @@ public class TopologyConverterFromMarketTest {
         }
         return volumeBuilder.build();
     }
+
     private CommoditySoldTO createSoldTO(final int typeValue,
                                          final double capacity,
                                          final boolean resizable) {
