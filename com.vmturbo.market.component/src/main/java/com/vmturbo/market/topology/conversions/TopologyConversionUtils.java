@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -76,9 +77,9 @@ public class TopologyConversionUtils {
     }
 
     static double convertMarketUnitToTopologyUnit(final int commodityType,
-                                                final double valueToConvert,
-                                                final TopologyEntityDTO entityDTO) {
-        if (isEntityConsumingCloud(entityDTO)
+                                                  final double valueToConvert,
+                                                  @Nullable final TopologyEntityDTO entityDTO) {
+        if (entityDTO != null && isEntityConsumingCloud(entityDTO)
             && entityDTO.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE
             && commodityType == CommodityType.STORAGE_AMOUNT_VALUE) {
             return valueToConvert * Units.KBYTE;
