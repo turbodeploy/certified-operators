@@ -39,6 +39,7 @@ import com.vmturbo.history.ingesters.live.writers.EntityStatsWriter;
 import com.vmturbo.history.ingesters.live.writers.PriceIndexWriter;
 import com.vmturbo.history.ingesters.live.writers.SystemLoadWriter;
 import com.vmturbo.history.ingesters.live.writers.TopologyCommoditiesProcessor;
+import com.vmturbo.history.ingesters.live.writers.VolumeAttachmentHistoryWriter;
 import com.vmturbo.history.ingesters.plan.ProjectedPlanTopologyIngester;
 import com.vmturbo.history.ingesters.plan.SourcePlanTopologyIngester;
 import com.vmturbo.history.ingesters.plan.writers.PlanStatsWriter;
@@ -235,7 +236,8 @@ public class IngestersConfig {
                         new ClusterStatsWriter.Factory(
                                 historyDbConfig.historyDbIO(),
                                 groupServiceBlockingStub()
-                        )
+                        ),
+                        new VolumeAttachmentHistoryWriter.Factory()
                 ),
                 ingesterConfig(TopologyIngesterType.sourceRealtime),
                 bulkLoaderFactorySupplier()

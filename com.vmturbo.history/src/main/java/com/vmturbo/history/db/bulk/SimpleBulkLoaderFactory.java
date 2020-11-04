@@ -8,6 +8,7 @@ import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_MON
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.ENTITIES;
 import static com.vmturbo.history.schema.abstraction.Tables.HIST_UTILIZATION;
+import static com.vmturbo.history.schema.abstraction.Tables.VOLUME_ATTACHMENT_HISTORY;
 import static com.vmturbo.history.schema.abstraction.tables.VmStatsLatest.VM_STATS_LATEST;
 
 import java.sql.SQLException;
@@ -170,7 +171,7 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
     }
 
     private <R extends Record> DbInserter<R> getDbInserter(Table<R> table) {
-        if (ENTITIES == table || HIST_UTILIZATION == table) {
+        if (ENTITIES == table || HIST_UTILIZATION == table || VOLUME_ATTACHMENT_HISTORY == table) {
             // Entities table uses upserts so that previously existing entities get any changes
             // to display name that show up in the topology.
             return simpleUpserter(basedbIO);

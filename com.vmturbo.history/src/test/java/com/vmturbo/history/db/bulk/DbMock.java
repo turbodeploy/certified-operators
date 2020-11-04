@@ -3,6 +3,7 @@ package com.vmturbo.history.db.bulk;
 import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.SYSTEM_LOAD;
+import static com.vmturbo.history.schema.abstraction.Tables.VOLUME_ATTACHMENT_HISTORY;
 import static com.vmturbo.history.schema.abstraction.tables.Entities.ENTITIES;
 import static com.vmturbo.history.schema.abstraction.tables.VmStatsLatest.VM_STATS_LATEST;
 
@@ -192,6 +193,8 @@ public class DbMock {
                         MARKET_STATS_LATEST.SNAPSHOT_TIME, MARKET_STATS_LATEST.TOPOLOGY_CONTEXT_ID,
                         MARKET_STATS_LATEST.PROPERTY_TYPE, MARKET_STATS_LATEST.PROPERTY_SUBTYPE,
                         MARKET_STATS_LATEST.ENTITY_TYPE, MARKET_STATS_LATEST.RELATION))
+                .put(VOLUME_ATTACHMENT_HISTORY, key(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID,
+                    VOLUME_ATTACHMENT_HISTORY.VM_OID))
                 .build());
 
         private static List<Field<?>> key(Field<?>... values) {
