@@ -6,24 +6,20 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -58,6 +54,7 @@ import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
+import com.vmturbo.platform.analysis.protobuf.SerializationDTOs.TraderDiagsTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 /**
@@ -69,7 +66,7 @@ public class AnalysisDiagnosticsCollectorTest {
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
     private static final Charset CHARSET = StandardCharsets.UTF_8;
 
-    private Set<TraderTO> traderTOs = new HashSet<>();
+    private Collection<TraderTO> traderTOs;
     private Optional<AnalysisConfig> analysisConfig = Optional.empty();
     private Optional<TopologyInfo> topologyInfo = Optional.empty();
     private Optional<SMAInput> smaInput = Optional.empty();
@@ -286,12 +283,7 @@ public class AnalysisDiagnosticsCollectorTest {
                 String fileName = path.getFileName().toString();
                 switch (fileName) {
                     case AnalysisDiagnosticsCollector.TRADER_DIAGS_FILE_NAME:
-                        FileInputStream fi = new FileInputStream(new File(path.toString()));
-                        ObjectInputStream oi = new ObjectInputStream(fi);
-                        // Read objects
-                        traderTOs = (HashSet<TraderTO>)(oi.readObject());
-                        oi.close();
-                        fi.close();
+                        traderTOs = TraderDiagsTO.parseFrom(Files.readAllBytes(path)).getTraderTOsList();
                         break;
                     case AnalysisDiagnosticsCollector.ANALYSIS_CONFIG_DIAGS_FILE_NAME:
                         analysisConfig = extractSingleInstanceOfType(path, AnalysisConfig.class);
