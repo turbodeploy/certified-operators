@@ -38,9 +38,12 @@ public interface IWidgetsetStore {
      * @param categoriesList the list of categories
      * @param scopeType filter the widgetsets returned to the given scopeType, if any
      * @param queryUserOid the oid of the user making this request
+     * @param isUserAdmin whether the user requesting the widgets has an admin role
      * @return an Iterator over all {@link WidgetsetRecord}s that match the given filter
      */
-    Iterator<WidgetsetRecord> search(@Nullable List<String> categoriesList, @Nullable String scopeType, long queryUserOid);
+    Iterator<WidgetsetRecord> search(@Nullable List<String> categoriesList,
+                                     @Nullable String scopeType, long queryUserOid,
+                                     boolean isUserAdmin);
 
     /**
      * Return an Optional containing the {@link WidgetsetRecord} for the corresponding OID if found,

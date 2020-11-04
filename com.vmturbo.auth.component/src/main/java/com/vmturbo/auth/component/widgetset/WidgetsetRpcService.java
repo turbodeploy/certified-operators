@@ -1,6 +1,7 @@
 package com.vmturbo.auth.component.widgetset;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import javax.ws.rs.NotAuthorizedException;
@@ -41,7 +42,8 @@ public class WidgetsetRpcService extends WidgetsetsServiceGrpc.WidgetsetsService
     public void getWidgetsetList(Widgets.GetWidgetsetListRequest request,
                                  StreamObserver<Widgetset> responseObserver) {
 
-        widgetsetStore.search(request.getCategoriesList(), request.getScopeType(), getQueryUserOid())
+        widgetsetStore.search(request.getCategoriesList(), request.getScopeType(),
+            getQueryUserOid(), isAdmin())
                 .forEachRemaining(widgetsetRecord -> {
                     responseObserver.onNext(fromDbWidgetset(widgetsetRecord));
                 });
@@ -151,6 +153,11 @@ public class WidgetsetRpcService extends WidgetsetsServiceGrpc.WidgetsetsService
             throw new NotAuthorizedException("Invalid USER_UUID_KEY in JWT: " + queryUserOidString);
         }
         return userOid;
+    }
+
+    private boolean isAdmin() {
+        List<String> userRoles = SecurityConstant.USER_ROLES_KEY.get();
+        return userRoles.contains(SecurityConstant.ADMINISTRATOR) || userRoles.contains(SecurityConstant.SITE_ADMIN);
     }
 
     /**

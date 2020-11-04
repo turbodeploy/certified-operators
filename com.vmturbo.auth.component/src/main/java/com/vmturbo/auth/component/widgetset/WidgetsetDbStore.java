@@ -26,6 +26,7 @@ import org.jooq.exception.NoDataFoundException;
 import org.jooq.exception.TooManyRowsException;
 import org.jooq.impl.DSL;
 
+import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.component.store.db.tables.records.WidgetsetRecord;
 import com.vmturbo.common.protobuf.widgets.Widgets;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -90,16 +91,20 @@ public class WidgetsetDbStore implements IWidgetsetStore {
      * @param categoriesList the list of categories
      * @param scopeType filter the widgetsets returned to the given scopeType, if any
      * @param queryUserOid the OID of the user making this request
+     * @param isUserAdmin whether the user is an administrator
      * @return an Iterator over all {@link WidgetsetRecord}s that match the given filter
      */
 
     @Override
     public Iterator<WidgetsetRecord> search(@Nullable List<String> categoriesList,
-                                            @Nullable String scopeType, long queryUserOid) {
+                                            @Nullable String scopeType, long queryUserOid,
+                                            boolean isUserAdmin) {
 
         SelectQuery<WidgetsetRecord> query = dsl.selectQuery(WIDGETSET);
+        if (!isUserAdmin){
         query.addConditions(WIDGETSET.SHARED_WITH_ALL_USERS.ne(DB_FALSE)
             .or(WIDGETSET.OWNER_OID.eq(queryUserOid)));
+        }
         if (CollectionUtils.isNotEmpty(categoriesList)) {
             query.addConditions(WIDGETSET.CATEGORY.in(categoriesList));
         }
