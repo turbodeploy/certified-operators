@@ -1,0 +1,9 @@
+syntax = "proto2";
+package com.vmturbo.platform.analysis.protobuf;
+
+import "EconomyDTOs.proto";
+
+// A wrapper for TraderTO
+message TraderDiagsTO {
+    repeated TraderTO traderTOs = 1;
+}
