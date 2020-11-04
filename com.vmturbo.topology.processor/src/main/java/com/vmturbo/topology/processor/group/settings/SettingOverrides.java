@@ -14,6 +14,10 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
+import gnu.trove.iterator.TLongIterator;
+import gnu.trove.set.TLongSet;
+import gnu.trove.set.hash.TLongHashSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -125,26 +129,31 @@ public class SettingOverrides {
      * these to override the existing policies, rather than co-exist with them.
      *
      * @param groupsById    A map of group id -> Groups, used for group resolution.
+     * @param scopeEvaluator An evaluator for setting scopes
      */
-    public void resolveGroupOverrides(@Nonnull final Map<Long, ResolvedGroup> groupsById) {
-        final Map<Setting, Set<Long>> groupOverrideSettings = new HashMap<>();
+    public void resolveGroupOverrides(@Nonnull final Map<Long, ResolvedGroup> groupsById,
+                                      @Nonnull final EntitySettingsScopeEvaluator scopeEvaluator) {
+        final Map<Setting, TLongSet> groupOverrideSettings = new HashMap<>();
         final Map<String, SettingSpec> grpOverrideSpecs = new HashMap<>();
         overridesForGroup.forEach((groupOid, settingsMap) -> {
             final ResolvedGroup group = groupsById.get(groupOid);
             if (group != null) {
                 settingsMap.forEach((settingName, setting) -> {
                     EntitySettingSpecs.getSettingByName(settingName).ifPresent(entitySpec -> {
-                        final Set<Long> groupMemberOids = group.getEntitiesOfSdkTypes(entitySpec.getEntityTypeScope());
+                        final TLongSet scope = scopeEvaluator.evaluateScopeForGroup(
+                            group, settingName, entitySpec.getEntityTypeScope());
+
                         grpOverrideSpecs.putIfAbsent(settingName, entitySpec.getSettingSpec());
-                        groupOverrideSettings.computeIfAbsent(setting, k -> new HashSet<>())
-                            .addAll(groupMemberOids);
+                        groupOverrideSettings.computeIfAbsent(setting, k -> new TLongHashSet())
+                            .addAll(scope);
                     });
                     ConfigurableActionSettings configurableActionSettings = ConfigurableActionSettings.fromSettingName(settingName);
                     if (configurableActionSettings != null) {
-                        final Set<Long> groupMemberOids = group.getEntitiesOfSdkTypes(configurableActionSettings.getEntityTypeScope());
+                        final TLongSet scope = scopeEvaluator.evaluateScopeForGroup(
+                            group, settingName, configurableActionSettings.getEntityTypeScope());
                         grpOverrideSpecs.putIfAbsent(settingName, ActionSettingSpecs.getSettingSpec(settingName));
-                        groupOverrideSettings.computeIfAbsent(setting, k -> new HashSet<>())
-                            .addAll(groupMemberOids);
+                        groupOverrideSettings.computeIfAbsent(setting, k -> new TLongHashSet())
+                            .addAll(scope);
                     }
                 });
             }
@@ -176,11 +185,13 @@ public class SettingOverrides {
      * @param entitiesToApplySetting a map of a setting and the entities to apply that setting
      * @param settingSpecsToConsider mapping of settingName->settingSpec for settings contained in @entitiesToApplySetting
      */
-    private void resolveEntitySettings(Map<Setting, Set<Long>> entitiesToApplySetting,
+    private void resolveEntitySettings(Map<Setting, TLongSet> entitiesToApplySetting,
             Map<String, SettingSpec> settingSpecsToConsider) {
-        for (Map.Entry<Setting, Set<Long>> entry : entitiesToApplySetting.entrySet()) {
+        for (Map.Entry<Setting, TLongSet> entry : entitiesToApplySetting.entrySet()) {
             Setting setting = entry.getKey();
-            for (long oid : entry.getValue()) {
+            for (TLongIterator it = entry.getValue().iterator(); it.hasNext();) {
+                final long oid = it.next();
+
                 logger.debug("Creating max utilization settings of {}% for entity {}",
                     setting.getNumericSettingValue().getValue(), oid);
                 Map<String, Setting> entitySettingOverrides = overridesForEntity
