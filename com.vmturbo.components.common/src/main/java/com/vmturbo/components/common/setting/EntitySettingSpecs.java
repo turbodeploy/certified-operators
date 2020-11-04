@@ -54,9 +54,9 @@ public enum EntitySettingSpecs {
      */
     RateOfResize("RATE_OF_RESIZE", "Rate of Resize",
         Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
-        SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
+        SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_SPEC),
         new NumericSettingDataType(1.0f, 3.0f, 2.0f,
-            Collections.singletonMap(EntityType.CONTAINER, 3.0f)), true),
+            Collections.singletonMap(EntityType.CONTAINER_SPEC, 3.0f)), true),
 
     /**
      * The minimum number of vcpu cores which is the threshold to decide automation mode.
@@ -500,18 +500,18 @@ public enum EntitySettingSpecs {
     /**
      * Virtual CPU Increment for containers.
      */
-    ContainerVcpuIncrement("usedIncrement_Container_VCPU", "Increment constant for VCPU and VCPU Request [MHz]",
+    ContainerSpecVcpuIncrement("usedIncrement_Container_VCPU", "Increment constant for VCPU Limit and VCPU Request [MHz]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.CONTAINER),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.CONTAINER_SPEC),
             numeric(0.0f, 1000000.0f, 100.0f), true),
 
     /**
      * Virtual Memory Increment for containers.
      */
-    ContainerVmemIncrement("usedIncrement_Container_VMEM", "Increment constant for VMem and VMem Request [MB]",
+    ContainerSpecVmemIncrement("usedIncrement_Container_VMEM", "Increment constant for VMem Limit and VMem Request [MB]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.CONTAINER),
-            numeric(0.0f, 1000000.0f, 64.0f), true ),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.CONTAINER_SPEC),
+            numeric(0.0f, 1000000.0f, 128.0f), true),
 
     /**
      * Virtual Storage Increment.

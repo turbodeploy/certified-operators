@@ -219,6 +219,14 @@ public class SettingsMapper {
             .build();
 
     /**
+     * Map of entity types to allow showing settings from another entity type to current entity type.
+     */
+    private static final Map<String, String> SETTING_ENTITY_TYPE_MAP =
+        ImmutableMap.<String, String>builder()
+            .put(ApiEntityType.CONTAINER.apiStr(), ApiEntityType.CONTAINER_SPEC.apiStr())
+            .build();
+
+    /**
      * map to get the predefined label for a given setting enum. if not found, we will use
      * {@link com.vmturbo.common.protobuf.action.ActionDTOUtil#upperUnderScoreToMixedSpaces} to
      * convert the enum to a beautiful string. we want to show "RHEL" rather than "Rhel" in UI.
@@ -1291,7 +1299,15 @@ public class SettingsMapper {
         @Nonnull
         public Optional<SettingApiDTO<String>> getSettingForEntityType(@Nonnull final String entityType) {
             if (settingsByEntityType != null) {
-                return Optional.ofNullable(settingsByEntityType.get(entityType));
+                final SettingApiDTO<String> setting = settingsByEntityType.get(entityType);
+                if (setting == null && SETTING_ENTITY_TYPE_MAP.containsKey(entityType)) {
+                    // Show the setting from the entity type which current entityType is mapped to
+                    // in SETTING_ENTITY_TYPE_MAP. For example, we want to show ContainerSpec settings
+                    // on corresponding containers in UI.
+                    return Optional.ofNullable(settingsByEntityType.get(SETTING_ENTITY_TYPE_MAP.get(entityType)));
+                } else {
+                    return Optional.ofNullable(setting);
+                }
             } else if (globalSetting != null) {
                 return StringUtils.equals(globalSetting.getEntityType(), entityType) ?
                         Optional.of(globalSetting) : Optional.empty();
