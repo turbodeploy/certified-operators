@@ -412,21 +412,6 @@ public class TopologyEntityUtils {
     }
 
     /**
-     * Add connected entity to given topology entity.
-     *
-     * @param entity            Given topology entity to which the connected enity is added to.
-     * @param connectedEntityId Connected entity ID.
-     * @param connectionType    Connection type.
-     */
-    public static void addConnectedEntity(@Nonnull final TopologyEntity.Builder entity, long connectedEntityId, ConnectionType connectionType) {
-        entity.getEntityBuilder()
-            .addConnectedEntityList(ConnectedEntity.newBuilder()
-                .setConnectedEntityId(connectedEntityId)
-                .setConnectionType(connectionType)
-                .build());
-    }
-
-    /**
      * Add each producer to builder commodity bought map.
      * @param builder The builder of the topology entity
      * @param producers The is mapping of OIDs of the producers that the created entity should be consuming from.

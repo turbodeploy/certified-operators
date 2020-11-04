@@ -27,7 +27,8 @@ public enum ConfigurableActionSettings {
      */
     Move("move", "Move",
         EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
-            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL, EntityType.BUSINESS_USER)),
+            EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
+            EntityType.BUSINESS_USER)),
 
     /**
      * Cloud database scale action automation mode.
@@ -72,7 +73,7 @@ public enum ConfigurableActionSettings {
      * such as ResizeVcpuUpInBetweenThresholds.</p>
      */
     Resize("resize", "Resize",
-        EnumSet.of(EntityType.STORAGE, EntityType.CONTAINER_SPEC, EntityType.SWITCH,
+        EnumSet.of(EntityType.STORAGE, EntityType.CONTAINER, EntityType.SWITCH,
             EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
             EntityType.DATABASE_SERVER, EntityType.WORKLOAD_CONTROLLER)),
 
@@ -193,7 +194,8 @@ public enum ConfigurableActionSettings {
      */
     Suspend("suspend", "Suspend",
         EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-            EntityType.CONTAINER_POD, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
+            EntityType.CONTAINER_POD, EntityType.CONTAINER,
+            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
             EntityType.APPLICATION_COMPONENT, EntityType.IO_MODULE)),
 
     /**
@@ -213,8 +215,9 @@ public enum ConfigurableActionSettings {
      */
     Provision("provision", "Provision",
         EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
-            EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.LOGICAL_POOL,
-            EntityType.STORAGE_CONTROLLER, EntityType.APPLICATION_COMPONENT)),
+            EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
+            EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER,
+            EntityType.APPLICATION_COMPONENT)),
 
     /**
      * Reconfigure action automation mode (not executable).
@@ -227,7 +230,8 @@ public enum ConfigurableActionSettings {
      */
     Activate("activate", "Start",
         EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
-            EntityType.CONTAINER_POD, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL)),
+            EntityType.CONTAINER_POD, EntityType.CONTAINER,
+            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL)),
 
     /**
      * Automation mode for non-disruptive reversible actions.

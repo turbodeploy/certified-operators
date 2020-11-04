@@ -85,7 +85,7 @@
             "provision" : "AUTOMATIC",
             "suspend" : "DISABLED"
           },
-          "ContainerSpec" : {
+          "Container" : {
             "resize": "AUTOMATIC"
           }
         }

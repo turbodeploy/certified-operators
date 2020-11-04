@@ -31,8 +31,6 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 
-import gnu.trove.iterator.TLongIterator;
-
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
@@ -60,13 +58,13 @@ import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequ
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest.SettingsChunk;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.TopologyEntity;
@@ -75,7 +73,6 @@ import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
-import com.vmturbo.topology.processor.group.settings.EntitySettingsScopeEvaluator.ScopedSettings;
 
 /**
  * Responsible for resolving the Entities -> Settings mapping as well as
@@ -171,9 +168,6 @@ public class EntitySettingsResolver {
         final Map<Long, SettingPolicy> policyById =
             getAllSettingPolicies(settingPolicyServiceClient, topologyInfo.getTopologyContextId());
 
-        // Scope evaluator for evaluating scopes
-        final EntitySettingsScopeEvaluator scopeEvaluator = new EntitySettingsScopeEvaluator(topologyGraph);
-
         List<SettingPolicy> userAndDiscoveredSettingPolicies =
             SettingDTOUtil.extractUserAndDiscoveredSettingPolicies(policyById.values());
 
@@ -186,7 +180,7 @@ public class EntitySettingsResolver {
         final Map<Long, ResolvedGroup> groups = getAndResolveGroups(referencedGroups, groupResolver, topologyGraph);
 
         // let the setting overrides handle any max utilization settings
-        settingOverrides.resolveGroupOverrides(groups, scopeEvaluator);
+        settingOverrides.resolveGroupOverrides(groups);
 
         // Apply any edits.
         if (settingPolicyEditors != null) {
@@ -228,7 +222,7 @@ public class EntitySettingsResolver {
         policyToSettingsInPolicy.forEach(
                 (key, value) -> resolveAllEntitySettings(key, value, groups,
                         userSettingsByEntityAndName, settingSpecNameToSettingSpecs,
-                        schedules, entityToPolicySettings, scopeEvaluator));
+                        schedules, entityToPolicySettings));
 
         final List<SettingPolicy> defaultSettingPolicies =
                 SettingDTOUtil.extractDefaultSettingPolicies(policyById.values());
@@ -355,7 +349,6 @@ public class EntitySettingsResolver {
      * @param schedules Schedules used by settings policies
      * @param entityToPolicySettings a map from entities to the list of pairs of policy id and if
      *                              they are currently active. This map gets updated in this call.
-     * @param scopeEvaluator An evaluator for setting scopes.
      */
     @VisibleForTesting
     void resolveAllEntitySettings(@Nonnull final SettingPolicy settingPolicy,
@@ -364,46 +357,52 @@ public class EntitySettingsResolver {
                                   @Nonnull Map<Long, Map<String, SettingAndPolicyIdRecord>> userSettingsByEntityAndName,
                                   @Nonnull final Map<String, SettingSpec> settingSpecNameToSettingSpecs,
                                   @Nonnull final Map<Long, Schedule> schedules,
-                                  @Nonnull final Multimap<Long, Pair<Long, Boolean>> entityToPolicySettings,
-                                  @Nonnull final EntitySettingsScopeEvaluator scopeEvaluator) {
+                                  @Nonnull final Multimap<Long, Pair<Long, Boolean>> entityToPolicySettings) {
         checkNotNull(userSettingsByEntityAndName);
 
         final SettingPolicy.Type spType = settingPolicy.getSettingPolicyType();
-        final Collection<ScopedSettings> scopedSettings = scopeEvaluator.evaluateScopes(
-            settingPolicy, resolvedGroups, settingsInPolicy);
+        final Set<Long> entities = new HashSet<>();
+        settingPolicy.getInfo().getScope().getGroupsList()
+            .forEach(groupId -> {
+                final ResolvedGroup resolvedGroup = resolvedGroups.get(groupId);
+                if (resolvedGroup == null) {
+                    logger.error("Group {} referenced by policy {} ({}) is unresolved. Skipping.",
+                        groupId, settingPolicy.getId(), settingPolicy.getInfo().getName());
+                } else {
+                    // Collecting into a set to de-dupe across groups in scope.
+                    entities.addAll(resolvedGroup.getEntitiesOfType(ApiEntityType.fromType(settingPolicy.getInfo().getEntityType())));
+                }
+            });
 
         final boolean isInEffect = inEffectNow(settingPolicy, schedules);
 
-        for (ScopedSettings scope : scopedSettings) {
-            for (TLongIterator it = scope.iterator(); it.hasNext(); ) {
-                final long oid = it.next();
-                entityToPolicySettings.put(oid, Pair.create(settingPolicy.getId(), isInEffect));
+        for (Long oid : entities) {
+            entityToPolicySettings.put(oid, Pair.create(settingPolicy.getId(), isInEffect));
 
-                if (isInEffect) {
-                    // settingSpecName-> Setting mapping. userSettingsByEntityAndName has already been
-                    // populated by the consistent scaling manager with shared settings maps for all
-                    // scaling group members.  By using a shared map, adding setting for a scaling group
-                    // member automatically adds it for the rest of them.
-                    Map<String, SettingAndPolicyIdRecord> settingsByName =
-                        userSettingsByEntityAndName.computeIfAbsent(oid, key -> new HashMap<>());
+            if (isInEffect) {
+                // settingSpecName-> Setting mapping. userSettingsByEntityAndName has already been
+                // populated by the consistent scaling manager with shared settings maps for all
+                // scaling group members.  By using a shared map, adding setting for a scaling group
+                // member automatically adds it for the rest of them.
+                Map<String, SettingAndPolicyIdRecord> settingsByName =
+                    userSettingsByEntityAndName.computeIfAbsent(oid, key -> new HashMap<>());
 
-                    for (TopologyProcessorSetting nextSetting : scope.settingsForScope) {
-                        final String specName = nextSetting.getSettingSpecName();
-                        final long nextSettingPolicyId = settingPolicy.getId();
-                        final boolean hasSchedule = settingPolicy.getInfo().hasScheduleId();
-                        if (!settingsByName.containsKey(specName)) {
-                            settingsByName.put(specName, new SettingAndPolicyIdRecord(
-                                nextSetting, nextSettingPolicyId, spType, hasSchedule));
-                        } else {
-                            // Use the corresponding resolver to resolve settings.
-                            // If no resolver is associated with the specName, use the default resolver.
-                            settingSpecNameToSettingResolver
-                                .getOrDefault(specName, SettingResolver.defaultSettingResolver)
-                                .resolve(settingsByName.get(specName), nextSetting, nextSettingPolicyId,
-                                    hasSchedule, spType, settingSpecNameToSettingSpecs);
-                        }
+                settingsInPolicy.forEach(nextSetting -> {
+                    final String specName = nextSetting.getSettingSpecName();
+                    final long nextSettingPolicyId = settingPolicy.getId();
+                    final boolean hasSchedule = settingPolicy.getInfo().hasScheduleId();
+                    if (!settingsByName.containsKey(specName)) {
+                        settingsByName.put(specName, new SettingAndPolicyIdRecord(
+                            nextSetting, nextSettingPolicyId, spType, hasSchedule));
+                    } else {
+                        // Use the corresponding resolver to resolve settings.
+                        // If no resolver is associated with the specName, use the default resolver.
+                        settingSpecNameToSettingResolver
+                            .getOrDefault(specName, SettingResolver.defaultSettingResolver)
+                            .resolve(settingsByName.get(specName), nextSetting, nextSettingPolicyId,
+                                hasSchedule, spType, settingSpecNameToSettingSpecs);
                     }
-                }
+                });
             }
         }
     }
@@ -472,14 +471,6 @@ public class EntitySettingsResolver {
         if (defaultSettingPoliciesByEntityType.containsKey(entity.getEntityType())) {
             entitySettingsBuilder.setDefaultSettingPolicyId(
                 defaultSettingPoliciesByEntityType.get(entity.getEntityType()).getId());
-        } else if (entity.getEntityType() == EntityDTO.EntityType.CONTAINER_VALUE) {
-            // Special case where we remap defaults for persistent ContainerSpec entities to apply
-            // to ephemeral Container entities.
-            final SettingPolicy containerSpecPolicy =
-                defaultSettingPoliciesByEntityType.get(EntityDTO.EntityType.CONTAINER_SPEC_VALUE);
-            if (containerSpecPolicy != null) {
-                entitySettingsBuilder.setDefaultSettingPolicyId(containerSpecPolicy.getId());
-            }
         }
 
         entityToPolicySettings.get(entity.getOid()).stream()
