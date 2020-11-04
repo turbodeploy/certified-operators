@@ -154,6 +154,30 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      */
     @Nonnull
     public CostJournal<ENTITY_CLASS> calculateCost(@Nonnull final ENTITY_CLASS entity) {
+        return calculateCost(entity, false);
+    }
+
+    /**
+     * Calculate the cost for a single entity. The cost includes VMBillingType.BIDDING if isProjectedTopology is set to true.
+     *
+     * An example - suppose a VM is using a m4.large template which costs $1/hr, and is half-covered
+     * by an RI that costs $0.25/hr. It also has two disks, buying 1GB from storage tiers at
+     * $1/gb/mo and $2/gb/mo respectively. It's owned by a business account that has
+     * a 10% global discount. The cost should therefore be:
+     *
+     * ($1 * 0.5
+     * + $0.25 (? not sure if we need to multiply by 0.5 here, or if that's factored
+     * into the RI price)
+     * + 1 * $1
+     * + 1 * $2) * 0.9 (applying the discount)
+     *
+     * @param entity The entity to calculate cost for.
+     * @param isProjectedTopology Is this cost calculation for an entity in a projected topology?
+     * @return A {@link CostJournal} with the cost breakdown. Use methods on the cost journal
+     *         to get the actual costs.
+     */
+    @Nonnull
+    public CostJournal<ENTITY_CLASS> calculateCost(@Nonnull final ENTITY_CLASS entity, final boolean isProjectedTopology) {
         final long entityId = entityInfoExtractor.getId(entity);
         final int entityType = entityInfoExtractor.getEntityType(entity);
         if (!ENTITY_TYPES_WITH_COST.contains(entityType)) {
@@ -215,7 +239,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
             switch (entityInfoExtractor.getEntityType(entity)) {
                 case EntityType.VIRTUAL_MACHINE_VALUE:
-                    calculateVirtualMachineCost(context);
+                    calculateVirtualMachineCost(context, isProjectedTopology);
                     break;
                 case EntityType.DATABASE_VALUE:
                     calculateDatabaseCost(false, context);
@@ -451,7 +475,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      *                and onDemandPriceTable
      */
     private void calculateVirtualMachineCost(
-                @Nonnull CostCalculationContext<ENTITY_CLASS> context) {
+                @Nonnull CostCalculationContext<ENTITY_CLASS> context, boolean isProjectedTopology) {
         final ENTITY_CLASS entity = context.getEntity();
         final long entityId = entityInfoExtractor.getId(entity);
         final CostJournal.Builder<ENTITY_CLASS> journal = context.getCostJournal();
@@ -485,7 +509,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                             .getComputePricesByTierIdMap()
                             .get(entityInfoExtractor.getId(computeTier));
                     LicensePriceTuple licensePrice = null;
-                    if (computePriceList != null && isBillable(entity) && computeConfig.getBillingType() != VMBillingType.BIDDING) {
+                    if (computePriceList != null && isBillable(entity) && (isProjectedTopology || computeConfig.getBillingType() != VMBillingType.BIDDING)) {
                         final boolean burstableCPU = entityInfoExtractor.getComputeTierConfig(computeTier)
                                 .map(ComputeTierConfig::isBurstableCPU)
                                 .orElse(false);
