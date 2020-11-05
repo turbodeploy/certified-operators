@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisRequest;
+import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement;
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisResponse;
 import com.vmturbo.common.protobuf.cost.MigratedWorkloadCloudCommitmentAnalysisServiceGrpc.MigratedWorkloadCloudCommitmentAnalysisServiceImplBase;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -66,15 +67,54 @@ public class MigratedWorkloadCloudCommitmentAnalysisService extends MigratedWork
     private MigratedWorkloadCloudCommitmentAlgorithmStrategy migratedWorkloadCloudCommitmentAlgorithmStrategy;
 
     /**
-     * Starts the cloud commitment analysis.
+     * gRPC handler to start the cloud commitment analysis.  This builds the VM list from streaming
+     * chunks sent from the client before sending the request off to the actual analysis start
+     * logic.
+     *
+     * @param responseObserver The gRPC response observer
+     * @return StreamObserver used by the gRPC code to build the request.  It is not meant to be
+     * directly called by user code.
+     */
+    @Override
+    public StreamObserver<MigratedWorkloadCloudCommitmentAnalysisRequest> startAnalysis(
+            StreamObserver<MigratedWorkloadCloudCommitmentAnalysisResponse> responseObserver) {
+        return new StreamObserver<MigratedWorkloadCloudCommitmentAnalysisRequest>() {
+            MigratedWorkloadCloudCommitmentAnalysisRequest request = null;
+            List<MigratedWorkloadPlacement> workloadsList = new ArrayList<>();
+            @Override
+            public void onNext(MigratedWorkloadCloudCommitmentAnalysisRequest
+                    migratedWorkloadCloudCommitmentAnalysisRequest) {
+                if (request == null) {
+                    request = migratedWorkloadCloudCommitmentAnalysisRequest;
+                }
+                workloadsList.addAll(migratedWorkloadCloudCommitmentAnalysisRequest.getVirtualMachinesList());
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                logger.error("Client error starting migrated workload cloud commitment analysis: {}",
+                        throwable.getMessage());
+            }
+
+            @Override
+            public void onCompleted() {
+                doStartAnalysis(request, responseObserver, workloadsList);
+            }
+        };
+    }
+
+    /**
+     * Executes the cloud commitment analysis.
      *
      * @param request          The gRPC request
      * @param responseObserver The gRPC response observer
+     * @param workloadsList    Full list of workloads specified by the gRPC startAnalysis request
      */
-    @Override
-    public void startAnalysis(MigratedWorkloadCloudCommitmentAnalysisRequest request,
-                              StreamObserver<MigratedWorkloadCloudCommitmentAnalysisResponse> responseObserver) {
-        logger.info("MigratedWorkloadCloudCommitmentAnalysisService::startAnalysis for topology: {}", request.getTopologyContextId());
+    private void doStartAnalysis(MigratedWorkloadCloudCommitmentAnalysisRequest request,
+              StreamObserver<MigratedWorkloadCloudCommitmentAnalysisResponse> responseObserver,
+            List<MigratedWorkloadPlacement> workloadsList) {
+        logger.info("MigratedWorkloadCloudCommitmentAnalysisService::startAnalysis for topology: {}",
+                request.getTopologyContextId());
 
         // Respond back to our client that we've received the message
         responseObserver.onNext(MigratedWorkloadCloudCommitmentAnalysisResponse.getDefaultInstance());
@@ -92,7 +132,7 @@ public class MigratedWorkloadCloudCommitmentAnalysisService extends MigratedWork
             RIProviderSetting riProviderSetting = riProviderSettingMap.get().get(cloudType);
 
             // Analyze the topology
-            actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(request.getVirtualMachinesList(),
+            actions = migratedWorkloadCloudCommitmentAlgorithmStrategy.analyze(workloadsList,
                     request.getBusinessAccount(),
                     cloudType,
                     riProviderSetting,

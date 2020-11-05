@@ -1413,7 +1413,7 @@ service CostService {
 service MigratedWorkloadCloudCommitmentAnalysisService {
 
     // Starts the migrated workload cloud commit analysis against the specified projected topology
-    rpc StartAnalysis(MigratedWorkloadCloudCommitmentAnalysisRequest) returns
+    rpc StartAnalysis(stream MigratedWorkloadCloudCommitmentAnalysisRequest) returns
     (MigratedWorkloadCloudCommitmentAnalysisResponse);
 }
 
