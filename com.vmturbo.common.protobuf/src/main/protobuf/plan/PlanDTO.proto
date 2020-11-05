@@ -144,14 +144,18 @@ message PlanStatusNotification {
 
 // The status of the notifications received by the plan orchestrator.
 message PlanProgress {
-    // The status of the notifications received by the plan orchestrator related to cost.
+    // The status of the notifications received by the plan orchestrator related to projected cost.
     optional Status projected_cost_status = 1 [default = UNKNOWN];
 
-    // The status of the notifications received by the plan orchestrator realted to RI Coverage.
+    // The status of the notifications received by the plan orchestrator related to RI Coverage.
     optional Status projected_ri_coverage_status = 2 [default = UNKNOWN];
 
     // The status of the market analysis run.  Re-using statuses defined in CostNotification.proto
     optional Status analysis_status = 3 [default = UNKNOWN];
+
+    // The status of the notification received by the plan orchestrator related to entity costs
+    // before action.
+    optional Status plan_entity_cost_status = 4 [default = UNKNOWN];
 
     // If set, summary describing the source topology broadcast for this plan - including whether
     // or not it failed.

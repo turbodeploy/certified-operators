@@ -34,6 +34,7 @@ import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.discount.DiscountConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore;
+import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
@@ -117,6 +118,9 @@ public class TopologyListenerConfig {
     @Autowired
     private CostClientConfig costClientConfig;
 
+    @Autowired
+    private CostNotificationConfig costNotificationConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -151,7 +155,8 @@ public class TopologyListenerConfig {
                         entityCostConfig.entityCostStore(),
                         reservedInstanceConfig.reservedInstanceCoverageUpload(),
                         costConfig.businessAccountHelper(),
-                        buyRIAnalysisConfig.reservedInstanceAnalysisInvoker());
+                        buyRIAnalysisConfig.reservedInstanceAnalysisInvoker(),
+                        costNotificationConfig.costNotificationSender());
 
         topologyProcessorListenerConfig.topologyProcessor()
                 .addPlanTopologyListener(entitiesListener);

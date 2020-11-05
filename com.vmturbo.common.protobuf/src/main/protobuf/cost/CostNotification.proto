@@ -47,6 +47,8 @@ message CostNotification {
         PROJECTED_COST_UPDATE = 2;
         // It will be sent from cost to plan orchestrator after receiving the RI coverage signal.
         PROJECTED_RI_COVERAGE_UPDATE = 3;
+        // This notification will be sent after plan entity cost is persisted.
+        PLAN_ENTITY_COST_UPDATE = 4;
     }
 
 }

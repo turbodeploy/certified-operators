@@ -391,6 +391,16 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                                 statusUpdate.getStatus(),
                                 statusUpdate.getTopologyId(),
                                 statusUpdate.getTopologyContextId());
+                    } else if (statusUpdate.getType() == StatusUpdateType.PLAN_ENTITY_COST_UPDATE) {
+                        planDao.updatePlanInstance(planId, p -> {
+                            processPlanEntityCostUpdate(p, costNotification);
+                        });
+                        logger.info("Plan entity cost notification has been received "
+                                        + "from cost component- status:{} topology ID: {} topology "
+                                        + "context ID: {}",
+                                statusUpdate.getStatus(),
+                                statusUpdate.getTopologyId(),
+                                statusUpdate.getTopologyContextId());
                     } else {
                         logger.debug("Ignoring cost notification status update (Type={})",
                                 statusUpdate.getType());
@@ -478,6 +488,21 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
     }
 
     /**
+     * Processes the plan entity cost notification which indicates the before-action costs of the
+     * entities of the plan have been persisted.
+     *
+     * @param plan The plan
+     * @param planEntityCostNotification The plan cost notification
+     */
+    private static void processPlanEntityCostUpdate(@Nonnull final PlanInstance.Builder plan,
+                                                    @Nonnull final CostNotification planEntityCostNotification) {
+        final Status planEntityCostUpdateStatus = planEntityCostNotification.getStatusUpdate().getStatus();
+        plan.setPlanProgress(plan.getPlanProgress().toBuilder()
+                .setPlanEntityCostStatus(planEntityCostUpdateStatus));
+        plan.setStatus(getPlanStatusBasedOnPlanType(plan));
+    }
+
+    /**
      * Processes the projected RI coverage notifications related to a plan.
      *
      * @param plan                            The plan
@@ -557,8 +582,12 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                         .getProjectedCostStatus();
         final Status planProgressProjectedRiCoverageStatus = plan.getPlanProgress()
                         .getProjectedRiCoverageStatus();
-        if (Status.FAIL.equals(planProgressProjectedCostStatus) ||
-            Status.FAIL.equals(planProgressProjectedRiCoverageStatus)) {
+        final Status planEntityCostStatus = plan.getPlanProgress()
+                .getPlanEntityCostStatus();
+
+        if (Status.FAIL.equals(planProgressProjectedCostStatus)
+                || Status.FAIL.equals(planProgressProjectedRiCoverageStatus)
+                || Status.FAIL.equals(planEntityCostStatus)) {
             return PlanStatus.FAILED;
         }
 
@@ -566,10 +595,10 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
         final boolean analysisSuccessful = Status.SUCCESS
                         .equals(plan.getPlanProgress().getAnalysisStatus());
 
-        final boolean costNotificationsSuccessful = Status.SUCCESS
-                        .equals(planProgressProjectedCostStatus) &&
-                                                    Status.SUCCESS
-                        .equals(planProgressProjectedRiCoverageStatus);
+        final boolean costNotificationsSuccessful =
+                Status.SUCCESS.equals(planProgressProjectedCostStatus)
+                        && Status.SUCCESS.equals(planProgressProjectedRiCoverageStatus)
+                        && Status.SUCCESS.equals(planEntityCostStatus);
 
         final boolean commonNotificationsSuccessful = checkCommonNotificationsSuccessful(plan);
         final boolean commonAndAnalysisAndCostSuccessful = analysisSuccessful
