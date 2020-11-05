@@ -105,4 +105,34 @@ public class SsoUtilTest {
         assertEquals(Optional.empty(),
                 ssoUtil.authorizeSAMLUserInGroups("user", ImmutableList.of("non-existedGroups")));
     }
+
+    /**
+     * Verify AD String Search Filter Character encoding. It will be applied when Multi-AD group feature
+     * flag is enabled.
+     * RFC: https://tools.ietf.org/search/rfc2254#page-5
+     * Character Hex Representation.
+     * *        \2A
+     * (        \28
+     * )        \29
+     * \        \5C
+     * Nul      \00
+     */
+    @Test
+    public void testEscapeSpecialChars() {
+        // normal case without special characters, there should no change.
+        assertEquals("CN=Zeng Gary,OU=Markham Office,OU=R&D,DC=turbonomic,DC=com",
+                SsoUtil.escapeSpecialChars("CN=Zeng Gary,OU=Markham Office,OU=R&D,DC=turbonomic,DC=com"));
+
+        // special characters should be escaped.
+        assertEquals("CN=Hatton\\2A Gary,OU=Markham Office,OU=R&D,DC=turbonomic,DC=com",
+                SsoUtil.escapeSpecialChars("CN=Hatton* Gary,OU=Markham Office,OU=R&D,DC=turbonomic,DC=com"));
+        assertEquals("CN=Hatton\\28 Gary,OU=Markham Office,OU=R&D,DC=turbonomic,DC=com",
+                SsoUtil.escapeSpecialChars("CN=Hatton( Gary,OU=Markham Office,OU=R&D,DC=turbonomic,DC=com"));
+        assertEquals("CN=Hatton\\29 Gary,OU=Markham Office,OU=R&D,DC=turbonomic,DC=com",
+                SsoUtil.escapeSpecialChars("CN=Hatton) Gary,OU=Markham Office,OU=R&D,DC=turbonomic,DC=com"));
+        assertEquals("CN=Hatton\\5C, Gary,OU=Markham Office,OU=R&D,DC=turbonomic,DC=com",
+                SsoUtil.escapeSpecialChars("CN=Hatton\\, Gary,OU=Markham Office,OU=R&D,DC=turbonomic,DC=com"));
+        assertEquals("CN=Hatton\\00 Gary,OU=Markham Office,OU=R&D,DC=turbonomic,DC=com",
+                SsoUtil.escapeSpecialChars("CN=Hatton\000 Gary,OU=Markham Office,OU=R&D,DC=turbonomic,DC=com"));
+    }
 }

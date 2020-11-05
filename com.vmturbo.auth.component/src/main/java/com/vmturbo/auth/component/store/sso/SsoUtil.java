@@ -117,12 +117,6 @@ public class SsoUtil {
     @GuardedBy("usersGroupsLock")
     private final Map<String, SecurityGroupDTO> ssoGroups_ = new CaseInsensitiveMap<>();
 
-    /**
-     * The AD or SAML users that were derived from groups.
-     */
-    @GuardedBy("usersGroupsLock")
-    private final Set<String> ssoGroupUsers_ = new HashSet<>();
-
     private final Object usersGroupsLock = new Object();
 
     /**
@@ -171,7 +165,6 @@ public class SsoUtil {
         loginProviderURI_ = null;
         synchronized (usersGroupsLock) {
             ssoGroups_.clear();
-            ssoGroupUsers_.clear();
         }
     }
 
@@ -313,6 +306,7 @@ public class SsoUtil {
      * @return {@code true} iff the new group was added.
      */
     public boolean putSecurityGroup(final @Nonnull String groupName, final @Nonnull SecurityGroupDTO securityGroup) {
+        logger.debug("Defined security group: {}", groupName);
         synchronized (usersGroupsLock) {
             return null != ssoGroups_.put(groupName, securityGroup);
         }
@@ -354,15 +348,10 @@ public class SsoUtil {
      */
     @Nonnull
     public Optional<SecurityGroupDTO> authorizeSAMLUserInGroup(final @Nonnull String userName,
-                    final @Nullable String groupName) {
-        synchronized (usersGroupsLock) {
-            final Set<SecurityGroupDTO> matchedGroups =
-                            findMatchedGroups(Collections.singleton(groupName));
-            return matchedGroups.stream().findAny().map(g -> {
-                ensureUser(userName);
-                return g;
-            });
-        }
+            final @Nullable String groupName) {
+        final Set<SecurityGroupDTO> matchedGroups =
+                findMatchedGroups(Collections.singleton(groupName));
+        return matchedGroups.stream().findFirst();
     }
 
     /**
@@ -373,61 +362,82 @@ public class SsoUtil {
      * @param ldapServers A list of LDAP servers to query.  Assumed to be
      *                 non-empty.
      * @param multipleGroupSupport support multiple group
+     * @return The security group, or empty list if failed.
+     */
+    public List<SecurityGroupDTO> authenticateUserInGroup(final @Nonnull String userName,
+            final @Nonnull String userPassword, final @Nonnull Collection<String> ldapServers,
+            final boolean multipleGroupSupport) {
+        if (multipleGroupSupport) {
+            return authenticateUserInMultiGroups(userName, userPassword, ldapServers);
+        } else {
+            final SecurityGroupDTO groupDTO =
+                    authenticateUserInSingleGroup(userName, userPassword, ldapServers);
+            return groupDTO != null ? Collections.singletonList(groupDTO) : Collections.emptyList();
+        }
+    }
+
+    /**
+     * Try to authenticate the user as a member of the AD group.
+     *
+     * @param userName     Name of the user.
+     * @param userPassword Password user presented.
+     * @param ldapServers  A list of LDAP servers to query.  Assumed to be non-empty.
      * @return The security group, or {@code null} if failed.
      */
-    @Nullable
-    public List<SecurityGroupDTO> authenticateUserInGroup(final @Nonnull String userName,
-                    final @Nonnull String userPassword,
-                    final @Nonnull Collection<String> ldapServers,
-                    final boolean multipleGroupSupport) {
-        final String pureUsername = getPureUsername(userName);
-        final String fullUsername = createFullUsername(pureUsername);
-        final String dn = getUserDn(pureUsername, userPassword, ldapServers);
-        /*
-          In cae multiple groups support is enabled, then recursive filter will be used, otherwise
-          only groups which have user DN as direct member will be returned.
-          The filter below is a recursive filter, which is searching for LDAP objects which have
-          member attribute pointing to the specified DN.
-          https://ldapwiki.com/wiki/Active%20Directory%20User%20Related%20Searches#section-Active+Directory+User+Related+Searches-AllGroupsAUserIsAMemberOfIncludingNestedGroups
-         */
-        final String recursiveFilter = multipleGroupSupport ? ":1.2.840.113556.1.4.1941" : "";
-        final String searchFilter = String.format("(member%s:=%s)", recursiveFilter, dn);
-        final SearchControls sCtrl = new SearchControls();
-        sCtrl.setSearchScope(SearchControls.SUBTREE_SCOPE);
-        final Set<SecurityGroupDTO> matchedGroups = new HashSet<>();
+    public @Nullable
+    SecurityGroupDTO authenticateUserInSingleGroup(final @Nonnull String userName,
+            final @Nonnull String userPassword,
+            final @Nonnull Collection<String> ldapServers) {
+        String upn;
+
+        if (userName.contains("\\")) {
+            upn = getUpn(userName, userPassword);
+            if (upn == null) {
+                logger.error("LoginManager::authenticateUserInGroup - upn is null");
+                return null;
+            }
+        } else if (!userName.contains("@")) {
+            upn = userName + "@" + domainName_;
+        } else {
+            upn = userName;
+        }
+
+        if (adSearchBase_.length() == 0) {
+            logger.error("AD SearchBase is empty");
+            return null;
+        }
+
+        DirContext ctx = null;
         for (String ldapServer : ldapServers) {
-            final Hashtable<String, String> props =
-                            composeLDAPConnProps(ldapServer, fullUsername, userPassword);
-            DirContext ctx = null;
+            Hashtable<String, String> props = composeLDAPConnProps(ldapServer, upn, userPassword);
+            String searchFilter = "(&(objectClass=person)(userPrincipalName=" + upn + "))";
+            String[] returnAttrs = {"memberOf"};
+            SearchControls sCtrl = new SearchControls();
+            sCtrl.setSearchScope(SearchControls.SUBTREE_SCOPE);
+            sCtrl.setReturningAttributes(returnAttrs);
             try {
                 ctx = new InitialDirContext(props);
-                final NamingEnumeration<SearchResult> answer =
-                                ctx.search(adSearchBase_, searchFilter, sCtrl);
-
+                NamingEnumeration<SearchResult> answer = ctx.search(adSearchBase_,
+                        searchFilter, sCtrl);
+                // Loop through the results and check every single value in attribute "memberOf"
                 while (answer.hasMoreElements()) {
-                    final SearchResult sr = answer.next();
-                    final String groupDn = sr.getNameInNamespace();
-                    if (StringUtils.isBlank(groupDn)) {
+                    SearchResult sr = answer.next();
+                    Attribute memberOf = sr.getAttributes().get(returnAttrs[0]);
+                    if (memberOf == null) {
                         continue;
                     }
-                    final String ldapObjectName = new LdapName(groupDn).getRdns().stream()
-                                    .filter(rdn -> CANONICAL_NAME.equalsIgnoreCase(rdn.getType()))
-                                    // Stream#reduce call is important, because we want to get
-                                    // last CN item from all existing. Last item should contain
-                                    // canonical name of the LDAP object. Reduce is helping to find
-                                    // the last record
-                                    .map(Rdn::getValue).reduce((f, l) -> l).map(String::valueOf)
-                                    .orElse(null);
-
+                    String memberOfAttrValue = memberOf.toString().toLowerCase();
+                    logger.debug("Member of groups: {}", memberOfAttrValue);
                     synchronized (usersGroupsLock) {
-                        final Collection<SecurityGroupDTO> foundGroups =
-                                        findMatchedGroups(Collections.singleton(ldapObjectName));
-                        if (!foundGroups.isEmpty()) {
-                            if (multipleGroupSupport) {
-                                matchedGroups.addAll(foundGroups);
-                            } else {
-                                ensureUser(userName);
-                                return Collections.singletonList(foundGroups.iterator().next());
+                        for (String groupName : ssoGroups_.keySet().toArray(new String[0])) {
+                            String adGroupNotChanged = groupName;
+                            // Prepend CN= to the groupName if the user only specified the name of
+                            // the group
+                            if (!groupName.startsWith("CN=")) {
+                                groupName = "CN=" + groupName;
+                            }
+                            if (memberOfAttrValue.contains(groupName.toLowerCase())) {
+                               return ssoGroups_.get(adGroupNotChanged);
                             }
                         }
                     }
@@ -438,8 +448,116 @@ public class SsoUtil {
                 closeContext(ctx);
             }
         }
+        return null;
+    }
 
-       return sortGroupWithLeastPrivilege(matchedGroups);
+    /**
+     * Returns UPN.
+     *
+     * @param userName     The user name in the form of domain\\user.
+     * @param userPassword The password.
+     * @return The UPN or {@code null} in case of an error.
+     */
+    private @Nullable String getUpn(@Nonnull String userName, String userPassword) {
+        @Nonnull Collection<String> ldapServers = findLDAPServersInWindowsDomain();
+        if (adSearchBase_.length() == 0) {
+            logger.error("AD SearchBase is empty");
+            return null;
+        }
+        DirContext ctx = null;
+        for (String ldapServer : ldapServers) {
+            Hashtable<String, String> props = composeLDAPConnProps(ldapServer,
+                    userName.split("\\\\")[1] + "@" +
+                            domainName_,
+                    userPassword);
+            String searchFilter =
+                    "(&(objectClass=person)(SamAccountName=" + userName.split("\\\\")[1] + "))";
+            String[] returnAttrs = {"userPrincipalName"};
+            SearchControls sCtrl = new SearchControls();
+            sCtrl.setSearchScope(SearchControls.SUBTREE_SCOPE);
+            sCtrl.setReturningAttributes(returnAttrs);
+            try {
+                ctx = new InitialDirContext(props);
+                NamingEnumeration<SearchResult> answer = ctx.search(adSearchBase_,
+                        searchFilter, sCtrl);
+                while (answer.hasMoreElements()) {
+                    SearchResult sr = answer.next();
+                    if (sr.getAttributes().size() > 0) {
+                        return sr.getAttributes().get(returnAttrs[0]).toString().split(" ")[1];
+                    }
+                }
+            } catch (NamingException namEx) {
+                logger.trace("LDAP connection failed: ", namEx);
+            } finally {
+                closeContext(ctx);
+            }
+        }
+        return null;
+    }
+
+    @Nonnull
+    private List<SecurityGroupDTO> authenticateUserInMultiGroups(@Nonnull String userName,
+            @Nonnull String userPassword, @Nonnull Collection<String> ldapServers) {
+        final String pureUsername = getPureUsername(userName);
+        final String fullUsername = createFullUsername(pureUsername);
+        final String dn = getUserDn(pureUsername, userPassword, ldapServers);
+        /*
+          In cae multiple groups support is enabled, then recursive filter will be used, otherwise
+          only groups which have user DN as direct member will be returned.
+          The filter below is a recursive filter, which is searching for LDAP objects which have
+          member attribute pointing to the specified DN.
+          https://ldapwiki.com/wiki/Active%20Directory%20User%20Related%20Searches#section-Active+Directory+User+Related+Searches-AllGroupsAUserIsAMemberOfIncludingNestedGroups
+         */
+        final String recursiveFilter = ":1.2.840.113556.1.4.1941";
+        // need to escape search filter, see https://tools.ietf.org/search/rfc2254#page-5
+        final String searchFilter = String.format("(member%s:=%s)", recursiveFilter, escapeSpecialChars(dn));
+        logger.debug("Search filter: {}", searchFilter);
+        final SearchControls sCtrl = new SearchControls();
+        sCtrl.setSearchScope(SearchControls.SUBTREE_SCOPE);
+        final Set<SecurityGroupDTO> matchedGroups = new HashSet<>();
+        for (String ldapServer : ldapServers) {
+            final Hashtable<String, String> props =
+                    composeLDAPConnProps(ldapServer, fullUsername, userPassword);
+            DirContext ctx = null;
+            try {
+                ctx = new InitialDirContext(props);
+                final NamingEnumeration<SearchResult> answer =
+                        ctx.search(adSearchBase_, searchFilter, sCtrl);
+
+                while (answer.hasMoreElements()) {
+                    final SearchResult sr = answer.next();
+                    final String groupDn = sr.getNameInNamespace();
+                    if (StringUtils.isBlank(groupDn)) {
+                        continue;
+                    }
+                    final String ldapObjectName = new LdapName(groupDn).getRdns()
+                            .stream()
+                            .filter(rdn -> CANONICAL_NAME.equalsIgnoreCase(rdn.getType()))
+                            // Stream#reduce call is important, because we want to get
+                            // last CN item from all existing. Last item should contain
+                            // canonical name of the LDAP object. Reduce is helping to find
+                            // the last record
+                            .map(Rdn::getValue)
+                            .reduce((f, l) -> l)
+                            .map(String::valueOf)
+                            .orElse(null);
+
+                        final Collection<SecurityGroupDTO> foundGroups =
+                                findMatchedGroups(Collections.singleton(ldapObjectName));
+                        if (!foundGroups.isEmpty()) {
+                            matchedGroups.addAll(foundGroups);
+                        }
+
+                }
+            } catch (NamingException authEx) {
+                logger.error("LDAP connection to " + ldapServer + " failed", authEx);
+                return null;
+            } finally {
+                closeContext(ctx);
+            }
+        }
+
+        return sortGroupWithLeastPrivilege(matchedGroups);
     }
 
     @Nonnull
@@ -589,38 +707,41 @@ public class SsoUtil {
     public Optional<SecurityGroupDTO> authorizeSAMLUserInGroups(@Nonnull final String userName,
             @Nonnull final Iterable<String> assignedGroups) {
         // find the matches groups
-        synchronized (usersGroupsLock) {
-            final Set<SecurityGroupDTO> matchedGroup = findMatchedGroups(assignedGroups);
-            // this is the least privilege group
-            final Optional<SecurityGroupDTO> leastPrivilegedGroup =
-                            sortGroupWithLeastPrivilege(matchedGroup).stream()
-                                            .findFirst();
-            leastPrivilegedGroup.ifPresent(g -> ensureUser(userName));
-            return leastPrivilegedGroup;
-        }
-    }
-
-    // ensure user is in the ssoGroupUsers_ collection.
-    @GuardedBy("usersGroupsLock")
-    private boolean ensureUser(@Nonnull String userName) {
-        final boolean newUser = !ssoGroupUsers_.contains(userName);
-        if (newUser) {
-            ssoGroupUsers_.add(userName);
-        }
-        return newUser;
+        final Set<SecurityGroupDTO> matchedGroup = findMatchedGroups(assignedGroups);
+        // this is the least privilege group
+        final Optional<SecurityGroupDTO> leastPrivilegedGroup =
+                sortGroupWithLeastPrivilege(matchedGroup).stream().findFirst();
+        return leastPrivilegedGroup;
     }
 
     @Nonnull
     @GuardedBy("usersGroupsLock")
     private Set<SecurityGroupDTO> findMatchedGroups(@Nonnull Iterable<String> assignedGroups) {
         // find the matches groups
-        final Set<SecurityGroupDTO> matchedGroups = new HashSet<>();
-        for (String assignedGroup : assignedGroups) {
-            final SecurityGroupDTO group = ssoGroups_.get(assignedGroup);
-            if (group != null) {
-                matchedGroups.add(group);
+        synchronized (usersGroupsLock) {
+            final Set<SecurityGroupDTO> matchedGroups = new HashSet<>();
+            for (String assignedGroup : assignedGroups) {
+                final SecurityGroupDTO group = ssoGroups_.get(assignedGroup);
+                if (group != null) {
+                    matchedGroups.add(group);
+                }
             }
+            return matchedGroups;
         }
-        return matchedGroups;
+    }
+
+    // Escape special chars in filter, see follow link for details:
+    // https://social.technet.microsoft.com/wiki/contents/articles/5392.active-directory-ldap-syntax-filters.aspx#Special_Characters
+    // https://stackoverflow.com/questions/39794550/how-should-i-escape-commas-in-active-directory-filters
+    @VisibleForTesting
+    static String escapeSpecialChars(final String dn) {
+        if (dn == null) {
+            return "";
+        }
+        return dn.replace("\\", "\\5C")
+                .replace("*", "\\2A")
+                .replace("(", "\\28")
+                .replace(")", "\\29")
+                .replace("\000", "\\00");
     }
 }
