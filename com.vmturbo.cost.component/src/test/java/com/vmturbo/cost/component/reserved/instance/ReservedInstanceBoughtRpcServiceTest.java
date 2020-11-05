@@ -20,7 +20,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -131,6 +130,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
     private static final long RI_BOUGHT_ID_2 = 8001L;
     private static final long RI_BOUGHT_ID_3 = 8002L;
     private static final long RI_BOUGHT_ID_4 = 8003L;
+    private static final long RI_BOUGHT_ID_5 = 8004L;
     private static final long RI_SPEC_ID_3 = 2224L;
     private static final long RI_SPEC_ID_4 = 2225L;
     private static final Map<Long, Double> RI_ID_TO_NUMBER_OF_USED_COUPONS_1 = ImmutableMap.of(
@@ -511,45 +511,54 @@ public class ReservedInstanceBoughtRpcServiceTest {
                         .build())
                 .build();
 
+        final ReservedInstanceBought discoveredRICapacityLessThanZero = ReservedInstanceBought
+                .newBuilder()
+                .setId(RI_BOUGHT_ID_5)
+                .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
+                        .setReservedInstanceSpec(RI_SPEC_ID_3)
+                        .setBusinessAccountId(ba1.getOid())
+                        .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
+                                .setNumberOfCoupons(21.0)))
+                .build();
+
         final double numUsedCouponsByDiscAccounts = 4d;
         final double numUsedCouponsByUnDiscAccounts = 2d;
 
-        doReturn(ImmutableList.of(riBought, riBoughtFromUndiscoverdAccount))
-            .when(reservedInstanceBoughtStore).getReservedInstanceBoughtByFilter(any());
+        doReturn(ImmutableList.of(riBought, riBoughtFromUndiscoverdAccount,
+                discoveredRICapacityLessThanZero)).when(reservedInstanceBoughtStore)
+                .getReservedInstanceBoughtByFilter(any());
 
-        doReturn(ImmutableMap.of(RI_BOUGHT_ID_4, numUsedCouponsByDiscAccounts))
+        doReturn(ImmutableMap.of(RI_BOUGHT_ID_4, numUsedCouponsByDiscAccounts, RI_BOUGHT_ID_5, 10D))
             .when(reservedInstanceMappingStore).getReservedInstanceUsedCouponsMapByFilter(any());
 
-        when(accountRIMappingStore.getUndiscoveredAccountUsageForRI())
-                .thenReturn(ImmutableMap.of(RI_BOUGHT_ID_3, numUsedCouponsByUnDiscAccounts));
+        when(accountRIMappingStore.getUndiscoveredAccountUsageForRI()).thenReturn(
+                ImmutableMap.of(RI_BOUGHT_ID_3, numUsedCouponsByUnDiscAccounts, RI_BOUGHT_ID_5,
+                        21.00003));
 
         // ACT
         GetReservedInstanceBoughtForAnalysisResponse response = client.getReservedInstanceBoughtForAnalysis(request);
 
         // ASSERT
-        assertThat(response.getReservedInstanceBoughtCount(), is(2));
+        assertThat(response.getReservedInstanceBoughtCount(), is(3));
 
-        List<Long> riIdList = response.getReservedInstanceBoughtList().stream()
-                .map(r -> r.getId())
-                .collect(Collectors.toList());
-        assertTrue(riIdList.contains(Long.valueOf(RI_BOUGHT_ID_3)));
-        assertTrue(riIdList.contains(Long.valueOf(RI_BOUGHT_ID_4)));
-        Optional<ReservedInstanceBought> undiscoveredRIOpt = response.getReservedInstanceBoughtList().stream()
-                .filter(r -> r.getId() == RI_BOUGHT_ID_4)
-                .findFirst();
-        assertTrue(undiscoveredRIOpt.isPresent());
-        assertEquals(numUsedCouponsByDiscAccounts, undiscoveredRIOpt.get()
+        final Map<Long, ReservedInstanceBought> reservedInstanceBoughtMap =
+                response.getReservedInstanceBoughtList().stream().collect(
+                        Collectors.toMap(ReservedInstanceBought::getId, r -> r));
+        Assert.assertEquals(numUsedCouponsByDiscAccounts, reservedInstanceBoughtMap.get(
+                RI_BOUGHT_ID_4)
                 .getReservedInstanceBoughtInfo()
                 .getReservedInstanceBoughtCoupons()
                 .getNumberOfCoupons(), 0.001);
-        Optional<ReservedInstanceBought> discoveredRIOpt = response.getReservedInstanceBoughtList().stream()
-                .filter(r -> r.getId() == RI_BOUGHT_ID_3)
-                .findFirst();
-        assertTrue(discoveredRIOpt.isPresent());
-        assertEquals( (riCapacity - numUsedCouponsByUnDiscAccounts),
-                discoveredRIOpt.get().getReservedInstanceBoughtInfo()
-                            .getReservedInstanceBoughtCoupons().getNumberOfCoupons(), 0.001);
 
+        Assert.assertEquals((riCapacity - numUsedCouponsByUnDiscAccounts), reservedInstanceBoughtMap
+                .get(RI_BOUGHT_ID_3)
+                .getReservedInstanceBoughtInfo()
+                .getReservedInstanceBoughtCoupons()
+                .getNumberOfCoupons(), 0.001);
+        Assert.assertTrue(reservedInstanceBoughtMap.get(RI_BOUGHT_ID_5)
+                .getReservedInstanceBoughtInfo()
+                .getReservedInstanceBoughtCoupons()
+                .getNumberOfCoupons() >= 0.0);
     }
 
     /**

@@ -96,10 +96,10 @@ public abstract class SQLDatabaseConfig {
     @Value("${authRetryDelaySecs}")
     protected int authRetryDelaySecs;
 
-    @Value("{mariadbDriverProperties}")
+    @Value("${mariadbDriverProperties:useServerPrepStmts=true}")
     private String mariadbDriverProperties;
 
-    @Value("{mysqlDriverProperties}")
+    @Value("${mysqlDriverProperties:useServerPrepStmts=true}")
     private String mysqlDriverProperties;
 
     private static final Logger logger = LogManager.getLogger();
