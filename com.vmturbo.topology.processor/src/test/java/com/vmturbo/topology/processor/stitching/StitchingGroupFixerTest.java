@@ -20,6 +20,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersList;
 import com.vmturbo.stitching.StitchingMergeInformation;
@@ -37,6 +39,16 @@ public class StitchingGroupFixerTest {
             .addMember("1"))
         .build();
 
+    static final CommonDTO.GroupDTO clusterDto = CommonDTO.GroupDTO.newBuilder()
+            .setEntityType(EntityType.PHYSICAL_MACHINE)
+            .setDisplayName("bar")
+            .setConstraintInfo(ConstraintInfo.newBuilder()
+                    .setConstraintId("bar")
+                    .setConstraintName("bar")
+                    .setConstraintType(ConstraintType.CLUSTER))
+            .setMemberList(MembersList.newBuilder().addMember("2"))
+            .build();
+
     final GroupDefinition.Builder groupDef = GroupTestUtils.createStaticGroupDef("id1",
             EntityType.VIRTUAL_MACHINE_VALUE, Arrays.asList(1L, 2L, 3L));
 
@@ -49,7 +61,7 @@ public class StitchingGroupFixerTest {
     private static final long UPDATED_ENTITY_OID = 7293729L;
 
     final InterpretedGroup group = new InterpretedGroup(groupDto, Optional.of(groupDef));
-    final InterpretedGroup cluster = new InterpretedGroup(groupDto, Optional.of(clusterDef));
+    final InterpretedGroup cluster = new InterpretedGroup(clusterDto, Optional.of(clusterDef));
     final TopologyStitchingGraph graph = mock(TopologyStitchingGraph.class);
     final TopologyStitchingEntity entity = mock(TopologyStitchingEntity.class);
 
@@ -78,7 +90,7 @@ public class StitchingGroupFixerTest {
                 new StitchingMergeInformation(1L, NO_DISCOVERED_GROUP_TARGET_ID, StitchingErrors.none()),
                 new StitchingMergeInformation(1L, 983921L, StitchingErrors.none())));
 
-        groupFixer.fixupGroups(graph, groupMemberCache);
+        groupFixer.analyzeStitchingGroups(graph, groupMemberCache);
         assertThat(group.getAllStaticMembers(), contains(1L, 2L, 3L));
         assertThat(cluster.getAllStaticMembers(), contains(4L, 5L));
     }
@@ -90,8 +102,10 @@ public class StitchingGroupFixerTest {
                 new StitchingMergeInformation(1L, GROUP_TARGET_ID, StitchingErrors.none()),
                 new StitchingMergeInformation(3L, GROUP_TARGET_ID, StitchingErrors.none())));
 
-        groupFixer.fixupGroups(graph, groupMemberCache);
-        assertThat(group.getAllStaticMembers(), containsInAnyOrder(UPDATED_ENTITY_OID, 2L));
+        groupFixer.analyzeStitchingGroups(graph, groupMemberCache);
+        final InterpretedGroup groupCopy = InterpretedGroup.deepCopy(group);
+        groupFixer.replaceGroupMembers(Collections.singletonList(groupCopy));
+        assertThat(groupCopy.getAllStaticMembers(), containsInAnyOrder(UPDATED_ENTITY_OID, 2L));
     }
 
     @Test
@@ -99,8 +113,10 @@ public class StitchingGroupFixerTest {
         when(entity.getMergeInformation()).thenReturn(
             Collections.singletonList(new StitchingMergeInformation(4L, CLUSTER_TARGET_ID, StitchingErrors.none())));
 
-        groupFixer.fixupGroups(graph, groupMemberCache);
-        assertThat(cluster.getAllStaticMembers(), containsInAnyOrder(UPDATED_ENTITY_OID, 5L));
+        groupFixer.analyzeStitchingGroups(graph, groupMemberCache);
+        final InterpretedGroup clusterCopy = InterpretedGroup.deepCopy(cluster);
+        groupFixer.replaceGroupMembers(Collections.singletonList(clusterCopy));
+        assertThat(clusterCopy.getAllStaticMembers(), containsInAnyOrder(UPDATED_ENTITY_OID, 5L));
     }
 
     @Test
@@ -110,8 +126,11 @@ public class StitchingGroupFixerTest {
                 new StitchingMergeInformation(3L, GROUP_TARGET_ID, StitchingErrors.none()),
                 new StitchingMergeInformation(5L, CLUSTER_TARGET_ID, StitchingErrors.none())));
 
-        groupFixer.fixupGroups(graph, groupMemberCache);
-        assertThat(group.getAllStaticMembers(), containsInAnyOrder(1L, 2L, UPDATED_ENTITY_OID));
-        assertThat(cluster.getAllStaticMembers(), containsInAnyOrder(UPDATED_ENTITY_OID, 4L));
+        groupFixer.analyzeStitchingGroups(graph, groupMemberCache);
+        final InterpretedGroup groupCopy = InterpretedGroup.deepCopy(group);
+        final InterpretedGroup clusterCopy = InterpretedGroup.deepCopy(cluster);
+        groupFixer.replaceGroupMembers(Arrays.asList(groupCopy, clusterCopy));
+        assertThat(groupCopy.getAllStaticMembers(), containsInAnyOrder(1L, 2L, UPDATED_ENTITY_OID));
+        assertThat(clusterCopy.getAllStaticMembers(), containsInAnyOrder(UPDATED_ENTITY_OID, 4L));
     }
 }

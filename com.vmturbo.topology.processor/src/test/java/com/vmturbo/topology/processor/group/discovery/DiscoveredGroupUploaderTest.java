@@ -112,7 +112,7 @@ public class DiscoveredGroupUploaderTest {
     public void setup() throws Exception {
         groupServiceStub = GroupServiceGrpc.newStub(server.getChannel());
         recorderSpy = spy(new DiscoveredGroupUploader(groupServiceStub, converter,
-                discoveredClusterConstraintCache, targetStore));
+                discoveredClusterConstraintCache, targetStore, new StitchingGroupFixer()));
         when(interpretedGroup.getGroupDefinition()).thenReturn(Optional.empty());
         when(targetStore.getProbeTypeForTarget(TARGET_ID)).thenReturn(Optional.of(PROBE_TYPE));
         when(targetStore.getTargetDisplayName(TARGET_ID))
@@ -298,7 +298,6 @@ public class DiscoveredGroupUploaderTest {
 
         // Apply the group fixer so that the uploader's group should be modified to replace
         // the member PLACEHOLDER_GROUP_MEMBER with the member 12345L.
-        final StitchingGroupFixer fixer = new StitchingGroupFixer();
         final TopologyStitchingGraph graph = mock(TopologyStitchingGraph.class);
         final TopologyStitchingEntity mergedEntity = mock(TopologyStitchingEntity.class);
         when(mergedEntity.getOid()).thenReturn(12345L);
@@ -306,10 +305,8 @@ public class DiscoveredGroupUploaderTest {
         when(mergedEntity.getMergeInformation()).thenReturn(Collections.singletonList(
             new StitchingMergeInformation(DiscoveredGroupConstants.PLACEHOLDER_GROUP_MEMBER, TARGET_ID, StitchingErrors.none())
         ));
-
         when(graph.entities()).thenReturn(Stream.of(mergedEntity));
-        fixer.fixupGroups(graph, recorderSpy.buildMemberCache());
-
+        recorderSpy.analyzeStitchingGroups(graph);
         recorderSpy.uploadDiscoveredGroups(TOPOLOGY, consistentScalingManager);
 
         // Ensure that the group that got uploaded contained 12345L and not PLACEHOLDER_GROUP_MEMBER

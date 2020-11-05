@@ -303,30 +303,38 @@ public class Stages {
     }
 
     /**
-     * A stage that fixes up groups that references entities whose identifiers were modified
-     * during stitching. See {@link StitchingGroupFixer} for more details.
-     * <p>
+     * A stage that analyzes discovered groups that reference entities whose identifiers were
+     * modified during stitching. The analysis result is cached for later reference in the
+     * {@link UploadGroupsStage}.
+     *
+     * <p>In the subsequent {@link UploadGroupsStage}, deep copies of the discovered groups are
+     * made, and members of these copied groups are replaced with the modified entities before
+     * they are uploaded to the group component in an atomic fashion.
+     *
+     * <p>The members of the original discovered groups are never replaced with the modified
+     * entities, because a new discovery can happen at any time to overwrite an existing discovered
+     * group. Therefore, no operation should be performed on members of the original discovered
+     * groups in any pipeline stage with the incorrect assumption that they have been fixed up with
+     * the modified entities.
+     *
+     * <p>See {@link StitchingGroupFixer} for more details.
      * TODO: (DavidBlinn 2/16/2018) Ideally, instead of being a separate stage, this should
      * be part of stitching itself. Unfortunately, because it has to be run with the Live
      * pipeline but cannot be run in the PlanOverLive topology we have to split it out.
      */
-    public static class StitchingGroupFixupStage extends PassthroughStage<StitchingContext> {
+    public static class StitchingGroupAnalyzerStage extends PassthroughStage<StitchingContext> {
 
-        private final StitchingGroupFixer stitchingGroupFixer;
         private final DiscoveredGroupUploader discoveredGroupUploader;
 
-        public StitchingGroupFixupStage(@Nonnull final StitchingGroupFixer stitchingGroupFixer,
-                                        @Nonnull final DiscoveredGroupUploader groupUploader) {
-            this.stitchingGroupFixer = Objects.requireNonNull(stitchingGroupFixer);
+        public StitchingGroupAnalyzerStage(@Nonnull final DiscoveredGroupUploader groupUploader) {
             this.discoveredGroupUploader = Objects.requireNonNull(groupUploader);
         }
 
         @NotNull
         @Override
-        public Status passthrough(StitchingContext input) throws PipelineStageException {
-            final int fixedUpGroups = stitchingGroupFixer.fixupGroups(input.getStitchingGraph(),
-                discoveredGroupUploader.buildMemberCache());
-            return Status.success("Fixed up " + fixedUpGroups + " groups.");
+        public Status passthrough(StitchingContext input) {
+            final int analyzedGroups = this.discoveredGroupUploader.analyzeStitchingGroups(input.getStitchingGraph());
+            return Status.success("Analyzed " + analyzedGroups + " groups that need replace members.");
         }
     }
 

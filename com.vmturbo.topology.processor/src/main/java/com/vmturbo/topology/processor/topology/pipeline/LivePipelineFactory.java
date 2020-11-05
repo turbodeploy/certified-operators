@@ -31,7 +31,6 @@ import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
-import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
@@ -69,7 +68,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.ScanDiscoveredSet
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsApplicationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsUploadStage;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingGroupFixupStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingGroupAnalyzerStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SupplyChainValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopSortStage;
@@ -117,8 +116,6 @@ public class LivePipelineFactory {
     private final ReservationManager reservationManager;
 
     private final DiscoveredSettingPolicyScanner discoveredSettingPolicyScanner;
-
-    private final StitchingGroupFixer stitchingGroupFixer;
 
     private final DiscoveredClusterConstraintCache discoveredClusterConstraintCache;
 
@@ -176,7 +173,6 @@ public class LivePipelineFactory {
             @Nonnull final GroupServiceBlockingStub groupServiceClient,
             @Nonnull final ReservationManager reservationManager,
             @Nonnull final DiscoveredSettingPolicyScanner discoveredSettingPolicyScanner,
-            @Nonnull final StitchingGroupFixer stitchingGroupFixer,
             @Nonnull final EntityValidator entityValidator,
             @Nonnull final SupplyChainValidator supplyChainValidator,
             @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache,
@@ -211,7 +207,6 @@ public class LivePipelineFactory {
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
         this.reservationManager = Objects.requireNonNull(reservationManager);
         this.discoveredSettingPolicyScanner = Objects.requireNonNull(discoveredSettingPolicyScanner);
-        this.stitchingGroupFixer = Objects.requireNonNull(stitchingGroupFixer);
         this.discoveredClusterConstraintCache = Objects.requireNonNull(discoveredClusterConstraintCache);
         this.applicationCommodityKeyChanger = Objects.requireNonNull(applicationCommodityKeyChanger);
         this.entityValidator = Objects.requireNonNull(entityValidator);
@@ -290,11 +285,11 @@ public class LivePipelineFactory {
                 .addStage(new DCMappingStage(discoveredGroupUploader))
                 .addStage(new StitchingStage(stitchingManager, journalFactory))
                 .addStage(new Stages.FlowGenerationStage(mi))
-                .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))
                 .addStage(new UploadCloudCostDataStage(discoveredCloudCostUploader))
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
                         discoveredGroupUploader))
                 .addStage(new UploadActionConstraintsStage(actionConstraintsUploader))
+                .addStage(new StitchingGroupAnalyzerStage(discoveredGroupUploader))
                 .addStage(new CacheWritingConstructTopologyFromStitchingContextStage(constructTopologyStageCache))
                 .addStage(new UploadGroupsStage(discoveredGroupUploader))
                 .addStage(new UploadWorkflowsStage(discoveredWorkflowUploader))
@@ -348,9 +343,9 @@ public class LivePipelineFactory {
             .addStage(new DCMappingStage(discoveredGroupUploader))
             .addStage(new StitchingStage(stitchingManager, journalFactory))
             .addStage(new Stages.FlowGenerationStage(matrix))
-            .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))
             .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
                     discoveredGroupUploader))
+            .addStage(new StitchingGroupAnalyzerStage(discoveredGroupUploader))
             .addStage(new ConstructTopologyFromStitchingContextStage())
             .addStage(new UploadGroupsStage(discoveredGroupUploader))
             .addStage(new GraphCreationStage(groupScopeResolver))

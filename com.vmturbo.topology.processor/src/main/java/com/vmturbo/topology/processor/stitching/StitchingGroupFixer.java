@@ -1,14 +1,16 @@
 package com.vmturbo.topology.processor.stitching;
 
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache.DiscoveredGroupMembers;
@@ -30,9 +32,19 @@ import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
  * In order to fix the invalid reference, we should replace the OID 5678 with its new identifier
  * 1234.
  *
- * The {@link StitchingGroupFixer} scans the {@link TopologyStitchingGraph} for merged entities
- * that belonged to discovered groups, and fixes up those discovered groups to reference
- * the post-stitched identities of those entities.
+ * <p>Another example is the discovered virtual machine groups sent by kubeturbo. Assume a virtual
+ * machine group VM-Group-1 contains one proxy virtual machine with OID VM-1234. After stitching,
+ * the proxy virtual machine is stitched with the real virtual machine with OID VM-5678, and is then
+ * removed. Because of this, we need the {@link StitchingGroupFixer} to replace the OID VM-1234 with
+ * VM-5678 for the virtual machine group VM-Group-1.
+ *
+ * <p>The {@link StitchingGroupFixer} is shared by two pipeline stages:
+ * The StitchingGroupAnalyzerStage uses the {@link StitchingGroupFixer} to scan the
+ * {@link TopologyStitchingGraph} for merged entities that belonged to discovered groups, and cache
+ * those groups whose members need to reference the post-stitched identities of those entities.
+ * The UploadGroupsStage, in an atomic fashion, makes a deep copy of each discovered group, and
+ * replaces the membership of those copied groups that need modification based on the cache stored
+ * in {@link StitchingGroupFixer}, before uploading them to the group component.
  */
 public class StitchingGroupFixer {
     public StitchingGroupFixer() {
@@ -40,59 +52,84 @@ public class StitchingGroupFixer {
     }
 
     /**
-     * Fixup groups by replacing references to entities whose identity changed as a result of stitching
-     * with a reference to their new post-stitched identity.
+     * The logger.
+     */
+    private final Logger logger = LogManager.getLogger();
+    /**
+     * The cache of modified group memberships after the StitchingGroupAnalyzerStage.
+     */
+    private final Map<String, DiscoveredGroupMembers> modifiedGroups = new HashMap<>();
+
+    /**
+     * Analyze and cache groups whose member ids are replaced as a result of stitching with
+     * references to their new post-stitched ids.
      *
      * @param stitchingGraph The topology graph that has been stitched. Entities should contain
      *                       {@link StitchingMergeInformation} describing the merges that affected
      *                       them.
      * @param groupCache A cache of the discovered groups to be fixed up.
-     * @return Number of fixed up groups.
+     * @return Number of analyzed groups.
      */
-    public int fixupGroups(@Nonnull final TopologyStitchingGraph stitchingGraph,
-                            @Nonnull final DiscoveredGroupMemberCache groupCache) {
-        // The set of all groups modified by the fixup operation.
-        final Set<DiscoveredGroupMembers> modifiedGroups = new HashSet<>();
-
+    public int analyzeStitchingGroups(@Nonnull final TopologyStitchingGraph stitchingGraph,
+                                      @Nonnull final DiscoveredGroupMemberCache groupCache) {
+        modifiedGroups.clear();
         // Swap membership in the cache and note which groups were modified.
         stitchingGraph.entities()
             .filter(TopologyStitchingEntity::hasMergeInformation)
-            .forEach(entity -> fixupGroupsFor(entity, groupCache, modifiedGroups));
-
-        // Replace the group members based on the cache modifications.
-        modifiedGroups.forEach(modifiedGroup -> replaceGroupMembers(
-                modifiedGroup.getAssociatedGroup(), modifiedGroup.getMembers()));
+            .forEach(entity -> cacheModifiedGroupFor(entity, groupCache));
         return modifiedGroups.size();
     }
 
     /**
-     * Fixup groups for a given entity by replacing references to entities whose identity changed as a
-     * result of stitching with a reference to their new post-stitched identity.
+     * Replace group members whose identities have changed as a result of stitching with references
+     * to their new post-stitched identities.
+     *
+     * @param groups The set of groups whose memberships may be replaced.
+     */
+    public void replaceGroupMembers(@Nonnull final List<InterpretedGroup> groups) {
+        // Replace the group members based on the cache modifications.
+        groups.forEach(this::replaceGroupMembersFor);
+    }
+
+    /**
+     * Cache groups whose member ids are replaced as a result of stitching with references to
+     * their new post-stitched ids.
      *
      * @param entity The entity whose discovered group memberships should be fixed up.
      * @param groupCache A cache of the discovered groups to be fixed up.
-     * @param modifiedGroups A set containing the groups
      */
-    private void fixupGroupsFor(@Nonnull final TopologyStitchingEntity entity,
-                                @Nonnull final DiscoveredGroupMemberCache groupCache,
-                                @Nonnull final Set<DiscoveredGroupMembers> modifiedGroups) {
+    private void cacheModifiedGroupFor(@Nonnull final TopologyStitchingEntity entity,
+                                       @Nonnull final DiscoveredGroupMemberCache groupCache) {
         entity.getMergeInformation().forEach(mergeInfo -> groupCache.groupsContaining(mergeInfo)
             .forEach(group -> {
                 // Swap the merge OID with the OID of the entity that was merged "onto".
                 group.swapMember(mergeInfo.getOid(), entity.getOid());
-
-                // Add the group to the list of those modified so that we can fix up memberships at the end.
-                modifiedGroups.add(group);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Cache modified member for group {}: {} -> {}.",
+                            group.getAssociatedGroup().getSourceId(), mergeInfo.getOid(), entity.getOid());
+                }
+                // Add the group to the modified groups map so that we can fix up memberships at the end.
+                modifiedGroups.put(group.getAssociatedGroup().getSourceId(), group);
             }));
     }
 
-    private void replaceGroupMembers(@Nonnull final InterpretedGroup interpretedGroup,
-                                     @Nonnull final List<StaticMembersByType> newMembersByType) {
-        final StaticMembers.Builder memberBuilder = interpretedGroup.getGroupDefinition()
-                .map(GroupDefinition.Builder::getStaticGroupMembersBuilder)
-                .orElseThrow(() -> new IllegalStateException(
-                        "Interpreted group must contain interpreted group definition."));
-        memberBuilder.clear();
-        memberBuilder.addAllMembersByType(newMembersByType);
+    /**
+     * Replace group members whose identities have changed as a result of stitching with references
+     * to their new post-stitched identities.
+     *
+     * @param group The group whose membership may be replaced.
+     */
+    private void replaceGroupMembersFor(@Nonnull final InterpretedGroup group) {
+        Optional.ofNullable(modifiedGroups.get(group.getSourceId()))
+                .ifPresent(modifiedGroup -> group.getGroupDefinition()
+                        .map(GroupDefinition.Builder::getStaticGroupMembersBuilder)
+                        .ifPresent(memberBuilder -> {
+                            if (logger.isDebugEnabled()) {
+                                logger.debug("Replace members for group {}.",
+                                        group.getSourceId());
+                            }
+                            memberBuilder.clear();
+                            memberBuilder.addAllMembersByType(modifiedGroup.getMembers());
+                        }));
     }
 }

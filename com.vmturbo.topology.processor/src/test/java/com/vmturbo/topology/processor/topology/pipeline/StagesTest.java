@@ -72,7 +72,6 @@ import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
-import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.stitching.journal.EmptyStitchingJournal;
@@ -99,7 +98,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScanDiscoveredSettingPoliciesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsResolutionStage;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingGroupFixupStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingGroupAnalyzerStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SupplyChainValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
@@ -303,7 +302,6 @@ public class StagesTest {
 
     @Test
     public void testStitchingGroupFixup() throws PipelineStageException {
-        final StitchingGroupFixer stitchingGroupFixer = mock(StitchingGroupFixer.class);
         final DiscoveredGroupUploader uploader = mock(DiscoveredGroupUploader.class);
         final DiscoveredGroupMemberCache memberCache = mock(DiscoveredGroupMemberCache.class);
         final StitchingContext stitchingContext = mock(StitchingContext.class);
@@ -312,9 +310,9 @@ public class StagesTest {
         when(uploader.buildMemberCache()).thenReturn(memberCache);
         when(stitchingContext.getStitchingGraph()).thenReturn(stitchingGraph);
 
-        final StitchingGroupFixupStage fixupStage = new StitchingGroupFixupStage(stitchingGroupFixer, uploader);
+        final StitchingGroupAnalyzerStage fixupStage = new StitchingGroupAnalyzerStage(uploader);
         fixupStage.passthrough(stitchingContext);
-        verify(stitchingGroupFixer).fixupGroups(stitchingGraph, memberCache);
+        verify(uploader).analyzeStitchingGroups(stitchingGraph);
     }
 
     @Test

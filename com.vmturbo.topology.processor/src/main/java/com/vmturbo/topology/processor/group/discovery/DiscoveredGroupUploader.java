@@ -51,6 +51,8 @@ import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -93,6 +95,8 @@ public class DiscoveredGroupUploader {
 
     private final TargetStore targetStore;
 
+    private final StitchingGroupFixer stitchingGroupFixer;
+
     /**
      * A map from targetId to the list of the most recent {@link DiscoveredGroupInfo} for that
      * target.
@@ -109,11 +113,13 @@ public class DiscoveredGroupUploader {
             @Nonnull final GroupServiceStub groupServiceStub,
             @Nonnull final DiscoveredGroupInterpreter discoveredGroupInterpreter,
             @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache,
-            @Nonnull final TargetStore targetStore) {
+            @Nonnull final TargetStore targetStore,
+            @Nonnull final StitchingGroupFixer stitchingGroupFixer) {
         this.groupServiceStub = Objects.requireNonNull(groupServiceStub);
         this.discoveredGroupInterpreter = Objects.requireNonNull(discoveredGroupInterpreter);
         this.discoveredClusterConstraintCache =  Objects.requireNonNull(discoveredClusterConstraintCache);
         this.targetStore = Objects.requireNonNull(targetStore);
+        this.stitchingGroupFixer = Objects.requireNonNull(stitchingGroupFixer);
     }
 
     /**
@@ -123,16 +129,28 @@ public class DiscoveredGroupUploader {
      * @param entityStore {@link EntityStore} to use to get target-specific entity information.
      * @param discoveredClusterConstraintCache See {@link DiscoveredClusterConstraintCache}.
      * @param targetStore {@link TargetStore} for target-related information.
+     * @param stitchingGroupFixer {@link StitchingGroupFixer} to fix up group memberships.
      */
     public DiscoveredGroupUploader(
             @Nonnull final GroupServiceStub groupServiceStub,
             @Nonnull final EntityStore entityStore,
             @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache,
-            @Nonnull final TargetStore targetStore) {
+            @Nonnull final TargetStore targetStore,
+            @Nonnull final StitchingGroupFixer stitchingGroupFixer) {
         this(groupServiceStub, new DiscoveredGroupInterpreter(entityStore),
-                discoveredClusterConstraintCache, targetStore);
+                discoveredClusterConstraintCache, targetStore, stitchingGroupFixer);
     }
 
+    /**
+     * Cache groups whose member ids are replaced as a result of stitching with references to
+     * their new post-stitched ids.
+     *
+     * @param stitchingGraph The topology graph that has been stitched.
+     * @return Number of analyzed groups.
+     */
+    public int analyzeStitchingGroups(@Nonnull final TopologyStitchingGraph stitchingGraph) {
+        return stitchingGroupFixer.analyzeStitchingGroups(stitchingGraph, buildMemberCache());
+    }
 
     /**
      * Set the discovered groups for a target. This overwrites any existing discovered
@@ -356,7 +374,8 @@ public class DiscoveredGroupUploader {
         synchronized (dataByTarget) {
             dataByTarget.forEach((targetId, targetData) -> {
                 final List<InterpretedGroup> groupsCopy = targetData.copyGroups();
-
+                // Replace proxy group members with real members
+                stitchingGroupFixer.replaceGroupMembers(groupsCopy);
                 // then we are adding the datacenter prefix to the group name
                 // note: we are doing this modification only if the cluster is a compute cluster
                 // this is because we cannot easily associate a storage cluster to a datacenter

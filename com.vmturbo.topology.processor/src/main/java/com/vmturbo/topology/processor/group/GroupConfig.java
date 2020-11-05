@@ -34,6 +34,7 @@ import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
+import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.topology.TopologyInvertedIndexFactory;
 
@@ -168,9 +169,19 @@ public class GroupConfig {
     @Bean
     public DiscoveredGroupUploader discoveredGroupUploader() {
         return new DiscoveredGroupUploader(groupServiceStub(), entityConfig.entityStore(),
-                discoveredClusterConstraintCache(), targetConfig.targetStore());
+                discoveredClusterConstraintCache(), targetConfig.targetStore(),
+                stitchingGroupFixer());
     }
 
+    /**
+     * Create the instance that is used to fix up members of discovered groups.
+     *
+     * @return {@link StitchingGroupFixer}
+     */
+    @Bean
+    public StitchingGroupFixer stitchingGroupFixer() {
+        return new StitchingGroupFixer();
+    }
 
     @Bean
     public DiscoveredClusterConstraintCache discoveredClusterConstraintCache() {

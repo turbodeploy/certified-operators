@@ -212,11 +212,6 @@ public class TopologyConfig {
     }
 
     @Bean
-    public StitchingGroupFixer stitchingGroupFixer() {
-        return new StitchingGroupFixer();
-    }
-
-    @Bean
     public EnvironmentTypeInjector environmentTypeInjector() {
         return new EnvironmentTypeInjector(targetConfig.targetStore());
     }
@@ -258,7 +253,6 @@ public class TopologyConfig {
                 groupConfig.groupServiceBlockingStub(),
                 reservationConfig.reservationManager(),
                 discoveredSettingPolicyScanner(),
-                stitchingGroupFixer(),
                 entityConfig.entityValidator(),
                 supplyChainValidationConfig.supplyChainValidator(),
                 groupConfig.discoveredClusterConstraintCache(),
