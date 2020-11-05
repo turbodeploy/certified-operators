@@ -501,10 +501,6 @@ public class ActionInterpreter {
                     CostCategory.RESERVED_LICENSE,
                     CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
             TraxNumber ipCost = journal.getHourlyCostForCategory(CostCategory.IP);
-            TraxNumber spotCost = journal.getHourlyCostForCategory(CostCategory.SPOT);
-            if (spotCost == null) {
-                spotCost = Trax.trax(0.0);
-            }
 
             // TODO Roop: remove this condition. OM-61424.
             TraxNumber dbStorageCost = cloudEntityMoving.getEntityType() == EntityType.DATABASE_VALUE ?
@@ -512,7 +508,7 @@ public class ActionInterpreter {
                             CostCategory.STORAGE,
                             CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER) : Trax.trax(0.0);
 
-            totalOnDemandCost = Stream.of(onDemandComputeCost, licenseCost, reservedLicenseCost, ipCost, dbStorageCost, spotCost)
+            totalOnDemandCost = Stream.of(onDemandComputeCost, licenseCost, reservedLicenseCost, ipCost, dbStorageCost)
                 .collect(TraxCollectors.sum(marketTier.getTier().getDisplayName() + " total cost"));
             logger.debug("Costs for {} on {} are -> on demand compute cost = {}, licenseCost = {}," +
                     " reservedLicenseCost = {}, ipCost = {}",
