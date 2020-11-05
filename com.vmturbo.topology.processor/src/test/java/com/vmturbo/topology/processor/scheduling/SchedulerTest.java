@@ -8,6 +8,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.verify;
@@ -82,6 +83,10 @@ public class SchedulerTest {
     public static final long TEST_SCHEDULE_MILLIS = 100;
     public static final long SCHEDULED_TIMEOUT_SECONDS = 10;
     public static final long INITIAL_BROADCAST_INTERVAL_MINUTES = 1;
+    /**
+     * Number of discoveries that can be skipped before we log a warning.
+     */
+    public static final int  NUM_DISCOVERIES_SKIPPED_BEFORE_LOGGING = 10;
     private static final long PROBE_ID_1 = 1L;
     private static final long PROBE_ID_2 = 2L;
     private static final long PROBE_ID_3 = 3L;
@@ -152,11 +157,14 @@ public class SchedulerTest {
         when(operationManager.getActionTimeoutMs()).thenReturn(2000L);
         when(operationManager.getDiscoveryTimeoutMs()).thenReturn(1000L);
         when(operationManager.getValidationTimeoutMs()).thenReturn(4000L);
+        when(operationManager.getLastDiscoveryForTarget(anyLong(), any()))
+                .thenReturn(Optional.empty());
 
         scheduler = new Scheduler(operationManager, targetStore, probeStore, topologyHandler,
             keyValueStore, journalFactory, (name) -> getFullDiscoveryExecutorService(name),
             (name) -> getIncrementalDiscoveryExecutorService(name), broadcastExecutorSpy,
-            expirationExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
+            expirationExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES,
+            NUM_DISCOVERIES_SKIPPED_BEFORE_LOGGING);
         scheduler.initialize();
     }
 
@@ -477,7 +485,8 @@ public class SchedulerTest {
         final Scheduler schedulerWithIllegalInitialInterval = new Scheduler(operationManager,
             targetStore, probeStore, topologyHandler, keyValueStore, journalFactory,
                 (name) -> fullDiscoveryExecutorSpy1, (name) -> incrementalDiscoveryExecutorSpy1,
-                broadcastExecutorSpy, expirationExecutorSpy, -1);
+                broadcastExecutorSpy, expirationExecutorSpy, -1,
+                NUM_DISCOVERIES_SKIPPED_BEFORE_LOGGING);
         schedulerWithIllegalInitialInterval.initialize();
         assertEquals(
             Scheduler.FAILOVER_INITIAL_BROADCAST_INTERVAL_MINUTES,
@@ -625,7 +634,7 @@ public class SchedulerTest {
         Scheduler scheduler = new Scheduler(operationManager, targetStore, probeStore,
             topologyHandler, keyValueStore, journalFactory, (name) -> fullDiscoveryExecutorSpy1,
             (name) -> incrementalDiscoveryExecutorSpy1, broadcastExecutorSpy, expirationExecutorSpy,
-            INITIAL_BROADCAST_INTERVAL_MINUTES);
+            INITIAL_BROADCAST_INTERVAL_MINUTES, NUM_DISCOVERIES_SKIPPED_BEFORE_LOGGING);
         scheduler.initialize();
         TargetDiscoverySchedule schedule = scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).get();
         assertEquals(INITIAL_BROADCAST_INTERVAL_MINUTES, schedule.getScheduleInterval(TimeUnit.MINUTES));
@@ -642,7 +651,7 @@ public class SchedulerTest {
         Scheduler scheduler = new Scheduler(operationManager, targetStore, probeStore,
             topologyHandler, keyValueStore, journalFactory, (name) -> fullDiscoveryExecutorSpy1,
             (name) -> incrementalDiscoveryExecutorSpy1, broadcastExecutorSpy, expirationExecutorSpy,
-            INITIAL_BROADCAST_INTERVAL_MINUTES);
+            INITIAL_BROADCAST_INTERVAL_MINUTES, NUM_DISCOVERIES_SKIPPED_BEFORE_LOGGING);
         scheduler.initialize();
         TargetDiscoverySchedule schedule = scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).get();
         scheduler.initialize();
@@ -659,7 +668,7 @@ public class SchedulerTest {
         scheduler = new Scheduler(operationManager, targetStore, probeStore, topologyHandler,
             keyValueStore, journalFactory, (name) -> fullDiscoveryExecutorSpy1,
             (name) -> incrementalDiscoveryExecutorSpy1, broadcastExecutorSpy, expirationExecutorSpy,
-            INITIAL_BROADCAST_INTERVAL_MINUTES);
+            INITIAL_BROADCAST_INTERVAL_MINUTES, NUM_DISCOVERIES_SKIPPED_BEFORE_LOGGING);
         scheduler.initialize();
         // A schedule should be added that checks for timeouts based on the shortest timeout among
         // action, discovery, and validation operations.

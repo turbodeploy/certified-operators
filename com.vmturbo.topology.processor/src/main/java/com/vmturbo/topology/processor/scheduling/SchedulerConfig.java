@@ -50,6 +50,9 @@ public class SchedulerConfig {
     @Value("${topologyBroadcastIntervalMinutes:10}")
     private long topologyBroadcastIntervalMinutes;
 
+    @Value("${numDiscoveriesMissedBeforeLogging:10}")
+    private int numDiscoveriesMissedBeforeLogging;
+
     @Bean
     public Scheduler scheduler() {
         return new Scheduler(operationConfig.operationManager(),
@@ -70,7 +73,8 @@ public class SchedulerConfig {
             Executors.newSingleThreadScheduledExecutor(
                     new ThreadFactoryBuilder().setNameFormat("target-operations-expiration-scheduler")
                             .build()),
-            topologyBroadcastIntervalMinutes
+            topologyBroadcastIntervalMinutes,
+            numDiscoveriesMissedBeforeLogging
         );
     }
 

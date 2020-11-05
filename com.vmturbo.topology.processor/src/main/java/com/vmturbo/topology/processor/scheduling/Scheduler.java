@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.scheduling;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -7,6 +8,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -16,6 +18,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
 import org.apache.logging.log4j.LogManager;
@@ -29,6 +33,7 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.OperationManager;
+import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.ProbeStoreListener;
 import com.vmturbo.topology.processor.scheduling.Schedule.ScheduleData;
@@ -115,6 +120,8 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
 
     private final long initialBroadcastIntervalMinutes;
 
+    private final int numDiscoveryIntervalsMissedBeforeLogging;
+
     public static final long FAILOVER_INITIAL_BROADCAST_INTERVAL_MINUTES = 10;
     public static final String BROADCAST_SCHEDULE_KEY = "broadcast";
     public static final String SCHEDULE_KEY_OFFSET = "schedule/";
@@ -134,6 +141,8 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
      * @param broadcastExecutor The executor to be used for scheduling realtime broadcasts.
      * @param expirationExecutor The executor to be used for scheduling pending operation expiration checks.
      * @param initialBroadcastIntervalMinutes The initial broadcast interval specified in minutes.
+     * @param numDiscoveryIntervalsMissedBeforeLogging The number of discovery intervals to wait
+     * before logging a discovery as late.
      */
     public Scheduler(@Nonnull final IOperationManager operationManager,
                      @Nonnull final TargetStore targetStore,
@@ -145,7 +154,8 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
                      @Nonnull final Function<String, ScheduledExecutorService> incrementalDiscoveryExecutor,
                      @Nonnull final ScheduledExecutorService broadcastExecutor,
                      @Nonnull final ScheduledExecutorService expirationExecutor,
-                     final long initialBroadcastIntervalMinutes) {
+                     final long initialBroadcastIntervalMinutes,
+                     final int numDiscoveryIntervalsMissedBeforeLogging) {
         this.operationManager = Objects.requireNonNull(operationManager);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.probeStore = Objects.requireNonNull(probeStore);
@@ -157,6 +167,7 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
         this.expiredOperationExecutor = Objects.requireNonNull(expirationExecutor);
         this.scheduleStore = Objects.requireNonNull(scheduleStore);
         this.initialBroadcastIntervalMinutes = initialBroadcastIntervalMinutes;
+        this.numDiscoveryIntervalsMissedBeforeLogging = numDiscoveryIntervalsMissedBeforeLogging;
 
         discoveryTasks = new HashMap<>();
         broadcastSchedule = Optional.empty();
@@ -804,6 +815,10 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
      * @param discoveryType type of the discovery type
      */
     private void executeScheduledDiscovery(final long targetId, DiscoveryType discoveryType) {
+        if (!operationManager.getLastDiscoveryForTarget(targetId, discoveryType).isPresent()) {
+            logger.info("Executing initial discovery for target {}({})", targetId,
+                    discoveryType);
+        }
         try {
             operationManager.addPendingDiscovery(targetId, discoveryType);
         } catch (TargetNotFoundException | InterruptedException e) {
@@ -822,6 +837,73 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
         }
     }
 
+    private void addStaleTargetsForProbe(long probeId, @Nonnull DiscoveryType discoveryType,
+            long rediscoveryIntervalSeconds, @Nonnull Map<Long, LocalDateTime> staleTargetMap,
+            @Nonnull Set<Long> undiscoveredTargets) {
+        final long staleSeconds = rediscoveryIntervalSeconds
+                * numDiscoveryIntervalsMissedBeforeLogging;
+        targetStore.getProbeTargets(probeId).forEach(target -> {
+            final Optional<Discovery> discovery =
+                    operationManager.getLastDiscoveryForTarget(target.getId(), discoveryType);
+            if (discovery.isPresent()) {
+                if (LocalDateTime.now().minusSeconds(staleSeconds)
+                        .isAfter(discovery.get().getCompletionTime())) {
+                    staleTargetMap.put(target.getId(), discovery.get().getCompletionTime());
+                }
+            } else {
+                undiscoveredTargets.add(target.getId());
+            }
+        });
+    }
+
+    private void logLaggingDiscoveries() {
+        final Map<Long, LocalDateTime> staleFullDiscoveryTargetMap = Maps.newHashMap();
+        final Map<Long, LocalDateTime> staleIncrementalDiscoveryTargetMap = Maps.newHashMap();
+        final Set<Long> fullDiscoveryUndiscovered = Sets.newHashSet();
+        final Set<Long> incrementalDiscoveryUndiscovered = Sets.newHashSet();
+
+        probeStore.getProbes().forEach((probeId, probeInfo) -> {
+            getDiscoveryInterval(probeInfo, DiscoveryType.FULL, true)
+                    .ifPresent(rediscoveryInterval -> addStaleTargetsForProbe(probeId,
+                            DiscoveryType.FULL, TimeUnit.MILLISECONDS.toSeconds(rediscoveryInterval),
+                            staleFullDiscoveryTargetMap, fullDiscoveryUndiscovered));
+
+            getDiscoveryInterval(probeInfo, DiscoveryType.INCREMENTAL, false)
+                    .ifPresent(rediscoveryInterval -> addStaleTargetsForProbe(probeId,
+                            DiscoveryType.INCREMENTAL,
+                            TimeUnit.MILLISECONDS.toSeconds(rediscoveryInterval),
+                            staleIncrementalDiscoveryTargetMap, incrementalDiscoveryUndiscovered));
+        });
+
+        if (!staleFullDiscoveryTargetMap.isEmpty()) {
+            logger.warn("The following targets have not been discovered in more "
+                    + "than {} discovery intervals:", numDiscoveryIntervalsMissedBeforeLogging);
+            staleFullDiscoveryTargetMap.forEach(
+                    (targetId, lastDiscoveryDate) -> logger.warn("Target {} last discovered {}.",
+                            targetId, lastDiscoveryDate));
+        }
+        if (!fullDiscoveryUndiscovered.isEmpty()) {
+            logger.warn("The following targets have not yet been discovered: {}",
+                    fullDiscoveryUndiscovered.stream()
+                            .map(String::valueOf)
+                            .collect(Collectors.joining(", ")));
+        }
+        if (!staleIncrementalDiscoveryTargetMap.isEmpty()) {
+            logger.warn("The following targets have not had an incremental discovery completed"
+                            + " in more than {} incremental discovery intervals:",
+                    numDiscoveryIntervalsMissedBeforeLogging);
+            staleIncrementalDiscoveryTargetMap.forEach((targetId, lastDiscoveryTime) -> logger.warn(
+                    "Target {} had its last incremental discovery at {}.", targetId,
+                    lastDiscoveryTime));
+        }
+        if (!incrementalDiscoveryUndiscovered.isEmpty()) {
+            logger.warn("No incremental discoveries have completed yet on the following targets:"
+                    + " {}", incrementalDiscoveryUndiscovered.stream()
+                    .map(String::valueOf)
+                    .collect(Collectors.joining(", ")));
+        }
+    }
+
     /**
      * A helper method that executes scheduled topology broadcasts.
      */
@@ -836,6 +918,8 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
             // Propagate the interrupt status.
             Thread.currentThread().interrupt();
         }
+        // log information about lagging discoveries
+        logLaggingDiscoveries();
     }
 
     /**
