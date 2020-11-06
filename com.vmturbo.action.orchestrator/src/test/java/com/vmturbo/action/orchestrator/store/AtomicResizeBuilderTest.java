@@ -268,7 +268,7 @@ public class AtomicResizeBuilderTest {
         AtomicResizeBuilder actionBuilder = new AtomicResizeBuilder(aggregatedAction);
         Optional<AtomicActionResult> atomicActionResult = actionBuilder.build();
 
-        Action atomicAction = atomicActionResult.get().atomicAction();
+        Action atomicAction = atomicActionResult.get().atomicAction().get();
         assertTrue(atomicAction.getInfo().hasAtomicResize());
 
         AtomicResize resize = atomicAction.getInfo().getAtomicResize();
@@ -295,6 +295,7 @@ public class AtomicResizeBuilderTest {
 
     /**
      * Test that a merged action is not created if all the actions are RECOMMEND only.
+     * Atomic action is created for de-duplicated target.
      */
     @Test
     public void mergeAllActionsInRecommendMode() {
@@ -311,7 +312,50 @@ public class AtomicResizeBuilderTest {
 
         AtomicResizeBuilder actionBuilder = new AtomicResizeBuilder(aggregatedAction);
         Optional<AtomicActionResult> atomicActionResult = actionBuilder.build();
-        assertEquals(Optional.empty(), atomicActionResult);
+
+        assertEquals(Optional.empty(), atomicActionResult.get().atomicAction());
+
+        assertEquals(1, atomicActionResult.get().deDuplicatedActions().size());
+        Map<Action, List<Action>> deDuplicatedActions = atomicActionResult.get().deDuplicatedActions();
+        Action deDuplicatedAction = deDuplicatedActions.keySet().iterator().next();
+        AtomicResize resize = deDuplicatedAction.getInfo().getAtomicResize();
+        assertEquals(deDupEntity1.getEntity(), resize.getExecutionTarget());
+        assertEquals(1, resize.getResizesCount());
+    }
+
+    /**
+     * Test that a merged action is created if one action is recommended and the other is manual.
+     * In this case, atomicAction will have only one resize action in manual mode, while
+     * deDeuplicatedAction has 2 resize actions.
+     */
+    @Test
+    public void mergeActionsWithManualAndRecommend() {
+        when(view1.getMode()).thenReturn(ActionMode.RECOMMEND);
+        when(view2.getMode()).thenReturn(ActionMode.MANUAL);
+
+        AggregatedAction aggregatedAction = new AggregatedAction(ActionTypeCase.ATOMICRESIZE,
+            aggregateEntity1.getEntity(),
+            aggregateEntity1.getEntityName());
+        aggregatedAction.addAction(resize1, Optional.of(deDupEntity1));
+        aggregatedAction.addAction(resize12, Optional.of(deDupEntity1));
+        aggregatedAction.updateActionView(resize1.getId(), view1);
+        aggregatedAction.updateActionView(resize12.getId(), view2);
+
+        AtomicResizeBuilder actionBuilder = new AtomicResizeBuilder(aggregatedAction);
+        Optional<AtomicActionResult> atomicActionResult = actionBuilder.build();
+
+        Map<Action, List<Action>> deDuplicatedActions = atomicActionResult.get().deDuplicatedActions();
+        assertEquals(1, deDuplicatedActions.size());
+        // ContainerSpec has 2 resizes
+        Action deDuplicatedAction = deDuplicatedActions.keySet().iterator().next();
+        AtomicResize resize = deDuplicatedAction.getInfo().getAtomicResize();
+        assertEquals(deDupEntity1.getEntity(), resize.getExecutionTarget());
+        assertEquals(2, resize.getResizesCount());
+
+        // WorkloadController has 1 resize
+        Action atomicResize = atomicActionResult.get().atomicAction().get();
+        assertEquals(aggregateEntity1.getEntity(), atomicResize.getInfo().getAtomicResize().getExecutionTarget());
+        assertEquals(1, atomicResize.getInfo().getAtomicResize().getResizesCount());
     }
 
     /**
@@ -326,21 +370,21 @@ public class AtomicResizeBuilderTest {
                 aggregateEntity1.getEntity(),
                 aggregateEntity1.getEntityName());
         aggregatedAction.addAction(resize1, Optional.of(deDupEntity1));
-        aggregatedAction.addAction(resize2, Optional.of(deDupEntity1));
+        aggregatedAction.addAction(resize2, Optional.of(deDupEntity2));
         aggregatedAction.updateActionView(resize1.getId(), view1);
         aggregatedAction.updateActionView(resize2.getId(), view2);
 
         AtomicResizeBuilder actionBuilder = new AtomicResizeBuilder(aggregatedAction);
         Optional<AtomicActionResult> atomicActionResult = actionBuilder.build();
 
-        Action atomicAction = atomicActionResult.get().atomicAction();
+        Action atomicAction = atomicActionResult.get().atomicAction().get();
         assertTrue(atomicAction.getInfo().hasAtomicResize());
 
         AtomicResize resize = atomicAction.getInfo().getAtomicResize();
         assertEquals(aggregateEntity1.getEntity(), resize.getExecutionTarget());
         assertEquals(1, resize.getResizesCount());
 
-        assertEquals(deDupEntity1.getEntity(), resize.getResizesList().get(0).getTarget());
+        assertEquals(deDupEntity2.getEntity(), resize.getResizesList().get(0).getTarget());
         assertEquals(vcpuType, resize.getResizesList().get(0).getCommodityType());
 
         List<ActionEntity> originalTargets = resize.getResizesList().get(0).getSourceEntitiesList();
@@ -372,7 +416,7 @@ public class AtomicResizeBuilderTest {
         AtomicResizeBuilder actionBuilder = new AtomicResizeBuilder(aggregatedAction);
         Optional<AtomicActionResult> atomicActionResult = actionBuilder.build();
 
-        Action atomicAction = atomicActionResult.get().atomicAction();
+        Action atomicAction = atomicActionResult.get().atomicAction().get();
         assertTrue(atomicAction.getInfo().hasAtomicResize());
 
         AtomicResize resize = atomicAction.getInfo().getAtomicResize();
@@ -415,7 +459,7 @@ public class AtomicResizeBuilderTest {
         AtomicResizeBuilder actionBuilder = new AtomicResizeBuilder(aggregatedAction);
         Optional<AtomicActionResult> atomicActionResult = actionBuilder.build();
 
-        Action atomicAction = atomicActionResult.get().atomicAction();
+        Action atomicAction = atomicActionResult.get().atomicAction().get();
         assertNotNull(atomicAction);
         assertTrue(atomicAction.getInfo().hasAtomicResize());
 
@@ -467,7 +511,7 @@ public class AtomicResizeBuilderTest {
         AtomicResizeBuilder actionBuilder = new AtomicResizeBuilder(aggregatedAction);
         Optional<AtomicActionResult> atomicActionResult = actionBuilder.build();
 
-        Action atomicAction = atomicActionResult.get().atomicAction();
+        Action atomicAction = atomicActionResult.get().atomicAction().get();
         assertNotNull(atomicAction);
         assertTrue(atomicAction.getInfo().hasAtomicResize());
 
@@ -511,7 +555,7 @@ public class AtomicResizeBuilderTest {
         AtomicResizeBuilder actionBuilder = new AtomicResizeBuilder(aggregatedAction);
         Optional<AtomicActionResult> atomicActionResult = actionBuilder.build();
 
-        Action atomicAction = atomicActionResult.get().atomicAction();
+        Action atomicAction = atomicActionResult.get().atomicAction().get();
         assertNotNull(atomicAction);
         assertTrue(atomicAction.getInfo().hasAtomicResize());
 

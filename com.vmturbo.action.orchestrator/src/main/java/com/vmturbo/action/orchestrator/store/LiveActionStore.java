@@ -781,8 +781,10 @@ public class LiveActionStore implements ActionStore {
 
         // The aggregated atomic actions that will be executed by the aggregation target
         atomicActions = atomicActionResults.stream()
-                    .map(atomicActionResult -> atomicActionResult.atomicAction())
+                    .filter(atomicActionResult -> atomicActionResult.atomicAction().isPresent())
+                    .map(atomicActionResult -> atomicActionResult.atomicAction().get())
                     .collect(Collectors.toList());
+        final int executableAtomicActionsCount = atomicActions.size();
 
         // The de-duplicated atomic actions that were merged inside the aggregated atomic actions above
         // These actions are  non-executable
@@ -791,8 +793,9 @@ public class LiveActionStore implements ActionStore {
                     .collect(Collectors.toList());
 
         atomicActions.addAll(deDupedAtomicActions);
-        logger.info("Created {} atomic actions, contains {} deDuplicated actions",
-                                atomicActions.size(), deDupedAtomicActions.size());
+        logger.info("Created {} atomic actions, including {} executable atomic actions and {} "
+                + "non-executable deDuplicated actions",
+            atomicActions.size(), executableAtomicActionsCount, deDupedAtomicActions.size());
 
         // Set the support level for the atomic actions by querying the probe action capability cache
         final List<ActionDTO.Action> atomicActionsWithAdditionalInfo;

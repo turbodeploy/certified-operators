@@ -401,13 +401,11 @@ class LiveActions implements QueryableActionViews {
                 recommendationIdToAtomicActionMap.put(action.getRecommendationOid(), action);
             });
 
-            // remove the market actions that were merged. Actions in Recommend mode are not merged
-            mergedActionViews.stream()
-                    .filter(action -> action.getMode() != ActionMode.RECOMMEND)
-                    .forEach(actionView -> {
-                        marketActions.remove(actionView.getId());
-                        recommendationIdToMarketActionMap.remove(actionView.getRecommendationOid());
-                    });
+            // remove the market actions that were merged.
+            mergedActionViews.forEach(actionView -> {
+                marketActions.remove(actionView.getId());
+                recommendationIdToMarketActionMap.remove(actionView.getRecommendationOid());
+            });
 
             addInvolvedEntitiesToIndex(atomicActions.values());
 

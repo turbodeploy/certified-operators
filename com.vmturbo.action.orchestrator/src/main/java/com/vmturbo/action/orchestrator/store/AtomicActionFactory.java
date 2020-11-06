@@ -116,12 +116,16 @@ public class AtomicActionFactory {
      */
     @Value.Immutable
     interface AtomicActionResult {
-        // The new primary ActionDTO for the action that will execute the aggregated or
-        // de-duplicated market actions
-        ActionDTO.Action atomicAction();
+        // The new primary ActionDTO for the action that will execute
+        // the aggregated and de-duplicated market actions
+        // Aggregated atomic action will not be created
+        // if the original actions are in RECOMMEND mode
+        Optional<ActionDTO.Action> atomicAction();
 
         // Map of the non-executable atomic action that de-duplicated actions for entities
         // in the scaling/deployment group to the list of original actions
+        // Atomic actions for de-duplicated targets will be created
+        // even if the original actions are in RECOMMEND mode
         Map<ActionDTO.Action, List<ActionDTO.Action>> deDuplicatedActions();
 
         // List of actions that were merged without de-duplication
