@@ -1210,11 +1210,13 @@ public class ActionModeCalculator {
         private static final double CAPACITY_COMPARISON_DELTA = 0.001;
         // This map holds the resizeSettings by commodity type per entity type
         private final Map<Integer, Map<Integer, RangeAwareResizeSettings>> resizeSettingsByEntityType =
-                ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, populateResizeSettingsByCommodityForVM());
+                ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, populateResizeSettingsByCommodityForVM(),
+                    EntityType.CONTAINER_VALUE, populateResizeSettingsByCommodityForContainer());
 
         /**
          * Gets the spec applicable for range aware commodity resize. Currently VMem, VCpu
-         * resizes of on-prem VMs are considered range aware.
+         * resizes of on-prem VMs and VMem, VMemRequest, VCPU and VCPURequest resizes of containers
+         * are considered range aware.
          *
          * <p>There is a minThreshold and a maxThreshold defined for the commodity resizing.
          * There are separate automation modes defined for these cases:
@@ -1344,7 +1346,8 @@ public class ActionModeCalculator {
         }
 
         /**
-         * Returns a map of the commodity type to the range aware resize settings applicable to it.
+         * Returns a map of the commodity type to the range aware resize settings applicable to it
+         * for VM.
          *
          * @return returns a map of the commodity type to the range aware resize settings applicable
          * to it.
@@ -1366,6 +1369,50 @@ public class ActionModeCalculator {
                     .minThreshold(EntitySettingSpecs.ResizeVmemMinThreshold).build();
             return ImmutableMap.of(CommodityDTO.CommodityType.VCPU_VALUE, vCpuSettings,
                 CommodityDTO.CommodityType.VMEM_VALUE, vMemSettings);
+        }
+
+        /**
+         * Returns a map of the commodity type to the range aware resize settings applicable to it
+         * for Container.
+         *
+         * @return A map of the commodity type to the range aware resize settings applicable to it.
+         */
+        private Map<Integer, RangeAwareResizeSettings> populateResizeSettingsByCommodityForContainer() {
+            RangeAwareResizeSettings vCpuSettings = ImmutableRangeAwareResizeSettings.builder()
+                .aboveMaxThreshold(ConfigurableActionSettings.ResizeVcpuLimitAboveMaxThreshold)
+                .belowMinThreshold(ConfigurableActionSettings.ResizeVcpuLimitBelowMinThreshold)
+                .upInBetweenThresholds(ConfigurableActionSettings.Resize)
+                .downInBetweenThresholds(ConfigurableActionSettings.Resize)
+                .maxThreshold(EntitySettingSpecs.ResizeVcpuLimitMaxThreshold)
+                .minThreshold(EntitySettingSpecs.ResizeVcpuLimitMinThreshold).build();
+            RangeAwareResizeSettings vMemSettings = ImmutableRangeAwareResizeSettings.builder()
+                .aboveMaxThreshold(ConfigurableActionSettings.ResizeVmemLimitAboveMaxThreshold)
+                .belowMinThreshold(ConfigurableActionSettings.ResizeVmemLimitBelowMinThreshold)
+                .upInBetweenThresholds(ConfigurableActionSettings.Resize)
+                .downInBetweenThresholds(ConfigurableActionSettings.Resize)
+                .maxThreshold(EntitySettingSpecs.ResizeVmemLimitMaxThreshold)
+                .minThreshold(EntitySettingSpecs.ResizeVmemLimitMinThreshold).build();
+            RangeAwareResizeSettings vCpuRequestSettings = ImmutableRangeAwareResizeSettings.builder()
+                // AboveMaxThreshold is a required field, so use "ResizeVcpuLimitAboveMaxThreshold" for
+                // request resize settings. In fact, market only generates resizing down request, so
+                // aboveMaxThreshold configured here does not matter.
+                .aboveMaxThreshold(ConfigurableActionSettings.ResizeVcpuLimitAboveMaxThreshold)
+                .belowMinThreshold(ConfigurableActionSettings.ResizeVcpuRequestBelowMinThreshold)
+                .upInBetweenThresholds(ConfigurableActionSettings.Resize)
+                .downInBetweenThresholds(ConfigurableActionSettings.Resize)
+                .maxThreshold(EntitySettingSpecs.ResizeVcpuLimitMaxThreshold)
+                .minThreshold(EntitySettingSpecs.ResizeVcpuRequestMinThreshold).build();
+            RangeAwareResizeSettings vMemRequestSettings = ImmutableRangeAwareResizeSettings.builder()
+                .aboveMaxThreshold(ConfigurableActionSettings.ResizeVmemLimitAboveMaxThreshold)
+                .belowMinThreshold(ConfigurableActionSettings.ResizeVmemRequestBelowMinThreshold)
+                .upInBetweenThresholds(ConfigurableActionSettings.Resize)
+                .downInBetweenThresholds(ConfigurableActionSettings.Resize)
+                .maxThreshold(EntitySettingSpecs.ResizeVmemLimitMaxThreshold)
+                .minThreshold(EntitySettingSpecs.ResizeVmemRequestMinThreshold).build();
+            return ImmutableMap.of(CommodityDTO.CommodityType.VCPU_VALUE, vCpuSettings,
+                CommodityDTO.CommodityType.VMEM_VALUE, vMemSettings,
+                CommodityDTO.CommodityType.VCPU_REQUEST_VALUE, vCpuRequestSettings,
+                CommodityDTO.CommodityType.VMEM_REQUEST_VALUE, vMemRequestSettings);
         }
     }
 }

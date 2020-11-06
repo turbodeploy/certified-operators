@@ -83,6 +83,18 @@ public class EntitySettingsScopeEvaluator {
                 .put(EntitySettingSpecs.PercentileAggressivenessContainerSpec.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
                 .put(EntitySettingSpecs.MinObservationPeriodContainerSpec.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
                 .put(EntitySettingSpecs.MaxObservationPeriodContainerSpec.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
+                .put(EntitySettingSpecs.ResizeVcpuRequestMinThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
+                .put(EntitySettingSpecs.ResizeVcpuLimitMinThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
+                .put(EntitySettingSpecs.ResizeVcpuLimitMaxThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
+                .put(EntitySettingSpecs.ResizeVmemRequestMinThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
+                .put(EntitySettingSpecs.ResizeVmemLimitMinThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
+                .put(EntitySettingSpecs.ResizeVmemLimitMaxThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
+                .put(ConfigurableActionSettings.ResizeVcpuLimitAboveMaxThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
+                .put(ConfigurableActionSettings.ResizeVcpuLimitBelowMinThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
+                .put(ConfigurableActionSettings.ResizeVcpuRequestBelowMinThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
+                .put(ConfigurableActionSettings.ResizeVmemLimitAboveMaxThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
+                .put(ConfigurableActionSettings.ResizeVmemLimitBelowMinThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
+                .put(ConfigurableActionSettings.ResizeVmemRequestBelowMinThreshold.getSettingName(), SELF_AND_AGGREGATED_CONTAINERS)
                 .build()
         );
 

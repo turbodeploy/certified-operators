@@ -219,6 +219,36 @@ public class RequestAndLimitCommodityThresholdsInjectorTest {
     }
 
     /**
+     * testInjectVcpuLimitWithExistingThresholds.
+     * <p/>
+     * If there's an existing max threshold for request commodity, update max threshold as the min of
+     * existing max threshold and request capacity;
+     * If there's an existing min threshold for limit commodity, update min threshold as the max of
+     * existing min threshold and request capacity.
+     */
+    @Test
+    public void testInjectVcpuLimitWithExistingThresholds() {
+        final TopologyEntity.Builder container = TopologyEntityUtils
+            .topologyEntity(0, 0, 0, "Container", EntityType.CONTAINER);
+        final CommoditySoldDTO.Builder vCPUComm =
+            addCommoditySold(container, CommodityType.VCPU_VALUE, 100.0, 20.0, true);
+        vCPUComm.setThresholds(Thresholds.newBuilder().setMin(60).build());
+
+        final CommoditySoldDTO.Builder vCPURequestComm =
+            addCommoditySold(container, CommodityType.VCPU_REQUEST_VALUE, 50.0, 20.0, true);
+        vCPURequestComm.setThresholds(Thresholds.newBuilder().setMax(60).build());
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(container);
+        final InjectionStats stats = injector.injectThresholds(graph);
+
+        assertEquals(1, stats.getEntitiesModified());
+        assertEquals(1, stats.getRequestCommoditiesModified());
+        assertEquals(1, stats.getLimitCommoditiesModified());
+        assertEquals(60, vCPUComm.getThresholds().getMin(), 0);
+        assertEquals(50, vCPURequestComm.getThresholds().getMax(), 0);
+    }
+
+    /**
      * testLimitNotResizable.
      */
     @Test

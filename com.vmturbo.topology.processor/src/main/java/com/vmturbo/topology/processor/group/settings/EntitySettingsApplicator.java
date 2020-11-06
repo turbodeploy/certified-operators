@@ -68,6 +68,16 @@ public class EntitySettingsApplicator {
 
     private static final Logger logger = LogManager.getLogger();
 
+    private static final Set<Integer> CPU_COMMODITY_TYPES = ImmutableSet.of(
+        CommodityType.VCPU_VALUE,
+        CommodityType.VCPU_REQUEST_VALUE
+    );
+
+    private static final Set<Integer> MEM_COMMODITY_TYPES = ImmutableSet.of(
+        CommodityType.VMEM_VALUE,
+        CommodityType.VMEM_REQUEST_VALUE
+    );
+
     /**
      * Applies the settings contained in a {@link GraphWithSettings} to the topology graph
      * contained in it.
@@ -185,7 +195,7 @@ public class EntitySettingsApplicator {
                         CommodityType.VSTORAGE),
                 new ResizeIncrementApplicator(EntitySettingSpecs.StorageIncrement,
                         CommodityType.STORAGE_AMOUNT),
-                new VMThresholdApplicator(
+                new EntityThresholdApplicator(
                     ImmutableMap.of(
                         CommodityType.VMEM.getNumber(), Sets.newHashSet(
                                 EntitySettingSpecs.ResizeVmemMinThreshold,
@@ -205,6 +215,37 @@ public class EntitySettingsApplicator {
                             ConfigurableActionSettings.ResizeVcpuAboveMaxThreshold,
                             ConfigurableActionSettings.ResizeVcpuBelowMinThreshold)),
                     graphWithSettings),
+                new EntityThresholdApplicator(
+                    ImmutableMap.of(
+                        CommodityType.VMEM.getNumber(), Sets.newHashSet(
+                            EntitySettingSpecs.ResizeVmemLimitMinThreshold,
+                            EntitySettingSpecs.ResizeVmemLimitMaxThreshold),
+                        CommodityType.VCPU.getNumber(), Sets.newHashSet(
+                            EntitySettingSpecs.ResizeVcpuLimitMinThreshold,
+                            EntitySettingSpecs.ResizeVcpuLimitMaxThreshold),
+                        CommodityType.VMEM_REQUEST.getNumber(), Sets.newHashSet(
+                            EntitySettingSpecs.ResizeVmemRequestMinThreshold),
+                        CommodityType.VCPU_REQUEST.getNumber(), Sets.newHashSet(
+                            EntitySettingSpecs.ResizeVcpuRequestMinThreshold)),
+                    ImmutableMap.of(
+                        CommodityType.VMEM.getNumber(), Sets.newHashSet(
+                            ConfigurableActionSettings.Resize,
+                            ConfigurableActionSettings.ResizeVmemLimitAboveMaxThreshold,
+                            ConfigurableActionSettings.ResizeVmemLimitBelowMinThreshold),
+                        CommodityType.VCPU.getNumber(), Sets.newHashSet(
+                            ConfigurableActionSettings.Resize,
+                            ConfigurableActionSettings.ResizeVcpuLimitAboveMaxThreshold,
+                            ConfigurableActionSettings.ResizeVcpuLimitBelowMinThreshold),
+                        CommodityType.VMEM_REQUEST.getNumber(), Sets.newHashSet(
+                            ConfigurableActionSettings.Resize,
+                            ConfigurableActionSettings.ResizeVmemLimitAboveMaxThreshold,
+                            ConfigurableActionSettings.ResizeVmemRequestBelowMinThreshold),
+                        CommodityType.VCPU_REQUEST.getNumber(), Sets.newHashSet(
+                            ConfigurableActionSettings.Resize,
+                            ConfigurableActionSettings.ResizeVcpuLimitAboveMaxThreshold,
+                            ConfigurableActionSettings.ResizeVcpuRequestBelowMinThreshold)),
+                    graphWithSettings
+                ),
                 new ResizeTargetUtilizationCommodityBoughtApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationImageCPU,
                         CommodityType.IMAGE_CPU),
@@ -893,20 +934,24 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     * Applies min/Max to the virtual machine represented in {@link TopologyEntityDTO.Builder}.
+     * Applies min/Max to the entity represented in {@link TopologyEntityDTO.Builder}, like VM or
+     * container.
      */
-    private static class VMThresholdApplicator extends MultipleSettingsApplicator {
+    private static class EntityThresholdApplicator extends MultipleSettingsApplicator {
 
         //VMem setting value is in MBs. Market expects it in KBs.
         private final float conversionFactor = 1024.0f;
         private final Map<Integer, Set<EntitySettingSpecs>> entitySettingMapping;
         private final Map<Integer, Set<ConfigurableActionSettings>> actionModeSettingsMapping;
+        // Map from VM OID to cpu speed per millicore. This is to cache the data per VM when setting
+        // threshold for containers because multiple containers can be hosted on the same VM.
+        private final Map<Long, Double> vmToCPUSpeedPerMillicoreMap;
         // We need the graph to fin the core CPU speed of the hosting PM for the unit conversion.
         private final TopologyGraph<TopologyEntity> graph;
 
-        private VMThresholdApplicator(@Nonnull final Map<Integer, Set<EntitySettingSpecs>> settingMapping,
-                                      @Nonnull final Map<Integer, Set<ConfigurableActionSettings>> actionModeSettingsMapping,
-                                      @Nonnull final GraphWithSettings settingsGraph) {
+        private EntityThresholdApplicator(@Nonnull final Map<Integer, Set<EntitySettingSpecs>> settingMapping,
+                                          @Nonnull final Map<Integer, Set<ConfigurableActionSettings>> actionModeSettingsMapping,
+                                          @Nonnull final GraphWithSettings settingsGraph) {
             super(settingMapping.values().stream()
                     .flatMap(Collection::stream)
                     .collect(Collectors.toList()),
@@ -916,6 +961,7 @@ public class EntitySettingsApplicator {
             this.graph = settingsGraph.getTopologyGraph();
             this.entitySettingMapping = Objects.requireNonNull(settingMapping);
             this.actionModeSettingsMapping = Objects.requireNonNull(actionModeSettingsMapping);
+            this.vmToCPUSpeedPerMillicoreMap = new HashMap<>();
         }
 
         @Override
@@ -951,6 +997,72 @@ public class EntitySettingsApplicator {
                             setThresholds(entity, validSpecs, validActionModeSettings, settings, commodityBuilder, conversionFactor);
                         }
                 });
+            } else if (EntityType.CONTAINER_VALUE == entity.getEntityType()) {
+                setThresholdsForContainer(entity, settings);
+            }
+        }
+
+        private void setThresholdsForContainer(@Nonnull final TopologyEntityDTO.Builder entity,
+                                               @Nonnull final Collection<Setting> settings) {
+            entity.getCommoditySoldListBuilderList().stream()
+                .filter(commodity -> entitySettingMapping.get(commodity.getCommodityType().getType()) != null)
+                .forEach(commodity -> {
+                    Set<EntitySettingSpecs> validSpecs = entitySettingMapping.get(commodity.getCommodityType().getType());
+                    Set<ConfigurableActionSettings> validActionModeSettings = actionModeSettingsMapping.get(commodity.getCommodityType().getType());
+                    if (CPU_COMMODITY_TYPES.contains(commodity.getCommodityType().getType())) {
+                        // User configured VCPU/VCPURequest thresholds are in millicores and market
+                        // analysis needs CPU commodity in MHz, convert the value in millicores to MHz
+                        // based on CPU speed.
+                        // Calculate CPU speed by dividing number of CPUs of the provider VM by VM
+                        // CPU capacity in MHz.
+                        Optional<TopologyEntity> containerPod = graph.getProviders(entity.getOid())
+                            .filter(provider -> provider.getEntityType() == EntityType.CONTAINER_POD_VALUE)
+                            .findFirst();
+                        if (!containerPod.isPresent()) {
+                            logger.error("Failed to set {} commodity threshold for container {} because provider container pod is not found.",
+                                CommodityType.forNumber(commodity.getCommodityType().getType()), entity.getDisplayName());
+                            return;
+                        }
+                        Optional<TopologyEntity> vm = graph.getProviders(containerPod.get().getOid())
+                                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                                .findFirst();
+                        if (!vm.isPresent()) {
+                            logger.error("Failed to set {} commodity threshold for container {} because provider VM is not found.",
+                                CommodityType.forNumber(commodity.getCommodityType().getType()), entity.getDisplayName());
+                            return;
+                        }
+                        double cpuSpeedPerMillicore = vmToCPUSpeedPerMillicoreMap.computeIfAbsent(vm.get().getOid(),
+                            k -> getCpuSpeedPerMillicoreFromVM(vm.get().getTopologyEntityDtoBuilder(), entity, commodity));
+                        if (cpuSpeedPerMillicore > 0) {
+                            // Only set thresholds if cpuSpeedPerMillicore is larger than 0.
+                            setThresholds(entity, validSpecs, validActionModeSettings, settings, commodity, cpuSpeedPerMillicore);
+                        }
+                    } else if (MEM_COMMODITY_TYPES.contains(commodity.getCommodityType().getType())) {
+                        setThresholds(entity, validSpecs, validActionModeSettings, settings, commodity, conversionFactor);
+                    }
+                });
+        }
+
+        private double getCpuSpeedPerMillicoreFromVM(@Nonnull TopologyEntityDTO.Builder vm,
+                                                     @Nonnull TopologyEntityDTO.Builder container,
+                                                     @Nonnull CommoditySoldDTO.Builder commodity) {
+            if (vm.getTypeSpecificInfo().getVirtualMachine().hasNumCpus()) {
+                int numCPUCores = vm.getTypeSpecificInfo().getVirtualMachine().getNumCpus();
+                Optional<CommoditySoldDTO> cpuComm = vm.getCommoditySoldListList().stream()
+                    .filter(comm -> comm.getCommodityType().getType() == CommodityType.VCPU_VALUE)
+                    .findFirst();
+                if (!cpuComm.isPresent()) {
+                    logger.error("Failed to set {} commodity threshold for container {} because provider VM {} has no VCPU commodity.",
+                        CommodityType.forNumber(commodity.getCommodityType().getType()), container.getDisplayName(), vm.getDisplayName());
+                    return 0;
+                }
+                // VCPU/VCPURequest threshold settings for containers are in millicores, so
+                // use CPU speed per millicore as multiplier when setting thresholds.
+                return cpuComm.get().getCapacity() / (numCPUCores * 1000);
+            } else {
+                logger.error("Failed to set {} commodity threshold for container {} because numCPUs is not found from VM {}.",
+                    CommodityType.forNumber(commodity.getCommodityType().getType()), container.getDisplayName(), vm.getDisplayName());
+                return 0;
             }
         }
 
@@ -986,10 +1098,16 @@ public class EntitySettingsApplicator {
                     switch (policySetting.get()) {
                         case ResizeVcpuMinThreshold:
                         case ResizeVmemMinThreshold:
+                        case ResizeVcpuLimitMinThreshold:
+                        case ResizeVcpuRequestMinThreshold:
+                        case ResizeVmemLimitMinThreshold:
+                        case ResizeVmemRequestMinThreshold:
                             minThreshold = settingValue * multiplier;
                             break;
                         case ResizeVcpuMaxThreshold:
                         case ResizeVmemMaxThreshold:
+                        case ResizeVcpuLimitMaxThreshold:
+                        case ResizeVmemLimitMaxThreshold:
                             maxThreshold = settingValue * multiplier;
                             break;
                     }
@@ -1001,10 +1119,16 @@ public class EntitySettingsApplicator {
                         switch (configurableActionSettings) {
                             case ResizeVcpuBelowMinThreshold:
                             case ResizeVmemBelowMinThreshold:
+                            case ResizeVcpuLimitBelowMinThreshold:
+                            case ResizeVcpuRequestBelowMinThreshold:
+                            case ResizeVmemLimitBelowMinThreshold:
+                            case ResizeVmemRequestBelowMinThreshold:
                                 modeForMin = ActionMode.valueOf(setting.getEnumSettingValue().getValue());
                                 break;
                             case ResizeVcpuAboveMaxThreshold:
                             case ResizeVmemAboveMaxThreshold:
+                            case ResizeVcpuLimitAboveMaxThreshold:
+                            case ResizeVmemLimitAboveMaxThreshold:
                                 modeForMax = ActionMode.valueOf(setting.getEnumSettingValue().getValue());
                                 break;
                             case ResizeVcpuUpInBetweenThresholds:
@@ -1015,13 +1139,17 @@ public class EntitySettingsApplicator {
                             case ResizeVmemDownInBetweenThresholds:
                                 modeDownInBetweenThresholds = ActionMode.valueOf(setting.getEnumSettingValue().getValue());
                                 break;
+                            case Resize:
+                                modeUpInBetweenThresholds = ActionMode.valueOf(setting.getEnumSettingValue().getValue());
+                                modeDownInBetweenThresholds = ActionMode.valueOf(setting.getEnumSettingValue().getValue());
+                                break;
                         }
                     }
                 }
             }
             if (modeForMax == null || modeForMin == null || modeDownInBetweenThresholds == null || modeUpInBetweenThresholds == null) {
                 logger.error("Unable to set capacity bounds based on policy for {} on {}", entity.getDisplayName(),
-                        commodityBuilder.getDisplayName());
+                        CommodityType.forNumber(commodityBuilder.getCommodityType().getType()));
                 return;
             }
 

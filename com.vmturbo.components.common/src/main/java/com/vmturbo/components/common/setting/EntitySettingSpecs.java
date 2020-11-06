@@ -88,6 +88,49 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 1000000, 131072), true),
 
     /**
+     * The minimum number of VCPU request millicores which is the threshold to decide automation mode.
+     */
+    ResizeVcpuRequestMinThreshold("resizeVcpuRequestMinThreshold", "VCPU Request Resize Min Threshold (in millicores)",
+        Collections.emptyList(), SettingTiebreaker.BIGGER,
+        EnumSet.of(EntityType.CONTAINER_SPEC), numeric(0, 1000000, 10), true),
+    /**
+     * The minimum number of VCPU limit millicores which is the threshold to decide automation mode.
+     */
+    ResizeVcpuLimitMinThreshold("resizeVcpuLimitMinThreshold", "VCPU Limit Resize Min Threshold (in millicores)",
+        Collections.emptyList(), SettingTiebreaker.BIGGER,
+        EnumSet.of(EntityType.CONTAINER_SPEC), numeric(0, 1000000, 10), true),
+
+    /**
+     * The maximum number of VCPU limit millicores which is the threshold to decide automation mode.
+     */
+    ResizeVcpuLimitMaxThreshold("resizeVcpuLimitMaxThreshold", "VCPU Limit Resize Max Threshold (in millicores)",
+        Collections.emptyList(), SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.CONTAINER_SPEC), numeric(0, 1000000, 64000), true),
+
+    /**
+     * The minimum number of VMem request which is the threshold to decide automation mode.
+     *
+     */
+    ResizeVmemRequestMinThreshold("resizeVmemRequestMinThreshold", "VMEM Request Resize Min Threshold (in MB)",
+        Collections.emptyList(), SettingTiebreaker.BIGGER,
+        EnumSet.of(EntityType.CONTAINER_SPEC), numeric(0, 1048576, 10), true),
+
+    /**
+     * The minimum number of VMem limit which is the threshold to decide automation mode.
+     *
+     */
+    ResizeVmemLimitMinThreshold("resizeVmemLimitMinThreshold", "VMEM Limit Resize Min Threshold (in MB)",
+        Collections.emptyList(), SettingTiebreaker.BIGGER,
+        EnumSet.of(EntityType.CONTAINER_SPEC), numeric(0, 1048576, 10), true),
+
+    /**
+     * The maximum number of VMem limit which is the threshold to decide automation mode.
+     */
+    ResizeVmemLimitMaxThreshold("resizeVmemLimitMaxThreshold", "VMEM Limit Resize Max Threshold (in MB)",
+        Collections.emptyList(), SettingTiebreaker.SMALLER,
+        EnumSet.of(EntityType.CONTAINER_SPEC), numeric(0, 1048576, 1048576), true),
+
+    /**
      * Scaling Policy.
      */
     ScalingPolicy("scalingPolicy", "Scaling Policy",

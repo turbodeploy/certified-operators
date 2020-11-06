@@ -65,6 +65,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -375,6 +376,119 @@ public class EntitySettingsApplicatorTest {
             .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuUpInBetweenThresholds.getSettingName())
             .setEnumSettingValue(AUTOMATIC).build();
 
+    private static final Setting VCPU_LIMIT_ABOVE_MAX_MODE_SETTING = Setting.newBuilder()
+        .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuLimitAboveMaxThreshold.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder()
+            .setValue(ActionDTO.ActionMode.DISABLED.name())
+            .build())
+        .build();
+    /**
+     * VCPU Limit Resize Max Threshold 10,000 millicores.
+     */
+    private static final Setting VCPU_LIMIT_MAX_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuLimitMaxThreshold.getSettingName())
+        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(10_000))
+        .build();
+    private static final Setting VCPU_LIMIT_BELOW_MIN_MODE_SETTING = Setting.newBuilder()
+        .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuLimitBelowMinThreshold.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder()
+            .setValue(ActionDTO.ActionMode.DISABLED.name())
+            .build()).build();
+    /**
+     * VCPU Limit Resize Min Threshold 100 millicores.
+     */
+    private static final Setting VCPU_LIMIT_MIN_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuLimitMinThreshold.getSettingName())
+        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(100))
+        .build();
+    private static final Setting VCPU_REQUEST_BELOW_MIN_MODE_SETTING = Setting.newBuilder()
+        .setSettingSpecName(ConfigurableActionSettings.ResizeVcpuRequestBelowMinThreshold.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder()
+            .setValue(ActionDTO.ActionMode.RECOMMEND.name())
+            .build()).build();
+    /**
+     * VCPU Request Resize Min Threshold 20 millicores.
+     */
+    private static final Setting VCPU_REQUEST_MIN_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuRequestMinThreshold.getSettingName())
+        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(50))
+        .build();
+    private static final Setting VMEM_LIMIT_ABOVE_MAX_MODE_SETTING = Setting.newBuilder()
+        .setSettingSpecName(ConfigurableActionSettings.ResizeVmemLimitAboveMaxThreshold.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder()
+            .setValue(ActionDTO.ActionMode.DISABLED.name())
+            .build())
+        .build();
+    /**
+     * VMEM Limit Resize Max Threshold 300 MB.
+     */
+    private static final Setting VMEM_LIMIT_MAX_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVmemLimitMaxThreshold.getSettingName())
+        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(300))
+        .build();
+    private static final Setting VMEM_LIMIT_BELOW_MIN_MODE_SETTING = Setting.newBuilder()
+        .setSettingSpecName(ConfigurableActionSettings.ResizeVmemLimitBelowMinThreshold.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder()
+            .setValue(ActionDTO.ActionMode.DISABLED.name())
+            .build()).build();
+    /**
+     * VMEM Limit Resize Min Threshold 100 MB.
+     */
+    private static final Setting VMEM_LIMIT_MIN_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVmemLimitMinThreshold.getSettingName())
+        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(100))
+        .build();
+    private static final Setting VMEM_REQUEST_BELOW_MIN_MODE_SETTING = Setting.newBuilder()
+        .setSettingSpecName(ConfigurableActionSettings.ResizeVmemRequestBelowMinThreshold.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder()
+            .setValue(ActionDTO.ActionMode.RECOMMEND.name())
+            .build())
+        .build();
+    /**
+     * VMEM Request Resize Min Threshold 50 MB.
+     */
+    private static final Setting VMEM_REQUEST_MIN_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVmemRequestMinThreshold.getSettingName())
+        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(50))
+        .build();
+    private static final Setting CONTAINER_RESIZE_MODE_SETTING = Setting.newBuilder()
+        .setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionDTO.ActionMode.MANUAL.name()).build())
+        .build();
+
+    private static final TopologyEntityDTO.Builder testVM = TopologyEntityDTO.newBuilder().setOid(111)
+        .setEnvironmentType(EnvironmentType.ON_PREM)
+        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE))
+            .setCapacity(8));
+    private static final TopologyEntityDTO.Builder testPod = TopologyEntityDTO.newBuilder().setOid(222)
+        .setEntityType(EntityType.CONTAINER_POD_VALUE)
+        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderId(testVM.getOid())
+            .setProviderEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
+    private static final TopologyEntityDTO.Builder testContainer = TopologyEntityDTO.newBuilder().setOid(333)
+        .setEntityType(EntityType.CONTAINER_VALUE)
+        // VMem capacity 204800 KB (200 MB)
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VMEM_VALUE))
+            .setCapacity(204800))
+        // VMemRequest capacity 102400 KB (100 MB)
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VMEM_REQUEST_VALUE))
+            .setCapacity(102400))
+        // VCPU capacity 10 MHz
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE))
+            .setCapacity(10))
+        // VCPURequest capacity 10 MHz
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_REQUEST_VALUE))
+            .setCapacity(10))
+        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderId(testPod.getOid())
+            .setProviderEntityType(EntityType.CONTAINER_POD_VALUE));
+
     private static final Setting.Builder RESIZE_SETTING_BUILDER = Setting.newBuilder()
             .setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName());
 
@@ -661,6 +775,83 @@ public class EntitySettingsApplicatorTest {
         Assert.assertEquals(0, vCPUCommoditySoldThresholds.getMin(), DELTA);
         // VCPU min is 100 cores X 200 (vm capacity / num cpu)
         Assert.assertEquals(20000, vCPUCommoditySoldThresholds.getMax(), DELTA);
+    }
+
+    /**
+     * Tests applying of VCPU, VCPURequest, VMem and VMemRequest min and max applicators for a container
+     * with 10 MHz VCPU, 10 MHz VCPURequest, 200 MB VMem and 100 MB VMemRequest with following settings:
+     * <p/>
+     * VCPU Limit Resize Above Max: DISABLED;
+     * VCPU Limit Resize Max Threshold: 10,000 millicores;
+     * VCPU Limit Resize Below Min: DISABLED;
+     * VCPU Limit Resize Min Threshold: 100 millicores;
+     * VCPU Request Resize Below Min: RECOMMEND;
+     * VCPU Request Resize Min Threshold 20 millicores;
+     * VMem Limit Resize Above Max: DISABLED;
+     * VMEM Limit Resize Max Threshold 300 MB;
+     * VMem Limit Resize Below Min: DISABLED;
+     * VMEM Limit Resize Min Threshold 100 MB;
+     * VMem Request Resize Below Min: RECOMMEND;
+     * VMEM Request Resize Min Threshold 50 MB.
+     */
+    @Test
+    public void testEntityThresholdApplicatorForContainer() {
+        double mbToKb = 1024;
+        // Set numCPUs to VirtualMachineInfo.
+        testVM.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+            .setVirtualMachine(VirtualMachineInfo.newBuilder().setNumCpus(4))
+            .build());
+
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
+            testContainer.getOid(), topologyEntityBuilder(testContainer),
+            testPod.getOid(), topologyEntityBuilder(testPod),
+            testVM.getOid(), topologyEntityBuilder(testVM)));
+        applySettings(TOPOLOGY_INFO, applicator, graph, testContainer.getOid(), VMEM_LIMIT_ABOVE_MAX_MODE_SETTING,
+            VMEM_LIMIT_MAX_SETTING, VMEM_LIMIT_BELOW_MIN_MODE_SETTING, VMEM_LIMIT_MIN_SETTING,
+            VMEM_REQUEST_BELOW_MIN_MODE_SETTING, VMEM_REQUEST_MIN_SETTING, VCPU_LIMIT_ABOVE_MAX_MODE_SETTING,
+            VCPU_LIMIT_MAX_SETTING, VCPU_LIMIT_BELOW_MIN_MODE_SETTING, VCPU_LIMIT_MIN_SETTING,
+            VCPU_REQUEST_BELOW_MIN_MODE_SETTING, VCPU_REQUEST_MIN_SETTING, CONTAINER_RESIZE_MODE_SETTING);
+        final Thresholds vMemCommoditySoldThresholds = testContainer.getCommoditySoldList(0).getThresholds();
+        final Thresholds vMemRequestCommoditySoldThresholds = testContainer.getCommoditySoldList(1).getThresholds();
+        final Thresholds vCPUCommoditySoldThresholds = testContainer.getCommoditySoldList(2).getThresholds();
+        final Thresholds vCPURequestCommoditySoldThresholds = testContainer.getCommoditySoldList(3).getThresholds();
+
+        assertEquals(300 * mbToKb, vMemCommoditySoldThresholds.getMax(), DELTA);
+        assertEquals(100 * mbToKb, vMemCommoditySoldThresholds.getMin(), DELTA);
+        assertEquals(50 * mbToKb, vMemRequestCommoditySoldThresholds.getMin(), DELTA);
+        assertEquals(20, vCPUCommoditySoldThresholds.getMax(), DELTA);
+        assertEquals(0.2, vCPUCommoditySoldThresholds.getMin(), DELTA);
+        assertEquals(0.1, vCPURequestCommoditySoldThresholds.getMin(), DELTA);
+    }
+
+    /**
+     * Tests applying of VCPU, VCPURequest, VMem and VMemRequest min and max applicators for a container,
+     * where corresponding provider VM has no numCPUs. In this case, VCPU and VCPURequest commodities
+     * won't have thresholds set.
+     */
+    @Test
+    public void testEntityThresholdApplicatorForContainerWithoutNumCPUs() {
+        double mbToKb = 1024;
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
+            testContainer.getOid(), topologyEntityBuilder(testContainer),
+            testPod.getOid(), topologyEntityBuilder(testPod),
+            testVM.getOid(), topologyEntityBuilder(testVM)));
+        applySettings(TOPOLOGY_INFO, applicator, graph, testContainer.getOid(), VMEM_LIMIT_ABOVE_MAX_MODE_SETTING,
+            VMEM_LIMIT_MAX_SETTING, VMEM_LIMIT_BELOW_MIN_MODE_SETTING, VMEM_LIMIT_MIN_SETTING,
+            VMEM_REQUEST_BELOW_MIN_MODE_SETTING, VMEM_REQUEST_MIN_SETTING, VCPU_LIMIT_ABOVE_MAX_MODE_SETTING,
+            VCPU_LIMIT_MAX_SETTING, VCPU_LIMIT_BELOW_MIN_MODE_SETTING, VCPU_LIMIT_MIN_SETTING,
+            VCPU_REQUEST_BELOW_MIN_MODE_SETTING, VCPU_REQUEST_MIN_SETTING, CONTAINER_RESIZE_MODE_SETTING);
+
+        Thresholds vMemCommoditySoldThresholds = testContainer.getCommoditySoldList(0).getThresholds();
+        Thresholds vMemRequestCommoditySoldThresholds = testContainer.getCommoditySoldList(1).getThresholds();
+        assertEquals(300 * mbToKb, vMemCommoditySoldThresholds.getMax(), DELTA);
+        assertEquals(100 * mbToKb, vMemCommoditySoldThresholds.getMin(), DELTA);
+        assertEquals(50 * mbToKb, vMemRequestCommoditySoldThresholds.getMin(), DELTA);
+
+        CommoditySoldDTO vCPUCommoditySold = testContainer.getCommoditySoldList(2);
+        CommoditySoldDTO vCPURequestCommoditySold = testContainer.getCommoditySoldList(3);
+        assertFalse(vCPUCommoditySold.hasThresholds());
+        assertFalse(vCPURequestCommoditySold.hasThresholds());
     }
 
     /**

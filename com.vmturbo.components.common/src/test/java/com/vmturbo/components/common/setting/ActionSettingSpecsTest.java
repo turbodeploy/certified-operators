@@ -128,7 +128,7 @@ public class ActionSettingSpecsTest {
         Assert.assertEquals(Arrays.asList(ActionMode.DISABLED.name(), ActionMode.RECOMMEND.name(),
             ActionMode.EXTERNAL_APPROVAL.name(), ActionMode.MANUAL.name(), ActionMode.AUTOMATIC.name()),
             resizeEnum.getEnumValuesList());
-        Assert.assertThat(resizeEnum.getEntityEnumValuesCount(), is(1));
+        Assert.assertThat(resizeEnum.getEntityEnumValuesCount(), is(3));
         Assert.assertTrue(resizeEnum.getEntityEnumValuesMap().containsKey(EntityType.SWITCH_VALUE));
         Assert.assertEquals(AvailableEnumValues.newBuilder().addAllEnumValues(
             Arrays.asList(ActionMode.DISABLED.name(), ActionMode.RECOMMEND.name())).build(),

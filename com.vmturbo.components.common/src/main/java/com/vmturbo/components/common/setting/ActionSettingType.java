@@ -76,9 +76,13 @@ public enum ActionSettingType {
                             .build(),
                         ImmutableMap.<EntityType, ActionMode>builder()
                             .put(EntityType.SWITCH, ActionMode.DISABLED)
+                            .put(EntityType.CONTAINER_SPEC, ActionMode.DISABLED)
+                            .put(EntityType.WORKLOAD_CONTROLLER, ActionMode.RECOMMEND)
                             .build(),
                         ImmutableMap.<EntityType, ActionMode>builder()
                             .put(EntityType.SWITCH, ActionMode.RECOMMEND)
+                            .put(EntityType.CONTAINER_SPEC, ActionMode.MANUAL)
+                            .put(EntityType.WORKLOAD_CONTROLLER, ActionMode.AUTOMATIC)
                             .build(),
                         ActionMode.class);
                     break;
@@ -121,6 +125,15 @@ public enum ActionSettingType {
                 case CloudComputeScaleForPerf:
                 case CloudComputeScaleForSavings:
                     enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, ActionMode.AUTOMATIC, ActionMode.RECOMMEND,  ActionMode.class);
+                    break;
+                case ResizeVcpuLimitAboveMaxThreshold:
+                case ResizeVcpuLimitBelowMinThreshold:
+                case ResizeVcpuRequestBelowMinThreshold:
+                case ResizeVmemLimitAboveMaxThreshold:
+                case ResizeVmemLimitBelowMinThreshold:
+                case ResizeVmemRequestBelowMinThreshold:
+                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.RECOMMEND,
+                        ActionMode.RECOMMEND, ActionMode.DISABLED, ActionMode.class);
                     break;
                 case StorageMove:
                 case ResizeUpHeap:

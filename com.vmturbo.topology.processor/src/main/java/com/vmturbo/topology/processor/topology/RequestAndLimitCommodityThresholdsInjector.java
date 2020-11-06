@@ -108,13 +108,35 @@ public class RequestAndLimitCommodityThresholdsInjector {
         for (CommoditySoldDTO.Builder requestComm : requests) {
             // Set max threshold to capacity. In the market this is translated to a capacityUpperBound
             // equal to the capacity which prevents resize up actions.
-            requestComm.setThresholds(Thresholds.newBuilder().setMax(requestComm.getCapacity()));
+            // If there's an existing threshold, update max threshold as the min of existing max threshold
+            // and request capacity.
+            if (requestComm.hasThresholds()) {
+                Thresholds.Builder requestCommThresholdsBuilder = requestComm.getThresholdsBuilder();
+                double newMaxThreshold = requestComm.getCapacity();
+                if (requestCommThresholdsBuilder.hasMax()) {
+                    newMaxThreshold = Math.min(newMaxThreshold, requestCommThresholdsBuilder.getMax());
+                }
+                requestCommThresholdsBuilder.setMax(newMaxThreshold);
+            } else {
+                requestComm.setThresholds(Thresholds.newBuilder().setMax(requestComm.getCapacity()));
+            }
             stats.incrementRequestCommoditiesModified();
 
             // If there's a corresponding limit commodity for the request commodity, prevent the
             // market from resizing the limit below the request which is not permitted.
             matchingLimit(requestComm.getCommodityType().getType(), limits).ifPresent(limitComm -> {
-                limitComm.setThresholds(Thresholds.newBuilder().setMin(requestComm.getCapacity()));
+                // If there's an existing threshold, update min threshold as the max of existing min
+                // threshold and request capacity.
+                if (limitComm.hasThresholds()) {
+                    Thresholds.Builder limitCommThresholdsBuilder = limitComm.getThresholdsBuilder();
+                    double newMinThreshold = requestComm.getCapacity();
+                    if (limitCommThresholdsBuilder.hasMin()) {
+                        newMinThreshold = Math.max(newMinThreshold, limitCommThresholdsBuilder.getMin());
+                    }
+                    limitCommThresholdsBuilder.setMin(newMinThreshold);
+                } else {
+                    limitComm.setThresholds(Thresholds.newBuilder().setMin(requestComm.getCapacity()));
+                }
                 stats.incrementLimitCommoditiesModified();
             });
         }

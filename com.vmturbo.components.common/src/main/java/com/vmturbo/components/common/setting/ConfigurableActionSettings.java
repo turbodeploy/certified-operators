@@ -163,6 +163,24 @@ public enum ConfigurableActionSettings {
         EnumSet.of(EntityType.VIRTUAL_MACHINE)),
 
     /**
+     * Resize action automation mode for container cpu limit (VCPU commodity) resizes where the target capacity is above the max threshold value {@link EntitySettingSpecs#ResizeVcpuLimitMaxThreshold}.
+     */
+    ResizeVcpuLimitAboveMaxThreshold("resizeVcpuLimitAboveMaxThreshold", "VCPU Limit Resize Above Max",
+        EnumSet.of(EntityType.CONTAINER_SPEC)),
+
+    /**
+     * Resize action automation mode for container cpu limit (VCPU commodity) resizes where the target capacity is below the min value {@link EntitySettingSpecs#ResizeVcpuLimitMinThreshold}.
+     */
+    ResizeVcpuLimitBelowMinThreshold("resizeVcpuLimitBelowMinThreshold", "VCPU Limit Resize Below Min",
+        EnumSet.of(EntityType.CONTAINER_SPEC)),
+
+    /**
+     * Resize action automation mode for container cpu request (VCPURequest commodity) resizes where the target capacity is below the min value {@link EntitySettingSpecs#ResizeVcpuRequestMinThreshold}.
+     */
+    ResizeVcpuRequestBelowMinThreshold("resizeVcpuRequestBelowMinThreshold", "VCPU Request Resize Below Min",
+        EnumSet.of(EntityType.CONTAINER_SPEC)),
+
+    /**
      * Resize action automation mode for vmem resize ups where the target capacity is between
      * {@link EntitySettingSpecs#ResizeVmemMinThreshold} and {@link EntitySettingSpecs#ResizeVmemMaxThreshold}.
      */
@@ -187,6 +205,24 @@ public enum ConfigurableActionSettings {
      */
     ResizeVmemBelowMinThreshold("resizeVmemBelowMinThreshold", "VMem Resize Below Min",
         EnumSet.of(EntityType.VIRTUAL_MACHINE)),
+
+    /**
+     * Resize action automation mode for container memory limit (VMem commodity) resizes where the target capacity is above the max threshold value {@link EntitySettingSpecs#ResizeVmemLimitMaxThreshold}.
+     */
+    ResizeVmemLimitAboveMaxThreshold("resizeVmemLimitAboveMaxThreshold", "VMem Limit Resize Above Max",
+        EnumSet.of(EntityType.CONTAINER_SPEC)),
+
+    /**
+     * Resize action automation mode for container memory limit (VMem commodity) resizes where the target capacity is below the min value {@link EntitySettingSpecs#ResizeVmemLimitMinThreshold}.
+     */
+    ResizeVmemLimitBelowMinThreshold("resizeVmemLimitBelowMinThreshold", "VMem Limit Resize Below Min",
+        EnumSet.of(EntityType.CONTAINER_SPEC)),
+
+    /**
+     * Resize action automation mode for container memory request (VMemRequest commodity) resizes where the target capacity is below the min value {@link EntitySettingSpecs#ResizeVmemRequestMinThreshold}.
+     */
+    ResizeVmemRequestBelowMinThreshold("resizeVmemRequestBelowMinThreshold", "VMem Request Resize Below Min",
+        EnumSet.of(EntityType.CONTAINER_SPEC)),
 
     /**
      * Suspend action automation mode.
