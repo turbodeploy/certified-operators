@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.jooq.Record;
 import org.jooq.Table;
@@ -48,6 +49,7 @@ public class BulkLoaderMock {
     public SimpleBulkLoaderFactory getFactory() {
         SimpleBulkLoaderFactory mock = mock(SimpleBulkLoaderFactory.class);
         doAnswer(getLoader).when(mock).getLoader(isA(Table.class));
+        doAnswer(getLoader).when(mock).getLoader(isA(Table.class), isA(Set.class));
         try {
             doAnswer(getTransientLoader).when(mock).getTransientLoader(
                     isA(Table.class), isA(TableOperation.class));

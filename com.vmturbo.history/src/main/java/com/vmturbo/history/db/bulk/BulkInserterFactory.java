@@ -118,6 +118,16 @@ public class BulkInserterFactory implements AutoCloseable {
         return getInserter(inTable, inTable, outTable, recordTransformer, dbInserter, Optional.empty());
     }
 
+    <InT extends Record, OutT extends Record> BulkInserter<InT, OutT> getInserter(
+        @Nonnull Object key,
+        @Nonnull Table<InT> inTable,
+        @Nonnull Table<OutT> outTable,
+        @Nonnull RecordTransformer<InT, OutT> recordTransformer,
+        @Nonnull DbInserter<OutT> dbInserter) {
+
+        return getInserter(key, inTable, outTable, recordTransformer, dbInserter, Optional.empty());
+    }
+
     /**
      * Create, if needed, a new {@link BulkInserter} instance keyed by input table.
      *

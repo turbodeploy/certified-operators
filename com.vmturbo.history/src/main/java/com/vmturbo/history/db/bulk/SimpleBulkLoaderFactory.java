@@ -1,5 +1,6 @@
 package com.vmturbo.history.db.bulk;
 
+import static com.vmturbo.history.db.bulk.DbInserters.excludeFieldsUpserter;
 import static com.vmturbo.history.db.bulk.DbInserters.simpleUpserter;
 import static com.vmturbo.history.db.bulk.DbInserters.valuesInserter;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_DAY;
@@ -12,6 +13,7 @@ import static com.vmturbo.history.schema.abstraction.Tables.VOLUME_ATTACHMENT_HI
 import static com.vmturbo.history.schema.abstraction.tables.VmStatsLatest.VM_STATS_LATEST;
 
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -23,6 +25,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.Logger;
+import org.jooq.Field;
 import org.jooq.Record;
 import org.jooq.Table;
 
@@ -118,7 +121,24 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
      * @return an appropriately configured writer
      */
     public <R extends Record> BulkLoader<R> getLoader(final @Nonnull Table<R> table) {
-        return factory.getInserter(table, table, getRecordTransformer(table), getDbInserter(table));
+        return factory.getInserter(table, table, getRecordTransformer(table), getDbInserter(table,
+            Collections.emptySet()));
+    }
+
+    /**
+     * Get loader for records of the given table, configured appropriately.
+     *
+     * @param table the table into which records will be inserted
+     * @param fieldsToExclude set of fields that should not be updated
+     * @param <R> the underlying record type
+     * @return an appropriately configured writer
+     */
+    //TODO(OM-64657): replace fieldsToExclude with a more generic parameter.
+    public <R extends Record> BulkLoader<R> getLoader(
+        @Nonnull final Table<R> table, @Nonnull final Set<Field<?>> fieldsToExclude) {
+        final String key = table.getName() + "/" + fieldsToExclude;
+        return factory.getInserter(key, table, table, getRecordTransformer(table),
+            getDbInserter(table, fieldsToExclude));
     }
 
     /**
@@ -157,7 +177,8 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
             final @Nonnull Table<R> table, TableOperation<R> postTableCreateOp)
             throws SQLException, InstantiationException, VmtDbException, IllegalAccessException {
         return factory.getTransientInserter(
-                table, table, getRecordTransformer(table), getDbInserter(table),
+                table, table, getRecordTransformer(table), getDbInserter(table,
+                Collections.emptySet()),
                 postTableCreateOp);
     }
 
@@ -170,11 +191,14 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
         }
     }
 
-    private <R extends Record> DbInserter<R> getDbInserter(Table<R> table) {
-        if (ENTITIES == table || HIST_UTILIZATION == table || VOLUME_ATTACHMENT_HISTORY == table) {
+    private <R extends Record> DbInserter<R> getDbInserter(Table<R> table,
+                                                           Set<Field<?>> fieldsToExclude) {
+        if (ENTITIES == table || HIST_UTILIZATION == table) {
             // Entities table uses upserts so that previously existing entities get any changes
             // to display name that show up in the topology.
             return simpleUpserter(basedbIO);
+        } else if (VOLUME_ATTACHMENT_HISTORY == table) {
+            return excludeFieldsUpserter(basedbIO, fieldsToExclude);
         } else {
             // nothing else currently using bulk loader should ever have a primary key collision,
             // so straight inserts are used.

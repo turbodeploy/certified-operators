@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -131,13 +132,34 @@ public class DbInserters {
     public static <R extends Record> DbInserter<R> simpleUpserter(BasedbIO basedbIO) {
         return (table, records, conn) -> {
             final DSLContext ctx = basedbIO.using(conn);
-            final Insert<R> upsert = getUpsertStatement(table, records, ctx);
+            final Insert<R> upsert = getUpsertStatement(table, records, ctx,
+                Collections.emptySet());
             ctx.execute(upsert);
         };
-
     }
 
-    private static <R extends Record> Insert<R> getUpsertStatement(Table<R> table, Collection<R> records, DSLContext ctx) {
+    /**
+     * Inserter that that performs an "upsert" operation. In addition, it skips updating fields
+     * provided in the fieldsToExclude argument.
+     *
+     * @param basedbIO DB utilities
+     * @param fieldsToExclude the fields that need to be excluded from updates
+     * @param <R> table record type
+     * @return inserter function to apply to record batches
+     */
+    public static <R extends Record> DbInserter<R> excludeFieldsUpserter(
+        BasedbIO basedbIO, Set<Field<?>> fieldsToExclude) {
+        return (table, records, conn) -> {
+            final DSLContext ctx = basedbIO.using(conn);
+            final Insert<R> upsert = getUpsertStatement(table, records, ctx, fieldsToExclude);
+            ctx.execute(upsert);
+        };
+    }
+
+    private static <R extends Record> Insert<R> getUpsertStatement(Table<R> table,
+                                                                   Collection<R> records,
+                                                                   DSLContext ctx,
+                                                                   Set<Field<?>> fieldsToExclude) {
         final Insert<R> insert = (Insert<R>)ctx.insertInto(getInsertionTable(table));
         final Set<TableField<R, ?>> primaryKey = new HashSet<>(table.getPrimaryKey().getFields());
         records.forEach(r -> {
@@ -151,6 +173,7 @@ public class DbInserters {
         ((InsertSetMoreStep<R>)insert).onDuplicateKeyUpdate();
         Map<Field<?>, Field<?>> updates = Stream.of(table.fields())
                 .filter(f -> !primaryKey.contains(f))
+                .filter(f -> !fieldsToExclude.contains(f))
                 .collect(Collectors.toMap(Functions.identity(), f -> DSL.field(String.format("VALUES(%s)", f.getName()), f.getType())));
         ((InsertOnDuplicateSetStep<R>)insert).set(updates);
         return insert;

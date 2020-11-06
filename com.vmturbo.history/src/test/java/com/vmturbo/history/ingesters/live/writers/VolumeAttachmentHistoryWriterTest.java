@@ -180,6 +180,25 @@ public class VolumeAttachmentHistoryWriterTest {
         Assert.assertEquals(2, actualRecords.size());
     }
 
+    /**
+     * Test that record related to unattached volume is inserted with the placeholder VM OID.
+     *
+     * @throws InterruptedException if processEntities is interrupted.
+     */
+    @Test
+    public void testUnattachedVolume() throws InterruptedException {
+        final TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
+            .setOid(VOLUME_1_OID)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .build();
+        writer.processEntities(Collections.singleton(entity), INFO_SUMMARY);
+        writer.finish(0, false, INFO_SUMMARY);
+        final long placeholderVmOid = 0;
+        verifyRecords(createExpectedRecords(placeholderVmOid, VOLUME_1_OID),
+            new HashSet<>(dbMock.getRecords(VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY)));
+    }
+
     private void verifyRecords(final Set<VolumeAttachmentHistoryRecord> expectedRecords,
                                final Set<VolumeAttachmentHistoryRecord> actualRecords) {
         Assert.assertEquals(expectedRecords, actualRecords);
