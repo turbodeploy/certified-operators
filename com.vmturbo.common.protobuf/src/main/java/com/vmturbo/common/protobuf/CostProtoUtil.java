@@ -118,6 +118,7 @@ public class CostProtoUtil {
     public static double getHourlyPriceAmount(@Nonnull final Price price) {
         switch (price.getUnit()) {
             case HOURS:
+            case IO_REQUESTS:
                 return price.getPriceAmount().getAmount();
             case DAYS:
                 return price.getPriceAmount().getAmount() / HOURS_IN_DAY;

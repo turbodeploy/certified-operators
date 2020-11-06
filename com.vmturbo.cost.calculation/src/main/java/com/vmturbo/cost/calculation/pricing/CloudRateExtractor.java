@@ -332,8 +332,8 @@ public class CloudRateExtractor {
     public StoragePriceBundle getStoragePriceBundle(final long tierId, final long regionId, final AccountPricingData accountPricingData) {
         final StoragePriceBundle.Builder priceBuilder = StoragePriceBundle.newBuilder();
         if (accountPricingData == null || accountPricingData.getPriceTable() == null) {
-            logger.error("No account pricing data found for business account oid {}");
-            return null;
+            logger.error("No account pricing data found to generate StoragePriceBundle.");
+            return priceBuilder.build();
         }
         final Optional<TopologyEntityDTO> storageTierOpt = cloudTopology.getEntity(tierId);
         if (!storageTierOpt.isPresent()) {
@@ -419,14 +419,25 @@ public class CloudRateExtractor {
 
                 // A price is considered a "unit" price if the amount of units consumed
                 // affects the price.
-                final boolean isUnitPrice = unit == Unit.GB_MONTH || unit == Unit.MILLION_IOPS || unit == Unit.MBPS_MONTH;
+                final boolean isUnitPrice = unit == Unit.GB_MONTH
+                        || unit == Unit.MILLION_IOPS || unit == Unit.MBPS_MONTH
+                        || unit == Unit.IO_REQUESTS;
 
                 // Based on the unit, determine the commodity types the prices are for.
                 // The same prices apply to all commodities of the same type - the price table
                 // does not make any distinction based on commodity key.
-                final Set<TopologyDTO.CommodityType> soldCommTypes =
-                        unit == Unit.MILLION_IOPS ? soldAccessTypes
-                                : (unit == Unit.MBPS_MONTH ? soldThroughputTypes : soldAmountTypes);
+                final Set<TopologyDTO.CommodityType> soldCommTypes;
+                switch (unit) {
+                    case MILLION_IOPS:
+                    case IO_REQUESTS:
+                        soldCommTypes = soldAccessTypes;
+                        break;
+                    case MBPS_MONTH:
+                        soldCommTypes = soldThroughputTypes;
+                        break;
+                    default:
+                        soldCommTypes = soldAmountTypes;
+                }
                 priceList.forEach(price -> {
                     final double discountPercentage = discountApplicator.getDiscountPercentage(tierId).getValue();
 
@@ -442,7 +453,8 @@ public class CloudRateExtractor {
                             .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(accountPricingData.getAccountPricingDataOid()).setRegionId(regionId)
                                     .setPrice(hourlyPriceAmount * (1 - discountPercentage)).build())
                             .setIsUnitPrice(isUnitPrice)
-                            .setIsAccumulativeCost(isAccumulativePrice);
+                            .setIsAccumulativeCost(isAccumulativePrice)
+                            .setAppliedToHistoricalQuantity(unit == Unit.IO_REQUESTS);
 
                     // Even in an accumulative price, the last price will have no valid end range.
                     if (price.getEndRangeInUnits() > 0 && price.getEndRangeInUnits() < Long.MAX_VALUE) {

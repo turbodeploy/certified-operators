@@ -70,6 +70,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Removed;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -1868,6 +1870,44 @@ public class TopologyConverterToMarketTest {
             assertEquals(peak[index], to.getPeakQuantity(), DELTA);
             index++;
         }
+    }
+
+    /**
+     * Tests populating "historicalQuantity" field of StorageAccess commodity in volume buyer.
+     */
+    @Test
+    public void testCreateAndValidateCommBoughtTOWithHistoricalQuantity() {
+        // The buyer is a volume with "hourlyBilledOps" field populated
+        final float historicalUsed = 500F;
+        final TopologyEntityDTO volume = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setOid(111L)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                        .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                                .setHourlyBilledOps(historicalUsed)
+                                .build())
+                        .build())
+                .build();
+
+        // The bought commodity is StorageAccess. It is expected that hourlyBilledOps is assigned to
+        // historicalQuantity of this commodity.
+        final CommodityBoughtDTO boughtCommodityDTO = CommodityBoughtDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE)
+                        .build())
+                .build();
+
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+                consistentScalingHelperFactory, reversibilitySettingFetcher);
+
+        final List<CommodityBoughtTO> boughtTOs = converter.createAndValidateCommBoughtTO(volume,
+                boughtCommodityDTO, 222L, Optional.empty());
+        assertEquals(1, boughtTOs.size());
+        final CommodityBoughtTO boughtTO = boughtTOs.get(0);
+        assertTrue(boughtTO.hasHistoricalQuantity());
+        assertEquals(historicalUsed, boughtTO.getHistoricalQuantity(), DELTA);
     }
 
     private CommodityBoughtDTO createBoughtCommodity(HistoricalValues histUsed, HistoricalValues histPeak,

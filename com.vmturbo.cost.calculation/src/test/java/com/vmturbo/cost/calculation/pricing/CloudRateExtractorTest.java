@@ -658,6 +658,7 @@ public class CloudRateExtractorTest {
                     .setIsUnitPrice(true)
                     // Accumulative price is always false for storage tiers.
                     .setIsAccumulativeCost(false)
+                    .setAppliedToHistoricalQuantity(false)
                     .setUpperBound(7)
                     .build(),
                 StorageTierPriceData.newBuilder()
@@ -667,6 +668,7 @@ public class CloudRateExtractorTest {
                     .setIsUnitPrice(true)
                     // Accumulative price is always false for storage tiers.
                     .setIsAccumulativeCost(false)
+                    .setAppliedToHistoricalQuantity(false)
                     .setUpperBound(10)
                     .build(),
                 StorageTierPriceData.newBuilder()
@@ -676,6 +678,7 @@ public class CloudRateExtractorTest {
                     .setIsUnitPrice(true)
                     // Accumulative price is always false for storage tiers.
                     .setIsAccumulativeCost(false)
+                    .setAppliedToHistoricalQuantity(false)
                     .setUpperBound(Double.POSITIVE_INFINITY)
                     .build()};
 
@@ -726,6 +729,7 @@ public class CloudRateExtractorTest {
                 .setIsUnitPrice(true)
                 // Accumulative price is always false for storage tiers.
                 .setIsAccumulativeCost(false)
+                .setAppliedToHistoricalQuantity(false)
                 .setUpperBound(7)
                 .build(),
                 StorageTierPriceData.newBuilder()
@@ -735,6 +739,7 @@ public class CloudRateExtractorTest {
                         .setIsUnitPrice(true)
                         // Accumulative price is always false for storage tiers.
                         .setIsAccumulativeCost(false)
+                        .setAppliedToHistoricalQuantity(false)
                         .setUpperBound(Double.POSITIVE_INFINITY)
                         .build());
 
@@ -781,6 +786,7 @@ public class CloudRateExtractorTest {
                 .setIsUnitPrice(false)
                 // Not accumulative because we don't have ranges.
                 .setIsAccumulativeCost(false)
+                .setAppliedToHistoricalQuantity(false)
                 .setUpperBound(Double.POSITIVE_INFINITY)
                 .build();
 
@@ -834,6 +840,7 @@ public class CloudRateExtractorTest {
                 .setIsUnitPrice(false)
                 // Accumulative price is false for all storage tiers.
                 .setIsAccumulativeCost(false)
+                .setAppliedToHistoricalQuantity(false)
                 .setUpperBound(7)
                 .build(),
             StorageTierPriceData.newBuilder()
@@ -843,6 +850,7 @@ public class CloudRateExtractorTest {
                 .setIsUnitPrice(false)
                 // Accumulative price is always false for storage tiers.
                 .setIsAccumulativeCost(false)
+                .setAppliedToHistoricalQuantity(false)
                 .setUpperBound(Double.POSITIVE_INFINITY)
                 .build());
 
@@ -899,6 +907,7 @@ public class CloudRateExtractorTest {
                     .setIsUnitPrice(true)
                     // Accumulative price is always false for storage tiers.
                     .setIsAccumulativeCost(false)
+                    .setAppliedToHistoricalQuantity(false)
                     .setUpperBound(7)
                     // 20% off $10
                     .build(),
@@ -909,6 +918,7 @@ public class CloudRateExtractorTest {
                     .setIsUnitPrice(true)
                     // Accumulative price is always false for storage tiers.
                     .setIsAccumulativeCost(false)
+                    .setAppliedToHistoricalQuantity(false)
                     .setUpperBound(Double.POSITIVE_INFINITY)
                     .build());
 

@@ -3572,11 +3572,27 @@ public class TopologyConverter {
                 peakQuantity = 0;
             }
             builder.setQuantity(quantity).setPeakQuantity(peakQuantity);
+            populateHistoricalQuantity(commodityType, buyer, builder);
             boughtTOs.add(builder.build());
         }
         logger.debug("Created {} bought commodity TOs for {}",
             boughtTOs::size, () -> topologyCommBought);
         return boughtTOs;
+    }
+
+    private static void populateHistoricalQuantity(
+            final int commodityType,
+            @Nonnull final TopologyEntityDTO buyer,
+            @Nonnull final CommodityBoughtTO.Builder builder) {
+        if (buyer.hasTypeSpecificInfo()) {
+            final TypeSpecificInfo typeSpecificInfo = buyer.getTypeSpecificInfo();
+            if (commodityType == CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE
+                    && typeSpecificInfo.hasVirtualVolume()
+                    && typeSpecificInfo.getVirtualVolume().hasHourlyBilledOps()) {
+                builder.setHistoricalQuantity(
+                        (float)typeSpecificInfo.getVirtualVolume().getHourlyBilledOps());
+            }
+        }
     }
 
     /**
