@@ -146,7 +146,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]util[/\\]stats[/\\]query[/\\]SubQuerySupportedStats.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]util[/\\]stats[/\\]query[/\\]impl[/\\]CloudCostsStatsSubQuery.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]util[/\\]stats[/\\]query[/\\]impl[/\\]CloudPlanNumEntitiesByTierSubQuery.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]util[/\\]stats[/\\]query[/\\]impl[/\\]ClusterStatsSubQuery.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]util[/\\]stats[/\\]query[/\\]impl[/\\]HistoricalCommodityStatsSubQuery.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]util[/\\]stats[/\\]query[/\\]impl[/\\]NumClustersStatsSubQuery.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]api[/\\]component[/\\]external[/\\]api[/\\]util[/\\]stats[/\\]query[/\\]impl[/\\]PlanCommodityStatsSubQuery.java" />

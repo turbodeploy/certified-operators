@@ -366,7 +366,7 @@ public class ClusterStatsReader {
                                      requestedDailyStats, startDate, endDate, includeProjectedStats);
         }
         if (nonDailyStatsAreRequested) {
-            fetchAndIngestNonDailyStats(statsPerCluster, clusterIds, requestedNonDailyStats, startDate, endDate);
+            fetchAndIngestNonDailyStats(computedPropertiesProcessor, statsPerCluster, clusterIds, requestedNonDailyStats, startDate, endDate);
         }
 
         // add projections
@@ -400,10 +400,12 @@ public class ClusterStatsReader {
         return createClusterStatsResponseList(entityStats, paginationResponse);
     }
 
-    private void fetchAndIngestNonDailyStats(@Nonnull Map<Long, SingleClusterStats> statsPerCluster,
-                                             @Nonnull Set<Long> clusterIds, @Nonnull Set<String> fields,
-                                             @Nonnull Optional<Long> startDate,
-                                             @Nonnull Optional<Long> endDate)
+    private void fetchAndIngestNonDailyStats(
+            @Nonnull final ComputedPropertiesProcessor computedPropertiesProcessor,
+            @Nonnull final Map<Long, SingleClusterStats> statsPerCluster,
+            @Nonnull final Set<Long> clusterIds, @Nonnull Set<String> fields,
+            @Nonnull final Optional<Long> startDate,
+            @Nonnull final Optional<Long> endDate)
             throws VmtDbException {
         // find tables to query
         // assumptions on the input:
@@ -449,12 +451,12 @@ public class ClusterStatsReader {
         // execute query on all applicable tables and
         // insert the results into the statsPerCluster map
         for (Table<?> t : dbTablesToQuery) {
-            fetchAndIngestDBRecords(null, statsPerCluster, clusterIds, fields,
+            fetchAndIngestDBRecords(computedPropertiesProcessor, statsPerCluster, clusterIds, fields,
                                     startTimestamp, endTimestamp, false, t);
         }
     }
 
-    private void fetchAndIngestDailyStats(@Nullable ComputedPropertiesProcessor computedPropertiesProcessor,
+    private void fetchAndIngestDailyStats(@Nonnull ComputedPropertiesProcessor computedPropertiesProcessor,
                                           @Nonnull Map<Long, SingleClusterStats> statsPerCluster,
                                           @Nonnull Set<Long> clusterIds, @Nonnull Set<String> fields,
                                           @Nonnull Optional<Long> startDate, @Nonnull Optional<Long> endDate,
@@ -486,7 +488,7 @@ public class ClusterStatsReader {
         }
     }
 
-    private void fetchAndIngestDBRecords(@Nullable ComputedPropertiesProcessor computedPropertiesProcessor,
+    private void fetchAndIngestDBRecords(@Nonnull ComputedPropertiesProcessor computedPropertiesProcessor,
                                          @Nonnull Map<Long, SingleClusterStats> statsPerCluster,
                                          @Nonnull Set<Long> clusterIds, @Nonnull Set<String> fields,
                                          @Nonnull Optional<Timestamp> startTimestamp,
@@ -517,13 +519,9 @@ public class ClusterStatsReader {
                                                               queryFields, clusterIds);
         final Result<? extends Record> queryResults = historydbIO.execute(query.getQuery());
 
-        // post-process the results of the query, if a computed-properties processor is available
-        final Iterable<? extends Record> processedQueryResults;
-        if (computedPropertiesProcessor != null) {
-            processedQueryResults = computedPropertiesProcessor.processResults(queryResults, null);
-        } else {
-            processedQueryResults = queryResults;
-        }
+        // post-process the results of the query
+        final Iterable<? extends Record> processedQueryResults
+                = computedPropertiesProcessor.processResults(queryResults, null);
 
         // ingest query results
         for (Record r : processedQueryResults) {

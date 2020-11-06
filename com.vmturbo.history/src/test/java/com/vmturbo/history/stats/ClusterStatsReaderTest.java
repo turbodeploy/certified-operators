@@ -6,6 +6,8 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.INTERNAL_NAME;
 import static com.vmturbo.common.protobuf.utils.StringConstants.MEM;
 import static com.vmturbo.common.protobuf.utils.StringConstants.MEM_HEADROOM;
 import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_CPUS;
+import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_HOSTS;
+import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS_PER_HOST;
 import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_SUBTYPE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.RECORDED_ON;
@@ -19,6 +21,7 @@ import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_LATEST
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByMonth.CLUSTER_STATS_BY_MONTH;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -139,8 +142,7 @@ public class ClusterStatsReaderTest {
         final ClusterTimeRangeFactory timeRangeFactory = new ClusterTimeRangeFactory(
                 historydbIO, timeFrameCalculator);
         final ComputedPropertiesProcessorFactory computedPropertiesFactory =
-                (statsFilter, recordsProcessor) ->
-                        new ComputedPropertiesProcessor(statsFilter, recordsProcessor);
+                ComputedPropertiesProcessor::new;
         clusterStatsReader = new ClusterStatsReader(historydbIO, timeRangeFactory,
                 computedPropertiesFactory, 500);
         System.out.println("Initializing DB - " + testDbName);
@@ -242,6 +244,16 @@ public class ClusterStatsReaderTest {
             insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_5, MEM, CAPACITY, 9.0);
             insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_6, MEM, USED, 0.0);
             insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_6, MEM, CAPACITY, 9.0);
+
+            // count records in "latest"
+            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_3, NUM_VMS, NUM_VMS, 8.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_3, NUM_HOSTS, NUM_HOSTS, 1.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_4, NUM_VMS, NUM_VMS, 6.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_4, NUM_HOSTS, NUM_HOSTS, 1.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_5, NUM_VMS, NUM_VMS, 10.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_5, NUM_HOSTS, NUM_HOSTS, 1.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_6, NUM_VMS, NUM_VMS, 4.0);
+            insertStatsRecord(loaders, CLUSTER_STATS_LATEST, minuteAgo, CLUSTER_ID_6, NUM_HOSTS, NUM_HOSTS, 1.0);
 
             // memory utilization records in "stats by day"
             insertStatsRecord(loaders, CLUSTER_STATS_BY_DAY, PREVIOUS_COMMODITY_STATS_TIMESTAMP, CLUSTER_ID_3,
@@ -404,7 +416,7 @@ public class ClusterStatsReaderTest {
     private void clearClusterTableStats() throws SQLException, VmtDbException {
         try (Connection conn = historydbIO.connection()) {
             Stream.of(CLUSTER_STATS_BY_MONTH, CLUSTER_STATS_BY_DAY, CLUSTER_STATS_BY_HOUR,
-                    CLUSTER_STATS_LATEST).forEach(table -> historydbIO.using(conn).deleteFrom(table).execute());
+                    CLUSTER_STATS_LATEST).forEach(table -> historydbIO.using(conn).truncateTable(table).execute());
         }
     }
 
@@ -463,7 +475,7 @@ public class ClusterStatsReaderTest {
      * Date range is provided. The start and end dates are within the range in the dataset.
      * CommodityNames is empty. Show that all types of commodities will be returned.
      *
-     * @throws VmtDbException vmtdb exception
+     * @throws Exception if there's a problem
      */
     @Test
     public void testGetStatsRecordsByDayWithoutCommodityName() throws Exception {
@@ -478,10 +490,10 @@ public class ClusterStatsReaderTest {
     }
 
     /**
-     * Date range is provided. The start and end dates are within the range in the dataset.
-     * One commodity name is specified.
+     * Date range is provided. The start and end dates are within the range in the dataset. One
+     * commodity name is specified.
      *
-     * @throws VmtDbException vmtdb exception
+     * @throws Exception if there's an issue
      */
     @Test
     public void testGetStatsRecordsByDayWithOneCommodityName() throws Exception {
@@ -497,10 +509,10 @@ public class ClusterStatsReaderTest {
     }
 
     /**
-     * Date range is provided.  The start and end dates are within the range in the dataset.
-     * Show that the range is inclusive of both end dates.
+     * Date range is provided.  The start and end dates are within the range in the dataset. Show
+     * that the range is inclusive of both end dates.
      *
-     * @throws VmtDbException vmtdb exception
+     * @throws Exception if there's an issue
      */
     @Test
     public void testGetStatsRecordsByDayWithDateRange1() throws Exception {
@@ -518,7 +530,7 @@ public class ClusterStatsReaderTest {
     /**
      * Date range is provided.  The start and end dates are outside of the range of the dataset.
      *
-     * @throws VmtDbException vmtdb exception
+     * @throws Exception if there's an issue
      */
     @Test
     public void testGetStatsRecordsByDayWithDateRange2() throws Exception {
@@ -533,6 +545,11 @@ public class ClusterStatsReaderTest {
         assertEquals(6, result.size());
     }
 
+    /**
+     * Check that a request requiring month timeframe operates correctly.
+     *
+     * @throws Exception if there's an issue
+     */
     @Test
     public void testGetStatsRecordsByMonth() throws Exception {
         populateTestDataSmall();
@@ -550,7 +567,7 @@ public class ClusterStatsReaderTest {
      * Date range is provided. The start and end dates are within the range in the dataset.
      * CommodityNames is empty. Show that all types of commodities will be returned.
      *
-     * @throws VmtDbException vmtdb exception
+     * @throws Exception if there's an issue
      */
     @Test
     public void testGetStatsRecordsByMonthWithoutCommodityName() throws Exception {
@@ -568,7 +585,7 @@ public class ClusterStatsReaderTest {
      * Date range is provided. The start and end dates are within the range in the dataset.
      * CommodityNames is empty. Show that all types of commodities will be returned.
      *
-     * @throws VmtDbException vmtdb exception
+     * @throws Exception if there's an issue
      */
     @Test
     public void testGetStatsRecordsByMonthWithOneCommodityName() throws Exception {
@@ -583,6 +600,11 @@ public class ClusterStatsReaderTest {
         assertEquals(3, result.size());
     }
 
+    /**
+     * Test time range resolution in a scenario that mimics UI's Top-N widget.
+     *
+     * @throws Exception if there's an issue
+     */
     @Test
     public void testGetStatsRecordsLatestAvailable() throws Exception {
         populateTestDataSmall();
@@ -603,27 +625,27 @@ public class ClusterStatsReaderTest {
 
         // Db should return data from most recent date available i.e 2017-12-15.
         assertEquals(1, result.size());
-        result.stream()
-                .map(record -> record.getRecordedOn())
-                .allMatch(date -> date.equals(Timestamp.valueOf("2017-12-15 01:33:53")));
+        assertTrue(result.stream()
+                .map(ClusterStatsRecordReader::getRecordedOn)
+                .allMatch(date -> date.equals(Timestamp.valueOf("2017-12-15 01:33:53"))));
 
         t1 = Date.valueOf("2017-12-13").getTime();
         result = clusterStatsReader.getStatsRecordsForHeadRoomPlanRequest(Long.parseLong(CLUSTER_ID_1),
                 t1, t1, Optional.of(TimeFrame.DAY), commodityNames);
         // Db should return data from 2017-12-12 as that is most recent data on or before 2017-12-13 for these commodities.
         assertEquals(1, result.size());
-        result.stream()
-                .map(record -> record.getRecordedOn())
-                .allMatch(date -> date.equals(Date.valueOf("2017-12-12")));
+        assertTrue(result.stream()
+                .map(ClusterStatsRecordReader::getRecordedOn)
+                .allMatch(date -> date.equals(Timestamp.valueOf("2017-12-12 00:00:00"))));
 
         t1 = Date.valueOf("2017-12-12").getTime();
         result = clusterStatsReader.getStatsRecordsForHeadRoomPlanRequest(Long.parseLong(CLUSTER_ID_1),
                 t1, t1, Optional.of(TimeFrame.DAY), commodityNames);
         // Db should return data from 2017-12-12 as thats the most recent one w.r.t given date.
         assertEquals(1, result.size());
-        result.stream()
-                .map(record -> record.getRecordedOn())
-                .allMatch(date -> date.equals(Date.valueOf("2017-12-12")));
+        assertTrue(result.stream()
+                .map(ClusterStatsRecordReader::getRecordedOn)
+                .allMatch(date -> date.equals(Timestamp.valueOf("2017-12-12 00:00:00"))));
     }
 
     /**
@@ -659,13 +681,58 @@ public class ClusterStatsReaderTest {
             Assert.assertEquals(MEM,
                 entityStats.get(i).getStatSnapshots(0)
                                         .getStatRecords(0).getName());
-            Assert.assertTrue(entityStats.get(i).getStatSnapshots(0)
-                                      .getStatRecords(0).getCapacity().getAvg() > 0.0);
-            Assert.assertTrue(entityStats.get(i).getStatSnapshots(0)
-                                      .getStatRecords(0).hasUsed());
+            assertTrue(entityStats.get(i).getStatSnapshots(0)
+                    .getStatRecords(0).getCapacity().getAvg() > 0.0);
+            assertTrue(entityStats.get(i).getStatSnapshots(0)
+                    .getStatRecords(0).hasUsed());
             Assert.assertEquals("KB", entityStats.get(i).getStatSnapshots(0)
                                                    .getStatRecords(0).getUnits());
         }
+    }
+
+    /**
+     * Tests {@link ClusterStatsReader#getStatsRecords}.
+     *
+     * <p>In this test we check that market-scoped cluster stats request works correctly when a
+     * computed stat is requested.</p>
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetClustersRatioStat() throws Exception {
+        populateTestDataBig();
+        final ClusterStatsRequest request = constructTestInput(Collections.emptySet(), NUM_VMS_PER_HOST,
+                false, 0, 100);
+        final List<ClusterStatsResponse> response = clusterStatsReader.getStatsRecords(request);
+        PaginationResponse paginationResponse = null;
+        List<EntityStats> entityStats = new ArrayList<>();
+        for (ClusterStatsResponse responseChunk : response) {
+            if (responseChunk.hasPaginationResponse()) {
+                paginationResponse = responseChunk.getPaginationResponse();
+            } else {
+                entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
+            }
+        }
+
+        Assert.assertFalse(paginationResponse.hasNextCursor());
+        Assert.assertEquals(4, entityStats.size());
+        Assert.assertEquals(CLUSTER_ID_5, Long.toString(entityStats.get(0).getOid()));
+        Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(1).getOid()));
+        Assert.assertEquals(CLUSTER_ID_4, Long.toString(entityStats.get(2).getOid()));
+        Assert.assertEquals(CLUSTER_ID_6, Long.toString(entityStats.get(3).getOid()));
+        for (int i = 0; i < 4; i++) {
+            Assert.assertEquals(NUM_VMS_PER_HOST,
+                    entityStats.get(i).getStatSnapshots(0)
+                            .getStatRecords(0).getName());
+        }
+        Assert.assertEquals(10.0, entityStats.get(0).getStatSnapshots(0)
+                .getStatRecords(0).getUsed().getAvg(), 0.0);
+        Assert.assertEquals(8.0, entityStats.get(1).getStatSnapshots(0)
+                .getStatRecords(0).getUsed().getAvg(), 0.0);
+        Assert.assertEquals(6.0, entityStats.get(2).getStatSnapshots(0)
+                .getStatRecords(0).getUsed().getAvg(), 0.0);
+        Assert.assertEquals(4.0, entityStats.get(3).getStatSnapshots(0)
+                .getStatRecords(0).getUsed().getAvg(), 0.0);
     }
 
     /**
@@ -703,8 +770,8 @@ public class ClusterStatsReaderTest {
             Assert.assertEquals(CPU_HEADROOM,
                                 entityStats.get(i).getStatSnapshots(0)
                                                 .getStatRecords(0).getName());
-            Assert.assertTrue(entityStats.get(i).getStatSnapshots(0)
-                                        .getStatRecords(0).hasUsed());
+            assertTrue(entityStats.get(i).getStatSnapshots(0)
+                    .getStatRecords(0).hasUsed());
         }
     }
 
@@ -723,12 +790,9 @@ public class ClusterStatsReaderTest {
                 Collections.singletonList(Long.valueOf(CLUSTER_ID_3)),
                 CPU_HEADROOM, true, 0, 2, MEM);
         final List<ClusterStatsResponse> response = clusterStatsReader.getStatsRecords(request);
-        PaginationResponse paginationResponse = null;
         List<EntityStats> entityStats = new ArrayList<>();
         for (ClusterStatsResponse responseChunk : response) {
-            if (responseChunk.hasPaginationResponse()) {
-                paginationResponse = responseChunk.getPaginationResponse();
-            } else {
+            if (!responseChunk.hasPaginationResponse()) {
                 entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
             }
         }
@@ -776,8 +840,8 @@ public class ClusterStatsReaderTest {
             Assert.assertEquals(NUM_CPUS,
                                 entityStats.get(i).getStatSnapshots(0)
                                             .getStatRecords(0).getName());
-            Assert.assertTrue(entityStats.get(i).getStatSnapshots(0)
-                                            .getStatRecords(0).hasUsed());
+            assertTrue(entityStats.get(i).getStatSnapshots(0)
+                    .getStatRecords(0).hasUsed());
         }
     }
 
@@ -819,8 +883,8 @@ public class ClusterStatsReaderTest {
             Assert.assertEquals(CPU_HEADROOM,
                                 entityStats.get(i).getStatSnapshots(0)
                                         .getStatRecords(0).getName());
-            Assert.assertTrue(entityStats.get(i).getStatSnapshots(0)
-                                        .getStatRecords(0).hasUsed());
+            assertTrue(entityStats.get(i).getStatSnapshots(0)
+                    .getStatRecords(0).hasUsed());
         }
     }
 
@@ -881,13 +945,10 @@ public class ClusterStatsReaderTest {
         ClusterStatsRequest request = constructTestInputWithDates(Optional.of(future), Optional.of(future), true);
         List<ClusterStatsResponse> response = clusterStatsReader.getStatsRecords(request);
         assertEquals(2, response.size());
-        response.stream().filter(ClusterStatsResponse::hasSnapshotsChunk).forEach(stat -> {
-            stat.getSnapshotsChunk().getSnapshotsList().forEach(entityStats -> {
-                entityStats.getStatSnapshotsList().forEach(statSnapshot -> {
-                    assertEquals(StatEpoch.PROJECTED, statSnapshot.getStatEpoch());
-                });
-            });
-        });
+        response.stream().filter(ClusterStatsResponse::hasSnapshotsChunk).forEach(stat ->
+                stat.getSnapshotsChunk().getSnapshotsList().forEach(entityStats ->
+                        entityStats.getStatSnapshotsList().forEach(statSnapshot ->
+                                assertEquals(StatEpoch.PROJECTED, statSnapshot.getStatEpoch()))));
     }
 
     /**
@@ -1006,10 +1067,10 @@ public class ClusterStatsReaderTest {
             Assert.assertEquals(CPU_HEADROOM,
                                 entityStats.get(i).getStatSnapshots(0)
                                     .getStatRecords(0).getName());
-            Assert.assertTrue(entityStats.get(i).getStatSnapshots(0)
-                                    .getStatRecords(0).getCapacity().getAvg() > 0.0);
-            Assert.assertTrue(entityStats.get(i).getStatSnapshots(0)
-                                    .getStatRecords(0).hasUsed());
+            assertTrue(entityStats.get(i).getStatSnapshots(0)
+                    .getStatRecords(0).getCapacity().getAvg() > 0.0);
+            assertTrue(entityStats.get(i).getStatSnapshots(0)
+                    .getStatRecords(0).hasUsed());
         }
     }
 
@@ -1112,7 +1173,7 @@ public class ClusterStatsReaderTest {
         endDate.ifPresent(t -> statsFilterBuilder.setEndDate(t.getTime()));
         statsFilterBuilder.setRequestProjectedHeadroom(requestProjected);
         return ClusterStatsRequest.newBuilder()
-                    .addClusterIds(Long.valueOf(CLUSTER_ID_3))
+                    .addClusterIds(Long.parseLong(CLUSTER_ID_3))
                     .setStats(statsFilterBuilder)
                     .build();
     }

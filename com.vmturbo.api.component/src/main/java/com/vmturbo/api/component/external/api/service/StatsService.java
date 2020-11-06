@@ -139,14 +139,16 @@ public class StatsService implements IStatsService {
 
     // stats that can be retrieved as cluster stats, but may also be available on other entities.
     private static final Set<String> CLUSTER_NONEXCLUSIVE_STATS = ImmutableSet.of(
-                    StringConstants.CPU,
-                    StringConstants.MEM,
-                    StringConstants.NUM_SOCKETS,
-                    StringConstants.NUM_CPUS,
-                    StringConstants.NUM_VMS,
-                    StringConstants.NUM_HOSTS,
-                    StringConstants.HOST,
-                    StringConstants.NUM_STORAGES);
+            StringConstants.CPU,
+            StringConstants.MEM,
+            StringConstants.NUM_SOCKETS,
+            StringConstants.NUM_CPUS,
+            StringConstants.NUM_VMS,
+            StringConstants.NUM_HOSTS,
+            StringConstants.HOST,
+            StringConstants.NUM_STORAGES,
+            StringConstants.NUM_VMS_PER_HOST,
+            StringConstants.NUM_VMS_PER_STORAGE);
 
     /**
      * Map Entity types to be expanded to the RelatedEntityType to retrieve. For example,
