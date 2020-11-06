@@ -203,6 +203,7 @@ public class ActionsService implements IActionsService {
             case PERMISSION_DENIED:
                 return new UnauthorizedObjectException(e.getMessage());
             case INTERNAL:
+            case FAILED_PRECONDITION:
             default:
                 return new OperationFailedException(e.getMessage());
         }

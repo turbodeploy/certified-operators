@@ -217,7 +217,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(OperationFailedException.class)
     @ResponseBody
     public ResponseEntity<ErrorApiDTO> handleOperationFailedException(HttpServletRequest req, OperationFailedException ex) {
-        return createErrorDTO(req, ex, HttpStatus.INTERNAL_SERVER_ERROR);
+        return createErrorDTO(req, ex, HttpStatus.BAD_REQUEST);
     }
 
     /**

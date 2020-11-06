@@ -17,8 +17,8 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionEvent;
-import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.RejectionRemovalEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.RollBackToAcceptedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition;
@@ -105,9 +105,6 @@ public class ActionStateMachine {
             .addTransition(from(ActionState.QUEUED).to(action::getExecutionState)
                 .onEvent(BeginExecutionEvent.class)
                 .after(action::onActionPrepare))
-            .addTransition(from(ActionState.QUEUED).to(ActionState.FAILED)
-                .onEvent(FailureEvent.class)
-                .after(action::onActionFailure))
             .addTransition(from(ActionState.QUEUED).to(ActionState.CLEARED)
                 .onEvent(NotRecommendedEvent.class)
                 .after(action::onActionCleared))
@@ -162,10 +159,6 @@ public class ActionStateMachine {
             .addTransition(from(ActionState.POST_IN_PROGRESS).to(action::getPostExecutionSuccessState)
                 .onEvent(SuccessEvent.class)
                 .after(action::onActionSuccess))
-
-            .addTransition(from(ActionState.POST_IN_PROGRESS).to(ActionState.FAILED)
-                .onEvent(FailureEvent.class)
-                .after(action::onActionFailure))
 
             // Called on all events
             .addEventListener((preState, postState, event, performedTransition) -> {

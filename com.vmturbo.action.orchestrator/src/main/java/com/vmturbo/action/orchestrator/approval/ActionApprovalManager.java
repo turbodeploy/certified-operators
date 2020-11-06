@@ -7,15 +7,16 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import io.grpc.Status;
+import io.grpc.Status.Code;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
-import com.vmturbo.action.orchestrator.action.ActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.QueuedEvent;
 import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.exception.ActionStoreOperationException;
@@ -125,9 +126,6 @@ public class ActionApprovalManager {
             store.getEntitySeverityCache().ifPresent(severityCache ->
                 severityCache.refresh(action.getTranslationResultOrOriginal(), store));
         }
-        AuditLog.newEntry(AuditAction.EXECUTE_ACTION, action.getDescription(), true)
-                .targetName(String.valueOf(action.getId()))
-                .audit();
         return attemptResponse;
     }
 
@@ -142,8 +140,7 @@ public class ActionApprovalManager {
     @Nonnull
     private AcceptActionResponse attemptAcceptAndExecute(@Nonnull final Action action,
             @Nonnull final String userUuid) throws ExecutionInitiationException {
-        long actionTargetId = -1;
-        Optional<FailureEvent> failure = Optional.empty();
+        long actionTargetId;
         if (action.getSchedule().isPresent()) {
             final Optional<AcceptActionResponse> errors =
                     persistAcceptanceForActionWithSchedule(action, userUuid);
@@ -151,48 +148,72 @@ public class ActionApprovalManager {
                 return errors.get();
             }
         }
-
-        ActionTargetInfo actionTargetInfo = actionTargetSelector.getTargetForAction(
+        final ActionTargetInfo actionTargetInfo = actionTargetSelector.getTargetForAction(
                 action.getTranslationResultOrOriginal(), entitySettingsCache);
-        if (actionTargetInfo.supportingLevel() == SupportLevel.SUPPORTED && action.getMode()
-                .getNumber() >= ActionMode.MANUAL_VALUE) {
-            // Target should be set if support level is "supported".
+        final Optional<String> validationError =
+                checkActionExecutionValidity(action, actionTargetInfo);
+        if (!validationError.isPresent()) {
             actionTargetId = actionTargetInfo.targetId().get();
         } else {
-            failure = Optional.of(new FailureEvent(
+            // persist attempt of accepting the action with details about why this action
+            // couldn't be accepted
+            AuditLog.newEntry(AuditAction.ACCEPT_ACTION, validationError.get(), false)
+                    .targetName(String.valueOf(action.getId()))
+                    .audit();
+            throw new ExecutionInitiationException(
                     "Action cannot be executed by any target. Support level: "
-                            + actionTargetInfo.supportingLevel() + "Action mode: "
-                            + action.getMode()));
+                            + actionTargetInfo.supportingLevel() + ". Action mode: "
+                            + action.getMode(), Code.FAILED_PRECONDITION);
         }
 
-        failure.ifPresent(failureEvent -> logger.error("Failed to accept action: {}",
-                failureEvent.getErrorDescription()));
-
-        if (action.receive(new ActionEvent.ManualAcceptanceEvent(userUuid, actionTargetId))
+        if (action.receive(new ManualAcceptanceEvent(userUuid, actionTargetId))
                 .transitionNotTaken()) {
-            throw new ExecutionInitiationException("Unauthorized to accept action in mode " + action.getMode(), Status.Code.PERMISSION_DENIED);
+            throw new ExecutionInitiationException("Action cannot be executed, because transition"
+                    + " was blocked by acceptance guard. Action mode:" + action.getMode(),
+                    Code.PERMISSION_DENIED);
         }
 
         if (action.getSchedule().isPresent() && !action.getSchedule().get().isActiveScheduleNow()) {
+            AuditLog.newEntry(AuditAction.ACCEPT_SCHEDULED_ACTION, action.getDescription(), true)
+                    .targetName(String.valueOf(action.getId()))
+                    .audit();
             // postpone action execution, because action has related execution window
             return AcceptActionResponse.newBuilder()
                     .setActionSpec(actionTranslator.translateToSpec(action))
                     .build();
         } else {
+            AuditLog.newEntry(AuditAction.ACCEPT_ACTION, action.getDescription(), true)
+                    .targetName(String.valueOf(action.getId()))
+                    .audit();
             action.receive(new QueuedEvent());
         }
 
-        return handleTargetResolution(action, actionTargetId, failure);
+        return attemptActionExecution(action, actionTargetId);
     }
 
-    private AcceptActionResponse handleTargetResolution(@Nonnull final Action action,
-            final long targetId, @Nonnull final Optional<FailureEvent> failure) throws ExecutionInitiationException {
-        if (failure.isPresent()) {
-            action.receive(failure.get());
-            throw new ExecutionInitiationException(failure.get().getErrorDescription(), Status.Code.INTERNAL);
-        } else {
-            return attemptActionExecution(action, targetId);
+    /**
+     * Validate the action before accepting and executing.
+     *
+     * @param action the action
+     * @param actionTargetInfo the target associated with action
+     * @return {@link Optional#empty()} if action is valid, otherwise return reason of failed
+     * validation
+     */
+    private Optional<String> checkActionExecutionValidity(@Nonnull Action action,
+            @Nonnull ActionTargetInfo actionTargetInfo) {
+        final ActionMode actionMode = action.getMode();
+        if (actionMode.getNumber() < ActionMode.MANUAL_VALUE) {
+            return Optional.of(
+                    String.format("The action %s may not be executed in %s mode", action.getId(),
+                            actionMode));
         }
+        final SupportLevel supportLevel = actionTargetInfo.supportingLevel();
+        if (supportLevel != SupportLevel.SUPPORTED) {
+            return Optional.of(String.format(
+                    "The action %s is not supported by this target. Current support level is %s.",
+                    action.getId(), supportLevel));
+        }
+        return Optional.empty();
     }
 
     private AcceptActionResponse attemptActionExecution(@Nonnull final Action action,
@@ -207,9 +228,6 @@ public class ActionApprovalManager {
                 // execute the action, passing the workflow override (if any)
                 actionExecutor.execute(targetId, translatedRecommendation.get(),
                         action.getWorkflow(workflowStore));
-                AuditLog.newEntry(AuditAction.EXECUTE_ACTION, action.getDescription(), true)
-                        .targetName(String.valueOf(action.getId()))
-                        .audit();
                 return AcceptActionResponse.newBuilder()
                         .setActionSpec(actionTranslator.translateToSpec(action))
                         .build();

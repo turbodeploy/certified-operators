@@ -23,10 +23,9 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import javax.annotation.Nonnull;
-
 import com.google.common.collect.ImmutableMap;
 
+import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import org.hamcrest.CoreMatchers;
@@ -43,7 +42,6 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
-import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
 import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
@@ -75,7 +73,6 @@ import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
 import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
@@ -426,7 +423,7 @@ public class ActionExecutionRpcTest {
     }
 
     @Test
-    public void testAcceptNotAuthorized() throws Exception {
+    public void testFailedToPassAcceptanceGuard() throws Exception {
         ActionDTO.Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID);
         final ActionPlan plan = actionPlan(recommendation);
         final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
@@ -452,8 +449,11 @@ public class ActionExecutionRpcTest {
         try {
             actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
         } catch (StatusRuntimeException ex) {
-            assertEquals("PERMISSION_DENIED: Unauthorized to accept action in mode "
-                + actionSpy.getMode(), ex.getMessage());
+            assertEquals(ex.getStatus().getCode(), Code.PERMISSION_DENIED);
+            assertThat(ex.getStatus().getDescription(), CoreMatchers.containsString(
+                    "Action cannot be executed, because transition"
+                            + " was blocked by acceptance guard. Action mode:"
+                            + actionSpy.getMode()));
             return;
         }
         fail("The call should throw an exception");
@@ -525,6 +525,12 @@ public class ActionExecutionRpcTest {
         fail("The call should throw an exception");
     }
 
+    /**
+     * Test that execution will be failed for accepted action if it don't have successful
+     * translation.
+     *
+     * @throws Exception if something goes wrong
+     */
     @Test
     public void testTranslationError() throws Exception {
         final long targetId = 7777;
@@ -536,36 +542,27 @@ public class ActionExecutionRpcTest {
             .build();
 
         when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
-        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
-
-        // We use a new actionTranslator for this test. This spy translator does not do the
-        // translation successfully.
-        // Since wthis test uses a new actionTranslator, all the dependent objects are
-        // created again - actionModeCalculator, actionStoreHouse, actionsRpcService, grpcServer,
-        // actionOrchestratorServiceClient, LiveActionStore
-        final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(new TranslationExecutor() {
-            @Override
-            public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream,
-                                                              @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
-                return actionStream;
-            }
-        }, grpcServer.getChannel(), new ActionTopologyStore()));
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
 
         final AtomicActionSpecsCache atomicActionSpecsCache = Mockito.spy(new AtomicActionSpecsCache());
         final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
-        ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
+        final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
                 executor, actionStoreLoader, Mockito.mock(ActionApprovalSender.class));
+        // We use actionTranslator which can successfully translate action in order to calculate
+        // appropriate action mode (>= MANUAL). As a result action can be available for acceptance
+        // and possible execution.
         final ActionsRpcService actionsRpcService =
                 new ActionsRpcService(clock, actionStorehouse, actionApprovalManager,
                         actionTranslator, paginatorFactory, statReader, liveStatReader,
                         userSessionContext, acceptedActionsStore, rejectedActionsStore, 500);
-        GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService,
+        final GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService,
                 supplyChainServiceMole, repositoryServiceMole);
         grpcServer.start();
-        ActionsServiceBlockingStub actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(
+        final ActionsServiceBlockingStub actionOrchestratorServiceClient =
+                ActionsServiceGrpc.newBlockingStub(
             grpcServer.getChannel());
-        IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
+        final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                 statistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
@@ -581,11 +578,16 @@ public class ActionExecutionRpcTest {
                 .targetId(targetId)
                 .build());
 
+        // emulate failed translation for action
+        final Action action = actionStoreSpy.getAction(ACTION_ID).get();
+        action.getActionTranslation().setTranslationFailure();
+
         try {
             actionOrchestratorServiceClient.acceptAction(acceptActionContext);
         } catch (StatusRuntimeException ex) {
-            assertThat(ex.getMessage(), CoreMatchers.containsString("Unauthorized to accept action in mode "
-                + "RECOMMEND"));
+            final String errorMessage = "Failed to translate action " + ACTION_ID + " for execution.";
+            assertThat(ex.getMessage(), CoreMatchers.containsString(errorMessage));
+            assertEquals(action.getState(), ActionState.FAILED);
             grpcServer.close();
             return;
         }

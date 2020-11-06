@@ -246,17 +246,6 @@ public abstract class ActionEvent implements StateMachineEvent {
     }
 
     /**
-     * Indicates that an action can't start because there is no
-     * target that can execute the action on the entities involved.
-     */
-    public static class NoTargetResolvedEvent extends FailureEvent {
-
-        public NoTargetResolvedEvent() {
-            super("Failed to find a target to execute the action on.");
-        }
-    }
-
-    /**
      * Indicates that an action is no longer recommended.
      */
     public abstract static class ClearingEvent extends AuthorizedActionEvent {

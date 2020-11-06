@@ -32,7 +32,14 @@ public enum AuditAction {
     EXECUTE_ACTION("Execute Action"),
     START_APPLICATION("Start Application"),
     DELETE_APPLICATION("Delete Application"),
+    /**
+     * Successfully accepted action will start execution immediately.
+     */
     ACCEPT_ACTION("Accept Action"),
+    /**
+     * Successfully accepted action will be executed when execution schedule will be active.
+     */
+    ACCEPT_SCHEDULED_ACTION("Accept Scheduled Action"),
     SET_LDAP("Configure LDAP"),
     CHECK_AUTHORIZATION("Check Permission"),
     ACCESS_USER("Access User"),
