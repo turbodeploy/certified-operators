@@ -281,6 +281,10 @@ message TypeSpecificInfo {
         // float IO throughput capacity (MiB/s) needed for cost calculations
         // The field is deprecated because the value is now carried in the sold commodity
         optional float io_throughput_capacity = 9 [deprecated = true];
+
+        // Average number of billed operations (e.g. reads, writes) per hour. The field is used in
+        // cost calculation for AWS Magnetic (Standard) volumes.
+        optional double hourly_billed_ops = 12;
     }
 
     // specific data for a Storage entity

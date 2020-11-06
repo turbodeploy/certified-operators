@@ -39,6 +39,9 @@ public class VirtualVolumeInfoMapper extends TypeSpecificInfoMapper {
         if (vvData.hasIsEphemeral()) {
             vvInfo.setIsEphemeral(vvData.getIsEphemeral());
         }
+        if (vvData.hasHourlyBilledOps()) {
+            vvInfo.setHourlyBilledOps(vvData.getHourlyBilledOps());
+        }
         vvInfo.addAllFiles(vvData.getFileList());
         retBuilder.setVirtualVolume(vvInfo.build());
         return retBuilder.build();

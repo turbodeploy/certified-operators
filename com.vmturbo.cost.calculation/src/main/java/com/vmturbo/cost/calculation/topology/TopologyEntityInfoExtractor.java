@@ -90,6 +90,7 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
                     getCommodityCapacity(entity, CommodityType.STORAGE_ACCESS),
                     getCommodityCapacity(entity, CommodityType.STORAGE_AMOUNT),
                     getCommodityCapacity(entity, CommodityType.IO_THROUGHPUT) / Units.KBYTE,
+                    (float)volumeConfig.getHourlyBilledOps(),
                     volumeConfig.getIsEphemeral(),
                     volumeConfig.hasRedundancyType() ? volumeConfig.getRedundancyType() : null));
         } else {

@@ -306,26 +306,29 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
      */
     @Immutable
     class VirtualVolumeConfig {
-        private final float accesCapacityMillionIops;
+        private final float accessCapacityMillionIops;
         private final float amountCapacityMb;
         private final float ioThroughputCapacityMBps;
+        private final float hourlyBilledOps;
         private final boolean isEphemeral;
         private final RedundancyType redundancyType;
 
-        public VirtualVolumeConfig(final float accesCapacityMillionIops,
+        public VirtualVolumeConfig(final float accessCapacityMillionIops,
                                    final float amountCapacityMb,
                                    final float ioThroughputCapacityMBps,
+                                   float hourlyBilledOps,
                                    final boolean isEphemeral,
                                    @Nullable final RedundancyType redundancyType) {
-            this.accesCapacityMillionIops = accesCapacityMillionIops;
+            this.accessCapacityMillionIops = accessCapacityMillionIops;
             this.amountCapacityMb = amountCapacityMb;
             this.ioThroughputCapacityMBps = ioThroughputCapacityMBps;
+            this.hourlyBilledOps = hourlyBilledOps;
             this.isEphemeral = isEphemeral;
             this.redundancyType = redundancyType;
         }
 
         public float getAccessCapacityMillionIops() {
-            return accesCapacityMillionIops;
+            return accessCapacityMillionIops;
         }
 
         public float getAmountCapacityGb() {
@@ -334,6 +337,16 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
 
         public float getIoThroughputCapacityMBps() {
             return ioThroughputCapacityMBps;
+        }
+
+        /**
+         * Get average number of billed operations per hour (applies to AWS Magnetic (Standard)
+         * volumes).
+         *
+         * @return Average number of billed operations per hour.
+         */
+        public float getHourlyBilledOps() {
+            return hourlyBilledOps;
         }
 
         public boolean isEphemeral() {

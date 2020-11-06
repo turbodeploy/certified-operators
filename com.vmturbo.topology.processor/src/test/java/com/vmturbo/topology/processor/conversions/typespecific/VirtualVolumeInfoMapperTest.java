@@ -29,6 +29,7 @@ public class VirtualVolumeInfoMapperTest {
                         .setSnapshotId(SNAPSHOT_ID)
                         .setAttachmentState(AttachmentState.ATTACHED)
                         .setEncrypted(true)
+                        .setHourlyBilledOps(123D)
                         .build());
         TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
                 .setVirtualVolume(VirtualVolumeInfo.newBuilder()
@@ -36,6 +37,7 @@ public class VirtualVolumeInfoMapperTest {
                         .setSnapshotId(SNAPSHOT_ID)
                         .setAttachmentState(AttachmentState.ATTACHED)
                         .setEncryption(true)
+                        .setHourlyBilledOps(123D)
                         .build())
                 .build();
         final VirtualVolumeInfoMapper testBuilder = new VirtualVolumeInfoMapper();

@@ -93,6 +93,7 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
         final TraxNumber cost;
         switch (price.getUnit()) {
             case HOURS:
+            case IO_REQUESTS:
                 cost = totalPrice;
                 break;
             case DAYS:

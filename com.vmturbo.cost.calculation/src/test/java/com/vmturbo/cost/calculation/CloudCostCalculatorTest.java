@@ -130,8 +130,10 @@ public class CloudCostCalculatorTest {
     private static final double GB_MONTH_PRICE_20 = 26.0;
     private static final double GB_MONTH_PRICE_32 = 38.0;
     private static final double MBPS_PRICE = 23.42;
+    private static final double IO_REQUESTS_PRICE = 5.00;
     private static final long V_VOLUME_SIZE_IOPS = 17;
     private static final long V_VOLUME_SIZE_MBPS = 23;
+    private static final long V_VOLUME_IO_REQUESTS = 34;
 
     private static final long REGION_ID = 1;
     private static final long AVAILABILITY_ZONE_ID = 3;
@@ -382,7 +384,7 @@ public class CloudCostCalculatorTest {
     public void testCalculateVolumeCostIOPS() {
         final TestEntityClass volume = TestEntityClass.newBuilder(VOLUME_ID)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setVolumeConfig(new VirtualVolumeConfig(V_VOLUME_SIZE_IOPS, 0, 0, false, null))
+                .setVolumeConfig(new VirtualVolumeConfig(V_VOLUME_SIZE_IOPS, 0, 0, 0, false, null))
                 .build(infoExtractor);
         when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
         when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
@@ -403,7 +405,7 @@ public class CloudCostCalculatorTest {
     public void testCalculateVolumeCostMBPS() {
         final TestEntityClass volume = TestEntityClass.newBuilder(VOLUME_ID)
             .setType(EntityType.VIRTUAL_VOLUME_VALUE)
-            .setVolumeConfig(new VirtualVolumeConfig(0, 0, V_VOLUME_SIZE_MBPS, false, null))
+            .setVolumeConfig(new VirtualVolumeConfig(0, 0, V_VOLUME_SIZE_MBPS, 0, false, null))
             .build(infoExtractor);
         when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
         when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
@@ -416,6 +418,30 @@ public class CloudCostCalculatorTest {
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(volume);
         assertThat(journal.getTotalHourlyCost().getValue(),
             closeTo(V_VOLUME_SIZE_MBPS * MBPS_PRICE, DELTA));
+    }
+
+    /**
+     * Test that volume cost calculation includes IO requests pricing.
+     */
+    @Test
+    public void testCalculateVolumeCostIoRequests() {
+        final VirtualVolumeConfig config = new VirtualVolumeConfig(
+                0, 0, 0, V_VOLUME_IO_REQUESTS, false, null);
+        final TestEntityClass volume = TestEntityClass.newBuilder(VOLUME_ID)
+                .setType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setVolumeConfig(config)
+                .build(infoExtractor);
+        when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
+        when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
+        when(topology.getStorageTier(VOLUME_ID)).thenReturn(Optional.of(storageTier));
+        final AccountPricingData accountPricingData = new AccountPricingData(
+                setupDiscountApplicator(0.0), PRICE_TABLE, ACCOUNT_PRICING_DATA_OID);
+        final CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(
+                BUSINESS_ACCOUNT_ID, accountPricingData);
+        final CloudCostCalculator<TestEntityClass> cloudCostCalculator = calculator(cloudCostData);
+        final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(volume);
+        assertThat(journal.getTotalHourlyCost().getValue(),
+                closeTo(V_VOLUME_IO_REQUESTS * IO_REQUESTS_PRICE, DELTA));
     }
 
     /**
@@ -489,7 +515,7 @@ public class CloudCostCalculatorTest {
             final long storageTierId) {
         final TestEntityClass volume = TestEntityClass.newBuilder(VOLUME_ID)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setVolumeConfig(new VirtualVolumeConfig(0, vVolSizeMb * 1024, 0, isEphemeral,
+                .setVolumeConfig(new VirtualVolumeConfig(0, vVolSizeMb * 1024, 0, 0, isEphemeral,
                     redundancyType))
                 .build(infoExtractor);
         when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
@@ -797,7 +823,8 @@ public class CloudCostCalculatorTest {
                         .addPrices(price(Unit.MILLION_IOPS, IOPS_RANGE, IOPS_PRICE_RANGE_1
                             * CostProtoUtil.HOURS_IN_MONTH))
                         .addPrices(price(Unit.MILLION_IOPS, IOPS_PRICE * CostProtoUtil.HOURS_IN_MONTH))
-                        .addPrices(price(Unit.MBPS_MONTH, MBPS_PRICE * CostProtoUtil.HOURS_IN_MONTH)))
+                        .addPrices(price(Unit.MBPS_MONTH, MBPS_PRICE * CostProtoUtil.HOURS_IN_MONTH))
+                        .addPrices(price(Unit.IO_REQUESTS, IO_REQUESTS_PRICE)))
                     .addCloudStoragePrice(StorageTierPrice.newBuilder()
                         .addPrices(price(Unit.GB_MONTH, GB_RANGE, GB_PRICE_RANGE_1
                             * CostProtoUtil.HOURS_IN_MONTH))

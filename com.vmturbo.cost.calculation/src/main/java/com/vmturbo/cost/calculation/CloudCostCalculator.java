@@ -6,7 +6,6 @@ import static com.vmturbo.trax.Trax.trax;
 import static com.vmturbo.trax.Trax.traxConstant;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -291,6 +290,10 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                         recordStorageRangePricesByUnit(pricesByUnit, journal, storageTier,
                             trax(volumeConfig.getAmountCapacityGb(), "capacity gb/month "
                                 + redundancyTypeSuffix), Unit.GB_MONTH);
+                        final TraxNumber hourlyBilledOps = trax(volumeConfig.getHourlyBilledOps(),
+                                "billed I/O operations per hour");
+                        recordStorageRangePricesByUnit(pricesByUnit, journal, storageTier,
+                                hourlyBilledOps, Unit.IO_REQUESTS);
                         recordRangePricesForMonth(pricesByUnit.get(Unit.MONTH),
                             volumeConfig.getAmountCapacityGb(), journal, storageTier);
                     } else {
@@ -425,10 +428,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                         TraxNumber amountToBuy, Unit priceUnit) {
         List<Price> prices = pricesByUnit.get(priceUnit);
         if (!CollectionUtils.isEmpty(prices)) {
-            logger.trace("Recording {} costs from prices: {}", priceUnit.name(),
-                pricesByUnit.get(priceUnit));
-            recordPriceRangeEntries(amountToBuy,
-                pricesByUnit.getOrDefault(priceUnit, Collections.emptyList()),
+            logger.trace("Recording {} costs from prices: {}", priceUnit.name(), prices);
+            recordPriceRangeEntries(amountToBuy, prices,
                 (price, amount) -> journal.recordOnDemandCost(CostCategory.STORAGE,
                     storageTier,
                     price,
