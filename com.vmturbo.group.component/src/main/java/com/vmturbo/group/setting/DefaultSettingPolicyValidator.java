@@ -31,7 +31,6 @@ import org.jooq.exception.DataAccessException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto;
-import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
@@ -41,6 +40,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValueTypeCase;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
@@ -183,10 +183,16 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         settingPolicyInfo.getSettingsList()
             .stream()
             .filter(s -> ActionSettingSpecs.isExecutionScheduleSetting(s.getSettingSpecName()))
-            .map(Setting::getSortedSetOfOidSettingValue)
-            .map(SettingProto.SortedSetOfOidSettingValue::getOidsList)
-            .flatMap(List::stream)
-            .forEach(schedulesUsed::add);
+            .forEach(scheduleSetting -> {
+                final SortedSetOfOidSettingValue executionScheduleSettingValue =
+                        scheduleSetting.getSortedSetOfOidSettingValue();
+                if (executionScheduleSettingValue.getOidsCount() == 1) {
+                    schedulesUsed.addAll(executionScheduleSettingValue.getOidsList());
+                } else {
+                    errors.add("Execution schedule setting `" + scheduleSetting.getSettingSpecName()
+                            + "` should have only one schedule.");
+                }
+            });
 
         if (!schedulesUsed.isEmpty()) {
             Map<Long, ScheduleProto.Schedule> scheduleMap = scheduleStore

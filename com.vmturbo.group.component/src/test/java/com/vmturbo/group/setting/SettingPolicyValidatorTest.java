@@ -15,8 +15,11 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.Lists;
 
+import org.hamcrest.CoreMatchers;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.junit.Assert;
@@ -71,7 +74,8 @@ public class SettingPolicyValidatorTest {
 
     private static final int ENTITY_TYPE = 10;
 
-    private static final long SCHEDULE_OID = 12L;
+    private static final long SCHEDULE_OID_1 = 12L;
+    private static final long SCHEDULE_OID_2 = 13L;
 
     private static final String SPEC_NAME = "spec";
     private static final long CURRENT_TIME = 1596646800000L;
@@ -113,9 +117,9 @@ public class SettingPolicyValidatorTest {
                         .build()));
         context = Mockito.mock(DSLContext.class);
         when(clock.millis()).thenReturn(CURRENT_TIME);
-        when(scheduleStore.getSchedules(context, Collections.singleton(SCHEDULE_OID))).thenReturn(
+        when(scheduleStore.getSchedules(context, Collections.singleton(SCHEDULE_OID_1))).thenReturn(
             Collections.singletonList(ScheduleProto.Schedule.newBuilder()
-                .setId(SCHEDULE_OID)
+                .setId(SCHEDULE_OID_1)
                 .setDisplayName("Test Schedule")
                 .setOneTime(ScheduleProto.Schedule.OneTime.getDefaultInstance())
                 .setStartTime(FUTURE_TIME)
@@ -192,11 +196,20 @@ public class SettingPolicyValidatorTest {
     @Test
     public void testValidActionModeAndExecutionScheduleSettingsCombination()
             throws InvalidItemException {
-        SettingPolicyInfo settingPolicyInfo = setupScheduledMovePolicy();
+        final SettingPolicyInfo settingPolicyInfo =
+                setupScheduledMovePolicy(Collections.singletonList(SCHEDULE_OID_1));
         validator.validateSettingPolicy(context, settingPolicyInfo, Type.USER);
     }
 
-    private SettingPolicyInfo setupScheduledMovePolicy() {
+    /**
+     * Creates setting policy with several settings (action mode + associated execution schedule
+     * settings).
+     *
+     * @param executionScheduleIds value for single execution schedule setting (in order to be
+     * valid should have only ONE element)
+     * @return setting policy
+     */
+    private SettingPolicyInfo setupScheduledMovePolicy(@Nonnull List<Long> executionScheduleIds) {
         final String moveExecutionScheduleSettingName =
             ActionSettingSpecs.getSubSettingFromActionModeSetting(
                 ConfigurableActionSettings.Move, ActionSettingType.SCHEDULE);
@@ -225,7 +238,7 @@ public class SettingPolicyValidatorTest {
         final Setting executionScheduleSetting = Setting.newBuilder()
             .setSettingSpecName(moveExecutionScheduleSettingName)
             .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
-                .addAllOids(Collections.singletonList(SCHEDULE_OID))
+                .addAllOids(executionScheduleIds)
                 .build())
             .build();
         return SettingPolicyInfo.newBuilder()
@@ -240,16 +253,17 @@ public class SettingPolicyValidatorTest {
      */
     @Test
     public void testValidatePolicyWithExpiredSchedule() {
-        when(scheduleStore.getSchedules(context, Collections.singleton(SCHEDULE_OID))).thenReturn(
+        when(scheduleStore.getSchedules(context, Collections.singleton(SCHEDULE_OID_1))).thenReturn(
             Collections.singletonList((ScheduleProto.Schedule.newBuilder()
-                .setId(SCHEDULE_OID)
+                .setId(SCHEDULE_OID_1)
                 .setDisplayName("Test Schedule")
                 .setOneTime(ScheduleProto.Schedule.OneTime.getDefaultInstance())
                 .setStartTime(PAST_TIME)
                 .setEndTime(PAST_TIME + TimeUnit.MINUTES.toMillis(30))
                 .build()
             )));
-        SettingPolicyInfo settingPolicyInfo = setupScheduledMovePolicy();
+        final SettingPolicyInfo settingPolicyInfo =
+                setupScheduledMovePolicy(Collections.singletonList(SCHEDULE_OID_1));
 
         try {
             validator.validateSettingPolicy(context, settingPolicyInfo, Type.USER);
@@ -261,19 +275,36 @@ public class SettingPolicyValidatorTest {
     }
 
     /**
+     * Test that setting policy is invalid if it has execution schedule setting with more then
+     * one schedule as value.
+     *
+     * @throws InvalidItemException if validation isn't passed for setting policy
+     */
+    @Test
+    public void testInvalidPolicyWithSeveralExecutionSchedules() throws InvalidItemException {
+        final SettingPolicyInfo settingPolicyInfo =
+                setupScheduledMovePolicy(Arrays.asList(SCHEDULE_OID_1, SCHEDULE_OID_2));
+        expectedException.expect(InvalidItemException.class);
+        expectedException.expectMessage(CoreMatchers.containsString("Execution schedule setting "
+                + "`moveExecutionSchedule` should have only one schedule."));
+        validator.validateSettingPolicy(context, settingPolicyInfo, Type.USER);
+    }
+
+    /**
      * Verifies that validation passes for a policy with an active schedule but without next
      * occurrences.
      */
     @Test
     public void testValidatePolicyWithActiveSchedule() {
-        when(scheduleStore.getSchedules(context, Collections.singleton(SCHEDULE_OID))).thenReturn(
+        when(scheduleStore.getSchedules(context, Collections.singleton(SCHEDULE_OID_1))).thenReturn(
                 Collections.singletonList((ScheduleProto.Schedule.newBuilder()
-                        .setId(SCHEDULE_OID)
+                        .setId(SCHEDULE_OID_1)
                         .setDisplayName("Test Schedule")
                         .setOneTime(ScheduleProto.Schedule.OneTime.getDefaultInstance())
                         .setActive(Active.newBuilder().setRemainingActiveTimeMs(100).build())
                         .build())));
-        SettingPolicyInfo settingPolicyInfo = setupScheduledMovePolicy();
+        final SettingPolicyInfo settingPolicyInfo =
+                setupScheduledMovePolicy(Collections.singletonList(SCHEDULE_OID_1));
 
         try {
             validator.validateSettingPolicy(context, settingPolicyInfo, Type.USER);
