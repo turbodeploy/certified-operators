@@ -119,6 +119,9 @@ message CostDTO {
             optional bool is_unit_price = 2; // if the price is unit price or total price
             optional bool is_accumulative_cost = 3; // if the cost should be accumulated
             repeated CostTuple cost_tuple_list = 4;
+
+            // Defines whether the price must be applied to commodity historical quantity.
+            optional bool applied_to_historical_quantity = 5;
         }
         // the commodity specification and its price data list
         // The price data list is repeated as each instance might correspond to a different type of cost.

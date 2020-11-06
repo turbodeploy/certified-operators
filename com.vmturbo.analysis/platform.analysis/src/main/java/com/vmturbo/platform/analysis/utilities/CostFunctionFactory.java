@@ -14,7 +14,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Table;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -755,7 +754,7 @@ public class CostFunctionFactory {
         List<StorageResourceCost> resourceCost = costDTO.getStorageResourceCostList();
         // mapping from commodity type to price table, where price table keeps priceData
         // per businessAccount and region.
-        final Map<CommoditySpecification, Table<Long, Long, List<PriceData>>> priceDataMap
+        final Map<CommoditySpecification, AccountRegionPriceTable> priceDataMap
                 = CostFunctionFactoryHelper.translateResourceCostForStorageTier(resourceCost);
         // the set to keep commodity types that are related to tier constraints
         final Set<CommoditySpecification> commTypesWithConstraints = new HashSet<>();
@@ -783,6 +782,7 @@ public class CostFunctionFactory {
                 // Construct commQuantityMap for sl commodities' demand for commTypesWithConstraints,
                 // which is used for constraint check, and will be updated during constraint check.
                 Map<CommoditySpecification, Double> commQuantityMap = new HashMap<>();
+                Map<CommoditySpecification, Double> commHistoricalQuantityMap = new HashMap<>();
                 commTypesWithConstraints.stream().forEach(commType -> {
                     int index = sl.getBasket().indexOf(commType);
                     if (index == -1) {
@@ -792,12 +792,15 @@ public class CostFunctionFactory {
                         return;
                     }
                     commQuantityMap.put(commType, Math.ceil(sl.getQuantities()[index]));
+                    commHistoricalQuantityMap.put(commType, sl.getHistoricalQuantities()[index]);
                 });
                 // If volume is in Reversibility mode, try to get a quote in Reversibility mode.
                 if (!sl.getDemandScalable()) {
                     MutableQuote reversibilityModeQuote = CostFunctionFactoryHelper
                             .calculateStorageTierQuote(sl, seller, commQuantityMap,
-                                    priceDataMap, commCapacityLimitation, ratioDependencyList, rangeDependencyList, false, false);
+                                    commHistoricalQuantityMap, priceDataMap,
+                                    commCapacityLimitation, ratioDependencyList,
+                                    rangeDependencyList, false, false);
                     // If can get finite quote, directly return.
                     if (reversibilityModeQuote.isFinite()) {
                         return reversibilityModeQuote;
@@ -806,8 +809,10 @@ public class CostFunctionFactory {
                 // If volume is in Savings mode, try to get a quote in Savings mode without penalty cost.
                 // If volume is in Reversibility mode and gets infinite quote in Reversibility, try to get
                 // a quote in Savings mode with penalty cost.
-                return CostFunctionFactoryHelper.calculateStorageTierQuote(sl, seller, commQuantityMap,
-                        priceDataMap, commCapacityLimitation, ratioDependencyList, rangeDependencyList, true, !sl.getDemandScalable());
+                return CostFunctionFactoryHelper.calculateStorageTierQuote(sl, seller,
+                        commQuantityMap, commHistoricalQuantityMap, priceDataMap,
+                        commCapacityLimitation, ratioDependencyList, rangeDependencyList, true,
+                        !sl.getDemandScalable());
             }
         };
 

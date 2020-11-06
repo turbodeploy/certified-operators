@@ -235,6 +235,9 @@ public final class ProtobufToAnalysis {
             final int index = basketBought.indexOf(commoditySpecification);
             shoppingList.setQuantity(index, commodityBought.getQuantity());
             shoppingList.setPeakQuantity(index, commodityBought.getPeakQuantity());
+            if (commodityBought.hasHistoricalQuantity()) {
+                shoppingList.setHistoricalQuantity(index, commodityBought.getHistoricalQuantity());
+            }
             if (commodityBought.hasAssignedCapacityForBuyer()) {
                 shoppingList.addAssignedCapacity(
                         commoditySpecification.getBaseType(), commodityBought.getAssignedCapacityForBuyer());

@@ -16,9 +16,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.Table;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -29,13 +26,11 @@ import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.RangeTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceLimitation;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRangeDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRatioDependency;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityContext;
@@ -287,33 +282,20 @@ public class CostFunctionFactoryHelper {
      * @return map The map has commodity specification as key and a mapping of business account to
      * price as value.
      */
-    public static Map<CommoditySpecification, Table<Long, Long, List<PriceData>>>
+    public static Map<CommoditySpecification, AccountRegionPriceTable>
     translateResourceCostForStorageTier(List<StorageResourceCost> resourceCostList) {
-        Map<CommoditySpecification, Table<Long, Long, List<PriceData>>> priceDataMap = new HashMap<>();
+        final Map<CommoditySpecification, AccountRegionPriceTable> priceDataMap = new HashMap<>();
         for (StorageResourceCost resource : resourceCostList) {
             final CommoditySpecification commoditySpecification
                     = ProtobufToAnalysis.commoditySpecification(resource.getResourceType());
-            final Table<Long, Long, List<PriceData>> accountRegionPriceDataTable
-                    = priceDataMap.computeIfAbsent(commoditySpecification, t -> HashBasedTable.create());
-            for (StorageTierPriceData priceData : resource.getStorageTierPriceDataList()) {
-                for (CostDTO.CostTuple costTuple : priceData.getCostTupleListList()) {
-                    final long businessAccountId = costTuple.getBusinessAccountId();
-                    final long regionId = costTuple.getRegionId();
-                    PriceData price = new PriceData(priceData.getUpperBound(), costTuple.getPrice(),
-                            priceData.getIsUnitPrice(), priceData.getIsAccumulativeCost(), regionId);
-                    List<PriceData> priceDataList = accountRegionPriceDataTable.get(businessAccountId, regionId);
-                    if (priceDataList == null) {
-                        priceDataList = new ArrayList<>();
-                        accountRegionPriceDataTable.put(businessAccountId, regionId, priceDataList);
-                    }
-                    priceDataList.add(price);
-                }
+            final AccountRegionPriceTable newTable = new AccountRegionPriceTable(resource);
+            final AccountRegionPriceTable existingTable = priceDataMap.get(commoditySpecification);
+            if (existingTable != null) {
+                existingTable.merge(newTable);
+            } else {
+                priceDataMap.put(commoditySpecification, newTable);
             }
         }
-        // make sure price list is ascending based on upper bound, because we need to get the
-        // first resource range that can satisfy the requested amount, and the price
-        // corresponds to that range will be used as price
-        priceDataMap.values().stream().flatMap(table -> table.values().stream()).forEach(list -> Collections.sort(list));
         return priceDataMap;
     }
 
@@ -407,6 +389,7 @@ public class CostFunctionFactoryHelper {
      * @param sl is the {@link ShoppingList} that is requesting price.
      * @param seller {@link Trader} that the buyer matched to.
      * @param commQuantityMap commQuantityMap used for CapacityLimitation check.
+     * @param commHistoricalQuantityMap map of historical commodity usages.
      * @param priceDataMap a map of map to keep the commodity to its price per business account.
      * @param commCapacityLimitation the map to keep commodity to its min max capacity limitation.
      * @param ratioDependencyList ratio capacity constraint between commodities.
@@ -417,7 +400,8 @@ public class CostFunctionFactoryHelper {
      */
     public static MutableQuote calculateStorageTierQuote(ShoppingList sl, Trader seller,
                                                          Map<CommoditySpecification, Double> commQuantityMap,
-                                                         Map<CommoditySpecification, Table<Long, Long, List<PriceData>>> priceDataMap,
+                                                         Map<CommoditySpecification, Double> commHistoricalQuantityMap,
+                                                         Map<CommoditySpecification, AccountRegionPriceTable> priceDataMap,
                                                          Map<CommoditySpecification, CapacityLimitation> commCapacityLimitation,
                                                          List<RatioBasedResourceDependency> ratioDependencyList,
                                                          List<RangeBasedResourceDependency> rangeDependencyList,
@@ -446,9 +430,12 @@ public class CostFunctionFactoryHelper {
         }
 
         // Commodity types with price, which are decisive commodities on the tier.
-        Set<CommoditySpecification> decisiveComms = priceDataMap.keySet();
+        final Set<CommoditySpecification> decisiveComms = priceDataMap.entrySet().stream()
+                .filter(e -> e.getValue().containsProvisionedBasedPrices())
+                .map(Entry::getKey)
+                .collect(Collectors.toSet());
         // For decisive commodities, new capacity should come from commQuantityMap.
-        decisiveComms.stream().forEach(c -> {
+        decisiveComms.forEach(c -> {
             final Double val = commQuantityMap.get(c);
             if (val != null) {
                 commCapacityMap.put(c, val);
@@ -461,7 +448,8 @@ public class CostFunctionFactoryHelper {
         commCapacityMap.forEach((comm, capacity) ->
                 commContexts.add(new CommodityContext(comm, capacity, decisiveComms.contains(comm))));
 
-        return calculateStorageTierCost(commQuantityMap, sl, seller, commContexts, priceDataMap, appendPenalty);
+        return calculateStorageTierCost(commQuantityMap, commHistoricalQuantityMap, sl, seller,
+                commContexts, priceDataMap, appendPenalty);
     }
 
     /**
@@ -670,6 +658,7 @@ public class CostFunctionFactoryHelper {
      * Calculates the total cost of all resources requested by commCapacityMap on a seller.
      *
      * @param commQuantityMap the map containing commodity quantity used for price calculation.
+     * @param commHistoricalQuantityMap the map containing commodity historical quantity used.
      * @param sl the shopping list requests resources.
      * @param seller the seller.
      * @param commodityContext CommodityContext to be set on the quote.
@@ -678,10 +667,11 @@ public class CostFunctionFactoryHelper {
      * @return the Quote given by {@link CostFunction}
      */
     private static MutableQuote calculateStorageTierCost(@Nonnull Map<CommoditySpecification, Double> commQuantityMap,
-                                                           @Nonnull ShoppingList sl, @Nonnull Trader seller,
-                                                           @Nonnull List<CommodityContext> commodityContext,
-                                                           @Nonnull Map<CommoditySpecification, Table<Long, Long, List<PriceData>>> priceDataMap,
-                                                           boolean appendPenalty) {
+                                                         @Nonnull Map<CommoditySpecification, Double> commHistoricalQuantityMap,
+                                                         @Nonnull ShoppingList sl, @Nonnull Trader seller,
+                                                         @Nonnull List<CommodityContext> commodityContext,
+                                                         @Nonnull Map<CommoditySpecification, AccountRegionPriceTable> priceDataMap,
+                                                         boolean appendPenalty) {
         Optional<Context> optionalContext = sl.getBuyer().getSettings().getContext();
         if (!optionalContext.isPresent()) {
             return new CostUnavailableQuote(seller, null, null, null);
@@ -692,7 +682,7 @@ public class CostFunctionFactoryHelper {
         final long priceId = balanceAccount.getPriceId();
         final long balanceAccountId = balanceAccount.getId();
         Pair<Double, Long> costAccountPair = getTotalCost(regionId, balanceAccountId, priceId,
-                commQuantityMap, priceDataMap, appendPenalty);
+                commQuantityMap, commHistoricalQuantityMap, priceDataMap, appendPenalty);
         Double cost = costAccountPair.first;
         Long chosenAccountId = costAccountPair.second;
         // If no pricing was found for commodities in basket, then return infinite quote for seller.
@@ -712,6 +702,7 @@ public class CostFunctionFactoryHelper {
      * @param accountId Business account id.
      * @param priceId Pricing id for account.
      * @param commQuantityMap the map containing commodity quantity used for price calculation.
+     * @param commHistoricalQuantityMap the map containing commodity historical quantity used.
      * @param priceDataMap Map containing all cost data.
      * @param appendPenalty if penalty cost should be counted into quote cost.
      * @return Pair with first value as the total cost for region, and second value as the chosen
@@ -722,7 +713,8 @@ public class CostFunctionFactoryHelper {
     private static Pair<Double, Long> getTotalCost(
             long regionId, long accountId, @Nullable Long priceId,
             @Nonnull Map<CommoditySpecification, Double> commQuantityMap,
-            @Nonnull Map<CommoditySpecification, Table<Long, Long, List<PriceData>>> priceDataMap,
+            @Nonnull Map<CommoditySpecification, Double> commHistoricalQuantityMap,
+            @Nonnull Map<CommoditySpecification, AccountRegionPriceTable> priceDataMap,
             boolean appendPenalty) {
         // Cost if we didn't get any valid commodity pricing, will be max, so that we don't
         // mistakenly think this region is cheapest because it is $0.
@@ -730,7 +722,7 @@ public class CostFunctionFactoryHelper {
         Long businessAccountChosenId = null;
 
         // iterating the priceDataMap for each type of commodity resource
-        for (Entry<CommoditySpecification, Table<Long, Long, List<PriceData>>> commodityPrice
+        for (Entry<CommoditySpecification, AccountRegionPriceTable> commodityPrice
                 : priceDataMap.entrySet()) {
             final Double requestedAmount = commQuantityMap.get(commodityPrice.getKey());
             if (requestedAmount == null) {
@@ -739,17 +731,20 @@ public class CostFunctionFactoryHelper {
                 // when trying to compute cost.
                 continue;
             }
-            final Table<Long, Long, List<PriceData>> priceTable = commodityPrice.getValue();
+            final AccountRegionPriceTable priceTable = commodityPrice.getValue();
             // priceMap may contain PriceData by price id. Price id is the identifier for a price
             // offering associated with a Balance Account. Different Balance Accounts (i.e.
             // Balance Accounts with different ids) may have the same price id, if they are
             // associated with the same price offering. If no entry is found in the priceMap for a
             // price id, then the Balance Account id is used to lookup the priceMap.
-            businessAccountChosenId = priceId != null && priceTable.containsRow(priceId)
+            businessAccountChosenId = priceId != null && priceTable.containsAccount(priceId)
                     ? priceId : accountId;
-            final List<PriceData> priceDataList = priceTable.get(businessAccountChosenId, regionId);
+            final List<PriceData> priceDataList = priceTable.getPriceDataList(
+                    businessAccountChosenId, regionId);
             if (priceDataList != null) {
-                double cost = getCostFromPriceDataList(requestedAmount, priceDataList);
+                Double historicalAmount = commHistoricalQuantityMap.get(commodityPrice.getKey());
+                double cost = getCostFromPriceDataList(requestedAmount, historicalAmount,
+                        priceDataList);
                 if (cost != Double.MAX_VALUE) {
                     if (totalCost == Double.MAX_VALUE) {
                         // Initialize cost now that we are getting a valid cost.
@@ -769,15 +764,27 @@ public class CostFunctionFactoryHelper {
      * A helper method to calculate the cost from price data list.
      *
      * @param requestedAmount the requested amount
+     * @param historicalAmount the historical amount
      * @param priceDataList pricing information
      * @return the cost for providing the given requested amount
      */
     private static double getCostFromPriceDataList(final double requestedAmount,
+                                                   @Nullable final Double historicalAmount,
                                                    @NonNull final List<PriceData> priceDataList) {
         double cost = Double.MAX_VALUE;
         double previousUpperBound = 0;
         double eachCost;
         for (PriceData priceData : priceDataList) {
+            final double amount;
+            if (priceData.isAppliedToHistoricalUsed()) {
+                if (historicalAmount != null) {
+                    amount = historicalAmount;
+                } else {
+                    continue;
+                }
+            } else {
+                amount = requestedAmount;
+            }
             // the list of priceData is sorted based on upper bound
             double currentUpperBound = priceData.getUpperBound();
             if (priceData.isAccumulative()) {
@@ -786,21 +793,21 @@ public class CostFunctionFactoryHelper {
                 eachCost = (priceData.isUnitPrice()
                         ? priceData.getPrice() * Math.min(
                         currentUpperBound - previousUpperBound,
-                        requestedAmount - previousUpperBound)
+                        amount - previousUpperBound)
                         : priceData.getPrice());
                 if (cost == Double.MAX_VALUE) {
                     cost = 0;
                 }
                 cost += eachCost;
                 // we find the exact range the requested amount falls
-                if (requestedAmount <= currentUpperBound) {
+                if (amount <= currentUpperBound) {
                     break;
                 }
-            } else if (!priceData.isAccumulative() && requestedAmount <= currentUpperBound) {
+            } else if (!priceData.isAccumulative() && amount <= currentUpperBound) {
                 // non accumulative cost only depends on the exact range where the requested
                 // amount falls
                 return priceData.isUnitPrice() ? priceData.getPrice()
-                        * requestedAmount : priceData.getPrice();
+                        * amount : priceData.getPrice();
             }
             previousUpperBound = currentUpperBound;
         }

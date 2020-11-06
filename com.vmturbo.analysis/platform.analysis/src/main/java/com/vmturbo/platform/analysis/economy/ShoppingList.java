@@ -41,6 +41,7 @@ public class ShoppingList implements Serializable {
     private final double @NonNull [] quantities_; // @see #getQuantities()
     private final double @NonNull [] peakQuantities_; // @see #getPeakQuantities().
                                                      // Must be same size as quantities_.
+    private final double @NonNull [] historicalQuantities_;
     private boolean movable_ = false; // Whether analysis is allowed to move this shopping list to
                                      // another supplier.
     private float moveCost_ = 0; // Cost to move this shopping list to another supplier
@@ -93,6 +94,7 @@ public class ShoppingList implements Serializable {
         basket_ = basket;
         quantities_ = new double[basket.size()];
         peakQuantities_ = new double[basket.size()];
+        historicalQuantities_ = new double[basket.size()];
     }
 
     // Methods
@@ -154,6 +156,22 @@ public class ShoppingList implements Serializable {
     @Pure
     public @PolyRead double @NonNull [] getPeakQuantities(@PolyRead ShoppingList this) {
         return peakQuantities_;
+    }
+
+    /**
+     * Returns the historical quantity vector of the commodities bought by {@code this} shopping
+     * list of the buyer.
+     *
+     * <p>This array contains one historical quantity entry for each commodity specification in
+     * the basket of the market {@code this} shopping list belongs to, in the same order.</p>
+     *
+     * @return Array of historical quantities.
+     *
+     * @see #setHistoricalQuantity(int, double)
+     */
+    @Pure
+    public @PolyRead double @NonNull [] getHistoricalQuantities(@PolyRead ShoppingList this) {
+        return historicalQuantities_;
     }
 
     /**
@@ -262,6 +280,24 @@ public class ShoppingList implements Serializable {
     public @NonNull ShoppingList setPeakQuantity(int index, double newPeakQuantity) {
         checkArgument(newPeakQuantity >= 0, "newPeakQuantity = %s", newPeakQuantity);
         peakQuantities_[index] = Math.max(quantities_[index], newPeakQuantity);
+        return this;
+    }
+
+    /**
+     * Sets the value of the <b>historical quantity</b> at the specified index.
+     *
+     * <p>Has no observable side-effects except updating the above index.</p>
+     *
+     * @param index The index in the historical quantities array that should be updated.
+     * @param newHistoricalQuantity The new value for that position of the array. Should be non-negative.
+     * @return {@code this}
+     *
+     * @see #getHistoricalQuantities()
+     */
+    @Deterministic
+    public @NonNull ShoppingList setHistoricalQuantity(int index, double newHistoricalQuantity) {
+        checkArgument(newHistoricalQuantity >= 0, "newHistoricalQuantity = %s", newHistoricalQuantity);
+        historicalQuantities_[index] = newHistoricalQuantity;
         return this;
     }
 

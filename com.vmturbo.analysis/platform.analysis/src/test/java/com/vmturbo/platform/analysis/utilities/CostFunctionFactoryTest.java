@@ -14,9 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Table;
+import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -29,8 +27,8 @@ import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple.DependentCostTuple;
@@ -158,7 +156,6 @@ public class CostFunctionFactoryTest {
 
     /**
      * Helper method to create compute cost tuples.
-     * @return
      */
     private List<CostTuple> generateComputeCostTuples() {
         List<CostTuple> computeTuples = new ArrayList<>();
@@ -176,23 +173,11 @@ public class CostFunctionFactoryTest {
 
     /**
      * Helper method to create compute cost DTO.
-     * @return
      */
     private ComputeTierCostDTO createComputeCost() {
         return ComputeTierCostDTO.newBuilder().addAllCostTupleList(generateComputeCostTuples())
                 .setCouponBaseType(couponBaseType)
                 .setLicenseCommodityBaseType(licenseAccessCommBaseType).build();
-    }
-
-    /**
-     * Helper method to create cbtp cost DTO.
-     * @return
-     */
-    private CbtpCostDTO createCbtpCost() {
-        return CbtpCostDTO.newBuilder().setCouponBaseType(couponBaseType).setDiscountPercentage(0.5)
-                .addAllCostTupleList(generateComputeCostTuples())
-                .setLicenseCommodityBaseType(licenseAccessCommBaseType)
-                .build();
     }
 
     /**
@@ -203,26 +188,73 @@ public class CostFunctionFactoryTest {
         // Price ranges for region1 in account1:
         // Price for 500 GB storage (SL requested amount) in region1 in account1 should fall at priceUpTo600Gb,
         // which is $20
-        PriceData priceUpTo200Gb = new PriceData(200d, 10d, false, false, regionId11);
-        PriceData priceUpTo600Gb = new PriceData(600d, 20d, false, false, regionId11);
+        StorageTierPriceData priceUpTo200Gb = StorageTierPriceData.newBuilder()
+                .setUpperBound(200D)
+                .addCostTupleList(CostTuple.newBuilder()
+                        .setBusinessAccountId(accountId1)
+                        .setRegionId(regionId11)
+                        .setPrice(10D)
+                        .build())
+                .setIsUnitPrice(false)
+                .setIsAccumulativeCost(false)
+                .setAppliedToHistoricalQuantity(false)
+                .build();
+        StorageTierPriceData priceUpTo600Gb = StorageTierPriceData.newBuilder()
+                .setUpperBound(600D)
+                .addCostTupleList(CostTuple.newBuilder()
+                        .setBusinessAccountId(accountId1)
+                        .setRegionId(regionId11)
+                        .setPrice(20D)
+                        .build())
+                .setIsUnitPrice(false)
+                .setIsAccumulativeCost(false)
+                .setAppliedToHistoricalQuantity(false)
+                .build();
 
         // Price for 500 GB storage (SL requested amount) in region2 in account2 should be:
         // 500 x $10 (unit price) = $5000
-        PriceData priceUnbounded = new PriceData(Double.POSITIVE_INFINITY, 10d, true, false, regionId21);
+        StorageTierPriceData priceUnbounded = StorageTierPriceData.newBuilder()
+                .setUpperBound(Double.POSITIVE_INFINITY)
+                .addCostTupleList(CostTuple.newBuilder()
+                        .setBusinessAccountId(accountId2)
+                        .setRegionId(regionId21)
+                        .setPrice(10D)
+                        .build())
+                .setIsUnitPrice(true)
+                .setIsAccumulativeCost(false)
+                .setAppliedToHistoricalQuantity(false)
+                .build();
 
         // Add a bad bound, we are requesting 500, but there is only 1 bound in this region,
         // set to 300. So we should get back an infinite quote for this case.
-        PriceData priceBadBound = new PriceData(300d, 30d, false, true, regionId12);
+        StorageTierPriceData priceBadBound = StorageTierPriceData.newBuilder()
+                .setUpperBound(300D)
+                .addCostTupleList(CostTuple.newBuilder()
+                        .setBusinessAccountId(accountId2)
+                        .setRegionId(regionId12)
+                        .setPrice(30D)
+                        .build())
+                .setIsUnitPrice(false)
+                .setIsAccumulativeCost(true)
+                .setAppliedToHistoricalQuantity(false)
+                .build();
 
         // Add prices for both accounts to map.
-        Table<Long, Long, List<PriceData>> priceData = HashBasedTable.create();
-        priceData.put(accountId1, regionId11, ImmutableList.of(priceUpTo200Gb, priceUpTo600Gb));
-        priceData.put(accountId2, regionId21, ImmutableList.of(priceUnbounded));
-        priceData.put(accountId2, regionId12, ImmutableList.of(priceBadBound));
+        StorageResourceCost resourceCost = StorageResourceCost.newBuilder()
+                .setResourceType(CommoditySpecificationTO.newBuilder()
+                        .setType(1)
+                        .setBaseType(1)
+                        .build())
+                .addStorageTierPriceData(priceUpTo200Gb)
+                .addStorageTierPriceData(priceUpTo600Gb)
+                .addStorageTierPriceData(priceUnbounded)
+                .addStorageTierPriceData(priceBadBound)
+                .build();
+        AccountRegionPriceTable priceData = new AccountRegionPriceTable(resourceCost);
 
         // Setup commodity spec mapping.
         CommoditySpecification commSpec1 = TestUtils.ST_AMT;
-        Map<CommoditySpecification, Table<Long, Long, List<PriceData>>> priceDataMap = new HashMap<>();
+        Map<CommoditySpecification, AccountRegionPriceTable> priceDataMap = new HashMap<>();
         priceDataMap.put(commSpec1, priceData);
 
         Map<CommoditySpecification, CapacityLimitation> commCapacity = new HashMap<>();
@@ -240,8 +272,9 @@ public class CostFunctionFactoryTest {
         BalanceAccount account1 = new BalanceAccount(100, 10000, accountId1, 0);
         buyerVm.getSettings().setContext(new com.vmturbo.platform.analysis.economy.Context(
                 regionId11, 0, account1));
-        MutableQuote quote1 = CostFunctionFactoryHelper.calculateStorageTierQuote(shoppingList, storageTier,
-                commQuantityMap, priceDataMap, commCapacity, new ArrayList<>(), new ArrayList<>(), true, false);
+        MutableQuote quote1 = CostFunctionFactoryHelper.calculateStorageTierQuote(shoppingList,
+                storageTier, commQuantityMap, Collections.emptyMap(), priceDataMap, commCapacity,
+                new ArrayList<>(), new ArrayList<>(), true, false);
         assertNotNull(quote1);
         assertTrue(quote1.getContext().isPresent());
         EconomyDTOs.Context context1 = quote1.getContext().get();
@@ -252,18 +285,74 @@ public class CostFunctionFactoryTest {
         // 2. Bad bounds check for region12, should get infinite quote back.
         buyerVm.getSettings().setContext(new com.vmturbo.platform.analysis.economy.Context(
                 regionId12, 0, account1));
-        MutableQuote quote2 = CostFunctionFactoryHelper.calculateStorageTierQuote(shoppingList, storageTier,
-                commQuantityMap, priceDataMap, commCapacity, new ArrayList<>(), new ArrayList<>(), true, false);
+        MutableQuote quote2 = CostFunctionFactoryHelper.calculateStorageTierQuote(shoppingList,
+                storageTier, commQuantityMap, Collections.emptyMap(), priceDataMap, commCapacity,
+                new ArrayList<>(), new ArrayList<>(), true, false);
         assertNotNull(quote2);
         assertFalse(quote2.getContext().isPresent());
         assertEquals(Double.POSITIVE_INFINITY, quote2.getQuoteValue(), 0d);
 
         // 3. Set null context for buyer
         buyerVm.getSettings().setContext(null);
-        MutableQuote quote3 = CostFunctionFactoryHelper.calculateStorageTierQuote(shoppingList, storageTier,
-                commQuantityMap, priceDataMap, commCapacity, new ArrayList<>(), new ArrayList<>(), true, false);
+        MutableQuote quote3 = CostFunctionFactoryHelper.calculateStorageTierQuote(shoppingList,
+                storageTier, commQuantityMap, Collections.emptyMap(), priceDataMap, commCapacity,
+                new ArrayList<>(), new ArrayList<>(), true, false);
         assertTrue(quote3 instanceof CostUnavailableQuote);
         assertTrue(quote3.getSeller().equals(storageTier) && Double.isInfinite(quote3.getQuoteValue()));
+    }
+
+    /**
+     * Tests storage tier quote calculation when price is based on historical used.
+     */
+    @Test
+    public void calculateHistoricalBasedStorageTierCost() {
+        final double price = 10D;
+        final StorageResourceCost resourceCost = StorageResourceCost.newBuilder()
+                .setResourceType(CommoditySpecificationTO.newBuilder()
+                        .setType(1)
+                        .setBaseType(1)
+                        .build())
+                .addStorageTierPriceData(StorageTierPriceData.newBuilder()
+                        .setUpperBound(1000D)
+                        .addCostTupleList(CostTuple.newBuilder()
+                                .setBusinessAccountId(accountId1)
+                                .setRegionId(regionId11)
+                                .setPrice(price)
+                                .build())
+                        .setIsUnitPrice(true)
+                        .setIsAccumulativeCost(false)
+                        .setAppliedToHistoricalQuantity(true)
+                        .build())
+                .build();
+        final AccountRegionPriceTable priceTable = new AccountRegionPriceTable(resourceCost);
+
+        final CommoditySpecification commSpec = TestUtils.ST_AMT;
+        final Map<CommoditySpecification, AccountRegionPriceTable> priceDataMap =
+                ImmutableMap.of(commSpec, priceTable);
+
+        final Map<CommoditySpecification, CapacityLimitation> commCapacity =
+                ImmutableMap.of(commSpec, new CapacityLimitation(0D, 500D, true));
+
+        final Trader buyerVm = TestUtils.createVM(economy);
+        final ShoppingList shoppingList = TestUtils.createAndPlaceShoppingList(economy,
+                Collections.singletonList(commSpec), buyerVm, new double[] {300D},
+                new double[] {300D}, storageTier);
+        final Map<CommoditySpecification, Double> commQuantityMap =
+                ImmutableMap.of(commSpec, 300D);
+        final double historicalQuantity = 400D;
+        final Map<CommoditySpecification, Double> commHistoricalQuantityMap =
+                ImmutableMap.of(commSpec, historicalQuantity);
+
+        final BalanceAccount account = new BalanceAccount(100, 10000, accountId1, 0);
+        buyerVm.getSettings().setContext(new com.vmturbo.platform.analysis.economy.Context(
+                regionId11, 0, account));
+
+        final MutableQuote quote = CostFunctionFactoryHelper.calculateStorageTierQuote(
+                shoppingList, storageTier, commQuantityMap, commHistoricalQuantityMap,
+                priceDataMap, commCapacity, Collections.emptyList(), Collections.emptyList(),
+                true, false);
+        assertNotNull(quote);
+        assertEquals(historicalQuantity * price, quote.getQuoteValue(), 0d);
     }
 
     /**
