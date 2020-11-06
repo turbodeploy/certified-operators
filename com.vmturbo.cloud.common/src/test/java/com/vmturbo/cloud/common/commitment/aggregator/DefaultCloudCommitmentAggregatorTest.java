@@ -85,7 +85,8 @@ public class DefaultCloudCommitmentAggregatorTest {
         // Setup the input data
         final ReservedInstanceSpec riSpec = ReservedInstanceSpec.newBuilder()
                 .setId(1)
-                .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder())
+                .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
+                                            .setSizeFlexible(false))
                 .build();
 
         final long purchasingAccountA = 4;
@@ -132,7 +133,8 @@ public class DefaultCloudCommitmentAggregatorTest {
     public void testSingleScopedAggregation() throws AggregationFailureException {
         final ReservedInstanceSpec riSpec = ReservedInstanceSpec.newBuilder()
                 .setId(1)
-                .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder())
+                .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
+                                                .setSizeFlexible(false))
                 .build();
 
         final long scopedAccount = 5;

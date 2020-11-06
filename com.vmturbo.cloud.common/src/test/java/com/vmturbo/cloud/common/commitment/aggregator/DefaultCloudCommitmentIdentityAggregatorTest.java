@@ -63,7 +63,8 @@ public class DefaultCloudCommitmentIdentityAggregatorTest {
         // Setup the input data
         final ReservedInstanceSpec riSpec = ReservedInstanceSpec.newBuilder()
                 .setId(1)
-                .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder())
+                .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
+                                                .setSizeFlexible(false))
                 .build();
 
         final ReservedInstanceBought riBoughtA = ReservedInstanceBought.newBuilder()

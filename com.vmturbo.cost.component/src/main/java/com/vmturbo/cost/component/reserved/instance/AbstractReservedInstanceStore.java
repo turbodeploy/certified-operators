@@ -20,6 +20,7 @@ import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceCostStat;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
@@ -181,6 +182,17 @@ public abstract class AbstractReservedInstanceStore {
                         numberOfCoupons = 0;
                     }
                     riCouponsBuilder.setNumberOfCoupons(numberOfCoupons);
+                }
+            }
+            // adjust the instance size flexible and scope for unknown scopes
+            if (riBuilder.getReservedInstanceBoughtInfo().hasReservedInstanceScopeInfo()) {
+                ReservedInstanceScopeInfo scopeInfo = riBuilder.getReservedInstanceBoughtInfo().getReservedInstanceScopeInfo();
+                if (!scopeInfo.hasShared()
+                        && scopeInfo.getApplicableBusinessAccountIdList().isEmpty()) {
+                    // this is an unknown, send it as shared
+                    riBuilder.getReservedInstanceBoughtInfoBuilder()
+                            .getReservedInstanceScopeInfoBuilder()
+                            .setShared(true);
                 }
             }
             logger.trace("ReservedInstanceBought after adjusting number of used coupons: {}",

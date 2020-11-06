@@ -209,7 +209,7 @@ message ReservedInstanceSpecInfo {
 
     // The property defining whether RI is applicable to workloads in different tiers of the same
     // template family.
-    optional bool size_flexible = 7 [default = false];
+    optional bool size_flexible = 7 [default = true];
 }
 
 // The RI coverage of a particular entity and projected RI coverage after market.
