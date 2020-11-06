@@ -19,7 +19,6 @@ import org.jooq.Result;
 import com.vmturbo.cloud.common.identity.IdentityProvider;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceCostStat;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
@@ -138,13 +137,13 @@ public abstract class AbstractReservedInstanceStore {
         logger.info("Adjusting available coupons for partial cloud environment for {} reserved instances.",
                 reservedInstances.size());
 
-        final Set<Long> discoveredBaOids = businessAccountHelper.getDiscoveredBusinessAccounts();
-        final List<ReservedInstanceBought> riFromUndiscoveredAccounts = reservedInstances.stream()
+        Set<Long> discoveredBaOids = businessAccountHelper.getDiscoveredBusinessAccounts();
+        List<ReservedInstanceBought> riFromUndiscoveredAccounts = reservedInstances.stream()
                 .filter(ri -> !discoveredBaOids.contains(
                         ri.getReservedInstanceBoughtInfo().getBusinessAccountId()))
                 .collect(Collectors.toList());
-        final List<Long> undiscoveredRiIds = riFromUndiscoveredAccounts.stream()
-                .map(ReservedInstanceBought::getId)
+        List<Long> undiscoveredRiIds = riFromUndiscoveredAccounts.stream()
+                .map(ri -> ri.getId())
                 .collect(Collectors.toList());
         // Retrieve the total  used coupons from discovered workloads for each RI
         final Map<Long, Double> riToDiscoveredUsageMap = entityReservedInstanceMappingStore
@@ -154,37 +153,41 @@ public abstract class AbstractReservedInstanceStore {
                                         .addAllRiBoughtId(undiscoveredRiIds).build()).build());
 
         // Retrieve the total  used coupons from undiscovered accounts for each RI
-        final Map<Long, Double> riToUndiscoveredAccountsUsage =
+        final Map<Long, Double> riToUndiscoveredAccountUsage =
                 accountRIMappingStore.getUndiscoveredAccountUsageForRI();
-        if (riToUndiscoveredAccountsUsage.isEmpty()) {
+        if (riToUndiscoveredAccountUsage.isEmpty()) {
             logger.warn("No RI usage for undiscovered accounts recorded.");
         }
         // Update the capacities for each RI
-        return reservedInstances.stream().map(ReservedInstanceBought::toBuilder).peek(riBuilder -> {
-            final ReservedInstanceBoughtCoupons.Builder riCouponsBuilder =
-                    riBuilder.getReservedInstanceBoughtInfoBuilder()
-                            .getReservedInstanceBoughtCouponsBuilder();
-            if (undiscoveredRiIds.contains(riBuilder.getId())) {
-                final double coupons = riToDiscoveredUsageMap.getOrDefault(riBuilder.getId(), 0d);
-                riCouponsBuilder.setNumberOfCoupons(coupons).setNumberOfCouponsUsed(coupons);
-            } else {
-                final double couponsUsedByUndiscoveredAccounts =
-                        riToUndiscoveredAccountsUsage.getOrDefault(riBuilder.getId(), 0d);
-                if (couponsUsedByUndiscoveredAccounts > 0) {
-                    double numberOfCoupons = riCouponsBuilder.getNumberOfCoupons()
-                            - couponsUsedByUndiscoveredAccounts;
-                    if (numberOfCoupons < 0) {
-                        logger.warn(
-                                "Coupons used by undiscovered accounts {} is greater than number of coupons {} for RI {}. Number of coupons will be set to 0.",
-                                couponsUsedByUndiscoveredAccounts,
-                                riCouponsBuilder.getNumberOfCoupons(), riBuilder.getId());
-                        numberOfCoupons = 0;
+        return reservedInstances.stream()
+                .map(ReservedInstanceBought::toBuilder)
+                .peek(riBuilder -> {
+                    if (undiscoveredRiIds.contains(riBuilder.getId())) {
+                        double coupons = riToDiscoveredUsageMap.getOrDefault(riBuilder.getId(),
+                                0d);
+                        riBuilder.getReservedInstanceBoughtInfoBuilder()
+                                .getReservedInstanceBoughtCouponsBuilder()
+                                .setNumberOfCouponsUsed(coupons)
+                                .setNumberOfCoupons(coupons);
+                    } else {
+                        double coupons = riToUndiscoveredAccountUsage.getOrDefault(riBuilder.getId(),
+                                0d);
+                        if (coupons > 0) {
+                            double capacity = riBuilder.getReservedInstanceBoughtInfoBuilder()
+                                    .getReservedInstanceBoughtCouponsBuilder()
+                                    .getNumberOfCoupons();
+                            riBuilder.getReservedInstanceBoughtInfoBuilder()
+                                    .getReservedInstanceBoughtCouponsBuilder()
+                                    .setNumberOfCoupons(capacity - coupons);
+                        }
                     }
-                    riCouponsBuilder.setNumberOfCoupons(numberOfCoupons);
-                }
-            }
-            logger.trace("ReservedInstanceBought after adjusting number of used coupons: {}",
-                    riBuilder);
-        }).map(ReservedInstanceBought.Builder::build).collect(Collectors.toList());
+                    logger.trace(
+                            "ReservedInstanceBought after adjusting number of used coupons: {}",
+                            riBuilder);
+                })
+                .map(ReservedInstanceBought.Builder::build)
+                .collect(Collectors.toList());
     }
+
+
 }

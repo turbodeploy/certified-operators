@@ -56,6 +56,10 @@ data:
         connRetryIntervalSeconds: 10
         # Remote iterator consumers - 10 minutes max wait for next chunk
         com.vmturbo.communication.remote.iterator.timeout: 600000
+        # driver property settings must be suitable for inclusion in a URL query
+        # string, with individual settings separated by "&". No initial "&" or "?" should appear
+        mariadbDriverProperties: useServerPrepStmts=true
+        mysqlDriverProperties:
       action-orchestrator:
         identityGeneratorPrefix: 9
         dbSchemaName: action
