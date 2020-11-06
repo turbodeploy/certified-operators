@@ -28,7 +28,7 @@ public class IncomeStatement {
     // Constructors
 
     /**
-     * Constructs a new IncomeStatement instance
+     * Constructs a new IncomeStatement instance.
      *
      */
     public IncomeStatement() {
@@ -48,7 +48,7 @@ public class IncomeStatement {
      *
      * <p>
      *  For a commodity, it is the amount the commodity spends on all the commodities it is chargedBy and
-     *  for a trader, it is the expense of the trader on its suppliers
+     *  for a trader, it is the expense of the trader on its suppliers.
      * </p>
      *
      * @return expense of this entity.
@@ -78,9 +78,8 @@ public class IncomeStatement {
 
     /**
      *
-     * <p>
-     *  for a trader, it is the amount the commodity earns from all the rawMaterials it made up of and
-     *  for a trader, it is the revenue of the trader from its customers
+     * <p>For a commodity, it is the amount the commodity earns from all the rawMaterials it made up
+     *  of, and for a trader, it is the revenue of the trader from its customers.
      * </p>
      *
      * @return revenue of this entity.
@@ -246,7 +245,7 @@ public class IncomeStatement {
      * @see #getMaxDesiredRevenues()
      */
     protected @NonNull IncomeStatement setMaxDesiredRevenues(double maxDesiredRevenues) {
-        checkArgument(maxDesiredRevenues >= 0, "maxDesiredRevenues = " + maxDesiredRevenues);
+        checkArgument(maxDesiredRevenues >= 0, "maxDesiredRevenues = %s", maxDesiredRevenues);
         maxDesiredRevenues_ = maxDesiredRevenues;
         return this;
     }
@@ -284,17 +283,17 @@ public class IncomeStatement {
     }
 
     /**
-     * Returns the "Return On Investment" of a Trader or a Commodity sold, using the corresponding revenues and expenses of the Trader or Commodity
+     * Returns the "Return On Investment" of a Trader or a Commodity sold, using the corresponding
+     * revenues and expenses of the Trader or Commodity.
      *
      * @see #setRevenues(double)
      * @see #setExpenses(double)
      */
     public double getROI() {
-        // checkArgument(0 < expenses_, "expenses = " + expenses_);
         if (expenses_ == 0) {
             return revenues_;
         } else {
-            return revenues_/expenses_;
+            return revenues_ / expenses_;
         }
     }
 
@@ -306,11 +305,10 @@ public class IncomeStatement {
      * @see #setMaxDesiredExpenses(double)
      */
     public double getMinDesiredROI() {
-        // checkArgument(0 < maxDesiredExpenses_, "maxDesiredExpenses = " + maxDesiredExpenses_);
         if (maxDesiredExpenses_ == 0) {
             return minDesiredRevenues_;
         } else {
-            return minDesiredRevenues_/maxDesiredExpenses_;
+            return minDesiredRevenues_ / maxDesiredExpenses_;
         }
     }
 
@@ -322,11 +320,10 @@ public class IncomeStatement {
      * @see #setMinDesiredExpenses(double)
      */
     public double getMaxDesiredROI() {
-        // checkArgument(0 < minDesiredExpenses_, "minDesiredExpenses = " + minDesiredExpenses_);
         if (minDesiredExpenses_ == 0) {
             return maxDesiredRevenues_;
         } else {
-            return maxDesiredRevenues_/minDesiredExpenses_;
+            return maxDesiredRevenues_ / minDesiredExpenses_;
         }
     }
 

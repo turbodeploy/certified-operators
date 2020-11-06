@@ -256,7 +256,7 @@ public class EstimateSupply {
                 newSeller = commResourceHighestRev.getInactiveCandidateHeap().poll();
                 action = (new Activate(economy_, newSeller, market.getBasket(), newSeller,
                     commResourceHighestRev.getCommoditySpecification())).take();
-                logger.debug("Activating trader " + newSeller);
+                logger.debug("Activating trader {}", newSeller);
             } else { // clone existing
                 newSeller = commResourceHighestRev.getCandidateClone();
                 action = (new ProvisionBySupply(economy_, newSeller,

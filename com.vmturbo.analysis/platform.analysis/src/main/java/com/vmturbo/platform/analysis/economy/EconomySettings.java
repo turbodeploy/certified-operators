@@ -3,8 +3,6 @@ package com.vmturbo.platform.analysis.economy;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.io.Serializable;
-import java.util.HashMap;
-import java.util.Map;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.dataflow.qual.Deterministic;
@@ -278,7 +276,7 @@ public final class EconomySettings implements Serializable {
 
     public void setDiscountedComputeCostFactor(float discountedComputeCostFactor) {
         checkArgument(discountedComputeCostFactor >= 0,
-            "discountedComputeCostFactor = " + discountedComputeCostFactor);
+            "discountedComputeCostFactor = %s", discountedComputeCostFactor);
         this.discountedComputeCostFactor = discountedComputeCostFactor;
     }
 

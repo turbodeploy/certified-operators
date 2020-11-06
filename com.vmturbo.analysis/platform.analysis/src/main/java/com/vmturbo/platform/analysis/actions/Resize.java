@@ -54,9 +54,9 @@ public class Resize extends ActionImpl {
     public Resize(@NonNull Economy economy, @NonNull Trader sellingTrader,
                   @NonNull CommoditySpecification resizedCommoditySpec,
                   double oldCapacity, double newCapacity) {
-        this(economy,sellingTrader,resizedCommoditySpec,sellingTrader.getCommoditySold(
-             resizedCommoditySpec),sellingTrader.getBasketSold().indexOf(resizedCommoditySpec),
-             oldCapacity,newCapacity);
+        this(economy, sellingTrader, resizedCommoditySpec, sellingTrader.getCommoditySold(
+             resizedCommoditySpec), sellingTrader.getBasketSold().indexOf(resizedCommoditySpec),
+             oldCapacity, newCapacity);
     }
 
     /**
@@ -70,9 +70,9 @@ public class Resize extends ActionImpl {
      */
     public Resize(@NonNull Economy economy, @NonNull Trader sellingTrader,
                   @NonNull CommoditySpecification resizedCommoditySpec, double newCapacity) {
-        this(economy,sellingTrader,resizedCommoditySpec,sellingTrader.getCommoditySold(
-             resizedCommoditySpec),sellingTrader.getBasketSold().indexOf(resizedCommoditySpec),
-             sellingTrader.getCommoditySold(resizedCommoditySpec).getCapacity(),newCapacity);
+        this(economy, sellingTrader, resizedCommoditySpec, sellingTrader.getCommoditySold(
+             resizedCommoditySpec), sellingTrader.getBasketSold().indexOf(resizedCommoditySpec),
+             sellingTrader.getCommoditySold(resizedCommoditySpec).getCapacity(), newCapacity);
     }
 
     /**
@@ -89,8 +89,8 @@ public class Resize extends ActionImpl {
     public Resize(@NonNull Economy economy, @NonNull Trader sellingTrader,
                   @NonNull CommoditySpecification resizedCommoditySpec,
                   @NonNull CommoditySold commoditySold, int soldIndex, double newCapacity) {
-        this(economy,sellingTrader,resizedCommoditySpec,commoditySold,soldIndex,
-             sellingTrader.getCommoditySold(resizedCommoditySpec).getCapacity(),newCapacity);
+        this(economy, sellingTrader, resizedCommoditySpec, commoditySold, soldIndex,
+             sellingTrader.getCommoditySold(resizedCommoditySpec).getCapacity(), newCapacity);
     }
 
     /**
@@ -113,7 +113,7 @@ public class Resize extends ActionImpl {
         super(economy);
 
         checkArgument(sellingTrader.getBasketSold().indexOf(resizedCommoditySpec) >= 0,
-                      "resizedCommodity =  " + resizedCommoditySpec);
+                      "resizedCommodity = %s", resizedCommoditySpec);
         checkArgument(oldCapacity >= 0, "oldCapacity = %s", oldCapacity);
         checkArgument(newCapacity >= 0, "newCapacity = %s", newCapacity);
 
@@ -180,7 +180,7 @@ public class Resize extends ActionImpl {
     }
 
     /**
-     * Set the new capacity of the resized commodity
+     * Set the new capacity of the resized commodity.
      */
     public void setNewCapacity(final double newCapacity) {
         this.newCapacity_ = newCapacity;
@@ -272,10 +272,9 @@ public class Resize extends ActionImpl {
                                        @NonNull IntFunction<@NonNull String> commodityType,
                                        @NonNull IntFunction<@NonNull String> traderType) {
         // TODO: update this when we settle on the reason messages for resize actions.
-        if(getNewCapacity() > getOldCapacity())
-            return "To ensure performance.";
-        else
-            return "To improve efficiency.";
+        return getNewCapacity() > getOldCapacity()
+            ? "To ensure performance."
+            : "To improve efficiency.";
     }
 
     @Override
@@ -291,7 +290,7 @@ public class Resize extends ActionImpl {
         // otherwise we are not supposed to get here.
         // Also check that this is a consistent sequence of actions, i.e.
         // this.getNewCapacity() == action.getOldCapacity().
-        Resize resize = (Resize) action;
+        Resize resize = (Resize)action;
         checkArgument(getSellingTrader().equals(resize.getSellingTrader()));
         checkArgument(getResizedCommoditySpec().equals(resize.getResizedCommoditySpec()));
         if (resize.getNewCapacity() == getOldCapacity()) { // the resizes cancel each other
@@ -324,7 +323,7 @@ public class Resize extends ActionImpl {
      */
     @Override
     @Pure
-    public boolean equals(@ReadOnly Resize this,@ReadOnly Object other) {
+    public boolean equals(@ReadOnly Resize this, @ReadOnly Object other) {
         if (!(other instanceof Resize)) {
             return false;
         }
