@@ -67,7 +67,7 @@ public class TopologyCostCalculatorTest {
 
         final CloudCostCalculator<TopologyEntityDTO> costCalculator = mock(CloudCostCalculator.class);
         final CostJournal<TopologyEntityDTO> journal = mock(CostJournal.class);
-        when(costCalculator.calculateCost(ENTITY)).thenReturn(journal);
+        when(costCalculator.calculateCost(ENTITY, false)).thenReturn(journal);
         when(cloudCostCalculatorFactory.newCalculator(
                 eq(cloudCostData),
                 eq(cloudTopology),
