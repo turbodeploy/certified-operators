@@ -59,7 +59,7 @@ then
   echo ""
 fi
 
-read -e -p "Are these settings correct (y/n) :: " changeTime
+read -e -p "Apply the settings entered (y/n) :: " changeTime
 if [ "X${changeTime}" = "Xy" ]
 then
   mv ${chronyTemp} /etc/chrony.conf
@@ -71,11 +71,17 @@ then
 fi
 
 echo ""
-echo "================="
-echo "New NTP Servers :"
-echo "================="
-timedatectl status
+echo "======================"
+echo "Network Time Servers :"
+echo "======================"
+chronyc sources
 echo ""
 
+echo ""
+echo "======================="
+echo "Status of Time Servers:"
+echo "======================="
+timedatectl status
+echo
 # Do a little cleanup
 rm -rf ${ntpInfoFile} ${newNtp}

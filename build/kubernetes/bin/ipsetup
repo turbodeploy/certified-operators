@@ -8,7 +8,7 @@
 # Run this as the root user
 if [[ $(/usr/bin/id -u) -ne 0 ]]
 then
-  echo "Not running as root, please become the root user"
+  echo "Not running as root, please become the root user, or use sudo"
   exit
 fi
 
@@ -308,7 +308,10 @@ fi
 if [ X${interactive} == "X1" ]; then
     echo ""
     read -e -p "Do you want to configure a Network Time Source? (y/n) :: " timesync
-    /opt/local/bin/timesync
+    if [ X$timesync = "Xy" ]
+    then
+      /opt/local/bin/timesync
+    fi
 else
-    proxy="n"
+    exit 0
 fi
