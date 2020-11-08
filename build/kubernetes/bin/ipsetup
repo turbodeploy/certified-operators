@@ -308,7 +308,7 @@ fi
 if [ X${interactive} == "X1" ]; then
     echo ""
     read -e -p "Do you want to configure a Network Time Source? (y/n) :: " timesync
-    /opt/local/bin/timesync.sh
+    /opt/local/bin/timesync
 else
     proxy="n"
 fi
