@@ -27,7 +27,7 @@ public class BuildProperties {
      * The path to the git commit file, relative to the classpath.
      * Must be in sync with the configuration of the git-commit-id-plugin in build/pom.xml.
      */
-    private static final String GIT_PROPERTIES_PATH = "git.properties";
+    private static final String GIT_PROPERTIES_PATH = "xl.git.properties";
 
     /**
      * The prefix used for build properties.
