@@ -20,7 +20,6 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -1111,36 +1110,6 @@ public class SupplyChainFetcherFactoryTest {
             is(1));
         assertTrue(result.getSeMap().get(ApiEntityType.REGION.apiStr())
             .getConnectedProviderTypes().isEmpty());
-    }
-
-    /**
-     * Tests the case that we call the {@link SupplyChainFetcherFactory#bulkExpandAggregatedEntities}
-     * with groups that have shared members. The logic should be able to handle that.
-     */
-    @Test
-    public void testBulkExpandAggregatedEntitiesWithGroupsWithSharedMembers() {
-        // ARRANGE
-        final long group1Id = 1L;
-        final long group2Id = 2L;
-        final long entity1Id = 10L;
-        final long entity2Id = 11L;
-        final ApiId entity1 = mock(ApiId.class);
-        final ApiId entity2 = mock(ApiId.class);
-        when(uuidMapper.fromOid(entity1Id)).thenReturn(entity1);
-        when(uuidMapper.fromOid(entity2Id)).thenReturn(entity2);
-        when(entity1.isEntity()).thenReturn(false);
-        when(entity2.isEntity()).thenReturn(false);
-
-        Map<Long, Set<Long>> entitiesMap = new HashMap<>();
-        entitiesMap.put(group1Id, Collections.singleton(entity1Id));
-        entitiesMap.put(group2Id, ImmutableSet.of(entity1Id, entity2Id));
-
-
-        // ACT
-        Map<Long, Set<Long>> result = supplyChainFetcherFactory.bulkExpandAggregatedEntities(entitiesMap);
-
-        // ASSERT
-        assertThat(entitiesMap, is(result));
     }
 
     /**
