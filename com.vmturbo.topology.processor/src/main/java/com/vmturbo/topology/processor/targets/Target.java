@@ -216,13 +216,8 @@ public class Target implements ProbeStoreListener {
         // treat empty or null string values for these fields as signifying that the account value
         // should be removed.  If we didn't remove it, we would have trouble later trying to parse
         // them into numeric or boolean values when the probe received them.
-        Set<String> numericAndBooleanFieldKeys = probeInfo.getAccountDefinitionList().stream()
-            .filter(acctDef -> acctDef.hasCustomDefinition()
-                && acctDef.getCustomDefinition().hasPrimitiveValue()
-                && (acctDef.getCustomDefinition().getPrimitiveValue() == PrimitiveValue.BOOLEAN
-                || acctDef.getCustomDefinition().getPrimitiveValue() == PrimitiveValue.NUMERIC))
-            .map(acctDef -> acctDef.getCustomDefinition().getName())
-            .collect(Collectors.toSet());
+        Set<String> numericAndBooleanFieldKeys =
+            AccountValueVerifier.getNumericAndBooleanFieldKeys(probeInfo.getAccountDefinitionList());
 
         // Filter out any account values that are boolean or numeric type and have empty values.
         // These represent fields the user has removed from the list of account values.

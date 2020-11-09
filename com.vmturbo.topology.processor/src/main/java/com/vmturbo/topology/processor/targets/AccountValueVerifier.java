@@ -16,6 +16,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
+import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -101,6 +102,22 @@ public class AccountValueVerifier {
                     .matcher(dependencyField.getStringValue())
                     .matches();
         }
+    }
+
+    /**
+     * Filtering out the numeric and boolean field keys from the given account definitions.
+     *
+     * @param accountDefinitions to filter out from
+     * @return Set of keys for representing the numeric and boolean fields
+     */
+    public static Set<String> getNumericAndBooleanFieldKeys(List<Discovery.AccountDefEntry> accountDefinitions) {
+        return accountDefinitions.stream()
+            .filter(acctDef -> acctDef.hasCustomDefinition()
+                && acctDef.getCustomDefinition().hasPrimitiveValue()
+                && (acctDef.getCustomDefinition().getPrimitiveValue() == PrimitiveValue.BOOLEAN
+                || acctDef.getCustomDefinition().getPrimitiveValue() == PrimitiveValue.NUMERIC))
+            .map(acctDef -> acctDef.getCustomDefinition().getName())
+            .collect(Collectors.toSet());
     }
 
     private static String verifyScopedField(PredefinedAccountDefinition scopedProperty,

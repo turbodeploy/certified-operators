@@ -8,6 +8,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -63,6 +64,7 @@ import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.targets.AccountValueVerifier;
 import com.vmturbo.topology.processor.targets.DuplicateTargetException;
 import com.vmturbo.topology.processor.targets.InvalidTargetException;
 import com.vmturbo.topology.processor.targets.Target;
@@ -163,6 +165,7 @@ public class TargetController {
                                     HttpStatus.BAD_REQUEST);
                         }
                     }
+                    clearEmptyNumericAndBooleanValues(targetSpec);
                     TopologyProcessorDTO.TargetSpec targetDto
                             = probeInfo.get().getCreationMode() == CreationMode.INTERNAL
                             ? targetSpec.toDto().toBuilder().setIsHidden(true).build()
@@ -185,6 +188,21 @@ public class TargetController {
             final TargetInfo resp = error(e.getErrors());
             return new ResponseEntity<>(resp, HttpStatus.BAD_REQUEST);
         }
+    }
+
+    /**
+     * Removing all the empty numeric/boolean input fields from a given target spec.
+     *
+     * @param targetSpec containing input fields
+     */
+    private void clearEmptyNumericAndBooleanValues(TargetSpec targetSpec) {
+        final Set<String> numericAndBooleanFieldKeys = AccountValueVerifier.getNumericAndBooleanFieldKeys(
+            probeStore.getProbe(targetSpec.getProbeId()).get()
+            .getAccountDefinitionList());
+        targetSpec.getInputFields().removeAll(targetSpec.getInputFields().stream()
+            .filter(x -> numericAndBooleanFieldKeys.contains(x.getName())
+                && x.getValue().isEmpty())
+            .collect(Collectors.toSet()));
     }
 
     @RequestMapping(value = "/{targetId}",
