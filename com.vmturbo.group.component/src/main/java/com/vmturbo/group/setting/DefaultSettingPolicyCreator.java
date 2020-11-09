@@ -57,6 +57,7 @@ public class DefaultSettingPolicyCreator implements Runnable {
 
     private final Logger logger = LogManager.getLogger();
     private final Map<Integer, SettingPolicyInfo> policies;
+    private final Map<Integer, Set<String>> entityTypeToSettingSpecNames;
     private final TransactionProvider transactionProvider;
     private final long timeBetweenIterationsMs;
     private final IdentityProvider identityProvider;
@@ -85,6 +86,8 @@ public class DefaultSettingPolicyCreator implements Runnable {
             final long timeBetweenIterationsMs, @Nonnull IdentityProvider identityProvider) {
         Objects.requireNonNull(specStore);
         this.policies = defaultSettingPoliciesFromSpecs(specStore.getAllSettingSpecs());
+        this.entityTypeToSettingSpecNames =
+            createEntityTypeToSettingSpecNamesMap(specStore.getAllSettingSpecs());
         this.transactionProvider = Objects.requireNonNull(transactionProvider);
         this.timeBetweenIterationsMs = timeBetweenIterationsMs;
         this.identityProvider = Objects.requireNonNull(identityProvider);
@@ -133,10 +136,12 @@ public class DefaultSettingPolicyCreator implements Runnable {
                     policiesToDelete.remove(existingPolicy.getId());
                 } else {
                     policiesToInsert.add(SettingPolicy.newBuilder()
-                            .setId(existingPolicy.getId())
-                            .setInfo(mergePolicies(existingPolicy.getInfo(), info))
-                            .setSettingPolicyType(Type.DEFAULT)
-                            .build());
+                        .setId(existingPolicy.getId())
+                        .setInfo(mergePolicies(existingPolicy.getInfo(), info,
+                            entityTypeToSettingSpecNames.getOrDefault(entityType,
+                                Collections.emptySet())))
+                        .setSettingPolicyType(Type.DEFAULT)
+                        .build());
                 }
             }
         }
@@ -179,18 +184,24 @@ public class DefaultSettingPolicyCreator implements Runnable {
      *
      * @param dbPolicyInfo a policy info from the database
      * @param policyFromSpec a policy from setting spec store
+     * @param specsApplicable the specs names that are valid. These are all the settings names that
+     *                        can be used to define a setting for an entity of this type. The
+     *                        {@code policyFromSpec} will not going to have all the settings that
+     *                        are applicable as it filters out those that default value is empty.
+     *                        Therefore, we need the list of valid setting names to remove the
+     *                        settings from db that are no longer relevant.
      * @return a resulting setting policy
      */
     @Nonnull
     private static SettingPolicyInfo mergePolicies(@Nonnull SettingPolicyInfo dbPolicyInfo,
-            @Nonnull SettingPolicyInfo policyFromSpec) {
+            @Nonnull SettingPolicyInfo policyFromSpec, @Nonnull Set<String> specsApplicable) {
         final Set<String> dbSpecsNames = specNames(dbPolicyInfo);
         final Set<String> defaultSpecsNames = specNames(policyFromSpec);
         final Set<String> settingsToAdd = new HashSet<>(defaultSpecsNames);
         // Create a new policy with all specs from the DB and new specs from EntitySettingSpec
         settingsToAdd.removeAll(dbSpecsNames);
         final Set<String> settingsToRemove = new HashSet<>(dbSpecsNames);
-        settingsToRemove.removeAll(defaultSpecsNames);
+        settingsToRemove.removeAll(specsApplicable);
         final SettingPolicyInfo merged;
         merged = SettingPolicyInfo.newBuilder(dbPolicyInfo)
                 .setDisplayName(policyFromSpec.getDisplayName())
@@ -241,6 +252,30 @@ public class DefaultSettingPolicyCreator implements Runnable {
     }
 
     /**
+     * Gets a list of specs and create a map of entity type to applicable spec names.
+     *
+     * @param specs the list of specs.
+     * @return the map from entity types to list of specs applicable.
+     */
+    @Nonnull
+    public static Map<Integer, Set<String>> createEntityTypeToSettingSpecNamesMap(
+        @Nonnull Collection<SettingSpec> specs) {
+        final Map<Integer, Set<String>> entityTypeToSettingSpecNames = new HashMap<>();
+        final Map<Integer, List<SettingSpec>> specsByEntityType =
+            createEntityTypeToSettingSpecsMap(specs);
+        for (Entry<Integer, List<SettingSpec>> entry : specsByEntityType.entrySet()) {
+            // Get the names of specs
+            Set<String> specNames = entry.getValue()
+                .stream()
+                .map(SettingSpec::getName)
+                .collect(Collectors.toSet());
+            entityTypeToSettingSpecNames.put(entry.getKey(), specNames);
+        }
+        return entityTypeToSettingSpecNames;
+    }
+
+
+    /**
      * Convert a collection of {@link SettingSpec}s into the default {@link SettingPolicyInfo}s
      * that represent the specs. There will be a single {@link SettingPolicyInfo} per entity
      * type - so a single {@link SettingSpec} that applies to multiple entity types will be
@@ -255,25 +290,8 @@ public class DefaultSettingPolicyCreator implements Runnable {
             @Nonnull final Collection<SettingSpec> specs) {
         // Arrange the setting specs by entity type,
         // removing irrelevant ones.
-        final Map<Integer, List<SettingSpec>> specsByEntityType = new HashMap<>();
-        specs.stream()
-                .filter(SettingSpec::hasEntitySettingSpec)
-                // For now we will ignore settings with "AllEntityType", because it's not clear if we
-                // will have those settings in the MVP, and if we do have them we will need to come up with
-                // a list of possible entity types - we almost certainly can't use ALL EntityType values!
-                .filter(spec ->
-                        spec.getEntitySettingSpec().getEntitySettingScope().hasEntityTypeSet()
-                                && spec.getEntitySettingSpec().getAllowGlobalDefault())
-                .forEach(spec -> spec.getEntitySettingSpec()
-                        .getEntitySettingScope()
-                        .getEntityTypeSet()
-                        .getEntityTypeList()
-                        .forEach(type -> {
-                            final List<SettingSpec> curTypeList =
-                                    specsByEntityType.computeIfAbsent(type,
-                                            k -> new LinkedList<>());
-                            curTypeList.add(spec);
-                        }));
+        final Map<Integer, List<SettingSpec>> specsByEntityType =
+            createEntityTypeToSettingSpecsMap(specs);
 
         // Convert the list of setting specs for each entity type
         // to a setting policy info.
@@ -302,6 +320,31 @@ public class DefaultSettingPolicyCreator implements Runnable {
                             .forEach(policyBuilder::addSettings);
                     return policyBuilder.build();
                 }));
+    }
+
+    @Nonnull
+    private static Map<Integer, List<SettingSpec>> createEntityTypeToSettingSpecsMap(
+            @Nonnull Collection<SettingSpec> specs) {
+        final Map<Integer, List<SettingSpec>> specsByEntityType = new HashMap<>();
+        specs.stream()
+            .filter(SettingSpec::hasEntitySettingSpec)
+            // For now we will ignore settings with "AllEntityType", because it's not clear if we
+            // will have those settings in the MVP, and if we do have them we will need to come up with
+            // a list of possible entity types - we almost certainly can't use ALL EntityType values!
+            .filter(spec ->
+                spec.getEntitySettingSpec().getEntitySettingScope().hasEntityTypeSet()
+                    && spec.getEntitySettingSpec().getAllowGlobalDefault())
+            .forEach(spec -> spec.getEntitySettingSpec()
+                .getEntitySettingScope()
+                .getEntityTypeSet()
+                .getEntityTypeList()
+                .forEach(type -> {
+                    final List<SettingSpec> curTypeList =
+                        specsByEntityType.computeIfAbsent(type,
+                            k -> new LinkedList<>());
+                    curTypeList.add(spec);
+                }));
+        return specsByEntityType;
     }
 
     /**
