@@ -12,7 +12,10 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.ActionStore;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
@@ -34,17 +37,25 @@ public class ActionApprovalSender {
 
     private final WorkflowStore workflowStore;
     private final IMessageSender<ActionApprovalRequests> messageSender;
+    private final ActionTargetSelector actionTargetSelector;
+    private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
 
     /**
      * Constructs action approval sender.
      *
      * @param workflowStore workflow store
      * @param messageSender message sender
+     * @param actionTargetSelector selects which target/probe to execute each action against
+     * @param entitySettingsCache cache of entity settings
      */
     public ActionApprovalSender(@Nonnull WorkflowStore workflowStore,
-            @Nonnull IMessageSender<ActionApprovalRequests> messageSender) {
+            @Nonnull IMessageSender<ActionApprovalRequests> messageSender,
+            @Nonnull ActionTargetSelector actionTargetSelector,
+            @Nonnull EntitiesAndSettingsSnapshotFactory entitySettingsCache) {
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.messageSender = Objects.requireNonNull(messageSender);
+        this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
+        this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
     }
 
     /**
@@ -73,10 +84,19 @@ public class ActionApprovalSender {
                     try {
                         final Optional<WorkflowDTO.Workflow> workflowOpt = action.getWorkflow(workflowStore);
 
-                        // It does not matter which target this action is expected to face.
-                        final ExecuteActionRequest request =
-                                ActionExecutor.createRequest(-1, recommendation, workflowOpt, action.getDescription(), action.getRecommendationOid());
-                        builder.addActions(request);
+                        final Optional<Long> targetForAction = getTargetForAction(recommendation);
+                        if (targetForAction.isPresent()) {
+                            final ExecuteActionRequest request =
+                                    ActionExecutor.createRequest(targetForAction.get(),
+                                    recommendation, workflowOpt,
+                                            action.getDescription(), action.getRecommendationOid());
+                            builder.addActions(request);
+                        } else {
+                            logger.warn(
+                                    "Action with {} OID wasn't send for external approval, because "
+                                            + "target for executing the action wasn't found",
+                                    action.getId());
+                        }
                     } catch (WorkflowStoreException e) {
                         logger.warn("Could not get workflow for action " + action.getId()
                                 + ". Skip approval request for it");
@@ -96,5 +116,18 @@ public class ActionApprovalSender {
                         .collect(Collectors.toList()), e);
             }
         }
+    }
+
+    /**
+     * Get target which should execute the action.
+     *
+     * @param recommendation the recommendation
+     * @return target id or {@link Optional#empty()} if there is no target where action can be
+     * executed
+     */
+    private Optional<Long> getTargetForAction(@Nonnull ActionDTO.Action recommendation) {
+        final ActionTargetInfo actionTargetInfo =
+                actionTargetSelector.getTargetForAction(recommendation, entitySettingsCache);
+        return actionTargetInfo.targetId();
     }
 }

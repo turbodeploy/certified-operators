@@ -410,7 +410,7 @@ public class ActionModeCalculator {
                     () -> actionSchedule);
                 selectedMode = ActionMode.RECOMMEND;
             } else if (actionSchedule.getAcceptingUser() != null)  {
-                logger.debug("Setting the action mode for action `{}` to `RECOMMEND` as there is "
+                logger.debug("Setting the action mode for action `{}` to `MANUAL` as there is "
                     + "an upcoming schedule `{}` with `MANUAL` for it and it has been accepted by"
                     + " `{}`.", () -> action, () -> actionSchedule, () -> actionSchedule.getAcceptingUser());
                 selectedMode = ActionMode.MANUAL;
