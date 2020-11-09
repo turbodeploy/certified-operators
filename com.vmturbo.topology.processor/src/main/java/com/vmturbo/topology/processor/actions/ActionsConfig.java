@@ -142,7 +142,6 @@ public class ActionsConfig {
         return new EntityRetriever(
                 topologyToSdkEntityConverter(),
                 repositoryConfig.repository(),
-                cachedTopology(),
                 realtimeTopologyContextId);
     }
 

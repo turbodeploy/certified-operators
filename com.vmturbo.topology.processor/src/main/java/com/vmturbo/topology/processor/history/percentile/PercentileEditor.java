@@ -135,9 +135,6 @@ public class PercentileEditor extends
      * Construct the instance of percentile editor.
      *
      * @param config configuration values
-     * @param statsHistoryClient persistence component access handler
-     * @param clock the {@link Clock}
-     * @param historyLoadingTaskCreator creator of task to load or save data
      */
     public PercentileEditor(@Nonnull PercentileHistoricalEditorConfig config,
                     @Nonnull StatsHistoryServiceStub statsHistoryClient, @Nonnull Clock clock,

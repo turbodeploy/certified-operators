@@ -1016,6 +1016,58 @@ public enum EntitySettingSpecs {
             true),
 
     /**
+     * Setting to enforce hot add mode in action execution process for VCPU commodity.
+     */
+    VCpuHotAddEnforcing(
+            "vCpuHotAddEnforcing",
+            "VCPU Resize Up Action",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            new EnumSettingDataType<>(HotChangeEnforcing.DISCOVERED,
+                            HotChangeEnforcing.class),
+            true),
+
+    /**
+     * Setting to enforce hot remove mode in action execution process for VCPU commodity.
+     */
+    VCpuHotRemoveEnforcing(
+            "vCpuHotRemoveEnforcing",
+            "VCPU Resize Down Action",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE),
+                    new EnumSettingDataType<>(HotChangeEnforcing.DISCOVERED,
+                                    HotChangeEnforcing.class),
+            true),
+
+    /**
+     * Setting to enforce hot add mode in action execution process for VMem commodity.
+     */
+    VMemHotAddEnforcing(
+            "vMemHotAddEnforcing",
+            "VMEM Resize Up Action",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            new EnumSettingDataType<>(HotChangeEnforcing.DISCOVERED,
+                            HotChangeEnforcing.class),
+            true),
+
+    /**
+     * Setting to enforce hot remove mode in action execution process for VMem commodity.
+     */
+    VMemHotRemoveEnforcing(
+            "vMemHotRemoveEnforcing",
+            "VMEM Resize Down Action",
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            new EnumSettingDataType<>(HotChangeEnforcing.DISCOVERED,
+                            HotChangeEnforcing.class),
+                    true),
+
+    /**
      * Instructs Market analysis to prefer savings over reversibility when generating Volume Scale
      * actions.
      */

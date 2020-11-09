@@ -3,7 +3,6 @@ package com.vmturbo.topology.processor.actions.data;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -18,7 +17,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.conversions.EntityConversionException;
 import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
-import com.vmturbo.topology.processor.topology.pipeline.CachedTopology;
 
 /**
  * This class retrieves and converts an entity in order to provide the full entity data for action
@@ -43,10 +41,6 @@ public class EntityRetriever {
      * Repository client to use.
      */
     private final RepositoryClient repositoryClient;
-    /**
-     * Cached topology to use to get entities by OIDs to avoid querying repository.
-     */
-    private final CachedTopology cachedTopology;
 
     /**
      * The context ID for the realtime market. Used when making remote calls to the repository service.
@@ -58,17 +52,14 @@ public class EntityRetriever {
      *
      * @param entityConverter entity converter to convert XL DTOs into SDK ones.
      * @param repositoryClient repository client to use if entities are not found in topology cache
-     * @param cachedTopology topology cache (from the previous broadcast)
      * @param realtimeTopologyContextId topology context ID to retrieve data from repository
      */
     public EntityRetriever(@Nonnull final TopologyToSdkEntityConverter entityConverter,
                            @Nonnull final RepositoryClient repositoryClient,
-                           @Nonnull final CachedTopology cachedTopology,
                            final long realtimeTopologyContextId) {
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.entityConverter = Objects.requireNonNull(entityConverter);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
-        this.cachedTopology = Objects.requireNonNull(cachedTopology);
     }
 
     /**
@@ -130,16 +121,7 @@ public class EntityRetriever {
      * @return entity data corresponding to the provided entities
      */
     public Collection<TopologyEntityDTO> retrieveTopologyEntities(List<Long> entities) {
-        final Map<Long, TopologyEntityDTO> cachedResults =
-                cachedTopology.getCachedEntitiesAsTopologyEntityDTOs(entities);
-        final List<Long> missing = entities.stream()
-                .filter(id -> !cachedResults.containsKey(id))
-                .collect(Collectors.toList());
-        if (!missing.isEmpty()) {
-            repositoryClient.retrieveTopologyEntities(missing, realtimeTopologyContextId).forEach(
-                    dto -> cachedResults.put(dto.getOid(), dto));
-
-        }
-        return cachedResults.values();
+        return repositoryClient.retrieveTopologyEntities(entities, realtimeTopologyContextId)
+                        .collect(Collectors.toSet());
     }
 }
