@@ -632,36 +632,7 @@ public class MarketsService implements IMarketsService {
     // Market UUID is ignored for now, since there is only one Market in XL.
     @Override
     public List<PolicyApiDTO> getPoliciesByMarketUuid(String uuid) throws Exception {
-        try {
-            final Iterator<PolicyDTO.PolicyResponse> allPolicyResps = policyRpcService
-                    .getPolicies(PolicyDTO.PolicyRequest.getDefaultInstance());
-            final List<Policy> policies = Streams.stream(allPolicyResps)
-                    .filter(PolicyResponse::hasPolicy)
-                    .map(PolicyResponse::getPolicy)
-                    .collect(Collectors.toList());
-
-            final Set<Long> groupingIDS = policies.stream()
-                    .map(GroupProtoUtil::getPolicyGroupIds)
-                    .flatMap(Collection::stream)
-                    .collect(Collectors.toSet());
-            final Collection<Grouping> groupings;
-            if (groupingIDS.isEmpty()) {
-                groupings = Collections.emptySet();
-            } else {
-                final Iterator<Grouping> iterator = groupRpcService.getGroups(
-                        GetGroupsRequest.newBuilder()
-                                .setGroupFilter(GroupFilter.newBuilder()
-                                        .addAllId(groupingIDS)
-                                        .setIncludeHidden(true))
-                                .build());
-                groupings = Sets.newHashSet(iterator);
-            }
-            final List<PolicyApiDTO> result = policyMapper.policyToApiDto(policies, groupings);
-            return result;
-        } catch (RuntimeException e) {
-            logger.error("Problem getting policies", e);
-            throw e;
-        }
+        return policiesService.getPolicies();
     }
 
     @Override

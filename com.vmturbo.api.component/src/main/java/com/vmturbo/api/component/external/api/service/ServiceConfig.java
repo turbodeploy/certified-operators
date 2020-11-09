@@ -352,7 +352,8 @@ public class ServiceConfig {
                 communicationConfig.policyRpcService(),
                 communicationConfig.thinTargetCache(),
                 mapperConfig.paginationMapper(),
-                communicationConfig.serviceEntityMapper());
+                communicationConfig.serviceEntityMapper(),
+                mapperConfig.settingManagerMappingLoader().getMapping());
     }
 
     @Bean

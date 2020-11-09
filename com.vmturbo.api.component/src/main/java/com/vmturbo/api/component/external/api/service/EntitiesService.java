@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -41,6 +42,8 @@ import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.TagsMapper;
@@ -111,8 +114,12 @@ import com.vmturbo.common.protobuf.repository.EntityConstraintsServiceGrpc.Entit
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
@@ -181,6 +188,8 @@ public class EntitiesService implements IEntitiesService {
 
     private final ServiceEntityMapper serviceEntityMapper;
 
+    private final SettingsManagerMapping settingsManagerMapping;
+
     // Entity types which are not part of Host or Storage Cluster.
     private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
             ImmutableSet.of(
@@ -243,7 +252,8 @@ public class EntitiesService implements IEntitiesService {
         @Nonnull final PolicyServiceBlockingStub policyRpcService,
         @Nonnull final ThinTargetCache thinTargetCache,
         @Nonnull final PaginationMapper paginationMapper,
-        @Nonnull final ServiceEntityMapper serviceEntityMapper) {
+        @Nonnull final ServiceEntityMapper serviceEntityMapper,
+        final SettingsManagerMapping settingsManagerMapping) {
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -266,6 +276,7 @@ public class EntitiesService implements IEntitiesService {
         this.thinTargetCache = thinTargetCache;
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
+        this.settingsManagerMapping = settingsManagerMapping;
     }
 
     @Override
@@ -430,19 +441,204 @@ public class EntitiesService implements IEntitiesService {
     @Override
     public List<SettingsManagerApiDTO> getSettingsByEntityUuid(String uuid, boolean includePolicies) throws Exception {
         final ApiId id = uuidMapper.fromUuid(uuid);
+        if (!id.isEntity() && !id.isGroup()) {
+            throw new IllegalArgumentException("Uuid '" + uuid
+                    + "' does not correspond to an entity or a group.");
+        }
         final List<SettingsManagerApiDTO> retMgrs =
             entitySettingQueryExecutor.getEntitySettings(id, includePolicies);
         return retMgrs;
     }
 
+    /**
+     * Get a setting by settingUuid and settingsManagerUuid, for the entity with entityUuid.
+     *
+     * @param entityUuid The uuid of the entity.
+     * @param settingsManagerUuid The uuid of the settings manager.
+     * @param settingUuid The uuid of the setting.
+     * @return A setting dto for the specified entity, populated with the values for that entity.
+     * @throws Exception on errors or on bad input.
+     */
     @Override
-    public SettingApiDTO getSettingByEntity(final String s, final String s1, final String s2) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public SettingApiDTO<?> getSettingByEntity(
+            final String entityUuid,
+            final String settingsManagerUuid,
+            final String settingUuid) throws Exception {
+        final ApiId id = uuidMapper.fromUuid(entityUuid);
+        validateEntityAndSettingAndManager(id, settingUuid, settingsManagerUuid);
+        // get the setting for that entity, wrapped inside its settings manager
+        final List<SettingsManagerApiDTO> result = entitySettingQueryExecutor.getEntitySettings(
+                id, false, Collections.singletonList(settingUuid), null);
+        List<? extends SettingApiDTO<?>> settings = result.stream()
+                .filter(sm -> sm.getUuid().equals(settingsManagerUuid))
+                .findFirst()
+                .orElseThrow(() ->
+                        new OperationFailedException("Failed to retrieve settings manager."))
+                .getSettings();
+        if (settings == null) {
+            throw new OperationFailedException("Failed to retrieve settings.");
+        }
+        return settings.stream()
+                .filter(s -> s.getUuid().equals(settingUuid))
+                .findFirst()
+                .orElseThrow(() -> new OperationFailedException("Failed to retrieve setting."));
     }
 
+    /**
+     * Return a list of {@link SettingApiDTO} representing the settings under the specified settings
+     * manager for the specified entity.
+     *
+     * @param entityUuid the uuid of the entity to query for.
+     * @param settingsManagerUuid the uuid of the manager to which the setting belongs.
+     * @return the settings for that entity under that settingsmanager.
+     * @throws OperationFailedException on error or bad input.
+     */
     @Override
-    public List<? extends SettingApiDTO<?>> getSettingsByEntityAndManager(final String s, final String s1) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public List<? extends SettingApiDTO<?>> getSettingsByEntityAndManager(
+            final String entityUuid,
+            final String settingsManagerUuid) throws OperationFailedException {
+        final ApiId id = uuidMapper.fromUuid(entityUuid);
+        validateEntityAndManager(id, settingsManagerUuid);
+        // get all settings for that entity, organized by settings manager
+        final List<SettingsManagerApiDTO> result = entitySettingQueryExecutor.getEntitySettings(
+                id, false, null, null);
+        if (result.isEmpty()) {
+            throw new OperationFailedException("Failed to retrieve settings manager with uuid '"
+                    + settingsManagerUuid + "'.");
+        }
+        return result.stream()
+                .filter(s -> s.getUuid().equals(settingsManagerUuid))
+                .findFirst()
+                .orElseThrow(() -> new OperationFailedException("Failed to retrieve settings"
+                        + " manager with uuid '" + settingsManagerUuid + "' for uuid '" + entityUuid
+                        + "'."))
+                .getSettings();
+    }
+
+    /**
+     * Validates that a settings manager uuid corresponds to an existing settings manager.
+     *
+     * @param entityApiId the entity to check against its type.
+     * @param managerUuid the settings manager uuid to validate.
+     * @throws OperationFailedException if the entity type cannot be resolved
+     */
+    private void validateEntityAndManager(@Nonnull final ApiId entityApiId, @Nonnull final String managerUuid)
+            throws OperationFailedException {
+        validateApiId(entityApiId);
+        // Validate that settings manager exists.
+        if (!settingsManagerMapping.getManagerInfo(managerUuid).isPresent()) {
+            throw new IllegalArgumentException("Invalid settings manager uuid '" + managerUuid
+                    + "'.");
+        }
+        // add a check when validating entity type, since in some cases group uuids might be
+        // allowed
+        if (entityApiId.isEntity()) {
+            // Validate that the settings manager is valid for this entity type.
+            // The settings manager is considered valid if it has at least one setting that is being
+            // used for the entity type provided.
+            ApiEntityType entityType = entityApiId.getCachedEntityInfo()
+                    .orElseThrow(() -> new OperationFailedException("Could not fetch the entity "
+                            + "type for uuid '" + entityApiId.uuid() + "'."))
+                    .getEntityType();
+            if (settingsManagerMapping.getManagerInfo(managerUuid).get()
+                    .getSettings().stream()
+                    .map(SettingsMapper::getSettingSpec)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .filter(SettingSpec::hasEntitySettingSpec)
+                    .map(SettingSpec::getEntitySettingSpec)
+                    .filter(EntitySettingSpec::hasEntitySettingScope)
+                    .map(EntitySettingSpec::getEntitySettingScope)
+                    .filter(EntitySettingScope::hasEntityTypeSet)
+                    .map(scope -> scope.getEntityTypeSet().getEntityTypeList())
+                    .flatMap(Collection::stream)
+                    .noneMatch(type -> type.equals(entityType.typeNumber()))) {
+                throw new IllegalArgumentException("Invalid settings manager uuid '" + managerUuid
+                        + "' for entity type '" + entityType.apiStr() + "'.");
+            }
+        }
+    }
+
+    /**
+     * Validates that:
+     * 1) the setting uuid corresponds to an existing setting spec.
+     * 2) the settings manager uuid corresponds to an existing settings manager.
+     * 3) the settings manager contains the setting.
+     *
+     * @param entityApiId the entity to check against its type.
+     * @param settingUuid the setting uuid to validate.
+     * @param managerUuid the settings manager uuid to validate.
+     */
+    private void validateEntityAndSettingAndManager(@Nonnull final ApiId entityApiId,
+            @Nonnull final String settingUuid,
+            @Nonnull final String managerUuid) {
+        validateApiId(entityApiId);
+        // Validate that setting exists.
+        final SettingSpec settingSpec = SettingsMapper.getSettingSpec(settingUuid).orElseThrow(() ->
+                new IllegalArgumentException("Invalid setting uuid '" + settingUuid + "'."));
+        // Validate that settings manager exists.
+        final SettingsManagerInfo resolvedSettingsManager =
+                settingsManagerMapping.getManagerInfo(managerUuid).orElseThrow(() ->
+                        new IllegalArgumentException("Invalid settings manager uuid '" + managerUuid
+                                + "'.")
+                );
+        // Validate that the setting is under this settings manager.
+        if (!resolvedSettingsManager.getSettings().contains(settingUuid)) {
+            throw new IllegalArgumentException("Provided settings manager uuid '" + managerUuid
+                    + "' is not valid for setting uuid '" + settingUuid + "'.");
+        }
+        // add a check when validating entity type, since in some cases group uuids might be
+        // allowed
+        if (entityApiId.isEntity()) {
+            // Validate that the entity type is valid for this setting spec.
+            // sanity checks
+            if (!settingSpec.hasEntitySettingSpec()) {
+                throw createInvalidSettingException(settingUuid, entityApiId.uuid());
+            }
+            SettingProto.EntitySettingSpec entitySettingSpec = settingSpec.getEntitySettingSpec();
+            if (!entitySettingSpec.hasEntitySettingScope()) {
+                throw createInvalidSettingException(settingUuid, entityApiId.uuid());
+            }
+            SettingProto.EntitySettingScope scope =
+                    settingSpec.getEntitySettingSpec().getEntitySettingScope();
+            if (!scope.hasEntityTypeSet()) {
+                throw createInvalidSettingException(settingUuid, entityApiId.uuid());
+            }
+            // actual check
+            if (!scope.getEntityTypeSet().getEntityTypeList().contains(
+                    entityApiId.getCachedEntityInfo()
+                            .orElseThrow(() ->
+                                    createInvalidSettingException(settingUuid, entityApiId.uuid()))
+                            .getEntityType().typeNumber())) {
+                throw createInvalidSettingException(settingUuid, entityApiId.uuid());
+            }
+        }
+    }
+
+    /**
+     * Checks that the {@link ApiId} provided corresponds to either an entity or a group.
+     *
+     * @param apiId the {@link ApiId} to validate.
+     */
+    private void validateApiId(@Nonnull final ApiId apiId) {
+        if (!apiId.isEntity() && !apiId.isGroup()) {
+            throw new IllegalArgumentException("Uuid '" + apiId.uuid()
+                    + "' does not correspond to an entity or a group.");
+        }
+    }
+
+    /**
+     * Utility function for {@link EntitiesService#validateEntityAndSettingAndManager}.
+     * Creates a new {@link IllegalArgumentException} with an appropriate error message.
+     *
+     * @param settingUuid the name of the setting, to be included in the error message.
+     * @param entityUuid the uuid for the entity (or group), to be included in the error message.
+     * @return the new {@link IllegalArgumentException}
+     */
+    private IllegalArgumentException createInvalidSettingException(String settingUuid,
+            String entityUuid) {
+        return new IllegalArgumentException("Setting uuid '" + settingUuid + "' is invalid for"
+                + " uuid '" + entityUuid + "'.");
     }
 
     @Override

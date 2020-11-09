@@ -5,7 +5,13 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -18,11 +24,15 @@ import org.mockito.MockitoAnnotations;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -117,5 +127,60 @@ public class PoliciesServiceTest {
         when(policyServiceSpy.getPolicy(eq(request))).thenReturn(response);
         PolicyApiDTO policyApiDTO = policiesService.getPolicyByUuid(testUuidLong.toString());
         Assert.assertEquals(testUuidLong, Long.valueOf(policyApiDTO.getUuid()));
+    }
+
+    /**
+     * Simple test for getPolicies(). Tests basic functionality.
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetPolicies() throws Exception {
+        // GIVEN
+        Long policyId = 10L;
+        Set<Long> groupIds = new HashSet<>();
+        groupIds.add(1L);
+        groupIds.add(2L);
+        groupIds.add(3L);
+        Policy policy = Policy.newBuilder()
+                .setId(policyId)
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                        .setMerge(MergePolicy.newBuilder()
+                                .addAllMergeGroupIds(groupIds)
+                                .build())
+                        .build())
+                .build();
+        PolicyDTO.PolicyResponse policyResponse = PolicyDTO.PolicyResponse.newBuilder()
+                .setPolicy(policy)
+                .build();
+        when(policyServiceSpy.getPolicies(PolicyDTO.PolicyRequest.getDefaultInstance()))
+                .thenReturn(Collections.singletonList(policyResponse));
+
+        List<Grouping> groupings = new ArrayList<>();
+        groupings.add(Grouping.newBuilder().setId(1L).build());
+        groupings.add(Grouping.newBuilder().setId(2L).build());
+        groupings.add(Grouping.newBuilder().setId(3L).build());
+        when(groupServiceSpy.getGroups(
+                GetGroupsRequest.newBuilder()
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                .addAllId(groupIds)
+                                .setIncludeHidden(true))
+                        .build()))
+                .thenReturn(groupings);
+
+        PolicyApiDTO policyApiDTO = new PolicyApiDTO();
+        policyApiDTO.setUuid(String.valueOf(policyId));
+        List<PolicyApiDTO> policyMapperResponse = new ArrayList<>();
+        policyMapperResponse.add(policyApiDTO);
+        when(policyMapper.policyToApiDto(Collections.singletonList(policy),
+                        Sets.newHashSet(groupings)))
+                .thenReturn(policyMapperResponse);
+
+        // WHEN
+        List<PolicyApiDTO> response = policiesService.getPolicies();
+
+        // THEN
+        Assert.assertEquals(1, response.size());
+        Assert.assertEquals(String.valueOf(policyId), response.get(0).getUuid());
     }
 }

@@ -4,18 +4,20 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import com.google.common.collect.Streams;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
-import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -26,6 +28,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 
 /**
@@ -49,8 +53,37 @@ public class PoliciesService implements IPoliciesService {
     }
 
     @Override
-    public PolicyApiDTO getPolicies() throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public List<PolicyApiDTO> getPolicies() throws Exception {
+        try {
+            final Iterator<PolicyDTO.PolicyResponse> allPolicyResponse = policyService
+                    .getPolicies(PolicyDTO.PolicyRequest.getDefaultInstance());
+            final List<Policy> policies = Streams.stream(allPolicyResponse)
+                    .filter(PolicyResponse::hasPolicy)
+                    .map(PolicyResponse::getPolicy)
+                    .collect(Collectors.toList());
+
+            final Set<Long> groupingIDS = policies.stream()
+                    .map(GroupProtoUtil::getPolicyGroupIds)
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet());
+            final Collection<Grouping> groupings;
+            if (groupingIDS.isEmpty()) {
+                groupings = Collections.emptySet();
+            } else {
+                final Iterator<Grouping> iterator = groupService.getGroups(
+                        GetGroupsRequest.newBuilder()
+                                .setGroupFilter(GroupFilter.newBuilder()
+                                        .addAllId(groupingIDS)
+                                        .setIncludeHidden(true))
+                                .build());
+                groupings = Sets.newHashSet(iterator);
+            }
+            final List<PolicyApiDTO> result = policyMapper.policyToApiDto(policies, groupings);
+            return result;
+        } catch (RuntimeException e) {
+            LOG.error("Problem getting policies", e);
+            throw e;
+        }
     }
 
     @Override

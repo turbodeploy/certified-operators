@@ -450,6 +450,9 @@ public class GroupsService implements IGroupsService {
     @Override
     public List<SettingsManagerApiDTO> getSettingsByGroupUuid(String uuid, boolean includePolicies) throws Exception {
         final ApiId id = uuidMapper.fromUuid(uuid);
+        if (!id.isGroup()) {
+            throw new IllegalArgumentException(uuid + " is not a group uuid.");
+        }
         final List<SettingsManagerApiDTO> mgrs =
             entitySettingQueryExecutor.getEntitySettings(id, includePolicies);
 

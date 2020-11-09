@@ -24,6 +24,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.mockito.Matchers;
 
 import com.vmturbo.api.component.ApiTestUtils;
@@ -34,10 +35,13 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedEntityInfo;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
@@ -50,7 +54,10 @@ import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
+import com.vmturbo.api.dto.setting.SettingApiDTO;
+import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.enums.ActionDetailLevel;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
@@ -127,6 +134,14 @@ public class EntitiesServiceTest {
     private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
 
     private ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
+
+    private SettingsManagerMapping settingsManagerMapping = mock(SettingsManagerMapping.class);
+
+    /**
+     * Exception checker.
+     */
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     // gRPC servers
     @Rule
@@ -247,7 +262,8 @@ public class EntitiesServiceTest {
                 PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 thinTargetCache,
                 paginationMapper,
-                serviceEntityMapper);
+                serviceEntityMapper,
+                settingsManagerMapping);
     }
 
     /**
@@ -619,5 +635,488 @@ public class EntitiesServiceTest {
                 .get(0);
 
         Assert.assertEquals(actionApiDTO, regionResult);
+    }
+
+    /**
+     * Tests {@link EntitiesService#getSettingByEntity}'s behavior to incorrect input (incorrect
+     * entity uuid).
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingByEntityWithIncorrectEntityUuid() throws Exception {
+        final String entityUuid = "1234";
+        final String settingsManagerUuid = "marketsettingsmanager";
+        final String settingUuid = "usedIncrement_VCPU";
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromUuid(entityUuid)).thenReturn(apiId);
+
+        // incorrect entity uuid provided
+        when(apiId.isEntity()).thenReturn(false);
+        expectedException.expect(IllegalArgumentException.class);
+        service.getSettingByEntity(entityUuid, settingsManagerUuid, settingUuid);
+    }
+
+    /**
+     * Tests {@link EntitiesService#getSettingByEntity}'s behavior to incorrect input (incorrect
+     * setting uuid).
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingByEntityWithIncorrectSettingUuid() throws Exception {
+        final String entityUuid = "1234";
+        final String settingsManagerUuid = "marketsettingsmanager";
+        // invalid setting uuid
+        final String settingUuid = "aaaa";
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromUuid(entityUuid)).thenReturn(apiId);
+        when(apiId.isEntity()).thenReturn(true);
+
+        expectedException.expect(IllegalArgumentException.class);
+        service.getSettingByEntity(entityUuid, settingsManagerUuid, settingUuid);
+    }
+
+    /**
+     * Tests {@link EntitiesService#getSettingByEntity}'s behavior to incorrect input (incorrect
+     * settings manager uuid).
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingByEntityWithIncorrectSettingsManagerUuid() throws Exception {
+        final String entityUuid = "1234";
+        // incorrect settings manager uuid
+        final String settingsManagerUuid = "aaaa";
+        final String settingUuid = "usedIncrement_VCPU";
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromUuid(entityUuid)).thenReturn(apiId);
+        when(apiId.isEntity()).thenReturn(true);
+        when(settingsManagerMapping.getManagerInfo(settingsManagerUuid))
+                .thenReturn(Optional.empty());
+        expectedException.expect(IllegalArgumentException.class);
+        service.getSettingByEntity(entityUuid, settingsManagerUuid, settingUuid);
+    }
+
+    /**
+     * Tests {@link EntitiesService#getSettingByEntity}'s behavior to incorrect input (setting not
+     * belonging to the settings manager provided).
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingByEntityWithIncorrectSettingAndSettingsManagerCombination()
+            throws Exception {
+        final String entityUuid = "1234";
+        final String settingsManagerUuid = "marketsettingsmanager";
+        final String settingUuid = "smtpServer";
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromUuid(entityUuid)).thenReturn(apiId);
+        when(apiId.isEntity()).thenReturn(true);
+        final SettingsManagerInfo settingsManagerInfo = mock(SettingsManagerInfo.class);
+        // settings manager provided does not contain the setting provided
+        when(settingsManagerInfo.getSettings())
+                .thenReturn(Collections.singleton("usedIncrement_VCPU"));
+        when(settingsManagerMapping.getManagerInfo(settingsManagerUuid))
+                .thenReturn(Optional.of(settingsManagerInfo));
+        expectedException.expect(IllegalArgumentException.class);
+        service.getSettingByEntity(entityUuid, settingsManagerUuid, settingUuid);
+    }
+
+    /**
+     * Tests {@link EntitiesService#getSettingByEntity}'s behavior to incorrect input (setting not
+     * valid for the type of the entity provided).
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingByEntityWithIncorrectSettingForEntityTypeCombination()
+            throws Exception {
+        final String entityUuid = "1234";
+        final String settingsManagerUuid = "marketsettingsmanager";
+        final String settingUuid = "usedIncrement_VCPU";
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromUuid(entityUuid)).thenReturn(apiId);
+        when(apiId.isEntity()).thenReturn(true);
+        MinimalEntity minimalEntity = MinimalEntity.newBuilder()
+                .setOid(Long.parseLong(entityUuid))
+                // entity type does not corresponds with the entity uuid
+                .setEntityType(EntityType.STORAGE_VALUE)
+                .build();
+        CachedEntityInfo cachedEntityInfo = new CachedEntityInfo(minimalEntity);
+        when(apiId.getCachedEntityInfo()).thenReturn(Optional.of(cachedEntityInfo));
+        final SettingsManagerInfo settingsManagerInfo = mock(SettingsManagerInfo.class);
+        // settings manager provided does not contain the setting provided
+        when(settingsManagerInfo.getSettings())
+                .thenReturn(Collections.singleton("usedIncrement_VCPU"));
+        when(settingsManagerMapping.getManagerInfo(settingsManagerUuid))
+                .thenReturn(Optional.of(settingsManagerInfo));
+        expectedException.expect(IllegalArgumentException.class);
+        service.getSettingByEntity(entityUuid, settingsManagerUuid, settingUuid);
+    }
+
+    /**
+     * Tests {@link EntitiesService#getSettingByEntity}'s behavior when the result from
+     * entitySettingQuery is empty.
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingByEntityOnEmptyEntitySettingQueryResult() throws Exception {
+        final String entityUuid = "1234";
+        final String settingsManagerUuid = "marketsettingsmanager";
+        final String settingUuid = "usedIncrement_VCPU";
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromUuid(entityUuid)).thenReturn(apiId);
+        when(apiId.isEntity()).thenReturn(true);
+        MinimalEntity minimalEntity = MinimalEntity.newBuilder()
+                .setOid(Long.parseLong(entityUuid))
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        CachedEntityInfo cachedEntityInfo = new CachedEntityInfo(minimalEntity);
+        when(apiId.getCachedEntityInfo()).thenReturn(Optional.of(cachedEntityInfo));
+        final SettingsManagerInfo settingsManagerInfo = mock(SettingsManagerInfo.class);
+        when(settingsManagerInfo.getSettings()).thenReturn(Collections.singleton(settingUuid));
+        when(settingsManagerMapping.getManagerInfo(settingsManagerUuid))
+                .thenReturn(Optional.of(settingsManagerInfo));
+        // empty result from entitySettingQuery
+        when(entitySettingQueryExecutor.getEntitySettings(
+                apiId, false, Collections.singletonList(settingUuid), null))
+                .thenReturn(Collections.emptyList());
+        expectedException.expect(OperationFailedException.class);
+        service.getSettingByEntity(entityUuid, settingsManagerUuid, settingUuid);
+    }
+
+    /**
+     * Tests {@link EntitiesService#getSettingByEntity}'s behavior when the settings manager cannot
+     * be found.
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingByEntityWhenManagerIsNotFound() throws Exception {
+        final String entityUuid = "1234";
+        final String settingsManagerUuid = "marketsettingsmanager";
+        final String settingUuid = "usedIncrement_VCPU";
+        final SettingsManagerApiDTO resultManagerDto = new SettingsManagerApiDTO();
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromUuid(entityUuid)).thenReturn(apiId);
+        when(apiId.isEntity()).thenReturn(true);
+        MinimalEntity minimalEntity = MinimalEntity.newBuilder()
+                .setOid(Long.parseLong(entityUuid))
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        CachedEntityInfo cachedEntityInfo = new CachedEntityInfo(minimalEntity);
+        when(apiId.getCachedEntityInfo()).thenReturn(Optional.of(cachedEntityInfo));
+        final SettingsManagerInfo settingsManagerInfo = mock(SettingsManagerInfo.class);
+        when(settingsManagerInfo.getSettings()).thenReturn(Collections.singleton(settingUuid));
+        when(settingsManagerMapping.getManagerInfo(settingsManagerUuid))
+                .thenReturn(Optional.of(settingsManagerInfo));
+        // managers in the response do not include marketsettingsmanager
+        resultManagerDto.setUuid("automationmanager");
+        when(entitySettingQueryExecutor.getEntitySettings(
+                apiId, false, Collections.singletonList(settingUuid), null))
+                .thenReturn(Collections.singletonList(resultManagerDto));
+        expectedException.expect(OperationFailedException.class);
+        service.getSettingByEntity(entityUuid, settingsManagerUuid, settingUuid);
+    }
+
+    /**
+     * Tests {@link EntitiesService#getSettingByEntity}'s behavior when the settingsmanager returned
+     * from group component does not have settings.
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingByEntityWhenManagerDoesNotHaveSettings() throws Exception {
+        final String entityUuid = "1234";
+        final String settingsManagerUuid = "marketsettingsmanager";
+        final String settingUuid = "usedIncrement_VCPU";
+        final SettingsManagerApiDTO resultManagerDto = new SettingsManagerApiDTO();
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromUuid(entityUuid)).thenReturn(apiId);
+        when(apiId.isEntity()).thenReturn(true);
+        MinimalEntity minimalEntity = MinimalEntity.newBuilder()
+                .setOid(Long.parseLong(entityUuid))
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        CachedEntityInfo cachedEntityInfo = new CachedEntityInfo(minimalEntity);
+        when(apiId.getCachedEntityInfo()).thenReturn(Optional.of(cachedEntityInfo));
+        final SettingsManagerInfo settingsManagerInfo = mock(SettingsManagerInfo.class);
+        when(settingsManagerInfo.getSettings()).thenReturn(Collections.singleton(settingUuid));
+        when(settingsManagerMapping.getManagerInfo(settingsManagerUuid))
+                .thenReturn(Optional.of(settingsManagerInfo));
+        resultManagerDto.setUuid(settingsManagerUuid);
+        // no settings added to resultManagerDto
+        when(entitySettingQueryExecutor.getEntitySettings(
+                apiId, false, Collections.singletonList(settingUuid), null))
+                .thenReturn(Collections.singletonList(resultManagerDto));
+        expectedException.expect(OperationFailedException.class);
+        service.getSettingByEntity(entityUuid, settingsManagerUuid, settingUuid);
+    }
+
+    /**
+     * Tests {@link EntitiesService#getSettingByEntity}'s behavior when the settingsmanager returned
+     * from group component does not have the setting specified.
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingByEntityWhenManagerDoesNotHaveTheSpecifiedSetting() throws Exception {
+        final String entityUuid = "1234";
+        final String settingsManagerUuid = "marketsettingsmanager";
+        final String settingUuid = "usedIncrement_VCPU";
+        final SettingsManagerApiDTO resultManagerDto = new SettingsManagerApiDTO();
+        final SettingApiDTO<String> resultSettingDto = new SettingApiDTO<>();
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromUuid(entityUuid)).thenReturn(apiId);
+        when(apiId.isEntity()).thenReturn(true);
+        MinimalEntity minimalEntity = MinimalEntity.newBuilder()
+                .setOid(Long.parseLong(entityUuid))
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        CachedEntityInfo cachedEntityInfo = new CachedEntityInfo(minimalEntity);
+        when(apiId.getCachedEntityInfo()).thenReturn(Optional.of(cachedEntityInfo));
+        final SettingsManagerInfo settingsManagerInfo = mock(SettingsManagerInfo.class);
+        when(settingsManagerInfo.getSettings()).thenReturn(Collections.singleton(settingUuid));
+        when(settingsManagerMapping.getManagerInfo(settingsManagerUuid))
+                .thenReturn(Optional.of(settingsManagerInfo));
+        resultManagerDto.setUuid(settingsManagerUuid);
+        resultSettingDto.setUuid("cpuUtilization");
+        resultManagerDto.setSettings(Collections.singletonList(resultSettingDto));
+        when(entitySettingQueryExecutor.getEntitySettings(
+                apiId, false, Collections.singletonList(settingUuid), null))
+                .thenReturn(Collections.singletonList(resultManagerDto));
+        expectedException.expect(OperationFailedException.class);
+        service.getSettingByEntity(entityUuid, settingsManagerUuid, settingUuid);
+    }
+
+    /**
+     * Tests {@link EntitiesService#getSettingByEntity}'s behavior on correct input.
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingByEntity() throws Exception {
+        final String entityUuid = "1234";
+        final String settingsManagerUuid = "marketsettingsmanager";
+        final String settingUuid = "usedIncrement_VCPU";
+        final SettingApiDTO<String> resultSettingDto = new SettingApiDTO<>();
+        final SettingsManagerApiDTO resultManagerDto = new SettingsManagerApiDTO();
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(apiId.isEntity()).thenReturn(true);
+        MinimalEntity minimalEntity = MinimalEntity.newBuilder()
+                .setOid(Long.parseLong(entityUuid))
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        CachedEntityInfo cachedEntityInfo = new CachedEntityInfo(minimalEntity);
+        when(apiId.getCachedEntityInfo()).thenReturn(Optional.of(cachedEntityInfo));
+        when(uuidMapper.fromUuid(entityUuid)).thenReturn(apiId);
+        final SettingsManagerInfo settingsManagerInfo = mock(SettingsManagerInfo.class);
+        when(settingsManagerInfo.getSettings()).thenReturn(Collections.singleton(settingUuid));
+        when(settingsManagerMapping.getManagerInfo(settingsManagerUuid))
+                .thenReturn(Optional.of(settingsManagerInfo));
+
+        // correct behavior
+        resultManagerDto.setUuid(settingsManagerUuid);
+        resultSettingDto.setUuid(settingUuid);
+        resultManagerDto.setSettings(Collections.singletonList(resultSettingDto));
+        when(entitySettingQueryExecutor.getEntitySettings(
+                apiId, false, Collections.singletonList(settingUuid), null))
+                .thenReturn(Collections.singletonList(resultManagerDto));
+        SettingApiDTO result =
+                service.getSettingByEntity(entityUuid, settingsManagerUuid, settingUuid);
+        Assert.assertEquals(settingUuid, result.getUuid());
+    }
+
+    /**
+     * Tests {@link EntitiesService#getSettingsByEntityAndManager}'s behavior to incorrect input
+     * (incorrect entity uuid).
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingsByEntityAndManagerWithIncorrectEntityUuid() throws Exception {
+        final String entityUuid = "1234";
+        final String settingsManagerUuid = "marketsettingsmanager";
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromUuid(entityUuid)).thenReturn(apiId);
+        final SettingsManagerInfo settingsManagerInfo = mock(SettingsManagerInfo.class);
+        when(settingsManagerMapping.getManagerInfo(settingsManagerUuid))
+                .thenReturn(Optional.of(settingsManagerInfo));
+
+        // incorrect uuid provided
+        when(apiId.isEntity()).thenReturn(false);
+        expectedException.expect(IllegalArgumentException.class);
+        service.getSettingsByEntityAndManager(entityUuid, settingsManagerUuid);
+    }
+
+    /**
+     * Tests {@link EntitiesService#getSettingsByEntityAndManager}'s behavior to incorrect input
+     * (incorrect settings manager uuid).
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingsByEntityAndManagerWithIncorrectSettingsManagerUuid()
+            throws Exception {
+        final String entityUuid = "1234";
+        final String settingsManagerUuid = "marketsettingsmanager";
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(apiId.isEntity()).thenReturn(true);
+        when(uuidMapper.fromUuid(entityUuid)).thenReturn(apiId);
+        // incorrect settings manager uuid -> no manager info object found
+        when(settingsManagerMapping.getManagerInfo(settingsManagerUuid))
+                .thenReturn(Optional.empty());
+
+        expectedException.expect(IllegalArgumentException.class);
+        service.getSettingsByEntityAndManager(entityUuid, settingsManagerUuid);
+    }
+
+    /**
+     * Tests {@link EntitiesService#getSettingsByEntityAndManager}'s behavior to incorrect input
+     * (invalid settings manager for entity type).
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingsByEntityAndManagerWithInvalidSettingsManagerForEntityType()
+            throws Exception {
+        final String entityUuid = "1234";
+        // emailmanager is an invalid settings manager for VMs
+        final String settingsManagerUuid = "emailmanager";
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(apiId.isEntity()).thenReturn(true);
+        MinimalEntity minimalEntity = MinimalEntity.newBuilder()
+                .setOid(Long.parseLong(entityUuid))
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        CachedEntityInfo cachedEntityInfo = new CachedEntityInfo(minimalEntity);
+        when(apiId.getCachedEntityInfo()).thenReturn(Optional.of(cachedEntityInfo));
+        when(uuidMapper.fromUuid(entityUuid)).thenReturn(apiId);
+        final SettingsManagerInfo settingsManagerInfo = mock(SettingsManagerInfo.class);
+        when(settingsManagerInfo.getSettings()).thenReturn(Collections.singleton("smtpPort"));
+        when(settingsManagerMapping.getManagerInfo(settingsManagerUuid))
+                .thenReturn(Optional.of(settingsManagerInfo));
+
+        expectedException.expect(IllegalArgumentException.class);
+        service.getSettingsByEntityAndManager(entityUuid, settingsManagerUuid);
+    }
+
+    /**
+     * Tests {@link EntitiesService#getSettingsByEntityAndManager}'s behavior when the result from
+     * entitySettingQuery is empty.
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingsByEntityAndManagerOnEmptyEntitySettingQueryResult() throws Exception {
+        final String entityUuid = "1234";
+        final String settingsManagerUuid = "marketsettingsmanager";
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(apiId.isEntity()).thenReturn(true);
+        MinimalEntity minimalEntity = MinimalEntity.newBuilder()
+                .setOid(Long.parseLong(entityUuid))
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        CachedEntityInfo cachedEntityInfo = new CachedEntityInfo(minimalEntity);
+        when(apiId.getCachedEntityInfo()).thenReturn(Optional.of(cachedEntityInfo));
+        when(uuidMapper.fromUuid(entityUuid)).thenReturn(apiId);
+        final SettingsManagerInfo settingsManagerInfo = mock(SettingsManagerInfo.class);
+        when(settingsManagerInfo.getSettings())
+                .thenReturn(Collections.singleton("usedIncrement_VCPU"));
+        when(settingsManagerMapping.getManagerInfo(settingsManagerUuid))
+                .thenReturn(Optional.of(settingsManagerInfo));
+
+        // empty result from entitySettingQuery
+        when(entitySettingQueryExecutor.getEntitySettings(apiId, false, null, null))
+                .thenReturn(Collections.emptyList());
+        expectedException.expect(OperationFailedException.class);
+        service.getSettingsByEntityAndManager(entityUuid, settingsManagerUuid);
+    }
+
+    /**
+     * Tests {@link EntitiesService#getSettingsByEntityAndManager}'s behavior when settings manager
+     * is not found.
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingsByEntityAndManagerWhenManagerIsNotFound() throws Exception {
+        final String entityUuid = "1234";
+        final String settingsManagerUuid = "marketsettingsmanager";
+        final SettingsManagerApiDTO resultManagerDto = new SettingsManagerApiDTO();
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(apiId.isEntity()).thenReturn(true);
+        MinimalEntity minimalEntity = MinimalEntity.newBuilder()
+                .setOid(Long.parseLong(entityUuid))
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        CachedEntityInfo cachedEntityInfo = new CachedEntityInfo(minimalEntity);
+        when(apiId.getCachedEntityInfo()).thenReturn(Optional.of(cachedEntityInfo));
+        when(uuidMapper.fromUuid(entityUuid)).thenReturn(apiId);
+        final SettingsManagerInfo settingsManagerInfo = mock(SettingsManagerInfo.class);
+        when(settingsManagerInfo.getSettings())
+                .thenReturn(Collections.singleton("usedIncrement_VCPU"));
+        when(settingsManagerMapping.getManagerInfo(settingsManagerUuid))
+                .thenReturn(Optional.of(settingsManagerInfo));
+        // settings manager not found
+        resultManagerDto.setUuid("automationmanager");
+        when(entitySettingQueryExecutor.getEntitySettings(apiId, false, null, null))
+                .thenReturn(Collections.singletonList(resultManagerDto));
+        expectedException.expect(OperationFailedException.class);
+        service.getSettingsByEntityAndManager(entityUuid, settingsManagerUuid);
+    }
+
+    /**
+     * Tests {@link EntitiesService#getSettingsByEntityAndManager}'s behavior on correct input.
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingsByEntityAndManager() throws Exception {
+        final String entityUuid = "1234";
+        final String settingsManagerUuid = "marketsettingsmanager";
+        final SettingApiDTO<String> resultSettingDto = new SettingApiDTO<>();
+        final SettingsManagerApiDTO resultManagerDto = new SettingsManagerApiDTO();
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(apiId.isEntity()).thenReturn(true);
+        MinimalEntity minimalEntity = MinimalEntity.newBuilder()
+                .setOid(Long.parseLong(entityUuid))
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        CachedEntityInfo cachedEntityInfo = new CachedEntityInfo(minimalEntity);
+        when(apiId.getCachedEntityInfo()).thenReturn(Optional.of(cachedEntityInfo));
+        when(uuidMapper.fromUuid(entityUuid)).thenReturn(apiId);
+        final SettingsManagerInfo settingsManagerInfo = mock(SettingsManagerInfo.class);
+        when(settingsManagerInfo.getSettings())
+                .thenReturn(Collections.singleton("usedIncrement_VCPU"));
+        when(settingsManagerMapping.getManagerInfo(settingsManagerUuid))
+                .thenReturn(Optional.of(settingsManagerInfo));
+
+        // correct behavior
+        resultManagerDto.setUuid(settingsManagerUuid);
+        resultManagerDto.setSettings(Collections.singletonList(resultSettingDto));
+        when(entitySettingQueryExecutor.getEntitySettings(apiId, false, null, null))
+                .thenReturn(Collections.singletonList(resultManagerDto));
+        List<? extends SettingApiDTO> results =
+                service.getSettingsByEntityAndManager(entityUuid, settingsManagerUuid);
+        Assert.assertFalse(results.isEmpty());
     }
 }

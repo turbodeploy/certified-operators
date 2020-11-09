@@ -1260,6 +1260,7 @@ public class GroupsServiceTest {
     public void testGetSettingsByGroupUuid() throws Exception {
         String groupUuid = "1234";
         String templateId = "3333";
+        ApiId apiId = mock(ApiId.class);
 
         Template template = Template.newBuilder()
             .setId(Long.parseLong(templateId))
@@ -1272,11 +1273,29 @@ public class GroupsServiceTest {
                 .addTemplates(SingleTemplateResponse.newBuilder()
                     .setTemplate(template))
                 .build()));
+        when(apiId.isGroup()).thenReturn(true);
+        when(uuidMapper.fromUuid(groupUuid)).thenReturn(apiId);
         groupsService.getSettingsByGroupUuid(groupUuid, false);
         verify(groupServiceSpy).getGroup(GroupID.newBuilder()
             .setId(Long.valueOf(groupUuid))
             .build());
         assertEquals(template, templateServiceSpy.getTemplates(any()).get(0).getTemplates(0).getTemplate());
+    }
+
+    /**
+     * Tests that when passing a uuid that does not represent a group to getSettingsByGroupUuid(),
+     * an IllegalArgumentException is being thrown.
+     *
+     * @throws Exception on error
+     */
+    @Test
+    public void testGetSettingsByGroupUuidWithInvalidUuid() throws Exception {
+        String groupUuid = "1234";
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromUuid(groupUuid)).thenReturn(apiId);
+        expectedException.expect(IllegalArgumentException.class);
+        groupsService.getSettingsByGroupUuid(groupUuid, false);
     }
 
     /**
