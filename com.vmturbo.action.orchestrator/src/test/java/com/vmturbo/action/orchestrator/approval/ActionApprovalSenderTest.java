@@ -4,7 +4,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -22,10 +21,7 @@ import org.mockito.MockitoAnnotations;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
-import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.ActionStore;
-import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
@@ -50,7 +46,6 @@ public class ActionApprovalSenderTest {
     private static final long ACTION2 = 10002L;
     private static final long ACTION3 = 10003L;
     private static final long ACTION4 = 10004L;
-    private static final long TARGET_ID = 1234L;
     private static final String EXPLANATION = "Resize VM from 3.0GB to 4.0GB";
     @Mock
     private IMessageSender<ActionApprovalRequests> requestSender;
@@ -59,11 +54,6 @@ public class ActionApprovalSenderTest {
     private ActionApprovalSender aas;
     private Map<Long, Action> storeActions;
     private ActionStore actionStore;
-
-    @Mock
-    private ActionTargetSelector actionTargetSelector;
-    @Mock
-    private EntitiesAndSettingsSnapshotFactory entitySettingsCache;
 
     /**
      * Initializes the tests.
@@ -79,12 +69,7 @@ public class ActionApprovalSenderTest {
             return storeActions.get(actionOid);
         });
         Mockito.when(actionStore.getStoreTypeName()).thenReturn(LiveActionStore.STORE_TYPE_NAME);
-        final ActionTargetInfo actionTargetInfo = Mockito.mock(ActionTargetInfo.class);
-        Mockito.when(actionTargetInfo.targetId()).thenReturn(Optional.of(TARGET_ID));
-        Mockito.when(actionTargetSelector.getTargetForAction(Mockito.any(ActionDTO.Action.class),
-                Mockito.any(EntitiesAndSettingsSnapshotFactory.class)))
-                .thenReturn(actionTargetInfo);
-        this.aas = new ActionApprovalSender(workflowStore, requestSender, actionTargetSelector, entitySettingsCache);
+        this.aas = new ActionApprovalSender(workflowStore, requestSender);
     }
 
     /**
@@ -219,25 +204,6 @@ public class ActionApprovalSenderTest {
                 .stream()
                 .map(ExecuteActionRequest::getActionId)
                 .collect(Collectors.toSet()));
-    }
-
-    /**
-     * Test that actions without associated target don't send to external approval backend.
-     *
-     * @throws Exception if something goes wrong
-     */
-    @Test
-    public void testActionWithoutTarget() throws Exception {
-        final Action actionWithoutTarget =
-                createAction(ACTION1, ActionMode.EXTERNAL_APPROVAL, ActionState.READY);
-        final ActionTargetInfo actionTargetInfo = Mockito.mock(ActionTargetInfo.class);
-        Mockito.when(actionTargetInfo.targetId()).thenReturn(Optional.empty());
-        Mockito.when(actionTargetSelector.getTargetForAction(
-                Mockito.eq(actionWithoutTarget.getRecommendation()),
-                Mockito.any(EntitiesAndSettingsSnapshotFactory.class)))
-                .thenReturn(actionTargetInfo);
-        aas.sendApprovalRequests(actionStore);
-        Mockito.verifyZeroInteractions(requestSender);
     }
 
     private Action createAction(long oid, @Nonnull ActionMode actionMode,

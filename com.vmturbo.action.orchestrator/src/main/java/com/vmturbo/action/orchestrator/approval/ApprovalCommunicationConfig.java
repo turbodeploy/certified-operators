@@ -7,8 +7,6 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
-import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
-import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
@@ -19,7 +17,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
  * Spring configuration for external action approval requestint.
  */
 @Configuration
-@Import({BaseKafkaProducerConfig.class, WorkflowConfig.class, ActionExecutionConfig.class})
+@Import({BaseKafkaProducerConfig.class, WorkflowConfig.class})
 public class ApprovalCommunicationConfig {
 
     @Autowired
@@ -30,12 +28,6 @@ public class ApprovalCommunicationConfig {
 
     @Autowired
     private ActionTranslationConfig actionTranslationConfig;
-
-    @Autowired
-    private ActionExecutionConfig actionExecutionConfig;
-
-    @Autowired
-    private ActionStoreConfig actionStoreConfig;
 
     /**
      * A message sender to notify about new actions ready for approval.
@@ -67,8 +59,6 @@ public class ApprovalCommunicationConfig {
      */
     @Bean
     public ActionApprovalSender approvalRequester() {
-        return new ActionApprovalSender(workflowConfig.workflowStore(), approvalRequestsSender(),
-                actionExecutionConfig.actionTargetSelector(),
-                actionStoreConfig.entitySettingsCache());
+        return new ActionApprovalSender(workflowConfig.workflowStore(), approvalRequestsSender());
     }
 }
