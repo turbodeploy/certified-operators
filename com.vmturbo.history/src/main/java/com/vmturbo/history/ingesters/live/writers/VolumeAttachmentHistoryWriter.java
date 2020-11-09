@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -77,7 +78,6 @@ public class VolumeAttachmentHistoryWriter extends TopologyWriterBase {
     protected ChunkDisposition processEntities(@Nonnull final Collection<TopologyEntityDTO> chunk,
                                                @Nonnull final String infoSummary)
         throws InterruptedException {
-        //TODO(OM-63934): Directly return SUCCESS if it has not been 24 hours since last insertion
         for (final TopologyEntityDTO entity : chunk) {
             if (entity.getEnvironmentType() == EnvironmentType.CLOUD) {
                 if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
@@ -115,7 +115,6 @@ public class VolumeAttachmentHistoryWriter extends TopologyWriterBase {
     @Override
     public void finish(int entityCount, boolean expedite, String infoSummary)
         throws InterruptedException {
-        //TODO(OM-63934): if expedite is true, or if it has not been 24 hours since last insertion
         logger.info("Total volumes not visited from any VMs: {}", volumesNotVisitedFromVms.size());
         logger.trace("Unattached volumes written into volume_attachment_history table: {}",
             () -> volumesNotVisitedFromVms);
@@ -127,10 +126,37 @@ public class VolumeAttachmentHistoryWriter extends TopologyWriterBase {
      * Factory for VolumeAttachmentHistoryWriter.
      */
     public static class Factory extends TopologyWriterBase.Factory {
+
+        private final Logger logger = LogManager.getLogger();
+
+        private final long intervalBetweenInsertsInMillis;
+        private long lastInsertTopologyCreationTime;
+
+        /**
+         * Creates a VolumeAttachmentHistoryWriter.Factory.
+         *
+         * @param intervalBetweenInsertsInHours interval between inserts to
+         *                                      VolumeAttachmentHistory table.
+         */
+        public Factory(final long intervalBetweenInsertsInHours) {
+            this.intervalBetweenInsertsInMillis =
+                TimeUnit.HOURS.toMillis(intervalBetweenInsertsInHours);
+        }
+
         @Override
         public Optional<IChunkProcessor<DataSegment>> getChunkProcessor(
             final TopologyInfo topologyInfo, final SimpleBulkLoaderFactory state) {
-            return Optional.of(new VolumeAttachmentHistoryWriter(topologyInfo, state));
+            final long currentTopologyCreationTime = topologyInfo.getCreationTime();
+            logger.debug("Current topology creation time: {}, Last insert topology creation time: "
+                    + "{}, Interval between inserts: {}", currentTopologyCreationTime,
+                lastInsertTopologyCreationTime, intervalBetweenInsertsInMillis);
+            if (currentTopologyCreationTime >= lastInsertTopologyCreationTime
+                + intervalBetweenInsertsInMillis) {
+                lastInsertTopologyCreationTime = currentTopologyCreationTime;
+                return Optional.of(new VolumeAttachmentHistoryWriter(topologyInfo, state));
+            } else {
+                return Optional.empty();
+            }
         }
     }
 }

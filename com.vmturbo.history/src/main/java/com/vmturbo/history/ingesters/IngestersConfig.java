@@ -102,6 +102,9 @@ public class IngestersConfig {
     @Value("${ingest.excludedCommodities:#{null}}")
     private Optional<String> excludedCommodities;
 
+    @Value("${ingest.volumeAttachmentHistoryIntervalBetweenInsertsInHours:6}")
+    private long volumeAttachmentHistoryIntervalBetweenInsertsInHours;
+
     /**
      * One or more thread pools for use by ingesters.
      *
@@ -237,7 +240,8 @@ public class IngestersConfig {
                                 historyDbConfig.historyDbIO(),
                                 groupServiceBlockingStub()
                         ),
-                        new VolumeAttachmentHistoryWriter.Factory()
+                        new VolumeAttachmentHistoryWriter.Factory(
+                            volumeAttachmentHistoryIntervalBetweenInsertsInHours)
                 ),
                 ingesterConfig(TopologyIngesterType.sourceRealtime),
                 bulkLoaderFactorySupplier()

@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -23,6 +24,7 @@ import com.vmturbo.history.db.bulk.BulkLoaderMock;
 import com.vmturbo.history.db.bulk.DbMock;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessor.ChunkDisposition;
+import com.vmturbo.history.ingesters.live.writers.VolumeAttachmentHistoryWriter.Factory;
 import com.vmturbo.history.schema.abstraction.tables.VolumeAttachmentHistory;
 import com.vmturbo.history.schema.abstraction.tables.records.VolumeAttachmentHistoryRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -32,8 +34,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class VolumeAttachmentHistoryWriterTest {
 
+    private static final long CREATION_TIME = 1604527665698L;
     private static final TopologyInfo TOPOLOGY_INFO = TopologyInfo.newBuilder()
-        .setCreationTime(1604527665698L)
+        .setCreationTime(CREATION_TIME)
         .setTopologyType(TopologyType.REALTIME)
         .build();
     private static final String INFO_SUMMARY = TopologyDTOUtil
@@ -46,6 +49,7 @@ public class VolumeAttachmentHistoryWriterTest {
 
     private VolumeAttachmentHistoryWriter writer;
     private DbMock dbMock;
+    private SimpleBulkLoaderFactory loaderFactory;
 
     /**
      * Initialize test resources.
@@ -53,8 +57,8 @@ public class VolumeAttachmentHistoryWriterTest {
     @Before
     public void setup() {
         dbMock = new DbMock();
-        final SimpleBulkLoaderFactory loaderFactory = new BulkLoaderMock(dbMock).getFactory();
-        writer = (VolumeAttachmentHistoryWriter)new VolumeAttachmentHistoryWriter.Factory()
+        loaderFactory = new BulkLoaderMock(dbMock).getFactory();
+        writer = (VolumeAttachmentHistoryWriter)new VolumeAttachmentHistoryWriter.Factory(1)
             .getChunkProcessor(TOPOLOGY_INFO, loaderFactory).orElse(null);
         Assert.assertNotNull(writer);
     }
@@ -197,6 +201,44 @@ public class VolumeAttachmentHistoryWriterTest {
         final long placeholderVmOid = 0;
         verifyRecords(createExpectedRecords(placeholderVmOid, VOLUME_1_OID),
             new HashSet<>(dbMock.getRecords(VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY)));
+    }
+
+    /**
+     * Test that Factory returns an empty Optional if the difference between last insert topology
+     * creation time and current topology creation time is less than the defined interval between
+     * inserts.
+     */
+    @Test
+    public void testFactoryGetChunkProcessorWithinInsertInterval() {
+        final long intervalBetweenInserts = 1;
+        final VolumeAttachmentHistoryWriter.Factory factory = new Factory(intervalBetweenInserts);
+        // first topology always results in Writer being returned
+        Assert.assertTrue(factory.getChunkProcessor(TOPOLOGY_INFO, loaderFactory).isPresent());
+        // next topology after ten minutes, with interval defined as 1 hour should return empty
+        // optional
+        final TopologyInfo nextBroadcast = TOPOLOGY_INFO.toBuilder()
+            .setCreationTime(CREATION_TIME + TimeUnit.MINUTES.toMillis(10))
+            .build();
+        Assert.assertFalse(factory.getChunkProcessor(nextBroadcast, loaderFactory).isPresent());
+    }
+
+    /**
+     * Test that Factory returns the Writer if the difference between last insert topology
+     * creation time and current topology creation time is equal to the defined interval between
+     * inserts.
+     */
+    @Test
+    public void testFactoryGetChunkProcessorOutsideInsertInterval() {
+        final long intervalBetweenInserts = 1;
+        final VolumeAttachmentHistoryWriter.Factory factory = new Factory(intervalBetweenInserts);
+        // first topology always results in Writer being returned
+        Assert.assertTrue(factory.getChunkProcessor(TOPOLOGY_INFO, loaderFactory).isPresent());
+        // next topology after 1 hour, with interval defined as 1 hour result should not return
+        // empty optional
+        final TopologyInfo nextBroadcast = TOPOLOGY_INFO.toBuilder()
+            .setCreationTime(CREATION_TIME + TimeUnit.HOURS.toMillis(1))
+            .build();
+        Assert.assertTrue(factory.getChunkProcessor(nextBroadcast, loaderFactory).isPresent());
     }
 
     private void verifyRecords(final Set<VolumeAttachmentHistoryRecord> expectedRecords,
