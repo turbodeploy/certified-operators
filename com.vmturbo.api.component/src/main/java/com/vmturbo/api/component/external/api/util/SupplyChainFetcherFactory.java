@@ -294,7 +294,8 @@ public class SupplyChainFetcherFactory {
         // expansion in bulk, and utilize any client-side cached information about these ids.
         Map<Long, ApiId> allIds = entityOidsToExpand.values().stream()
                 .flatMap(Collection::stream)
-                .collect(Collectors.toMap(Function.identity(), uuidMapper::fromOid));
+                .collect(Collectors.toMap(Function.identity(), uuidMapper::fromOid,
+                    (o1, o2) -> o1));
         if (allIds.isEmpty()) {
             // If there are no entities we just have a bunch of empty lists.
             return entityOidsToExpand;
