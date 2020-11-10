@@ -275,10 +275,16 @@ public class GroupRpcService extends GroupServiceImplBase {
                 stopWatch.start("replace group properties filter");
                 final Collection<Grouping> groupsResult;
                 if (resolveGroupBasedFilters) {
-                    groupsResult = filteredGroups.stream()
-                            .map(group -> replaceGroupPropertiesWithGroupMembershipFilter(groupStore,
-                                    group))
-                            .collect(Collectors.toSet());
+                    groupsResult = filteredGroups.stream().map(group -> {
+                        try {
+                            return replaceGroupPropertiesWithGroupMembershipFilter(groupStore, group);
+                        } catch (org.springframework.dao.DataAccessException | DataAccessException e) {
+                            logger.error("Failed to replace group properties with group membership filter for group {}.", group, e);
+                            return null;
+                        }
+                    })
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
                 } else {
                     groupsResult = filteredGroups;
                 }

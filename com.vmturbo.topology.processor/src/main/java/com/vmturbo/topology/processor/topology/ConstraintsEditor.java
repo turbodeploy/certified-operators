@@ -171,11 +171,15 @@ public class ConstraintsEditor {
                     }
                 });
 
-        Set<Long> groups = ignoredCommodities.stream()
+        final Set<Long> groups = ignoredCommodities.stream()
                 .filter(IgnoreConstraint::hasIgnoreGroup)
                 .map(IgnoreConstraint::getIgnoreGroup)
                 .map(ConstraintGroup::getGroupUuid)
                 .collect(Collectors.toSet());
+
+        if (groups.isEmpty()) {
+            return entitesToIgnoredCommodities;
+        }
 
         groupService.getGroups(GetGroupsRequest.newBuilder()
                         .setGroupFilter(GroupFilter.newBuilder()
