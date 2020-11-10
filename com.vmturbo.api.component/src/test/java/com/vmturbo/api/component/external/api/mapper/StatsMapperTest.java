@@ -481,13 +481,13 @@ public class StatsMapperTest {
 
     private static final StatsFilter STATS_FILTER = StatsFilter.newBuilder()
             .setStartDate(7777)
-            .setRequestProjectedHeadroom(false)
+            .setRequestProjectedHeadroom(true)
             .build();
 
     @Test
     public void testClusterStatsRequest() {
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-        when(statsMapper.newPeriodStatsFilter(period, false)).thenReturn(STATS_FILTER);
+        when(statsMapper.newPeriodStatsFilter(period, true)).thenReturn(STATS_FILTER);
         final ClusterStatsRequest clusterStatsRequest =
                 statsMapper.toClusterStatsRequest(Long.toString(PLAN_ID), period);
         assertThat(clusterStatsRequest.getClusterIds(0), is(PLAN_ID));
@@ -497,7 +497,7 @@ public class StatsMapperTest {
     @Test
     public void testClusterStatsRequestWithNullPeriod() {
         final StatPeriodApiInputDTO period = null;
-        when(statsMapper.newPeriodStatsFilter(period, false)).thenReturn(STATS_FILTER);
+        when(statsMapper.newPeriodStatsFilter(period, true)).thenReturn(STATS_FILTER);
         final ClusterStatsRequest clusterStatsRequest =
                 statsMapper.toClusterStatsRequest(Long.toString(PLAN_ID), period);
         assertThat(clusterStatsRequest.getClusterIds(0), is(PLAN_ID));
@@ -510,7 +510,7 @@ public class StatsMapperTest {
      */
     @Test
     public void testClusterStatsRequestWithMarketScope() {
-        when(statsMapper.newPeriodStatsFilter(null, false)).thenReturn(STATS_FILTER);
+        when(statsMapper.newPeriodStatsFilter(null, true)).thenReturn(STATS_FILTER);
         assertEquals(Collections.emptyList(),
                      statsMapper.toClusterStatsRequest("Market", null).getClusterIdsList());
     }

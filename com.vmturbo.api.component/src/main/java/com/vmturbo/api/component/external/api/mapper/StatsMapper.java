@@ -720,7 +720,7 @@ public class StatsMapper {
     public ClusterStatsRequest toClusterStatsRequest(
             @Nonnull final String uuid,
             @Nullable final StatPeriodApiInputDTO inputDto) {
-        return toClusterStatsRequest(uuid, inputDto, false);
+        return toClusterStatsRequest(uuid, inputDto, true);
     }
 
     /**
