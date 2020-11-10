@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -242,20 +243,24 @@ public class ConsistentResizer {
                 }
                 return;
             }
+
+            final List<Resize> newResizes = resizes.stream()
+                .map(PartialResize::getResize)
+                // Drop Resize if the capacity difference is less than the configured
+                // capacity increment
+                .filter(resize ->
+                    Math.abs(resize.getOldCapacity() - newCapacity) >= capacityIncrement)
+                .collect(Collectors.toList());
+
             double integralIncrementCount = Math.floor(newCapacity / capacityIncrement);
             final double finalNewCapacity = integralIncrementCount * capacityIncrement;
-            // prevent scale down when target is not eligible for resize down.s
+            // prevent scale down when target is not eligible for resize down.
             if (resizes.stream().map(PartialResize::getResize)
                     .anyMatch(resize -> resize.getOldCapacity() > finalNewCapacity &&
                             !resize.getSellingTrader().getSettings().isEligibleForResizeDown())) {
                 return;
             }
-            resizes.stream()
-                .map(PartialResize::getResize)
-                // Drop Resize if the capacity difference is less than the configured
-                // capacity increment
-                .filter(resize ->
-                    Math.abs(resize.getOldCapacity() - finalNewCapacity) >= capacityIncrement)
+            newResizes.stream()
                 // Do not override resize ups if the new capacity is less than the existing capacity
                 .filter(resize -> !(resize.getOldCapacity() < resize.getNewCapacity()
                     && resize.getOldCapacity() > finalNewCapacity))
