@@ -234,6 +234,14 @@ public enum GlobalSettingSpecs {
         numeric(1, 24, 1), Collections.emptyList()),
 
     /**
+     * Don't allow providers to be over-provisioned without a limit.
+     */
+    AllowUnlimitedHostOverprovisioning("allowUnlimitedHostOverprovisioning",
+            "Allow Unlimited Host Overprovisioning",
+            new BooleanSettingDataType(false),
+            Collections.emptyList()),
+
+    /**
      * Settings for OS migration.
      */
     SelectedMigrationProfileOption("selectedMigrationProfileOption", "Selected OS Migration Profile Option",
@@ -303,7 +311,7 @@ public enum GlobalSettingSpecs {
      * A list of global settings that are visible to the UI.
      */
     public static final Set<GlobalSettingSpecs> VISIBLE_TO_UI = ImmutableSet.of(
-        DisableAllActions, MaxVMGrowthObservationPeriod);
+        DisableAllActions, MaxVMGrowthObservationPeriod, AllowUnlimitedHostOverprovisioning);
 
     /**
      * Setting name to setting enumeration value map for fast access.

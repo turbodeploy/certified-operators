@@ -283,15 +283,22 @@ public class TopologyEntitiesHandler {
                     AnalysisResults.Builder builder = results.toBuilder();
                     economy.getSettings().setResizeDependentCommodities(false);
 
-                    // Make sure clones and only clones are suspendable. Currently suspend actions generated
-                    // in the second sub-cycle are discarded and only useful when collapsed with a provision
-                    // or activate action. Since we don't support collapsing of suspends of non-clone and
-                    // clone traders, there is no point in spending time to suspend the former. When the
-                    // corresponding functionality is implemented we should remove this loop.
-                    // Also, it should be fine at the time of this writing to just set suspendable to false
-                    // as there shouldn't be any clones in the economy at this point.
                     for (Trader trader : economy.getTraders()) {
+                        // Make sure clones and only clones are suspendable. Currently suspend actions generated
+                        // in the second sub-cycle are discarded and only useful when collapsed with a provision
+                        // or activate action. Since we don't support collapsing of suspends of non-clone and
+                        // clone traders, there is no point in spending time to suspend the former. When the
+                        // corresponding functionality is implemented we should remove this loop.
+                        // Also, it should be fine at the time of this writing to just set suspendable to false
+                        // as there shouldn't be any clones in the economy at this point.
                         trader.getSettings().setSuspendable(trader.isClone());
+
+                        // Clear Unquoted Commodities list for Provision round in order to Provision
+                        // enough supply as expected.
+                        trader.getCustomers().forEach(shoppingList -> {
+                            shoppingList.getModifiableUnquotedCommoditiesBaseTypeList().clear();
+                            shoppingList.getUnquotedCommoditiesBaseTypeList().clear();
+                        });
                     }
                     // This is a HACK first implemented by the market for OM-31510 in legacy which subsequently
                     // caused OM-33185 in XL. Because we don't want the provision actions to affect the projected topology

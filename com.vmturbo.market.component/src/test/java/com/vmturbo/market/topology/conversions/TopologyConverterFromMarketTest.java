@@ -82,12 +82,14 @@ import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
+import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.ReservedCapacityAnalysis;
 import com.vmturbo.market.runner.WastedFilesAnalysis;
@@ -175,6 +177,7 @@ public class TopologyConverterFromMarketTest {
             mock(ConsistentScalingHelperFactory.class);
     private ReversibilitySettingFetcher reversibilitySettingFetcher =
             mock(ReversibilitySettingFetcher.class);
+    private AnalysisConfig analysisConfig = mock(AnalysisConfig.class);
 
     private static final int BICLIQUE_TYPE_ID = ID_ALLOCATOR.allocate("BICLIQUE");
     private static final int CPU_TYPE_ID = ID_ALLOCATOR.allocate("CPU");
@@ -197,6 +200,14 @@ public class TopologyConverterFromMarketTest {
         when(consistentScalingHelper.getScalingGroupUsage(any())).thenReturn(Optional.empty());
         when(consistentScalingHelperFactory.newConsistentScalingHelper(any(), any()))
             .thenReturn(consistentScalingHelper);
+
+        when(analysisConfig.getIncludeVdc()).thenReturn(false);
+        when(analysisConfig.getQuoteFactor()).thenReturn(MarketAnalysisUtils.QUOTE_FACTOR);
+        when(analysisConfig.getMarketMode()).thenReturn(MarketMode.M2Only);
+        when(analysisConfig.getLiveMarketMoveCostFactor()).thenReturn(MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR);
+        when(analysisConfig.getGlobalSetting(GlobalSettingSpecs.AllowUnlimitedHostOverprovisioning))
+                .thenReturn(Optional.empty());
+
         constructTopologyConverter();
     }
 
@@ -226,16 +237,13 @@ public class TopologyConverterFromMarketTest {
             final TopologyInfo topologyInfo) {
         converter = Mockito.spy(new TopologyConverter(
                 topologyInfo,
-                false,
-                MarketAnalysisUtils.QUOTE_FACTOR,
-                MarketMode.M2Only,
-                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor,
                 mockCommodityConverter,
                 mockCCD,
                 commodityIndexFactory,
                 tierExcluderFactory,
-                consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
+                consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher,
+                analysisConfig));
     }
 
     /**
@@ -938,11 +946,10 @@ public class TopologyConverterFromMarketTest {
                 .build());
 
         TopologyConverter converter = Mockito.spy(new TopologyConverter(
-                        TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(), false,
-                        MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(),
                 marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory,
-                        tierExcluderFactory,
-                        consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
+                tierExcluderFactory, consistentScalingHelperFactory, cloudTopology,
+                reversibilitySettingFetcher, analysisConfig));
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
@@ -1487,10 +1494,10 @@ public class TopologyConverterFromMarketTest {
 
         TopologyInfo topoInfo = TopologyInfo.newBuilder()
                 .setTopologyType(TopologyType.PLAN).build();
-        TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
-            consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
+        TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo,
+                marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory,
+                tierExcluderFactory, consistentScalingHelperFactory, cloudTopology,
+                reversibilitySettingFetcher, analysisConfig));
         converter.setCloudTc(mockCloudTc);
 
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,
@@ -1589,10 +1596,10 @@ public class TopologyConverterFromMarketTest {
 
         TopologyInfo topoInfo = TopologyInfo.newBuilder()
                 .setTopologyType(TopologyType.PLAN).build();
-        TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
-                MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory,
-                consistentScalingHelperFactory, cloudTopology, reversibilitySettingFetcher));
+        TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo,
+                marketCloudRateExtractor, mockCommodityConverter, mockCCD, indexFactory,
+                tierExcluderFactory, consistentScalingHelperFactory, cloudTopology,
+                reversibilitySettingFetcher, analysisConfig));
         converter.setCloudTc(mockCloudTc);
 
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,

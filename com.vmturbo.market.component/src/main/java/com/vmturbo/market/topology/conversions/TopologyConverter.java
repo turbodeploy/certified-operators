@@ -55,6 +55,7 @@ import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotificat
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -82,6 +83,7 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
@@ -92,6 +94,7 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.runner.Analysis;
+import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.ReservedCapacityAnalysis;
 import com.vmturbo.market.runner.WastedFilesAnalysis;
@@ -228,75 +231,11 @@ public class TopologyConverter {
 
     private CloudTopologyConverter cloudTc;
 
-    public CloudTopologyConverter getCloudTc() {
-        return cloudTc;
-    }
-
-    @VisibleForTesting
-    protected void setCloudTc(final CloudTopologyConverter cloudTc) {
-        this.cloudTc = cloudTc;
-    }
-
     private final ProjectedRICoverageCalculator projectedRICoverageCalculator;
 
     private Status costNotificationStatus = Status.UNKNOWN;
 
     private final Gson gson = new Gson();
-
-    /**
-     * A non-shop-together TopologyConverter.
-     *
-     * @param topologyInfo information about topology
-     * @param marketCloudRateExtractor market price table
-     * @param cloudCostData cloud cost data
-     * @param commodityIndexFactory commodity index factory
-     * @param tierExcluderFactory tier excluder factory
-     * @param consistentScalingHelperFactory CSM helper factory
-     * @param reversibilitySettingFetcher fetcher for "Savings vs Reversibility" policy settings
-     */
-    @VisibleForTesting
-    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
-                             @Nonnull final CloudRateExtractor marketCloudRateExtractor,
-                             @Nonnull final CloudCostData cloudCostData,
-                             @Nonnull final CommodityIndexFactory commodityIndexFactory,
-                             @Nonnull final TierExcluderFactory tierExcluderFactory,
-                             @Nonnull final ConsistentScalingHelperFactory
-                                     consistentScalingHelperFactory,
-                             @Nonnull final ReversibilitySettingFetcher
-                                     reversibilitySettingFetcher) {
-        this.topologyInfo = Objects.requireNonNull(topologyInfo);
-        this.cloudTopology = null;
-        this.consistentScalingHelper = consistentScalingHelperFactory
-                .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
-        this.commodityConverter = new CommodityConverter( new NumericIDAllocator(),
-                includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable,
-                conversionErrorCounts, consistentScalingHelper);
-        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
-                getShoppingListOidToInfos());
-        this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
-                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
-                marketCloudRateExtractor, cloudCostData, tierExcluder, cloudTopology);
-        // Lazy initialize commodityIndex through Suppliers#memoize. This ensures that all calls to
-        // commmodityIndex#get after the first just return the lazy-initialized commodityIndex.
-        this.commodityIndex = Suppliers.memoize(() -> this.createCommodityIndex(commodityIndexFactory));
-
-        this.marketMode = MarketMode.M2Only;
-        this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
-                oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
-        this.isCloudMigration = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
-        this.isCloudResizeEnabled = TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo);
-        // Lazy initialize actionInterpreter. It needs to be lazy-initialized because it refers
-        // to the lazy-initialized commodity index.
-        this.actionInterpreter = Suppliers.memoize(() -> new ActionInterpreter(commodityConverter,
-                shoppingListOidToInfos,
-                cloudTc,
-                unmodifiableEntityOidToDtoMap,
-                oidToProjectedTraderTOMap,
-                commoditiesResizeTracker,
-                projectedRICoverageCalculator, tierExcluder, commodityIndex,
-                getExplanationOverride()));
-        this.reversibilitySettingFetcher = reversibilitySettingFetcher;
-    }
 
     /**
      * Entities that are providers of containers.
@@ -310,7 +249,6 @@ public class TopologyConverter {
     // Store skipped service entities which need to be added back to projected topology and price
     // index messages.
     private final Map<Long, TopologyEntityDTO> skippedEntities = Maps.newHashMap();
-
 
     private long shoppingListId = 1000L; // Arbitrary start value
 
@@ -415,6 +353,11 @@ public class TopologyConverter {
     private boolean isCloudResizeEnabled;
 
     /**
+     * Whether unquoted commodities are allowed in the market.
+     */
+    private boolean unquotedCommoditiesEnabled = false;
+
+    /**
      * Constructor with includeGuaranteedBuyer parameter. Entry point from Analysis.
      *
      * @param topologyInfo Information about the topology.
@@ -482,18 +425,64 @@ public class TopologyConverter {
     }
 
     /**
-     * get the TopologyEntityDTO OID corresponding to the oid of a On-demand TemplateProvider.
-     * return empty if the traderTOOID is a CBTP.
-     * @param traderTOOID  oid of a TemplateProvider
-     * @return the OID of corresponding TopologyEntityDTO
+     * A non-shop-together TopologyConverter.
+     *
+     * @param topologyInfo information about topology
+     * @param marketCloudRateExtractor market price table
+     * @param cloudCostData cloud cost data
+     * @param commodityIndexFactory commodity index factory
+     * @param tierExcluderFactory tier excluder factory
+     * @param consistentScalingHelperFactory CSM helper factory
+     * @param reversibilitySettingFetcher fetcher for "Savings vs Reversibility" policy settings
      */
-    public Optional<Long> getTopologyEntityOIDForOnDemandMarketTier(Long traderTOOID) {
-        MarketTier marketTier = cloudTc.getMarketTier(traderTOOID);
-        if (marketTier.hasRIDiscount()) {
-            return Optional.empty();
-        } else {
-            return Optional.of(marketTier.getTier().getOid());
-        }
+    @VisibleForTesting
+    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
+                             @Nonnull final CloudRateExtractor marketCloudRateExtractor,
+                             @Nonnull final CloudCostData cloudCostData,
+                             @Nonnull final CommodityIndexFactory commodityIndexFactory,
+                             @Nonnull final TierExcluderFactory tierExcluderFactory,
+                             @Nonnull final ConsistentScalingHelperFactory
+                                     consistentScalingHelperFactory,
+                             @Nonnull final ReversibilitySettingFetcher
+                                     reversibilitySettingFetcher) {
+        this(topologyInfo, INCLUDE_GUARANTEED_BUYER_DEFAULT, MarketAnalysisUtils.QUOTE_FACTOR,
+                MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketCloudRateExtractor, null, cloudCostData,
+                commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
+                null, reversibilitySettingFetcher);
+    }
+
+    /**
+     * Constructor with analysisConfig parameter. Entry point from Analysis.
+     * TODO: consider using a builder pattern since the constructors have many parameters.
+     *
+     * @param topologyInfo Information about the topology.
+     * @param marketCloudRateExtractor market price table
+     * @param incomingCommodityConverter the commodity converter
+     * @param cloudCostData cloud cost data
+     * @param commodityIndexFactory commodity index factory
+     * @param tierExcluderFactory tierExcluderFactory
+     * @param consistentScalingHelperFactory CSM helper factory
+     * @param cloudTopology instance to look up topology relationships
+     * @param reversibilitySettingFetcher fetcher for "Savings vs Reversibility" policy settings
+     * @param analysisConfig the market config, which contains the market global settings.
+     */
+    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
+                             @Nonnull final CloudRateExtractor marketCloudRateExtractor,
+                             CommodityConverter incomingCommodityConverter,
+                             final CloudCostData cloudCostData,
+                             final CommodityIndexFactory commodityIndexFactory,
+                             @Nonnull final TierExcluderFactory tierExcluderFactory,
+                             @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
+                             @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology,
+                             @Nonnull final ReversibilitySettingFetcher reversibilitySettingFetcher,
+                             @Nonnull final AnalysisConfig analysisConfig) {
+        this(topologyInfo, analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor(),
+                analysisConfig.getMarketMode(), analysisConfig.getLiveMarketMoveCostFactor(),
+                marketCloudRateExtractor, incomingCommodityConverter, cloudCostData,
+                commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
+                cloudTopology, reversibilitySettingFetcher);
+        this.unquotedCommoditiesEnabled = isUnquotedCommoditiesEnabled(analysisConfig);
     }
 
     @VisibleForTesting
@@ -510,35 +499,10 @@ public class TopologyConverter {
                                      consistentScalingHelperFactory,
                              @Nonnull final ReversibilitySettingFetcher
                                      reversibilitySettingFetcher) {
-        this.topologyInfo = Objects.requireNonNull(topologyInfo);
-        this.cloudTopology = null;
-        this.includeGuaranteedBuyer = includeGuaranteedBuyer;
-        this.quoteFactor = quoteFactor;
-        this.marketMode = marketMode;
-        this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
-        this.commodityConverter = incomingCommodityConverter;
-        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
-            getShoppingListOidToInfos());
-        this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
-                pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap,
-                businessAccounts, marketCloudRateExtractor, null, tierExcluder, cloudTopology);
-        this.commodityIndex = Suppliers.memoize(() -> this.createCommodityIndex(commodityIndexFactory));
-
-        this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
-            oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
-        this.isCloudMigration = TopologyDTOUtil.isCloudMigrationPlan(topologyInfo);
-        this.isCloudResizeEnabled = TopologyDTOUtil.isResizableCloudMigrationPlan(topologyInfo);
-        this.actionInterpreter = Suppliers.memoize(() -> new ActionInterpreter(commodityConverter,
-            shoppingListOidToInfos,
-            cloudTc,
-            unmodifiableEntityOidToDtoMap,
-            oidToProjectedTraderTOMap,
-            commoditiesResizeTracker,
-            projectedRICoverageCalculator, tierExcluder, commodityIndex,
-            getExplanationOverride()));
-        this.consistentScalingHelper = consistentScalingHelperFactory
-            .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
-        this.reversibilitySettingFetcher = reversibilitySettingFetcher;
+        this(topologyInfo, includeGuaranteedBuyer, quoteFactor, marketMode, liveMarketMoveCostFactor,
+                marketCloudRateExtractor, incomingCommodityConverter, null,
+                commodityIndexFactory, tierExcluderFactory, consistentScalingHelperFactory,
+                null, reversibilitySettingFetcher);
     }
 
     /**
@@ -573,6 +537,22 @@ public class TopologyConverter {
             consistentScalingHelperFactory, null, reversibilitySettingFetcher);
     }
 
+
+    /**
+     * get the TopologyEntityDTO OID corresponding to the oid of a On-demand TemplateProvider.
+     * return empty if the traderTOOID is a CBTP.
+     * @param traderTOOID  oid of a TemplateProvider
+     * @return the OID of corresponding TopologyEntityDTO
+     */
+    public Optional<Long> getTopologyEntityOIDForOnDemandMarketTier(Long traderTOOID) {
+        MarketTier marketTier = cloudTc.getMarketTier(traderTOOID);
+        if (marketTier.hasRIDiscount()) {
+            return Optional.empty();
+        } else {
+            return Optional.of(marketTier.getTier().getOid());
+        }
+    }
+
     private boolean isReversibilityPreferred(final long entityOid) {
         if (entityOidsWithReversibilityPreferred == null) {
             entityOidsWithReversibilityPreferred = reversibilitySettingFetcher
@@ -604,6 +584,15 @@ public class TopologyConverter {
 
     public CommodityIndex getCommodityIndex() {
         return commodityIndex.get();
+    }
+
+    public CloudTopologyConverter getCloudTc() {
+        return cloudTc;
+    }
+
+    @VisibleForTesting
+    protected void setCloudTc(final CloudTopologyConverter cloudTc) {
+        this.cloudTc = cloudTc;
     }
 
     // Read only version
@@ -3219,7 +3208,49 @@ public class TopologyConverter {
             dropIopsDemandForThroughputDrivenVolume(entityForSL, values);
         }
         economyShoppingListBuilder.addAllCommoditiesBought(values);
+
+        // Add unquoted commodities, if needed.
+        // This functionality is used to enable the placement of active on-prem VMs on providers
+        // that are over-provisioned (OM-63941).
+        if (shouldAddUnquotedProvisionedCommodities(entityForSL)) {
+            economyShoppingListBuilder.addUnquotedCommoditiesBaseTypeList(
+                    CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE);
+            economyShoppingListBuilder.addUnquotedCommoditiesBaseTypeList(
+                    CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE);
+        }
+
         return economyShoppingListBuilder.build();
+    }
+
+    /**
+     * Check if the entity should have unquoted commodities.
+     * We want to enable this functionality for active on-prem VMs in real-time topology.
+     *
+     * @param entity the entity for which the shopping list should have unquoted provisioned commodities.
+     * @return true if unquoted provisioned commodities should be added, false otherwise.
+     */
+    private boolean shouldAddUnquotedProvisionedCommodities(TopologyEntityDTO entity) {
+        return unquotedCommoditiesEnabled
+                && entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+                && entity.getEntityState() == TopologyDTO.EntityState.POWERED_ON
+                && entity.getEnvironmentType() != EnvironmentType.CLOUD
+                && !isCloudMigration
+                && !isPlan();
+    }
+
+    /**
+     * If the {@link GlobalSettingSpecs#AllowUnlimitedHostOverprovisioning} setting is disabled, then we want
+     * to enable move actions to overprovisioned providers by adding unquoted commodities.
+     *
+     * @param analysisConfig the market config, which contains the market global settings.
+     * @return true if the setting is disabled, false otherwise.
+     */
+    private boolean isUnquotedCommoditiesEnabled(@Nonnull final AnalysisConfig analysisConfig) {
+        Optional<Setting> enableUnquotedCommoditiesSetting =
+                analysisConfig.getGlobalSetting(GlobalSettingSpecs.AllowUnlimitedHostOverprovisioning);
+        return enableUnquotedCommoditiesSetting
+                .map(setting -> setting.getBooleanSettingValue().getValue())
+                .orElse(false);
     }
 
     /**

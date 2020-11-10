@@ -346,11 +346,10 @@ public class Analysis {
                 this.originalCloudTopology, topologyCostCalculator.getCloudCostData());
         final ReversibilitySettingFetcher reversibilitySettingFetcher
                 = reversibilitySettingFetcherFactory.newReversibilitySettingRetriever();
-        this.converter = new TopologyConverter(topologyInfo, config.getIncludeVdc(),
-                config.getQuoteFactor(), config.getMarketMode(),
-                config.getLiveMarketMoveCostFactor(), marketCloudRateExtractor, null, topologyCostCalculator.getCloudCostData(),
+        this.converter = new TopologyConverter(topologyInfo, marketCloudRateExtractor,
+                null, topologyCostCalculator.getCloudCostData(),
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
-                originalCloudTopology, reversibilitySettingFetcher);
+                originalCloudTopology, reversibilitySettingFetcher, config);
         this.smaConverter = new SMAConverter(converter);
         final boolean enableThrottling = topologyInfo.getTopologyType() == TopologyType.REALTIME
                 && (config.getSuspensionsThrottlingConfig() == SuspensionsThrottlingConfig.CLUSTER);

@@ -220,7 +220,8 @@
         "dbMemScalingIncrement",
         "resizeVStorage",
         "preferSavingsOverReversibility",
-        "dtuUtilization"
+        "dtuUtilization",
+        "allowUnlimitedHostOverprovisioning"
       ]
     },
     "storagesettingsmanager": {

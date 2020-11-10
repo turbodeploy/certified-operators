@@ -203,9 +203,11 @@ public interface AnalysisFactory {
 
             final Map<String, Setting> settingsMap = new HashMap<>();
 
-            // for now only interested in DisableAllActions global settings.
+            // for now only interested in DisableAllActions and AllowUnlimitedHostOverprovisioning
+            // global settings.
             ImmutableList<String> inputSettings = ImmutableList.of(
-                GlobalSettingSpecs.DisableAllActions.getSettingName());
+                    GlobalSettingSpecs.DisableAllActions.getSettingName(),
+                    GlobalSettingSpecs.AllowUnlimitedHostOverprovisioning.getSettingName());
             final GetMultipleGlobalSettingsRequest settingRequest =
                 GetMultipleGlobalSettingsRequest.newBuilder()
                     .addAllSettingSpecName(inputSettings)

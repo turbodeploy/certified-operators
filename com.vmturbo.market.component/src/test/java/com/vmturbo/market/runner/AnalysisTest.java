@@ -2,7 +2,6 @@ package com.vmturbo.market.runner;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -33,14 +32,7 @@ import java.util.concurrent.Future;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.commons.Pair;
-import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
-import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -62,16 +54,20 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
 import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Removed;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -79,8 +75,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
-import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
@@ -92,6 +88,7 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
@@ -99,11 +96,8 @@ import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
-import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -121,6 +115,9 @@ public class AnalysisTest {
 
     private static final double DELTA = 0.01;
 
+    private static final long PM1_ID = 1L;
+    private static final long PM2_ID = 2L;
+    private static final long VM_ID = 3L;
 
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
             .setTopologyContextId(topologyContextId)
@@ -722,6 +719,166 @@ public class AnalysisTest {
             updatedProjectedContainerSpec.getEntity().getCommoditySoldList(0).getCapacity(), DELTA);
         Assert.assertEquals(5,
             updatedProjectedContainerSpec.getEntity().getCommoditySoldList(0).getHistoricalUsed().getPercentile(), DELTA);
+    }
+
+    /**
+     * Test that when the hosts are over-provisioned, no move actions are generated for the VM.
+     */
+    @Test
+    public void testNoMoveActionWithOverProvisionedHosts() {
+        when(csm.getScalingGroupId(any())).thenReturn(Optional.empty());
+        when(csm.getScalingGroupUsage(any())).thenReturn(Optional.empty());
+
+        // disable unquoted commodities
+        final AnalysisConfig analysisConfig = createAnalysisConfigWithOverprovisioningSetting(false);
+
+        Set<TopologyEntityDTO> topologySet = createTopologyWithOverProvisionedHosts();
+
+        final Analysis analysis = getAnalysis(analysisConfig, topologySet, topologyInfo);
+        analysis.execute();
+
+        // assert that no move actions are generated, because both PMs have over-provisioned CPU.
+        final ActionPlan actionPlan = analysis.getActionPlan().get();
+        assertFalse(actionPlan.getActionList().stream()
+                .anyMatch(action -> action.getInfo().hasMove()));
+    }
+
+    /**
+     * Test that when the hosts are over-provisioned and the AllowUnlimitedHostOverprovisioning is not set,
+     * a move action is still generated for the VM based on the actual CPU and MEM commodities.
+     */
+    @Test
+    public void testMoveActionWithOverProvisionedHosts() {
+        when(csm.getScalingGroupId(any())).thenReturn(Optional.empty());
+        when(csm.getScalingGroupUsage(any())).thenReturn(Optional.empty());
+
+        // enable unquoted commodities
+        final AnalysisConfig analysisConfig = createAnalysisConfigWithOverprovisioningSetting(true);
+
+        Set<TopologyEntityDTO> topologySet = createTopologyWithOverProvisionedHosts();
+
+        final Analysis analysis = getAnalysis(analysisConfig, topologySet, topologyInfo);
+        analysis.execute();
+
+        // assert that move VM action from pm1 to pm2 is generated, even though both PMs
+        // have over-provisioned CPU.
+        final ActionPlan actionPlan = analysis.getActionPlan().get();
+        Optional<Action> moveAction = actionPlan.getActionList().stream()
+                .filter(action -> action.getInfo().hasMove())
+                .findAny();
+        assertTrue(moveAction.isPresent());
+        assertEquals(VM_ID, moveAction.get().getInfo().getMove()
+                .getTarget().getId());
+        assertEquals(PM1_ID, moveAction.get().getInfo().getMove()
+                .getChanges(0).getSource().getId());
+        assertEquals(PM2_ID, moveAction.get().getInfo().getMove()
+                .getChanges(0).getDestination().getId());
+
+    }
+
+    /**
+     * Create an{@link AnalysisConfig} with {@link GlobalSettingSpecs.AllowUnlimitedHostOverprovisioning} setting.
+     *
+     * @param settingValue the setting value.
+     * @return the analysis config.
+     */
+    private AnalysisConfig createAnalysisConfigWithOverprovisioningSetting(boolean settingValue) {
+        return AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
+                SuspensionsThrottlingConfig.DEFAULT,
+                ImmutableMap.of(GlobalSettingSpecs.AllowUnlimitedHostOverprovisioning.getSettingName(),
+                        Setting.newBuilder()
+                                .setBooleanSettingValue(BooleanSettingValue.newBuilder()
+                                        .setValue(settingValue)
+                                        .build())
+                                .build()))
+                .setIncludeVDC(settingValue)
+                .build();
+    }
+
+    /**
+     * Create a topology with 2 PMs with over-provisioned CPU and one VM.
+     *
+     * @return a set of the created entities.
+     */
+    private Set<TopologyEntityDTO> createTopologyWithOverProvisionedHosts() {
+        TopologyDTO.TopologyEntityDTO pm1 = createCpuProvisionedPM(PM1_ID, 10);
+        TopologyDTO.TopologyEntityDTO pm2 = createCpuProvisionedPM(PM2_ID, 2);
+
+        // create a VM that is currently hosted on pm1.
+        TopologyDTO.TopologyEntityDTO vm = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(VM_ID)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PM1_ID)
+                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .addCommodityBought(createCommodityBoughtDTO(
+                                CommodityDTO.CommodityType.CPU_VALUE, 5))
+                        .addCommodityBought(createCommodityBoughtDTO(
+                                CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE, 5))
+                        .addCommodityBought(createCommodityBoughtDTO(
+                                CommodityDTO.CommodityType.MEM_VALUE, 2))
+                        .addCommodityBought(createCommodityBoughtDTO(
+                                CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE, 5))
+                        .build())
+                .build();
+
+        return ImmutableSet.of(pm1, pm2, vm);
+    }
+
+    /**
+     * Create a PM with over-provisioned CPU.
+     *
+     * @param oid the oid of the PM.
+     * @param usedCPU the used CPU value.
+     * @return the PM entity.
+     */
+    private TopologyDTO.TopologyEntityDTO createCpuProvisionedPM(long oid, double usedCPU) {
+        return TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setOid(oid)
+                .addCommoditySoldList(createCommoditySoldDTO(
+                        CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE, 100, 100))
+                .addCommoditySoldList(createCommoditySoldDTO(
+                        CommodityDTO.CommodityType.CPU_VALUE, usedCPU, 10))
+                .addCommoditySoldList(createCommoditySoldDTO(
+                        CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE, 50, 100))
+                .addCommoditySoldList(createCommoditySoldDTO(
+                        CommodityDTO.CommodityType.MEM_VALUE, 5, 10))
+                .build();
+    }
+
+    /**
+     * Create a {@link CommoditySoldDTO}.
+     *
+     * @param commodityType the commodity type
+     * @param used the used value
+     * @param capacity the capacity value
+     * @return sold commodity
+     */
+    private CommoditySoldDTO createCommoditySoldDTO(int commodityType, double used, double capacity) {
+        return CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(commodityType)
+                        .build())
+                .setUsed(used)
+                .setCapacity(capacity)
+                .build();
+    }
+
+    /**
+     * Create a {@link CommodityBoughtDTO}.
+     *
+     * @param commodityType the commodity type
+     * @param used the used value
+     * @return bought commodity
+     */
+    private CommodityBoughtDTO createCommodityBoughtDTO(int commodityType, double used) {
+        return CommodityBoughtDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(commodityType)
+                        .build())
+                .setUsed(used)
+                .build();
     }
 
     private ActionTO mockActionTO(long entityOID, int commodityType) {

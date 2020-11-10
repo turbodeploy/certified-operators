@@ -216,6 +216,7 @@ public class SettingsMapper {
         ImmutableMap.<String, String>builder()
             .put(GlobalSettingSpecs.DisableAllActions.getSettingName(), SERVICE_ENTITY)
             .put(GlobalSettingSpecs.MaxVMGrowthObservationPeriod.getSettingName(), SERVICE_ENTITY)
+            .put(GlobalSettingSpecs.AllowUnlimitedHostOverprovisioning.getSettingName(), SERVICE_ENTITY)
             .build();
 
     /**
