@@ -12,7 +12,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -42,7 +41,6 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.setting.SettingProto;
-import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
@@ -155,13 +153,14 @@ public class ActionModeCalculator {
     @Nonnull
     ModeAndSchedule calculateActionModeAndExecutionSchedule(@Nonnull final ActionView action,
                                    @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
-        Optional<ActionMode> workflowMode = calculateWorkflowActionMode(action, entitiesCache);
+        final Optional<ModeAndSchedule> workflowModeAndSchedule =
+                calculateWorkflowActionModeAndSchedule(action, entitiesCache);
 
-        if (workflowMode.isPresent()) {
-            return ModeAndSchedule.of(workflowMode.get());
+        if (workflowModeAndSchedule.isPresent()) {
+            return workflowModeAndSchedule.get();
         } else {
             ModeAndSchedule supportingLevelActionModeAndSchedule =
-                calculateActionModeFromSupportingLevel(action, entitiesCache);
+                calculateActionModeAndScheduleFromSupportingLevel(action, entitiesCache);
             if (action.getRecommendation().getPrerequisiteList().isEmpty()) {
                 return supportingLevelActionModeAndSchedule;
             } else {
@@ -180,7 +179,7 @@ public class ActionModeCalculator {
      * @return the action mode and execution schedule
      */
     @Nonnull
-    private ModeAndSchedule calculateActionModeFromSupportingLevel(
+    private ModeAndSchedule calculateActionModeAndScheduleFromSupportingLevel(
             @Nonnull final ActionView action,
             @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
         switch (action.getRecommendation().getSupportingLevel()) {
@@ -189,14 +188,14 @@ public class ActionModeCalculator {
                 return ModeAndSchedule.of(ActionMode.DISABLED);
             case SHOW_ONLY:
             case SUPPORTED:
-                return getNonWorkflowActionMode(action, entitiesCache);
+                return getNonWorkflowActionModeAndSchedule(action, entitiesCache);
             default:
                 throw new IllegalArgumentException("Action SupportLevel is of unrecognized type.");
         }
     }
 
     @Nonnull
-    private ModeAndSchedule getNonWorkflowActionMode(@Nonnull final ActionView action,
+    private ModeAndSchedule getNonWorkflowActionModeAndSchedule(@Nonnull final ActionView action,
               @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
         ModeAndSchedule result;
         Optional<ActionDTO.Action> translatedRecommendation = action.getActionTranslation()
@@ -251,17 +250,8 @@ public class ActionModeCalculator {
                             }
                             modeResults.add(Pair.of(defaultValue, Collections.emptyList()));
                         } else {
-                            List<Long> scheduleIds = Collections.emptyList();
-                            final String scheduleSettingSpecName =
-                                ActionSettingSpecs.getSubSettingFromActionModeSetting(
-                                    spec.getConfigurableActionSetting().getSettingName(),
-                                    ActionSettingType.SCHEDULE);
-
-                            if (scheduleSettingSpecName != null
-                                && settingsForTargetEntity.containsKey(scheduleSettingSpecName)) {
-                                scheduleIds = settingsForTargetEntity.get(scheduleSettingSpecName)
-                                        .getSortedSetOfOidSettingValue().getOidsList();
-                            }
+                            final List<Long> scheduleIds =
+                                    getSchedulesForActionSpec(settingsForTargetEntity, spec);
 
                             // In all other cases, we use the default value from the setting.
                             modeResults.add(Pair.of(ActionMode.valueOf(setting.getEnumSettingValue().getValue()),
@@ -624,18 +614,18 @@ public class ActionModeCalculator {
 
     /**
      * For an action which corresponds to a Workflow Action, e.g. ProvisionActionWorkflow,
-     * return the ActionMode of the policy for the related action, e.g. ProvisionAction.
+     * return the ModeAndSchedule of the policy for the related action, e.g. ProvisionAction.
      *
      * <p>If this is not a Workflow Action, then return Optional.empty()</p>
      *
      * @param action The action to analyze to see if it is a Workflow Action
-     * @param entitySettingsCache the EntitySettings lookaside for the given action
-     * @return an Optional containing the ActionMode if this is a Workflow Action, or
+     * @param entitySettingsCache the EntitySettings look aside for the given action
+     * @return an Optional containing the ModeAndSchedule if this is a Workflow Action, or
      * Optional.empty() if this is not a Workflow Action or the type of the ActionDTO is not
      * supported.
      */
     @Nonnull
-    private Optional<ActionMode> calculateWorkflowActionMode(
+    private Optional<ModeAndSchedule> calculateWorkflowActionModeAndSchedule(
             @Nonnull final ActionView action,
             @Nullable final EntitiesAndSettingsSnapshot entitySettingsCache) {
         try {
@@ -661,32 +651,71 @@ public class ActionModeCalculator {
                 return Optional.empty();
             }
 
-            // determine all the action modes related to the action
-            return specsApplicableToAction(translatedActionOpt.get(), settingsForActionTarget, defaultSettingsForEntity)
-                .map(ActionSpecifications::getConfigurableActionSetting)
-                // Is there a replace setting for this Workflow override for the current entity?
-                // note: the value of the workflowSettingSpec is the OID of the workflow, only used during
-                // execution
-                .filter(setting -> hasReplaceWorkflow(setting, settingsForActionTarget))
-                // find the setting if available
-                .map(ConfigurableActionSettings::getSettingName)
-                .filter(Objects::nonNull)
-                .map(settingsForActionTarget::get)
-                // the setting might not be in the map
-                .filter(Objects::nonNull)
-                // extract the value from the setting
-                .map(Setting::getEnumSettingValue)
-                .map(EnumSettingValue::getValue)
-                .map(ActionMode::valueOf)
-                // if the value is not recognized, it's converted to null.
-                // filter so we return optional.empty
-                .filter(Objects::nonNull)
-                // get the most conservative mode from the stream
-                .min(Comparator.comparing(Function.identity()));
+           return specsApplicableToAction(translatedActionOpt.get(), settingsForActionTarget,
+    defaultSettingsForEntity)
+            // filter actions with REPLACE workflow settings and return values of mode and schedule settings
+            .flatMap(spec -> getModeAndScheduleFromReplaceWorkflowActions(spec, settingsForActionTarget))
+            .min(new ActionModeScheduleComparator())
+            .map(p -> getModeAndSchedule(action, p.getLeft(), p.getRight(),
+                    entitySettingsCache));
         } catch (UnsupportedActionException e) {
             logger.error("Unable to calculate complex action mode.", e);
             return Optional.empty();
         }
+    }
+
+    /**
+     * Get mode and schedules for actions with associated REPLACE workflow settings.
+     *
+     * @param actionSpec action specification
+     * @param settingsForActionTarget map with settings specific to entities
+     * @return empty stream if action don't have associated REPLACE workflow settings otherwise
+     * return values from action mode and execution schedule settings
+     */
+    private Stream<Pair<ActionMode, List<Long>>> getModeAndScheduleFromReplaceWorkflowActions(
+            @Nonnull ActionSpecifications actionSpec,
+            @Nonnull Map<String, Setting> settingsForActionTarget) {
+        if (hasReplaceWorkflow(actionSpec.getConfigurableActionSetting(),
+                settingsForActionTarget)) {
+            final ConfigurableActionSettings configurableActionSetting =
+                    actionSpec.getConfigurableActionSetting();
+            final String settingName = configurableActionSetting.getSettingName();
+            final Setting setting = settingsForActionTarget.get(settingName);
+            if (setting != null && setting.hasEnumSettingValue()) {
+                final String enumSettingValue = setting.getEnumSettingValue().getValue();
+                final ActionMode actionMode = ActionMode.valueOf(enumSettingValue);
+                final List<Long> scheduleIds =
+                        getSchedulesForActionSpec(settingsForActionTarget, actionSpec);
+                return Stream.of(Pair.of(actionMode, scheduleIds));
+            }
+        }
+        return Stream.empty();
+    }
+
+    /**
+     * Return execution schedules associated with action mode setting if any.
+     *
+     * @param settingsForActionTarget action settings
+     * @param spec action spec (action mode setting)
+     * @return if there is execution schedule setting for action, then return execution schedules
+     * IDs, otherwise empty collection.
+     */
+    @Nonnull
+    private List<Long> getSchedulesForActionSpec(
+            @Nonnull Map<String, Setting> settingsForActionTarget,
+            @Nonnull ActionSpecifications spec) {
+        List<Long> executionScheduleIds = Collections.emptyList();
+        final String scheduleSettingSpecName =
+                ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                        spec.getConfigurableActionSetting().getSettingName(),
+                        ActionSettingType.SCHEDULE);
+        if (scheduleSettingSpecName != null && settingsForActionTarget.containsKey(
+                scheduleSettingSpecName)) {
+            executionScheduleIds = settingsForActionTarget.get(scheduleSettingSpecName)
+                    .getSortedSetOfOidSettingValue()
+                    .getOidsList();
+        }
+        return executionScheduleIds;
     }
 
     private boolean hasReplaceWorkflow(

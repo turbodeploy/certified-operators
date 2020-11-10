@@ -1936,6 +1936,21 @@ public class ActionModeCalculatorTest {
                 vCpuUpInBetweenThresholds);
     }
 
+    @Nonnull
+    private Setting createWorkflowSetting(long workflowId) {
+        final String vCpuUpInBetweenThresholdsWorkflowSettingName =
+                ActionSettingSpecs.getSubSettingFromActionModeSetting(
+                        ConfigurableActionSettings.ResizeVcpuUpInBetweenThresholds,
+                        ActionSettingType.PRE);
+        final Setting vCpuUpInBetweenThresholdsWorkflowSetting = Setting.newBuilder()
+                .setSettingSpecName(vCpuUpInBetweenThresholdsWorkflowSettingName)
+                .setStringSettingValue(SettingProto.StringSettingValue.newBuilder()
+                        .setValue(String.valueOf(workflowId))
+                        .build())
+                .build();
+        return vCpuUpInBetweenThresholdsWorkflowSetting;
+    }
+
     /**
      * Resize vm up configured with on generation and after execution workflows should place
      * READY, SUCCEEDED, and FAILED in the map returned by calculateWorkflowSettings.
@@ -1981,6 +1996,55 @@ public class ActionModeCalculatorTest {
         Assert.assertTrue(actual.containsKey(ActionState.READY));
         Assert.assertEquals(Arrays.asList(onGenWorkflowId),
             actual.get(ActionState.READY).getSortedSetOfOidSettingValue().getOidsList());
+    }
+
+    /**
+     * Test that ModeAndSchedule calculates correctly for workflow action with execution schedule.
+     */
+    @Test
+    public void testExecutionScheduleForWorkflowAction() {
+        // ARRANGE
+        final Map<String, Setting> settingsForEntity =
+                getSettingsForVM(false, com.vmturbo.api.enums.ActionMode.MANUAL);
+        settingsForEntity.putAll(createScheduleSettings(Collections.singletonList(SCHEDULE_ID)));
+        final Setting workflowSetting = createWorkflowSetting(1124142L);
+        settingsForEntity.put(workflowSetting.getSettingSpecName(), workflowSetting);
+        final Action resizeUpAction = getResizeUpAction(VM_ID);
+
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(
+                Optional.of(getVMEntity(VM_ID, false)));
+        long currentTime = System.currentTimeMillis();
+        when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
+        when(entitiesCache.getAcceptingUserForAction(
+                resizeUpAction.getRecommendationOid())).thenReturn(Optional.empty());
+
+        final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(1);
+        ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
+                .setId(SCHEDULE_ID)
+                .setDisplayName(SCHEDULE_DISPLAY_NAME)
+                .setNextOccurrence(ScheduleProto.Schedule.NextOccurrence.newBuilder()
+                        .setStartTime(nextOccurrence)
+                        .build())
+                .setActive(ScheduleProto.Schedule.Active.newBuilder()
+                        .setRemainingActiveTimeMs(150000L))
+                .setStartTime(MAY_2_2020_5_47)
+                .setEndTime(MAY_2_2020_6_47)
+                .setTimezoneId(TIMEZONE_ID)
+                .build();
+
+        when(entitiesCache.getScheduleMap()).thenReturn(
+                ImmutableMap.of(SCHEDULE_ID, actionSchedule));
+
+        // ACT
+        ModeAndSchedule modeAndSchedule =
+                actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction,
+                        entitiesCache);
+
+        // ASSERT
+        assertThat(modeAndSchedule.getMode(), is(ActionMode.MANUAL));
+        assertNotNull(modeAndSchedule.getSchedule());
+        assertThat(modeAndSchedule.getSchedule().getScheduleId(), is(SCHEDULE_ID));
     }
 
     /**
