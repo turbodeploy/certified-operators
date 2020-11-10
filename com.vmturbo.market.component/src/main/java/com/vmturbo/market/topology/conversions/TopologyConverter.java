@@ -109,6 +109,7 @@ import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ScalingGr
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCategory;
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.Phase;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
+import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
@@ -649,57 +650,62 @@ public class TopologyConverter {
             .getEntityTypeScope().stream().map(EntityType::getNumber).collect(Collectors.toSet());
         try {
             for (TopologyDTO.TopologyEntityDTO entity : topology.values()) {
-                final int entityType = entity.getEntityType();
-                if (MarketAnalysisUtils.SKIPPED_ENTITY_TYPES.contains(entityType)
-                        || !includeByType(entityType)) {
-                    logger.debug("Skipping trader creation for entity name = {}, entity type = {}, " +
-                            "entity state = {}", entity.getDisplayName(),
-                        EntityType.forNumber(entityType), entity.getEntityState());
-                    skippedEntities.put(entity.getOid(), entity);
-                } else {
-                    // Allow creation of traderTOs for traders discarded due to state or entityType.
-                    // We will remove them traderTO set after scoping but before sending to market.
-                    if (SKIPPED_ENTITY_STATES.contains(entity.getEntityState())) {
-                        logger.debug("Skipping trader creation for entity oid = {}, name = {}, type = {}, "
-                                        + "state = {} because of state.", entity.getOid(), entity.getDisplayName(),
-                                EntityType.forNumber(entityType), entity.getEntityState());
+                try {
+                    final int entityType = entity.getEntityType();
+                    if (MarketAnalysisUtils.SKIPPED_ENTITY_TYPES.contains(entityType)
+                            || !includeByType(entityType)) {
+                        logger.debug("Skipping trader creation for entity name = {}, entity type = {}, " +
+                                "entity state = {}", entity.getDisplayName(),
+                            EntityType.forNumber(entityType), entity.getEntityState());
                         skippedEntities.put(entity.getOid(), entity);
-                    }
-                    entityOidToDto.put(entity.getOid(), entity);
-                    if (CONTAINER_TYPES.contains(entityType)) {
-                        // VMs and ContainerPods
-                        providersOfContainers.addAll(entity.getCommoditiesBoughtFromProvidersList()
-                            .stream()
-                            .filter(CommoditiesBoughtFromProvider::hasProviderId)
-                            .map(CommoditiesBoughtFromProvider::getProviderId)
-                            .collect(Collectors.toSet()));
-                    }
-                    if (entityType == EntityType.REGION_VALUE) {
-                        List<TopologyEntityDTO> AZs = TopologyDTOUtil.getConnectedEntitiesOfType(
-                            entity, EntityType.AVAILABILITY_ZONE_VALUE, topology);
-                        AZs.forEach(az -> azToRegionMap.put(az, entity));
-                    } else if (entityType == EntityType.BUSINESS_ACCOUNT_VALUE) {
-                        List<TopologyEntityDTO> vms = TopologyDTOUtil.getConnectedEntitiesOfType(
-                            entity, EntityType.VIRTUAL_MACHINE_VALUE, topology);
-                        List<TopologyEntityDTO> dbs = TopologyDTOUtil.getConnectedEntitiesOfType(
-                            entity, EntityType.DATABASE_VALUE, topology);
-                        List<TopologyEntityDTO> dbss = TopologyDTOUtil.getConnectedEntitiesOfType(
-                            entity, EntityType.DATABASE_SERVER_VALUE, topology);
-                        vms.forEach(vm -> cloudEntityToBusinessAccount.put(vm, entity));
-                        dbs.forEach(db -> cloudEntityToBusinessAccount.put(db, entity));
-                        dbss.forEach(db -> cloudEntityToBusinessAccount.put(db, entity));
-                        businessAccounts.add(entity);
-                        if (cloudTc.getAccountPricingIdFromBusinessAccount(entity.getOid()).isPresent()) {
-                            cloudTc.insertIntoAccountPricingDataByBusinessAccountOidMap(entity.getOid(),
-                                    cloudTc.getAccountPricingIdFromBusinessAccount(entity.getOid()).get());
+                    } else {
+                        // Allow creation of traderTOs for traders discarded due to state or entityType.
+                        // We will remove them traderTO set after scoping but before sending to market.
+                        if (SKIPPED_ENTITY_STATES.contains(entity.getEntityState())) {
+                            logger.debug("Skipping trader creation for entity oid = {}, name = {}, type = {}, "
+                                            + "state = {} because of state.", entity.getOid(), entity.getDisplayName(),
+                                    EntityType.forNumber(entityType), entity.getEntityState());
+                            skippedEntities.put(entity.getOid(), entity);
+                        }
+                        entityOidToDto.put(entity.getOid(), entity);
+                        if (CONTAINER_TYPES.contains(entityType)) {
+                            // VMs and ContainerPods
+                            providersOfContainers.addAll(entity.getCommoditiesBoughtFromProvidersList()
+                                .stream()
+                                .filter(CommoditiesBoughtFromProvider::hasProviderId)
+                                .map(CommoditiesBoughtFromProvider::getProviderId)
+                                .collect(Collectors.toSet()));
+                        }
+                        if (entityType == EntityType.REGION_VALUE) {
+                            List<TopologyEntityDTO> AZs = TopologyDTOUtil.getConnectedEntitiesOfType(
+                                entity, EntityType.AVAILABILITY_ZONE_VALUE, topology);
+                            AZs.forEach(az -> azToRegionMap.put(az, entity));
+                        } else if (entityType == EntityType.BUSINESS_ACCOUNT_VALUE) {
+                            List<TopologyEntityDTO> vms = TopologyDTOUtil.getConnectedEntitiesOfType(
+                                entity, EntityType.VIRTUAL_MACHINE_VALUE, topology);
+                            List<TopologyEntityDTO> dbs = TopologyDTOUtil.getConnectedEntitiesOfType(
+                                entity, EntityType.DATABASE_VALUE, topology);
+                            List<TopologyEntityDTO> dbss = TopologyDTOUtil.getConnectedEntitiesOfType(
+                                entity, EntityType.DATABASE_SERVER_VALUE, topology);
+                            vms.forEach(vm -> cloudEntityToBusinessAccount.put(vm, entity));
+                            dbs.forEach(db -> cloudEntityToBusinessAccount.put(db, entity));
+                            dbss.forEach(db -> cloudEntityToBusinessAccount.put(db, entity));
+                            businessAccounts.add(entity);
+                            if (cloudTc.getAccountPricingIdFromBusinessAccount(entity.getOid()).isPresent()) {
+                                cloudTc.insertIntoAccountPricingDataByBusinessAccountOidMap(entity.getOid(),
+                                        cloudTc.getAccountPricingIdFromBusinessAccount(entity.getOid()).get());
+                            }
+                        }
+
+                        // Store oids of entities that may have ExcludedTemplates settings.
+                        if (entity.getEnvironmentType() == EnvironmentType.CLOUD &&
+                            tierExcluderEntityTypeScope.contains(entityType)) {
+                            tierExcluderEntityOids.add(entity.getOid());
                         }
                     }
-
-                    // Store oids of entities that may have ExcludedTemplates settings.
-                    if (entity.getEnvironmentType() == EnvironmentType.CLOUD &&
-                        tierExcluderEntityTypeScope.contains(entityType)) {
-                        tierExcluderEntityOids.add(entity.getOid());
-                    }
+                } catch (Exception e) {
+                    logger.error(EconomyConstants.EXCEPTION_MESSAGE, entityDebugInfo(entity),
+                            e.getMessage(), e);
                 }
             }
 
@@ -710,10 +716,10 @@ public class TopologyConverter {
                 createProviderUsedSubtractionMap(entityOidToDto, oidsToRemove));
 
             return convertToMarket();
-        } catch (RuntimeException e) {
-            //throw new RuntimeException("RuntimeException in convertToMarket(topology) ", e);
-            logger.error("RuntimeException in convertToMarket(topology) ");
-            throw e;
+        } catch (Exception e) {
+            logger.error(EconomyConstants.EXCEPTION_MESSAGE,
+                "convertToMarket", e.getMessage(), e);
+            return new HashSet<>();
         } finally {
             conversionErrorCounts.endPhase();
             tierExcluder.clearStateNeededForConvertToMarket();
@@ -772,9 +778,10 @@ public class TopologyConverter {
 
             logger.info("Converted topologyEntityDTOs to traderTOs");
             return new HashSet<>(oidToOriginalTraderTOMap.values());
-        } catch (RuntimeException e) {
-            logger.error("RuntimeException in convertToMarket");
-            throw e;
+        } catch (Exception e) {
+            logger.error(EconomyConstants.EXCEPTION_MESSAGE,
+                "convertToMarket", e.getMessage(), e);
+            return new HashSet<>(oidToOriginalTraderTOMap.values());
         }
     }
 
@@ -860,26 +867,35 @@ public class TopologyConverter {
             final Map<Long, TopologyDTO.ProjectedTopologyEntity> projectedTopologyEntities = new HashMap<>(
                 projectedTraders.size());
             for (TraderTO projectedTrader : projectedTraders) {
-                final Set<TopologyEntityDTO> projectedEntities = traderTOtoTopologyDTO(
-                        projectedTrader, originalTopology, reservedCapacityAnalysis,
-                        projTraders, wastedFileAnalysis);
-                for (TopologyEntityDTO projectedEntity : projectedEntities) {
-                    final ProjectedTopologyEntity.Builder projectedEntityBuilder =
-                        ProjectedTopologyEntity.newBuilder().setEntity(projectedEntity);
-                    final PriceIndexMessagePayload priceIndex = priceIndexByOid.get(projectedEntity.getOid());
-                    if (priceIndex != null) {
-                        if (originalTopology.containsKey(projectedEntity.getOid())) {
-                            projectedEntityBuilder.setOriginalPriceIndex(priceIndex.getPriceindexCurrent());
+                try {
+                    final Set<TopologyEntityDTO> projectedEntities = traderTOtoTopologyDTO(
+                            projectedTrader, originalTopology, reservedCapacityAnalysis,
+                            projTraders, wastedFileAnalysis);
+                    for (TopologyEntityDTO projectedEntity : projectedEntities) {
+                        final ProjectedTopologyEntity.Builder projectedEntityBuilder =
+                            ProjectedTopologyEntity.newBuilder().setEntity(projectedEntity);
+                        final PriceIndexMessagePayload priceIndex = priceIndexByOid.get(projectedEntity.getOid());
+                        if (priceIndex != null) {
+                            if (originalTopology.containsKey(projectedEntity.getOid())) {
+                                projectedEntityBuilder.setOriginalPriceIndex(priceIndex.getPriceindexCurrent());
+                            }
+                            projectedEntityBuilder.setProjectedPriceIndex(priceIndex.getPriceindexProjected());
                         }
-                        projectedEntityBuilder.setProjectedPriceIndex(priceIndex.getPriceindexProjected());
-                    }
 
-                    projectedTopologyEntities.put(projectedEntity.getOid(), projectedEntityBuilder.build());
+                        projectedTopologyEntities.put(projectedEntity.getOid(), projectedEntityBuilder.build());
+                    }
+                    // Calculate projected RI Coverage
+                    projectedRICoverageCalculator.calculateProjectedRiCoverage(projectedTrader);
+                } catch (Exception e) {
+                    logger.error(EconomyConstants.EXCEPTION_MESSAGE,
+                    projectedTrader.getDebugInfoNeverUseInCode(), e.getMessage(), e);
                 }
-                // Calculate projected RI Coverage
-                projectedRICoverageCalculator.calculateProjectedRiCoverage(projectedTrader);
             }
             return projectedTopologyEntities;
+        } catch (Exception e) {
+            logger.error(EconomyConstants.EXCEPTION_MESSAGE,
+                "convertFromMarket", e.getMessage(), e);
+            return new HashMap<>();
         } finally {
             conversionErrorCounts.endPhase();
         }
@@ -1096,205 +1112,211 @@ public class TopologyConverter {
      * @param wastedFileAnalysis handler for wasted file analysis
      * @return set of {@link TopologyDTO.TopologyEntityDTO}s
      */
-    private Set<TopologyDTO.TopologyEntityDTO> traderTOtoTopologyDTO(EconomyDTOs.TraderTO traderTO,
+    @VisibleForTesting
+    Set<TopologyDTO.TopologyEntityDTO> traderTOtoTopologyDTO(EconomyDTOs.TraderTO traderTO,
                     @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> traderOidToEntityDTO,
                     @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis,
                     @Nonnull final Map<Long, EconomyDTOs.TraderTO> projTraders,
                     @Nonnull final WastedFilesAnalysis wastedFileAnalysis) {
         Set<TopologyDTO.TopologyEntityDTO> topologyEntityDTOs = Sets.newHashSet();
-        if (cloudTc.isMarketTier(traderTO.getOid())) {
-            // Tiers and regions are added from the original topology into the projected traders
-            // because there can be no change to these entities by market.
-            return topologyEntityDTOs;
-        }
-        List<CommoditiesBoughtFromProvider> topoDTOCommonBoughtGrouping = new ArrayList<>();
-        long pmOid = 0L;
-        List<Long> storageOidList = Collections.emptyList();
-        // for a VM, find its associated PM to ST list map
-        if (traderTO.getType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-            Map<Long, List<Long>> pm2stMap = createPMToSTMap(traderTO.getShoppingListsList());
-            // there should be only one pm supplier for vm, zero if the vm is unplaced
-            if (!pm2stMap.isEmpty()) {
-                pmOid = pm2stMap.keySet().iterator().next();
-                storageOidList = pm2stMap.get(pmOid);
+        try {
+            if (cloudTc.isMarketTier(traderTO.getOid())) {
+                // Tiers and regions are added from the original topology into the projected traders
+                // because there can be no change to these entities by market.
+                return topologyEntityDTOs;
             }
-        }
-        TopologyDTO.TopologyEntityDTO originalEntity = traderOidToEntityDTO.get(traderTO.getOid());
-        final List<ShoppingListTO> collapsedShoppingLists = new ArrayList<>();
-
-        final Map<Long, ShoppingListTO> volumeIdToShoppingListTOMap = new HashMap<>();
-        for (EconomyDTOs.ShoppingListTO sl : traderTO.getShoppingListsList()) {
-            List<TopologyDTO.CommodityBoughtDTO> commList = new ArrayList<>();
-
-            // Map to keep timeslot commodities from the generated timeslot families
-            // This is needed because we need to add those timeslots coming from the market later
-            // to generated commodity DTOs
-            final Map<CommodityType, List<Double>> timeSlotsByCommType = Maps.newHashMap();
-            // First we merge timeslot commodities
-            final Collection<CommodityDTOs.CommodityBoughtTO.Builder> commBuilders =
-                sl.getCommoditiesBoughtList().stream().map(CommodityBoughtTO::toBuilder)
-                .collect(Collectors.toList());
-            final Collection<CommodityDTOs.CommodityBoughtTO> mergedCommoditiesBought =
-                mergeTimeSlotCommodities(commBuilders, timeSlotsByCommType,
-                    CommodityBoughtTO.Builder::getSpecification,
-                    CommodityBoughtTO.Builder::getQuantity,
-                    CommodityBoughtTO.Builder::getPeakQuantity,
-                    CommodityBoughtTO.Builder::setQuantity,
-                    CommodityBoughtTO.Builder::setPeakQuantity)
-                .stream().map(CommodityBoughtTO.Builder::build).collect(Collectors.toList());
-            for (CommodityDTOs.CommodityBoughtTO commBought : mergedCommoditiesBought) {
-                // if the commodity bought DTO type is biclique, create new
-                // DSPM and Datastore bought
-                if ( commodityConverter.isSpecBiClique(commBought.getSpecification().getBaseType())) {
-                    if (pmOid == sl.getSupplier()) {
-                        // create datastore commodity bought because the supplier is PM
-                        for (Long stOid: storageOidList) {
-                            // iterate all storage supplier, create all datastore commodity bought
-                            // for vm-pm shoppinglist
-                            commList.add(newCommodity(CommodityDTO.CommodityType.DATASTORE_VALUE, stOid));
-                        }
-
-                    } else if (storageOidList.contains(sl.getSupplier())) {
-                        // create dspm commodity bought because the supplier is ST
-                        commList.add(newCommodity(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE, pmOid));
-                    }
-                } else if (tierExcluder.isCommSpecTypeForTierExclusion(commBought.getSpecification())) {
-                    // If the commodity bought was created by market-component for tier exclusion,
-                    // then do not include it in the projected topology.
-                    continue;
-                } else {
-                    //If the traderTO has cloneOf, it is a provisioned SE.
-                    commBoughtTOtoCommBoughtDTO(traderTO.getOid(), sl.getSupplier(), sl.getOid(),
-                        commBought, reservedCapacityAnalysis, originalEntity, timeSlotsByCommType,
-                            traderTO.hasCloneOf()).ifPresent(commList::add);
-                }
-            }
-            // the shopping list might not exist in shoppingListOidToInfos, because it might be
-            // created inside M2 via a provision by demand or provision by supply action
-            if (shoppingListOidToInfos.get(sl.getOid()) == null) {
-                TraderTO supplier = projTraders.get(sl.getSupplier());
-                logger.trace("Adding shopping list {} of trader {} having a supplier {} into the sl-info map",
-                                sl.getOid(), traderTO.getDebugInfoNeverUseInCode(),
-                                supplier != null ? supplier.getDebugInfoNeverUseInCode() : null);
-                ShoppingListInfo slInfo = new ShoppingListInfo(sl.getOid(), traderTO.getOid(),
-                                sl.getSupplier(), null, null,
-                                supplier != null ? supplier.getType() : null, commList);
-                shoppingListOidToInfos.put(sl.getOid(), slInfo);
-            }
-            final ShoppingListInfo shoppingListInfo = shoppingListOidToInfos.get(sl.getOid());
-            if (shoppingListInfo != null && shoppingListInfo.getCollapsedBuyerId().isPresent()) {
-                collapsedShoppingLists.add(sl);
-            }
-            CommoditiesBoughtFromProvider commoditiesBoughtFromProvider =
-                    createCommoditiesBoughtFromProvider(sl, commList, traderTO.getOid());
-            topoDTOCommonBoughtGrouping.add(commoditiesBoughtFromProvider);
-            if (commoditiesBoughtFromProvider.hasVolumeId()) {
-                volumeIdToShoppingListTOMap.put(commoditiesBoughtFromProvider.getVolumeId(), sl);
-            }
-        }
-
-        TopologyDTO.EntityState entityState = TopologyDTO.EntityState.POWERED_ON;
-        String displayName = originalEntity != null ? originalEntity.getDisplayName()
-                        : traderOidToEntityDTO.get(traderTO.getCloneOf()).getDisplayName()
-                        + "_Clone #" + cloneIndex.addAndGet(1);
-        if (originalEntity != null) {
-            EntityState originalState = originalEntity.getEntityState();
-            // TODO: Address the following workaroud for SUSPEND VM.
-            // Without the workaround for VM:
-            // Entity (SUSPEND) -> TRADER (IDLE) -> TRADER (ACTIVE) -> Entity (POWER_ON)
-            // The correct behavior for VM:
-            // Entity (SUSPEND) -> TRADER (IDLE) -> TRADER (IDLE) -> Entity (SUSPEND)
-            // For VMs, if trader states are not changed, then the new entity state
-            // should be the same as original entity state.
+            List<CommoditiesBoughtFromProvider> topoDTOCommonBoughtGrouping = new ArrayList<>();
+            long pmOid = 0L;
+            List<Long> storageOidList = Collections.emptyList();
+            // for a VM, find its associated PM to ST list map
             if (traderTO.getType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                final TraderStateTO originalStateTo = TopologyConversionUtils.traderState(originalEntity);
-                if (isSameVMTraderState(traderTO.getState(), originalStateTo)) {
-                    entityState = originalEntity.getEntityState();
+                Map<Long, List<Long>> pm2stMap = createPMToSTMap(traderTO.getShoppingListsList());
+                // there should be only one pm supplier for vm, zero if the vm is unplaced
+                if (!pm2stMap.isEmpty()) {
+                    pmOid = pm2stMap.keySet().iterator().next();
+                    storageOidList = pm2stMap.get(pmOid);
                 }
+            }
+            TopologyDTO.TopologyEntityDTO originalEntity = traderOidToEntityDTO.get(traderTO.getOid());
+            final List<ShoppingListTO> collapsedShoppingLists = new ArrayList<>();
+
+            final Map<Long, ShoppingListTO> volumeIdToShoppingListTOMap = new HashMap<>();
+            for (EconomyDTOs.ShoppingListTO sl : traderTO.getShoppingListsList()) {
+                List<TopologyDTO.CommodityBoughtDTO> commList = new ArrayList<>();
+
+                // Map to keep timeslot commodities from the generated timeslot families
+                // This is needed because we need to add those timeslots coming from the market later
+                // to generated commodity DTOs
+                final Map<CommodityType, List<Double>> timeSlotsByCommType = Maps.newHashMap();
+                // First we merge timeslot commodities
+                final Collection<CommodityDTOs.CommodityBoughtTO.Builder> commBuilders =
+                    sl.getCommoditiesBoughtList().stream().map(CommodityBoughtTO::toBuilder)
+                    .collect(Collectors.toList());
+                final Collection<CommodityDTOs.CommodityBoughtTO> mergedCommoditiesBought =
+                    mergeTimeSlotCommodities(commBuilders, timeSlotsByCommType,
+                        CommodityBoughtTO.Builder::getSpecification,
+                        CommodityBoughtTO.Builder::getQuantity,
+                        CommodityBoughtTO.Builder::getPeakQuantity,
+                        CommodityBoughtTO.Builder::setQuantity,
+                        CommodityBoughtTO.Builder::setPeakQuantity)
+                    .stream().map(CommodityBoughtTO.Builder::build).collect(Collectors.toList());
+                for (CommodityDTOs.CommodityBoughtTO commBought : mergedCommoditiesBought) {
+                    // if the commodity bought DTO type is biclique, create new
+                    // DSPM and Datastore bought
+                    if ( commodityConverter.isSpecBiClique(commBought.getSpecification().getBaseType())) {
+                        if (pmOid == sl.getSupplier()) {
+                            // create datastore commodity bought because the supplier is PM
+                            for (Long stOid: storageOidList) {
+                                // iterate all storage supplier, create all datastore commodity bought
+                                // for vm-pm shoppinglist
+                                commList.add(newCommodity(CommodityDTO.CommodityType.DATASTORE_VALUE, stOid));
+                            }
+
+                        } else if (storageOidList.contains(sl.getSupplier())) {
+                            // create dspm commodity bought because the supplier is ST
+                            commList.add(newCommodity(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE, pmOid));
+                        }
+                    } else if (tierExcluder.isCommSpecTypeForTierExclusion(commBought.getSpecification())) {
+                        // If the commodity bought was created by market-component for tier exclusion,
+                        // then do not include it in the projected topology.
+                        continue;
+                    } else {
+                        //If the traderTO has cloneOf, it is a provisioned SE.
+                        commBoughtTOtoCommBoughtDTO(traderTO.getOid(), sl.getSupplier(), sl.getOid(),
+                            commBought, reservedCapacityAnalysis, originalEntity, timeSlotsByCommType,
+                                traderTO.hasCloneOf()).ifPresent(commList::add);
+                    }
+                }
+                // the shopping list might not exist in shoppingListOidToInfos, because it might be
+                // created inside M2 via a provision by demand or provision by supply action
+                if (shoppingListOidToInfos.get(sl.getOid()) == null) {
+                    TraderTO supplier = projTraders.get(sl.getSupplier());
+                    logger.trace("Adding shopping list {} of trader {} having a supplier {} into the sl-info map",
+                                    sl.getOid(), traderTO.getDebugInfoNeverUseInCode(),
+                                    supplier != null ? supplier.getDebugInfoNeverUseInCode() : null);
+                    ShoppingListInfo slInfo = new ShoppingListInfo(sl.getOid(), traderTO.getOid(),
+                                    sl.getSupplier(), null, null,
+                                    supplier != null ? supplier.getType() : null, commList);
+                    shoppingListOidToInfos.put(sl.getOid(), slInfo);
+                }
+                final ShoppingListInfo shoppingListInfo = shoppingListOidToInfos.get(sl.getOid());
+                if (shoppingListInfo != null && shoppingListInfo.getCollapsedBuyerId().isPresent()) {
+                    collapsedShoppingLists.add(sl);
+                }
+                CommoditiesBoughtFromProvider commoditiesBoughtFromProvider =
+                        createCommoditiesBoughtFromProvider(sl, commList, traderTO.getOid());
+                topoDTOCommonBoughtGrouping.add(commoditiesBoughtFromProvider);
+                if (commoditiesBoughtFromProvider.hasVolumeId()) {
+                    volumeIdToShoppingListTOMap.put(commoditiesBoughtFromProvider.getVolumeId(), sl);
+                }
+            }
+
+            TopologyDTO.EntityState entityState = TopologyDTO.EntityState.POWERED_ON;
+            String displayName = originalEntity != null ? originalEntity.getDisplayName()
+                            : traderOidToEntityDTO.get(traderTO.getCloneOf()).getDisplayName()
+                            + "_Clone #" + cloneIndex.addAndGet(1);
+            if (originalEntity != null) {
+                EntityState originalState = originalEntity.getEntityState();
+                // TODO: Address the following workaroud for SUSPEND VM.
+                // Without the workaround for VM:
+                // Entity (SUSPEND) -> TRADER (IDLE) -> TRADER (ACTIVE) -> Entity (POWER_ON)
+                // The correct behavior for VM:
+                // Entity (SUSPEND) -> TRADER (IDLE) -> TRADER (IDLE) -> Entity (SUSPEND)
+                // For VMs, if trader states are not changed, then the new entity state
+                // should be the same as original entity state.
+                if (traderTO.getType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                    final TraderStateTO originalStateTo = TopologyConversionUtils.traderState(originalEntity);
+                    if (isSameVMTraderState(traderTO.getState(), originalStateTo)) {
+                        entityState = originalEntity.getEntityState();
+                    }
+                } else {
+                    // set state of IDLE VM to poweredOff
+                    entityState = originalState == TopologyDTO.EntityState.POWERED_OFF
+                            ? TopologyDTO.EntityState.POWERED_OFF
+                            : TopologyDTO.EntityState.POWERED_ON;
+                }
+            }
+            if (entityState == TopologyDTO.EntityState.POWERED_ON) {
+                entityState = (traderTO.getState() == EconomyDTOs.TraderStateTO.ACTIVE)
+                                ? TopologyDTO.EntityState.POWERED_ON
+                                : TopologyDTO.EntityState.SUSPENDED;
+            }
+
+            final TraderSettingsTO traderSetting = traderTO.getSettings();
+            TopologyDTO.TopologyEntityDTO.AnalysisSettings analysisSetting =
+                TopologyDTO.TopologyEntityDTO.AnalysisSettings.newBuilder()
+                    .setIsAvailableAsProvider(traderSetting.getCanAcceptNewCustomers())
+                    .setShopTogether(traderSetting.getIsShopTogether())
+                    .setCloneable(traderSetting.getClonable())
+                    .setControllable(traderSetting.getControllable())
+                    .setSuspendable(traderSetting.getSuspendable())
+                    .setDesiredUtilizationTarget((traderSetting.getMaxDesiredUtilization()
+                           + traderSetting.getMinDesiredUtilization()) / 2)
+                    .setDesiredUtilizationRange(traderSetting.getMaxDesiredUtilization()
+                           - traderSetting.getMinDesiredUtilization())
+                    .setProviderMustClone(traderSetting.getProviderMustClone())
+                    .setDaemon(traderSetting.getDaemon())
+                .build();
+            TopologyDTO.TopologyEntityDTO.Builder entityDTOBuilder =
+                    TopologyDTO.TopologyEntityDTO.newBuilder()
+                        .setEntityType(traderTO.getType())
+                        .setOid(traderTO.getOid())
+                        .setEntityState(entityState)
+                        .setDisplayName(displayName)
+                        .addAllCommoditySoldList(retrieveCommSoldList(traderTO))
+                        .addAllCommoditiesBoughtFromProviders(topoDTOCommonBoughtGrouping)
+                        .addAllConnectedEntityList(getConnectedEntities(traderTO))
+                        .setAnalysisSettings(analysisSetting);
+            if (originalEntity == null) {
+                // this is a clone trader
+                originalEntity = traderOidToEntityDTO.get(traderTO.getCloneOf());
+                entityDTOBuilder.setOrigin(Origin.newBuilder()
+                    .setAnalysisOrigin(AnalysisOrigin.newBuilder()
+                        .setOriginalEntityId(originalEntity.getOid())));
             } else {
-                // set state of IDLE VM to poweredOff
-                entityState = originalState == TopologyDTO.EntityState.POWERED_OFF
-                        ? TopologyDTO.EntityState.POWERED_OFF
-                        : TopologyDTO.EntityState.POWERED_ON;
+                // copy the origin from the original entity
+                if (originalEntity.hasOrigin()) {
+                    entityDTOBuilder.setOrigin(originalEntity.getOrigin());
+                }
             }
+
+            copyStaticAttributes(originalEntity, entityDTOBuilder);
+
+            // Get dspm, datastore and inactive commodity sold from the original trader,
+            // add them to the projected topology entity DTO.
+            entityDTOBuilder.addAllCommoditySoldList(
+                originalEntity.getCommoditySoldListList().stream()
+                    .filter(commSold ->
+                        AnalysisUtil.DSPM_OR_DATASTORE.contains(commSold.getCommodityType().getType()) ||
+                        !commSold.getActive())
+                    .collect(Collectors.toSet()));
+
+            // handle 'delete wasted file analysis' to update entity from market
+            wastedFileAnalysis.getStorageAmountReleasedForOid(traderTO.getOid())
+                .ifPresent(stAmt -> {
+                    final long stAmtToReleaseInMB = stAmt / Units.NUM_OF_KB_IN_MB;
+                    entityDTOBuilder.getCommoditySoldListBuilderList().stream()
+                        .filter(commSold -> commSold.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
+                        .findFirst()
+                        .ifPresent(storageCommSold ->
+                            storageCommSold.setUsed(Math.max(0, storageCommSold.getUsed() - stAmtToReleaseInMB)));
+                });
+
+            overwriteCommoditiesBoughtByVMsFromVolumes(entityDTOBuilder);
+            updateProjectedEntityOsType(entityDTOBuilder);
+            updateProjectedCores(entityDTOBuilder);
+
+            TopologyEntityDTO entityDTO = entityDTOBuilder.build();
+            topologyEntityDTOs.add(entityDTO);
+            // when source volume is on-prem volume with volumeId
+            topologyEntityDTOs.addAll(createResources(entityDTO, volumeIdToShoppingListTOMap));
+            // when source volume is cloud volume with collapsedBuyerId
+            topologyEntityDTOs.addAll(createCollapsedTopologyEntityDTOs(entityDTO, collapsedShoppingLists,
+                    reservedCapacityAnalysis));
+        } catch (Exception e) {
+            logger.error(EconomyConstants.EXCEPTION_MESSAGE,
+                traderTO.getDebugInfoNeverUseInCode(), e.getMessage(), e);
         }
-        if (entityState == TopologyDTO.EntityState.POWERED_ON) {
-            entityState = (traderTO.getState() == EconomyDTOs.TraderStateTO.ACTIVE)
-                            ? TopologyDTO.EntityState.POWERED_ON
-                            : TopologyDTO.EntityState.SUSPENDED;
-        }
-
-        final TraderSettingsTO traderSetting = traderTO.getSettings();
-        TopologyDTO.TopologyEntityDTO.AnalysisSettings analysisSetting =
-            TopologyDTO.TopologyEntityDTO.AnalysisSettings.newBuilder()
-                .setIsAvailableAsProvider(traderSetting.getCanAcceptNewCustomers())
-                .setShopTogether(traderSetting.getIsShopTogether())
-                .setCloneable(traderSetting.getClonable())
-                .setControllable(traderSetting.getControllable())
-                .setSuspendable(traderSetting.getSuspendable())
-                .setDesiredUtilizationTarget((traderSetting.getMaxDesiredUtilization()
-                       + traderSetting.getMinDesiredUtilization()) / 2)
-                .setDesiredUtilizationRange(traderSetting.getMaxDesiredUtilization()
-                       - traderSetting.getMinDesiredUtilization())
-                .setProviderMustClone(traderSetting.getProviderMustClone())
-                .setDaemon(traderSetting.getDaemon())
-            .build();
-        TopologyDTO.TopologyEntityDTO.Builder entityDTOBuilder =
-                TopologyDTO.TopologyEntityDTO.newBuilder()
-                    .setEntityType(traderTO.getType())
-                    .setOid(traderTO.getOid())
-                    .setEntityState(entityState)
-                    .setDisplayName(displayName)
-                    .addAllCommoditySoldList(retrieveCommSoldList(traderTO))
-                    .addAllCommoditiesBoughtFromProviders(topoDTOCommonBoughtGrouping)
-                    .addAllConnectedEntityList(getConnectedEntities(traderTO))
-                    .setAnalysisSettings(analysisSetting);
-        if (originalEntity == null) {
-            // this is a clone trader
-            originalEntity = traderOidToEntityDTO.get(traderTO.getCloneOf());
-            entityDTOBuilder.setOrigin(Origin.newBuilder()
-                .setAnalysisOrigin(AnalysisOrigin.newBuilder()
-                    .setOriginalEntityId(originalEntity.getOid())));
-        } else {
-            // copy the origin from the original entity
-            if (originalEntity.hasOrigin()) {
-                entityDTOBuilder.setOrigin(originalEntity.getOrigin());
-            }
-        }
-
-        copyStaticAttributes(originalEntity, entityDTOBuilder);
-
-        // Get dspm, datastore and inactive commodity sold from the original trader,
-        // add them to the projected topology entity DTO.
-        entityDTOBuilder.addAllCommoditySoldList(
-            originalEntity.getCommoditySoldListList().stream()
-                .filter(commSold ->
-                    AnalysisUtil.DSPM_OR_DATASTORE.contains(commSold.getCommodityType().getType()) ||
-                    !commSold.getActive())
-                .collect(Collectors.toSet()));
-
-        // handle 'delete wasted file analysis' to update entity from market
-        wastedFileAnalysis.getStorageAmountReleasedForOid(traderTO.getOid())
-            .ifPresent(stAmt -> {
-                final long stAmtToReleaseInMB = stAmt / Units.NUM_OF_KB_IN_MB;
-                entityDTOBuilder.getCommoditySoldListBuilderList().stream()
-                    .filter(commSold -> commSold.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
-                    .findFirst()
-                    .ifPresent(storageCommSold ->
-                        storageCommSold.setUsed(Math.max(0, storageCommSold.getUsed() - stAmtToReleaseInMB)));
-            });
-
-        overwriteCommoditiesBoughtByVMsFromVolumes(entityDTOBuilder);
-        updateProjectedEntityOsType(entityDTOBuilder);
-        updateProjectedCores(entityDTOBuilder);
-
-        TopologyEntityDTO entityDTO = entityDTOBuilder.build();
-        topologyEntityDTOs.add(entityDTO);
-        // when source volume is on-prem volume with volumeId
-        topologyEntityDTOs.addAll(createResources(entityDTO, volumeIdToShoppingListTOMap));
-        // when source volume is cloud volume with collapsedBuyerId
-        topologyEntityDTOs.addAll(createCollapsedTopologyEntityDTOs(entityDTO, collapsedShoppingLists,
-                reservedCapacityAnalysis));
         return topologyEntityDTOs;
     }
 
@@ -2741,9 +2763,9 @@ public class TopologyConverter {
                 .ifPresent(traderDTOBuilder::setScalingGroupId);
             traderDTOBuilder.setSettings(settingsBuilder);
             traderDTO = traderDTOBuilder.build();
-        } catch (RuntimeException e) {
-            logger.error(entityDebugInfo(topologyDTO) + " could not be converted to traderTO:", e);
-            throw e;
+        } catch (Exception e) {
+            logger.error(EconomyConstants.EXCEPTION_MESSAGE, entityDebugInfo(topologyDTO),
+                    e.getMessage(), e);
         }
         return traderDTO;
     }

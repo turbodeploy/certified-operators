@@ -46,6 +46,7 @@ import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
 import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -163,29 +164,39 @@ public class TopologyEntitiesHandler {
             logger.info("Starting economy creation on {} traders", sortedTraderTOs.size());
             final Topology topology = new Topology();
             for (final TraderTO traderTO : sortedTraderTOs.values()) {
-                // If it's a trader that's added specifically for headroom calculation, don't add
-                // it to the topology along with the other traders. Add it to a separate list,
-                // and the market will use that list to help calculate headroom.
-                if (traderTO.getTemplateForHeadroom()) {
-                    topology.addTradersForHeadroom(traderTO);
-                } else {
-                    ProtobufToAnalysis.addTrader(topology, traderTO);
+                try {
+                    // If it's a trader that's added specifically for headroom calculation, don't add
+                    // it to the topology along with the other traders. Add it to a separate list,
+                    // and the market will use that list to help calculate headroom.
+                    if (traderTO.getTemplateForHeadroom()) {
+                        topology.addTradersForHeadroom(traderTO);
+                    } else {
+                        ProtobufToAnalysis.addTrader(topology, traderTO);
+                    }
+                } catch (Exception e) {
+                    logger.error(EconomyConstants.EXCEPTION_MESSAGE, traderTO.getDebugInfoNeverUseInCode(),
+                        e.getMessage(), e);
                 }
             }
-            // The markets in the economy must be populated with their sellers after all traders have been
-            // added. Map creation is not dependent on it, but for clarity it makes sense to add all
-            // sellers into markets after traders have been added.
-            topology.populateMarketsWithSellersAndMergeConsumerCoverage();
-            topology.setTopologyId(topologyInfo.getTopologyId());
+            try {
+                // The markets in the economy must be populated with their sellers after all traders have been
+                // added. Map creation is not dependent on it, but for clarity it makes sense to add all
+                // sellers into markets after traders have been added.
+                topology.populateMarketsWithSellersAndMergeConsumerCoverage();
+                topology.setTopologyId(topologyInfo.getTopologyId());
 
-            populateCommodityResizeDependencyMap(topology);
-            if (!topologyInfo.hasPlanInfo()) {
-                populateHistoryBasedResizeDependencyMap(topology);
+                populateCommodityResizeDependencyMap(topology);
+                if (!topologyInfo.hasPlanInfo()) {
+                    populateHistoryBasedResizeDependencyMap(topology);
+                }
+                populateProducesDependencyMap(topology);
+                populateRawMaterialsMap(topology);
+                commsToAdjustOverheadInClone.forEach(topology::addCommsToAdjustOverhead);
+                logger.info("Created economy with " + topology.getEconomy().getMarkets().size() + " markets");
+            } catch (Exception e) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE, "createTopology",
+                    e.getMessage(), e);
             }
-            populateProducesDependencyMap(topology);
-            populateRawMaterialsMap(topology);
-            commsToAdjustOverheadInClone.forEach(topology::addCommsToAdjustOverhead);
-            logger.info("Created economy with " + topology.getEconomy().getMarkets().size() + " markets");
             return topology;
         }
     }
@@ -253,111 +264,116 @@ public class TopologyEntitiesHandler {
             results = AnalysisToProtobuf.analysisResults(actions,
                 topology.getShoppingListOids(), stop - start,
                 topology, startPriceStatement);
-            if (isRealtime) {
-                // run another round of analysis on the new state of the economy with provisions enabled
-                // and resize disabled. We add only the provision recommendations to the list of actions generated.
-                // We neglect suspensions since there might be associated moves that we dont want to include
-                //
-                // This is done because in a real-time scenario, we assume that provision actions cannot be
-                // automated and in order to be executed manually require a physical hardware purchase (this
-                // seems like a bad assumption to hardcode for an entire category of actions rather than
-                // provide a mechanism to convey the information on a per-entity basis). Given this assumption,
-                // we want to do the best job of getting the customer's environment to a desired state WITHOUT
-                // provision actions (market subcycle 1) and then if there are still insufficient resources
-                // to meet demand, add any necessary provision actions on top of the recommendations without
-                // provisions (market subcycle 2).
-                AnalysisResults.Builder builder = results.toBuilder();
-                economy.getSettings().setResizeDependentCommodities(false);
+            try {
+                if (isRealtime) {
+                    // run another round of analysis on the new state of the economy with provisions enabled
+                    // and resize disabled. We add only the provision recommendations to the list of actions generated.
+                    // We neglect suspensions since there might be associated moves that we dont want to include
+                    //
+                    // This is done because in a real-time scenario, we assume that provision actions cannot be
+                    // automated and in order to be executed manually require a physical hardware purchase (this
+                    // seems like a bad assumption to hardcode for an entire category of actions rather than
+                    // provide a mechanism to convey the information on a per-entity basis). Given this assumption,
+                    // we want to do the best job of getting the customer's environment to a desired state WITHOUT
+                    // provision actions (market subcycle 1) and then if there are still insufficient resources
+                    // to meet demand, add any necessary provision actions on top of the recommendations without
+                    // provisions (market subcycle 2).
+                    AnalysisResults.Builder builder = results.toBuilder();
+                    economy.getSettings().setResizeDependentCommodities(false);
 
-                // Make sure clones and only clones are suspendable. Currently suspend actions generated
-                // in the second sub-cycle are discarded and only useful when collapsed with a provision
-                // or activate action. Since we don't support collapsing of suspends of non-clone and
-                // clone traders, there is no point in spending time to suspend the former. When the
-                // corresponding functionality is implemented we should remove this loop.
-                // Also, it should be fine at the time of this writing to just set suspendable to false
-                // as there shouldn't be any clones in the economy at this point.
-                for (Trader trader : economy.getTraders()) {
-                    trader.getSettings().setSuspendable(trader.isClone());
-                }
-                // This is a HACK first implemented by the market for OM-31510 in legacy which subsequently
-                // caused OM-33185 in XL. Because we don't want the provision actions to affect the projected topology
-                // price statements given the assumption above that for real-time, provision actions take a long
-                // time, and the user probably is more interested in the desired state of their topology if they
-                // execute the actions that are possible to execute in the short term, we need to exclude the
-                // IMPACT of the provision actions from the AnalysisResults even though we include the provision
-                // actions themselves in the results. Note that if we are to ever include any of the move/start
-                // actions on the newly provisioned entities, excluding the provisioned entities will cause those
-                // actions to reference entities not actually in the projected topology.
-                @NonNull List<Action> secondRoundActions;
-                try (TracingScope unused = Tracing.trace("second_round_analysis")) {
-                    secondRoundActions = ede.generateActions(economy, true, true,
-                        true, false, true, false,
-                        analysisConfig.getReplayProvisionsForRealTime() ? seedActions : new ReplayActions(),
-                        marketId, SuspensionsThrottlingConfig.DEFAULT, Optional.of(classicTracer)).stream()
-                        .filter(action -> (action instanceof ProvisionByDemand
-                            || action instanceof ProvisionBySupply
-                            || action instanceof Activate)
-                            // Extract resize actions that explicitly set extractAction
-                            // to true as part of resizeThroughSupplier
-                            // provision actions.
-                            || action instanceof Resize && action.isExtractAction())
-                        .collect(Collectors.toList());
-                }
-                List<Trader> provisionedTraders = Lists.newArrayList();
-                Set<Trader> resizeThroughSuppliers = Sets.newHashSet();
-                for (Action action : secondRoundActions) {
-                    final ActionTO actionTO = AnalysisToProtobuf.actionTO(
-                        action, topology.getShoppingListOids(), topology);
-                    if (actionTO != null) {
-                        builder.addActions(actionTO);
-                        // After action is added, find the provisioned trader
-                        // to be added later in analysis results
-                        if (action instanceof ProvisionBase) {
-                            provisionedTraders.add(((ProvisionBase)action).getProvisionedSeller());
-                        } else if (action instanceof Activate) {
-                            /** Update state of traderTO that was already created
-                             * because this is an existing entity.
-                             * We are relying on index of economy and corresponding entry
-                             * in the projected TraderTO in the builder.
-                             * If someone skips some Trader in economy for converting it
-                             * to TraderTO, this assumption will break.
-                             */
-                            builder.getProjectedTopoEntityTOBuilder(
-                                action.getActionTarget().getEconomyIndex())
-                                .setState(TraderStateTO.ACTIVE);
-                        } else if (action instanceof Resize && action.getActionTarget().getSettings()
-                            .isResizeThroughSupplier()) {
-                            resizeThroughSuppliers.add(action.getActionTarget());
+                    // Make sure clones and only clones are suspendable. Currently suspend actions generated
+                    // in the second sub-cycle are discarded and only useful when collapsed with a provision
+                    // or activate action. Since we don't support collapsing of suspends of non-clone and
+                    // clone traders, there is no point in spending time to suspend the former. When the
+                    // corresponding functionality is implemented we should remove this loop.
+                    // Also, it should be fine at the time of this writing to just set suspendable to false
+                    // as there shouldn't be any clones in the economy at this point.
+                    for (Trader trader : economy.getTraders()) {
+                        trader.getSettings().setSuspendable(trader.isClone());
+                    }
+                    // This is a HACK first implemented by the market for OM-31510 in legacy which subsequently
+                    // caused OM-33185 in XL. Because we don't want the provision actions to affect the projected topology
+                    // price statements given the assumption above that for real-time, provision actions take a long
+                    // time, and the user probably is more interested in the desired state of their topology if they
+                    // execute the actions that are possible to execute in the short term, we need to exclude the
+                    // IMPACT of the provision actions from the AnalysisResults even though we include the provision
+                    // actions themselves in the results. Note that if we are to ever include any of the move/start
+                    // actions on the newly provisioned entities, excluding the provisioned entities will cause those
+                    // actions to reference entities not actually in the projected topology.
+                    @NonNull List<Action> secondRoundActions;
+                    try (TracingScope unused = Tracing.trace("second_round_analysis")) {
+                        secondRoundActions = ede.generateActions(economy, true, true,
+                            true, false, true, false,
+                            analysisConfig.getReplayProvisionsForRealTime() ? seedActions : new ReplayActions(),
+                            marketId, SuspensionsThrottlingConfig.DEFAULT, Optional.of(classicTracer)).stream()
+                            .filter(action -> (action instanceof ProvisionByDemand
+                                || action instanceof ProvisionBySupply
+                                || action instanceof Activate)
+                                // Extract resize actions that explicitly set extractAction
+                                // to true as part of resizeThroughSupplier
+                                // provision actions.
+                                || action instanceof Resize && action.isExtractAction())
+                            .collect(Collectors.toList());
+                    }
+                    List<Trader> provisionedTraders = Lists.newArrayList();
+                    Set<Trader> resizeThroughSuppliers = Sets.newHashSet();
+                    for (Action action : secondRoundActions) {
+                        final ActionTO actionTO = AnalysisToProtobuf.actionTO(
+                            action, topology.getShoppingListOids(), topology);
+                        if (actionTO != null) {
+                            builder.addActions(actionTO);
+                            // After action is added, find the provisioned trader
+                            // to be added later in analysis results
+                            if (action instanceof ProvisionBase) {
+                                provisionedTraders.add(((ProvisionBase)action).getProvisionedSeller());
+                            } else if (action instanceof Activate) {
+                                /** Update state of traderTO that was already created
+                                 * because this is an existing entity.
+                                 * We are relying on index of economy and corresponding entry
+                                 * in the projected TraderTO in the builder.
+                                 * If someone skips some Trader in economy for converting it
+                                 * to TraderTO, this assumption will break.
+                                 */
+                                builder.getProjectedTopoEntityTOBuilder(
+                                    action.getActionTarget().getEconomyIndex())
+                                    .setState(TraderStateTO.ACTIVE);
+                            } else if (action instanceof Resize && action.getActionTarget().getSettings()
+                                .isResizeThroughSupplier()) {
+                                resizeThroughSuppliers.add(action.getActionTarget());
+                            }
                         }
                     }
+
+                    // Before building the results, generate traderTOs for provisioned traders from second round
+                    // If Action DTO is added, check if we need to add provisioned traderTO as well
+                    addProvisionedTraderToBuilder(builder, provisionedTraders, economy, topology);
+
+                    // Recreate Resize Through Supplier Trader in order to have the updated impact from the
+                    // Second round of analysis actions.
+                    resizeThroughSuppliers.forEach(t -> {
+                        builder.setProjectedTopoEntityTO(t.getEconomyIndex(),
+                            AnalysisToProtobuf.traderTO(economy, t, topology.getShoppingListOids(),
+                                economy.getPreferentialShoppingLists()
+                                    .stream().map(sl -> sl.getBuyer()).collect(Collectors.toSet())));
+                    });
+                    results = builder.build();
+
+                    // Update replay actions
+                    analysis.setReplayActions(new ReplayActions(
+                        secondRoundActions.stream()
+                            .filter(action -> action instanceof ProvisionBySupply
+                                || action instanceof Activate)
+                            .collect(Collectors.toList()), // porting ProvisionByDemand not supported yet!
+                        actions.stream()
+                            .filter(action -> action instanceof Deactivate)
+                            .map(action -> (Deactivate)action)
+                            .collect(Collectors.toList()),
+                        topology
+                    ));
                 }
-
-                // Before building the results, generate traderTOs for provisioned traders from second round
-                // If Action DTO is added, check if we need to add provisioned traderTO as well
-                addProvisionedTraderToBuilder(builder, provisionedTraders, economy, topology);
-
-                // Recreate Resize Through Supplier Trader in order to have the updated impact from the
-                // Second round of analysis actions.
-                resizeThroughSuppliers.forEach(t -> {
-                    builder.setProjectedTopoEntityTO(t.getEconomyIndex(),
-                        AnalysisToProtobuf.traderTO(economy, t, topology.getShoppingListOids(),
-                            economy.getPreferentialShoppingLists()
-                                .stream().map(sl -> sl.getBuyer()).collect(Collectors.toSet())));
-                });
-                results = builder.build();
-
-                // Update replay actions
-                analysis.setReplayActions(new ReplayActions(
-                    secondRoundActions.stream()
-                        .filter(action -> action instanceof ProvisionBySupply
-                            || action instanceof Activate)
-                        .collect(Collectors.toList()), // porting ProvisionByDemand not supported yet!
-                    actions.stream()
-                        .filter(action -> action instanceof Deactivate)
-                        .map(action -> (Deactivate)action)
-                        .collect(Collectors.toList()),
-                    topology
-                ));
+            } catch (Exception e) {
+                logger.error(EconomyConstants.EXCEPTION_MESSAGE,
+                    "realtime second round", e.getMessage(), e);
             }
 
             runTimer.observe();

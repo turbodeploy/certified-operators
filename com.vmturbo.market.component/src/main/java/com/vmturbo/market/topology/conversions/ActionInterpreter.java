@@ -79,6 +79,7 @@ import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.SingleRegionMarketTier;
 import com.vmturbo.market.topology.conversions.CommoditiesResizeTracker.CommodityLookupType;
 import com.vmturbo.market.topology.conversions.CommoditiesResizeTracker.CommodityTypeWithLookup;
+import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO.ActionTypeCase;
@@ -270,8 +271,9 @@ public class ActionInterpreter {
                     actionList.add(action.build());
                     break;
             }
-        } catch (RuntimeException e) {
-            logger.error("Unable to interpret actionTO " + actionTO + " due to: ", e);
+        } catch (Exception e) {
+            logger.error(EconomyConstants.EXCEPTION_MESSAGE,
+                "interpretAction of actionTO " + actionTO, e.getMessage(), e);
         }
         return actionList;
     }
