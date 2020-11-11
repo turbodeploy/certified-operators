@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.migration;
 
 import java.util.Collections;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.junit.Assert;
@@ -23,6 +24,11 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * Test class for {@link V_01_01_05__Target_Common_Proxy_Settings}.
  */
 public class V_01_01_05__Target_Common_Proxy_SettingsTest {
+
+    private static final String ADDRESS = "10.10.168.200";
+    private static final String CLIENT_ID = UUID.randomUUID().toString();
+    private static final String PROXY_HOST = "some-proxy.com";
+    private static final String PROXY_PORT = "8183";
 
     /**
      * Tests renaming of defined fields: in a probe info and in a target values.
@@ -149,4 +155,113 @@ public class V_01_01_05__Target_Common_Proxy_SettingsTest {
                 .build();
         return new Target(0L, probeStore, spec, true);
     }
+
+    static Discovery.AccountDefEntry createAccountDefEntry(boolean mandatory, String name, String displayName) {
+        return Discovery.AccountDefEntry.newBuilder()
+                .setMandatory(mandatory)
+                .setIsTargetDisplayName(true)
+                .setCustomDefinition(Discovery.CustomAccountDefEntry.newBuilder()
+                        .setName(name)
+                        .setDisplayName(displayName)
+                        .setDescription(displayName)
+                        .build())
+                .build();
+
+    }
+
+    private ProbeInfo createPivotalProbeInfo() {
+        return ProbeInfo.newBuilder().setProbeType(SDKProbeType.PIVOTAL_OPSMAN.getProbeType()).setProbeCategory("Cloud Native")
+                .addTargetIdentifierField("address")
+                .addAccountDefinition(createAccountDefEntry(true, "address", "Address"))
+                .addAccountDefinition(createAccountDefEntry(false, "clientId", "Client ID"))
+                .addAccountDefinition(createAccountDefEntry(false, "clientSecret", "Client secret"))
+                .addAccountDefinition(createAccountDefEntry(false, "proxy", "Proxy Host"))
+                .addAccountDefinition(createAccountDefEntry(false, "proxyPort", "Proxy Port"))
+                .build();
+    }
+
+    private Target createPivotalTarget(ProbeStore probeStore, long probeId) throws Exception  {
+        TargetSpec spec = TargetSpec.newBuilder()
+                .setProbeId(probeId)
+                .addAccountValue(TopologyProcessorDTO.AccountValue.newBuilder()
+                        .setKey("address")
+                        .setStringValue(ADDRESS)
+                        .build())
+                .addAccountValue(TopologyProcessorDTO.AccountValue.newBuilder()
+                        .setKey("clientId")
+                        .setStringValue(CLIENT_ID)
+                        .build())
+                .addAccountValue(TopologyProcessorDTO.AccountValue.newBuilder()
+                        .setKey("proxy")
+                        .setStringValue(PROXY_HOST)
+                        .build())
+                .addAccountValue(TopologyProcessorDTO.AccountValue.newBuilder()
+                        .setKey("proxyPort")
+                        .setStringValue(PROXY_PORT)
+                        .build())
+                .build();
+        return new Target(0L, probeStore, spec, true);
+    }
+
+    /**
+     * Test the migration of the Pivotal Ops Manager probe and target.
+     *
+     * @throws Exception in case of any exception.
+     */
+    @Test
+    public void testPivotalMigration() throws Exception {
+        TargetStore targetStore = Mockito.mock(TargetStore.class);
+        ProbeStore probeStore = Mockito.mock(ProbeStore.class);
+        long probeId = 100L;
+        ProbeInfo probeInfo = createPivotalProbeInfo( );
+        Mockito.when(probeStore.getProbe(probeId)).thenReturn(Optional.of(probeInfo));
+        Target target = createPivotalTarget(probeStore, probeId);
+        Mockito.when(targetStore.getProbeTargets(probeId)).thenReturn(Collections.singletonList(target));
+        Mockito.when(probeStore.getProbeInfoForType(Mockito.anyString())).thenAnswer(invocation -> {
+            final Object requestedType = invocation.getArguments()[0];
+            if (requestedType.equals(SDKProbeType.PIVOTAL_OPSMAN.getProbeType())) {
+                return Optional.of(probeInfo);
+            }
+            return Optional.empty();
+        });
+        Mockito.when(probeStore.getProbeIdForType(Mockito.anyString())).thenAnswer(invocation -> {
+            final Object requestedType = invocation.getArguments()[0];
+            if (requestedType.equals(SDKProbeType.PIVOTAL_OPSMAN.getProbeType())) {
+                return Optional.of(probeId);
+            }
+            return Optional.empty();
+        });
+        new V_01_01_05__Target_Common_Proxy_Settings(targetStore, probeStore, Mockito.mock(GroupScopeResolver.class))
+                .doStartMigration();
+
+        ArgumentCaptor<ProbeInfo> probeInfoCaptor = ArgumentCaptor.forClass(ProbeInfo.class);
+        ArgumentCaptor<TargetSpec> targetSpecCaptor = ArgumentCaptor.forClass(TargetSpec.class);
+
+        Mockito.verify(probeStore).updateProbeInfo(probeInfoCaptor.capture());
+        Mockito.verify(targetStore).restoreTarget(Mockito.anyLong(), targetSpecCaptor.capture());
+
+        // Migrated Probe Info
+        ProbeInfo migratedProbeInfo = probeInfoCaptor.getValue();
+
+        // Check that 'proxy' is migrated
+        Assert.assertNotNull(migratedProbeInfo.getAccountDefinitionList().stream()
+                .filter(def -> def.getCustomDefinition().getName().equals("proxyHost")).findFirst().orElse(null));
+        Assert.assertNull(migratedProbeInfo.getAccountDefinitionList()
+                .stream().filter(def -> def.getCustomDefinition().getName().equals("proxy")).findFirst().orElse(null));
+
+        // Check all other fields are saved
+        Assert.assertEquals(2, migratedProbeInfo.getAccountDefinitionList().stream()
+                .filter(def -> def.getCustomDefinition().getName().equals("address") || def.getCustomDefinition().getName().equals("clientId"))
+                .count());
+
+        // Migrated Target values
+        TargetSpec migratedTarget = targetSpecCaptor.getValue();
+
+        // Check that 'proxy' is migrated
+        Assert.assertNull(migratedTarget.getAccountValueList().stream()
+                .filter(val -> val.getKey().equals("proxy")).findFirst().orElse(null));
+        Assert.assertEquals(PROXY_HOST, migratedTarget.getAccountValueList().stream()
+                .filter(val -> val.getKey().equals("proxyHost")).map(v -> v.getStringValue()).findFirst().orElse(null));
+    }
+
 }

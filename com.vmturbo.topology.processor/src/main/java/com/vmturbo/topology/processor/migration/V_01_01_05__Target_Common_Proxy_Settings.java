@@ -45,6 +45,9 @@ public class V_01_01_05__Target_Common_Proxy_Settings extends V_01_01_03__Target
 
     private static final Logger LOGGER = LogManager.getLogger();
 
+    static final Pair<String, String> HOST_RENAME = new Pair<>("proxy", "proxyHost");
+    static final Pair<String, String> PORT_RENAME = new Pair<>("port", "proxyPort");
+    static final Pair<String, String> USER_RENAME = new Pair<>("proxyUser", "proxyUsername");
     private final Map<SDKProbeType, List<Pair<String, String>>> renameConfiguration;
 
     /**
@@ -107,6 +110,7 @@ public class V_01_01_05__Target_Common_Proxy_Settings extends V_01_01_03__Target
                     targetStore.restoreTarget(target.getId(), target.getSpec().toBuilder()
                             .clearAccountValue().addAllAccountValue(accountVals).build());
                     targetStore.updateTarget(target.getId(), Collections.emptySet());
+                    LOGGER.info("Target migrated: {} ({})", target.getId(), probeType.getProbeType());
                 } catch (InvalidTargetException | TargetNotFoundException | IdentityStoreException | IdentifierConflictException e) {
                     LOGGER.error("Cannot update target values.", e);
                 }
@@ -160,38 +164,53 @@ public class V_01_01_05__Target_Common_Proxy_Settings extends V_01_01_03__Target
         }
     }
 
+    /**
+     * Rename configuration.
+     * --------------------
+     * TYPE                     CLASS (AccountDefinition)                                 FIELDS TO UPDATE          FIELDS TO KEEP
+     * ----                     -------------------------                                 ----------------          --------------
+     * AWS                      com.vmturbo.mediation.aws.client.AwsAccountBase           proxy,port,proxyUser
+     * AWS Billing              com.vmturbo.mediation.aws.billing.AwsBillingAccount       proxy,port,proxyUser
+     * AWS Cost                 com.vmturbo.mediation.aws.cost.AwsCostAccount             proxy,port,proxyUser
+     * Azure Subscription       com.vmturbo.mediation.azure.AzureAccount                  proxy,port,proxyUser
+     * Azure Cost               com.vmturbo.mediation.azure.cost.AzureCostAccount         proxy,port,proxyUser
+     * Azure EA                 com.vmturbo.mediation.azure.ea.AzureEAAccount             proxyUser                  proxyHost,proxyPort
+     * Azure Service Principal  com.vmturbo.mediation.azure.sp.AzureSPAccount             proxyUser                  proxyHost,proxyPort
+     * GCP                      com.vmturbo.mediation.gcp.client.GcpAccount               proxy,port,proxyUser
+     * GCP Cost                 com.vmturbo.mediation.gcp.cost.GcpCostAccount             proxy,port,proxyUser
+     * Pivotal Ops Manager      com.vmturbo.mediation.pivotal.opsman.PivotalOpsmanAccount proxy                      proxyPort
+     * ServiceNow               com.vmturbo.mediation.servicenow.ServiceNowAccount        proxyUser                  proxyHost,proxyPort
+     * AppInsights              com.vmturbo.mediation.appinsights.AppInsightsAccount      proxy,port,proxyUser
+     *
+     * @return configuration map.
+     */
     @Nonnull
-    private Map<SDKProbeType, List<Pair<String, String>>> createRenameConfig() {
-        final Pair<String, String> hostRename = new Pair<>("proxy", "proxyHost");
-        final Pair<String, String> portRename = new Pair<>("port", "proxyPort");
-        final Pair<String, String> userRename = new Pair<>("proxyUser", "proxyUsername");
+    protected Map<SDKProbeType, List<Pair<String, String>>> createRenameConfig() {
         final Map<SDKProbeType, List<Pair<String, String>>> map = Maps.newHashMap();
         map.put(SDKProbeType.APPINSIGHTS,
-                Arrays.asList(hostRename, portRename, userRename));
+                Arrays.asList(HOST_RENAME, PORT_RENAME, USER_RENAME));
         map.put(SDKProbeType.AWS,
-                Arrays.asList(hostRename, portRename, userRename));
+                Arrays.asList(HOST_RENAME, PORT_RENAME, USER_RENAME));
         map.put(SDKProbeType.AWS_BILLING,
-                Arrays.asList(hostRename, portRename, userRename));
+                Arrays.asList(HOST_RENAME, PORT_RENAME, USER_RENAME));
         map.put(SDKProbeType.AWS_COST,
-                Arrays.asList(hostRename, portRename, userRename));
+                Arrays.asList(HOST_RENAME, PORT_RENAME, USER_RENAME));
         map.put(SDKProbeType.AZURE,
-                Arrays.asList(hostRename, portRename, userRename));
+                Arrays.asList(HOST_RENAME, PORT_RENAME, USER_RENAME));
         map.put(SDKProbeType.AZURE_COST,
-                Arrays.asList(hostRename, portRename, userRename));
+                Arrays.asList(HOST_RENAME, PORT_RENAME, USER_RENAME));
         map.put(SDKProbeType.AZURE_EA,
-                Arrays.asList(userRename));
+                Arrays.asList(USER_RENAME));
         map.put(SDKProbeType.AZURE_SERVICE_PRINCIPAL,
-                Arrays.asList(userRename));
+                Arrays.asList(USER_RENAME));
         map.put(SDKProbeType.GCP,
-                Arrays.asList(hostRename, portRename, userRename));
+                Arrays.asList(HOST_RENAME, PORT_RENAME, USER_RENAME));
         map.put(SDKProbeType.GCP_COST,
-                Arrays.asList(hostRename, portRename, userRename));
-        map.put(SDKProbeType.INTERSIGHT,
-                Arrays.asList(hostRename, portRename));
+                Arrays.asList(HOST_RENAME, PORT_RENAME, USER_RENAME));
         map.put(SDKProbeType.PIVOTAL_OPSMAN,
-                Arrays.asList(hostRename));
+                Arrays.asList(HOST_RENAME));
         map.put(SDKProbeType.SERVICENOW,
-                Arrays.asList(userRename));
+                Arrays.asList(USER_RENAME));
         return map;
     }
 }
