@@ -6,6 +6,8 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -283,7 +285,9 @@ public class AnalysisDiagnosticsCollectorTest {
                 String fileName = path.getFileName().toString();
                 switch (fileName) {
                     case AnalysisDiagnosticsCollector.TRADER_DIAGS_FILE_NAME:
-                        traderTOs = TraderDiagsTO.parseFrom(Files.readAllBytes(path)).getTraderTOsList();
+                        try (FileInputStream fi = new FileInputStream(new File(path.toString()))) {
+                            traderTOs = TraderDiagsTO.parseFrom(fi).getTraderTOsList();
+                        }
                         break;
                     case AnalysisDiagnosticsCollector.ANALYSIS_CONFIG_DIAGS_FILE_NAME:
                         analysisConfig = extractSingleInstanceOfType(path, AnalysisConfig.class);
