@@ -537,13 +537,18 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             for (CommoditiesBoughtFromProvider commList : virtualDiskCommBoughtLists) {
                 // get volumeId for on-prem, and get providerId for cloud.
                 long volId = commList.hasVolumeId() ? commList.getVolumeId() : commList.getProviderId();
+                final TopologyEntityDTO projectedVolume = projectedVolumeMap.get(volId);
+                if (Objects.isNull(projectedVolume)) {
+                    // This condition is only hit by VDI VMs (connected to desktop pools)
+                    continue;
+                }
                 Collection<StatApiDTO> costStats = volIdToCostStatsMap.get(volId);
                 Map<Long, List<CommodityBoughtDTO>> volIdToCommListMap = beforePlanVolIdToCommListMap.get(vm.getOid());
                 List<CommodityBoughtDTO> sourceCommList = volIdToCommListMap != null ? volIdToCommListMap.get(volId) : null;
                 if (sourceCommList == null) {
                     continue;
                 }
-                VirtualDiskApiDTO virtualDiskApiDTO = createVirtualDiskApiDTO(vm, projectedVolumeMap.get(volId),
+                VirtualDiskApiDTO virtualDiskApiDTO = createVirtualDiskApiDTO(vm, projectedVolume,
                         beforePlanVolIdToCommListMap.get(vm.getOid()).get(volId),
                         commList.getCommodityBoughtList(),
                         beforePlanCloudVirtualVolumeIdToCommListMap.getOrDefault(volId, Collections.emptyList()),
