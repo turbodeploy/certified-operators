@@ -1,8 +1,10 @@
 package com.vmturbo.market.diagnostics;
 
+import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -26,7 +28,6 @@ import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
-import com.vmturbo.platform.analysis.protobuf.SerializationDTOs.TraderDiagsTO;
 
 /**
  * Saves diags for analysis.
@@ -202,8 +203,12 @@ public class AnalysisDiagnosticsCollector {
             final Stopwatch stopwatch = Stopwatch.createStarted();
 
             logger.info("Starting dump of TraderTOs");
-            diagsWriter.writeZipEntry(TRADER_DIAGS_FILE_NAME,
-                TraderDiagsTO.newBuilder().addAllTraderTOs(traderTOs).build());
+            try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                 ObjectOutputStream oos = new ObjectOutputStream(bos)) {
+                oos.writeObject(traderTOs);
+                oos.flush();
+                diagsWriter.writeZipEntry(TRADER_DIAGS_FILE_NAME, bos.toByteArray());
+            }
             logger.info("Completed dump of TraderTOs");
 
             writeAnalysisDiagsEntry(diagsWriter, Stream.of(topologyInfo),

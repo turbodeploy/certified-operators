@@ -11,8 +11,6 @@ import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 
-import com.google.protobuf.Message;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -145,28 +143,6 @@ public class DiagnosticsWriter {
         } catch (IOException e) {
             final String errorMessage =
                     String.format("Exception trying to create entry %s", entryName);
-            logger.error(errorMessage, e);
-            errors.add(e.getLocalizedMessage());
-        }
-    }
-
-    /**
-     * Write ZIP entry with the specified protobuf message.
-     *
-     * @param entryName ZIP entry name
-     * @param message protobuf message to write
-     */
-    public void writeZipEntry(@Nonnull String entryName, @Nonnull Message message) {
-        try {
-            logger.info("Creating zip entry {}.", entryName);
-            ZipEntry ze = new ZipEntry(entryName);
-            ze.setTime(System.currentTimeMillis());
-            zipStream.putNextEntry(ze);
-            message.writeTo(zipStream);
-            zipStream.closeEntry();
-        } catch (IOException e) {
-            final String errorMessage =
-                String.format("Exception trying to create entry %s", entryName);
             logger.error(errorMessage, e);
             errors.add(e.getLocalizedMessage());
         }
