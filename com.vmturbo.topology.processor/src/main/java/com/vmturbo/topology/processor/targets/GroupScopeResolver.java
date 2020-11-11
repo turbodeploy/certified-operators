@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -97,6 +98,12 @@ public class GroupScopeResolver {
      */
     private final Set<ProbeCategory> guestLoadOriginProbeCategories = Sets.immutableEnumSet(
             ProbeCategory.HYPERVISOR, ProbeCategory.CLOUD_MANAGEMENT);
+
+    /**
+     * Entity states that will be valid for discovery of the entity.
+     */
+    private static final Set<EntityState> ENTITY_STATES_VALID_FOR_DISCOVERY = Sets.immutableEnumSet(
+        EntityState.POWERED_ON, EntityState.MAINTENANCE, EntityState.FAILOVER);
 
     private final CustomScopingOperationLibrary scopingOperationLibrary = new CustomScopingOperationLibrary();
 
@@ -284,32 +291,49 @@ public class GroupScopeResolver {
         final List<PropertyValueList> propertyValueLists = Lists.newArrayList();
         // iterate over entities in the group and add their properties to the group scope
         // account value.
-        for (GroupScopedEntity nxtEntity : groupScopedEntities) {
-            final PropertyValueList.Builder propList = PropertyValueList.newBuilder();
-            boolean mandatoryMissing = false;
-            for (Pair<EntityPropertyName, Boolean> nextPair : entityPropsPairs) {
-                Optional<String> propertyValue = GroupScopePropertyExtractor
-                        .extractEntityProperty(nextPair.first, nxtEntity);
-                if (propertyValue.isPresent()) {
-                    propList.addValue(propertyValue.get());
-                    logger.debug("Property extracted: {}", propertyValue.get());
-                } else {
-                    propList.addValue("");
-                    if (nextPair.second) {
-                        logger.error("Mandatory property {} does not exist in entity."
-                                        + " Skipping group scope property extraction for entity {}",
-                                nextPair.first.name(),
-                                nxtEntity.getTopologyEntityDTO().getDisplayName());
-                        mandatoryMissing = true;
-                        break;
+        for (GroupScopedEntity entity : groupScopedEntities) {
+            if (shouldAddEntityToScope(entity)) {
+                final PropertyValueList.Builder propList = PropertyValueList.newBuilder();
+                boolean mandatoryMissing = false;
+                for (Pair<EntityPropertyName, Boolean> nextPair : entityPropsPairs) {
+                    Optional<String> propertyValue = GroupScopePropertyExtractor
+                            .extractEntityProperty(nextPair.first, entity);
+                    if (propertyValue.isPresent()) {
+                        propList.addValue(propertyValue.get());
+                        logger.debug("Property extracted: {}", propertyValue.get());
+                    } else {
+                        propList.addValue("");
+                        if (nextPair.second) {
+                            logger.error("Mandatory property {} does not exist in entity."
+                                            + " Skipping group scope property extraction for entity {}",
+                                    nextPair.first.name(),
+                                entity.getTopologyEntityDTO().getDisplayName());
+                            mandatoryMissing = true;
+                            break;
+                        }
                     }
                 }
-            }
-            if (propList.getValueCount() > 0 && !mandatoryMissing) {
-                propertyValueLists.add(propList.build());
+                if (propList.getValueCount() > 0 && !mandatoryMissing) {
+                    propertyValueLists.add(propList.build());
+                }
             }
         }
         return accountVal.toBuilder().addAllGroupScopePropertyValues(propertyValueLists).build();
+    }
+
+    /**
+     * Checking if we want to add an entity to a scope depending on its state.
+     *
+     * @param entity to check its state
+     * @return true if valid state, false otherwise
+     */
+    private boolean shouldAddEntityToScope(final GroupScopedEntity entity) {
+        if (!ENTITY_STATES_VALID_FOR_DISCOVERY.contains(entity.topologyEntityDTO.getEntityState())) {
+            logger.debug("Entity %s not added to scope as its state is %s",
+                entity.getTopologyEntityDTO().getDisplayName(), entity.topologyEntityDTO.getEntityState());
+            return false;
+        }
+        return true;
     }
 
     /**
