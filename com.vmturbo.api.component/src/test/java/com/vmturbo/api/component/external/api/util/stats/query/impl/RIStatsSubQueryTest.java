@@ -148,6 +148,8 @@ public class RIStatsSubQueryTest {
     public void testAggregateStats() throws Exception {
         Mockito.when(scope.getScopeEntitiesByType())
                 .thenReturn(ImmutableMap.of(ApiEntityType.REGION, SCOPE_ENTITIES));
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
+
         final ReservedInstanceStatsRecord cvgRecord =
                 ReservedInstanceStatsRecord.newBuilder().setSnapshotDate(MILLIS).build();
         Mockito.doReturn(GetReservedInstanceCoverageStatsResponse.newBuilder()
@@ -257,7 +259,7 @@ public class RIStatsSubQueryTest {
         Assert.assertFalse(statApiDTOS.isEmpty());
         final StatApiDTO statApiDTO = statApiDTOS.iterator().next();
         Assert.assertEquals(TIER_NAME, statApiDTO.getFilters().iterator().next().getValue());
-        Assert.assertEquals((float)riBoughtCount, statApiDTO.getValues().getAvg(), 0);
+        Assert.assertEquals(riBoughtCount, statApiDTO.getValues().getAvg(), 0);
     }
 
     @Test
@@ -274,6 +276,7 @@ public class RIStatsSubQueryTest {
 
     @Test
     public void testCreateUtilizationRequestRegionScope() throws OperationFailedException {
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
         Mockito.when(context.getInputScope().isGroup()).thenReturn(true);
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
         Mockito.when(scope.getScopeEntitiesByType())
@@ -292,6 +295,7 @@ public class RIStatsSubQueryTest {
 
     @Test
     public void testCreateUtilizationRequestAzScope() throws OperationFailedException {
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
         Mockito.when(context.getInputScope().getCachedGroupInfo())
                 .thenReturn(Optional.of(cachedGroupInfo));
@@ -310,6 +314,7 @@ public class RIStatsSubQueryTest {
 
     @Test
     public void testCreateUtilizationRequestBaScope() throws OperationFailedException {
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
         Mockito.when(context.getInputScope().getCachedGroupInfo())
                 .thenReturn(Optional.of(cachedGroupInfo));
@@ -348,6 +353,7 @@ public class RIStatsSubQueryTest {
 
     @Test
     public void testCreateCoverageRequestRegionScope() throws OperationFailedException {
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
         Mockito.when(scope.getScopeEntitiesByType())
                 .thenReturn(ImmutableMap.of(ApiEntityType.REGION, SCOPE_ENTITIES));
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
@@ -366,6 +372,7 @@ public class RIStatsSubQueryTest {
 
     @Test
     public void testCreateCoverageRequestAzScope() throws OperationFailedException {
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
         Mockito.when(scope.getScopeEntitiesByType())
                 .thenReturn(ImmutableMap.of(ApiEntityType.AVAILABILITY_ZONE, SCOPE_ENTITIES));
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
@@ -384,6 +391,7 @@ public class RIStatsSubQueryTest {
 
     @Test
     public void testCoverageOtherEntityType() throws OperationFailedException {
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
         Mockito.when(scope.getScopeEntitiesByType())
                 .thenReturn(ImmutableMap.of(ApiEntityType.VIRTUAL_MACHINE, SCOPE_ENTITIES));
         Mockito.when(context.isGlobalScope()).thenReturn(false);
@@ -399,6 +407,7 @@ public class RIStatsSubQueryTest {
 
     @Test
     public void testCreateCoverageRequestBaScope() throws OperationFailedException {
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
         Mockito.when(scope.getScopeEntitiesByType())
                 .thenReturn(ImmutableMap.of(ApiEntityType.BUSINESS_ACCOUNT, SCOPE_ENTITIES));
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
@@ -423,13 +432,14 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateCoverageRequestServiceProviderScope() throws OperationFailedException {
         final Set<Long> regionIdsSet = ImmutableSet.of(7L);
+        final Set<Long> allCspRegionIdsSet = ImmutableSet.of(7L, 77L);
         Mockito.when(scope.getScopeEntitiesByType())
                 .thenReturn(ImmutableMap.of(ApiEntityType.REGION, regionIdsSet));
-        Mockito.when(repositoryApi.expandServiceProvidersToRegions(SCOPE_ENTITIES)).thenReturn(regionIdsSet);
+        Mockito.when(repositoryApi.expandServiceProvidersToRegions(SCOPE_ENTITIES)).thenReturn(allCspRegionIdsSet);
         Mockito.when(scope.getScopeTypes())
                 .thenReturn(Optional.of(Collections.singleton(ApiEntityType.SERVICE_PROVIDER)));
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
-        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(regionIdsSet);
         Mockito.when(context.getInputScope().getCachedGroupInfo())
                 .thenReturn(Optional.of(cachedGroupInfo));
         Mockito.when(context.getInputScope().isGroup()).thenReturn(true);

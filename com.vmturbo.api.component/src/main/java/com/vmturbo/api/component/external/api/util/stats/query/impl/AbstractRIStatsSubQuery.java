@@ -223,30 +223,30 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
         });
 
         final ApiId inputScope = context.getInputScope();
-        if (inputScope.getScopeTypes().isPresent() && !inputScope.getScopeTypes().get().isEmpty()) {
+        if (inputScope.getScopeTypes().isPresent() && !inputScope.getScopeTypes().get().isEmpty()
+                        && context.getQueryScope() != null) {
             final Map<ApiEntityType, Set<Long>> scopeEntitiesByType = inputScope.getScopeEntitiesByType();
-
+            // This is a set of scope oids filtered by CSP.
+            final Set<Long> scopeOids = context.getQueryScope().getScopeOids();
             if (scopeEntitiesByType.containsKey(ApiEntityType.SERVICE_PROVIDER)) {
                 reqBuilder.setRegionFilter(RegionFilter.newBuilder()
                         .addAllRegionId(
-                                translateServiceProvidersToRegions(scopeEntitiesByType
-                                        .get(ApiEntityType.SERVICE_PROVIDER))));
+                                translateServiceProvidersToRegions(scopeOids)));
             } else if (scopeEntitiesByType.containsKey(ApiEntityType.BUSINESS_ACCOUNT)) {
                 reqBuilder.setAccountFilter(
-                        AccountFilter.newBuilder().addAllAccountId(scopeEntitiesByType
-                                .get(ApiEntityType.BUSINESS_ACCOUNT)));
+                        AccountFilter.newBuilder().addAllAccountId(scopeOids));
             } else if (scopeEntitiesByType.containsKey(ApiEntityType.REGION)) {
                 reqBuilder.setRegionFilter(
-                        RegionFilter.newBuilder().addAllRegionId(scopeEntitiesByType
-                                .get(ApiEntityType.REGION)));
+                        RegionFilter.newBuilder().addAllRegionId(scopeOids));
             } else if (scopeEntitiesByType.containsKey(ApiEntityType.AVAILABILITY_ZONE)) {
                 reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                        .addAllAvailabilityZoneId(scopeEntitiesByType
-                                .get(ApiEntityType.AVAILABILITY_ZONE)));
-            } else if (scopeEntitiesByType.containsKey(ApiEntityType.VIRTUAL_MACHINE)) {
-                reqBuilder.setEntityFilter(EntityFilter.newBuilder()
-                        .addAllEntityId(context.getQueryScope().getExpandedOids()));
-            } else {
+                        .addAllAvailabilityZoneId(scopeOids));
+            // Resource Groups and Groups of Entities and Single Entity Scopes.
+            } else if (scopeEntitiesByType.containsKey(ApiEntityType.VIRTUAL_MACHINE)
+                            || scopeEntitiesByType.containsKey(ApiEntityType.DATABASE)
+                            || scopeEntitiesByType.containsKey(ApiEntityType.VIRTUAL_VOLUME)) {
+                reqBuilder.setEntityFilter(EntityFilter.newBuilder().addAllEntityId(scopeOids));
+           } else {
                 throw new OperationFailedException(new StringBuilder(
                         "Invalid scope for RI Coverage query: ")
                         .append(inputScope.getScopeTypes())
@@ -256,6 +256,8 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
                         .append(ApiEntityType.REGION.displayName()).append(", ")
                         .append(ApiEntityType.AVAILABILITY_ZONE.displayName()).append(", ")
                         .append(ApiEntityType.VIRTUAL_MACHINE.displayName())
+                        .append(ApiEntityType.VIRTUAL_VOLUME.displayName())
+                        .append(ApiEntityType.DATABASE.displayName())
                         .toString());
             }
         } else if (!context.isGlobalScope()) {
@@ -276,26 +278,27 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
         });
 
         final ApiId inputScope = context.getInputScope();
-        if (inputScope.getScopeTypes().isPresent() && !inputScope.getScopeTypes().get().isEmpty()) {
+        if (inputScope.getScopeTypes().isPresent() && !inputScope.getScopeTypes().get().isEmpty()
+                        && context.getQueryScope() != null) {
             final Map<ApiEntityType, Set<Long>> scopeEntitiesByType = inputScope.getScopeEntitiesByType();
-
+            // This is a set of scope oids filtered by CSP.
+            final Set<Long> scopeOids = context.getQueryScope().getScopeOids();
             if (scopeEntitiesByType.containsKey(ApiEntityType.SERVICE_PROVIDER)) {
                 reqBuilder.setRegionFilter(RegionFilter.newBuilder()
                         .addAllRegionId(
-                                translateServiceProvidersToRegions(scopeEntitiesByType
-                                        .get(ApiEntityType.SERVICE_PROVIDER))));
+                                translateServiceProvidersToRegions(scopeOids)));
             } else if (scopeEntitiesByType.containsKey(ApiEntityType.BUSINESS_ACCOUNT)) {
                 reqBuilder.setAccountFilter(
-                        AccountFilter.newBuilder().addAllAccountId(scopeEntitiesByType
-                                .get(ApiEntityType.BUSINESS_ACCOUNT)));
+                        AccountFilter.newBuilder().addAllAccountId(scopeOids));
             } else if (scopeEntitiesByType.containsKey(ApiEntityType.REGION)) {
                 reqBuilder.setRegionFilter(
-                        RegionFilter.newBuilder().addAllRegionId(scopeEntitiesByType
-                                .get(ApiEntityType.REGION)));
+                        RegionFilter.newBuilder().addAllRegionId(scopeOids));
             } else if (scopeEntitiesByType.containsKey(ApiEntityType.AVAILABILITY_ZONE)) {
                 reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                        .addAllAvailabilityZoneId(scopeEntitiesByType
-                                .get(ApiEntityType.AVAILABILITY_ZONE)));
+                        .addAllAvailabilityZoneId(scopeOids));
+            // Workloads (single entities, groups of entities and entities in Resource Groups are not supported
+            // for the utilization widget, as RI utilization in the DB is keyed off of the RI IDs.
+            // It doesn't contain the covered entities.  Resource Groups in OCP only show the RI coverage widget.
             } else {
                 throw new OperationFailedException(new StringBuilder(
                         "Invalid scope for RI Utilization query: ")
