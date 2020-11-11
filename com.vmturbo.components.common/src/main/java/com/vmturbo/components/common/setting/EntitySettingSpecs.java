@@ -578,7 +578,8 @@ public enum EntitySettingSpecs {
     ExcludedTemplates("excludedTemplatesOids", "Excluded templates",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.UNION,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE,
+                    EntityType.DATABASE_SERVER, EntityType.VIRTUAL_VOLUME),
             sortedSetOfOid(Type.ENTITY), true),
 
     /**

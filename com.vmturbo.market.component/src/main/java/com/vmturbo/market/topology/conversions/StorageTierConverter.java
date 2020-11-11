@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -19,12 +20,14 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
+import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.RiskBased;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class StorageTierConverter implements TierConverter {
@@ -32,12 +35,14 @@ public class StorageTierConverter implements TierConverter {
     TopologyInfo topologyInfo;
     CommodityConverter commodityConverter;
     CostDTOCreator costDTOCreator;
+    TierExcluder tierExcluder;
 
     public StorageTierConverter(TopologyInfo topologyInfo, CommodityConverter commodityConverter,
-                         @Nonnull CostDTOCreator costDTOCreator) {
+                                @Nonnull CostDTOCreator costDTOCreator, @Nonnull TierExcluder tierExcluder) {
         this.topologyInfo = topologyInfo;
         this.commodityConverter = commodityConverter;
         this.costDTOCreator = costDTOCreator;
+        this.tierExcluder = tierExcluder;
     }
     /**
      * Create TraderTOs for the storageTier passed in. One traderTO is created for every
@@ -98,6 +103,12 @@ public class StorageTierConverter implements TierConverter {
     private Collection<CommoditySoldTO> commoditiesSoldList(
             @Nonnull final TopologyDTO.TopologyEntityDTO storageTier) {
         Collection<CommoditySoldTO> commoditiesSold = commodityConverter.commoditiesSoldList(storageTier);
+        final UpdatingFunctionTO emptyUf = UpdatingFunctionTO.newBuilder().build();
+        // Add tier exclusion commodities sold
+        commoditiesSold.addAll(tierExcluder.getTierExclusionCommoditiesToSell(storageTier.getOid()).stream()
+                .map(ct -> commodityConverter.createCommoditySoldTO(
+                        ct, TopologyConversionConstants.ACCESS_COMMODITY_CAPACITY, 0, emptyUf))
+                .collect(Collectors.toList()));
         return commoditiesSold;
     }
 }

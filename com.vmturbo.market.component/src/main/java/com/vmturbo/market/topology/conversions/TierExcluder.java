@@ -14,6 +14,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -34,6 +35,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
@@ -42,6 +44,8 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO.ActionTypeCase
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+
 /** This class reads the tier exclusion settings from group-component and keeps a track of the
  * commodities bought that need to be added to consumer and commodities sold that need to be
  * added to tiers. When TopologyConverter::convertToMarket executes, we use this class' instance
@@ -113,6 +117,12 @@ public class TierExcluder {
      */
     private static final int TIER_EXCLUSION_COMMODITY_TYPE
         = CommodityDTO.CommodityType.SEGMENTATION_VALUE;
+
+    /**
+     * Tier types which support exclusion policy.
+     */
+    public static final Set<Integer> EXCLUSION_SUPPORTED_TIER_VALUES = ImmutableSet.of(EntityType.COMPUTE_TIER_VALUE,
+            EntityType.DATABASE_SERVER_TIER_VALUE, EntityType.DATABASE_TIER_VALUE, EntityType.STORAGE_TIER_VALUE);
 
     /**
      * This constructor accepts all the parameters needed by this class. If the object is
@@ -187,11 +197,13 @@ public class TierExcluder {
 
                         for (Long tierId : includedTiers) {
                             TopologyEntityDTO tier = topology.get(tierId);
-                            String family = tier.getTypeSpecificInfo().getComputeTier().getFamily();
                             tierToCommTypeSold.computeIfAbsent(
                                 tierId, k -> new HashSet<>()).add(commodityType);
-                            familyToTiers.computeIfAbsent(
-                                family, k -> new HashSet<>()).add(tierId);
+                            if (tier.hasTypeSpecificInfo() && tier.getTypeSpecificInfo().hasComputeTier()) {
+                                final String family = tier.getTypeSpecificInfo().getComputeTier().getFamily();
+                                familyToTiers.computeIfAbsent(
+                                        family, k -> new HashSet<>()).add(tierId);
+                            }
                         }
                     }
                     // Get the comm type for this excluded set, and make the consumers buy it
@@ -249,31 +261,39 @@ public class TierExcluder {
             });
         // Find the reason setting for all the tier exclusion actions
         for (ActionTO tierExclusionAction : tierExclusionActions) {
-            Optional<Long> actionTarget = getActionTarget(tierExclusionAction);
-            if (actionTarget.isPresent()) {
-                Optional<TopologyEntityDTO> primaryTier = originalCloudTopology.getPrimaryTier(actionTarget.get());
-                if (primaryTier.isPresent()) {
-                    Set<Long> candidateReasonSettings = consumerOidToTierExclusionSettings.get(actionTarget.get());
-                    // The candidateReasonSettings which exclude the source tier of the consumer
-                    // are the reason settings we want.
-                    Set<Long> reasonSettings;
-                    if (tierExclusionAction.getActionTypeCase() == ActionTypeCase.RECONFIGURE) {
-                        reasonSettings = candidateReasonSettings;
-                    } else {
-                        reasonSettings = candidateReasonSettings.stream()
+            final ShoppingListInfo slInfo = getActionShoppingListInfo(tierExclusionAction).orElse(null);
+            if (slInfo == null) {
+                continue;
+            }
+            final long actionTarget = slInfo.getCollapsedBuyerId().isPresent()
+                    ? slInfo.getCollapsedBuyerId().get() : slInfo.getBuyerId();
+            final Optional<Integer> originalProviderType = slInfo.getSellerEntityType();
+            // For cloud volume shopping, get storageTier as providerTier. And storageTier is not primary tier.
+            Optional<TopologyEntityDTO> providerTier = originalProviderType.isPresent()
+                    && TopologyDTOUtil.isStorageEntityType(originalProviderType.get())
+                    ? originalCloudTopology.getStorageTier(actionTarget) : originalCloudTopology.getPrimaryTier(actionTarget);
+            if (providerTier.isPresent()) {
+                Set<Long> candidateReasonSettings = consumerOidToTierExclusionSettings.get(actionTarget);
+                // The candidateReasonSettings which exclude the source tier of the consumer
+                // are the reason settings we want.
+                Set<Long> reasonSettings;
+                if (tierExclusionAction.getActionTypeCase() == ActionTypeCase.RECONFIGURE) {
+                    reasonSettings = candidateReasonSettings;
+                } else {
+                    reasonSettings = candidateReasonSettings.stream()
                             .filter(setting -> {
                                 Set<Long> tiersExcludedByCandidateReasonSetting =
                                     settingPolicyToExcludedTemplates.get(setting);
                                 return tiersExcludedByCandidateReasonSetting != null &&
-                                    tiersExcludedByCandidateReasonSetting.contains(primaryTier.get().getOid());
+                                    tiersExcludedByCandidateReasonSetting.contains(providerTier.get().getOid());
                             }).collect(Collectors.toSet());
-                    }
+                }
 
-                    if (!reasonSettings.isEmpty()) {
-                        m2ActionsToReasonSettings.put(tierExclusionAction, reasonSettings);
-                    }
+                if (!reasonSettings.isEmpty()) {
+                    m2ActionsToReasonSettings.put(tierExclusionAction, reasonSettings);
                 }
             }
+
         }
     }
 
@@ -404,6 +424,20 @@ public class TierExcluder {
      * @return the target oid of the action.
      */
     private Optional<Long> getActionTarget(ActionTO m2Action) {
+        ShoppingListInfo slInfo = getActionShoppingListInfo(m2Action).orElse(null);
+        if (slInfo == null) {
+            return Optional.empty();
+        }
+        return slInfo.getCollapsedBuyerId().isPresent() ? slInfo.getCollapsedBuyerId() : Optional.of(slInfo.getBuyerId());
+    }
+
+    /**
+     * Get the shoppingListInfo of a tier exclusion action.
+     *
+     * @param m2Action the action.
+     * @return shoppingListInfo of the action.
+     */
+    private Optional<ShoppingListInfo> getActionShoppingListInfo(ActionTO m2Action) {
         long targetSlOid;
         switch (m2Action.getActionTypeCase()) {
             case MOVE:
@@ -416,15 +450,15 @@ public class TierExcluder {
                 targetSlOid = m2Action.getCompoundMove().getMovesList().get(0).getShoppingListToMove();
                 break;
             default:
-                logger.error("Trying to find target of action. Action type {} not supported.", m2Action.getActionTypeCase());
+                logger.error("Trying to find shoppingListInfo of tier exclusion action. Action type {} not supported.",
+                        m2Action.getActionTypeCase());
                 return Optional.empty();
         }
-        ShoppingListInfo slInfo = shoppingListOidToInfos.get(targetSlOid);
+        final ShoppingListInfo slInfo = shoppingListOidToInfos.get(targetSlOid);
         if (slInfo == null) {
-            logger.error("Cannot find target of action as it has no associated slInfo. Action -> {}.", m2Action);
-            return Optional.empty();
+            logger.error("Cannot find associated slInfo for tier exclusion action -> {}.", m2Action);
         }
-        return Optional.of(slInfo.getBuyerId());
+        return Optional.ofNullable(slInfo);
     }
 
     /**

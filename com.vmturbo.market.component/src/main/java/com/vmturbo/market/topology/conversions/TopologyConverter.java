@@ -3344,7 +3344,7 @@ public class TopologyConverter {
             long providerOid, long buyerOid) {
         MarketTier marketTier = cloudTc.getMarketTier(providerOid);
         int providerEntityType = marketTier.getTier().getEntityType();
-        if (TopologyDTOUtil.isPrimaryTierEntityType(providerEntityType)) {
+        if (TierExcluder.EXCLUSION_SUPPORTED_TIER_VALUES.contains(providerEntityType)) {
             return createTierExclusionCommodityBought(buyerOid);
         }
         return Collections.emptySet();

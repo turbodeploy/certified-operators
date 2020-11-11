@@ -119,7 +119,7 @@ public class CloudTopologyConverter {
          CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter,
                  marketCloudRateExtractor);
          this.computeTierConverter = new ComputeTierConverter(topologyInfo, commodityConverter, costDTOCreator, tierExcluder);
-         this.storageTierConverter = new StorageTierConverter(topologyInfo, commodityConverter, costDTOCreator);
+         this.storageTierConverter = new StorageTierConverter(topologyInfo, commodityConverter, costDTOCreator, tierExcluder);
          this.riConverter = new ReservedInstanceConverter(topologyInfo, commodityConverter,
                  costDTOCreator, tierExcluder, cloudTopology);
          this.businessAccounts = businessAccounts;

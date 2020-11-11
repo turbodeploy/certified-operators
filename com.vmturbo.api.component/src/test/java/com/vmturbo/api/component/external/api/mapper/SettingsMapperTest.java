@@ -240,7 +240,7 @@ public class SettingsMapperTest {
         assertEquals("marketsettingsmanager", mktomgr.getUuid());
         assertEquals("Operational Constraints", mktomgr.getDisplayName());
         assertEquals("Analysis", mktomgr.getCategory());
-        assertEquals(3, mktomgr.getSettings().size());
+        assertEquals(4, mktomgr.getSettings().size());
 
         final SettingApiDTO<?> teSettingApiDTO = mktomgr.getSettings().get(0);
         assertEquals("excludedTemplatesOids", teSettingApiDTO.getUuid());
@@ -248,7 +248,7 @@ public class SettingsMapperTest {
         assertNull(teSettingApiDTO.getDefaultValue());
 
         assertThat(mktomgr.getSettings().stream().map(SettingApiDTO::getEntityType).collect(Collectors.toList()),
-            containsInAnyOrder("VirtualMachine", "Database", "DatabaseServer"));
+            containsInAnyOrder("VirtualMachine", "Database", "DatabaseServer", "VirtualVolume"));
         assertEquals(InputValueType.LIST, teSettingApiDTO.getValueType());
 
         // verify the label for osmigrationmanager is set correctly
