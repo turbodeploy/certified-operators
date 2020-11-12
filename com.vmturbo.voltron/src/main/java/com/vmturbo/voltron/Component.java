@@ -319,6 +319,11 @@ public enum Component {
     MEDIATION_ISTIO("istio", "com.vmturbo.mediation.istio.component"),
 
     /**
+     * ActionStream Kafka mediation.
+     */
+    MEDIATION_ACTIONSTREAM_KAFKA("mediation-actionstream-kafka", "com.vmturbo.mediation.actionstream.kafka.component"),
+
+    /**
      * NetApp.
      */
     MEDIATION_NETAPP("netapp", "com.vmturbo.mediation.netapp.component"),

@@ -52,6 +52,8 @@
 /com.vmturbo.mediation.client.bootstrap/  @review/Mediation
 /com.vmturbo.mediation.cloud.conversion/  @review/Mediation
 /com.vmturbo.mediation.delegatingprobe/   @review/Mediation
+/com.vmturbo.mediation.actionstream.kafka/ @review/TeamOrchestrator
+/com.vmturbo.mediation.actionstream.kafka.component/ @review/TeamOrchestrator
 /com.vmturbo.mediation.probe.parent/  @review/Mediation
 /com.vmturbo.mediation.vcenter.browsing.conversion/   @review/Mediation
 /com.vmturbo.mediation.vcenter.conversion/    @review/Mediation

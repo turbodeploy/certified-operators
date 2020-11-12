@@ -289,6 +289,10 @@ dependencies:
     repository: file://../probes/mediation-istio
     version: 0.1.0
     condition: istio.enabled
+  - name: mediation-actionstream-kafka
+    repository: file://../probes/mediation-actionstream-kafka
+    version: 0.1.0
+    condition: mediation-actionstream-kafka.enabled
   - name: mediation-netapp
     repository: file://../probes/mediation-netapp
     version: 0.1.0

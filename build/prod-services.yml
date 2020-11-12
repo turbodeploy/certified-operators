@@ -962,3 +962,14 @@ services:
       component_type: mediation-horizon
       instance_id: mediation-horizon-1
     restart: always
+
+  mediation-actionstream-kafka-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.actionstream.kafka.component
+    environment:
+      consul_host: consul
+      component_type: mediation-actionstream-kafka
+      instance_id: mediation-actionstream-kafka-1
+    restart: always

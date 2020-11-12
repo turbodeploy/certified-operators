@@ -117,6 +117,10 @@ variable "istio" {
   default = false
 }
 
+variable "mediation-actionstream-kafka" {
+  default = false
+}
+
 variable "mssql" {
   default = false
 }

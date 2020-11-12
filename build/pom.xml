@@ -438,6 +438,8 @@
                 <module>../com.vmturbo.mediation.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.hyperv.conversion</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
+                <module>../com.vmturbo.mediation.actionstream.kafka</module>
+                <module>../com.vmturbo.mediation.actionstream.kafka.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.netflow.component</module>
                 <module>../com.vmturbo.mediation.newrelic.component</module>
@@ -940,6 +942,14 @@
         </profile>
 
         <profile>
+            <id>mediation-actionstream-kafka</id>
+            <modules>
+                <module>../com.vmturbo.mediation.actionstream.kafka</module>
+                <module>../com.vmturbo.mediation.actionstream.kafka.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation</id>
             <modules>
                 <module>../com.vmturbo.mediation.component</module>
@@ -1231,6 +1241,7 @@
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.conversion</module>
+                <module>../com.vmturbo.mediation.actionstream.kafka</module>
 
                 <!-- Mediation container with all the probes inside. -->
                 <module>../com.vmturbo.mediation.component</module>
@@ -1278,6 +1289,7 @@
                 <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.intersight.server.component</module>
                 <module>../com.vmturbo.mediation.intersight.ucs.component</module>
+                <module>../com.vmturbo.mediation.actionstream.kafka.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.newrelic.component</module>
                 <module>../com.vmturbo.mediation.appinsights.component</module>
