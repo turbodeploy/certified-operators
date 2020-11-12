@@ -1,5 +1,6 @@
 package com.vmturbo.market.runner.cost;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -13,13 +14,11 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisRequest;
-import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigrationProfile;
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisResponse;
 import com.vmturbo.common.protobuf.cost.MigratedWorkloadCloudCommitmentAnalysisServiceGrpc;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
 /**
  * Service implementation that interacts with the cost component's migrated workload cloud commitment service.
@@ -47,7 +46,7 @@ public class MigratedWorkloadCloudCommitmentAnalysisServiceImpl implements Migra
      */
     public MigratedWorkloadCloudCommitmentAnalysisServiceImpl(Channel costChannel) {
         // Create an blocking stub to the MigratedWorkloadCloudCommitmentAnalysisService
-         client = MigratedWorkloadCloudCommitmentAnalysisServiceGrpc.newStub(costChannel);
+        client = MigratedWorkloadCloudCommitmentAnalysisServiceGrpc.newStub(costChannel);
     }
 
     /**
@@ -57,18 +56,22 @@ public class MigratedWorkloadCloudCommitmentAnalysisServiceImpl implements Migra
      * @param workloadPlacementList A list of workload placements (VM, compute tier, and region)
      */
     @Override
-    public void startAnalysis(long topologyContextId, Optional<Long> businessAccountOid,
-            List<Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement> workloadPlacementList) {
+    public List<ActionDTO.Action> performBuyRIAnalysis(long topologyContextId, Optional<Long> businessAccountOid,
+                                                       List<Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement> workloadPlacementList) {
         // Streaming client calls must use an async request, so use a latch to block until the
         // request is complete.
         CountDownLatch latch = new CountDownLatch(1);
+
+        // Define our action list
+        List<ActionDTO.Action> actionList = new ArrayList<>();
+
         // Create a response observer.  There are no responses, but we need to handle error and
         // completion events.
         StreamObserver<MigratedWorkloadCloudCommitmentAnalysisResponse> response =
                 new StreamObserver<MigratedWorkloadCloudCommitmentAnalysisResponse>() {
                     @Override
-                    public void onNext(MigratedWorkloadCloudCommitmentAnalysisResponse
-                            migratedWorkloadCloudCommitmentAnalysisResponse) {
+                    public void onNext(MigratedWorkloadCloudCommitmentAnalysisResponse migratedWorkloadCloudCommitmentAnalysisResponse) {
+                        actionList.addAll(migratedWorkloadCloudCommitmentAnalysisResponse.getActionList());
                     }
 
                     @Override
@@ -88,12 +91,7 @@ public class MigratedWorkloadCloudCommitmentAnalysisServiceImpl implements Migra
         // break it up into chucks in order to avoid gRPC buffer overflow.
         logger.info("Starting analysis for topology: {}", topologyContextId);
         StreamObserver<MigratedWorkloadCloudCommitmentAnalysisRequest> request =
-                client.startAnalysis(response);
-        MigrationProfile migrationProfile = MigrationProfile.newBuilder()
-                .setPreferredTerm(3)
-                .setPreferredOfferingClass(OfferingClass.STANDARD)
-                .setPreferredPaymentOption(PaymentOption.ALL_UPFRONT)
-                .build();
+                client.analyze(response);
 
         for (List<Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement>
                 chunk : Lists.partition(workloadPlacementList, WORKLOAD_CHUNK_SIZE)) {
@@ -105,12 +103,10 @@ public class MigratedWorkloadCloudCommitmentAnalysisServiceImpl implements Migra
             }
             Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.Builder builder =
                     Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.newBuilder()
-                .setTopologyContextId(topologyContextId)
-                // TODO: this information needs to be extracted from the plan scenario; hardcoded for now
-                .setMigrationProfile(migrationProfile)
-                // Add a batch of virtual machines
-                .addAllVirtualMachines(chunk);
-            businessAccountOid.ifPresent(ba -> builder.setBusinessAccount(ba));
+                            .setTopologyContextId(topologyContextId)
+                            // Add a batch of virtual machines
+                            .addAllVirtualMachines(chunk);
+            businessAccountOid.ifPresent(builder::setBusinessAccount);
             request.onNext(builder.build());
         }
         request.onCompleted();
@@ -126,5 +122,7 @@ public class MigratedWorkloadCloudCommitmentAnalysisServiceImpl implements Migra
                 // Keep waiting
             }
         }
+
+        return actionList;
     }
 }

@@ -295,8 +295,7 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
         // Find out for which entities the used coupons and RI discounts need to be updated.
         final Map<Long, Double> usedCouponsToUpdate = new HashMap<>();
         final Map<Long, EntityCost> entityCostsToUpdate = new HashMap<>();
-        fillUsedCouponsAndEntityCosts(originalEntityCosts, coverageMap, usedCouponsToUpdate,
-                entityCostsToUpdate, request.getShouldRiDiscountLicenseCost());
+        fillUsedCouponsAndEntityCosts(originalEntityCosts, coverageMap, usedCouponsToUpdate);
 
         // Update used_coupons in plan_projected_reserved_instance_coverage, doesn't seem to
         // break anything not doing it for BuyRI, but do it for completeness.
@@ -328,16 +327,11 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
      * @param coverageMap Info about RI coverage for entities for this plan.
      * @param usedCouponsToUpdate Map of entityId to usedCoupons covered, for update in
      *      plan_projected ri coverage table. Input map updated in place.
-     * @param entityCostsToUpdate Map of entityId to costs with RI discount, updated in
-     *      plan projected entity cost table. Input map updated in place.
-     * @param shouldRiDiscountLicenseCost Whether license costs should be discounted based on RI coverage
      */
     private void fillUsedCouponsAndEntityCosts(
             @Nonnull final Map<Long, EntityCost> originalEntityCosts,
             @Nonnull final Map<Long, EntityReservedInstanceCoverage> coverageMap,
-            @Nonnull final Map<Long, Double> usedCouponsToUpdate,
-            @Nonnull final Map<Long, EntityCost> entityCostsToUpdate,
-            @Nonnull final boolean shouldRiDiscountLicenseCost) {
+            @Nonnull final Map<Long, Double> usedCouponsToUpdate) {
         // Find those entities for which we have BuyRIs with missing ri_inventory_discounts.
         for (Map.Entry<Long, EntityCost> entry : originalEntityCosts.entrySet()) {
             final long entityId = entry.getKey();
@@ -365,24 +359,9 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
                 continue;
             }
             final EntityReservedInstanceCoverage riCoverage = coverageMap.get(entityId);
-            int totalCoupons = riCoverage.getEntityCouponCapacity();
             double usedCoupons = planProjectedRICoverageAndUtilStore.getAggregatedEntityRICoverage(
                     Collections.singletonList(riCoverage)).values().iterator().next();
-            if (totalCoupons == 0 && usedCoupons > 0d) {
-                // In case totalCoupons is 0, but we have a valid usedCoupon count, set total.
-                totalCoupons = (int)usedCoupons;
-            }
             usedCouponsToUpdate.put(entityId, usedCoupons);
-            final EntityCost.Builder newCostBuilder = EntityCost.newBuilder(entityCost);
-            if (computeRate != null) {
-                updateRiDiscountedCost(CostCategory.ON_DEMAND_COMPUTE, totalCoupons, usedCoupons,
-                        newCostBuilder, computeRate);
-            }
-            if (licenseRate != null && shouldRiDiscountLicenseCost) {
-                updateRiDiscountedCost(CostCategory.ON_DEMAND_LICENSE, totalCoupons, usedCoupons,
-                        newCostBuilder, licenseRate);
-            }
-            entityCostsToUpdate.put(entityId, newCostBuilder.build());
         }
     }
 

@@ -290,7 +290,7 @@ public class AnalysisDebuggingTest {
         final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
                 mock(BuyRIImpactAnalysisFactory.class);
         final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
-        doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
+        doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).performBuyRIAnalysis(anyLong(), any(), anyList());
 
 
         final Analysis analysis = new Analysis(analysisInput.getTopologyInfo(),

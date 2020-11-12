@@ -23,6 +23,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
@@ -33,6 +34,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -121,6 +123,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -336,9 +339,10 @@ public class Analysis {
         final boolean isMigrateToCloud = (topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().getPlanType()
                 .equals(StringConstants.CLOUD_MIGRATION_PLAN));
         final boolean isM2AnalysisEnabled = analysisTypeList.contains(AnalysisType.MARKET_ANALYSIS);
+
         //SMA is not supported for Migrate to Cloud plan
         final boolean isSMAEnabled = config.isEnableSMA() && !isMigrateToCloud;
-        final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory
+        TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory
                 .newCalculator(topologyInfo, originalCloudTopology);
         // Use the cloud cost data we use for cost calculations for the price table.
         final CloudRateExtractor marketCloudRateExtractor = marketPriceTableFactory.newPriceTable(
@@ -554,6 +558,9 @@ public class Analysis {
                 if (results != null) {
                     actionsList.addAll(results.getActionsList());
                 }
+
+                // Define a list of actions to hold Buy RI Actions
+                List<Action> buyRIActions = new ArrayList<>();
                 try {
                     try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
                         try (TracingScope tracingScope = Tracing.trace("convert_from_traders")) {
@@ -655,10 +662,67 @@ public class Analysis {
                                     .addRICoverageToProjectedRICoverage(cloudCostData.getCurrentRiCoverage());
                             }
 
-                        // If this is a migrate to cloud plan, send a request to the cost component to start cloud commitment
+                        // If this is a migrate to cloud plan, send a request to the cost component to perform a cloud commitment
                         // analysis (Buy RI)
                         if (isMigrateToCloud) {
-                            runMigratedWorkloadCloudCommitmentAnalysis(projectedCloudTopology, projectedEntities, projectedTraderDTO);
+                            // Run the migration analysis
+                            buyRIActions = runMigratedWorkloadCloudCommitmentAnalysis(projectedCloudTopology, projectedEntities, projectedTraderDTO);
+
+                            // Add new coverage map entries for each Buy RI action
+                            Map<Long, EntityReservedInstanceCoverage> newRICoverageMap = new HashMap<>();
+                            Map<Long, Cost.ReservedInstanceBought> oidToReservedInstanceBought = new HashMap<>();
+                            for (Action action: buyRIActions) {
+                                ActionDTO.BuyRI buyRI = action.getInfo().getBuyRi();
+                                if (!buyRI.hasTargetEntity()) {
+                                    continue;
+                                }
+
+                                // Get the VM OID
+                                Long oid = buyRI.getTargetEntity().getId();
+
+                                // Get the Buy RI
+                                long buyRiId = buyRI.getBuyRiId();
+
+                                // Retrieve the compute tier from the Buy RI action
+                                ActionEntity computeTier = buyRI.getComputeTier();
+                                if (Objects.isNull(computeTier)) {
+                                    continue;
+                                }
+                                TopologyEntityDTO computeTierTopologyEntityDTO = projectedCloudTopology.getEntities().get(computeTier.getId());
+                                if (Objects.isNull(computeTierTopologyEntityDTO)) {
+                                    continue;
+                                }
+
+                                // Retrieve the number of coupons for the compute tier
+                                int coupons = computeTierTopologyEntityDTO.getTypeSpecificInfo().getComputeTier().getNumCoupons();
+
+                                // Add this record to the new RI coverage map
+                                newRICoverageMap.put(oid, EntityReservedInstanceCoverage.newBuilder()
+                                        .putCouponsCoveredByBuyRi(buyRiId, coupons)
+                                        .setEntityId(oid)
+                                        .setEntityCouponCapacity(coupons)
+                                        .build());
+
+                                oidToReservedInstanceBought.put(oid, Cost.ReservedInstanceBought.newBuilder()
+                                        .setId(buyRiId)
+                                        .setReservedInstanceBoughtInfo(Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.newBuilder()
+                                                .setReservedInstanceBoughtCoupons(Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons.newBuilder()
+                                                        .setNumberOfCoupons(coupons)
+                                                        .setNumberOfCouponsUsed(coupons)
+                                                        .build())
+                                                .setBusinessAccountId(buyRI.getMasterAccount().getId())
+                                                .setNumBought(1)
+                                                .setToBuy(true)
+                                                .build())
+                                        .build());
+                            }
+
+                            // Create a new topology cost calculator
+                            topologyCostCalculator = topologyCostCalculatorFactory
+                                    .newCalculator(topologyInfo, originalCloudTopology, newRICoverageMap, oidToReservedInstanceBought);
+
+                            // Add the coverage map to the converter
+                            converter.getProjectedRICoverageCalculator().addRICoverageToProjectedRICoverage(newRICoverageMap);
                         }
 
                         // Invoke buy RI impact analysis after projected entity creation, but prior to
@@ -687,17 +751,21 @@ public class Analysis {
                             .setMarket(MarketActionPlanInfo.newBuilder()
                                 .setSourceTopologyInfo(topologyInfo)))
                         .setAnalysisStartTimestamp(startTime.toEpochMilli());
-                    List<Action> actions = converter.interpretAllActions(actionsList, projectedEntities,
-                         originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
+                List<Action> actions = converter.interpretAllActions(actionsList, projectedEntities,
+                     originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
 
-                    actions.removeIf(action -> {
-                        try {
-                            return suppressActionsForOids.contains(ActionDTOUtil.getPrimaryEntityId(action));
-                        } catch (UnsupportedActionException e) {
-                            // If it's somehow not recognized, leave the action alone
-                            return false;
-                        }
-                    });
+                // Add the BuyRI actions to the list of actions
+                actions.addAll(buyRIActions);
+
+                actions.removeIf(action -> {
+                    try {
+                        return suppressActionsForOids.contains(ActionDTOUtil.getPrimaryEntityId(action));
+                    } catch (UnsupportedActionException e) {
+                        // If it's somehow not recognized, leave the action alone
+                        return false;
+                    }
+                });
+
 
                     actions.forEach(actionPlanBuilder::addAction);
                     //SMA is not supported for Migrate to Cloud plan
@@ -1248,7 +1316,7 @@ public class Analysis {
      *                                  placed VM's compute tier
      * @param projectedTraderDTO        The projected traders: used to lookup a virtual machine's region
      */
-    private void runMigratedWorkloadCloudCommitmentAnalysis(@Nonnull CloudTopology<TopologyEntityDTO> projectedCloudTopology,
+    private List<Action> runMigratedWorkloadCloudCommitmentAnalysis(@Nonnull CloudTopology<TopologyEntityDTO> projectedCloudTopology,
                                                             @NonNull Map<Long, ProjectedTopologyEntity> projectedEntities,
                                                             @NonNull List<TraderTO> projectedTraderDTO) {
         // Define a list of all of our migrated workload placements
@@ -1305,7 +1373,7 @@ public class Analysis {
         }
 
         // Send the request to start the analysis
-        migratedWorkloadCloudCommitmentAnalysisService.startAnalysis(topologyInfo.getTopologyContextId(),
+        return migratedWorkloadCloudCommitmentAnalysisService.performBuyRIAnalysis(topologyInfo.getTopologyContextId(),
                 masterBusinessAccount.map(TopologyEntityDTO::getOid),
                 workloadPlacementList);
     }

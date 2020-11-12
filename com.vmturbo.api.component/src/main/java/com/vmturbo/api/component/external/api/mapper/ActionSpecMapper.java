@@ -2275,10 +2275,8 @@ public class ActionSpecMapper {
                 // Therefore, we want the projected on-demand cost in the actions details to only
                 // reflect the cost from accepting this action. We filter out BUY_RI_DISCOUNT here
                 // to be consistent with the action savings calculation and to avoid double counting
-                // potential savings from Buy RI actions
-                .setCostSourceFilter(CostSourceFilter.newBuilder()
-                        .setExclusionFilter(true)
-                        .addCostSources(CostSource.BUY_RI_DISCOUNT))
+                // potential savings from Buy RI actions. We do include the RI License costs, otherwise
+                // our total VM cost will be incorrect.
                 .setCostCategoryFilter(CostCategoryFilter.newBuilder()
                         .setExclusionFilter(false)
                         .addCostCategory(CostCategory.ON_DEMAND_COMPUTE)
@@ -2502,6 +2500,7 @@ public class ActionSpecMapper {
                 // set coupon usage
                 latestCoverageStatDTO.setValue((float)latestCoverage.getCouponsCoveredByRiMap().values()
                         .stream().mapToDouble(Double::doubleValue).sum());
+
                 cloudResizeActionDetailsApiDTO.setRiCoverageBefore(latestCoverageStatDTO);
             } else {
                 logger.debug("Failed to retrieve current RI coverage for entity with ID: {}", entityUuid);
@@ -2520,9 +2519,15 @@ public class ActionSpecMapper {
                 StatApiDTO projectedCoverageStatDTO = new StatApiDTO();
                 // set coupon capacity
                 projectedCoverageStatDTO.setCapacity(projectedCoverageCapacityDTO);
+
                 // set coupon usage
-                projectedCoverageStatDTO.setValue((float)projectedRiCoverage.getCouponsCoveredByRiMap()
-                        .values().stream().mapToDouble(Double::doubleValue).sum());
+                final List<Double> couponsCoveredByExistingAndRecommendedRis = Lists.newArrayList(
+                        projectedRiCoverage.getCouponsCoveredByRiMap().values());
+                couponsCoveredByExistingAndRecommendedRis.addAll(
+                        projectedRiCoverage.getCouponsCoveredByBuyRiMap().values());
+                projectedCoverageStatDTO.setValue(
+                        (float)couponsCoveredByExistingAndRecommendedRis.stream()
+                                .mapToDouble(Double::doubleValue).sum());
                 cloudResizeActionDetailsApiDTO.setRiCoverageAfter(projectedCoverageStatDTO);
             } else {
                 logger.debug("Failed to retrieve projected RI coverage for entity with ID: {}", entityUuid);

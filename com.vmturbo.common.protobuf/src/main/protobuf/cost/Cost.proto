@@ -9,6 +9,7 @@ import "CommonDTO.proto";
 import "topology/TopologyDTO.proto";
 import "stats/Stats.proto";
 import "cca/CloudCommitmentAnalysis.proto";
+import "action/ActionDTO.proto";
 
 // Top down Cloud account expense discovered by the billing probe, associated with a specific account
 message AccountExpenses {
@@ -1271,6 +1272,7 @@ message MigratedWorkloadCloudCommitmentAnalysisRequest {
 }
 
 message MigratedWorkloadCloudCommitmentAnalysisResponse {
+    repeated action.Action action = 1;
 }
 
 // A service for getting reserved instance bought
@@ -1413,8 +1415,8 @@ service CostService {
 service MigratedWorkloadCloudCommitmentAnalysisService {
 
     // Starts the migrated workload cloud commit analysis against the specified projected topology
-    rpc StartAnalysis(stream MigratedWorkloadCloudCommitmentAnalysisRequest) returns
-    (MigratedWorkloadCloudCommitmentAnalysisResponse);
+    rpc Analyze(stream MigratedWorkloadCloudCommitmentAnalysisRequest) returns
+    (stream MigratedWorkloadCloudCommitmentAnalysisResponse);
 }
 
 // Stats Request Time Window with options for start_date and end_date.
