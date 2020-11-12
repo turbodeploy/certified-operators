@@ -23,7 +23,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.cost.calculation.journal.CostJournal;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.trax.Trax;
@@ -42,8 +44,6 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
     private static final Logger logger = LogManager.getLogger();
 
     private static final TraxNumber NO_COVERAGE = traxConstant(0, "no coverage");
-
-    private static final double LOG_COVERAGE_TOLERANCE = 0.00001D;
 
     /**
      * The journal to write the RI costs into.
@@ -115,17 +115,13 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                         price, recordLicenseCost);
                 final TraxNumber totalCovered = coverageByRIInventory.plus(coverageByBuyRIs).compute();
 
-                final double totalCoveredValue = totalCovered.getValue();
-                final double totalRequiredValue = totalRequired.getValue();
-                if (totalCoveredValue == totalRequiredValue) {
+                if (totalCovered.getValue() == totalRequired.getValue()) {
                     // Handle the equality case separately to avoid division by 0 if
                     // required == 0 and covered == 0.
                     return trax(1.0, "fully covered");
-                } else if (totalCoveredValue > totalRequiredValue) {
-                    if (totalCoveredValue > (totalRequiredValue + LOG_COVERAGE_TOLERANCE)) {
-                        logger.warn("Entity {} has RI coverage > 100%! Required: {} Covered: {}." +
-                                " Trimming back to 100%.", entityId, totalRequired, totalCovered);
-                    }
+                } else if (totalCovered.getValue() > totalRequired.getValue()) {
+                    logger.warn("Entity {} has RI coverage > 100%! Required: {} Covered: {}." +
+                            " Trimming back to 100%.", entityId, totalRequired, totalCovered);
                     return trax(1.0, "over 100% covered");
                 } else {
                     return totalCovered.dividedBy(totalRequired).compute("coverage");
@@ -155,12 +151,9 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                 TraxNumber coveragePercentage = coveredCoupons.dividedBy(totalCoverageCapacity)
                         .compute("Coverage percentage");
 
-                final double coveragePercentageValue = coveragePercentage.getValue();
-                if (coveragePercentageValue > 1) {
-                    if (coveragePercentageValue > (1 + LOG_COVERAGE_TOLERANCE)) {
-                        logger.warn("Above 100% RI coverage {}%: entity OID={}, RI OID={}, Buy RI={})",
-                                coveragePercentageValue * 100, entityOid, riOid, isBuyRI);
-                    }
+                if (coveragePercentage.getValue() > 1) {
+                    logger.warn("Above 100% RI coverage {}%: entity OID={}, RI OID={}, Buy RI={})",
+                            coveragePercentage.getValue() * 100, entityOid, riOid, isBuyRI);
                     final TraxNumber maxCoverage = trax(1, "Maximum allowed coverage");
                     coveragePercentage = Trax.max(coveragePercentage, maxCoverage)
                             .compute("Cap coverage to 100%");
@@ -283,14 +276,11 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
         final double totalNumCoupons =
                 riBoughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons();
 
-        final double couponsBoughtValue =  couponsBought.getValue();
-        if (couponsBoughtValue > totalNumCoupons) {
-            if (couponsBoughtValue > (totalNumCoupons + LOG_COVERAGE_TOLERANCE)) {
-                logger.warn("Inconsistent data - RI Bought {} is selling {} coupons, but entity {} is buying {}!",
-                        riData.getReservedInstanceBought().getId(), totalNumCoupons, entityId, couponsBought);
-            }
+        if (couponsBought.getValue() > totalNumCoupons) {
+            logger.warn("Inconsistent data - RI Bought {} is selling {} coupons, but entity {} is buying {}!",
+                    riData.getReservedInstanceBought().getId(), totalNumCoupons, entityId, couponsBought);
             return trax(1, "over 100% cvg");
-        } else if (couponsBoughtValue == 0) {
+        } else if (couponsBought.getValue() == 0) {
             return trax(0, "no cvg");
         } else {
             return couponsBought.dividedBy(totalNumCoupons).compute("Coverage percentage");
