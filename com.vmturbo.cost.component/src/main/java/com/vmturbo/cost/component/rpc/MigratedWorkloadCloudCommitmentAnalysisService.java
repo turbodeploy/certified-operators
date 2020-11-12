@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.Optional;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 
 import io.grpc.stub.StreamObserver;
 
@@ -27,6 +26,8 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.search.CloudType;
+import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.cost.component.plan.PlanService;
 import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSender;
 import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitmentalgorithm.MigratedWorkloadCloudCommitmentAlgorithmStrategy;
@@ -37,8 +38,6 @@ import com.vmturbo.cost.component.reserved.instance.migratedworkloadcloudcommitm
 @Service
 public class MigratedWorkloadCloudCommitmentAnalysisService extends MigratedWorkloadCloudCommitmentAnalysisServiceImplBase {
     private static final Logger logger = LogManager.getLogger(MigratedWorkloadCloudCommitmentAnalysisService.class);
-
-    private static final int ACTION_CHUNK_SIZE = 1000;
 
     /**
      * Used to publish an action plan to the action orchestrator.
@@ -77,15 +76,14 @@ public class MigratedWorkloadCloudCommitmentAnalysisService extends MigratedWork
      * directly called by user code.
      */
     @Override
-    public StreamObserver<MigratedWorkloadCloudCommitmentAnalysisRequest> analyze(
+    public StreamObserver<MigratedWorkloadCloudCommitmentAnalysisRequest> startAnalysis(
             StreamObserver<MigratedWorkloadCloudCommitmentAnalysisResponse> responseObserver) {
         return new StreamObserver<MigratedWorkloadCloudCommitmentAnalysisRequest>() {
             MigratedWorkloadCloudCommitmentAnalysisRequest request = null;
-            final List<MigratedWorkloadPlacement> workloadsList = new ArrayList<>();
-
+            List<MigratedWorkloadPlacement> workloadsList = new ArrayList<>();
             @Override
             public void onNext(MigratedWorkloadCloudCommitmentAnalysisRequest
-                                       migratedWorkloadCloudCommitmentAnalysisRequest) {
+                    migratedWorkloadCloudCommitmentAnalysisRequest) {
                 if (request == null) {
                     request = migratedWorkloadCloudCommitmentAnalysisRequest;
                 }
@@ -100,7 +98,7 @@ public class MigratedWorkloadCloudCommitmentAnalysisService extends MigratedWork
 
             @Override
             public void onCompleted() {
-                doAnalysis(request, responseObserver, workloadsList);
+                doStartAnalysis(request, responseObserver, workloadsList);
             }
         };
     }
@@ -112,11 +110,15 @@ public class MigratedWorkloadCloudCommitmentAnalysisService extends MigratedWork
      * @param responseObserver The gRPC response observer
      * @param workloadsList    Full list of workloads specified by the gRPC startAnalysis request
      */
-    private void doAnalysis(MigratedWorkloadCloudCommitmentAnalysisRequest request,
-                            StreamObserver<MigratedWorkloadCloudCommitmentAnalysisResponse> responseObserver,
-                            List<MigratedWorkloadPlacement> workloadsList) {
+    private void doStartAnalysis(MigratedWorkloadCloudCommitmentAnalysisRequest request,
+              StreamObserver<MigratedWorkloadCloudCommitmentAnalysisResponse> responseObserver,
+            List<MigratedWorkloadPlacement> workloadsList) {
         logger.info("MigratedWorkloadCloudCommitmentAnalysisService::startAnalysis for topology: {}",
                 request.getTopologyContextId());
+
+        // Respond back to our client that we've received the message
+        responseObserver.onNext(MigratedWorkloadCloudCommitmentAnalysisResponse.getDefaultInstance());
+        responseObserver.onCompleted();
 
         // Record our start time
         final long analysisStartTime = System.currentTimeMillis();
@@ -137,13 +139,25 @@ public class MigratedWorkloadCloudCommitmentAnalysisService extends MigratedWork
                     request.getTopologyContextId());
         }
 
-        // Send the actions back to the caller in chunks of ACTION_CHUNK_SIZE (definted as 1000)
-        for (List<ActionDTO.Action> chunk : Lists.partition(actions, ACTION_CHUNK_SIZE)) {
-            responseObserver.onNext(MigratedWorkloadCloudCommitmentAnalysisResponse.newBuilder()
-                    .addAllAction(chunk)
-                    .build());
+        // Create an ActionPlan
+        ActionDTO.ActionPlan actionPlan = ActionDTO.ActionPlan.newBuilder()
+                .setId(IdentityGenerator.next())
+                .setAnalysisStartTimestamp(analysisStartTime)
+                .setAnalysisCompleteTimestamp(System.currentTimeMillis())
+                .setInfo(ActionDTO.ActionPlanInfo.newBuilder()
+                        .setBuyRi(ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo.newBuilder()
+                                .setTopologyContextId(request.getTopologyContextId())
+                                .build())
+                        .build())
+                .addAllAction(actions)
+                .build();
+
+        try {
+            // Publish the ActionPlan to Kafka
+            actionsSender.notifyActionsRecommended(actionPlan);
+        } catch (CommunicationException | InterruptedException e) {
+            logger.error("An error occurred while publishing ActionPlan: {}", e.getMessage(), e);
         }
-        responseObserver.onCompleted();
     }
 
     /**

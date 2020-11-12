@@ -14,8 +14,6 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 
-import org.jetbrains.annotations.NotNull;
-
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
@@ -162,16 +160,6 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
         } catch (StatusRuntimeException e) {
             throw new CloudCostDataRetrievalException(e);
         }
-    }
-
-    @NotNull
-    @Override
-    public CloudCostData getCloudCostData(@NotNull TopologyInfo topoInfo,
-                                          CloudTopology<TopologyEntityDTO> cloudTopo,
-                                          @NotNull TopologyEntityInfoExtractor topologyEntityInfoExtractor,
-                                          @NotNull Map<Long, EntityReservedInstanceCoverage> entityToRiCoverage,
-                                          @NotNull Map<Long, ReservedInstanceBought> oidToReservedInstanceBought) throws CloudCostDataRetrievalException {
-        return getCloudCostData(topoInfo, cloudTopo, topologyEntityInfoExtractor);
     }
 
     /**

@@ -617,7 +617,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
         } else if (isAnalyzeAndBuyRICloudPlan(planSubType)) {
             // We must account for both RI Buy, and Optimize Services action plans- only set
             // PlanStatus == PlanStatus.SUCCEEDED after both action plans have completed
-            final int numActionPlans = isMCP(planSubType) ? 1 : 2;
+            final int numActionPlans = 2;
             return commonAndAnalysisAndCostSuccessful
                     && plan.getActionPlanIdCount() == numActionPlans
                     ? PlanStatus.SUCCEEDED

@@ -48,28 +48,6 @@ public interface CloudCostDataProvider {
                                    @Nonnull TopologyEntityInfoExtractor topologyEntityInfoExtractor) throws CloudCostDataRetrievalException;
 
     /**
-     * Get the cloud cost data from this particular provider. The cloud cost data is retrieved
-     * in bulk via a single call.
-     *
-     * @param topoInfo contains information about the topology
-     * @param cloudTopo The cloud topology
-     * @param topologyEntityInfoExtractor The topolog entity info extractor.
-     * @param entityToRiCoverage maps OID to {@link EntityReservedInstanceCoverage}
-     * @param oidToReservedInstanceBought maps OID to {@link ReservedInstanceBought}
-     *
-     * @return The {@link CloudCostData}.
-     * @throws CloudCostDataRetrievalException If there is an error retrieving the data.
-     */
-    @Nonnull
-    CloudCostData getCloudCostData(
-            @Nonnull TopologyInfo topoInfo,
-            CloudTopology<TopologyEntityDTO> cloudTopo,
-            @Nonnull TopologyEntityInfoExtractor topologyEntityInfoExtractor,
-            @Nonnull Map<Long, EntityReservedInstanceCoverage> entityToRiCoverage,
-            @Nonnull Map<Long, ReservedInstanceBought> oidToReservedInstanceBought)
-            throws CloudCostDataRetrievalException;
-
-    /**
      * The bundle of non-topology data required to compute costs. This can include things like
      * the {@link PriceTable} from the cost probes, the discounts for various business accounts,
      * and the reserved instance coverage.

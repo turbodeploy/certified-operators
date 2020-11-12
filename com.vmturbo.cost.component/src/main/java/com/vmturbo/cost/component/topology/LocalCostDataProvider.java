@@ -9,7 +9,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider;
-import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
@@ -55,14 +54,14 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
     private final long realtimeTopologyContextId;
 
     public LocalCostDataProvider(@Nonnull final PriceTableStore priceTableStore,
-                                 @Nonnull final DiscountStore discountStore,
-                                 @Nonnull final ReservedInstanceBoughtStore riBoughtStore,
-                                 final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore,
-                                 @Nonnull final ReservedInstanceSpecStore riSpecStore,
-                                 @Nonnull final EntityReservedInstanceMappingStore entityRiMappingStore,
-                                 @Nonnull final RepositoryClient repositoryClient,
-                                 @Nonnull SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
-                                 final long realtimeTopologyContextId, IdentityProvider identityProvider,
+                 @Nonnull final DiscountStore discountStore,
+                 @Nonnull final ReservedInstanceBoughtStore riBoughtStore,
+                final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore,
+                 @Nonnull final ReservedInstanceSpecStore riSpecStore,
+                 @Nonnull final EntityReservedInstanceMappingStore entityRiMappingStore,
+                 @Nonnull final RepositoryClient repositoryClient,
+                 @Nonnull SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
+                 final long realtimeTopologyContextId, IdentityProvider identityProvider,
                                  @Nonnull DiscountApplicatorFactory discountApplicatorFactory,
                                  @Nonnull TopologyEntityInfoExtractor topologyEntityInfoExtractor) {
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
@@ -79,56 +78,24 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
-    /**
-     * Create and return a new {@link CloudCostData} object.
-     *
-     * @param topoInfo                    contains information about the topology
-     * @param cloudTopo                   The cloud topology
-     * @param topologyEntityInfoExtractor The topolog entity info extractor.
-     * @return A new {@link CloudCostData} object.
-     * @throws CloudCostDataRetrievalException When data cannot be retrieved.
-     */
     @Nonnull
     @Override
     public CloudCostData getCloudCostData(TopologyInfo topoInfo, @Nonnull CloudTopology<TopologyEntityDTO> cloudTopo,
-                                          TopologyEntityInfoExtractor topologyEntityInfoExtractor) throws CloudCostDataRetrievalException {
-        return getCloudCostData(topoInfo, cloudTopo, topologyEntityInfoExtractor,
-                entityRiMappingStore.getEntityRiCoverage(), Collections.emptyMap());
-    }
-
-    /**
-     * Create and return a new {@link CloudCostData} object.
-     *
-     * @param topoInfo                    contains information about the topology
-     * @param cloudTopo                   The cloud topology
-     * @param topologyEntityInfoExtractor The topolog entity info extractor.
-     * @param entityToRiCoverage          maps OID to {@link Cost.EntityReservedInstanceCoverage}
-     * @param oidToReservedInstanceBought maps OID to {@link ReservedInstanceBought}
-     * @return
-     * @throws CloudCostDataRetrievalException
-     */
-    @Nonnull
-    public CloudCostData getCloudCostData(
-            @Nonnull TopologyInfo topoInfo,
-            CloudTopology<TopologyEntityDTO> cloudTopo,
-            @Nonnull TopologyEntityInfoExtractor topologyEntityInfoExtractor,
-            @Nonnull final Map<Long, Cost.EntityReservedInstanceCoverage> entityToRiCoverage,
-            @Nonnull final Map<Long, ReservedInstanceBought> oidToReservedInstanceBought)
-            throws CloudCostDataRetrievalException {
+                TopologyEntityInfoExtractor topologyEntityInfoExtractor) throws CloudCostDataRetrievalException {
         final Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingIdByBusinessAccountOid
                 = localCostPricingResolver.getAccountPricingDataByBusinessAccount(cloudTopo);
         final Map<Long, ReservedInstanceBought> riBoughtById =
-                riBoughtStore.getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
+            riBoughtStore.getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
                         .newBuilder()
                         .cloudScopeTuples(
-                                repositoryClient.getEntityOidsByTypeForRIQuery(topoInfo.getScopeSeedOidsList(),
-                                        realtimeTopologyContextId, this.supplyChainServiceBlockingStub))
-                        .build()).stream()
-                        .collect(Collectors.toMap(ReservedInstanceBought::getId, Function.identity()));
+                        repositoryClient.getEntityOidsByTypeForRIQuery(topoInfo.getScopeSeedOidsList(),
+                                    realtimeTopologyContextId, this.supplyChainServiceBlockingStub))
+                    .build()).stream()
+                .collect(Collectors.toMap(ReservedInstanceBought::getId, Function.identity()));
         final Map<Long, ReservedInstanceSpec> riSpecById = riSpecStore.getAllReservedInstanceSpec().stream()
                 .collect(Collectors.toMap(ReservedInstanceSpec::getId, Function.identity()));
-        return new CloudCostData<>(entityToRiCoverage, entityToRiCoverage, riBoughtById, riSpecById,
-                oidToReservedInstanceBought, accountPricingIdByBusinessAccountOid);
+        return new CloudCostData<>(entityRiMappingStore.getEntityRiCoverage(), entityRiMappingStore.getEntityRiCoverage(),
+                riBoughtById, riSpecById, Collections.emptyMap(), accountPricingIdByBusinessAccountOid);
     }
 }
 
