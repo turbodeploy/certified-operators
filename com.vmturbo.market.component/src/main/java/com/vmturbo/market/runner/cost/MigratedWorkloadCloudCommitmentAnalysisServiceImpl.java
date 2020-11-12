@@ -1,5 +1,6 @@
 package com.vmturbo.market.runner.cost;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -15,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisRequest;
+import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement;
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigrationProfile;
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisResponse;
 import com.vmturbo.common.protobuf.cost.MigratedWorkloadCloudCommitmentAnalysisServiceGrpc;
@@ -95,8 +97,18 @@ public class MigratedWorkloadCloudCommitmentAnalysisServiceImpl implements Migra
                 .setPreferredPaymentOption(PaymentOption.ALL_UPFRONT)
                 .build();
 
+        List<List<MigratedWorkloadPlacement>> chunks =
+            Lists.partition(workloadPlacementList, WORKLOAD_CHUNK_SIZE);
+        if (chunks.isEmpty()) {
+            // Ensure we send at least one chunk, so that the server
+            // gets the context information and can send an action plan
+            // even if there's nothing to do.
+
+            chunks = Collections.singletonList(Collections.emptyList());
+        }
+
         for (List<Cost.MigratedWorkloadCloudCommitmentAnalysisRequest.MigratedWorkloadPlacement>
-                chunk : Lists.partition(workloadPlacementList, WORKLOAD_CHUNK_SIZE)) {
+                chunk : chunks) {
             if (latch.getCount() == 0) {
                 // For some reason, the server sent a premature response, most likely due to
                 // an error.  Don't bother sending the rest of the request and report the error.
