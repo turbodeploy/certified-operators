@@ -105,14 +105,8 @@ public enum ActionSettingType {
                 case ResizeVcpuDownInBetweenThresholds:
                 case ResizeVmemUpInBetweenThresholds:
                 case ResizeVmemDownInBetweenThresholds:
-                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, ActionMode.class);
-                    break;
                 case Delete:
-                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, null, null,
-                        ImmutableMap.<EntityType, ActionMode>builder()
-                            .put(EntityType.STORAGE, ActionMode.DISABLED)
-                            .build(),
-                        ActionMode.class);
+                    enumSettingDataType = new EnumSettingDataType<>(ActionMode.MANUAL, ActionMode.class);
                     break;
                 case NonDisruptiveReversibleScaling:
                 case NonDisruptiveIrreversibleScaling:
