@@ -1059,8 +1059,11 @@ public class EntitySettingsApplicator {
                             .filter(provider -> provider.getEntityType() == EntityType.CONTAINER_POD_VALUE)
                             .findFirst();
                         if (!containerPod.isPresent()) {
-                            logger.error("Failed to set {} commodity threshold for container {} because provider container pod is not found.",
-                                CommodityType.forNumber(commodity.getCommodityType().getType()), entity.getDisplayName());
+                            // Set log level to debug because there could be proxy containers discovered from
+                            // application targets like AppDynamics. Proxy containers have no pods and not
+                            // able to be resized.
+                            logger.debug("Failed to set {} commodity threshold for container {} because provider container pod is not found.",
+                                () -> CommodityType.forNumber(commodity.getCommodityType().getType()), entity::getDisplayName);
                             return;
                         }
                         Optional<TopologyEntity> vm = graph.getProviders(containerPod.get().getOid())
