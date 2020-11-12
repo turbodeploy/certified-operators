@@ -244,39 +244,24 @@ public class PlanTopologyScopeEditor {
 
         // calculate all tiers associated with all the regions in cloudConsumers
         // add the owning services
-        final Set<TopologyEntity> regions = cloudConsumers.stream()
-                                                .filter(e -> e.getEntityType() == EntityType.REGION_VALUE)
-                                                .collect(Collectors.toSet());
-        final Set<TopologyEntity> tiers = regions.stream()
-                                            .flatMap(e -> e.getAggregatedEntities().stream())
-                                            .filter(e -> TopologyDTOUtil.isTierEntityType(e.getEntityType()))
-                                            .collect(Collectors.toSet());
+        final Set<TopologyEntity> tiers = cloudConsumers.stream()
+                .filter(e -> e.getEntityType() == EntityType.REGION_VALUE)
+                .flatMap(e -> e.getAggregatedEntities().stream())
+                .filter(e -> TopologyDTOUtil.isTierEntityType(e.getEntityType()))
+                .collect(Collectors.toSet());
         final Set<TopologyEntity> services = tiers.stream()
-                                                .map(TopologyEntity::getOwner)
-                                                .filter(Optional::isPresent)
-                                                .map(Optional::get)
-                                                .collect(Collectors.toSet());
-        final List<TopologyEntity> cloudProviders = new ArrayList<>(regions);
-        cloudProviders.addAll(tiers);
-        cloudProviders.addAll(services);
-        // For cloud migration, if we are migration to a region with no workloads, then
-        // add accounts associated to destination region, as accounts are needed for costs.
-        // Pick up only primary accounts (with null owner accounts).
-        final Set<TopologyEntity> accounts = regions
-                .stream()
                 .map(TopologyEntity::getOwner)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .flatMap(e -> e.getAggregatedEntities().stream())
-                .filter(e -> e.getEntityType() == BUSINESS_ACCOUNT_VALUE)
                 .collect(Collectors.toSet());
-        cloudProviders.addAll(accounts);
-        // union consumers and producers and filter by target
-        resultEntityMap.putAll(Stream.concat(cloudConsumers.stream(), cloudProviders.stream())
-                    .distinct()
-                    .filter(e -> discoveredBy(e, targetIds))
-                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                    .collect(Collectors.toMap(Builder::getOid, TopologyEntity::newBuilder)));
+
+        resultEntityMap.putAll(Stream.concat(Stream.of(cloudConsumers, tiers, services)
+                        .flatMap(Collection::stream)
+                        .filter(e -> discoveredBy(e, targetIds)),
+                graph.entitiesOfType(BUSINESS_ACCOUNT_VALUE))
+                .distinct()
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .collect(Collectors.toMap(Builder::getOid, TopologyEntity::newBuilder)));
     }
 
     /**

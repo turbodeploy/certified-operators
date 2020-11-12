@@ -410,14 +410,15 @@ public class PlanTopologyScopeEditorTest {
         .of(az1London, az2London, regionLondon, computeTier,
                 vm1InLondon, vm2InLondon, dbLondon, dbsLondon, businessAcc1,
                 virtualVolumeInLondon, storageTier, appAws,
-                unattachedVirtualVolumeInLondon)
+                unattachedVirtualVolumeInLondon, businessAcc2, businessAcc3, businessAcc4)
         .collect(Collectors.collectingAndThen(Collectors.toSet(),
             Collections::unmodifiableSet));
 
     private final Set<TopologyEntity.Builder> expectedEntitiesForAzureRegion = Stream
                     .of(regionCentralUs, dbCentralUs, dbsCentralUs, computeTier2,
                             storageTier2, virtualVolumeInCentralUs, vmInCentralUs, cloudService,
-                            unattachedVirtualVolumeInCentralUs)
+                            unattachedVirtualVolumeInCentralUs, businessAcc1, businessAcc2,
+                            businessAcc3, businessAcc4)
                     .collect(Collectors.collectingAndThen(Collectors.toSet(),
                         Collections::unmodifiableSet));
 
@@ -425,20 +426,22 @@ public class PlanTopologyScopeEditorTest {
         .of(az1London, az2London, azOhio, regionLondon, regionOhio, computeTier,
                 vm1InLondon, vm2InLondon, vmInOhio, dbLondon, dbsLondon, businessAcc1,
                 businessAcc2, storageTier, virtualVolumeInLondon, virtualVolumeInOhio, appAws,
-                unattachedVirtualVolumeInLondon)
+                unattachedVirtualVolumeInLondon, businessAcc3, businessAcc4)
         .collect(Collectors.collectingAndThen(Collectors.toSet(),
             Collections::unmodifiableSet));
 
     private final Set<TopologyEntity.Builder> expectedEntitiesForBusinessAccount = Stream
                     .of(az1HongKong, vmInHongKong, storageTier, regionHongKong,
-                            businessAcc1, businessAcc3, virtualVolumeInHongKong)
+                            businessAcc1, businessAcc3, virtualVolumeInHongKong, businessAcc2,
+                            businessAcc4)
                     .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
     private final Set<TopologyEntity.Builder> expectedEntitiesForBusinessAccountsList = Stream
                     .of(azOhio, vmInOhio, businessAcc1, computeTier, storageTier,
                             businessAcc2, businessAcc3, az1HongKong, vmInHongKong,
-                            regionOhio, regionHongKong, virtualVolumeInHongKong, virtualVolumeInOhio)
+                            regionOhio, regionHongKong, virtualVolumeInHongKong, virtualVolumeInOhio,
+                            businessAcc4)
                     .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
@@ -446,38 +449,41 @@ public class PlanTopologyScopeEditorTest {
                     .of(az1London, vm1InLondon, computeTier, storageTier,
                             businessAcc1, businessAcc3, az1HongKong, vmInHongKong,
                             regionLondon, regionHongKong, virtualVolumeInHongKong,
-                            virtualVolumeInLondon, appAws)
+                            virtualVolumeInLondon, appAws, businessAcc2, businessAcc4)
                     .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
     private final Set<TopologyEntity.Builder> expectedEntitiesForAwsVm = Stream
                     .of(az1London, regionLondon, vm1InLondon, businessAcc1,
-                            computeTier, virtualVolumeInLondon, storageTier, appAws)
+                            computeTier, virtualVolumeInLondon, storageTier, appAws, businessAcc2,
+                            businessAcc3, businessAcc4)
                     .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
     private final Set<TopologyEntity.Builder> expectedEntitiesForAzureDb = Stream
-                    .of(dbCentralUs, regionCentralUs, computeTier2, storageTier2, cloudService)
+                    .of(dbCentralUs, regionCentralUs, computeTier2, storageTier2, cloudService,
+                            businessAcc1, businessAcc2, businessAcc3, businessAcc4)
                     .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
     private final Set<TopologyEntity.Builder> expectedEntitiesForAwsDbsGroup = Stream
                     .of(az1London, regionLondon, dbsLondon, computeTier, storageTier,
-                            dbsHongKong, az2HongKong, regionHongKong)
+                            dbsHongKong, az2HongKong, regionHongKong, businessAcc1, businessAcc2,
+                            businessAcc3, businessAcc4)
                     .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
     private final Set<TopologyEntity.Builder> expectedEntitiesForResourceGroup = Stream
                     .of(dbCentralUs, regionCentralUs, computeTier2, storageTier2,
                             virtualVolumeInCanada, regionCanada, vmInCanada, businessAcc4,
-                            cloudService, appAzure)
+                            cloudService, appAzure, businessAcc1, businessAcc2, businessAcc3)
                     .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
     private final Set<TopologyEntity.Builder> expectedEntitiesForVolumesGroup = Stream
             .of(regionCentralUs, computeTier2, storageTier2, unattachedVirtualVolumeInCentralUs,
                     virtualVolume2InCanada, regionCanada, vmInCanada, businessAcc4,
-                    cloudService, appAzure)
+                    cloudService, appAzure, businessAcc1, businessAcc2, businessAcc3)
             .collect(Collectors.collectingAndThen(Collectors.toSet(),
                     Collections::unmodifiableSet));
 
@@ -1163,7 +1169,7 @@ public class PlanTopologyScopeEditorTest {
                 .build();
         final Set<TopologyEntity.Builder> awsRegionExpectedEntities = Stream
                 .of(vm1InDc1, pm1InDc1, da1, st1, dc1, regionLondon, virtualVolume,
-                        computeTier, storageTier)
+                        computeTier, storageTier, businessAcc1, businessAcc2, businessAcc3)
                 .collect(Collectors.toSet());
         final Set<Long> sourceVMOids = new HashSet<>();
         sourceVMOids.add(vm1InDc1.getOid());
@@ -1171,7 +1177,7 @@ public class PlanTopologyScopeEditorTest {
         final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeTopology(
                 cloudTopologyInfo, cloudMigrationGraph, context);
         // Now we use generic scoping, that pulls in more entities than directly connected ones.
-        Assert.assertEquals(19, result.size());
+        Assert.assertEquals(22, result.size());
         awsRegionExpectedEntities.forEach(entity -> assertTrue(entity.getOid()
                 + " is missing", result.getEntity(entity.getOid()).isPresent()));
     }
