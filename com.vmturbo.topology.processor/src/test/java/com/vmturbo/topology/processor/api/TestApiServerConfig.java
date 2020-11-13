@@ -469,7 +469,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
         // Create an entity retriever with a real entity converter and a mock repository client
         // Since the repository client is a mock, the context ID doesn't matter - using zero
         return new EntityRetriever(topologyToSdkEntityConverter(), repositoryClient(),
-                 0);
+                cachedTopology(), 0);
     }
 
     /**

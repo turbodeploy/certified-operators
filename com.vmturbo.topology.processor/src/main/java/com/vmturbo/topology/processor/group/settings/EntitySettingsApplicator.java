@@ -33,7 +33,6 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
@@ -43,7 +42,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.components.common.setting.HotChangeEnforcing;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -296,14 +294,6 @@ public class EntitySettingsApplicator {
                         CommodityType.TOTAL_SESSIONS),
                 new VsanStorageApplicator(graphWithSettings),
                 new ResizeVStorageApplicator(),
-                new HotChangeEnforcingApplicator(EntitySettingSpecs.VCpuHotAddEnforcing,
-                                HotResizeInfo.Builder::setHotAddSupported, CommodityType.VCPU),
-                new HotChangeEnforcingApplicator(EntitySettingSpecs.VCpuHotRemoveEnforcing,
-                                HotResizeInfo.Builder::setHotRemoveSupported, CommodityType.VCPU),
-                new HotChangeEnforcingApplicator(EntitySettingSpecs.VMemHotAddEnforcing,
-                                HotResizeInfo.Builder::setHotAddSupported, CommodityType.VMEM),
-                new HotChangeEnforcingApplicator(EntitySettingSpecs.VMemHotRemoveEnforcing,
-                                HotResizeInfo.Builder::setHotRemoveSupported, CommodityType.VMEM),
                 new ResizeIncrementApplicator(EntitySettingSpecs.ApplicationHeapScalingIncrement,
                         CommodityType.HEAP),
                 new ScalingPolicyApplicator(),
@@ -368,44 +358,6 @@ public class EntitySettingsApplicator {
         }
     }
 
-
-    /**
-     * Applies {@link HotChangeEnforcing} setting to entity commodities.
-     */
-    private static class HotChangeEnforcingApplicator extends SingleSettingApplicator {
-        private final BiConsumer<HotResizeInfo.Builder, Boolean> setter;
-        private final CommodityType commodityType;
-
-        private HotChangeEnforcingApplicator(@Nonnull EntitySettingSpecs setting,
-                        BiConsumer<HotResizeInfo.Builder, Boolean> setter,
-                        CommodityType commodityType) {
-            super(setting);
-            this.setter = setter;
-            this.commodityType = commodityType;
-        }
-
-        @Override
-        protected void apply(@Nonnull Builder entity, @Nonnull Setting setting) {
-            final HotChangeEnforcing settingValue =
-                            getEntitySettingSpecs().getValue(setting, HotChangeEnforcing.class);
-            if (settingValue == null || settingValue == HotChangeEnforcing.DISCOVERED) {
-                return;
-            }
-            entity.getCommoditySoldListBuilderList().forEach(builder -> {
-                if (builder.getCommodityType().getType() == commodityType.getNumber()) {
-                    final HotResizeInfo.Builder hotResizeBuilder = builder.hasHotResizeInfo()
-                                    ?
-                                    builder.getHotResizeInfoBuilder()
-                                    :
-                                    HotResizeInfo.newBuilder();
-                    setter.accept(hotResizeBuilder,
-                                    settingValue == HotChangeEnforcing.NON_DISRUPTIVE);
-                    builder.setHotResizeInfo(hotResizeBuilder.build());
-                }
-            });
-        }
-    }
-
     /**
      * The applicator of multiple {@link Setting}s to a single {@link TopologyEntityDTO.Builder}.
      */
@@ -421,6 +373,14 @@ public class EntitySettingsApplicator {
             this.actionModeSettings = Objects.requireNonNull(actionModeSettings);
         }
 
+        private MultipleSettingsApplicator(@Nonnull List<EntitySettingSpecs> settings) {
+            this(settings, Collections.emptyList());
+        }
+
+        protected List<EntitySettingSpecs> getEntitySettingSpecs() {
+            return settings;
+        }
+
         protected List<ConfigurableActionSettings> getConfigurableActionSettings() {
             return actionModeSettings;
         }
@@ -432,7 +392,7 @@ public class EntitySettingsApplicator {
         public void apply(@Nonnull TopologyEntityDTO.Builder entity,
                           @Nonnull Map<EntitySettingSpecs, Setting> settings,
                           @Nonnull Map<ConfigurableActionSettings, Setting> actionModeSettings) {
-            final List<Setting> settingObjects = new ArrayList<>();
+            List<Setting> settingObjects = new ArrayList();
             for (EntitySettingSpecs setting : this.settings) {
                 final Setting settingObject = settings.get(setting);
                 //The settings passed to the method should contain ALL the settings of the

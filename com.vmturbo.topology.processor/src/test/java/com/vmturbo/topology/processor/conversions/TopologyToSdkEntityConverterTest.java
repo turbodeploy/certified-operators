@@ -7,23 +7,18 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import javax.annotation.Nonnull;
-
 import com.google.common.collect.ImmutableList;
 
-import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
@@ -208,55 +203,6 @@ public class TopologyToSdkEntityConverterTest {
         Assert.assertEquals(2, namespace2name2props.size());
         checkProps(namespace2name2props.get(address1), localName1);
         checkProps(namespace2name2props.get(address2), localName2);
-    }
-
-    /**
-     * Checks that hot change enforcing policy values will be enforced and send to the probe.
-     */
-    @Test
-    public void checkEnforcedHotChangeSettings() {
-        final long oid = 7777777L;
-        final Entity matchingEntity = new Entity(oid, EntityType.VIRTUAL_MACHINE);
-        final EntityDTO rawDiscoveredEntityDTO = EntityDTO.newBuilder().setId("qqq")
-                        .setEntityType(EntityType.VIRTUAL_MACHINE).setDisplayName("fdgds")
-                        .setOrigin(EntityOrigin.DISCOVERED).build();
-        Mockito.when(entityStore.getEntity(oid)).thenReturn(Optional.of(matchingEntity));
-        final long targetId = 88888888L;
-        matchingEntity.addTargetInfo(targetId, rawDiscoveredEntityDTO);
-        mockTarget(targetId, SDKProbeType.VCENTER, "targetAddress");
-        final TopologyEntityDTO entity = createEntity(oid, createCommoditySold(53, true, true));
-        final EntityDTO entityDTOWithVMem = topologyToSdkEntityConverter.convertToEntityDTO(entity);
-        final CommodityDTO convertedVMem =
-                        entityDTOWithVMem.getCommoditiesSoldList().iterator().next();
-        Assert.assertThat(convertedVMem.getVmemData().getHotRemoveSupported(),
-                        CoreMatchers.is(true));
-        Assert.assertThat(convertedVMem.getVmemData().getHotAddSupported(), CoreMatchers.is(true));
-        final EntityDTO entityDTOWithVCpu = topologyToSdkEntityConverter
-                        .convertToEntityDTO(createEntity(oid, createCommoditySold(26, true, true)));
-        final CommodityDTO convertedVCpu =
-                        entityDTOWithVCpu.getCommoditiesSoldList().iterator().next();
-        Assert.assertThat(convertedVCpu.getVcpuData().getHotRemoveSupported(),
-                        CoreMatchers.is(true));
-        Assert.assertThat(convertedVCpu.getVcpuData().getHotAddSupported(), CoreMatchers.is(true));
-    }
-
-    @Nonnull
-    private static TopologyEntityDTO createEntity(long oid, CommoditySoldDTO commodity) {
-        return TopologyEntityDTO.newBuilder()
-                            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                            .setDisplayName("vm")
-                            .setOid(oid)
-                            .addCommoditySoldList(commodity)
-                            .build();
-    }
-
-    @Nonnull
-    private static CommoditySoldDTO createCommoditySold(int type, boolean hotAdd,
-                    boolean hotRemove) {
-        return CommoditySoldDTO.newBuilder()
-                        .setCommodityType(CommodityType.newBuilder().setType(type).build())
-                        .setHotResizeInfo(HotResizeInfo.newBuilder().setHotAddSupported(hotAdd)
-                                        .setHotRemoveSupported(hotRemove).build()).build();
     }
 
     private static void checkProps(Map<String, List<EntityProperty>> name2props, String localName) {

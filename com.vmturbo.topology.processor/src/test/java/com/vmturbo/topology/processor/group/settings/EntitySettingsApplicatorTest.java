@@ -69,7 +69,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.components.common.setting.HotChangeEnforcing;
 import com.vmturbo.components.common.setting.ScalingPolicyEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -198,16 +197,6 @@ public class EntitySettingsApplicatorTest {
             .setSettingSpecName(ConfigurableActionSettings.Move.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
             .build();
-    private static final Setting VMEM_HOT_ADD_ENFORCING = Setting.newBuilder()
-                    .setSettingSpecName(EntitySettingSpecs.VMemHotAddEnforcing.getSettingName())
-                    .setEnumSettingValue(EnumSettingValue.newBuilder()
-                                    .setValue(HotChangeEnforcing.NON_DISRUPTIVE.name()).build())
-                    .build();
-    private static final Setting VMEM_HOT_REMOVE_ENFORCING = Setting.newBuilder()
-                    .setSettingSpecName(EntitySettingSpecs.VMemHotRemoveEnforcing.getSettingName())
-                    .setEnumSettingValue(EnumSettingValue.newBuilder()
-                                    .setValue(HotChangeEnforcing.NON_DISRUPTIVE.name()).build())
-                    .build();
 
     private static final Setting SHOP_TOGETHER_ENABLED = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.ShopTogether.getSettingName())
@@ -713,26 +702,6 @@ public class EntitySettingsApplicatorTest {
                         .setMovable(true));
         applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
-    }
-
-    /**
-     * Checks that {@link HotChangeEnforcing} enum values applied correctly to entity, checks that
-     * application of several values for the same commodity will not re-create hot resize
-     * information.
-     */
-    @Test
-    public void checkHotChangeEnforce() {
-        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
-                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).addCommoditySoldList(
-                                        CommoditySoldDTO.newBuilder().setCommodityType(
-                                                        TopologyDTO.CommodityType.newBuilder()
-                                                                        .setType(CommodityType.VMEM_VALUE)
-                                                                        .build()).build());
-        applySettings(TOPOLOGY_INFO, entity, VMEM_HOT_ADD_ENFORCING, VMEM_HOT_REMOVE_ENFORCING);
-        Assert.assertThat(entity.getCommoditySoldListList().iterator().next().getHotResizeInfo()
-                        .getHotAddSupported(), CoreMatchers.is(true));
-        Assert.assertThat(entity.getCommoditySoldListList().iterator().next().getHotResizeInfo()
-                        .getHotRemoveSupported(), CoreMatchers.is(true));
     }
 
     /**

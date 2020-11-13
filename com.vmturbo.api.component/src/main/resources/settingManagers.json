@@ -220,11 +220,7 @@
         "dbMemScalingIncrement",
         "resizeVStorage",
         "preferSavingsOverReversibility",
-        "dtuUtilization",
-        "vCpuHotAddEnforcing",
-        "vCpuHotRemoveEnforcing",
-        "vMemHotAddEnforcing",
-        "vMemHotRemoveEnforcing"
+        "dtuUtilization"
       ]
     },
     "storagesettingsmanager": {

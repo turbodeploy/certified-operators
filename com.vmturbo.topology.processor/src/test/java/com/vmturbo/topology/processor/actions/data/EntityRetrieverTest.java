@@ -57,7 +57,7 @@ public class EntityRetrieverTest {
         when(cachedTopology.getCachedEntitiesAsTopologyEntityDTOs(Mockito.anyList())).thenAnswer(
                 invocation -> repoData.stream().collect(Collectors.toMap(
                         TopologyEntityDTO::getOid, Functions.identity())));
-        entityRetriever = new EntityRetriever(entityConverter, repositoryClient, 1);
+        entityRetriever = new EntityRetriever(entityConverter, repositoryClient, cachedTopology, 1);
         cachedEntities = new HashMap<>();
         repoData = new ArrayList<>();
         final CachedTopologyResult cachedTopologyResult = Mockito.mock(CachedTopologyResult.class);
