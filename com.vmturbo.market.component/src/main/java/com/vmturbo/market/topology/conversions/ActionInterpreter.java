@@ -714,18 +714,18 @@ public class ActionInterpreter {
             @Nonnull final ReconfigureTO reconfigureTO,
             @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
             @Nonnull final CloudTopology<TopologyEntityDTO> originalCloudTopology) {
-        final ShoppingListInfo shoppingList =
+        final ShoppingListInfo shoppingListInfo =
                 shoppingListOidToInfos.get(reconfigureTO.getShoppingListToReconfigure());
-        if (shoppingList == null) {
+        if (shoppingListInfo == null) {
             throw new IllegalStateException(
                     "Market returned invalid shopping list for RECONFIGURE: " + reconfigureTO);
         } else {
             final ActionDTO.Reconfigure.Builder builder = ActionDTO.Reconfigure.newBuilder()
-                    .setTarget(createActionEntity(shoppingList.getBuyerId(), projectedTopology));
+                    .setTarget(createActionTargetEntity(shoppingListInfo, projectedTopology));
 
             if (reconfigureTO.hasSource()) {
                 Optional<Long> providerIdOptional = getOriginalProviderId(
-                    reconfigureTO.getSource(), shoppingList.getBuyerId(), originalCloudTopology);
+                    reconfigureTO.getSource(), shoppingListInfo.getBuyerId(), originalCloudTopology);
                 providerIdOptional.ifPresent(providerId ->
                     builder.setSource(createActionEntity(providerId, projectedTopology)));
             }
