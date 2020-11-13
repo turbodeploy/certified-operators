@@ -215,7 +215,7 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
             // The repository doesn't currently provide accurate results for newly-migrated
             // entities, so parse the action list to determine which entities were migrated.
             return fetchNumEntitiesByTierStats(getEntitiesFromActionList(contextId, StringConstants.NUM_VIRTUAL_DISKS),
-                    projectedTopology, StringConstants.NUM_VIRTUAL_DISKS, StringConstants.TIER);
+                    projectedTopology, StringConstants.NUM_VIRTUAL_DISKS, StringConstants.TIER, contextId);
         }
 
         // get all volumes ids in the plan scope, using supply chain fetcher
@@ -224,7 +224,7 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
             .getOrDefault(volumeEntityType, ImmutableSet.of());
         return fetchNumEntitiesByTierStats(getEntitiesFromRepository(volumeIds, projectedTopology, contextId,
                 ENTITY_TYPE_TO_GET_TIER_FUNCTION.get(volumeEntityType)), projectedTopology,
-            StringConstants.NUM_VIRTUAL_DISKS, StringConstants.TIER);
+            StringConstants.NUM_VIRTUAL_DISKS, StringConstants.TIER, contextId);
     }
 
     @Nonnull
@@ -249,7 +249,7 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
             // The repository doesn't currently provide accurate results for newly-migrated
             // entities, so parse the action list to determine which entities were migrated.
             return fetchNumEntitiesByTierStats(getEntitiesFromActionList(contextId, statName),
-                    projectedTopology, statName, StringConstants.TEMPLATE);
+                    projectedTopology, statName, StringConstants.TEMPLATE, contextId);
         }
 
         // fetch related entities ids for given scopes
@@ -260,22 +260,18 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
             .flatMap(entry ->
                 fetchNumEntitiesByTierStats(getEntitiesFromRepository(entry.getValue(), projectedTopology, contextId,
                         ENTITY_TYPE_TO_GET_TIER_FUNCTION.get(entry.getKey())), projectedTopology, statName,
-                        StringConstants.TEMPLATE).stream()
+                        StringConstants.TEMPLATE, contextId).stream()
             ).collect(Collectors.toList());
     }
 
     private List<StatApiDTO> fetchNumEntitiesByTierStats(@Nonnull Map<Optional<Long>, Long> tierIdToNumEntities,
                                                          boolean projectedTopology, @Nonnull String statName,
-                                                         @Nonnull String filterType) {
+                                                         @Nonnull String filterType, long contextId) {
         // tier id --> tier name
-        // Looking up display name in real-time topology, as some (like NVME_SSD StorageTier -
-        // which don't participate in market) are not in plan topology.
-        // It should be safe to look up the tiers in the real-time topology because
-        // Storage tiers available in plan are always going to be a subset of tiers available
-        // in real-time, and the properties (like displayName) of the tiers won't change.
         final Map<Long, String> tierIdToName = repositoryApi.entitiesRequest(tierIdToNumEntities.keySet()
                 .stream().filter(Optional::isPresent)
                 .map(Optional::get).collect(Collectors.toSet()))
+                .contextId(contextId)
                 .getMinimalEntities()
                 .collect(Collectors.toMap(MinimalEntity::getOid,
                         MinimalEntity::getDisplayName));

@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -254,6 +255,7 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
         MultiEntityRequest request = Mockito.mock(MultiEntityRequest.class);
         Mockito.when(repositoryApi.entitiesRequest(Matchers.anySet())).thenReturn(request);
         Mockito.when(request.projectedTopology()).thenReturn(request);
+        Mockito.when(request.contextId(anyLong())).thenReturn(request);
         Mockito.when(request.getMinimalEntities()).thenReturn(sourceTierEntites)
                 .thenReturn(projectedTierEntities);
 

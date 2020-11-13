@@ -26,6 +26,7 @@ import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -208,7 +209,14 @@ public class ActionStatsQueryExecutor {
                             .filter(stat -> stat.getStatGroup().hasTargetEntityId())
                             .map(stat -> stat.getStatGroup().getTargetEntityId())
                             .collect(Collectors.toSet());
-                    entityLookup = repositoryApi.entitiesRequest(templatesToLookup).getMinimalEntities()
+                    MultiEntityRequest entitiesRequest = repositoryApi.entitiesRequest(templatesToLookup);
+                    // If scope is a plan, set the topology context ID in the query.
+                    query.scopes().stream()
+                            .filter(ApiId::isPlan)
+                            .map(ApiId::getTopologyContextId)
+                            .findFirst() // There can only be one topology context ID per plan.
+                            .map(entitiesRequest::contextId);
+                    entityLookup = entitiesRequest.getMinimalEntities()
                             .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
                 } else {
                     entityLookup = Collections.emptyMap();
