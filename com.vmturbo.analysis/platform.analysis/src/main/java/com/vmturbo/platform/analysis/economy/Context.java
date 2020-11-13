@@ -9,6 +9,7 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 
 /**
@@ -19,6 +20,7 @@ public class Context {
     private long zoneId_;
     private BalanceAccount balanceAccount_;
     private Map<Long, CoverageEntry> coverageEntryMap_;
+    private static final double EPSILON = 0.00001d;
 
     /**
      * Constructor for the Context.
@@ -305,11 +307,28 @@ public class Context {
             // the balance account is considered to be equal if all the contents
             // are the same.
             BalanceAccount otherBalanceAccount = (BalanceAccount)other;
-            return this.getSpent() == otherBalanceAccount.getSpent()
-                    && this.getBudget() == otherBalanceAccount.getBudget()
+            return (Math.abs(this.getSpent() - otherBalanceAccount.getSpent()) < EPSILON)
+                    && (Math.abs(this.getBudget() - otherBalanceAccount.getBudget()) < EPSILON)
                     && this.getId() == otherBalanceAccount.getId()
                     && this.getPriceId() == otherBalanceAccount.getPriceId()
                     && Objects.equals(this.getParentId(), otherBalanceAccount.getParentId());
+        }
+
+        /**
+         * Compares this BalanceAccount with the contents of input BalanceAccountDTO.
+         *
+         * @param balanceAccountDto BalanceAccountDTO to check against.
+         * @return Whether contents (id, priceId, spent etc.) of both balance accounts are the same.
+         */
+        public boolean equalsDto(@Nullable final BalanceAccountDTOs.BalanceAccountDTO balanceAccountDto) {
+            if (balanceAccountDto == null) {
+                return false;
+            }
+            return (Math.abs(this.getSpent() - balanceAccountDto.getSpent()) < EPSILON)
+                    && (Math.abs(this.getBudget() - balanceAccountDto.getBudget()) < EPSILON)
+                    && this.getId() == balanceAccountDto.getId()
+                    && this.getPriceId() == balanceAccountDto.getPriceId()
+                    && Objects.equals(this.getParentId(), balanceAccountDto.getParentId());
         }
 
         /**
@@ -362,8 +381,23 @@ public class Context {
 
         Context otherContext = (Context)other;
 
-        return this.getBalanceAccount().equals(otherContext.getBalanceAccount())
+        return Objects.equals(getBalanceAccount(), otherContext.getBalanceAccount())
                 && this.getRegionId() == otherContext.getRegionId();
+    }
+
+    /**
+     * Checks if this Context contents are the same as the input Context DTO.
+     *
+     * @param contextDto Input Context DTO to check against.
+     * @return Whether contents (regionId, balanceAccount etc.) are the same for both contexts.
+     */
+    public boolean equalsDto(@Nullable final EconomyDTOs.Context contextDto) {
+        if (contextDto == null) {
+            return false;
+        }
+        return getBalanceAccount().equalsDto(contextDto.getBalanceAccount())
+                && getRegionId() == contextDto.getRegionId()
+                && isEqualCoverages(Optional.of(contextDto));
     }
 
     @Override

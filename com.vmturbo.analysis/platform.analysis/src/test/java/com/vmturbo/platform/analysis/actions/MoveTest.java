@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
+import javax.annotation.Nonnull;
+
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.Ignore;
@@ -17,6 +19,7 @@ import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -24,6 +27,7 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CoverageEntry;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunction;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
@@ -439,5 +443,127 @@ public final class MoveTest {
                     boolean expect) {
         assertEquals(expect, move1.equals(move2));
         assertEquals(expect, move1.hashCode() == move2.hashCode());
+    }
+
+    /**
+     * Util method to make up a Context DTO object from economy Context instance.
+     *
+     * @param context Instance of economy Context.
+     * @param providerId Provider id to use.
+     * @return Created Context DTO object with same settings as input economy Context.
+     */
+    private Context makeContext(@Nonnull final com.vmturbo.platform.analysis.economy.Context context,
+            long providerId) {
+        return Context.newBuilder()
+                .setBalanceAccount(BalanceAccountDTO.newBuilder()
+                        .setPriceId(context.getBalanceAccount().getPriceId())
+                        .setId(context.getBalanceAccount().getId())
+                        .setParentId(context.getBalanceAccount().getParentId())
+                        .setPriceId(context.getBalanceAccount().getPriceId())
+                        .setBudget(context.getBalanceAccount().getSpent())
+                        .setSpent((float)context.getBalanceAccount().getSpent())
+                        .build())
+                .setRegionId(context.getRegionId())
+                .setZoneId(context.getZoneId())
+                .addFamilyBasedCoverage(CoverageEntry.newBuilder()
+                        .setProviderId(providerId)
+                        .setTotalAllocatedCoupons(context.getTotalAllocatedCoupons(providerId).get())
+                        .setTotalRequestedCoupons(context.getTotalRequestedCoupons(providerId).get())
+                        .build())
+                .build();
+    }
+
+    /**
+     * Util method to create a Move object with various context types for testing.
+     *
+     * @param economy Instance of Economy.
+     * @param context Move contexts.
+     * @return Instance of Move.
+     */
+    @Nonnull
+    private Move makeMove(@Nonnull final Economy economy, @Nullable Optional<Context> context) {
+        final Basket cpuMemBasket = new Basket(TestUtils.CPU, TestUtils.MEM);
+        Trader sourcePm = economy.addTrader(0, TraderState.ACTIVE, cpuMemBasket);
+        Trader destinationPm = economy.addTrader(0, TraderState.ACTIVE, STORAGE_BASKET);
+        Trader buyer = economy.addTrader(1, TraderState.ACTIVE, EMPTY);
+        ShoppingList shoppingList = economy.addBasketBought(buyer, cpuMemBasket);
+        shoppingList.move(sourcePm);
+
+        return new Move(economy, shoppingList, sourcePm, destinationPm, context);
+    }
+
+    /**
+     * Checks if contexts being compared are different or not.
+     */
+    @Test
+    public void isContextChangeValid() {
+        final long balanceAccountId1 = 1001;
+        final long balanceAccountId2 = 1002;
+        final long parentId1 = 2001;
+        final long parentId2 = 2002;
+        final long regionId1 = 3001;
+        final long regionId2 = 3002;
+        final long zoneId1 = 4001;
+        final long zoneId2 = 4002;
+        final long priceId1 = 5001;
+        final long priceId2 = 5002;
+        final long providerId1 = 6001;
+        final long providerId2 = 6002;
+        final float spentAmount1 = 100.0f;
+        final float spentAmount2 = 200.0f;
+        final double totalAllocatedCoupons1 = 32.0d;
+        final double totalAllocatedCoupons2 = 16.0d;
+        final double totalRequestedCoupons1 = 8.0d;
+        final double totalRequestedCoupons2 = 4.0d;
+
+        final com.vmturbo.platform.analysis.economy.Context buyerContext1 =
+                new com.vmturbo.platform.analysis.economy.Context(regionId1, zoneId1,
+                new BalanceAccount(spentAmount1, spentAmount1, balanceAccountId1, priceId1, parentId1));
+        buyerContext1.createEntryAndRegisterInContext(providerId1)
+                .setTotalAllocatedCoupons(totalAllocatedCoupons1)
+                .setTotalRequestedCoupons(totalRequestedCoupons1);
+        final Context moveContext1 = makeContext(buyerContext1, providerId1);
+
+        final com.vmturbo.platform.analysis.economy.Context buyerContext2 =
+                new com.vmturbo.platform.analysis.economy.Context(regionId2, zoneId2,
+                new BalanceAccount(spentAmount2, spentAmount2, balanceAccountId2, priceId2, parentId2));
+        buyerContext2.createEntryAndRegisterInContext(providerId2)
+                .setTotalAllocatedCoupons(totalAllocatedCoupons2)
+                .setTotalRequestedCoupons(totalRequestedCoupons2);
+        final Context moveContext2 = makeContext(buyerContext2, providerId2);
+
+        final Economy economy = new Economy();
+        final Trader buyer = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
+        buyer.getSettings().setContext(buyerContext1);
+
+        // Not valid if move context is not present.
+        final Move move1 = makeMove(economy, Optional.empty());
+        assertFalse(move1.isContextChangeValid(buyer));
+
+        // Not valid if buyer is null.
+        final Move move2 = makeMove(economy, Optional.of(moveContext1));
+        assertFalse(move2.isContextChangeValid(null));
+
+        // Not valid if buyer context is null.
+        buyer.getSettings().setContext(null);
+        assertFalse(move2.isContextChangeValid(buyer));
+
+        // Change is not valid if both contexts are the same.
+        final Move move3 = makeMove(economy, Optional.of(moveContext1));
+        buyer.getSettings().setContext(buyerContext1);
+        assertFalse(move3.isContextChangeValid(buyer));
+
+        final Move move4 = makeMove(economy, Optional.of(moveContext2));
+        buyer.getSettings().setContext(buyerContext2);
+        assertFalse(move4.isContextChangeValid(buyer));
+
+        // Valid change if contexts are actually different.
+        final Move move5 = makeMove(economy, Optional.of(moveContext1));
+        buyer.getSettings().setContext(buyerContext2);
+        assertTrue(move5.isContextChangeValid(buyer));
+
+        final Move move6 = makeMove(economy, Optional.of(moveContext2));
+        buyer.getSettings().setContext(buyerContext1);
+        assertTrue(move6.isContextChangeValid(buyer));
     }
 } // end MoveTest class

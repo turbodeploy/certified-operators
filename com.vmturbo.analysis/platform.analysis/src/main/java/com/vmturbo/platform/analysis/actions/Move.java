@@ -198,15 +198,23 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         return resizeCommodityContexts_;
     }
 
+    /**
+     * Checks if the buyer context equals this move's context.
+     *
+     * @param buyer Buyer whose Context is checked.
+     * @return True only if both contexts are present and they are different, thus change is valid.
+     */
     public boolean isContextChangeValid(Trader buyer) {
-        return getContext().isPresent() &&
-                ((buyer != null)
-                        ? ((buyer.getSettings() != null)
-                                ? ((buyer.getSettings().getContext().isPresent())
-                                        ? !buyer.getSettings().getContext().equals(getContext().get()) : false)
-                                : false)
-                        : false);
-
+        if (!getContext().isPresent()) {
+            return false;
+        }
+        if (buyer == null || !buyer.getSettings().getContext().isPresent()) {
+            return false;
+        }
+        final Context moveContext = getContext().get();
+        final com.vmturbo.platform.analysis.economy.Context buyerContext =
+                buyer.getSettings().getContext().get();
+        return !buyerContext.equalsDto(moveContext);
     }
 
     /**
