@@ -525,9 +525,12 @@ public class ActionsService implements IActionsService {
         List<Long> actionIds = inputDto.getUuids().stream()
                 .map(Long::valueOf)
                 .collect(Collectors.toList());
+        // Use marketId field if it is set, otherwise use old deprecated topologyContextId
+        final String inputDtoTopologyContextId = Strings.isNullOrEmpty(inputDto.getMarketId())
+                ? inputDto.getTopologyContextId()
+                : inputDto.getMarketId();
         Iterator<ActionOrchestratorAction> actionsIterator = actionOrchestratorRpc.getActions(
-                multiActionRequest(actionIds, inputDto.getTopologyContextId()));
-        String inputDtoTopologyContextId = inputDto.getTopologyContextId();
+                multiActionRequest(actionIds, inputDtoTopologyContextId));
         Long topologyContextId = !Strings.isNullOrEmpty(inputDtoTopologyContextId)
                 ? Long.parseLong(inputDtoTopologyContextId) : null;
 

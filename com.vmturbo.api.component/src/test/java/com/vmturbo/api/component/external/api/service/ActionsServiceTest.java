@@ -292,7 +292,7 @@ public class ActionsServiceTest {
         final long topologyContextId = 20;
         final ScopeUuidsApiInputDTO inputDTO = new ScopeUuidsApiInputDTO();
         inputDTO.setUuids(Collections.singletonList(Long.toString(actionId)));
-        inputDTO.setTopologyContextId(Long.toString(topologyContextId));
+        inputDTO.setMarketId(Long.toString(topologyContextId));
 
         final List<ActionOrchestratorAction> mockActions =
             Collections.singletonList(ActionOrchestratorAction.getDefaultInstance());
