@@ -47,7 +47,7 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     @Value("${loginPolicy:ALL}")
     private String loginPolicy;
 
-    @Value("${enableMultiADGroupSupport:true}")
+    @Value("${enableMultiADGroupSupport:false}")
     private boolean enableMultiADGroupSupport;
 
     /**
