@@ -358,20 +358,18 @@ public class MarketRunner {
         StringBuilder sb = new StringBuilder();
         for (UnplacementReason reason : unplacedReasonList) {
             sb.append(" {");
-            if (reason.getPlacementProblem() == PlacementProblem.COSTS_NOT_FOUND) {
-                sb.append(" Cost is not found.");
-            } else if (reason.getPlacementProblem() == PlacementProblem.NOT_CONTROLLABLE) {
-                sb.append(" VM is not controllable.");
-            } else if (!reason.getFailedResourcesList().isEmpty()) {
-                reason.getFailedResourcesList().forEach( f -> {
-                    sb.append(" needs resource ").append(CommodityConverter
-                            .commodityDebugInfo(f.getCommType()))
-                            .append(" which has a requested amount of ")
-                            .append(f.getRequestedAmount());
+            if (!reason.getFailedResourcesList().isEmpty()) {
+                reason.getFailedResourcesList().forEach(f -> {
+                    sb.append(" commodity ").append(CommodityConverter.commodityDebugInfo(f.getCommType())).append(
+                            " which has a requested amount of ").append(f.getRequestedAmount());
                     if (f.hasMaxAvailable()) {
                         sb.append(" but the max available is ").append(f.getMaxAvailable());
                     }
                 });
+            } else if (reason.getPlacementProblem() == PlacementProblem.COSTS_NOT_FOUND) {
+                sb.append(" Cost is not found.");
+            } else if (reason.getPlacementProblem() == PlacementProblem.NOT_CONTROLLABLE) {
+                sb.append(" VM is not controllable.");
             }
             if (reason.hasClosestSeller()) {
                 sb.append(" from closest entity ").append(reason.getClosestSeller());

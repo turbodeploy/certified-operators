@@ -1040,6 +1040,9 @@ message TopologyEntityDTO {
         optional int64 closest_seller = 3;
         // Reason for the unplacement, other than insufficient resources.
         optional PlacementProblem placement_problem = 4;
+        // The oid of the owner to whom the failed resource bundle belongs. Typically it is a
+        // volume id.
+        optional int64 resource_owner_oid = 5;
 
         // Types of placement Problems.
         enum PlacementProblem {

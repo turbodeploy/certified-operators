@@ -98,6 +98,7 @@ import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcher;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.SMAConverter;
+import com.vmturbo.market.topology.conversions.ShoppingListInfo;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -475,7 +476,7 @@ public class Analysis {
                     try {
                         Map<Trader, List<InfiniteQuoteExplanation>> infiniteQuoteTraderMap = ede
                                 .getPlacementResults().getExplanations();
-                        unplacedReasonMap = generateUnplacedReason(infiniteQuoteTraderMap, converter);
+                        unplacedReasonMap = generateUnplacedReason(infiniteQuoteTraderMap, converter, topology);
                         if (isSMAEnabled) {
                             // Cloud VM OID to a set of provider OIDs: i.e. compute tier OIDs that the VM can fit in.
                             Map<Long, Set<Long>> cloudVmOidToProvidersOIDsMap = new HashMap<>();
@@ -857,7 +858,9 @@ public class Analysis {
                 });
             } else {
                 // Iterate each CommoditiesBoughtFromProvider, clear provider for whose provider
-                // type are the same as the provider type within unplacementReason.
+                // type are the same as the provider type within unplacementReason.This is a
+                // requirement from PM, which particularly aims at VM with several volumes. When
+                // at least one volume failed to find placement, unplace all volumes of the same VM.
                 for (CommoditiesBoughtFromProvider commBoughtProvider : projEntity.getEntity()
                         .getCommoditiesBoughtFromProvidersList()) {
                     if (commBoughtProvider.hasProviderEntityType() && providerTypeWithReason
@@ -891,11 +894,12 @@ public class Analysis {
      *
      * @param infiniteQuoteTraderMap A map of trader to its list of {@link InfiniteQuoteExplanation}s.
      * @param converter The topology converter.
+     * @param topology The topology associated with an economy.
      * @return a map of entity oid to a list of {@link UnplacementReason.Builder}s.
      */
     private Map<Long, List<UnplacementReason.Builder>> generateUnplacedReason(
             final Map<Trader, List<InfiniteQuoteExplanation>> infiniteQuoteTraderMap,
-            final TopologyConverter converter) {
+            final TopologyConverter converter, final Topology topology) {
         Map<Long, List<UnplacementReason.Builder>> unplacementReasonMap = new HashMap<>();
         for (Entry<Trader, List<InfiniteQuoteExplanation>> entry : infiniteQuoteTraderMap.entrySet()) {
             List<InfiniteQuoteExplanation> explanations = entry.getValue();
@@ -918,6 +922,19 @@ public class Analysis {
                         sellerOid = marketTier.getTier().getOid();
                     }
                     reason.setClosestSeller(sellerOid);
+                }
+                Long infiniteSlOid = topology.getShoppingListOids().get(explanation.shoppingList);
+                if (infiniteSlOid != null) {
+                    ShoppingListInfo slInfo = converter.getShoppingListOidToInfos().get(infiniteSlOid);
+                    if (slInfo != null) {
+                        if (slInfo.getResourceId().isPresent()) {
+                            // when on prem VM failed on the shopping list that represents the volume
+                            reason.setResourceOwnerOid(slInfo.getResourceId().get());
+                        } else if (slInfo.getCollapsedBuyerId().isPresent()) {
+                            // when cloud VM failed on the shopping list that represents the volume
+                            reason.setResourceOwnerOid(slInfo.getCollapsedBuyerId().get());
+                        }
+                    }
                 }
                 for (InfiniteQuoteExplanation.CommodityBundle bundle : explanation.commBundle) {
                     CommodityConverter commConverter = converter.getCommodityConverter();
