@@ -502,7 +502,7 @@ public class EntitySettingsResolver {
                                    @Nonnull final Collection<EntitySettings> entitiesSettings,
                                    @Nonnull final TopologyGraph<TopologyEntity> graph) {
         final CountDownLatch finishLatch = new CountDownLatch(1);
-        // For now, don't upload settings for non-realtime topologies other than VMs.
+        // For now, don't upload settings for non-realtime topologies other than VMs and Volumes.
         StreamObserver<UploadEntitySettingsResponse> responseObserver =
             new StreamObserver<UploadEntitySettingsResponse>() {
 
@@ -535,13 +535,14 @@ public class EntitySettingsResolver {
                 streamEntitySettingsRequest(topologyInfo, entitiesSettings, requestObserver);
             } else {
                 // Topology is a plan topology. Save the settings in the group component.
-                // Only send settings for VMs to the group component.
-                List<EntitySettings> vmSettings = entitiesSettings.stream().filter(e -> {
+                // Only send settings for VMs and Volumes to the group component.
+                List<EntitySettings> planSettingsNeedingUpload = entitiesSettings.stream().filter(e -> {
                     TopologyEntity entity = graph.getEntity(e.getEntityOid()).orElse(null);
                     return entity != null &&
-                            entity.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue();
+                            (entity.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue()
+                                    || entity.getEntityType() == EntityType.VIRTUAL_VOLUME.getValue());
                 }).collect(Collectors.toList());
-                streamEntitySettingsRequest(topologyInfo, vmSettings, requestObserver);
+                streamEntitySettingsRequest(topologyInfo, planSettingsNeedingUpload, requestObserver);
             }
         } catch (RuntimeException e) {
             // Cancel RPC

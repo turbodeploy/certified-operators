@@ -3118,7 +3118,7 @@ public class TopologyConverter {
             // Create template exclusion commodity bought
             values.addAll(createTierExclusionCommodityBoughtForCloudEntity(providerOid, entityForSLOid));
         } else if (isCloudMigration) {
-            values.addAll(createTierExclusionCommodityBoughtForMigratingEntity(providerOid, entityForSLOid));
+            values.addAll(createTierExclusionCommodityBoughtForMigratingEntity(providerOid, entityForSLOid, commBoughtGroupingForSL));
         }
         final long id = shoppingListId++;
         // Check if the provider of the shopping list is UNKNOWN. If true, set movable false.
@@ -3356,15 +3356,24 @@ public class TopologyConverter {
      *
      * @param providerOid oid of the provider
      * @param buyerOid the cloud consumer
+     * @param commBoughtGroupingForSL commBoughtGrouping that is currently checked for the consumer
      * @return the list of template exclusion commodities the consumer needs to buy
      */
     @Nonnull
     private Set<CommodityBoughtTO> createTierExclusionCommodityBoughtForMigratingEntity(
-        long providerOid, long buyerOid) {
+        long providerOid, long buyerOid, @Nonnull final CommoditiesBoughtFromProvider commBoughtGroupingForSL) {
 
         TopologyEntityDTO provider = entityOidToDto.get(providerOid);
-        if (provider != null && provider.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+        if (provider == null) {
+            return Collections.emptySet();
+        }
+        if (provider.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
             return createTierExclusionCommodityBought(buyerOid);
+        } else if (provider.getEntityType() == EntityType.STORAGE_VALUE && commBoughtGroupingForSL.hasVolumeId()) {
+            // For on-prem to cloud migration, in source topology, VM's storage side provider is Storage instead of VirtualVolume.
+            // However, StorageTier exclusion policy in "Virtual Volume Defaults" is configured as policies on all cloud volume
+            // entities. Thus StorageTier exclusion should be retrieved from the volume.
+            return createTierExclusionCommodityBought(commBoughtGroupingForSL.getVolumeId());
         }
         return Collections.emptySet();
     }
