@@ -155,6 +155,13 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
         // create CouponComm
         float capacity = (float)marketTier.getTotalNumberOfCouponsBought();
         float used = marketTier.getTotalNumberOfCouponsUsed();
+        if (used > capacity) {
+            // A sanity check in case the used is greater than capacity due to small deviation from float computation
+            // Note: this is unlikely to happen once OM-63844 is resolved
+            logger.warn("Compute tier {} in region {} has coupon commodity used {} being capped to capacity {}",
+                    computeTier.getDisplayName(), region.getDisplayName(), used, capacity);
+            used = capacity;
+        }
         CommodityType commType =
                 CommodityType.newBuilder()
                             .setType(CommodityDTO.CommodityType.COUPON_VALUE)

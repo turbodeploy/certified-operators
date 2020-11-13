@@ -182,6 +182,23 @@ public class ReservedInstanceConverterTest {
     }
 
     /**
+     * Test coupon commodity used is capped by capacity.
+     */
+    @Test
+    public void testCouponCommodityCreation() {
+        RiDiscountedMarketTier riTier = mockRiDiscountedTier(false);
+        when(riTier.getTotalNumberOfCouponsBought()).thenReturn(10.0);
+        when(riTier.getTotalNumberOfCouponsUsed()).thenReturn(10.1f);
+        Collection<CommoditySoldTO> commSoldList = converter.commoditiesSoldList(mockComputeTier(),
+                mockRegion(111L, "us-east"), riTier);
+        List<CommoditySoldTO> coupon = commSoldList.stream()
+                .filter(c -> c.getSpecification().getBaseType() == CommodityDTO.CommodityType.COUPON_VALUE)
+                .collect(Collectors.toList());
+        Assert.assertTrue(coupon.size() == 1);
+        Assert.assertEquals(10.0, coupon.get(0).getCapacity(), 0.001);
+        Assert.assertEquals(10.0, coupon.get(0).getQuantity(), 0.001);
+    }
+    /**
      * Test that non-platform flexible RI sells only 1 License Access commodity corresponding to the
      * RIs platform.
      */
