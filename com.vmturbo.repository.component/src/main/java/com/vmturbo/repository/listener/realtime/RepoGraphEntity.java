@@ -61,7 +61,7 @@ public class RepoGraphEntity extends BaseGraphEntity<RepoGraphEntity> implements
             @Nonnull final SharedByteBuffer sharedCompressionBuffer) {
         super(src);
 
-        this.actionEntityInfo = TopologyDTOUtil.makeActionTypeSpecificInfo(src.getTypeSpecificInfo())
+        this.actionEntityInfo = TopologyDTOUtil.makeActionTypeSpecificInfo(src)
                 .map(ActionEntityTypeSpecificInfo.Builder::build)
                 .orElse(null);
 

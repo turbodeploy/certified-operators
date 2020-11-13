@@ -273,7 +273,7 @@ public class PartialEntityConverter {
                     long primaryProviderId = topoEntity.getCommoditiesBoughtFromProvidersList().get(index).getProviderId();
                     actionEntityBldr.setPrimaryProviderId(primaryProviderId);
                 });
-                TopologyDTOUtil.makeActionTypeSpecificInfo(topoEntity.getTypeSpecificInfo())
+                TopologyDTOUtil.makeActionTypeSpecificInfo(topoEntity)
                     .ifPresent(actionEntityBldr::setTypeSpecificInfo);
                 partialEntityBldr.setAction(actionEntityBldr);
                 break;

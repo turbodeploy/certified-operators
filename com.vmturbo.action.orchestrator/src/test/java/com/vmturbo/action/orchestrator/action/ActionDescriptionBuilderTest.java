@@ -1281,7 +1281,7 @@ public class ActionDescriptionBuilderTest {
             entitySettingsCache, resizeVcpuRecommendationForContainer);
 
         assertEquals(description,
-            "Resize down VCPU for Container container1_test from 16 MHz to 8 MHz");
+            "Resize down VCPU for Container container1_test from 16 millicores to 8 millicores");
     }
 
     /**
@@ -1299,7 +1299,7 @@ public class ActionDescriptionBuilderTest {
             entitySettingsCache, resizeVcpuReservationRecommendationForContainer);
 
         assertEquals(description,
-            "Resize down VCPU reservation for Container container1_test from 16 MHz to 8 MHz");
+            "Resize down VCPU reservation for Container container1_test from 16 millicores to 8 millicores");
     }
 
     /**

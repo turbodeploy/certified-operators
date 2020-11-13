@@ -18,7 +18,7 @@ public class ActionGraphEntity extends BaseGraphEntity<ActionGraphEntity> {
     private ActionGraphEntity(@Nonnull final TopologyEntityDTO src) {
         super(src);
 
-        this.actionEntityInfo = TopologyDTOUtil.makeActionTypeSpecificInfo(src.getTypeSpecificInfo())
+        this.actionEntityInfo = TopologyDTOUtil.makeActionTypeSpecificInfo(src)
                 .map(ActionEntityTypeSpecificInfo.Builder::build)
                 .orElse(null);
     }

@@ -29,6 +29,7 @@ import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.action.VisibilityLevel;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
+import com.vmturbo.action.orchestrator.topology.ActionGraphEntity;
 import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
@@ -154,22 +155,60 @@ public class ActionOrchestratorTestUtils {
                         .build();
     }
 
+    /**
+     * Create a Resize action.
+     *
+     * @param actionId         Given action ID.
+     * @param targetId         Given target entity ID.
+     * @param resizeCommodity  Resize commodity type.
+     * @param oldCapacity      Commodity old capacity.
+     * @param newCapacity      Commodity new capacity
+     * @param targetEntityType Target entity type.
+     * @return A new Resize action.
+     */
+    @Nonnull
+    public static ActionDTO.Action createResizeRecommendation(final long actionId,
+                                                              final long targetId,
+                                                              final int resizeCommodity,
+                                                              final double oldCapacity,
+                                                              final double newCapacity,
+                                                              final int targetEntityType) {
+        return baseAction(actionId)
+            .setInfo(ActionDTO.ActionInfo.newBuilder()
+                .setResize(ActionDTO.Resize.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder().setType(resizeCommodity))
+                    .setOldCapacity((float)oldCapacity)
+                    .setNewCapacity((float)newCapacity)
+                    .setTarget(createActionEntity(targetId, targetEntityType))))
+            .build();
+    }
+
+    /**
+     * Create a Resize action.
+     *
+     * @param actionId         Given action ID.
+     * @param targetId         Given target entity ID.
+     * @param resizeCommodity  Resize commodity type.
+     * @param oldCapacity      Commodity old capacity.
+     * @param newCapacity      Commodity new capacity
+     * @return A new Resize action.
+     */
     @Nonnull
     public static ActionDTO.Action createResizeRecommendation(final long actionId,
                                                               final long targetId,
                                                               @Nonnull final CommodityDTO.CommodityType resizeCommodity,
                                                               final double oldCapacity,
                                                               final double newCapacity) {
-        return baseAction(actionId)
-            .setInfo(ActionDTO.ActionInfo.newBuilder()
-                .setResize(ActionDTO.Resize.newBuilder()
-                    .setCommodityType(CommodityType.newBuilder().setType(resizeCommodity.getNumber()))
-                    .setOldCapacity((float)oldCapacity)
-                    .setNewCapacity((float)newCapacity)
-                    .setTarget(createActionEntity(targetId))))
-            .build();
+        return createResizeRecommendation(actionId, targetId, resizeCommodity.getNumber(), oldCapacity, newCapacity, DEFAULT_ENTITY_TYPE);
     }
 
+    /**
+     * Create a Resize action.
+     *
+     * @param actionId         Given action ID.
+     * @param resizeCommodity  Resize commodity type.
+     * @return A new Resize action.
+     */
     @Nonnull
     public static ActionDTO.Action createResizeRecommendation(final long actionId,
                                                               @Nonnull final CommodityDTO.CommodityType resizeCommodity) {
@@ -446,5 +485,20 @@ public class ActionOrchestratorTestUtils {
                 .setEndTime(1589824800)
                 .setTimezoneId("America/Toronto")
                 .build();
+    }
+
+    /**
+     * Mock a {@link ActionGraphEntity}.
+     *
+     * @param entityId   Given entity ID.
+     * @param entityType Given entity Type.
+     * @return Mocked {@link ActionGraphEntity}.
+     */
+    @Nonnull
+    public static ActionGraphEntity mockActionGraphEntity(long entityId, int entityType) {
+        ActionGraphEntity entity = mock(ActionGraphEntity.class);
+        when(entity.getOid()).thenReturn(entityId);
+        when(entity.getEntityType()).thenReturn(entityType);
+        return entity;
     }
 }

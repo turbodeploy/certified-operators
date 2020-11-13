@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.store;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -19,6 +20,8 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.ActionTranslation;
+import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.action.AtomicActionSpecsCache;
 import com.vmturbo.action.orchestrator.store.AtomicActionFactory.AtomicActionResult;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -33,6 +36,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AtomicResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.ResizeInfo;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionEntity;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.AtomicActionSpec;
 import com.vmturbo.common.protobuf.action.ActionMergeSpecDTO.ResizeMergeSpec;
@@ -172,6 +176,7 @@ public class AtomicResizeBuilderTest {
     private ActionDTO.Action resize82;
 
     private com.vmturbo.action.orchestrator.action.Action view1;
+    private com.vmturbo.action.orchestrator.action.Action view11;
     private com.vmturbo.action.orchestrator.action.Action view2;
     private com.vmturbo.action.orchestrator.action.Action view12;
     private com.vmturbo.action.orchestrator.action.Action view22;
@@ -187,6 +192,7 @@ public class AtomicResizeBuilderTest {
         resize2 = createResizeAction(2, 12, 40, CommodityType.VCPU);
 
         view1 = Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(resize1, 1));
+        view11 = Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(resize1, 1));
         view2 = Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(resize2, 1));
 
         resize12 = createResizeAction(3, 11, 40, CommodityType.VMEM);
@@ -214,6 +220,7 @@ public class AtomicResizeBuilderTest {
         view82 = Mockito.spy(ActionOrchestratorTestUtils.actionFromRecommendation(resize82, 1));
 
         when(view1.getMode()).thenReturn(ActionMode.MANUAL);
+        when(view11.getMode()).thenReturn(ActionMode.MANUAL);
         when(view2.getMode()).thenReturn(ActionMode.MANUAL);
         when(view12.getMode()).thenReturn(ActionMode.MANUAL);
         when(view22.getMode()).thenReturn(ActionMode.MANUAL);
@@ -567,5 +574,80 @@ public class AtomicResizeBuilderTest {
                 .map(r -> r.getTarget()).collect(Collectors.toList());
 
         assertThat(resizeTargets, CoreMatchers.hasItems(container7, container8));
+    }
+
+    /**
+     * Test AtomicResize with failed translation. Resize action with failed translation is not
+     * added to atomicActionResult.
+     */
+    @Test
+    public void testAtomicResizeWithFailedTranslation() {
+        AggregatedAction aggregatedAction = new AggregatedAction(ActionTypeCase.ATOMICRESIZE,
+            aggregateEntity1.getEntity(),
+            aggregateEntity1.getEntityName());
+        aggregatedAction.addAction(resize1, Optional.of(deDupEntity1));
+        aggregatedAction.updateActionView(resize1.getId(), view11);
+        when(view11.getTranslationStatus()).thenReturn(TranslationStatus.TRANSLATION_FAILED);
+
+        ActionTranslation actionTranslation = new ActionTranslation(resize1);
+        actionTranslation.setTranslationSuccess(resize1.toBuilder().setInfo(
+            ActionInfo.newBuilder().setResize(Resize.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                    .setId(11)
+                    .setType(40))
+                .setOldCapacity(10)
+                .setNewCapacity(20)))
+            .build());
+        when(view11.getActionTranslation()).thenReturn(actionTranslation);
+
+        AtomicResizeBuilder actionBuilder = new AtomicResizeBuilder(aggregatedAction);
+        AtomicActionResult atomicActionResult = actionBuilder.build().get();
+        atomicActionResult.atomicAction();
+        assertFalse(atomicActionResult.atomicAction().isPresent());
+        assertEquals(0, atomicActionResult.deDuplicatedActions().size());
+    }
+
+    /**
+     * Test AtomicResize with resize translation. Old capacity and new capacity are updated based on
+     * translated resize action.
+     */
+    @Test
+    public void testAtomicResizeWithTranslatedCapacity() {
+        AggregatedAction aggregatedAction = new AggregatedAction(ActionTypeCase.ATOMICRESIZE,
+            aggregateEntity1.getEntity(),
+            aggregateEntity1.getEntityName());
+        aggregatedAction.addAction(resize1, Optional.of(deDupEntity1));
+        aggregatedAction.updateActionView(resize1.getId(), view11);
+        when(view11.getTranslationStatus()).thenReturn(TranslationStatus.TRANSLATION_SUCCEEDED);
+
+        final float translatedOldCapacity = 10;
+        final float translatedNewCapacity = 20;
+
+        ActionTranslation actionTranslation = new ActionTranslation(resize1);
+        actionTranslation.setTranslationSuccess(resize1.toBuilder().setInfo(
+            ActionInfo.newBuilder().setResize(Resize.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                    .setId(11)
+                    .setType(40))
+                .setOldCapacity(translatedOldCapacity)
+                .setNewCapacity(translatedNewCapacity)))
+            .build());
+        when(view11.getActionTranslation()).thenReturn(actionTranslation);
+
+        AtomicResizeBuilder actionBuilder = new AtomicResizeBuilder(aggregatedAction);
+        AtomicActionResult atomicActionResult = actionBuilder.build().get();
+        assertTrue(atomicActionResult.atomicAction().isPresent());
+        assertEquals(1, atomicActionResult.deDuplicatedActions().size());
+
+        // Translated old and new capacity are updated to resize actions in atomic action of WorkloadController.
+        ResizeInfo atomicResizeInfo = atomicActionResult.atomicAction().get().getInfo().getAtomicResize().getResizes(0);
+        assertEquals(translatedOldCapacity, atomicResizeInfo.getOldCapacity(), 0);
+        assertEquals(translatedNewCapacity, atomicResizeInfo.getNewCapacity(), 0);
+
+        // Translated old and new capacity are updated to resize actions in de-duplicated action of ContainerSpec.
+        Action deDeuplicatedResizeAction = atomicActionResult.deDuplicatedActions().keySet().iterator().next();
+        ResizeInfo deDeuplicatedResizeInfo = deDeuplicatedResizeAction.getInfo().getAtomicResize().getResizes(0);
+        assertEquals(translatedOldCapacity, deDeuplicatedResizeInfo.getOldCapacity(), 0);
+        assertEquals(translatedNewCapacity, deDeuplicatedResizeInfo.getNewCapacity(), 0);
     }
 }

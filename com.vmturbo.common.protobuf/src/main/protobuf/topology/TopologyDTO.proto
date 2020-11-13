@@ -530,6 +530,8 @@ message PartialEntity {
                 optional .topology.TypeSpecificInfo.Architecture architecture = 2;
                 optional string locks = 3;
                 optional .topology.TypeSpecificInfo.VirtualizationType virtualization_type = 4;
+                // The CPU core MHz on the VM
+                optional double cpu_core_mhz = 5;
             }
 
             message ActionPhysicalMachineInfo {

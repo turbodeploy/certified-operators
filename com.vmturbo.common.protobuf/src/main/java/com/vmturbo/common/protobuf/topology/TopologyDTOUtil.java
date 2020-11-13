@@ -23,12 +23,15 @@ import com.google.common.collect.ImmutableSet;
 import com.google.gson.Gson;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionComputeTierInfo;
@@ -40,16 +43,19 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfoOrBuilder;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Utilities for dealing with protobuf messages in topology/TopologyDTO.proto.
  */
 public final class TopologyDTOUtil {
+
+    private static final Logger logger = LogManager.getLogger();
 
     private static DateTimeFormatter hmsFormat = DateTimeFormatter
         .ofPattern("HH:mm:ss")
@@ -512,13 +518,14 @@ public final class TopologyDTOUtil {
     }
 
     /**
-     * Create a {@link ActionEntityTypeSpecificInfo} from a {@link TopologyDTO.TypeSpecificInfo}.
+     * Create a {@link ActionEntityTypeSpecificInfo} from a {@link TopologyEntityDTOOrBuilder}.
      *
-     * @param typeSpecificInfo The input type-specific-info (or builder).
+     * @param topologyEntity Topology entity (or builder) to set ActionTypeSpecificInfo.
      * @return An optional containing the {@link ActionEntityTypeSpecificInfo}, or an empty optional
      *         if there is no associated action-specific object.
      */
-    public static Optional<ActionEntityTypeSpecificInfo.Builder> makeActionTypeSpecificInfo(@Nonnull final TypeSpecificInfoOrBuilder typeSpecificInfo) {
+    public static Optional<ActionEntityTypeSpecificInfo.Builder> makeActionTypeSpecificInfo(@Nonnull final TopologyEntityDTOOrBuilder topologyEntity) {
+        TypeSpecificInfo typeSpecificInfo = topologyEntity.getTypeSpecificInfo();
         switch (typeSpecificInfo.getTypeCase()) {
             case COMPUTE_TIER:
                 ComputeTierInfo tierInfo = typeSpecificInfo.getComputeTier();
@@ -531,8 +538,10 @@ public final class TopologyDTOUtil {
             case VIRTUAL_MACHINE:
                 VirtualMachineInfo vmInfo = typeSpecificInfo.getVirtualMachine();
                 return createActionVmInfo(vmInfo)
-                        .map(actionVmInfo -> ActionEntityTypeSpecificInfo.newBuilder()
-                            .setVirtualMachine(actionVmInfo));
+                        .map(actionVmInfo -> {
+                            getCPUCoreMhz(topologyEntity).ifPresent(actionVmInfo::setCpuCoreMhz);
+                            return ActionEntityTypeSpecificInfo.newBuilder().setVirtualMachine(actionVmInfo);
+                        });
             case PHYSICAL_MACHINE:
                 if (typeSpecificInfo.getPhysicalMachine().hasCpuCoreMhz()) {
                     return Optional.of(ActionEntityTypeSpecificInfo.newBuilder()
@@ -552,14 +561,14 @@ public final class TopologyDTOUtil {
     }
 
     private static Optional<ActionVirtualMachineInfo.Builder> createActionVmInfo(@Nonnull final VirtualMachineInfo vmInfo) {
+        ActionVirtualMachineInfo.Builder actionVmInfo = ActionVirtualMachineInfo.newBuilder();
         // Avoid creating an object if the necessary properties are not set.
         // Most notably, none of these properties are set for on-prem VMs.
         if (!(vmInfo.hasArchitecture() || vmInfo.hasVirtualizationType()
                 || (vmInfo.hasDriverInfo() && !vmInfo.getDriverInfo().equals(DriverInfo.getDefaultInstance()))
                 || !StringUtils.isEmpty(vmInfo.getLocks()))) {
-            return Optional.empty();
+            return Optional.of(actionVmInfo);
         } else {
-            ActionVirtualMachineInfo.Builder actionVmInfo = ActionVirtualMachineInfo.newBuilder();
             if (vmInfo.hasArchitecture()) {
                 actionVmInfo.setArchitecture(vmInfo.getArchitecture());
             }
@@ -574,6 +583,29 @@ public final class TopologyDTOUtil {
             }
             return Optional.of(actionVmInfo);
         }
+    }
+
+    /**
+     * Get CPU speed in MHz/core for given VM.
+     *
+     * @param topologyEntity Given topology entity DTO or builder of VM.
+     * @return CPU speed in MHz/core for given VM.
+     */
+    private static Optional<Double> getCPUCoreMhz(@Nonnull final TopologyEntityDTOOrBuilder topologyEntity) {
+        if (topologyEntity.hasTypeSpecificInfo()
+            && topologyEntity.getTypeSpecificInfo().hasVirtualMachine()
+            && topologyEntity.getTypeSpecificInfo().getVirtualMachine().hasNumCpus()) {
+            int numCPUCores = topologyEntity.getTypeSpecificInfo().getVirtualMachine().getNumCpus();
+            Optional<CommoditySoldDTO> cpuComm = topologyEntity.getCommoditySoldListList().stream()
+                .filter(comm -> comm.getCommodityType().getType() == CommodityType.VCPU_VALUE)
+                .findFirst();
+            if (!cpuComm.isPresent()) {
+                logger.error("Fail to calculate CPU speed for VM {} because VM has no VCPU commodity sold.", topologyEntity.getOid());
+                return Optional.empty();
+            }
+            return Optional.of(cpuComm.get().getCapacity() / numCPUCores);
+        }
+        return Optional.empty();
     }
 
     /**

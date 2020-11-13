@@ -188,6 +188,9 @@ public class ActionSpecMapper {
     private static final String API_CATEGORY_UNKNOWN = "Unknown";
     // END - Strings representing action categories in the API.
 
+    // Millicore unit for container CPU commodity types.
+    private static final String MILLICORE_UNIT = "millicore";
+
     private static final Set<String> SCALE_TIER_VALUES = ImmutableSet.of(
             ApiEntityType.COMPUTE_TIER.apiStr(), ApiEntityType.DATABASE_SERVER_TIER.apiStr(),
             ApiEntityType.DATABASE_TIER.apiStr());
@@ -203,6 +206,12 @@ public class ActionSpecMapper {
     private static final Map<String, String> SHORTENED_ENTITY_TYPES = ImmutableMap.of(
         ApiEntityType.VIRTUAL_VOLUME.apiStr(), "Volume"
     );
+
+    /**
+     * Set of CPU commodity types to use "millicore" as unit.
+     */
+    private static final Set<Integer> CPU_COMMODITY_TYPES = ImmutableSet.of(CommodityType.VCPU_VALUE,
+        CommodityType.VCPU_REQUEST_VALUE);
 
     private final ActionSpecMappingContextFactory actionSpecMappingContextFactory;
 
@@ -1605,6 +1614,11 @@ public class ActionSpecMapper {
         actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resizeInfo.getNewCapacity()));
         try {
             String units = CommodityTypeUnits.valueOf(commodityType.name()).getUnits();
+            // If resize info is container CPU commodity, set unit as "millicore".
+            if (resizeInfo.getTarget().getType() == EntityType.CONTAINER_SPEC_VALUE
+                && CPU_COMMODITY_TYPES.contains(commodityType.getNumber())) {
+                units = MILLICORE_UNIT;
+            }
             if (!StringUtils.isEmpty(units)) {
                 actionApiDTO.setValueUnits(units);
             }

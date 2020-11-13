@@ -21,6 +21,7 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
@@ -136,6 +137,11 @@ public class ActionModeCalculator {
                     .put(CommodityType.MEM.getNumber(), ConfigurableActionSettings.ResizeVmemDownInBetweenThresholds)
                     .build())
             .build();
+
+    private static final Set<Integer> MEM_COMMODITY_TYPES = ImmutableSet.of(
+        CommodityType.VMEM_VALUE,
+        CommodityType.VMEM_REQUEST_VALUE
+    );
 
     /**
      * Get the action mode and execution schedule for a particular action. The both of these are
@@ -1365,7 +1371,7 @@ public class ActionModeCalculator {
         private ResizeCapacity getCapacityForModeCalculation(Resize resize) {
             float oldCapacityForMode = resize.getOldCapacity();
             float newCapacityForMode = resize.getNewCapacity();
-            if (resize.getCommodityType().getType() == CommodityDTO.CommodityType.VMEM_VALUE) {
+            if (MEM_COMMODITY_TYPES.contains(resize.getCommodityType().getType())) {
                 oldCapacityForMode /= Units.NUM_OF_KB_IN_MB;
                 newCapacityForMode /= Units.NUM_OF_KB_IN_MB;
             }

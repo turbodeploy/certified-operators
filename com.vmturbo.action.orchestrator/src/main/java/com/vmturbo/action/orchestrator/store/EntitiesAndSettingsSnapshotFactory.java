@@ -246,7 +246,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
             return  Optional.ofNullable(actionToAcceptorMap.get(recommendationId));
         }
 
-        public long getToologyContextId() {
+        public long getTopologyContextId() {
             return topologyContextId;
         }
 

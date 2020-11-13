@@ -5,13 +5,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -38,6 +39,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.util.BaseGraphEntity;
+import com.vmturbo.topology.graph.util.BaseTopology;
 
 /**
  * This class translates vCPU resize actions from MHz to number of vCPUs.
@@ -56,6 +59,18 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
      * available. Currently only realtime topology information is available.
      */
     private final ActionTopologyStore actionTopologyStore;
+
+    /**
+     * Entity types that support CPU resize batch translation.
+     */
+    private static final Set<Integer> ENTITY_TYPES = ImmutableSet.of(EntityType.VIRTUAL_MACHINE_VALUE,
+        EntityType.CONTAINER_VALUE);
+
+    /**
+     * CPU commodity types that support translation from MHz to number of CPUs.
+     */
+    private static final Set<Integer> CPU_COMMODITY_TYPES = ImmutableSet.of(CommodityType.VCPU_VALUE,
+        CommodityType.VCPU_REQUEST_VALUE);
 
     /**
      * Constructs new instance.
@@ -81,9 +96,9 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
     @Override
     public boolean appliesTo(@Nonnull final ActionView actionView) {
         final ActionInfo actionInfo = actionView.getRecommendation().getInfo();
-        return actionInfo.hasResize() &&
-            actionInfo.getResize().getTarget().getType() == EntityType.VIRTUAL_MACHINE_VALUE &&
-            actionInfo.getResize().getCommodityType().getType() == CommodityType.VCPU_VALUE;
+        return actionInfo.hasResize()
+            && ENTITY_TYPES.contains(actionInfo.getResize().getTarget().getType())
+            && CPU_COMMODITY_TYPES.contains(actionInfo.getResize().getCommodityType().getType());
     }
 
     /**
@@ -98,58 +113,131 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
     @Override
     public <T extends ActionView> Stream<T> translate(@Nonnull final List<T> resizeActions,
                                                       @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
-        final Map<Long, List<T>> resizeActionsByVmTargetId = resizeActions.stream()
+        final Map<Long, List<T>> resizeActionsByEntityTargetId = resizeActions.stream()
             .collect(Collectors.groupingBy(action ->
                 action.getRecommendation().getInfo().getResize().getTarget().getId()));
-        Map<Long, Long> targetIdToPrimaryProviderId = Maps.newHashMap();
-        Set<Long> entitiesToRetrieve = Sets.newHashSet();
-        for (T action : resizeActions) {
-            long targetId = action.getRecommendation().getInfo().getResize().getTarget().getId();
+        Map<Long, Long> targetIdToProviderId = Maps.newHashMap();
+        Set<Long> hostsToRetrieve = Sets.newHashSet();
+        Set<ActionGraphEntity> vmsToRetrieve = Sets.newHashSet();
+
+        Optional<TopologyGraph<ActionGraphEntity>> topologyGraph =
+            actionTopologyStore.getSourceTopology()
+            .filter(topo -> topo.topologyInfo().getTopologyContextId() == snapshot.getTopologyContextId())
+            .map(BaseTopology::entityGraph);
+
+        for (long targetId : resizeActionsByEntityTargetId.keySet()) {
             Optional<ActionPartialEntity> targetEntity = snapshot.getEntityFromOid(targetId);
             targetEntity.ifPresent(entity -> {
-                targetIdToPrimaryProviderId.put(entity.getOid(), entity.getPrimaryProviderId());
-                entitiesToRetrieve.add(entity.getPrimaryProviderId());
+                if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                    targetIdToProviderId.put(entity.getOid(), entity.getPrimaryProviderId());
+                    hostsToRetrieve.add(entity.getPrimaryProviderId());
+                } else if (entity.getEntityType() == EntityType.CONTAINER_VALUE) {
+                    getVMFromContainer(topologyGraph, targetId).ifPresent(vmEntity -> {
+                        targetIdToProviderId.put(targetId, vmEntity.getOid());
+                        vmsToRetrieve.add(vmEntity);
+                    });
+                }
             });
         }
 
-        final Map<Long, ActionPartialEntity> hostInfoMap = actionTopologyStore.getSourceTopology()
-            .filter(topo -> topo.topologyInfo().getTopologyContextId() == snapshot.getToologyContextId())
-            .map(topo -> getHostInfoMapFromTopology(topo.entityGraph(), entitiesToRetrieve))
-            .orElseGet(() -> getHostInfoMapFromRepo(snapshot, entitiesToRetrieve));
+        final Map<Long, Double> hostCPUCoreMhzMap = topologyGraph.isPresent()
+            ? getHostCPUCoreMhzMapFromTopology(topologyGraph.get(), hostsToRetrieve)
+            : getHostCPUCoreMhzMapFromRepo(snapshot, hostsToRetrieve);
 
-        return resizeActionsByVmTargetId.entrySet().stream().flatMap(
-            entry -> translateVcpuResizes(
-                entry.getKey(), targetIdToPrimaryProviderId.get(entry.getKey()),
-                hostInfoMap, entry.getValue()));
+        final Map<Long, Double> vmToCPUMillicoreMhzMap = getVMCPUMillicoreMhzMapFromTopology(vmsToRetrieve);
+
+        final Map<Long, Double> entityToCPUSpeedMap = Maps.newHashMap();
+        entityToCPUSpeedMap.putAll(hostCPUCoreMhzMap);
+        entityToCPUSpeedMap.putAll(vmToCPUMillicoreMhzMap);
+
+        return resizeActionsByEntityTargetId.entrySet().stream().flatMap(
+            entry -> translateVcpuResizes(entry.getKey(), targetIdToProviderId.get(entry.getKey()),
+                entry.getValue(), entityToCPUSpeedMap));
+    }
+
+
+    /**
+     * Get VM ActionGraphEntity from the given container based on topology graph.
+     *
+     * @param topologyGraph A minimal topology graph for traversal.
+     * @param containerId   Given container OID to retrieve CPU speed for.
+     * @return Optional of VM ActionGraphEntity.
+     */
+    private Optional<ActionGraphEntity> getVMFromContainer(@Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topologyGraph,
+                                                           final long containerId) {
+        if (!topologyGraph.isPresent()) {
+            logger.error("Failed to apply CPU translation to container {} because topologyGraph is empty.", containerId);
+            return Optional.empty();
+        }
+        Optional<Long> containerPod = topologyGraph.get().getProviders(containerId)
+            .filter(entity -> entity.getEntityType() == EntityType.CONTAINER_POD_VALUE)
+            .map(BaseGraphEntity::getOid)
+            .findFirst();
+        if (!containerPod.isPresent()) {
+            logger.error("Failed to apply CPU translation to container {} because no provider pod.", containerId);
+            return Optional.empty();
+        }
+        Optional<ActionGraphEntity> vm = topologyGraph.get().getProviders(containerPod.get())
+            .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+            .findFirst();
+        if (!vm.isPresent()) {
+            logger.error("Failed to apply CPU translation to container {} because no provider VM.",
+                containerId);
+            return Optional.empty();
+        }
+        return vm;
     }
 
     /**
-     * Lookup host (Physical Machine) entity information from repository.
+     * Lookup CPU speed in MHz/core from VMs and convert to MHz/millicore to translate container
+     * VCPU/VCPURequest resize actions.
+     *
+     * @param vmsToRetrieve Given VMs to retrieve CPU speed in MHz/core.
+     * @return Map from VM OID to CPU speed in MHz/millicore.
+     */
+    private Map<Long, Double>
+    getVMCPUMillicoreMhzMapFromTopology(@Nonnull final Set<ActionGraphEntity> vmsToRetrieve) {
+        return vmsToRetrieve.stream()
+            .collect(Collectors.toMap(ActionGraphEntity::getOid, this::getVMCpuMillicoreMhz));
+    }
+
+    private double getVMCpuMillicoreMhz(@Nonnull final ActionGraphEntity vmEntity) {
+        if (vmEntity.getActionEntityInfo().hasVirtualMachine()
+            && vmEntity.getActionEntityInfo().getVirtualMachine().hasCpuCoreMhz()) {
+            return vmEntity.getActionEntityInfo().getVirtualMachine().getCpuCoreMhz() / 1000;
+        } else {
+            logger.error("CPU core MHz is not found from VM {}", vmEntity.getOid());
+            return 0;
+        }
+    }
+
+    /**
+     * Lookup CPU core MHz from host (Physical Machine) entity from repository.
      *
      * @param entityGraph The topology to use to lookup the host map.
      * @param entitiesToRetrieve The host entities to retrieve.
      * @return A map of host entities by their OID.
      */
-    private Map<Long, ActionPartialEntity>
-    getHostInfoMapFromTopology(@Nonnull final TopologyGraph<ActionGraphEntity> entityGraph,
-                               @Nonnull final Set<Long> entitiesToRetrieve) {
+    private Map<Long, Double>
+    getHostCPUCoreMhzMapFromTopology(@Nonnull final TopologyGraph<ActionGraphEntity> entityGraph,
+                                     @Nonnull final Set<Long> entitiesToRetrieve) {
         return entitiesToRetrieve.stream()
             .map(entityGraph::getEntity)
             .filter(Optional::isPresent)
             .map(e -> toHostPartialEntity(e.get()))
-            .collect(Collectors.toMap(ActionPartialEntity::getOid, Function.identity()));
+            .collect(Collectors.toMap(ActionPartialEntity::getOid, this::getHostCPUCoreMhz));
     }
 
     /**
-     * Lookup host (Physical Machine) entity information from repository.
+     * Lookup host (Physical Machine) CPU speed (MHz/core) information from repository.
      *
      * @param snapshot The snapshot containing the entity information.
      * @param entitiesToRetrieve The set of entity OIDs to retrieve.
-     * @return A map of host entities by their OID.
+     * @return A map of host CPU core MHz by their OID.
      */
-    private Map<Long, ActionPartialEntity>
-    getHostInfoMapFromRepo(@Nonnull final EntitiesAndSettingsSnapshot snapshot,
-                           @Nonnull final Set<Long> entitiesToRetrieve) {
+    private Map<Long, Double>
+    getHostCPUCoreMhzMapFromRepo(@Nonnull final EntitiesAndSettingsSnapshot snapshot,
+                                 @Nonnull final Set<Long> entitiesToRetrieve) {
         // Note: It is important to force evaluation of the gRPC stream here in order
         // to trigger any potential exceptions in this method where they can be handled
         // properly. Generating a lazy stream of gRPC results that is not evaluated until
@@ -158,7 +246,7 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
         return RepositoryDTOUtil.topologyEntityStream(
             repoService.retrieveTopologyEntities(
                 RetrieveTopologyEntitiesRequest.newBuilder()
-                    .setTopologyContextId(snapshot.getToologyContextId())
+                    .setTopologyContextId(snapshot.getTopologyContextId())
                     .addAllEntityOids(entitiesToRetrieve)
                     .setReturnType(Type.ACTION)
                         // Look in the same topology type (source vs projected) as the one we looked
@@ -166,41 +254,46 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
                     .setTopologyType(snapshot.getTopologyType())
                     .build()))
             .map(PartialEntity::getAction)
-            .collect(Collectors.toMap(ActionPartialEntity::getOid, Function.identity()));
+            .collect(Collectors.toMap(ActionPartialEntity::getOid, this::getHostCPUCoreMhz));
+    }
+
+    private double getHostCPUCoreMhz(@Nonnull final ActionPartialEntity hostEntity) {
+        if (hostEntity.hasTypeSpecificInfo() && hostEntity.getTypeSpecificInfo().hasPhysicalMachine()
+            && hostEntity.getTypeSpecificInfo().getPhysicalMachine().hasCpuCoreMhz()) {
+            return hostEntity.getTypeSpecificInfo().getPhysicalMachine().getCpuCoreMhz();
+        } else {
+            logger.error("CPU core MHz is not found from host {}", hostEntity.getOid());
+            return 0;
+        }
     }
 
     /**
-     * Apply HostInfo about hosts of VMs hosting the VMs being resized in the actions in order
-     * to translate the vCPU actions from MHz to number of vCPUs.
+     * Apply CPU speed from provider to VMs and containers being resized in the actions in order to
+     * translate the vCPU actions from MHz to number of vCPUs.
      *
-     * @param targetId      The target id (for ex. the VM id)
-     * @param providerId    The provider id (for ex. the host id)
-     * @param hostInfoMap   The host info for the various resize actions.
-     * @param resizeActions The resize actions to be translated.
-     * @param <T>           Action type.
+     * @param targetId            The target id (for ex. the VM or container id)
+     * @param providerId          The provider id (for ex. the host or VM id)
+     * @param resizeActions       The resize actions to be translated.
+     * @param entityToCPUSpeedMap Map of entity to CPU speed in MHz/core(millicore).
+     * @param <T>                 Action type.
      * @return A stream of the translated resize actions.
      */
-    private <T extends ActionView> Stream<T> translateVcpuResizes(long targetId,
-                                                                  Long providerId,
-                                                                  @Nonnull final Map<Long, ActionPartialEntity> hostInfoMap,
-                                                                  @Nonnull List<T> resizeActions) {
-        ActionPartialEntity hostInfo = hostInfoMap.get(providerId);
-        if (providerId == null || hostInfo == null || !hostInfo.hasTypeSpecificInfo()
-            || !hostInfo.getTypeSpecificInfo().hasPhysicalMachine()
-            || !hostInfo.getTypeSpecificInfo().getPhysicalMachine().hasCpuCoreMhz()) {
-            logger.warn("Host info not found for VCPU resize on entity {}. Skipping translation",
+    private <T extends ActionView> Stream<T> translateVcpuResizes(final long targetId,
+                                                                  @Nullable final Long providerId,
+                                                                  @Nonnull List<T> resizeActions,
+                                                                  @Nonnull Map<Long, Double> entityToCPUSpeedMap) {
+        Double cpuSpeed = entityToCPUSpeedMap.get(providerId);
+        // Set translation to failed if cpuSpeed is not found.
+        if (cpuSpeed == null || cpuSpeed == 0) {
+            logger.warn("CPU speed is not found from provider info for CPU resize on entity {}. Skipping translation",
                 targetId);
-            // No host info found, fail the translation and return the originals.
             return resizeActions.stream()
-                .map(action -> {
-                    action.getActionTranslation().setTranslationFailure();
-                    return action;
-                });
+                .peek(action -> action.getActionTranslation().setTranslationFailure());
         }
         return resizeActions.stream()
             .map(action -> {
                 final Resize newResize =
-                    translateVcpuResizeInfo(action.getRecommendation().getInfo().getResize(), hostInfo);
+                    translateVcpuResizeInfo(action.getRecommendation().getInfo().getResize(), cpuSpeed);
 
                 // Float comparision should apply epsilon. But in this case both capacities are
                 // result of Math.round and Math.ceil (see translateVcpuResizeInfo method),
@@ -225,27 +318,28 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
     }
 
     /**
-     * Apply a translation for an individual vCPU resize action given its corresponding host info.
+     * Apply a translation for an individual CPU resize action given its corresponding CPU speed in
+     * MHz/core for VM resize actions or MHz/millicore for container resize actions.
      *
      * @param originalResize The info for the original resize action (in MHz).
-     * @param hostInfo The host info for the host of the VM being resized.
+     * @param cpuSpeed       CPU speed, MHz/core for VM resize actions or MHz/millicore for container
+     *                       resize actions.
      * @return The translated resize information (in # of vCPU).
      */
     private Resize translateVcpuResizeInfo(@Nonnull final Resize originalResize,
-                                           @Nonnull final ActionPartialEntity hostInfo) {
+                                           final double cpuSpeed) {
         // don't apply the mhz translation for limit and reserved commodity attributes
         if (originalResize.getCommodityAttribute() == CommodityAttribute.LIMIT
             || originalResize.getCommodityAttribute() == CommodityAttribute.RESERVED) {
             return originalResize;
         }
-        int cpuCoreMhz = hostInfo.getTypeSpecificInfo().getPhysicalMachine().getCpuCoreMhz();
         final Resize newResize = originalResize.toBuilder()
-            .setOldCapacity(Math.round(originalResize.getOldCapacity() / cpuCoreMhz))
-            .setNewCapacity((float)Math.ceil(originalResize.getNewCapacity() / cpuCoreMhz))
+            .setOldCapacity(Math.round(originalResize.getOldCapacity() / cpuSpeed))
+            .setNewCapacity((float)Math.ceil(originalResize.getNewCapacity() / cpuSpeed))
             .build();
 
-        logger.debug("Translated VCPU resize from {} to {} for host with info {}",
-            originalResize, newResize, hostInfo);
+        logger.debug("Translated VCPU resize from {} to {} with CPU speed {} MHz/core(millicore).",
+            originalResize, newResize, cpuSpeed);
 
         return newResize;
     }
