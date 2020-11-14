@@ -1,7 +1,5 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static org.junit.Assert.assertEquals;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -13,7 +11,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.StringUtils;
 import org.hamcrest.MatcherAssert;
@@ -184,46 +181,46 @@ public class ServiceEntityMapperTest {
 
         final ServiceEntityApiDTO serviceEntityApiDTO = mapper.toServiceEntityApiDTO(apiEntity);
 
-        assertEquals(displayName, serviceEntityApiDTO.getDisplayName());
-        assertEquals(oid, Long.parseLong(serviceEntityApiDTO.getUuid()));
-        assertEquals(entityType.getNumber(),
+        Assert.assertEquals(displayName, serviceEntityApiDTO.getDisplayName());
+        Assert.assertEquals(oid, Long.parseLong(serviceEntityApiDTO.getUuid()));
+        Assert.assertEquals(entityType.getNumber(),
                 ApiEntityType.fromString(serviceEntityApiDTO.getClassName()).typeNumber());
-        assertEquals(entityState,
+        Assert.assertEquals(entityState,
                 UIEntityState.fromString(serviceEntityApiDTO.getState()).toEntityState());
-        assertEquals(environmentType,
+        Assert.assertEquals(environmentType,
                 EnvironmentTypeMapper.fromApiToXL(serviceEntityApiDTO.getEnvironmentType()));
-        assertEquals(1, serviceEntityApiDTO.getTags().size());
-        assertEquals(1, serviceEntityApiDTO.getTags().get(tagKey).size());
-        assertEquals(tagValue, serviceEntityApiDTO.getTags().get(tagKey).get(0));
-        assertEquals(providerDisplayName1,
+        Assert.assertEquals(1, serviceEntityApiDTO.getTags().size());
+        Assert.assertEquals(1, serviceEntityApiDTO.getTags().get(tagKey).size());
+        Assert.assertEquals(tagValue, serviceEntityApiDTO.getTags().get(tagKey).get(0));
+        Assert.assertEquals(providerDisplayName1,
                 serviceEntityApiDTO.getTemplate().getDisplayName());
 
         final Map<String, String> target2id = serviceEntityApiDTO.getVendorIds();
         Assert.assertNotNull(target2id);
-        assertEquals(localName, target2id.get(TARGET_DISPLAY_NAME));
+        Assert.assertEquals(localName, target2id.get(TARGET_DISPLAY_NAME));
 
         checkDiscoveredBy(serviceEntityApiDTO.getDiscoveredBy());
 
         // check consumers
-        assertEquals(1, serviceEntityApiDTO.getConsumers().size());
-        assertEquals(String.valueOf(consumerOid),
+        Assert.assertEquals(1, serviceEntityApiDTO.getConsumers().size());
+        Assert.assertEquals(String.valueOf(consumerOid),
                 serviceEntityApiDTO.getConsumers().get(0).getUuid());
-        assertEquals(ApiEntityType.APPLICATION_COMPONENT.apiStr(),
+        Assert.assertEquals(ApiEntityType.APPLICATION_COMPONENT.apiStr(),
                 serviceEntityApiDTO.getConsumers().get(0).getClassName());
-        assertEquals(consumerDisplayName,
+        Assert.assertEquals(consumerDisplayName,
                 serviceEntityApiDTO.getConsumers().get(0).getDisplayName());
 
         // check providers
-        assertEquals(2, serviceEntityApiDTO.getProviders().size());
+        Assert.assertEquals(2, serviceEntityApiDTO.getProviders().size());
         final Map<String, BaseApiDTO> providers = serviceEntityApiDTO.getProviders()
                 .stream()
                 .collect(Collectors.toMap(BaseApiDTO::getUuid, Function.identity()));
         final BaseApiDTO provider1 = providers.get(String.valueOf(providerOid1));
-        assertEquals(ApiEntityType.COMPUTE_TIER.apiStr(), provider1.getClassName());
-        assertEquals(providerDisplayName1, provider1.getDisplayName());
+        Assert.assertEquals(ApiEntityType.COMPUTE_TIER.apiStr(), provider1.getClassName());
+        Assert.assertEquals(providerDisplayName1, provider1.getDisplayName());
         final BaseApiDTO provider2 = providers.get(String.valueOf(providerOid2));
-        assertEquals(ApiEntityType.STORAGE_TIER.apiStr(), provider2.getClassName());
-        assertEquals(providerDisplayName2, provider2.getDisplayName());
+        Assert.assertEquals(ApiEntityType.STORAGE_TIER.apiStr(), provider2.getClassName());
+        Assert.assertEquals(providerDisplayName2, provider2.getDisplayName());
     }
 
     private void checkDiscoveredBy(@Nonnull final TargetApiDTO targetApiDTO) {
@@ -279,17 +276,17 @@ public class ServiceEntityMapperTest {
         final ServiceEntityApiDTO serviceEntityApiDTO =
                 mapper.toServiceEntityApiDTO(topologyEntityDTO);
 
-        assertEquals(displayName, serviceEntityApiDTO.getDisplayName());
-        assertEquals(oid, Long.parseLong(serviceEntityApiDTO.getUuid()));
-        assertEquals(entityType.getNumber(),
+        Assert.assertEquals(displayName, serviceEntityApiDTO.getDisplayName());
+        Assert.assertEquals(oid, Long.parseLong(serviceEntityApiDTO.getUuid()));
+        Assert.assertEquals(entityType.getNumber(),
                 ApiEntityType.fromString(serviceEntityApiDTO.getClassName()).typeNumber());
-        assertEquals(entityState,
+        Assert.assertEquals(entityState,
                 UIEntityState.fromString(serviceEntityApiDTO.getState()).toEntityState());
-        assertEquals(environmentType,
+        Assert.assertEquals(environmentType,
                 EnvironmentTypeMapper.fromApiToXL(serviceEntityApiDTO.getEnvironmentType()));
-        assertEquals(1, serviceEntityApiDTO.getTags().size());
-        assertEquals(1, serviceEntityApiDTO.getTags().get(tagKey).size());
-        assertEquals(tagValue, serviceEntityApiDTO.getTags().get(tagKey).get(0));
+        Assert.assertEquals(1, serviceEntityApiDTO.getTags().size());
+        Assert.assertEquals(1, serviceEntityApiDTO.getTags().get(tagKey).size());
+        Assert.assertEquals(tagValue, serviceEntityApiDTO.getTags().get(tagKey).get(0));
 
         checkDiscoveredBy(serviceEntityApiDTO.getDiscoveredBy());
     }
@@ -309,9 +306,9 @@ public class ServiceEntityMapperTest {
         final ServiceEntityApiDTO serviceEntityApiDTO =
                 mapper.toServiceEntityApiDTO(topologyEntityDTO);
         Assert.assertFalse(StringUtils.isEmpty(serviceEntityApiDTO.getDisplayName()));
-        assertEquals(oid, (Long.parseLong(serviceEntityApiDTO.getDisplayName())));
-        assertEquals(oid, (Long.parseLong(serviceEntityApiDTO.getUuid())));
-        assertEquals(entityType.getNumber(),
+        Assert.assertEquals(oid, (Long.parseLong(serviceEntityApiDTO.getDisplayName())));
+        Assert.assertEquals(oid, (Long.parseLong(serviceEntityApiDTO.getUuid())));
+        Assert.assertEquals(entityType.getNumber(),
                 ApiEntityType.fromString(serviceEntityApiDTO.getClassName()).typeNumber());
     }
 
@@ -338,7 +335,7 @@ public class ServiceEntityMapperTest {
 
         final ServiceEntityApiDTO serviceEntityApiDTO = mapper.toServiceEntityApiDTO(apiEntity);
 
-        assertEquals(1, serviceEntityApiDTO.getNumRelatedVMs().intValue());
+        Assert.assertEquals(1, serviceEntityApiDTO.getNumRelatedVMs().intValue());
     }
 
     /**
@@ -383,9 +380,9 @@ public class ServiceEntityMapperTest {
                         .build()));
 
         mapper.setPriceValuesForEntityComponents(entities);
-        assertEquals(10D, entityApiDTO1.getCostPrice(), 0.001);
-        assertEquals(5D, entityApiDTO1.getTemplate().getPrice(), 0.001);
-        assertEquals(15D, entityApiDTO2.getCostPrice(), 0.001);
+        Assert.assertEquals(10D, entityApiDTO1.getCostPrice(), 0.001);
+        Assert.assertEquals(5D, entityApiDTO1.getTemplate().getPrice(), 0.001);
+        Assert.assertEquals(15D, entityApiDTO2.getCostPrice(), 0.001);
         Assert.assertNull(entityApiDTO2.getTemplate().getPrice());
     }
 
@@ -404,47 +401,5 @@ public class ServiceEntityMapperTest {
                 .putMembersByState(com.vmturbo.api.enums.EntityState.ACTIVE.ordinal(),
                         MemberList.newBuilder().addMemberOids(oid).build())
                 .build();
-    }
-
-    /**
-     * Check whether region filter correctly returns the count of VMs.
-     */
-    @Test
-    public void toServiceEntityApiDTORegion() {
-        final String regionName = "Azure East US 2";
-        final String vendorId = "vendorId-1";
-        final long regionId = 101;
-        final long vmId1 = 201;
-        final long vmId2 = 202;
-
-        final ApiPartialEntity apiEntity = ApiPartialEntity.newBuilder()
-                .setDisplayName(regionName)
-                .setOid(regionId)
-                .setEntityType(EntityType.REGION.getNumber())
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .putDiscoveredTargetData(TARGET_ID,
-                        PerTargetEntityInformation.newBuilder().setVendorId(vendorId).build())
-                .build();
-
-        // Add both VMs to the mock region response.
-        final List<GetMultiSupplyChainsResponse> supplyChainResponses =
-                ImmutableList.of(GetMultiSupplyChainsResponse.newBuilder()
-                        .setSeedOid(regionId)
-                        .setSupplyChain(SupplyChain.newBuilder()
-                                .addSupplyChainNodes(SupplyChainNode.newBuilder()
-                                        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-                                        .putMembersByState(0, MemberList.newBuilder()
-                                                .addAllMemberOids(ImmutableSet.of(vmId1, vmId2))
-                                                .build())
-                                        .build())
-                                .build())
-                        .build());
-        Mockito.when(supplyChainMole.getMultiSupplyChains(org.mockito.Matchers.any()))
-                .thenReturn(supplyChainResponses);
-
-        final ServiceEntityApiDTO serviceEntityApiDTO = mapper.toServiceEntityApiDTO(apiEntity);
-
-        assertEquals(String.valueOf(regionId), serviceEntityApiDTO.getUuid());
-        assertEquals(2, serviceEntityApiDTO.getNumRelatedVMs().intValue());
     }
 }

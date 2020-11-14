@@ -155,7 +155,7 @@ public class ServiceEntityMapper {
         final Set<Long> costPriceEntities = new HashSet<>();
         final Set<Long> numberOfVmEntities = new HashSet<>();
         for (ApiPartialEntity entity : apiEntities) {
-            if (shouldGetNumberOfVms(entity.getEntityType())) {
+            if (shouldGetNumberOfVms(entity)) {
                 numberOfVmEntities.add(entity.getOid());
             }
 
@@ -232,13 +232,6 @@ public class ServiceEntityMapper {
         if (topologyEntityDTO.hasEnvironmentType()) {
             seDTO.setEnvironmentType(EnvironmentTypeMapper.fromXLToApi(
                                         topologyEntityDTO.getEnvironmentType()));
-        }
-        if (shouldGetNumberOfVms(topologyEntityDTO.getEntityType())) {
-            // For entities like regions, need the count of VMs in the region in the search result.
-            long entityOid = topologyEntityDTO.getOid();
-            final Map<Long, Integer> numVmsPerEntity = computeNrOfVmsPerEntity(
-                    ImmutableSet.of(entityOid));
-            Optional.ofNullable(numVmsPerEntity.get(entityOid)).ifPresent(seDTO::setNumRelatedVMs);
         }
 
         setDiscoveredBy(() -> topologyEntityDTO.getOrigin().getDiscoveryOrigin()
@@ -493,15 +486,9 @@ public class ServiceEntityMapper {
         return result;
     }
 
-    /**
-     * Whether to get count of VMs for the specified entity type.
-     *
-     * @param entityType Type of entity, e.g Region or AZ.
-     * @return True if VM count needs to be obtained.
-     */
-    private boolean shouldGetNumberOfVms(int entityType) {
-        return entityType == ApiEntityType.REGION.typeNumber()
-                || entityType == ApiEntityType.AVAILABILITY_ZONE.typeNumber();
+    private boolean shouldGetNumberOfVms(@Nonnull final ApiPartialEntity entity) {
+        return entity.getEntityType() == ApiEntityType.REGION.typeNumber()
+                || entity.getEntityType() == ApiEntityType.AVAILABILITY_ZONE.typeNumber();
     }
 
     private boolean shouldGetCostPrice(@Nonnull final ApiPartialEntity entity) {
