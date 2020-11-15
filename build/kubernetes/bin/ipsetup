@@ -253,6 +253,17 @@ then
   fi
 fi
 
+# Configure Central Time Servers
+if [ X${interactive} == "X1" ]
+then
+    echo ""
+    read -e -p "Do you want to configure a Network Time Source? (y/n) :: " timesync
+    if [ X$timesync = "Xy" ]
+    then
+      /opt/local/bin/timesync
+    fi
+fi
+
 # Restart network services
 if [ X${interactive} == X1 ]; then
     read -e -p "Do you want to restart the network now? (y/n) :: " networkRestart
@@ -302,16 +313,4 @@ else
   echo "Must be either static or dhcp"
   echo ""
   exec $0
-fi
-
-# Configure Central Time Servers
-if [ X${interactive} == "X1" ]; then
-    echo ""
-    read -e -p "Do you want to configure a Network Time Source? (y/n) :: " timesync
-    if [ X$timesync = "Xy" ]
-    then
-      /opt/local/bin/timesync
-    fi
-else
-    exit 0
 fi
