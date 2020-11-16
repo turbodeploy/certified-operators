@@ -410,6 +410,7 @@ public class DockerEnvironment {
             .put("MEDIATION_MSSQL_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_MYSQL_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_TOMCAT_SYSTEM_PROPERTIES", "")
+            .put("MEDIATION_JVM_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_WMI_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_SNMP_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_APPDYNAMICS_SYSTEM_PROPERTIES", "")

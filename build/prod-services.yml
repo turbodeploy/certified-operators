@@ -743,6 +743,17 @@ services:
       instance_id: mediation-tomcat-1
     restart: always
 
+  mediation-jvm-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.jvm.component
+    environment:
+      consul_host: consul
+      component_type: mediation-jvm
+      instance_id: mediation-jvm-1
+    restart: always
+
   mediation-actionscript-prod:
     extends:
       file: common-services.yml

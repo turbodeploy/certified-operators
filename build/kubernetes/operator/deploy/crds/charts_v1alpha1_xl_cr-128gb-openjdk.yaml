@@ -101,6 +101,8 @@ spec:
     enabled: false
   tomcat:
     enabled: false
+  jvm:
+    enabled: false
   newrelic:
     enabled: true
   udt:
@@ -248,6 +250,10 @@ spec:
       limits:
         memory: 1Gi
   mediation-tomcat:
+    resources:
+      limits:
+        memory: 1Gi
+  mediation-jvm:
     resources:
       limits:
         memory: 1Gi

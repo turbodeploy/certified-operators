@@ -148,6 +148,11 @@ resource "helm_release" "xl" {
   }
 
   set {
+    name  = "jvm.enabled"
+    value = "${var.jvm ? true : false}"
+  }
+
+  set {
     name  = "netapp.enabled"
     value = "${var.netapp ? true : false}"
   }

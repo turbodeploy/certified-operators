@@ -101,6 +101,8 @@ spec:
     enabled: false
   tomcat:
     enabled: false
+  jvm:
+    enabled: false
   newrelic:
     enabled: true
   udt:

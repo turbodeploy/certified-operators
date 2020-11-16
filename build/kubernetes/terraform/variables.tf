@@ -133,6 +133,10 @@ variable "tomcat" {
   default = false
 }
 
+variable "jvm" {
+  default = false
+}
+
 variable "netapp" {
   default = false
 }

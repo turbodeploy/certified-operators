@@ -321,6 +321,10 @@ dependencies:
     repository: file://../probes/mediation-tomcat
     version: 0.1.0
     condition: tomcat.enabled
+  - name: mediation-jvm
+    repository: file://../probes/mediation-jvm
+    version: 0.1.0
+    condition: jvm.enabled
   - name: mediation-oneview
     repository: file://../probes/mediation-oneview
     version: 0.1.0

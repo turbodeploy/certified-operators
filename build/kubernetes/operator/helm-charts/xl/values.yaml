@@ -217,6 +217,8 @@ oracle:
   enabled: false
 tomcat:
   enabled: false
+jvm:
+  enabled: false
 netapp:
   enabled: false
 netflow:
