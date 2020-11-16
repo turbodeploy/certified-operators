@@ -664,9 +664,9 @@ public class ServiceConfig {
                 communicationConfig.repositoryApi(),
                 mapperConfig.actionSpecMapper(),
                 actionSearchUtil(),
-                communicationConfig.getRealtimeTopologyContextId(),
                 websocketConfig.websocketHandler(),
-                allowTargetManagement());
+                allowTargetManagement(),
+                apiPaginationDefaultLimit);
     }
 
     // Target management is always allowed from REST API, unless in integration mode.

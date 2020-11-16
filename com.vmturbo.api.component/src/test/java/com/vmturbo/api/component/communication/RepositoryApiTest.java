@@ -1,14 +1,24 @@
 package com.vmturbo.api.component.communication;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+
+import io.grpc.ManagedChannel;
 
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -18,14 +28,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-
-import io.grpc.ManagedChannel;
+import org.springframework.http.ResponseEntity;
 
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -34,13 +41,18 @@ import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccou
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.EntityCountResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -988,4 +1000,59 @@ public class RepositoryApiTest {
         Mockito.doReturn(multiEntityRequest).when(repositoryApi1).entitiesRequest(serviceProviders);
         Assert.assertEquals(regionIdsSet, repositoryApi1.expandServiceProvidersToRegions(serviceProviders));
     }
+
+    /**
+     * Tests {@link SearchRequest#getPaginatedSEList}.
+     * @throws InterruptedException if current thread has been interrupted while pupulating
+     *         severity data
+     * @throws ConversionException if error faced during severity population
+     */
+    @Test
+    public void testSearchRequestGetPaginatedSEList() throws InterruptedException, ConversionException {
+        //GIVEN
+        Search.SearchParameters build = SearchProtoUtil.makeSearchParameters(
+                SearchProtoUtil.discoveredBy(5L))
+                .build();
+        RepositoryApi.SearchRequest searchRequest = repositoryApi.newSearchRequest(build);
+
+        final String cursor = "cursor";
+        int totalRecordCount = 100;
+        PaginationResponse paginationResponse = PaginationResponse.newBuilder().setNextCursor(
+                cursor)
+                .setTotalRecordCount(totalRecordCount)
+                .build();
+        ApiPartialEntity apiPartialEntity = ApiPartialEntity.newBuilder()
+                .setOid(123L)
+                .setEntityType(1)
+                .build();
+
+        PartialEntity partialEntity = PartialEntity.newBuilder()
+                .setApi(apiPartialEntity)
+                .build();
+        final List emptyList = Collections.singletonList(partialEntity);
+
+        SearchEntitiesResponse grpcResponse = SearchEntitiesResponse.newBuilder()
+                .setPaginationResponse(paginationResponse)
+                .addAllEntities(emptyList)
+                .build();
+
+        Mockito.doReturn(grpcResponse)
+                .when(searchBackend)
+                .searchEntities(org.mockito.Matchers.any());
+        List<ServiceEntityApiDTO> serviceEntityApiDTOList = Collections.singletonList(new ServiceEntityApiDTO());
+        doReturn(serviceEntityApiDTOList).when(serviceEntityMapper).toServiceEntityApiDTO(Collections.singletonList(apiPartialEntity));
+        PaginationParameters paginationParameters = PaginationParameters.getDefaultInstance();
+
+        //WHEN
+        ResponseEntity<List<ServiceEntityApiDTO>> response = searchRequest.getPaginatedSEList(paginationParameters);
+
+        //THEN
+        assertTrue(response.getHeaders().get("X-Next-Cursor").get(0).equals(cursor));
+        assertTrue(response.getHeaders().get("X-Total-Record-Count").get(0).equals(String.valueOf(totalRecordCount)));
+        assertEquals(response.getBody(), serviceEntityApiDTOList);
+        verify(this.serviceEntityMapper).toServiceEntityApiDTO(Collections.singletonList(apiPartialEntity));
+        //Checks that severity information populated to dtos
+        verify(this.severityPopulator).populate(this.realtimeContextId, serviceEntityApiDTOList);
+    }
+
 }

@@ -6,7 +6,6 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +30,7 @@ import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 
 import com.vmturbo.api.TargetNotificationDTO.TargetNotification;
@@ -40,6 +40,7 @@ import com.vmturbo.api.component.communication.ApiComponentTargetListener;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.SearchOrderByMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
@@ -53,15 +54,18 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.InputValueType;
-import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.pagination.PaginationUtil;
 import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
+import com.vmturbo.common.protobuf.common.Pagination;
+import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
+import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
@@ -171,6 +175,8 @@ public class TargetsService implements ITargetsService {
 
     private final boolean allowTargetManagement;
 
+    private final int apiPaginationDefaultLimit;
+
     public TargetsService(@Nonnull final TopologyProcessor topologyProcessor,
             @Nonnull final Duration targetValidationTimeout,
             @Nonnull final Duration targetValidationPollInterval,
@@ -181,9 +187,9 @@ public class TargetsService implements ITargetsService {
             @Nonnull final RepositoryApi repositoryApi,
             @Nonnull final ActionSpecMapper actionSpecMapper,
             @Nonnull final ActionSearchUtil actionSearchUtil,
-            final long realtimeTopologyContextId,
             @Nonnull final ApiWebsocketHandler apiWebsocketHandler,
-            final boolean allowTargetManagement) {
+            final boolean allowTargetManagement,
+            final int apiPaginationDefaultLimit) {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.targetValidationTimeout = Objects.requireNonNull(targetValidationTimeout);
         this.targetValidationPollInterval = Objects.requireNonNull(targetValidationPollInterval);
@@ -196,6 +202,7 @@ public class TargetsService implements ITargetsService {
         this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
         this.apiWebsocketHandler = Objects.requireNonNull(apiWebsocketHandler);
         this.allowTargetManagement = allowTargetManagement;
+        this.apiPaginationDefaultLimit = apiPaginationDefaultLimit;
         logger.debug("Created TargetsService with topology processor instance {}",
                 topologyProcessor);
     }
@@ -376,13 +383,52 @@ public class TargetsService implements ITargetsService {
     /**
      * Return information about all the Entities discovered by the given target.
      *
-     * @param uuid the unique ID for the target
-     * @return a List of {@link ServiceEntityApiDTO}
-     * @throws Exception
+     * @param targetUuid the unique ID for the target
+     * @param cursor - index to indicate where to start the results
+     * @param limit - Maximum number of items to return after the cursor
+     * @param searchOrderBy - field used to order the results
+     * @param ascending - ascending order
+     * @return {@link ResponseEntity} with collection of ServiceEntityApiDTO
+     * @throws Exception error while processing request
      */
-    @Override
-    public List<ServiceEntityApiDTO> getEntitiesByTargetUuid(final String uuid) throws Exception {
-        return getTargetEntities(getTarget(uuid));
+    public ResponseEntity<List<ServiceEntityApiDTO>> getEntitiesByTargetUuid(final String targetUuid,
+                                                             @Nullable final String cursor,
+                                                             @Nullable final Integer limit,
+                                                             @Nullable final Boolean ascending,
+                                                             @Nullable final String searchOrderBy) throws Exception {
+
+        Search.SearchParameters build = SearchProtoUtil.makeSearchParameters(
+                SearchProtoUtil.discoveredBy(Long.parseLong(targetUuid)))
+                .build();
+
+        RepositoryApi.SearchRequest searchRequest = repositoryApi.newSearchRequest(build);
+        /* supports backwards compatibility for non-pagination calls.
+         * Use of any of the pagination-related params here will explicitly trigger a pagination response
+        */
+        if (limit == null && cursor == null & ascending == null && searchOrderBy == null) {
+            //UNPAGINATED CALLS
+            List<ServiceEntityApiDTO> entities = searchRequest.getSEList();
+            return PaginationUtil.buildResponseEntity(entities, null, null, null);
+        }
+
+        //PAGINATED CALLS
+        final SearchOrderBy protoSearchOrderByEnum = searchOrderBy == null ? SearchOrderBy.ENTITY_NAME :
+                        SearchOrderByMapper.fromApiToProtoEnum(
+                                        com.vmturbo.api.pagination.SearchOrderBy.valueOf(searchOrderBy.toUpperCase()));
+        Pagination.OrderBy orderBy = Pagination.OrderBy.newBuilder()
+                        .setSearch(protoSearchOrderByEnum)
+                        .build();
+
+        Pagination.PaginationParameters.Builder paginationParameters = Pagination.PaginationParameters.newBuilder()
+                .setLimit(limit == null ? this.apiPaginationDefaultLimit : limit)
+                .setAscending(ascending == null ? true : ascending)
+                .setOrderBy(orderBy);
+
+        if (cursor != null) {
+            paginationParameters.setCursor(cursor);
+        }
+
+        return searchRequest.getPaginatedSEList(paginationParameters.build());
     }
 
     /**
@@ -1175,27 +1221,6 @@ public class TargetsService implements ITargetsService {
         public FieldVerificationException(String message) {
             super(message);
         }
-    }
-
-    /**
-     * Gets the entities that belong to the given target
-     * @param targetDTO The TargetApiDTO object
-     * @return A list of ServiceEntityApiDTO of the target's entities
-     * @throws InterruptedException if thread has been interrupted
-     * @throws ConversionException if errors faced during converting data to API DTOs
-     */
-    private List<ServiceEntityApiDTO> getTargetEntities(TargetApiDTO targetDTO)
-                throws ConversionException, InterruptedException {
-        final String targetUuid = targetDTO.getUuid();
-        final String targetType = targetDTO.getType();
-
-        // targetIdToProbeType is needed to fill discoveredBy attribute of the entities.
-        Map<Long, String> targetIdToProbeType = new HashMap<>();
-        targetIdToProbeType.put(Long.parseLong(targetUuid), targetType);
-        return repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-                    SearchProtoUtil.discoveredBy(Long.parseLong(targetUuid)))
-                .build())
-            .getSEList();
     }
 
     @Nonnull

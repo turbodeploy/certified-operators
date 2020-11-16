@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -322,14 +323,7 @@ public class ServiceEntityMapperTest {
         final long zoneId = 10L;
         final long vmId = 20L;
 
-        final ApiPartialEntity apiEntity = ApiPartialEntity.newBuilder()
-                .setDisplayName(displayName)
-                .setOid(zoneId)
-                .setEntityType(EntityType.AVAILABILITY_ZONE.getNumber())
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .putDiscoveredTargetData(TARGET_ID,
-                        PerTargetEntityInformation.newBuilder().setVendorId(localName).build())
-                .build();
+        final ApiPartialEntity apiEntity = createPartialEntity(displayName, zoneId, localName).build();
 
         final List<GetMultiSupplyChainsResponse> supplyChainResponses =
                 ImmutableList.of(buildMultiSupplyChainResponse(zoneId, vmId));
@@ -339,6 +333,24 @@ public class ServiceEntityMapperTest {
         final ServiceEntityApiDTO serviceEntityApiDTO = mapper.toServiceEntityApiDTO(apiEntity);
 
         assertEquals(1, serviceEntityApiDTO.getNumRelatedVMs().intValue());
+    }
+
+    /**
+     * Configure {@link ApiPartialEntity}
+     * @param name name of entity
+     * @param id of entity
+     * @param vendorLocalName vendorId for discovered target data
+     * @return Builder of {@link ApiPartialEntity}
+     */
+    private ApiPartialEntity.Builder createPartialEntity(final String name, long id, String vendorLocalName) {
+        return ApiPartialEntity.newBuilder()
+                .setDisplayName(name)
+                .setOid(id)
+                .setEntityType(EntityType.AVAILABILITY_ZONE.getNumber())
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .putDiscoveredTargetData(TARGET_ID,
+                        PerTargetEntityInformation.newBuilder().setVendorId(vendorLocalName).build());
+
     }
 
     /**
@@ -447,4 +459,30 @@ public class ServiceEntityMapperTest {
         assertEquals(String.valueOf(regionId), serviceEntityApiDTO.getUuid());
         assertEquals(2, serviceEntityApiDTO.getNumRelatedVMs().intValue());
     }
+
+    /**
+     * Tests order of collection is being preserved when new collection returned.
+     */
+    @Test
+    public void toServiceEntityApiDTOMaintainsOrderOfCollection() {
+        //GIVEN
+        List<ApiPartialEntity> partialEntities = new LinkedList<>();
+
+        partialEntities.add(createPartialEntity("name", 0L, "").build());
+        partialEntities.add(createPartialEntity("name", 20L, "").build());
+        partialEntities.add(createPartialEntity("name", 10L, "").build());
+        partialEntities.add(createPartialEntity("name", 4L, "").build());
+
+        //WHEN
+        List<ServiceEntityApiDTO> results = mapper.toServiceEntityApiDTO(partialEntities);
+
+        //THEN
+        Assert.assertEquals(String.valueOf(0L), results.get((int)0L).getUuid());
+        Assert.assertEquals(String.valueOf(20L), results.get((int)1L).getUuid());
+        Assert.assertEquals(String.valueOf(10L), results.get((int)2L).getUuid());
+        Assert.assertEquals(String.valueOf(4L), results.get((int)3L).getUuid());
+
+    }
+
+
 }

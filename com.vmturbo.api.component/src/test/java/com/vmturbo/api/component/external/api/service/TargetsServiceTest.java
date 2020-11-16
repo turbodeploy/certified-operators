@@ -3,7 +3,9 @@ package com.vmturbo.api.component.external.api.service;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -48,6 +50,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.test.annotation.DirtiesContext;
@@ -71,6 +74,7 @@ import com.vmturbo.api.NotificationDTO.Notification;
 import com.vmturbo.api.TargetNotificationDTO.TargetStatusNotification.TargetStatus;
 import com.vmturbo.api.component.communication.ApiComponentTargetListener;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -80,11 +84,13 @@ import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.dto.ErrorApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
+import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
 import com.vmturbo.api.serviceinterfaces.IPoliciesService;
@@ -97,6 +103,8 @@ import com.vmturbo.api.validators.InputDTOValidator;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination;
+import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
@@ -179,6 +187,8 @@ public class TargetsServiceTest {
     private static final long REALTIME_CONTEXT_ID = 7777777;
     private ApiWebsocketHandler apiWebsocketHandler;
 
+    private TargetsService targetsService;
+
     @Before
     public void init() throws TopologyProcessorException, CommunicationException {
         idCounter = 0;
@@ -248,6 +258,15 @@ public class TargetsServiceTest {
             }
         });
         apiWebsocketHandler = new ApiWebsocketHandler();
+
+
+        this.targetsService = new TargetsService(
+                topologyProcessor, Duration.ofMillis(50),
+                Duration.ofMillis(100), Duration.ofMillis(50),
+                Duration.ofMillis(100), null,
+                apiComponentTargetListener, repositoryApi,
+                actionSpecMapper, actionSearchUtil,
+                apiWebsocketHandler, true, 100);
     }
 
     private ProbeInfo createMockProbeInfo(long probeId, String type, String category, String uiCategory,
@@ -875,7 +894,7 @@ public class TargetsServiceTest {
                                                     Duration.ofMillis(100), null,
                                                     apiComponentTargetListener, repositoryApi,
                                                     actionSpecMapper, actionSearchUtil,
-                                                    REALTIME_CONTEXT_ID, apiWebsocketHandler, true);
+                                                    apiWebsocketHandler, true, 100);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -902,8 +921,8 @@ public class TargetsServiceTest {
         final TargetsService targetsService = new TargetsService(
             topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
             Duration.ofMillis(50), Duration.ofMillis(100), null, apiComponentTargetListener,
-            repositoryApi, actionSpecMapper, actionSearchUtil, REALTIME_CONTEXT_ID,
-            apiWebsocketHandler, true);
+            repositoryApi, actionSpecMapper, actionSearchUtil,
+            apiWebsocketHandler, true, 100);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -931,8 +950,8 @@ public class TargetsServiceTest {
                                                 Duration.ofMillis(100), Duration.ofMillis(50),
                                                 Duration.ofMillis(100), null,
                                                 apiComponentTargetListener, repositoryApi, actionSpecMapper,
-                                                actionSearchUtil, REALTIME_CONTEXT_ID,
-                                                apiWebsocketHandler, true);
+                                                actionSearchUtil,
+                                                apiWebsocketHandler, true, 100);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
@@ -1296,8 +1315,8 @@ public class TargetsServiceTest {
                 new TargetsService(topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
                         Duration.ofMillis(50), Duration.ofMillis(100), null,
                         apiComponentTargetListener, repositoryApi, actionSpecMapper,
-                        actionSearchUtil, REALTIME_CONTEXT_ID,
-                        apiWebsocketHandler, false);
+                        actionSearchUtil,
+                        apiWebsocketHandler, false, 100);
         // Get is allowed
         targetsService.getTargets(EnvironmentType.HYBRID);
         try {
@@ -1461,8 +1480,7 @@ public class TargetsServiceTest {
                                      Mockito.mock(GroupExpander.class),
                                      Mockito.mock(ServiceProviderExpander.class),
                                      REALTIME_CONTEXT_ID),
-                REALTIME_CONTEXT_ID,
-                new ApiWebsocketHandler(), true);
+                new ApiWebsocketHandler(), true, 100);
         }
 
         @Bean
@@ -1526,5 +1544,222 @@ public class TargetsServiceTest {
             msgConverter.setGson(ComponentGsonFactory.createGson());
             converters.add(msgConverter);
         }
+    }
+
+    /**
+     * Tests backwards compatibility of getEntitiesByTargetUuid non-paginated call.
+     * @throws Exception error in thread interruption or converting api dtos
+     */
+    @Test
+    public void getEntitiesByTargetUuidWithoutPagination() throws Exception {
+        //GIVEN
+        String targetUuid = "123";
+
+        SearchRequest searchRequest = Mockito.mock(SearchRequest.class);
+        doReturn(searchRequest).when(repositoryApi).newSearchRequest(Mockito.any());
+
+        List<ServiceEntityApiDTO> entities = Collections.EMPTY_LIST;
+        doReturn(entities).when(searchRequest).getSEList();
+
+        //WHEN
+        ResponseEntity<List<ServiceEntityApiDTO>> response =
+                this.targetsService.getEntitiesByTargetUuid(targetUuid, null, null, null, null);
+
+        //THEN
+        verify(searchRequest, times(1) ).getSEList();
+        Assert.assertEquals(response.getBody(), entities);
+        assertFalse(response.getHeaders().containsKey("X-Previous-Cursor"));
+        assertFalse(response.getHeaders().containsKey("X-Total-Record-Count"));
+        assertTrue(response.getHeaders().containsKey("X-Next-Cursor"));
+    }
+
+    /**
+     * Tests getEntitiesByTargetUuid setting pagination parameters correctly.
+     *
+     * @throws Exception error in thread interruption or converting api dtos
+     */
+    @Test
+    public void getEntitiesByTargetUuidWithAllPaginationArgs() throws Exception {
+        //GIVEN
+        String targetUuid = "123";
+        final String cursor = "1";
+        final Integer limit = 1;
+        boolean ascending = true;
+        final String searchOrderBy = SearchOrderBy.DEFAULT;
+
+
+        SearchRequest searchRequestMock = Mockito.mock(SearchRequest.class);
+        doReturn(searchRequestMock).when(repositoryApi).newSearchRequest(Mockito.any());
+        doReturn(null).when(searchRequestMock).getPaginatedSEList(Mockito.any());
+
+        ArgumentCaptor<Pagination.PaginationParameters> argument = ArgumentCaptor.forClass(Pagination.PaginationParameters.class);
+
+        //WHEN
+        this.targetsService.getEntitiesByTargetUuid(targetUuid, cursor, limit, ascending, searchOrderBy);
+
+        //THEN
+        verify(searchRequestMock, times(1) ).getPaginatedSEList(Mockito.any());
+        verify(searchRequestMock).getPaginatedSEList(argument.capture());
+
+        Pagination.PaginationParameters paginationParameters = argument.getValue();
+        Assert.assertEquals(paginationParameters.getCursor(), cursor);
+        Assert.assertEquals(paginationParameters.getLimit(), 1);
+        Assert.assertEquals(paginationParameters.getAscending(), true);
+        Assert.assertEquals(paginationParameters.getOrderBy().getSearch(), OrderBy.SearchOrderBy.ENTITY_NAME);
+    }
+
+    /**
+     * Tests getEntitiesByTargetUuid setting pagination parameters correctly limit missing.
+     *
+     * @throws Exception error in thread interruption or converting api dtos
+     */
+    @Test
+    public void getEntitiesByTargetUuidWithPaginationLimitMissing() throws Exception {
+        //GIVEN
+        String targetUuid = "123";
+        final String cursor = "1";
+        boolean ascending = true;
+        final String searchOrderBy = SearchOrderBy.DEFAULT;
+
+
+        SearchRequest searchRequestMock = Mockito.mock(SearchRequest.class);
+        doReturn(searchRequestMock).when(repositoryApi).newSearchRequest(Mockito.any());
+        doReturn(null).when(searchRequestMock).getPaginatedSEList(Mockito.any());
+
+        ArgumentCaptor<Pagination.PaginationParameters> argument = ArgumentCaptor.forClass(Pagination.PaginationParameters.class);
+
+        //WHEN
+        this.targetsService.getEntitiesByTargetUuid(targetUuid, cursor, null, ascending, searchOrderBy);
+
+        //THEN
+        verify(searchRequestMock, times(1) ).getPaginatedSEList(Mockito.any());
+        verify(searchRequestMock).getPaginatedSEList(argument.capture());
+
+        Pagination.PaginationParameters paginationParameters = argument.getValue();
+        Assert.assertEquals(paginationParameters.getCursor(), cursor);
+        Assert.assertTrue(paginationParameters.hasLimit());
+        Assert.assertEquals(paginationParameters.getAscending(), true);
+        Assert.assertEquals(paginationParameters.getOrderBy().getSearch(), OrderBy.SearchOrderBy.ENTITY_NAME);
+    }
+
+    /**
+     * Tests getEntitiesByTargetUuid setting pagination parameters correctly cursor missing.
+     *
+     * @throws Exception error in thread interruption or converting api dtos
+     */
+    @Test
+    public void getEntitiesByTargetUuidWithPaginationCursorMissing() throws Exception {
+        //GIVEN
+        String targetUuid = "123";
+        int limit = 1;
+        boolean ascending = true;
+        final String searchOrderBy = SearchOrderBy.DEFAULT;
+
+
+        SearchRequest searchRequestMock = Mockito.mock(SearchRequest.class);
+        doReturn(searchRequestMock).when(repositoryApi).newSearchRequest(Mockito.any());
+        doReturn(null).when(searchRequestMock).getPaginatedSEList(Mockito.any());
+
+        ArgumentCaptor<Pagination.PaginationParameters> argument = ArgumentCaptor.forClass(Pagination.PaginationParameters.class);
+
+        //WHEN
+        this.targetsService.getEntitiesByTargetUuid(targetUuid, null, limit, ascending, searchOrderBy);
+
+        //THEN
+        verify(searchRequestMock, times(1) ).getPaginatedSEList(Mockito.any());
+        verify(searchRequestMock).getPaginatedSEList(argument.capture());
+
+        Pagination.PaginationParameters paginationParameters = argument.getValue();
+        Assert.assertEquals(paginationParameters.getLimit(), limit);
+        Assert.assertFalse(paginationParameters.hasCursor());
+        Assert.assertEquals(paginationParameters.getAscending(), true);
+        Assert.assertEquals(paginationParameters.getOrderBy().getSearch(), OrderBy.SearchOrderBy.ENTITY_NAME);
+    }
+
+    /**
+     * Tests getEntitiesByTargetUuid setting pagination default parameters orderBy, limit, ascending when cursor set correctly cursor missing.
+     *
+     * @throws Exception error in thread interruption or converting api dtos
+     */
+    @Test
+    public void getEntitiesByTargetUuidWithPaginationDefaultParametersSetWhenOnlyCursorPassed() throws Exception {
+        //GIVEN
+        String targetUuid = "123";
+        final String cursor = "";
+
+
+        SearchRequest searchRequestMock = Mockito.mock(SearchRequest.class);
+        doReturn(searchRequestMock).when(repositoryApi).newSearchRequest(Mockito.any());
+        doReturn(null).when(searchRequestMock).getPaginatedSEList(Mockito.any());
+
+        ArgumentCaptor<Pagination.PaginationParameters> argument = ArgumentCaptor.forClass(Pagination.PaginationParameters.class);
+
+        //WHEN
+        this.targetsService.getEntitiesByTargetUuid(targetUuid, "", null, null, null);
+
+        //THEN
+        verify(searchRequestMock, times(1) ).getPaginatedSEList(Mockito.any());
+        verify(searchRequestMock).getPaginatedSEList(argument.capture());
+
+        Pagination.PaginationParameters paginationParameters = argument.getValue();
+        Assert.assertEquals(paginationParameters.getLimit(), 100);
+        Assert.assertTrue(paginationParameters.hasCursor());
+        Assert.assertEquals(paginationParameters.getAscending(), true);
+        Assert.assertEquals(paginationParameters.getOrderBy().getSearch(), OrderBy.SearchOrderBy.ENTITY_NAME);
+    }
+
+    /**
+     * Tests getEntitiesByTargetUuid supports searchOrderBy case insensitive.
+     * @throws Exception error in thread interruption or converting api dtos
+     */
+    @Test
+    public void getEntitiesByTargetUuidWithPaginationCaseInsensitiveOrderBy() throws Exception {
+        //GIVEN
+        String targetUuid = "123";
+        int limit = 1;
+        boolean ascending = true;
+        final String searchOrderBy = SearchOrderBy.DEFAULT.toLowerCase();
+
+
+        SearchRequest searchRequestMock = Mockito.mock(SearchRequest.class);
+        doReturn(searchRequestMock).when(repositoryApi).newSearchRequest(Mockito.any());
+        doReturn(null).when(searchRequestMock).getPaginatedSEList(Mockito.any());
+
+        ArgumentCaptor<Pagination.PaginationParameters> argument = ArgumentCaptor.forClass(Pagination.PaginationParameters.class);
+
+        //WHEN
+        this.targetsService.getEntitiesByTargetUuid(targetUuid, null, limit, ascending, searchOrderBy);
+
+        //THEN
+        verify(searchRequestMock, times(1) ).getPaginatedSEList(Mockito.any());
+        verify(searchRequestMock).getPaginatedSEList(argument.capture());
+
+        Pagination.PaginationParameters paginationParameters = argument.getValue();
+        Assert.assertEquals(paginationParameters.getLimit(), limit);
+        Assert.assertFalse(paginationParameters.hasCursor());
+        Assert.assertEquals(paginationParameters.getAscending(), true);
+        Assert.assertEquals(paginationParameters.getOrderBy().getSearch(), OrderBy.SearchOrderBy.ENTITY_NAME);
+    }
+
+    /**
+     * Expect thrown error when searchOrderBy value not supported.
+     * @throws Exception error in thread interruption or converting api dtos
+     */
+    @Test(expected = Exception.class)
+    public void getEntitiesByTargetUuidWithNonSupportedOrderBy() throws Exception {
+        //GIVEN
+        String targetUuid = "123";
+        int limit = 1;
+        boolean ascending = true;
+        final String searchOrderBy = "olives";
+
+        SearchRequest searchRequestMock = Mockito.mock(SearchRequest.class);
+        doReturn(searchRequestMock).when(repositoryApi).newSearchRequest(Mockito.any());
+        doReturn(null).when(searchRequestMock).getPaginatedSEList(Mockito.any());
+
+        ArgumentCaptor<Pagination.PaginationParameters> argument = ArgumentCaptor.forClass(Pagination.PaginationParameters.class);
+
+        //WHEN
+        this.targetsService.getEntitiesByTargetUuid(targetUuid, null, limit, ascending, searchOrderBy);
     }
 }

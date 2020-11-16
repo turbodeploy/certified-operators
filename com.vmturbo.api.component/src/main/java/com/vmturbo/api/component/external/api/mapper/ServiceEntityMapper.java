@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -27,6 +28,8 @@ import io.grpc.StatusRuntimeException;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
 
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -136,7 +139,9 @@ public class ServiceEntityMapper {
      * @return A map of {@link ServiceEntityApiDTO}s arranged by OID.
      */
     public Map<Long, ServiceEntityApiDTO> toServiceEntityApiDTOMap(@Nonnull final Collection<ApiPartialEntity> apiEntities) {
-        final Map<Long, ServiceEntityApiDTO> retMap = new HashMap<>(apiEntities.size());
+
+        final Object2ObjectLinkedOpenHashMap<Long, ServiceEntityApiDTO>
+                        retMap = new Object2ObjectLinkedOpenHashMap<>(apiEntities.size());
         bulkMapToServiceEntityApiDTO(apiEntities, retMap::put);
         setPriceValuesForEntityComponents(retMap);
         return retMap;

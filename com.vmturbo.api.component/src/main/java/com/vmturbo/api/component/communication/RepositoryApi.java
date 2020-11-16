@@ -25,6 +25,7 @@ import com.google.common.collect.Sets;
 
 import io.grpc.stub.StreamObserver;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
@@ -36,11 +37,13 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.pagination.PaginationUtil;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
-
+import com.vmturbo.common.protobuf.common.Pagination;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.Builder;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
@@ -539,7 +542,12 @@ public class RepositoryApi {
         private final long realtimeContextId;
 
         private final SearchServiceBlockingStub searchServiceBlockingStub;
+
         private final SearchServiceStub searchServiceStub;
+
+        private final ServiceEntityMapper serviceEntityMapper;
+
+        private final SeverityPopulator severityPopulator;
 
         private final Collection<SearchParameters> params;
 
@@ -556,6 +564,8 @@ public class RepositoryApi {
             this.realtimeContextId = realtimeContextId;
             this.searchServiceBlockingStub = searchServiceBlockingStub;
             this.searchServiceStub = Objects.requireNonNull(searchServiceStub);
+            this.serviceEntityMapper = serviceEntityMapper;
+            this.severityPopulator = severityPopulator;
             this.params = params;
 
             this.retriever = new PartialEntityRetriever(type ->
@@ -581,6 +591,40 @@ public class RepositoryApi {
         public SearchRequest useAspectMapper(@Nonnull final EntityAspectMapper aspectMapper) {
             this.aspectMapper = aspectMapper;
             return this;
+        }
+
+        /**
+         * Handles pagination request on searchParameters configured on object.
+         * @param paginationParams pagination parameters
+         * @return response with serviceEntityDtos
+         * @throws InterruptedException if current thread has been interrupted while populating
+         * severity data
+         * @throws ConversionException if error faced during severity population
+         */
+        @Nonnull
+        public ResponseEntity<List<ServiceEntityApiDTO>> getPaginatedSEList(
+                @Nonnull final Pagination.PaginationParameters paginationParams)
+                throws InterruptedException, ConversionException {
+            SearchEntitiesRequest searchEntitiesRequest = SearchEntitiesRequest.newBuilder()
+                    .setPaginationParams(paginationParams)
+                    .setSearch(SearchQuery.newBuilder()
+                            .addAllSearchParameters(params))
+                    .setReturnType(Type.API)
+                    .build();
+
+            SearchEntitiesResponse response = searchServiceBlockingStub.searchEntities(searchEntitiesRequest);
+
+            final List<ApiPartialEntity> apiPartialEntities = response.getEntitiesList().stream()
+                    .map(PartialEntity::getApi)
+                    .collect(Collectors.toList());
+            List<ServiceEntityApiDTO> serviceEntityApiDTOList = this.serviceEntityMapper.toServiceEntityApiDTO(apiPartialEntities);
+
+            PaginationResponse paginationResponse = response.getPaginationResponse();
+
+            //Add severityInfo
+            severityPopulator.populate(realtimeContextId, serviceEntityApiDTOList);
+
+            return PaginationUtil.buildResponseEntity(serviceEntityApiDTOList, null, paginationResponse.getNextCursor(), paginationResponse.getTotalRecordCount());
         }
 
         /**

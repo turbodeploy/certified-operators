@@ -47,7 +47,7 @@ public class SeverityPopulator {
      *
      * @param topologyContextId The ID of the topology context from which to retrieve the severity.
      * @param entityDtos A collection of {@link ServiceEntityApiDTO} whose severity should be updated.
-     * @throws InterruptedException if current thread has been interrupted while pupulating
+     * @throws InterruptedException if current thread has been interrupted while populating
      *         severity data
      * @throws ConversionException if error faced during severity population
      */
