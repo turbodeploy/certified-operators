@@ -220,7 +220,7 @@ public class VsanStorageApplicator extends BaseSettingApplicator {
         if (hostCapacityReservation >= activeHostCount) {
             CommoditySoldDTO.Builder storageLatency = getSoldStorageCommodityBuilder(
                             storage, CommodityType.STORAGE_LATENCY);
-            logger.error("Setting sold Storage Latency capacity for {} to 1.0 because"
+            logger.warn("Setting sold Storage Latency capacity for {} to 1.0 because"
                             + " no hosts are available. Host capacity reservation: {}."
                             + " Number of hosts: {}", storage.getDisplayName(),
                             hostCapacityReservation, activeHostCount);
