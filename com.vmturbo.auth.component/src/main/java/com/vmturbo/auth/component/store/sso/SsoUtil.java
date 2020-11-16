@@ -273,6 +273,8 @@ public class SsoUtil {
                         String.format("(&(objectClass=person)(SamAccountName=%s))", pureUsername);
         final SearchControls sCtrl = new SearchControls();
         sCtrl.setSearchScope(SearchControls.SUBTREE_SCOPE);
+        logger.debug("User DN will be retrieved using '{}' pure username and '{}' filter",
+                        pureUsername, searchFilter);
         for (String ldapServer : ldapServers) {
             final Hashtable<String, String> props =
                             composeLDAPConnProps(ldapServer, createFullUsername(pureUsername),
@@ -290,12 +292,17 @@ public class SsoUtil {
                     }
                 }
             } catch (NamingException namEx) {
-                logger.trace("LDAP connection failed: ", namEx);
+                logLdapException(pureUsername, ldapServer, namEx);
             } finally {
                 closeContext(ctx);
             }
         }
         return null;
+    }
+
+    private void logLdapException(@Nonnull String pureUsername, @Nonnull String ldapServer,
+                    @Nonnull NamingException namEx) {
+        logger.debug("LDAP connection failed for '{}' on '{}': ", pureUsername, ldapServer, namEx);
     }
 
     /**
@@ -415,6 +422,7 @@ public class SsoUtil {
             SearchControls sCtrl = new SearchControls();
             sCtrl.setSearchScope(SearchControls.SUBTREE_SCOPE);
             sCtrl.setReturningAttributes(returnAttrs);
+            final Collection<String> participatesIn = new HashSet<>();
             try {
                 ctx = new InitialDirContext(props);
                 NamingEnumeration<SearchResult> answer = ctx.search(adSearchBase_,
@@ -427,7 +435,7 @@ public class SsoUtil {
                         continue;
                     }
                     String memberOfAttrValue = memberOf.toString().toLowerCase();
-                    logger.debug("Member of groups: {}", memberOfAttrValue);
+                    participatesIn.add(memberOfAttrValue);
                     synchronized (usersGroupsLock) {
                         for (String groupName : ssoGroups_.keySet().toArray(new String[0])) {
                             String adGroupNotChanged = groupName;
@@ -437,18 +445,40 @@ public class SsoUtil {
                                 groupName = "CN=" + groupName;
                             }
                             if (memberOfAttrValue.contains(groupName.toLowerCase())) {
-                               return ssoGroups_.get(adGroupNotChanged);
+                                final SecurityGroupDTO result = ssoGroups_.get(adGroupNotChanged);
+                                if (result != null) {
+                                    logger.debug("User '{}' authorized in group with DN '{}' for group name '{}' as '{}' through '{}'",
+                                                    userName, memberOfAttrValue, groupName,
+                                                    result.getDisplayName(), ldapServer);
+                                }
+                                return result;
                             }
                         }
                     }
                 }
             } catch (NamingException authEx) {
+                logger.debug("Cannot get information about groups that '{}' username participates in from '{}' server using '{}' filter",
+                                userName, ldapServer, searchFilter, authEx);
                 return null;
             } finally {
+                debugAuthentication(userName, ldapServer, searchFilter, participatesIn);
                 closeContext(ctx);
             }
         }
         return null;
+    }
+
+    private void debugAuthentication(@Nonnull String userName, String ldapServer,
+                    String searchFilter, Collection<String> groups) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("User '{}' participates in groups on '{}' server(received using '{}' filter): '{}'.{}Defined security groups: '{}'",
+                            userName, ldapServer, searchFilter,
+                            groups.stream().collect(Collectors.joining(System.lineSeparator())),
+                            System.lineSeparator(), ssoGroups_.values().stream()
+                                            .map(g -> String.format("%s-%s", g.getDisplayName(),
+                                                            g.getRoleName()))
+                                            .collect(Collectors.joining(System.lineSeparator())));
+        }
     }
 
     /**
@@ -483,11 +513,15 @@ public class SsoUtil {
                 while (answer.hasMoreElements()) {
                     SearchResult sr = answer.next();
                     if (sr.getAttributes().size() > 0) {
-                        return sr.getAttributes().get(returnAttrs[0]).toString().split(" ")[1];
+                        final String result = sr.getAttributes().get(returnAttrs[0]).toString()
+                                        .split(" ")[1];
+                        logger.debug("User principal name '{}' received as result of search filter: '{}'",
+                                        result, searchFilter);
+                        return result;
                     }
                 }
             } catch (NamingException namEx) {
-                logger.trace("LDAP connection failed: ", namEx);
+                logLdapException(userName, ldapServer, namEx);
             } finally {
                 closeContext(ctx);
             }
@@ -515,6 +549,7 @@ public class SsoUtil {
         final SearchControls sCtrl = new SearchControls();
         sCtrl.setSearchScope(SearchControls.SUBTREE_SCOPE);
         final Set<SecurityGroupDTO> matchedGroups = new HashSet<>();
+        final Collection<String> memberOf = new HashSet<>();
         for (String ldapServer : ldapServers) {
             final Hashtable<String, String> props =
                     composeLDAPConnProps(ldapServer, fullUsername, userPassword);
@@ -530,34 +565,42 @@ public class SsoUtil {
                     if (StringUtils.isBlank(groupDn)) {
                         continue;
                     }
-                    final String ldapObjectName = new LdapName(groupDn).getRdns()
-                            .stream()
-                            .filter(rdn -> CANONICAL_NAME.equalsIgnoreCase(rdn.getType()))
-                            // Stream#reduce call is important, because we want to get
-                            // last CN item from all existing. Last item should contain
-                            // canonical name of the LDAP object. Reduce is helping to find
-                            // the last record
-                            .map(Rdn::getValue)
-                            .reduce((f, l) -> l)
-                            .map(String::valueOf)
-                            .orElse(null);
+                    memberOf.add(groupDn);
+                    final String ldapObjectName = new LdapName(groupDn).getRdns().stream()
+                                    .filter(rdn -> CANONICAL_NAME.equalsIgnoreCase(rdn.getType()))
+                                    // Stream#reduce call is important, because we want to get
+                                    // last CN item from all existing. Last item should contain
+                                    // canonical name of the LDAP object. Reduce is helping to find
+                                    // the last record
+                                    .map(Rdn::getValue)
+                                    .reduce((f, l) -> l)
+                                    .map(String::valueOf)
+                                    .orElse(null);
 
-                        final Collection<SecurityGroupDTO> foundGroups =
-                                findMatchedGroups(Collections.singleton(ldapObjectName));
-                        if (!foundGroups.isEmpty()) {
-                            matchedGroups.addAll(foundGroups);
-                        }
-
+                    logger.debug("Group name '{}' extracted from DN '{}'", ldapObjectName, groupDn);
+                    final Collection<SecurityGroupDTO> foundGroups =
+                                    findMatchedGroups(Collections.singleton(ldapObjectName));
+                    if (!foundGroups.isEmpty()) {
+                        matchedGroups.addAll(foundGroups);
+                    }
                 }
             } catch (NamingException authEx) {
                 logger.error("LDAP connection to " + ldapServer + " failed", authEx);
                 return null;
             } finally {
+                debugAuthentication(userName, ldapServer, searchFilter, memberOf);
                 closeContext(ctx);
             }
         }
 
-        return sortGroupWithLeastPrivilege(matchedGroups);
+        final List<SecurityGroupDTO> securityGroupDTOS = sortGroupWithLeastPrivilege(matchedGroups);
+        if (logger.isDebugEnabled()) {
+            logger.debug("User '{}' authorized through '{}'", userName, securityGroupDTOS.stream()
+                            .map(g -> String.format("%s - %s", g.getDisplayName(),
+                                            g.getRoleName()))
+                            .collect(Collectors.joining(System.lineSeparator())));
+        }
+        return securityGroupDTOS;
     }
 
     @Nonnull
@@ -650,6 +693,7 @@ public class SsoUtil {
         props.put(Context.SECURITY_AUTHENTICATION, "simple");
         props.put(Context.SECURITY_PRINCIPAL, user);
         props.put(Context.SECURITY_CREDENTIALS, password);
+        logger.debug("Username '{}' used to connect to '{}' server", user, server);
         return props;
     }
 
