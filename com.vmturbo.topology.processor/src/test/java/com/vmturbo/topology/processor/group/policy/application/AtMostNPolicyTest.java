@@ -207,9 +207,9 @@ public class AtMostNPolicyTest {
         // PM 2 and 9 (which replaces 2) should not sell the segmentation commodity because they
         // are not valid destinations for VM 4 (according to the mock inverted index).
         assertThat(topologyGraph.getEntity(2L).get(),
-                not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, SDKConstants.ACCESS_COMMODITY_CAPACITY)));
+                (policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, SDKConstants.ACCESS_COMMODITY_CAPACITY)));
         assertThat(topologyGraph.getEntity(9L).get(),
-                not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, SDKConstants.ACCESS_COMMODITY_CAPACITY)));
+                (policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, SDKConstants.ACCESS_COMMODITY_CAPACITY)));
         assertThat(topologyGraph.getEntity(4L).get(),
                 policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
         assertThat(topologyGraph.getEntity(5L).get(),

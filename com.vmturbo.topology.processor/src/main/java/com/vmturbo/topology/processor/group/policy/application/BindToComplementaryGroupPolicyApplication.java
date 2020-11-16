@@ -97,10 +97,6 @@ public class BindToComplementaryGroupPolicyApplication extends PlacementPolicyAp
                 }).collect(Collectors.toSet());
                 consumers.addAll(policy.getConsumerPolicyEntities().getAdditionalEntities());
                 consumersByPolicyId.put(policy.getPolicyDefinition().getId(), consumers);
-                if (consumers.isEmpty()) {
-                    // If there are no consumers to bind, there's nothing more to do.
-                    return;
-                }
 
                 //checkEntityType logic makes sure that the group only has only one entity type here
                 // if providers have been replaced, add them to the list of providers so as to skip them
