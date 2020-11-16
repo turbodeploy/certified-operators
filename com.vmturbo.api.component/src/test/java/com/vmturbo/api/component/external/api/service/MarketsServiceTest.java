@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
@@ -29,6 +30,7 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
@@ -63,7 +65,10 @@ import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExe
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.entity.FailedResourceApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.entity.UnplacementDetailsApiDTO;
+import com.vmturbo.api.dto.entity.UnplacementReasonApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
@@ -140,14 +145,22 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.PlacementProblem;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.SenderReceiverPair;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO;
 import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -162,6 +175,7 @@ public class MarketsServiceTest {
 
     private static final long REALTIME_PLAN_ID = 0;
     private static final long TEST_PLAN_OVER_PLAN_ID = REALTIME_PLAN_ID + 1;
+    private static final long MIGRATION_PLAN_ID = TEST_PLAN_OVER_PLAN_ID + 1;
     private static final long TEST_SCENARIO_ID = 12;
     private static final List<Long> MERGE_GROUP_IDS = Arrays.asList(1L, 2L, 3L);
     private static final Map<MergePolicyType, EntityType> MERGE_PROVIDER_ENTITY_TYPE =
@@ -170,6 +184,13 @@ public class MarketsServiceTest {
     private static final long POLICY_ID = 5;
     private static final long MERGE_GROUP_ID = 4;
     private static final String MARKET_UUID = "Market";
+    private static final long T3_NANO_OID = 1L;
+    private static final String T3_NANO_NAME = "t3.nano";
+    private static final long PHYSICAL_MACHINE_OID = 2;
+    private static final String PHYSICAL_MACHINE_NAME = "AnyOldPhysicalMachine";
+
+    // Allowable difference when comparing doubles
+    private static final double EPSILON = 0.0001;
 
     private final PlanInstance planDefault = PlanInstance.newBuilder()
         .setPlanId(111)
@@ -809,6 +830,184 @@ public class MarketsServiceTest {
         licenseSummaryReceiver.sendMessage(LicenseSummary.getDefaultInstance());
         // this should trigger a LicenseFeaturesRequiredException
         marketsService.getUnplacedEntitiesByMarketUuid("1");
+    }
+
+    /**
+     * Verify conversion of unplacement details as well as deprecated fields
+     * for plan entities.
+     */
+    @Test
+    public void testConvertServiceEntitiesForPlan() {
+        PlanInstance plan = PlanInstance.newBuilder()
+            .setPlanId(MIGRATION_PLAN_ID)
+            .setStatus(PlanStatus.READY).build();
+
+        TopologyEntityDTO t3nano = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+            .setOid(T3_NANO_OID)
+            .setDisplayName(T3_NANO_NAME)
+            .build();
+
+        TopologyEntityDTO physicalMachine = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .setOid(PHYSICAL_MACHINE_OID)
+            .setDisplayName(PHYSICAL_MACHINE_NAME)
+            .build();
+
+        final MultiEntityRequest multiEntityRequest =
+            ApiTestUtils.mockMultiFullEntityReq(Arrays.asList(t3nano, physicalMachine));
+
+        Mockito.when(repositoryApi
+            .entitiesRequest(new HashSet<>(Arrays.asList(T3_NANO_OID, PHYSICAL_MACHINE_OID))))
+            .thenReturn(multiEntityRequest);
+
+        // A reason with more than one failed resource, a placement problem value,
+        // and a closest seller.
+        UnplacementReason computeReason = UnplacementReason.newBuilder()
+            .addFailedResources(FailedResources.newBuilder()
+                .setCommType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.CPU.getValue())
+                    .build())
+                .setRequestedAmount(1000)
+                .setMaxAvailable(500)
+                .build())
+            .addFailedResources(FailedResources.newBuilder()
+                .setCommType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.MEM.getValue())
+                    .build())
+                .setRequestedAmount(1024)
+                .setMaxAvailable(512)
+                .build())
+            .setProviderType(EntityType.COMPUTE_TIER_VALUE)
+            .setPlacementProblem(PlacementProblem.COSTS_NOT_FOUND)
+            .setClosestSeller(t3nano.getOid())
+            .build();
+
+        // A reason with only one failed resource and no closest seller or placement problem
+        UnplacementReason storageReason = UnplacementReason.newBuilder()
+            .addFailedResources(FailedResources.newBuilder()
+                .setCommType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.STORAGE_ACCESS.getValue())
+                    .build())
+                .setRequestedAmount(100)
+                .setMaxAvailable(50)
+                .build())
+            .setProviderType(EntityType.STORAGE_TIER_VALUE)
+            .build();
+
+        // A reason that is just a placement problem
+        UnplacementReason problemReason = UnplacementReason.newBuilder()
+            .setPlacementProblem(PlacementProblem.NOT_CONTROLLABLE)
+            .build();
+
+        TopologyEntityDTO unplacedVm = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(3L)
+            .addUnplacedReason(computeReason)
+            .addUnplacedReason(storageReason)
+            .addUnplacedReason(problemReason)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setProviderId(PHYSICAL_MACHINE_OID)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommonDTO.CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+                        .setKey("TheKey")
+                        .build())
+                    .build())
+                .build())
+            .build();
+
+        ServiceEntityApiDTO unplacedVmApiDto = new ServiceEntityApiDTO();
+
+        Mockito.when(serviceEntityMapper.toServiceEntityApiDTO(unplacedVm))
+            .thenReturn(unplacedVmApiDto);
+
+        List<ServiceEntityApiDTO> unplacedEntities =
+            marketsService.convertServiceEntitiesForPlan(plan,
+                Collections.singletonList(unplacedVm));
+
+        assertEquals(1, unplacedEntities.size());
+        ServiceEntityApiDTO unplaced = unplacedEntities.get(0);
+
+        // Check the unplacement details
+
+        UnplacementDetailsApiDTO details = unplaced.getUnplacementDetails();
+        assertNotNull(details);
+
+        List<BaseApiDTO> placedOn = details.getPlacedOn();
+        assertNotNull(placedOn);
+        assertEquals(1, placedOn.size());
+        assertEquals(PHYSICAL_MACHINE_NAME, placedOn.get(0).getDisplayName());
+
+        // Expect 3 reasons for the placement failure
+
+        List<UnplacementReasonApiDTO> reasons = details.getReasons();
+        assertNotNull(reasons);
+        assertEquals(3, reasons.size());
+
+        // A reason with more than one failed resource, a placement problem value,
+        // and a closest seller.
+
+        List<FailedResourceApiDTO> failedResourcedForFirstReason = reasons.get(0).getFailedResources();
+        assertNotNull(failedResourcedForFirstReason);
+        assertEquals(2, failedResourcedForFirstReason.size());
+
+        assertEquals(com.vmturbo.api.enums.CommodityType.CPU,
+            failedResourcedForFirstReason.get(0).getCommodity().getType());
+        assertNull(failedResourcedForFirstReason.get(0).getCommodity().getKey());
+        assertEquals(1000.0, failedResourcedForFirstReason.get(0).getRequestedAmount(), EPSILON);
+        assertEquals(500.0, failedResourcedForFirstReason.get(0).getMaxAvailable(), EPSILON);
+
+        assertEquals(com.vmturbo.api.enums.CommodityType.MEM,
+            failedResourcedForFirstReason.get(1).getCommodity().getType());
+        assertNull(failedResourcedForFirstReason.get(1).getCommodity().getKey());
+        assertEquals(1024.0, failedResourcedForFirstReason.get(1).getRequestedAmount(), EPSILON);
+        assertEquals(512.0, failedResourcedForFirstReason.get(1).getMaxAvailable(), EPSILON);
+
+        assertEquals(com.vmturbo.api.enums.EntityType.ComputeTier, reasons.get(0).getProviderType());
+        BaseApiDTO closestSeller = reasons.get(0).getClosestSeller();
+        assertNotNull(closestSeller);
+        assertEquals(T3_NANO_NAME, closestSeller.getDisplayName());
+        assertEquals(com.vmturbo.api.enums.PlacementProblem.COSTS_NOT_FOUND,
+            reasons.get(0).getPlacementProblem());
+
+        // A reason with only one failed resource and no closest seller or placement problem
+
+        List<FailedResourceApiDTO> failedResourcesForSecondReason = reasons.get(1).getFailedResources();
+        assertNotNull(failedResourcesForSecondReason);
+        assertEquals(1, failedResourcesForSecondReason.size());
+        assertEquals(com.vmturbo.api.enums.CommodityType.STORAGE_ACCESS,
+            failedResourcesForSecondReason.get(0).getCommodity().getType());
+        assertNull(failedResourcesForSecondReason.get(0).getCommodity().getKey());
+        assertEquals(100.0, failedResourcesForSecondReason.get(0).getRequestedAmount(), EPSILON);
+        assertEquals(50.0, failedResourcesForSecondReason.get(0).getMaxAvailable(), EPSILON);
+
+        assertEquals(com.vmturbo.api.enums.EntityType.StorageTier, reasons.get(1).getProviderType());
+        assertNull(reasons.get(1).getClosestSeller());
+        assertEquals(com.vmturbo.api.enums.PlacementProblem.UNSATISFIED_COMMODITIES,
+            reasons.get(1).getPlacementProblem());
+
+        // A reason that is just a placement problem
+
+        assertTrue(CollectionUtils.isEmpty(reasons.get(2).getFailedResources()));
+        assertNull(reasons.get(2).getClosestSeller());
+        assertNull(reasons.get(2).getProviderType());
+        assertEquals(com.vmturbo.api.enums.PlacementProblem.NOT_CONTROLLABLE,
+            reasons.get(2).getPlacementProblem());
+
+        // Check that the deprecated fields are still generated correctly
+
+        assertEquals(PHYSICAL_MACHINE_NAME, unplaced.getPlacedOn());
+        assertEquals("COMPUTE_TIER,STORAGE_TIER", unplaced.getNotPlacedOn());
+
+        assertEquals("When looking for supplier of type ComputeTier: needed resource CPU with a "
+            + "requested amount of 1000.0 but the max available was 500.0, needed resource Mem "
+            + "with a requested amount of 1024.0 but the max available was 512.0, costs were not "
+            + "found; the closest match was t3.nano. When looking for supplier of type "
+            + "StorageTier: needed resource StorageAccess with a requested amount of 100.0 but "
+            + "the max available was 50.0. entity is not controllable.",
+            unplaced.getUnplacedExplanation());
     }
 
     /**

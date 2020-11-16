@@ -23,11 +23,11 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import com.google.common.collect.Streams;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.lang.ObjectUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -57,11 +57,16 @@ import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQu
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.NoDetailsApiDTO;
+import com.vmturbo.api.dto.entity.BaseCommodityApiDTO;
+import com.vmturbo.api.dto.entity.FailedResourceApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.entity.UnplacementDetailsApiDTO;
+import com.vmturbo.api.dto.entity.UnplacementReasonApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
@@ -73,6 +78,7 @@ import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.PlacementProblem;
 import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
@@ -105,13 +111,10 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
@@ -119,12 +122,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyDeleteResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyEditResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
@@ -162,11 +163,16 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -580,7 +586,7 @@ public class MarketsService implements IMarketsService {
                 .map(PartialEntity::getFullEntity)
                 .collect(Collectors.toList());
 
-            final List<ServiceEntityApiDTO> allConvertedResults = populatePlacedOnUnplacedOnForEntitiesForPlan(
+            final List<ServiceEntityApiDTO> allConvertedResults = convertServiceEntitiesForPlan(
                 planInstance, allResults);
 
             // We do pagination before fetching price index and severity.
@@ -1164,9 +1170,9 @@ public class MarketsService implements IMarketsService {
         for (Long oid : placedOids) {
             entities.remove(oid);
         }
-        // convert to ServiceEntityApiDTOs, filling in the blanks of the placed on / not placed on fields
+        // convert to ServiceEntityApiDTOs, filling in data about unplaced entities
         List<ServiceEntityApiDTO> unplacedApiDTOs =
-                populatePlacedOnUnplacedOnForEntitiesForPlan(plan, entities.values());
+                convertServiceEntitiesForPlan(plan, entities.values());
 
         logger.debug("Found {} unplaced entities in plan {} results.", unplacedApiDTOs.size(), uuid);
         return unplacedApiDTOs;
@@ -1209,8 +1215,8 @@ public class MarketsService implements IMarketsService {
      * @param entityDTOs The collection of TopologyEntityDTOs to be converted into ServiceEntityApiDTO
      * @return A list of ServiceEntityApiDTO objects representing with information on where it is placed/unplaced.
      */
-    List<ServiceEntityApiDTO> populatePlacedOnUnplacedOnForEntitiesForPlan(PlanInstance plan,
-            Collection<TopologyEntityDTO> entityDTOs) {
+    List<ServiceEntityApiDTO> convertServiceEntitiesForPlan(PlanInstance plan,
+                                                            Collection<TopologyEntityDTO> entityDTOs) {
         // if no unplaced entities, return an empty collection
         if (entityDTOs.size() == 0) {
             return Collections.emptyList();
@@ -1224,6 +1230,13 @@ public class MarketsService implements IMarketsService {
                 .filter(comm -> comm.getProviderId() > 0)
                 .map(CommoditiesBoughtFromProvider::getProviderId)
                 .collect(Collectors.toSet());
+
+        // Add in providers that aren't used but were the closest match in a failed placement
+        providerOids.addAll(entityDTOs.stream()
+            .flatMap(entity -> entity.getUnplacedReasonList().stream())
+            .filter(UnplacementReason::hasClosestSeller)
+            .map(reason -> reason.getClosestSeller())
+            .collect(Collectors.toSet()));
 
         final Map<Long, TopologyEntityDTO> providers = new HashMap<>(providerOids.size());
         entityDTOs.forEach(entity -> {
@@ -1277,6 +1290,7 @@ public class MarketsService implements IMarketsService {
     private ServiceEntityApiDTO createServiceEntityApiDTO(TopologyEntityDTO entity,
                                                           Map<Long, TopologyEntityDTO> providers) {
         ServiceEntityApiDTO seEntity = serviceEntityMapper.toServiceEntityApiDTO(entity);
+        List<BaseApiDTO> placedProviders = new ArrayList<>();
         StringJoiner placedOnJoiner = new StringJoiner(",");
         StringJoiner notPlacedOnJoiner = new StringJoiner(",");
         // for all of the commodities bought, build a string description of which are placed
@@ -1287,27 +1301,161 @@ public class MarketsService implements IMarketsService {
                 // if no commodity provider DTO was retrieved for this provider id, fall back to
                 // displaying the id instead of the name
                 TopologyEntityDTO provider = providers.get(comm.getProviderId());
+                placedProviders.add(serviceEntityMapper.toBaseServiceEntityApiDTO(provider));
                 placedOnJoiner.add((provider != null)
                         ? provider.getDisplayName()
                         : String.valueOf(comm.getProviderId()));
-            } else {
-                // 'not placed on' list contains the list of provider entity types that were not found
-                // during analysis. These entity types could have provided the commodities needed by
-                // this unplaced entity
-                notPlacedOnJoiner.add(EntityType.forNumber(comm.getProviderEntityType()).name());
             }
         }
-        seEntity.setPlacedOn(placedOnJoiner.toString());
-        seEntity.setNotPlacedOn(notPlacedOnJoiner.toString());
 
-        // Set explanation for non-controllable entities. It will
-        // likely to change with the design:
-        // https://vmturbo.atlassian.net/wiki/spaces/XD/pages/1692271430/Data+Attribution+Research+and+Implementation
-        if (!entity.getAnalysisSettings().getControllable()
-                && Strings.isBlank(seEntity.getUnplacedExplanation())) {
-            seEntity.setUnplacedExplanation("Entity does not participate in analysis");
-        }
+        UnplacementDetailsApiDTO unplacedData = new UnplacementDetailsApiDTO();
+        seEntity.setUnplacementDetails(unplacedData);
+
+        unplacedData.setPlacedOn(placedProviders);
+        unplacedData.setReasons(entity.getUnplacedReasonList().stream()
+            .map(reason -> convertUnplacedReason(reason, providers))
+            .collect(Collectors.toList()));
+
+        // Deprecated fields, for backward compatibility.
+        seEntity.setUnplacedExplanation(entity.getUnplacedReasonList().stream()
+            .map(reason -> explainUnplacementReason(reason, providers))
+            .collect(Collectors.joining(" ")));
+
+        seEntity.setPlacedOn(placedOnJoiner.toString());
+        seEntity.setNotPlacedOn(entity.getUnplacedReasonList().stream()
+            .filter(UnplacementReason::hasProviderType)
+            .map(UnplacementReason::getProviderType)
+            .map(EntityType::forNumber)
+            .map(entityType -> (EntityType)ObjectUtils.defaultIfNull(entityType, EntityType.UNKNOWN))
+            .map(EntityType::name)
+            .collect(Collectors.joining(",")));
+
         return seEntity;
+    }
+
+    @Nonnull
+    private String explainUnplacementReason(@Nonnull UnplacementReason reason,
+                                            @Nonnull Map<Long, TopologyEntityDTO> providers) {
+        StringBuilder sb = new StringBuilder();
+
+        if (reason.hasProviderType()) {
+            sb.append("When looking for supplier of type ")
+                .append(ApiEntityType.fromType(reason.getProviderType()).apiStr())
+                .append(": ");
+        }
+
+        List<String> parts = new ArrayList<>();
+
+        for (FailedResources resource : reason.getFailedResourcesList()) {
+            StringBuilder resourceStringBuilder = new StringBuilder();
+            resourceStringBuilder.append("needed resource ")
+                .append(UICommodityType.fromType(resource.getCommType()).apiStr());
+
+            if (resource.getCommType().hasKey()) {
+                resourceStringBuilder.append(":").append(resource.getCommType().getKey());
+            }
+
+            resourceStringBuilder.append(" with a requested amount of ")
+                .append(resource.getRequestedAmount());
+
+            if (resource.hasMaxAvailable()) {
+                resourceStringBuilder.append(" but the max available was ")
+                    .append(resource.getMaxAvailable());
+            }
+
+            parts.add(resourceStringBuilder.toString());
+        }
+
+        if (reason.hasPlacementProblem()) {
+            switch (reason.getPlacementProblem()) {
+                case COSTS_NOT_FOUND:
+                    parts.add("costs were not found");
+                    break;
+
+                case NOT_CONTROLLABLE:
+                    parts.add("entity is not controllable");
+                    break;
+            }
+        }
+
+        sb.append(parts.stream().collect(Collectors.joining(", ")));
+
+        if (reason.hasClosestSeller()) {
+            TopologyEntityDTO closestSeller = providers.get(reason.getClosestSeller());
+            if (closestSeller != null) {
+                sb.append("; the closest match was ").append(closestSeller.getDisplayName());
+            }
+        }
+
+        sb.append(".");
+
+        return sb.toString();
+    }
+
+    @Nonnull
+    private UnplacementReasonApiDTO convertUnplacedReason(@Nonnull UnplacementReason reasonDTO,
+                                                          @Nonnull Map<Long, TopologyEntityDTO> providers) {
+        UnplacementReasonApiDTO reasonApiDTO = new UnplacementReasonApiDTO();
+
+        reasonApiDTO.setFailedResources(reasonDTO.getFailedResourcesList().stream()
+            .map(this::convertFailedResource)
+            .collect(Collectors.toList()));
+
+        if (reasonDTO.hasProviderType()) {
+            reasonApiDTO.setProviderType(com.vmturbo.api.enums.EntityType.fromString(
+                ApiEntityType.fromType(reasonDTO.getProviderType()).apiStr()));
+        }
+
+        if (reasonDTO.hasClosestSeller()) {
+            TopologyEntityDTO closestSeller = providers.get(reasonDTO.getClosestSeller());
+            if (closestSeller != null) {
+                reasonApiDTO.setClosestSeller(
+                    ServiceEntityMapper.toBaseServiceEntityApiDTO(closestSeller));
+            }
+        }
+
+        if (reasonDTO.hasPlacementProblem()) {
+            reasonApiDTO.setPlacementProblem(PlacementProblem.valueOf(
+                reasonDTO.getPlacementProblem().name()));
+        } else {
+            reasonApiDTO.setPlacementProblem(PlacementProblem.UNSATISFIED_COMMODITIES);
+        }
+
+        return reasonApiDTO;
+    }
+
+    @Nonnull
+    private FailedResourceApiDTO convertFailedResource(@Nonnull FailedResources failedResource) {
+        FailedResourceApiDTO resourceApiDTO = new FailedResourceApiDTO();
+
+        BaseCommodityApiDTO commodity = new BaseCommodityApiDTO();
+        resourceApiDTO.setCommodity(commodity);
+
+        String typeName = UICommodityType.fromType(failedResource.getCommType()).sdkType().name();
+
+        commodity.setType(com.vmturbo.api.enums.CommodityType.valueOf(typeName));
+
+        String units = null;
+        try {
+            units = CommodityTypeUnits.valueOf(typeName).getUnits();
+        } catch (IllegalArgumentException ex) {
+            logger.warn("Unable to find units for commodity type {}", typeName);
+        }
+        if (StringUtils.isNotBlank(units)) {
+            commodity.setUnits(units);
+        }
+
+        if (failedResource.getCommType().hasKey()) {
+            commodity.setKey(failedResource.getCommType().getKey());
+        }
+
+        resourceApiDTO.setRequestedAmount(failedResource.getRequestedAmount());
+
+        if (failedResource.hasMaxAvailable()) {
+            resourceApiDTO.setMaxAvailable(failedResource.getMaxAvailable());
+        }
+
+        return resourceApiDTO;
     }
 
     /**
