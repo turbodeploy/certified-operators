@@ -29,6 +29,7 @@ import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactor
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -122,5 +123,10 @@ public class ScopedUserCountStatsSubQueryTest {
             .findFirst()
             .get();
         assertThat(endSnapshot.getStatistics().get(0).getValue(), is(1F));
+
+        StatApiInputDTO inputDTO = new StatApiInputDTO();
+        inputDTO.setRelatedEntityType(StringConstants.VIRTUAL_MACHINE);
+        final List<StatSnapshotApiDTO> resultsForNullName = query.getAggregateStats(Collections.singleton(inputDTO), context);
+        assertEquals(2, resultsForNullName.size());
     }
 }

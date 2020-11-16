@@ -77,12 +77,24 @@ public class ScopedUserCountStatsSubQuery implements StatsSubQuery {
         List<StatSnapshotApiDTO> statSnapShots = new ArrayList<>();
         List<StatApiDTO> statList = new ArrayList<>();
         requestedStats.stream()
-            .map(StatApiInputDTO::getName)
-            .forEach(statName -> {
-                StatApiDTO statApi = new StatApiDTO();
-                statApi.setName(statName);
-                statList.add(statApi);
+            .forEach(stat -> {
+                if (stat.getName() != null) {
+                    StatApiDTO statApi = new StatApiDTO();
+                    statApi.setName(stat.getName());
+                    statList.add(statApi);
+                } else {
+                    // If name is null, we will return stats for all count_metrics
+                    // that match the relatedEntityType.
+                    StatsUtils.COUNT_ENTITY_METRIC_NAMES.forEach((name, type) -> {
+                        if (type.apiStr().equals(stat.getRelatedEntityType())) {
+                            StatApiDTO statApi = new StatApiDTO();
+                            statApi.setName(name);
+                            statList.add(statApi);
+                        }
+                    });
+                }
             });
+
         if (context.requestProjected()) {
             StatSnapshotApiDTO projectedStatSnapshot = new StatSnapshotApiDTO();
             projectedStatSnapshot.setDate(context.getTimeWindow()
