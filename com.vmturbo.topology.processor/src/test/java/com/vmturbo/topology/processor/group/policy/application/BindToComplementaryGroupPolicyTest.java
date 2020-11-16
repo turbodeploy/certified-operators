@@ -174,11 +174,11 @@ public class BindToComplementaryGroupPolicyTest {
             new PolicyEntities(consumerGroup, Collections.emptySet()),
             new PolicyEntities(providerGroup)));
         // No segments should be sold, since we are binding "nothing".
-        assertThat(topologyGraph.getEntity(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
-        assertThat(topologyGraph.getEntity(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
+        assertThat(topologyGraph.getEntity(1L).get(), (policyMatcher.hasProviderSegment(POLICY_ID)));
+        assertThat(topologyGraph.getEntity(2L).get(), (policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(5L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
         assertThat(topologyGraph.getEntity(6L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
-        assertThat(topologyGraph.getEntity(13L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
+        assertThat(topologyGraph.getEntity(13L).get(), (policyMatcher.hasProviderSegment(POLICY_ID)));
     }
 
     @Test
@@ -194,8 +194,8 @@ public class BindToComplementaryGroupPolicyTest {
 
         // No segments should be sold, since we are binding "nothing."1
         assertThat(topologyGraph.getEntity(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
-        assertThat(topologyGraph.getEntity(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
-        assertThat(topologyGraph.getEntity(13L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
+        assertThat(topologyGraph.getEntity(2L).get(), (policyMatcher.hasProviderSegment(POLICY_ID)));
+        assertThat(topologyGraph.getEntity(13L).get(), (policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(5L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
         assertThat(topologyGraph.getEntity(6L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
     }
@@ -228,11 +228,11 @@ public class BindToComplementaryGroupPolicyTest {
         assertThat(topologyGraph.getEntity(100L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         // Host 2 doesn't need to sell a segmentation commodity, because VM 5 is constrained
         // by a cluster commodity to stay on Host 1.
-        assertThat(topologyGraph.getEntity(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
+        assertThat(topologyGraph.getEntity(2L).get(), (policyMatcher.hasProviderSegment(POLICY_ID)));
 
         // Host 13 (which replaces host 2) also doesn't need to sell a segmentation commodity,
         // because VM 5 is constrained by a cluster commodity to stay on Host 1.
-        assertThat(topologyGraph.getEntity(13L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
+        assertThat(topologyGraph.getEntity(13L).get(), (policyMatcher.hasProviderSegment(POLICY_ID)));
         // reservation vm will not buy the segmentation commodity
         assertThat(topologyGraph.getEntity(5L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
         assertThat(topologyGraph.getEntity(6L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
@@ -391,12 +391,10 @@ public class BindToComplementaryGroupPolicyTest {
             .thenReturn(resolvedGroup(podConsumerGroup, 15L, 16L));
         // Add all VMs to vmProviderGroup except VM 14L
         when(groupResolver.resolve(eq(vmProviderGroup), eq(topologyGraph)))
-            .thenReturn(resolvedGroup(vmProviderGroup, 5L, 6L, 7L, 12L));
+            .thenReturn(resolvedGroup(vmProviderGroup, 5L, 6L, 7L));
 
-        // All VMs are available as providers.
-        mockInvertedIndex(topologyGraph.entitiesOfType(EntityType.VIRTUAL_MACHINE)
-            .map(TopologyEntity::getOid)
-            .collect(Collectors.toSet()));
+        // All VMs except 12L are available as providers.
+        mockInvertedIndex(Sets.newHashSet(5L, 6L, 7L, 14L));
 
         applyPolicy(new BindToComplementaryGroupPolicy(policy,
             new PolicyEntities(podConsumerGroup, Sets.newHashSet(15L, 16L)),
@@ -412,6 +410,12 @@ public class BindToComplementaryGroupPolicyTest {
         TopologyEntity vm = topologyGraph.getEntity(14L).get();
         assertThat(vm, policyMatcher.hasProviderSegment(POLICY_ID));
         Assert.assertEquals(1, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList().size());
+
+        // Even though 12L is part of complementary group it will not sell the commodity because
+        // it is not potential provider.
+        TopologyEntity vm1 = topologyGraph.getEntity(12L).get();
+        assertThat(vm1, not(policyMatcher.hasProviderSegment(POLICY_ID)));
+
 
     }
 

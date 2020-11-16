@@ -252,30 +252,43 @@ public abstract class PlacementPolicyApplication<P extends PlacementPolicy> {
                 final long providerEntityType,
                 @Nonnull final InvertedIndex<TopologyEntity, CommoditiesBoughtFromProvider> invertedIndex,
                 @Nonnull final CommoditySoldDTO segmentationCommodity) {
-        // Set of provider OIDs to sell the given segmentationCommodity. This is used to deduplicate
-        // SegmentationCommodities sold by the same provider.
-        Set<Long> providersSet = new HashSet<>();
-        // The potential providers for the consumers are any potential providers that are
-        // NOT blocked by the policy. We use the inverted index to find providers
-        // that satisfy all other constraints (e.g. cluster, datacenter).
-        consumers.stream()
-            .map(this::getPolicyConsumerEntity)
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .flatMap(e -> e.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream())
-            .flatMap(grouping -> invertedIndex.getSatisfyingSellers(grouping))
-            // Filter out the providers blocked by the policy.
-            .filter(potentialProvider -> !providers.contains(potentialProvider.getOid()))
-            // Enforce the provider entity type.
-            .filter(potentialProvider -> potentialProvider.getEntityType() == providerEntityType)
-            .map(TopologyEntity::getTopologyEntityDtoBuilder)
-            .forEach(provider -> {
-                if (!providersSet.contains(provider.getOid())) {
-                    providersSet.add(provider.getOid());
-                    recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
-                    provider.addCommoditySoldList(segmentationCommodity);
-                }
-            });
+
+        if (providerEntityType == EntityType.PHYSICAL_MACHINE_VALUE
+                || providerEntityType == EntityType.STORAGE_VALUE) {
+            topologyGraph.entities()
+                    .filter(entity -> entity.getEntityType() == providerEntityType)
+                    .filter(vertex -> !providers.contains(vertex.getOid()))
+                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                    .forEach(provider -> {
+                        recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
+                        provider.addCommoditySoldList(segmentationCommodity);
+                    });
+        } else {
+            // Set of provider OIDs to sell the given segmentationCommodity. This is used to deduplicate
+            // SegmentationCommodities sold by the same provider.
+            Set<Long> providersSet = new HashSet<>();
+            // The potential providers for the consumers are any potential providers that are
+            // NOT blocked by the policy. We use the inverted index to find providers
+            // that satisfy all other constraints (e.g. cluster, datacenter).
+            consumers.stream()
+                    .map(this::getPolicyConsumerEntity)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .flatMap(e -> e.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream())
+                    .flatMap(grouping -> invertedIndex.getSatisfyingSellers(grouping))
+                    // Filter out the providers blocked by the policy.
+                    .filter(potentialProvider -> !providers.contains(potentialProvider.getOid()))
+                    // Enforce the provider entity type.
+                    .filter(potentialProvider -> potentialProvider.getEntityType() == providerEntityType)
+                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                    .forEach(provider -> {
+                        if (!providersSet.contains(provider.getOid())) {
+                            providersSet.add(provider.getOid());
+                            recordCommodityAddition(segmentationCommodity.getCommodityType().getType());
+                            provider.addCommoditySoldList(segmentationCommodity);
+                        }
+                    });
+        }
     }
 
     @Nonnull
