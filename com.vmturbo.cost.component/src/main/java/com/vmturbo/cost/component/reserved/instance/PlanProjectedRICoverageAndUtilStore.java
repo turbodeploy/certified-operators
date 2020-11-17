@@ -420,9 +420,16 @@ public class PlanProjectedRICoverageAndUtilStore implements MultiStoreDiagnosabl
         allPlanRis.forEach(riBought -> {
             final long riId = riBought.getId();
             final double undiscoveredAccountUsage = undiscoveredAccountRIUsage.getOrDefault(riId, 0d);
-            // Add undiscovered account usages to the selected plan RIs
-            riUsedCouponMap.merge(riId, undiscoveredAccountUsage, Double::sum);
-            riRecommendedCouponMap.merge(riId, undiscoveredAccountUsage, Double::sum);
+            // Add undiscovered account usages to the selected plan RIs depending on whether it is
+            // a buy RI id or a bought RI
+            if (selectedRis.contains(riBought)) {
+                riUsedCouponMap.merge(riId, undiscoveredAccountUsage, Double::sum);
+            } else if (recommendedRis.contains(riBought)) {
+                riRecommendedCouponMap.merge(riId, undiscoveredAccountUsage, Double::sum);
+            } else {
+                logger.warn("Unable to determine RI {} as a bought or recommended," +
+                        " Ignoring undiscovered usage for this RI.", riId);
+            }
             logger.debug("Initialized riUsedCouponMap and  riRecommendedCouponMap RI {} with {} coupons",
                     riId, undiscoveredAccountUsage);
             final ReservedInstanceBoughtInfo riBoughtInfo = riBought.getReservedInstanceBoughtInfo();
