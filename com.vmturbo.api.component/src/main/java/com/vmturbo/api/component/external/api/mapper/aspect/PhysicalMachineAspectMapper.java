@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -12,17 +13,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.PMDiskAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.PMDiskGroupAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.PMEntityAspectApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.DiskRoleType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DiskData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DiskGroupData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DiskRole;
@@ -80,6 +82,9 @@ public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
         }
 
         aspect.setDedicatedFailoverHost(typeInfo.getPhysicalMachine().getDedicatedFailover());
+
+        // map networks
+        aspect.setConnectedNetworks(new ArrayList<>(getNetworks(entity)));
         return aspect;
     }
 
@@ -126,6 +131,22 @@ public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
         }
 
         throw new AspectMapperException("Error converting disk role " + role);
+    }
+
+    /**
+     * Get names of all network commodities sold by this PM.
+     *
+     * @param entity PM topology entity
+     * @return Collection of sold network commodity names
+     */
+    private static Collection<String> getNetworks(final TopologyEntityDTO entity) {
+        return entity.getCommoditySoldListList().stream()
+            .filter(commSold ->
+                CommodityType.NETWORK_VALUE == commSold.getCommodityType().getType())
+            // not all probes will have display name set for network commodities
+            .filter(CommoditySoldDTO::hasDisplayName)
+            .map(CommoditySoldDTO::getDisplayName)
+            .collect(Collectors.toSet());
     }
 
     @Nonnull

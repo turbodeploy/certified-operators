@@ -12,6 +12,7 @@ import java.io.InputStreamReader;
 import java.util.Collections;
 import java.util.List;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.protobuf.util.JsonFormat;
 
@@ -24,11 +25,14 @@ import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.dto.entityaspect.PMDiskAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.PMDiskGroupAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.PMEntityAspectApiDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class PhysicalMachineAspectMapperTest extends BaseAspectMapperTest {
@@ -41,6 +45,7 @@ public class PhysicalMachineAspectMapperTest extends BaseAspectMapperTest {
     private final RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
     private static final String EXAMPLE_CPU_MODEL = "Quad-Core AMD Opteron(tm) Processor 8386 SE";
+    private static final String NETWORK_COMMODITY_NAME = "Network1";
 
     @Test
     public void testMapEntityToAspect() {
@@ -153,5 +158,47 @@ public class PhysicalMachineAspectMapperTest extends BaseAspectMapperTest {
         final PMEntityAspectApiDTO pmEntityAspect = mapper.mapEntityToAspect(entityDto);
         Assert.assertNotNull(pmEntityAspect);
         Assert.assertEquals(expectedCpuModel, pmEntityAspect.getCpuModel());
+    }
+
+    /**
+     * Test network mapping with no network commodities sold.
+     */
+    @Test
+    public void testNetworksNoCommodities() {
+        final PhysicalMachineAspectMapper mapper = new PhysicalMachineAspectMapper(repositoryApi);
+        final TopologyEntityDTO emptyEntityDto = TopologyEntityDTO.newBuilder()
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setPhysicalMachine(PhysicalMachineInfo.newBuilder()
+                    .buildPartial())
+                .buildPartial())
+            .buildPartial();
+        final PMEntityAspectApiDTO noNetworksEntityAspect = mapper.mapEntityToAspect(emptyEntityDto);
+        Assert.assertNotNull(noNetworksEntityAspect.getConnectedNetworks());
+        Assert.assertEquals(0, noNetworksEntityAspect.getConnectedNetworks().size());
+    }
+
+
+    /**
+     * Test network mapping.
+     */
+    @Test
+    public void testNetworks() {
+        final PhysicalMachineAspectMapper mapper = new PhysicalMachineAspectMapper(repositoryApi);
+
+        final CommoditySoldDTO networkCommNoName = CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.NETWORK_VALUE).build())
+            .build();
+        final CommoditySoldDTO networkComm = CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.NETWORK_VALUE).build())
+            .setDisplayName(NETWORK_COMMODITY_NAME)
+            .build();
+        final TopologyEntityDTO entityDto = TopologyEntityDTO.newBuilder()
+            .addAllCommoditySoldList(ImmutableList.of(networkCommNoName, networkComm))
+            .buildPartial();
+        final PMEntityAspectApiDTO networkEntityAspect = mapper.mapEntityToAspect(entityDto);
+        Assert.assertEquals(1, networkEntityAspect.getConnectedNetworks().size());
+        Assert.assertEquals(NETWORK_COMMODITY_NAME, networkEntityAspect.getConnectedNetworks().get(0));
     }
 }
