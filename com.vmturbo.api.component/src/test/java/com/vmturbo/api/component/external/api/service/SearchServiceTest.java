@@ -5,6 +5,7 @@ import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.C
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.USER_DEFINED_ENTITY;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.VOLUME_ATTACHMENT_STATE_FILTER_PATH;
+import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getMembersBasedOnFilter;
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getSearchResults;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -92,6 +93,7 @@ import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.Origin;
+import com.vmturbo.api.enums.QueryType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
@@ -193,6 +195,32 @@ public class SearchServiceTest {
     private final long targetId2 = 112L;
     private final String probeType1 = SDKProbeType.AWS.getProbeType();
     private final String probeType2 = SDKProbeType.AZURE.getProbeType();
+
+    // Map for testing regex handling by query type
+    private ImmutableMap<String, ImmutableMap<QueryType, String>> nameQueryMap =
+            ImmutableMap.<String, ImmutableMap<QueryType, String>>builder()
+                    .put(".*win.*", ImmutableMap.<QueryType, String>builder()
+                            .put(QueryType.CONTAINS, "^.*\\Qwin\\E.*$")
+                            .put(QueryType.EXACT, "^\\Q.*win.*\\E$")
+                            .put(QueryType.REGEX, "^.*win.*$")
+                            .build())
+
+                    .put(".*win (.*", ImmutableMap.<QueryType, String>builder()
+                            .put(QueryType.CONTAINS, "^.*\\Qwin (\\E.*$")
+                            .put(QueryType.EXACT, "^\\Q.*win (.*\\E$")
+                            .put(QueryType.REGEX, "^.*win (.*$")
+                            .build())
+                    .put("win (", ImmutableMap.<QueryType, String>builder()
+                            .put(QueryType.CONTAINS, "^.*\\Qwin (\\E.*$")
+                            .put(QueryType.EXACT, "^\\Qwin (\\E$")
+                            .put(QueryType.REGEX, "^win ($")
+                            .build())
+                    .put("win (=| .*", ImmutableMap.<QueryType, String>builder()
+                            .put(QueryType.CONTAINS, "^.*\\Qwin (=| \\E.*$")
+                            .put(QueryType.EXACT, "^\\Qwin (=| .*\\E$")
+                            .put(QueryType.REGEX, "^win (=| .*$")
+                            .build())
+                    .build();
 
     private SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
     private ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
@@ -317,7 +345,7 @@ public class SearchServiceTest {
             null,
             null,
             null,
-            true, Origin.USER));
+            true, Origin.USER,  null));
         verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true), isA(Origin.class));
 
         when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true), eq(null))).thenReturn(paginationResponse);
@@ -332,7 +360,8 @@ public class SearchServiceTest {
                 null,
                 null,
                 null,
-                true, null));
+                true, null,
+                null));
         verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true), eq(null));
 
         when(groupsService.getGroupsByType(any(), any(), any(), eq(EnvironmentType.ONPREM))).thenReturn(Collections.emptyList());
@@ -348,7 +377,7 @@ public class SearchServiceTest {
             paginationRequest,
             null,
             null,
-            true, null));
+            true, null, null));
         verify(groupsService).getGroupsByType(eq(GroupType.COMPUTE_HOST_CLUSTER), any(), any(), eq(EnvironmentType.ONPREM));
     }
 
@@ -384,24 +413,71 @@ public class SearchServiceTest {
                 null,
                 null,
                 true,
-                null);
+                null, null);
 
         //THEN
         assertEquals(response, paginationResponse);
         verify(groupsService).getGroupsByType(eq(GroupType.COMPUTE_HOST_CLUSTER), any(), any(), eq(EnvironmentType.ONPREM));
-        verify(searchService).addNameMatcher(queryArgCap.capture(), any(), any());
+        verify(searchService).addNameMatcher(queryArgCap.capture(), any(), any(), any());
         assertEquals(query, queryArgCap.getValue());
     }
 
+
+
     /**
-     * This tests whether an exception is thrown if the query does not specify either a type or group type
+     * This tests if query is handled accordingly in case it contains
+     * a special char.
+     * @throws Exception when something goes wrong (is not expected here)
+     */
+    @Test
+    public void testGetSearchResultsWithSpecialCharNameQuery() throws Exception {
+
+        final SearchPaginationRequest paginationRequest =
+                Mockito.mock(SearchPaginationRequest.class);
+
+        List<ServiceEntityApiDTO> searchResultDTOs = Lists.newArrayList(
+                supplyChainTestUtils.createServiceEntityApiDTO(999, targetId1),
+                supplyChainTestUtils.createServiceEntityApiDTO(1, targetId1),
+                supplyChainTestUtils.createServiceEntityApiDTO(2, targetId1),
+                supplyChainTestUtils.createServiceEntityApiDTO(3, targetId1),
+                supplyChainTestUtils.createServiceEntityApiDTO(4, targetId1));
+
+        SearchRequest req = ApiTestUtils.mockSearchSEReq(searchResultDTOs);
+
+
+
+        when(repositoryApi.newSearchRequest(any())).thenReturn(req);
+
+        for (Entry<String, ImmutableMap<QueryType, String>> entry : nameQueryMap.entrySet()) {
+            for (QueryType queryType : QueryType.values()) {
+                searchService.getSearchResults(entry.getKey(), Lists.newArrayList("VirtualMachine"),
+                        Lists.newArrayList("Market"), null, null, EnvironmentType.ONPREM, null,
+                        paginationRequest, null, null, true, null, queryType);
+
+                final ArgumentCaptor<SearchParameters> paramsCaptor = ArgumentCaptor.forClass(
+                        SearchParameters.class);
+
+                verify(repositoryApi, Mockito.atMost(nameQueryMap.size() * QueryType.values().length)).newSearchRequest(paramsCaptor.capture());
+                assertThat(paramsCaptor.getValue()
+                        .getSearchFilter(0)
+                        .getPropertyFilter()
+                        .getStringFilter()
+                        .getStringPropertyRegex(), is(entry.getValue().get(queryType)));
+            }
+        }
+    }
+
+
+
+    /**
+     * This tests whether an exception is thrown if the query does not specify either a type or group type.
      * @throws Exception this is expected from this test because the arguments are invalid.
      */
     @Test(expected = IllegalArgumentException.class)
     public void testInvalidGetSearchResults() throws Exception {
         // Type, entity type and group type are all empty. This should throw an exception.
         searchService.getSearchResults(".*a.*", null, Lists.newArrayList("string1"), "ACTIVE", null, EnvironmentType.CLOUD,
-                null, null, null, Lists.newArrayList("probeType1"), true, null);
+                null, null, null, Lists.newArrayList("probeType1"), true, null, null);
     }
 
 
@@ -415,7 +491,7 @@ public class SearchServiceTest {
         when(groupExpander.getGroup(any())).thenReturn(Optional.empty());
         when(groupsService.expandUuids(any(), any(), any())).thenReturn(Collections.emptySet());
         searchService.getSearchResults(".*a.*", Lists.newArrayList("VirtualMachine"), Lists.newArrayList("string1"), "ACTIVE", null, EnvironmentType.CLOUD,
-                null, null, null, Lists.newArrayList("probeType1"), true, null);
+                null, null, null, Lists.newArrayList("probeType1"), true, null, null);
     }
 
     @Test
@@ -489,11 +565,11 @@ public class SearchServiceTest {
                 null,
                 null,
                 true,
-                null));
+                null, null));
         verify(targetsService, Mockito.never()).getTargets(null);
         verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
         verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true), eq(null));
-        verify(searchService).addNameMatcher(any(), any(), any());
+        verify(searchService).addNameMatcher(any(), any(), any(), any());
 
     }
     /**
@@ -692,7 +768,7 @@ public class SearchServiceTest {
         when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(searchReq);
 
         SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request, paginationRequest,
-                null);
+                null, null);
         List<BaseApiDTO> results = response.getRawResults();
 
         assertEquals(1, results.size());
@@ -724,7 +800,7 @@ public class SearchServiceTest {
         when(mockReq.getEntities()).thenReturn(stream);
         when(repositoryApi.entitiesRequest(any())).thenReturn(mockReq);
         SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request, paginationRequest,
-            null);
+            null, null);
         List<BaseApiDTO> results = response.getRawResults();
         assertEquals(0, results.size());
     }
@@ -752,7 +828,7 @@ public class SearchServiceTest {
         when(mockReq.getEntities()).thenReturn(new ArrayList<ApiPartialEntity>().stream());
         when(repositoryApi.entitiesRequest(any())).thenReturn(mockReq);
         SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request, paginationRequest,
-            null);
+            null, null);
     }
 
     @Test
@@ -774,7 +850,7 @@ public class SearchServiceTest {
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request, paginationRequest,
-                null);
+                null, null);
         List<BaseApiDTO> results = response.getRawResults();
         assertEquals(1, results.size());
         assertTrue(results.get(0) instanceof ServiceEntityApiDTO);
@@ -808,7 +884,7 @@ public class SearchServiceTest {
         Mockito.when(paginationRequest.getOrderBy())
                 .thenReturn(SearchOrderBy.NAME);
 
-        searchService.getMembersBasedOnFilter("foo", request, paginationRequest, null);
+        searchService.getMembersBasedOnFilter("foo", request, paginationRequest, null, null);
         verify(paginationRequest).finalPageResponse(resultCaptor.capture(), totalRecordCount.capture());
 
         final List<Long> resultIds = resultCaptor.getValue()
@@ -822,6 +898,52 @@ public class SearchServiceTest {
 
         assertThat(resultIds.size(), is(3));
         assertThat(resultById.keySet(), containsInAnyOrder(1L, 4L, 5L));
+    }
+
+    /**
+     * Test get members when there is a special character in the query
+     * and we pass in the querytype parameter.
+     * @throws Exception if there is an error processing the query
+     */
+    @Test
+    public void testGetMembersBasedOnFilterQueryWSpecialCharsWithQueryType() throws Exception {
+        final GroupApiDTO request = new GroupApiDTO();
+        List<ApiPartialEntity> entities = setupEntitiesForMemberQuery();
+        when(searchServiceSpy.searchEntities(any())).thenReturn(SearchEntitiesResponse.newBuilder()
+                .addAllEntities(entities.stream()
+                        .map(e -> PartialEntity.newBuilder().setApi(e).build())
+                        .collect(Collectors.toList()))
+                .setPaginationResponse(PaginationResponse.newBuilder())
+                .build());
+
+        final SearchPaginationRequest paginationRequest = mock(SearchPaginationRequest.class);
+        Mockito.when(paginationRequest.getCursor()).thenReturn(Optional.empty());
+        Mockito.when(paginationRequest.allResultsResponse(any()))
+                .thenReturn(mock(SearchPaginationResponse.class));
+        Mockito.when(paginationRequest.getOrderBy())
+                .thenReturn(SearchOrderBy.NAME);
+
+        // Test a search with a special character
+        request.setClassName("VirtualMachine");
+
+        for (Entry<String, ImmutableMap<QueryType, String>> entry : nameQueryMap.entrySet()) {
+            for (QueryType queryType : QueryType.values()) {
+                searchService.getMembersBasedOnFilter(entry.getKey(), request, paginationRequest, null, queryType);
+
+                final ArgumentCaptor<SearchEntitiesRequest> captor = ArgumentCaptor.forClass(
+                        SearchEntitiesRequest.class);
+                verify(searchServiceSpy, Mockito.atMost(nameQueryMap.size() * QueryType.values().length)).searchEntities(captor.capture());
+
+                final SearchEntitiesRequest params = captor.getValue();
+                assertEquals(captor.getValue()
+                        .getSearch()
+                        .getSearchParameters(0)
+                        .getSearchFilter(0)
+                        .getPropertyFilter()
+                        .getStringFilter()
+                        .getStringPropertyRegex(), entry.getValue().get(queryType));
+            }
+        }
     }
 
 
@@ -849,7 +971,7 @@ public class SearchServiceTest {
 
         // Test a search with a special character
         request.setClassName("VirtualMachine");
-        searchService.getMembersBasedOnFilter("[b", request, paginationRequest, null);
+        searchService.getMembersBasedOnFilter("[b", request, paginationRequest, null, null);
 
         final ArgumentCaptor<SearchEntitiesRequest> captor = ArgumentCaptor.forClass(SearchEntitiesRequest.class);
         verify(searchServiceSpy).searchEntities(captor.capture());
@@ -884,10 +1006,10 @@ public class SearchServiceTest {
 
         assertTrue(response == searchService.getMembersBasedOnFilter("foo",
             requestForVirtualMachineGroups,
-            paginationRequest, null));
+            paginationRequest, null, null));
         assertTrue(response == searchService.getMembersBasedOnFilter("foo",
             requestForAllGroups,
-            paginationRequest, null));
+            paginationRequest, null, null));
         verify(groupsService, times(2)).getPaginatedGroupApiDTOs(any(), any(), resultCaptor.capture(), any(), any(), eq(false), eq(null));
         // verify that first call to groupsService.getPaginatedGroupApiDTOs passed in VirtualMachine
         // as entityType argument
@@ -964,7 +1086,7 @@ public class SearchServiceTest {
         Mockito.when(paginationRequest.getOrderBy())
                 .thenReturn(SearchOrderBy.NAME);
 
-        searchService.getMembersBasedOnFilter("", request, paginationRequest, null);
+        searchService.getMembersBasedOnFilter("", request, paginationRequest, null, null);
         verify(paginationRequest).allResultsResponse(resultCaptor.capture());
 
         final List<Long> resultIds = resultCaptor.getValue()
@@ -985,6 +1107,29 @@ public class SearchServiceTest {
                 StringConstants.VIRTUAL_MACHINE,
                 StringConstants.VIRTUAL_MACHINE
         ));
+    }
+
+    /**
+     * Test getMembersBasedOnFilterQuery when we are searching for business accounts.
+     * @throws Exception in case of error
+     */
+    @Test
+    public void testGetMembersOfBusinessAccountOnQueryName() throws Exception {
+        GroupApiDTO inputDto = new GroupApiDTO();
+        inputDto.setClassName(ApiEntityType.BUSINESS_ACCOUNT.apiStr());
+        String nameQueryString = "test";
+        getMembersBasedOnFilter(searchService, nameQueryString, inputDto);
+        FilterApiDTO filterApiDTO = new FilterApiDTO();
+        filterApiDTO.setExpType(EntityFilterMapper.REGEX_MATCH);
+        filterApiDTO.setExpVal(".*test.*");
+        filterApiDTO.setFilterType("businessAccountByName");
+        final ArgumentCaptor<List<FilterApiDTO>> resultCaptor =
+                ArgumentCaptor.forClass((Class)List.class);
+        verify(businessAccountRetriever).getBusinessAccountsInScope(eq(null), resultCaptor.capture());
+        FilterApiDTO filterApiDTOCaptured = resultCaptor.getValue().get(0);
+        assertEquals(filterApiDTOCaptured.getExpType(), EntityFilterMapper.REGEX_MATCH);
+        assertEquals(filterApiDTOCaptured.getExpVal(), ".*test.*" );
+        assertEquals(filterApiDTOCaptured.getFilterType(), "businessAccountByName");
     }
 
 
@@ -1033,7 +1178,7 @@ public class SearchServiceTest {
         when(groupsService.expandUuids(any(), any(), any())).thenReturn(ImmutableSet.of(1L, 4L,
             5L));
 
-        searchService.getMembersBasedOnFilter("foo", request, paginationRequest, null);
+        searchService.getMembersBasedOnFilter("foo", request, paginationRequest, null, null);
 
         final ArgumentCaptor<Integer> totalRecordCount = ArgumentCaptor.forClass((Class)Integer.class);
         verify(paginationRequest).finalPageResponse(resultCaptor.capture(), totalRecordCount.capture());
@@ -1310,14 +1455,14 @@ public class SearchServiceTest {
         originalFilters.add(new FilterApiDTO());
 
         // verify that an empty or null string doesn't alter the contents of the list.
-        Assert.assertEquals(1, searchService.addNameMatcher("", originalFilters, "Type").size());
-        Assert.assertEquals(1, searchService.addNameMatcher(null, originalFilters, "Type").size());
+        Assert.assertEquals(1, searchService.addNameMatcher("", originalFilters, "Type", null).size());
+        Assert.assertEquals(1, searchService.addNameMatcher(null, originalFilters, "Type", null).size());
 
         // a valid search string should increase the number of filters by 1
-        Assert.assertEquals(2, searchService.addNameMatcher("match me bro", originalFilters, "Type").size());
+        Assert.assertEquals(2, searchService.addNameMatcher("match me bro", originalFilters, "Type", null).size());
 
         // verify that a null filter list but valid search string will give you a singleton list
-        Assert.assertEquals(1, searchService.addNameMatcher("match me bro", null, "Type").size());
+        Assert.assertEquals(1, searchService.addNameMatcher("match me bro", null, "Type", null).size());
     }
 
     /**

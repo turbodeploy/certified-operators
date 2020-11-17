@@ -286,7 +286,7 @@ public class GroupMapper {
 
             final List<SearchParameters> searchParameters = entityFilterMapper
                             .convertToSearchParameters(groupDto.getCriteriaList(),
-                                            groupDto.getGroupType(), null);
+                                            groupDto.getGroupType());
 
             groupBuilder.setEntityFilters(EntityFilters.newBuilder()
                 .addEntityFilter(EntityFilter.newBuilder()

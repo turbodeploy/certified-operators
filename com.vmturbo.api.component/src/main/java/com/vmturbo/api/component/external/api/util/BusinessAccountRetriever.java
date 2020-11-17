@@ -173,7 +173,7 @@ public class BusinessAccountRetriever {
         if ((!CollectionUtils.isEmpty(criterias)) || searchParameters.isEmpty()) {
             searchParameters.addAll(
                     entityFilterMapper.convertToSearchParameters(ListUtils.emptyIfNull(criterias),
-                            ApiEntityType.BUSINESS_ACCOUNT.apiStr(), null));
+                            ApiEntityType.BUSINESS_ACCOUNT.apiStr()));
         }
         // for target scope we need to display all accounts (even not discovered)
         if (targetIds.isEmpty()) {

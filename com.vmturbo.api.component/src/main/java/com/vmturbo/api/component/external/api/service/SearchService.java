@@ -43,6 +43,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
@@ -73,6 +74,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.Origin;
+import com.vmturbo.api.enums.QueryType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -275,10 +277,51 @@ public class SearchService implements ISearchService {
         }
     }
 
+    /**
+     * Create CONTAINS pattern matching regex.
+     * @param nameRegex String input name
+     * @return String name regex corresponding to CONTAINS matching pattern.
+      */
+    private String escapeAndEncloseInDotAsterisk(String nameRegex) {
+        // escape nameRegex and then enclose in '.*'
+        // to account for special char in nameRegex
+        final StringBuilder nameRegexBuilder = new StringBuilder();
+        nameRegexBuilder.append(nameRegex);
+        // we are removing `.*` to allow quote of the pattern
+        // in the middle required for CONTAINS pattern matching
+        if ( nameRegexBuilder.toString().startsWith(".*") ) {
+            nameRegexBuilder.delete(0,  2);
+        }
+        if ( nameRegexBuilder.toString().endsWith(".*") ) {
+            nameRegexBuilder.delete(nameRegexBuilder.length() - 2, nameRegexBuilder.length());
+        }
+
+        nameRegexBuilder.replace(0,
+                nameRegexBuilder.length(),
+                escapeSpecialCharactersInSearchQueryPattern( nameRegexBuilder.toString()));
+
+        nameRegexBuilder.insert(0, ".*");
+        nameRegexBuilder.append(".*");
+        return nameRegexBuilder.toString();
+    }
+
+    private String updatedNameQueryByQueryType(String nameQuery, @Nonnull QueryType queryType) {
+        switch ( queryType ) {
+            case CONTAINS:
+               return escapeAndEncloseInDotAsterisk(nameQuery);
+            case EXACT:
+                return escapeSpecialCharactersInSearchQueryPattern(nameQuery);
+            case REGEX:
+            default:
+                return nameQuery;
+        }
+    }
+
     private Stream<ServiceEntityApiDTO> queryByTypeAndStateAndName(
-            @Nullable String nameRegex, @Nullable List<String> types,
+            @Nullable String nameQueryString, @Nullable List<String> types,
             @Nullable String state, @Nullable EnvironmentTypeEnum.EnvironmentType envType,
-            @Nullable EntityDetailType entityDetailType)
+            @Nullable EntityDetailType entityDetailType,
+            @Nullable QueryType queryType)
             throws ConversionException, InterruptedException{
         // TODO Now, we only support one type of entities in the search
         if (types == null || types.isEmpty()) {
@@ -290,9 +333,16 @@ public class SearchService implements ISearchService {
         final SearchParameters.Builder searchParamsBuilder =
             SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(types));
 
-        if (!StringUtils.isEmpty(nameRegex)) {
-            searchParamsBuilder.addSearchFilter(SearchProtoUtil.searchFilterProperty(
-                SearchProtoUtil.nameFilterRegex(nameRegex)));
+        if (!StringUtils.isEmpty(nameQueryString)) {
+            if (queryType != null) {
+                searchParamsBuilder.addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                        SearchProtoUtil.nameFilterRegex(updatedNameQueryByQueryType(nameQueryString, queryType))));
+            } else {
+                // Without a queryType parameter, we fallback to existing logic for backward
+                // compatibility.
+                searchParamsBuilder.addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                        SearchProtoUtil.nameFilterRegex(nameQueryString)));
+            }
         }
 
         if (envType != null) {
@@ -338,7 +388,8 @@ public class SearchService implements ISearchService {
                                                      List<String> entityTypes,
                                                      List<String> probeTypes,
                                                      boolean isRegex,
-                                                     @Nullable Origin groupOrigin)
+                                                     @Nullable Origin groupOrigin,
+                                                     @Nullable QueryType queryType)
             throws Exception {
         if (types == null && CollectionUtils.isEmpty(groupTypes)) {
             throw new IllegalArgumentException("Type or groupType must be set for search result.");
@@ -351,7 +402,7 @@ public class SearchService implements ISearchService {
             // Get all groups containing elements of type 'groupType' including any type of group
             // (regular, cluster, storage_cluster, etc.)
             return groupsService.getPaginatedGroupApiDTOs(
-                addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
+                addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE, queryType),
                 paginationRequest, new HashSet(groupTypes), environmentType, scopes, true, groupOrigin);
         } else if (types != null) {
             final Set<String> typesHashSet = new HashSet(types);
@@ -360,7 +411,7 @@ public class SearchService implements ISearchService {
                 // IN Classic, this returns all Groups + Clusters. So we pass in true for
                 // the "includeAllGroupClasses" flag of the groupService.getPaginatedGroupApiDTOs call.
                 return groupsService.getPaginatedGroupApiDTOs(
-                    addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
+                    addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE, queryType),
                     paginationRequest, null, environmentType, scopes, true, groupOrigin);
             } else if (Sets.intersection(typesHashSet,
                     GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.keySet()).size() > 0) {
@@ -369,7 +420,7 @@ public class SearchService implements ISearchService {
                         String filter = GroupMapper.API_GROUP_TYPE_TO_FILTER_GROUP_TYPE.get(entry.getKey() );
                         return paginationRequest.allResultsResponse(Collections.unmodifiableList(
                                 groupsService.getGroupsByType(entry.getValue(), scopes,
-                                        addNameMatcher(query, Collections.emptyList(), filter),
+                                        addNameMatcher(query, Collections.emptyList(), filter, queryType),
                                         environmentType)));
                     }
                 }
@@ -384,7 +435,7 @@ public class SearchService implements ISearchService {
                 final Collection<BusinessUnitApiDTO> businessAccounts =
                         businessAccountRetriever.getBusinessAccountsInScope(scopes,
                             addNameMatcher(query, Collections.emptyList(),
-                                EntityFilterMapper.ACCOUNT_NAME));
+                                EntityFilterMapper.ACCOUNT_NAME, queryType));
                 return paginationRequest.allResultsResponse(Lists.newArrayList(businessAccounts));
             } else if (typesHashSet.contains(StringConstants.BILLING_FAMILY)) {
                 return paginationRequest.allResultsResponse(
@@ -408,7 +459,7 @@ public class SearchService implements ISearchService {
                 (scopes.get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR))) {
             // Search with no scope requested; or a single scope == "Market"; then search in live Market
             entitiesResult =
-                queryByTypeAndStateAndName(query, types, state, environmentTypeXl, entityDetailType)
+                queryByTypeAndStateAndName(query, types, state, environmentTypeXl, entityDetailType, queryType)
                     .filter(scopeFilter);
         } else {
             // expand to include the supplychain for the 'scopes', some of which may be groups or
@@ -440,7 +491,7 @@ public class SearchService implements ISearchService {
             // Fetch service entities matching the given specs
             // Restrict entities to those whose IDs are in the expanded 'scopeEntities'
            entitiesResult = queryByTypeAndStateAndName(query, types, state,
-                                                       environmentTypeXl, entityDetailType)
+                                                       environmentTypeXl, entityDetailType, queryType)
                                 .filter(scopeFilter)
                                 .filter(se -> scopeServiceEntityIds.contains(se.getUuid()));
         }
@@ -457,17 +508,18 @@ public class SearchService implements ISearchService {
     /**
      * A general search given a filter - may be asked to search over ServiceEntities or Groups.
      *
-     * @param query The query to run against the display name of the results.
+     * @param nameQueryString The query to run against the display name of the results.
      * @param inputDTO the specification of what to search.
      * @param paginationRequest The pagination related parameter.
      * @param aspectNames The input list of aspect names for a particular entity type.
+     * @param queryType Pattern matching strategy to be used for stringToMatch.
      * @return a list of DTOs based on the type of the search: ServiceEntityApiDTO or GroupApiDTO
      * @throws ConversionException if error faced converting objects to API DTOs
      * @throws InterruptedException if current thread has been interrupted
      */
     @Override
-    public SearchPaginationResponse getMembersBasedOnFilter(String query, GroupApiDTO inputDTO,
-            SearchPaginationRequest paginationRequest, @Nullable List<String> aspectNames)
+    public SearchPaginationResponse getMembersBasedOnFilter(String nameQueryString, GroupApiDTO inputDTO,
+            SearchPaginationRequest paginationRequest, @Nullable List<String> aspectNames, QueryType queryType)
             throws OperationFailedException, InvalidOperationException, ConversionException,
             InterruptedException {
         // the query input is called a GroupApiDTO even though this search can apply to any type
@@ -477,7 +529,7 @@ public class SearchService implements ISearchService {
         if (GROUP.equals(className)) {
             final Set<String> groupTypes = inputDTO.getGroupType() == null ? null : Collections.singleton(inputDTO.getGroupType());
             return groupsService.getPaginatedGroupApiDTOs(
-                addNameMatcher(query, inputDTO.getCriteriaList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
+                addNameMatcher(nameQueryString, inputDTO.getCriteriaList(), GroupFilterMapper.GROUPS_FILTER_TYPE, queryType),
                 paginationRequest, groupTypes, inputDTO.getEnvironmentType(),
                 inputDTO.getScope(), false, inputDTO.getGroupOrigin());
         } else if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(className)) {
@@ -485,13 +537,13 @@ public class SearchService implements ISearchService {
             String filter = GroupMapper.API_GROUP_TYPE_TO_FILTER_GROUP_TYPE.get(className);
             return paginationRequest.allResultsResponse(Collections.unmodifiableList(
                     groupsService.getGroupsByType(groupType, inputDTO.getScope(),
-                            addNameMatcher(query, inputDTO.getCriteriaList(), filter),
+                            addNameMatcher(nameQueryString, inputDTO.getCriteriaList(), filter, queryType),
                             inputDTO.getEnvironmentType())));
         } else if (BUSINESS_ACCOUNT.equals(className)) {
             return paginationRequest.allResultsResponse(Lists.newArrayList(
                     businessAccountRetriever.getBusinessAccountsInScope(inputDTO.getScope(),
-                            addNameMatcher(query, inputDTO.getCriteriaList(),
-                                EntityFilterMapper.ACCOUNT_NAME))));
+                            addNameMatcher(nameQueryString, inputDTO.getCriteriaList(),
+                                EntityFilterMapper.ACCOUNT_NAME, queryType))));
         } else if (WORKLOAD.equals(className)) {
             List<String> scope = inputDTO.getScope();
 
@@ -512,7 +564,7 @@ public class SearchService implements ISearchService {
                 .getFullEntity();
             if (!topologyEntityDTO.isPresent()) {
                 // if this is not business account try regular search
-                return searchEntitiesByParameters(inputDTO, query, paginationRequest, aspectNames);
+                return searchEntitiesByParameters(inputDTO, nameQueryString, paginationRequest, aspectNames, queryType);
             }
 
             Set<Long> entitiesOid = topologyEntityDTO.get().getConnectedEntityListList()
@@ -534,9 +586,10 @@ public class SearchService implements ISearchService {
             return paginationRequest.allResultsResponse(apiResults);
         } else {
             // this isn't a group search after all -- use a generic search method instead.
-            return searchEntitiesByParameters(inputDTO, query, paginationRequest, aspectNames);
+            return searchEntitiesByParameters(inputDTO, nameQueryString, paginationRequest, aspectNames, queryType);
         }
     }
+
 
     /**
      * This utility method will add a group/cluster/storage cluster display name filter based on the
@@ -545,19 +598,39 @@ public class SearchService implements ISearchService {
      * @param stringToMatch the potential string to match. Can be blank or null.
      * @param originalFilters the existing filters
      * @param filterTypeToUse the filter type to use when optionally creating the filter.
+     * @param queryType the pattern matching strategy to be used for stringToMatch.
      * @return the list of filters + an additional one for the "string to match"
      */
     @VisibleForTesting
     protected List<FilterApiDTO> addNameMatcher(String stringToMatch,
                                               List<FilterApiDTO> originalFilters,
-                                              String filterTypeToUse) {
+                                              String filterTypeToUse,
+                                              QueryType queryType) {
         if (StringUtils.isEmpty(stringToMatch)) {
             return originalFilters;
         }
         // create a name filter for the 'query' and add it to the filters list.
         FilterApiDTO nameFilter = new FilterApiDTO();
-        nameFilter.setExpVal(".*" + stringToMatch + ".*"); // turn it into a wildcard regex
-        nameFilter.setExpType(EntityFilterMapper.REGEX_MATCH);
+        if ( queryType != null ) {
+            switch ( queryType ) {
+                case CONTAINS:
+                    nameFilter.setExpVal(escapeAndEncloseInDotAsterisk(stringToMatch));
+                    nameFilter.setExpType(EntityFilterMapper.REGEX_MATCH);
+                    break;
+                case REGEX:
+                    nameFilter.setExpVal(stringToMatch);
+                    nameFilter.setExpType(EntityFilterMapper.REGEX_MATCH);
+                    break;
+                case EXACT:
+                    nameFilter.setExpVal(escapeSpecialCharactersInSearchQueryPattern(stringToMatch));
+                    nameFilter.setExpType(EntityFilterMapper.EQUAL);
+                default: break;
+            }
+        } else {
+            // Pre-existing implementation is followed when queryType is not provided
+            nameFilter.setExpVal(".*" + stringToMatch + ".*"); // turn it into a wildcard regex
+            nameFilter.setExpType(EntityFilterMapper.REGEX_MATCH);
+        }
         nameFilter.setCaseSensitive(false);
         nameFilter.setFilterType(filterTypeToUse);
         List<FilterApiDTO> returnFilters = new ArrayList<>();
@@ -573,18 +646,28 @@ public class SearchService implements ISearchService {
      * parameters based on the parameters in the inputDTO.
      *
      * @param inputDTO a Description of what search to conduct
-     * @param nameQuery user specified search query for entity name.
+     * @param nameQuery user specified search query for entity name, if no queryType is specified
+     *                  then name query is performed with CONTAINS matching pattern.
      * @param paginationRequest The pagination related parameter.
      * @param aspectNames The input list of aspect names.
+     * @param queryType Pattern matching strategy to be used for stringToMatch.
      * @return A list of {@link BaseApiDTO} will be sent back to client
      * @throws InterruptedException if thread has been interrupted
      * @throws ConversionException if errors faced during converting data to API DTOs
      * @throws OperationFailedException on error performing search
      */
     private SearchPaginationResponse searchEntitiesByParameters(@Nonnull GroupApiDTO inputDTO, @Nullable String nameQuery,
-            @Nonnull SearchPaginationRequest paginationRequest, @Nullable List<String> aspectNames)
+            @Nonnull SearchPaginationRequest paginationRequest, @Nullable List<String> aspectNames, @Nullable QueryType queryType)
                 throws OperationFailedException, ConversionException, InterruptedException {
-        final String updatedQuery = escapeSpecialCharactersInSearchQueryPattern(nameQuery);
+        String updatedQuery = null;
+        if ( !Strings.isEmpty(nameQuery) && nameQuery != null ) {
+            if ( queryType != null ) {
+                  updatedQuery = updatedNameQueryByQueryType(nameQuery, queryType);
+            } else {
+                updatedQuery = updatedNameQueryByQueryType(nameQuery, QueryType.CONTAINS);
+            }
+        }
+
         final List<String> relatedTypes = getRelatedEntityTypes(inputDTO.getClassName());
         List<SearchParameters> searchParameters = entityFilterMapper.convertToSearchParameters(
                 inputDTO.getCriteriaList(), relatedTypes, updatedQuery).stream()

@@ -356,8 +356,24 @@ public class EntityFilterMapper {
      *
      * @param criteriaList list of {@link FilterApiDTO}  received from the UI
      * @param entityTypes the name of entity types, such as VirtualMachine
+     * @return list of search parameters to use for querying the repository
+     */
+    public List<SearchParameters> convertToSearchParameters(@Nonnull List<FilterApiDTO> criteriaList,
+                                                            @Nonnull List<String> entityTypes) {
+        return convertToSearchParameters(criteriaList, entityTypes, null);
+    }
+
+    /**
+     * Convert a list of  {@link FilterApiDTO} to a list of search parameters. Right now the
+     * entity type sources have inconsistency between search service with group service requests.
+     * For search service request, UI use class name field store entityType, but for creating
+     * group request, UI use groupType field store entityType.
+     *
+     * @param criteriaList list of {@link FilterApiDTO}  received from the UI
+     * @param entityTypes the name of entity types, such as VirtualMachine
      * @param nameQuery user specified search query for entity name. If it is not null, it will be
-     *                  converted to a entity name filter.
+     *                  converted to a entity name filter. It is either a regex or a quoted exact match.
+     *                  Also it can be a regex such as to correspond to CONTAINS pattern matching.
      * @return list of search parameters to use for querying the repository
      */
     public List<SearchParameters> convertToSearchParameters(@Nonnull List<FilterApiDTO> criteriaList,
@@ -383,16 +399,29 @@ public class EntityFilterMapper {
      *
      * @param criteriaList list of {@link FilterApiDTO}  received from the UI
      * @param entityType the name of entity type, such as VirtualMachine
-     * @param nameQuery user specified search query for entity name. If it is not null, it will be
-     *                  converted to a entity name filter.
+     * @return list of search parameters to use for querying the repository
+     */
+    public List<SearchParameters> convertToSearchParameters(@Nonnull List<FilterApiDTO> criteriaList,
+                                                            @Nonnull String entityType) {
+        return convertToSearchParameters(criteriaList, Collections.singletonList(entityType));
+    }
+
+    /**
+     * Convert a list of  {@link FilterApiDTO} to a list of search parameters. Right now the
+     * entity type sources have inconsistency between search service with group service requests.
+     * For search service request, UI use class name field store entityType, but for creating
+     * group request, UI use groupType field store entityType.
+     *
+     * @param criteriaList list of {@link FilterApiDTO}  received from the UI
+     * @param entityType the name of entity type, such as VirtualMachine
      * @return list of search parameters to use for querying the repository
      */
     public List<SearchParameters> convertToSearchParameters(@Nonnull List<FilterApiDTO> criteriaList,
                                                             @Nonnull String entityType,
                                                             @Nullable String nameQuery) {
-        return convertToSearchParameters(criteriaList, Collections.singletonList(entityType),
-            nameQuery);
+        return convertToSearchParameters(criteriaList, Collections.singletonList(entityType), nameQuery);
     }
+
 
     /**
      * Create a map filter for the specified property name and
@@ -564,9 +593,8 @@ public class EntityFilterMapper {
         final SearchParameters.Builder searchParameters = SearchParameters.newBuilder()
                         .setStartingFilter(byType);
         if (!StringUtils.isEmpty(nameQuery) && !EMPTY_QUERY_STRING.equals(nameQuery)) {
-            // For the query string, we want to use a "contains"-type query.
             searchParameters.addSearchFilter(SearchProtoUtil.searchFilterProperty(
-                            SearchProtoUtil.nameFilterRegex(".*" + nameQuery + ".*")));
+                            SearchProtoUtil.nameFilterRegex(nameQuery )));
         }
         return searchParameters.build();
     }
@@ -624,13 +652,16 @@ public class EntityFilterMapper {
                             firstToken));
         }
         if (!StringUtils.isEmpty(nameQuery)) {
+            // nameQuery is a string regex that can either implement
+            // a REGEX or a CONTAINS or EXACT pattern mathing.
             searchFilters.add(SearchProtoUtil.searchFilterProperty(
-                SearchProtoUtil.nameFilterRegex(".*" + nameQuery + ".*")));
+                SearchProtoUtil.nameFilterRegex(nameQuery)));
         }
         parametersBuilder.addAllSearchFilter(searchFilters.build());
         parametersBuilder.setSourceFilterSpecs(toFilterSpecs(filter));
         return parametersBuilder.build();
     }
+
 
     /**
      * Check whether the token is a list token.

@@ -64,7 +64,7 @@ public class PaginationTestUtil {
                 entityDetailType,
                 paginationRequest,
                 null,
-                probeTypes, true, null);
+                probeTypes, true, null, null);
         Mockito.verify(paginationRequest).allResultsResponse(resultCaptor.capture());
         return resultCaptor.getValue();
     }
@@ -78,7 +78,7 @@ public class PaginationTestUtil {
         final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
         Mockito.when(paginationRequest.allResultsResponse(any()))
                 .thenReturn(Mockito.mock(SearchPaginationResponse.class));
-        searchService.getMembersBasedOnFilter(query, inputDto, paginationRequest, null);
+        searchService.getMembersBasedOnFilter(query, inputDto, paginationRequest, null, null);
         Mockito.verify(paginationRequest).allResultsResponse(resultCaptor.capture());
         return resultCaptor.getValue();
     }

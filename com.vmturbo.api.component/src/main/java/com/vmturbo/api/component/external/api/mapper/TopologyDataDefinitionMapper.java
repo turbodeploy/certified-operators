@@ -532,7 +532,7 @@ public class TopologyDataDefinitionMapper {
                                                                          final EntityType entityType) {
         final List<SearchParameters> searchParameters = entityFilterMapper
                 .convertToSearchParameters(dynamicConnections.getDynamicConnectionCriteria(),
-                        entityType.name(), null);
+                        entityType.name());
         return AssociatedEntitySelectionCriteria.newBuilder()
                 .setDynamicConnectionFilters(DynamicConnectionFilters.newBuilder()
                         .addAllSearchParameters(searchParameters).build());

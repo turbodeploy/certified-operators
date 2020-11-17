@@ -115,7 +115,7 @@ public class EntityFilterMapperTest {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, FOO, "vmsByName"));
         List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                        inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
@@ -133,7 +133,7 @@ public class EntityFilterMapperTest {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, "Linux", "vmsByGuestName"));
         List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                        inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
@@ -169,7 +169,7 @@ public class EntityFilterMapperTest {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, "3", "vmsByNumCPUs"));
         List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                        inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
@@ -203,7 +203,7 @@ public class EntityFilterMapperTest {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.GREATER_THAN, "1024", "vmsByMem"));
         List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                        inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
@@ -272,7 +272,7 @@ public class EntityFilterMapperTest {
         thrown.expect(IllegalArgumentException.class);
         thrown.expectMessage("Not existing filter type provided: notExistingFilter");
         entityFilterMapper.convertToSearchParameters(inputDTO.getCriteriaList(),
-                        inputDTO.getClassName(), null);
+                        inputDTO.getClassName());
     }
 
     /**
@@ -283,7 +283,7 @@ public class EntityFilterMapperTest {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.NOT_EQUAL, FOO, "vmsByName"));
         List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                        inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
@@ -302,7 +302,7 @@ public class EntityFilterMapperTest {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, "IDLE", "vmsByState"));
         final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                        inputDTO.getCriteriaList(), inputDTO.getClassName());
         final PropertyFilter propertyFilter =
                         parameters.get(0).getSearchFilter(0).getPropertyFilter();
         Assert.assertEquals(1, parameters.size());
@@ -319,7 +319,7 @@ public class EntityFilterMapperTest {
         GroupApiDTO inputDTO = groupApiDTO(AND, PM_TYPE,
                         filterDTO(EntityFilterMapper.NOT_EQUAL, "ACTIVE", "pmsByState"));
         final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                        inputDTO.getCriteriaList(), inputDTO.getClassName());
         final PropertyFilter propertyFilter =
                         parameters.get(0).getSearchFilter(0).getPropertyFilter();
         Assert.assertEquals(1, parameters.size());
@@ -362,7 +362,7 @@ public class EntityFilterMapperTest {
                 "True", USER_DEFINED_ENTITY_SERVICE_FILTER_NAME));
 
         final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                inputDTO.getCriteriaList(), inputDTO.getClassName());
 
         final PropertyFilter propertyFilter =
                 parameters.get(0).getSearchFilter(0).getPropertyFilter();
@@ -378,7 +378,7 @@ public class EntityFilterMapperTest {
                 "False", USER_DEFINED_ENTITY_SERVICE_FILTER_NAME));
 
         final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                inputDTO.getCriteriaList(), inputDTO.getClassName());
 
         final PropertyFilter propertyFilter =
                 parameters.get(0).getSearchFilter(0).getPropertyFilter();
@@ -393,7 +393,7 @@ public class EntityFilterMapperTest {
                 "True", USER_DEFINED_ENTITY_SERVICE_FILTER_NAME));
 
         final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                inputDTO.getCriteriaList(), inputDTO.getClassName());
         final PropertyFilter propertyFilter =
                 parameters.get(0).getSearchFilter(0).getPropertyFilter();
         Assert.assertEquals(0, propertyFilter.getStringFilter().getOptionsCount());
@@ -408,7 +408,7 @@ public class EntityFilterMapperTest {
                         filterDTO(EntityFilterMapper.NOT_EQUAL, FOO, "vmsByName"),
                         filterDTO(EntityFilterMapper.NOT_EQUAL, BAR, "vmsByPMName"));
         List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                        inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(2, parameters.size());
         SearchParameters firstByName = parameters.get(0);
         assertEquals(TYPE_IS_VM, firstByName.getStartingFilter());
@@ -436,7 +436,7 @@ public class EntityFilterMapperTest {
                         filterDTO(EntityFilterMapper.EQUAL, FOO, "vmsByName"),
                         filterDTO(EntityFilterMapper.EQUAL, BAR, "vmsByPMName"));
         List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                        inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(2, parameters.size());
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
@@ -459,7 +459,7 @@ public class EntityFilterMapperTest {
         GroupApiDTO inputDTO = groupApiDTO(AND, PM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, "3", "pmsByNumVms"));
         List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                        inputDTO.getCriteriaList(), inputDTO.getClassName());
 
         assertEquals(1, parameters.size());
         SearchParameters byTraversalHopNumConnectedVMs = parameters.get(0);
@@ -505,7 +505,7 @@ public class EntityFilterMapperTest {
         assertEquals(PRODUCES_ONE_HOP, byName.getSearchFilter(2));
         assertEquals(SearchProtoUtil.searchFilterProperty(TYPE_IS_VM), byName.getSearchFilter(3));
         assertEquals(SearchProtoUtil
-                        .searchFilterProperty(SearchProtoUtil.nameFilterRegex(".*" + BAR + ".*")),
+                        .searchFilterProperty(SearchProtoUtil.nameFilterRegex(BAR)),
                         byName.getSearchFilter(4));
     }
 
@@ -517,7 +517,7 @@ public class EntityFilterMapperTest {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, FOO, "vmsByVDC"));
         List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                        inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VDC, byName.getStartingFilter());
@@ -535,7 +535,7 @@ public class EntityFilterMapperTest {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, FOO, "vmsByDCnested"));
         List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                        inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VDC, byName.getStartingFilter());
@@ -552,7 +552,7 @@ public class EntityFilterMapperTest {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                         filterDTO(EntityFilterMapper.EQUAL, BAR, "vmsByPMName"));
         List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                        inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
         SearchParameters byPMName = parameters.get(0);
         assertEquals(TYPE_IS_PM, byPMName.getStartingFilter());
@@ -572,7 +572,7 @@ public class EntityFilterMapperTest {
                         filterDTO(EntityFilterMapper.EQUAL, FOO, "vmsByName"),
                         filterDTO(EntityFilterMapper.EQUAL, BAR, "vmsByStorage"));
         List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                        inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(2, parameters.size());
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
@@ -595,7 +595,7 @@ public class EntityFilterMapperTest {
                         filterDTO(EntityFilterMapper.EQUAL, BAR, "vmsByPMName"),
                         filterDTO(EntityFilterMapper.EQUAL, FOO, "vmsByStorage"));
         List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                        inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                        inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(2, parameters.size());
     }
 
@@ -612,7 +612,7 @@ public class EntityFilterMapperTest {
         assertThat(param.getStartingFilter(), is(TYPE_IS_VM));
         assertThat(param.getSearchFilterCount(), is(1));
         assertThat(param.getSearchFilter(0), is(SearchProtoUtil
-                        .searchFilterProperty(SearchProtoUtil.nameFilterRegex(".*" + FOO + ".*"))));
+                        .searchFilterProperty(SearchProtoUtil.nameFilterRegex( FOO ))));
     }
 
     /**
@@ -623,7 +623,7 @@ public class EntityFilterMapperTest {
         final List<SearchParameters> sp = entityFilterMapper.convertToSearchParameters(
             Collections.singletonList(
                 filterDTO(EntityFilterMapper.REGEX_MATCH, "id-1.*", "volumeById")),
-            "VirtualVolume", null);
+            "VirtualVolume");
         assertEquals(1, sp.size());
         final SearchParameters params = sp.get(0);
         assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_VOLUME),
@@ -758,7 +758,7 @@ public class EntityFilterMapperTest {
                 Collections.singletonList(filterDTO(operator, expVal, "vmsByTag")));
         inputDTO.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
-                inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
+                inputDTO.getCriteriaList(), inputDTO.getClassName());
         assertEquals(1, parameters.size());
         final SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
@@ -784,7 +784,7 @@ public class EntityFilterMapperTest {
         final List<FilterApiDTO> criteriaList = Collections.singletonList(
             filterDTO(EntityFilterMapper.EQUAL, "asdf", "volumeByResourceGroupName"));
         final List<SearchParameters> result = entityFilterMapper.convertToSearchParameters(
-            criteriaList, ApiEntityType.VIRTUAL_VOLUME.apiStr(), null);
+            criteriaList, ApiEntityType.VIRTUAL_VOLUME.apiStr());
         assertEquals(1, result.size());
         final SearchParameters params = result.get(0);
 
@@ -809,7 +809,7 @@ public class EntityFilterMapperTest {
         final List<FilterApiDTO> criteriaList = Collections.singletonList(
             filterDTO(EntityFilterMapper.NOT_EQUAL, "asdf", "databaseServerByResourceGroupName"));
         final List<SearchParameters> result = entityFilterMapper.convertToSearchParameters(
-            criteriaList, ApiEntityType.DATABASE_SERVER.apiStr(), null);
+            criteriaList, ApiEntityType.DATABASE_SERVER.apiStr());
         assertEquals(1, result.size());
         final SearchParameters params = result.get(0);
 
