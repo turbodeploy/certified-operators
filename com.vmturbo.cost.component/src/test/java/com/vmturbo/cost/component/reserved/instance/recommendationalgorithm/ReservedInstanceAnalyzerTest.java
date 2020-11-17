@@ -40,6 +40,7 @@ import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
 import com.vmturbo.cost.component.reserved.instance.BuyReservedInstanceStore;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSender;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.AccountGroupingIdentifier;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.ImmutableAccountGroupingIdentifier;
@@ -184,7 +185,7 @@ public class ReservedInstanceAnalyzerTest {
                         mock(BuyReservedInstanceStore.class),
                         mock(ActionContextRIBuyStore.class),
                         new DefaultIdentityProvider(0),
-                        7777, 1);
+                        7777, 1, mock(ReservedInstanceBoughtStore.class));
         final Map<String, ReservedInstancePurchaseConstraints> constraints
                 = analyzer.getPurchaseConstraints();
         Assert.assertEquals(2, constraints.size());
@@ -236,7 +237,7 @@ public class ReservedInstanceAnalyzerTest {
                         mock(BuyReservedInstanceStore.class),
                         mock(ActionContextRIBuyStore.class),
                         new DefaultIdentityProvider(0),
-                        7777, 1);
+                        7777, 1, mock(ReservedInstanceBoughtStore.class));
 
 
         final Map<String, ReservedInstancePurchaseConstraints> constraints

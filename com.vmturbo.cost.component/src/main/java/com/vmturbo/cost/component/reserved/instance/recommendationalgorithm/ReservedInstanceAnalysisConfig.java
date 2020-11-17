@@ -97,7 +97,8 @@ public class ReservedInstanceAnalysisConfig {
                 reservedInstanceConfig.actionContextRIBuyStore(),
                 identityProvider,
                 realtimeTopologyContextId,
-                riMinimumDataPoints);
+                riMinimumDataPoints,
+                reservedInstanceBoughtStore());
     }
 
     @Bean

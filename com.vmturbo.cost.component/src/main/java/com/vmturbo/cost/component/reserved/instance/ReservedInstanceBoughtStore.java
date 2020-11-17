@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
-
+import javax.annotation.Nullable;
 
 import org.jooq.DSLContext;
 
@@ -15,6 +15,7 @@ import com.vmturbo.cost.component.TableDiagsRestorable;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.platform.sdk.common.PricingDTO;
+import com.vmturbo.sql.utils.DbException;
 
 /**
  * An interface for a SQL-based stores for reserved isntances.
@@ -144,10 +145,20 @@ public interface ReservedInstanceBoughtStore extends ReservedInstanceCostStore,
      * An undiscovered RI is an RI that is purchased by an account
      * that has not been added as a target.
      *
-     * @param filter Filter representing the scope for the requested RI list.
+     * @param filter Filter rEmptyReservedInstanceBoughtStore.javaepresenting the scope for the requested RI list.
      * @return List of reserved instances not used by managed accounts.
      */
     @Nonnull
     List<ReservedInstanceBought> getUndiscoveredUnusedReservedInstancesInScope(
             ReservedInstanceBoughtFilter filter);
+
+    /**
+     * Retrieves the timestamp when the RI was first discovered and stored in
+     * Tubo.
+     * @param riOid the reserved instance oid
+     * @return dicovery timestamp
+     * @throws DbException throws DB exception when unable to retrieve data.
+     */
+    @Nullable
+    Long getCreationTime(long riOid) throws DbException;
 }

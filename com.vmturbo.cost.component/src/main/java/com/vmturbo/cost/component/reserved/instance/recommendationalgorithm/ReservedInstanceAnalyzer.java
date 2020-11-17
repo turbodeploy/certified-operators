@@ -30,6 +30,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
 
 import com.vmturbo.cloud.common.identity.IdentityProvider;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyDemandCluster;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -106,6 +107,8 @@ public class ReservedInstanceAnalyzer {
 
     private final RIBuyDemandCalculatorFactory demandCalculatorFactory;
 
+    private final ReservedInstanceBoughtStore riBoughtStore;
+
     /**
      * the minimum historical data points required for RI buy.
      */
@@ -141,6 +144,7 @@ public class ReservedInstanceAnalyzer {
      * @param actionContextRIBuyStore the class to perform database operation on the cost.action_context_ri_buy
      * @param realtimeTopologyContextId realtime topology context id
      * @param riMinimumDataPoints RI buy hour data points value range from 1 to 168 inclusive
+     * @param riBoughtStore the RI Bought store to access the discovery time for an RI.
      */
     public ReservedInstanceAnalyzer(@Nonnull SettingServiceBlockingStub settingsServiceClient,
                                     @Nonnull PriceTableStore priceTableStore,
@@ -152,7 +156,8 @@ public class ReservedInstanceAnalyzer {
                                     @Nonnull ActionContextRIBuyStore actionContextRIBuyStore,
                                     @Nonnull IdentityProvider identityProvider,
                                     final long realtimeTopologyContextId,
-                                    final int riMinimumDataPoints) {
+                                    final int riMinimumDataPoints,
+                                    @Nonnull ReservedInstanceBoughtStore riBoughtStore) {
         this.settingsServiceClient = Objects.requireNonNull(settingsServiceClient);
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
         this.baPriceTableStore = Objects.requireNonNull(baPriceTableStore);
@@ -164,6 +169,7 @@ public class ReservedInstanceAnalyzer {
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.riMinimumDataPoints = riMinimumDataPoints;
+        this.riBoughtStore = riBoughtStore;
     }
 
     @VisibleForTesting
@@ -179,6 +185,7 @@ public class ReservedInstanceAnalyzer {
         this.analysisContextProvider = null;
         this.identityProvider = null;
         this.riMinimumDataPoints = 1;
+        this.riBoughtStore = null;
     }
 
     /**
@@ -372,7 +379,7 @@ public class ReservedInstanceAnalyzer {
 
         final RIBuyDemandCalculator demandCalculator = demandCalculatorFactory.newCalculator(
                 analysisContextInfo.regionalRIMatcherCache(),
-                demandDataType);
+                demandDataType, riBoughtStore);
         //get all the BA oids from analysis context
         final Set<Long> primaryAccounts = new HashSet<>();
         for (RIBuyRegionalContext riBuyRegionalContext : analysisContextInfo.regionalContexts()) {

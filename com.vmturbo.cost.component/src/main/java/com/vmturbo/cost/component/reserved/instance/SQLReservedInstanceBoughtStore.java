@@ -33,6 +33,7 @@ import com.google.common.collect.Sets;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.Record3;
 import org.jooq.Record4;
@@ -59,6 +60,7 @@ import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
+import com.vmturbo.sql.utils.DbException;
 
 /**
  * This class is used to update reserved instance table by latest reserved instance bought data which
@@ -429,7 +431,7 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
                         context,
                         getIdentityProvider().next(),
                         ri,
-                        probeRIIDToAmortizedCost.get(ri.getProbeReservedInstanceId())
+                        probeRIIDToAmortizedCost.get(ri.getProbeReservedInstanceId()), null
                     ))
                 .filter(Objects::nonNull)
                 .collect(toList());
@@ -461,7 +463,8 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
                             return createNewReservedInstanceRecord(context,
                                     record.getId(),
                                     riInfoByProbeId.getValue(),
-                                    probeRIIDToAmortizedCost.get(probeId));
+                                    probeRIIDToAmortizedCost.get(probeId),
+                                    record.getDiscoveryTime());
 
                         }).collect(toList());
         context.batchUpdate(reservedInstanceRecordsUpdates).execute();
@@ -525,6 +528,7 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
      * @param reservedInstanceId The ID to use for the newly created record.
      * @param reservedInstanceInfo bought information on an RI.
      * @param amortizedCost amortized cost computed as (fixedCost / Term * 730 * 12) + recurringCost.
+     * @param existingDiscoveryTime the initial time stamp the RI was discovered by turbo.
      * @return a record for the ReservedInstance that was bought
      */
     @Nullable
@@ -532,7 +536,8 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
             @Nonnull final DSLContext context,
             long reservedInstanceId,
             @Nonnull final ReservedInstanceBoughtInfo reservedInstanceInfo,
-            @Nullable final Double amortizedCost) {
+            @Nullable final Double amortizedCost,
+            @Nullable final LocalDateTime existingDiscoveryTime) {
         if (amortizedCost == null) {
             getLogger().debug("Unable to get amortized cost for RI with probeReservedInstanceID {}. Amortized cost will default to 0.",
                             reservedInstanceInfo.getProbeReservedInstanceId());
@@ -550,6 +555,9 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
         LocalDateTime expiryTime =
             LocalDateTime.ofInstant(Instant.ofEpochMilli(reservedInstanceInfo.getEndTime()),
                 ZoneId.from(ZoneOffset.UTC));
+        LocalDateTime discoveryTime = (existingDiscoveryTime != null) ? existingDiscoveryTime
+                :   LocalDateTime.ofInstant(Instant.ofEpochMilli(System.currentTimeMillis()),
+                ZoneId.from(ZoneOffset.UTC));
 
         return context.newRecord(RESERVED_INSTANCE_BOUGHT, new ReservedInstanceBoughtRecord(
                 reservedInstanceId,
@@ -562,7 +570,8 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
                 reservedInstanceInfo.getReservedInstanceBoughtCost().getFixedCost().getAmount(),
                 reservedInstanceInfo.getReservedInstanceBoughtCost().getRecurringCostPerHour().getAmount(),
                 (amortizedCost == null ? 0D : amortizedCost.doubleValue()),
-                startTime, expiryTime));
+                startTime, expiryTime,
+                discoveryTime));
     }
 
     /**
@@ -638,5 +647,19 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
         return undiscoveredRIs.stream()
                 .filter(ri -> !usedRIs.contains(ri.getId()))
                 .collect(toList());
+    }
+
+    @Nullable
+    @Override
+    public Long getCreationTime(final long riOid) throws DbException {
+        Record1<LocalDateTime> discoveryTime =
+                getDSLContext().select(RESERVED_INSTANCE_BOUGHT.DISCOVERY_TIME)
+                .from(RESERVED_INSTANCE_BOUGHT)
+                .where(RESERVED_INSTANCE_BOUGHT.ID.eq(riOid))
+                .fetchOne();
+        if (discoveryTime == null) {
+            return null;
+        }
+        return discoveryTime.value1().toEpochSecond(ZoneOffset.UTC);
     }
 }

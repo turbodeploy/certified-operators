@@ -18,18 +18,21 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceHistoricalDemandDataType;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyDemandCluster;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyHistoricalDemandProvider;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyRegionalContext;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.RegionalRIMatcherCache;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory.ReservedInstanceInventoryMatcher;
+import com.vmturbo.sql.utils.DbException;
 
 /**
  * This calculator is responsible for merging recorded demand with a provided RI inventory, in order
@@ -85,24 +88,32 @@ public class RIBuyDemandCalculator {
     private int currentSlot;
 
     /**
+     * The ReservedINstanceBoughtStore to be able to query the discovery tome for RIs.
+     */
+    private ReservedInstanceBoughtStore riBoughtStore;
+
+    /**
      * Public Constructor.
      *
      * @param demandProvider        The provider of recorded demand based on a requested demand context
      * @param demandDataType        Type of data used in RI Buy Analysis -- ALLOCATION or CONSUMPTION based.
      * @param regionalRIMatcherCache The regional RI matcher cache
      * @param demandWeight          The weight of the current value when added to the  historical data.
+     * @param riBoughtStore The RIBoughtStore to retrieve the discovery timestamp for an RI.
      */
     public RIBuyDemandCalculator(
             @Nonnull RIBuyHistoricalDemandProvider demandProvider,
             @Nonnull ReservedInstanceHistoricalDemandDataType demandDataType,
             @Nonnull RegionalRIMatcherCache regionalRIMatcherCache,
-            float demandWeight) {
+            float demandWeight,
+            @Nonnull ReservedInstanceBoughtStore riBoughtStore) {
         this.demandProvider = Objects.requireNonNull(demandProvider);
         this.demandDataType = Objects.requireNonNull(demandDataType);
         this.regionalRIMatcherCache = Objects.requireNonNull(regionalRIMatcherCache);
         this.demandWeight = demandWeight;
         currentHour = roundDownToHour(System.currentTimeMillis());
         currentSlot = calculateSlot(currentHour);
+        this.riBoughtStore = riBoughtStore;
     }
 
     /**
@@ -379,7 +390,8 @@ public class RIBuyDemandCalculator {
      * @param riBought The RI to adjust for.
      * @param logTag A tag to use in logging.
      */
-    private void subtractCouponsFromDemand(
+    @VisibleForTesting
+    void subtractCouponsFromDemand(
             @Nonnull float[] demand,
             @Nonnull Map<Long, ReservedInstanceAdjustmentTracker> riAdjustmentsById,
             @Nonnull ReservedInstanceBought riBought,
@@ -388,7 +400,19 @@ public class RIBuyDemandCalculator {
         final ReservedInstanceBoughtInfo riInfo = riBought.getReservedInstanceBoughtInfo();
         final double riCoupons = riInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons();
         final Calendar riPurchaseHour = roundDownToHour(riInfo.getStartTime());
-        final int purchaseWeeksAgo = weeksAgo(currentHour, riPurchaseHour);
+        Calendar riDiscoveryHour = riPurchaseHour;
+        try {
+            Long creationTime = riBoughtStore.getCreationTime(riBought.getId());
+            if (creationTime == null) {
+                logger.warn("Unable to retrieve discovery time for {}", riBought.getId());
+            } else {
+                riDiscoveryHour = roundDownToHour(creationTime);
+            }
+        } catch (DbException e) {
+            logger.warn("Ignoring the RI discovery hour. {}", e.getMessage());
+        }
+        Calendar riStartHour = (riPurchaseHour.after(riDiscoveryHour)) ? riPurchaseHour : riDiscoveryHour;
+        final int purchaseWeeksAgo = weeksAgo(currentHour, riStartHour);
 
         /*
            In consumption mode, it's unless the current hours is the same hour
