@@ -264,6 +264,7 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
             timer.start(RECEIVE_CHUNKS_TIMER_STAGE);
             allProcessors.forEach(p -> timer.start(p.getLabel()));
             timer.stopAll();
+            logger.debug("Created new ChunksProcesssor for {}", infoSummary);
         }
 
         /**
@@ -280,12 +281,14 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
                 int chunkNo = 1;
                 // if we don't flip this by the time we're done, we'll log a warning
                 boolean completelyProcessed = false;
+                logger.debug("Beginning ingestion of toplogy {}", infoSummary);
                 try {
                     startBroadcastHook(info, state, timer);
                     for (Optional<Collection<T>> chunk = getNextChunk();
                          chunk.isPresent();
                          chunk = getNextChunk()) {
                         beforeChunkHook(chunk.get(), chunkNo, info, state, timer);
+                        logger.debug("Procesing chunk #{} of topology {}", chunkNo, infoSummary);
                         processChunk(chunk.get(), chunkNo);
                         afterChunkHook(chunk.get(), chunkNo, info, state, timer);
                         chunkNo += 1;
@@ -396,6 +399,8 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
                                 .get(timeLimit, TimeUnit.MILLISECONDS));
                     } else {
                         // if we've been interrupted, try to stop ongoing work
+                        logger.error("Ingester interrupted while procesing chunk #{} of topology {}; "
+                                + "attempting to cancel current procesing", chunkNo, infoSummary);
                         entry.getValue().cancel(true);
                     }
                 } catch (ExecutionException e) {
@@ -438,10 +443,15 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
                 switch (entry.getValue()) {
                     case DISCONTINUE:
                         // this processor doesn't want any more chunks
+                        logger.debug("Writer {} has opted out of further chunks for topology {}",
+                                entry.getKey().getLabel(), infoSummary);
                         activeProcessors.remove(entry.getKey());
                         break;
                     case TERMINATE:
                         // no more chunks should be processed by this or any other chunk processor
+                        logger.debug("Writer {} has terminated topology {}; "
+                                        + "no further chunks will be processed",
+                                entry.getKey().getLabel(), infoSummary);
                         activeProcessors.clear();
                         // no need to check any other dispositions
                         return;

@@ -133,7 +133,7 @@ public class SystemLoadWriter extends TopologyWriterBase {
             this.transientLoader = loaders.getTransientLoader(SYSTEM_LOAD, table -> {
                 try (Connection conn = basedbIO.connection()) {
                     basedbIO.using(conn)
-                            .createIndexIfNotExists("slice")
+                            .createIndex(table.getName() + "_slice")
                             .on(table, SYSTEM_LOAD.SLICE)
                             .execute();
                 }

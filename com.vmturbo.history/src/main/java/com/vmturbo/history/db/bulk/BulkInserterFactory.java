@@ -199,7 +199,8 @@ public class BulkInserterFactory implements AutoCloseable {
             String transientTableName = tableNamePrefix + System.nanoTime();
             Table<OutT> transientTable = outTable.getClass().newInstance().as(transientTableName);
             // create that table in the database
-            basedbIO.using(conn).createTable(transientTable).columns(outTable.fields()).execute();
+            basedbIO.using(conn).createTable(transientTable).columns(outTable.fields())
+                    .execute();
             if (postTableCreateFunc != null) {
                 postTableCreateFunc.execute(transientTable);
             }

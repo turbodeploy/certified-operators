@@ -351,6 +351,7 @@ public class TopologyCoordinator extends TopologyListenerBase
                         }
                         return results.getLeft();
                     } catch (Exception e) {
+                        logger.error("Ingestion of {} failed", topologyLabel, e);
                         processingStatus.failIngestion(
                                 flavor, info, topologyLabel, Optional.of(loaders.getStats()), e);
                     } finally {
@@ -370,6 +371,9 @@ public class TopologyCoordinator extends TopologyListenerBase
                         .labels(getLabelsForSkipSafetyValve(info, flavor))
                         .increment();
             }
+        } catch (Exception e) {
+            logger.error("Ingestion of {} failed with an uncaught exception; "
+                    + "remaining chunks, if any, will be discarded", topologyLabel, e);
         } finally {
             // We do this in all cases, to make sure we don't end up stuck in mid-topology.
             // If we were successful this will be a no-op.
