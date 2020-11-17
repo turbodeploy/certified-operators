@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -38,6 +39,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.RangeTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRangeDependency;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceRatioDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
@@ -353,6 +355,58 @@ public class CostFunctionFactoryTest {
                 true, false);
         assertNotNull(quote);
         assertEquals(historicalQuantity * price, quote.getQuoteValue(), 0d);
+    }
+
+    /**
+     * Test that cost calculation with ratio dependency rounds up the max quantity calculation
+     * for dependent commodity.
+     */
+    @Test
+    public void testCostCalculationWithRatioDependency() {
+        final double st1IopsRatio = 40.0 / 1024;
+        final long accountId1 = 101;
+        final long regionId11 = 211;
+        BalanceAccount account1 = new BalanceAccount(100, 10000, accountId1, 0);
+        List<CommoditySpecification> stCommList = Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS);
+        Trader vm = TestUtils.createVM(economy);
+        vm.getSettings().setContext(new com.vmturbo.platform.analysis.economy.Context(
+            regionId11, 0, account1));
+        storageTier = TestUtils.createTrader(economy, TestUtils.ST_TYPE, Arrays.asList(0L),
+            stCommList, new double[] {10000, 10000}, true, false);
+        final CostFunction storageCostFunction = CostFunctionFactory.createCostFunction(
+            CostDTO.newBuilder()
+                .setStorageTierCost(StorageTierCostDTO.newBuilder()
+                    .addStorageResourceRatioDependency(StorageResourceRatioDependency.newBuilder()
+                        .setBaseResourceType(TestUtils.stAmtTO)
+                        .setDependentResourceType(TestUtils.iopsTO)
+                        .setMaxRatio(st1IopsRatio)
+                        .build())
+                    .addStorageResourceCost(StorageResourceCost.newBuilder()
+                        .setResourceType(TestUtils.stAmtTO)
+                        .addStorageTierPriceData(StorageTierPriceData.newBuilder()
+                            .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(accountId1)
+                                .setRegionId(regionId11).setPrice(30.0).build())
+                            .setIsAccumulativeCost(false).setIsUnitPrice(false)
+                            .setUpperBound(100))
+                        .addStorageTierPriceData(StorageTierPriceData.newBuilder()
+                            .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(accountId1)
+                                .setRegionId(regionId11).setPrice(40.0).build())
+                            .setIsAccumulativeCost(true).setIsUnitPrice(false)
+                            .setUpperBound(200)))
+                    .build())
+                .build()
+        );
+        final double stAmountQuantity = 3000;
+        stSL = TestUtils.createAndPlaceShoppingList(economy, stCommList, vm,
+            new double[] {stAmountQuantity, 118}, new double[] {80, 300}, storageTier);
+        stSL.setDemandScalable(true);
+        MutableQuote quote = storageCostFunction.calculateCost(stSL, storageTier, true, economy);
+        final Optional<CommodityContext> stAmountComContext = quote.getCommodityContexts().stream()
+            .filter(c -> c.getCommoditySpecification().getType() == TestUtils.stAmtTO.getBaseType())
+            .findAny();
+        Assert.assertTrue(stAmountComContext.isPresent());
+        // No change in decisive commodity
+        Assert.assertEquals(stAmountQuantity, stAmountComContext.get().getNewCapacityOnSeller(), 0);
     }
 
     /**

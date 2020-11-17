@@ -556,7 +556,7 @@ public class CostFunctionFactoryHelper {
             }
             // Check maxRatio.
             final double maxRatio = dependency.getMaxRatio();
-            double maxAllowedQuantity = baseCommQuantity * maxRatio;
+            double maxAllowedQuantity = Math.ceil(baseCommQuantity * maxRatio);
             if (commCapacityLimitation.containsKey(dependentType)) {
                 maxAllowedQuantity = Math.max(maxAllowedQuantity, commCapacityLimitation.get(dependentType).getMinCapacity());
             }
