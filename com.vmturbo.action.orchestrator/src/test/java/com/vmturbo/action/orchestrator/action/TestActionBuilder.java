@@ -14,8 +14,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
-import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class TestActionBuilder {
 
@@ -99,47 +97,5 @@ public class TestActionBuilder {
         }
         return ActionInfo.newBuilder().setProvision(provisionOrBuilder);
 
-    }
-
-    /**
-     * Build scale action.
-     *
-     * @param targetId target entity id.
-     * @param sourceId scale action source id.
-     * @param sourceType scale action source type.
-     * @param destinationId scale action destination id.
-     * @param destinationType scale action destination type.
-     * @param scalingGroupId scalingGroupId related to the target entity.
-     * @return Scale action object.
-     */
-    @Nonnull
-    public Action buildScaleAction(long targetId, long sourceId, int sourceType, long destinationId,
-                                   int destinationType, @Nullable String scalingGroupId) {
-        return Action.newBuilder().setId(actionId.getAndIncrement()).setDeprecatedImportance(1)
-                .setExplanation(Explanation.newBuilder().build())
-                .setInfo(makeScaleInfo(targetId, sourceId, sourceType, destinationId, destinationType, scalingGroupId))
-                .setSupportingLevel(SupportLevel.SUPPORTED)
-                .build();
-    }
-
-    private static ActionInfo.Builder makeScaleInfo(long targetId, long sourceId, int sourceType,
-                                                    long destinationId, int destinationType, @Nullable String scalingGroupId) {
-
-        Scale.Builder scaleBuilder = Scale.newBuilder()
-                .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId, EntityType.VIRTUAL_VOLUME_VALUE))
-                .addChanges(ChangeProvider.newBuilder()
-                        .setSource(ActionEntity.newBuilder()
-                                .setId(sourceId)
-                                .setType(sourceType)
-                                .build())
-                        .setDestination(ActionEntity.newBuilder()
-                                .setId(destinationId)
-                                .setType(destinationType)
-                                .build())
-                        .build());
-        if (scalingGroupId != null) {
-            scaleBuilder.setScalingGroupId(scalingGroupId);
-        }
-        return ActionInfo.newBuilder().setScale(scaleBuilder.build());
     }
 }

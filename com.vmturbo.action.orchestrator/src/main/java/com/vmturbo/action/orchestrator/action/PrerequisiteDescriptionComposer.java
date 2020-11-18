@@ -49,15 +49,14 @@ public class PrerequisiteDescriptionComposer {
             "To execute action on {0}, please remove these read-only locks: {1}";
     private static final String SCALESET_PREREQUISITE_FORMAT =
             "To execute action on {0}, navigate to the Azure portal and adjust the scale set instance size";
-    private static final String SCALESET_VOLUME_PREREQUISITE_FORMAT =
-            "To execute action on {0}, navigate to the Azure portal and adjust at the scale set";
 
     // A mapping from PrerequisiteType to the display string.
     private static final Map<PrerequisiteType, String> prerequisiteTypeToString = ImmutableMap.of(
             PrerequisiteType.ENA, ENA_PREREQUISITE_FORMAT,
             PrerequisiteType.NVME, NVME_PREREQUISITE_FORMAT,
             PrerequisiteType.ARCHITECTURE, ARCHITECTURE_PREREQUISITE_FORMAT,
-            PrerequisiteType.VIRTUALIZATION_TYPE, VIRTUALIZATION_TYPE_PREREQUISITE_FORMAT
+            PrerequisiteType.VIRTUALIZATION_TYPE, VIRTUALIZATION_TYPE_PREREQUISITE_FORMAT,
+            PrerequisiteType.SCALE_SET, SCALESET_PREREQUISITE_FORMAT
     );
 
     /**
@@ -91,12 +90,6 @@ public class PrerequisiteDescriptionComposer {
                                     LOCK_PREREQUISITE_FORMAT,
                                     buildEntityNameOrType(ActionDTOUtil.getPrimaryEntity(action)),
                                     prerequisite.getLocks());
-                        case SCALE_SET:
-                            final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
-                            return ActionDTOUtil.TRANSLATION_PREFIX + MessageFormat.format(
-                                    actionEntity.getType() == EntityType.VIRTUAL_VOLUME_VALUE
-                                            ? SCALESET_VOLUME_PREREQUISITE_FORMAT : SCALESET_PREREQUISITE_FORMAT,
-                                    buildEntityNameOrType(actionEntity));
                         default:
                             return ActionDTOUtil.TRANSLATION_PREFIX + MessageFormat.format(
                             prerequisiteTypeToString.get(prerequisite.getPrerequisiteType()),

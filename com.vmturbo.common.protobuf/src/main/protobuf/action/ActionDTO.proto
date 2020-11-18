@@ -371,9 +371,6 @@ message Scale {
 
     // Details of each commodity change.
     repeated ResizeInfo commodity_resizes = 3;
-
-    // scaling group ID
-    optional string scaling_group_id = 4;
 }
 
 message ChangeProvider {

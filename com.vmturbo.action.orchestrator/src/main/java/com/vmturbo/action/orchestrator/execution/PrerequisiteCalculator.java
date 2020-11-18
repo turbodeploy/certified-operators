@@ -23,7 +23,6 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.PrerequisiteType;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -488,15 +487,12 @@ class PrerequisiteCalculator {
         // We don't support Action execution if the target entity belongs to an Azure Scale Set.
         // I'm using the Resource Group to know if it's Azure.
         Optional<Long> resourceGroup = snapshot.getResourceGroupForEntity(target.getOid());
-        if (resourceGroup.isPresent() && action.hasInfo()) {
-            final ActionInfo actionInfo = action.getInfo();
-            if (actionInfo.hasMove() && actionInfo.getMove().hasScalingGroupId()
-                    || actionInfo.hasScale() && actionInfo.getScale().hasScalingGroupId()) {
-                return Collections.singleton(Prerequisite.newBuilder()
-                        .setPrerequisiteType(PrerequisiteType.SCALE_SET)
-                        .build());
-            }
+        if (!resourceGroup.isPresent() || !action.hasInfo() || !action.getInfo().hasMove()
+                || !action.getInfo().getMove().hasScalingGroupId()) {
+            return Sets.newHashSet();
         }
-        return Sets.newHashSet();
+        return Collections.singleton(Prerequisite.newBuilder()
+                .setPrerequisiteType(PrerequisiteType.SCALE_SET)
+                .build());
     }
 }
