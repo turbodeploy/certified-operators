@@ -56,7 +56,7 @@ public class PlanActionContextRiBuyStoreImpl implements PlanActionContextRiBuySt
 
         final String demand = weeklyDemandList.toString()
                 .substring(1, weeklyDemandList.toString().length() - 1);
-        actionContextRiBuyRecord.setData(demand);
+        actionContextRiBuyRecord.setData(demand.getBytes());
 
         // Insert the record into the database
         context.batchInsert(actionContextRiBuyRecord).execute();

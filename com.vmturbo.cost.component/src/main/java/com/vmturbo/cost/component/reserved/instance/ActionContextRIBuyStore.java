@@ -139,7 +139,7 @@ public class ActionContextRIBuyStore {
                 Collections.rotate(weeklyDemandList, NUM_HOURS_IN_A_WEEK - actionHour);
                 final String demand = weeklyDemandList.toString()
                         .substring(1, weeklyDemandList.toString().length() - 1);
-                actionContextRiBuyRecord.setData(demand);
+                actionContextRiBuyRecord.setData(demand.getBytes());
                 actionContextRiBuyRecords.add(actionContextRiBuyRecord);
             }
         }
@@ -164,7 +164,7 @@ public class ActionContextRIBuyStore {
             final String demand = instanceDemand.datapoints().stream()
                     .map(Object::toString)
                     .collect(Collectors.joining(","));
-            actionContextRiBuyRecord.setData(demand);
+            actionContextRiBuyRecord.setData(demand.getBytes());
 
             recordsList.add(actionContextRiBuyRecord);
         }
@@ -193,7 +193,7 @@ public class ActionContextRIBuyStore {
                 .datapointInterval(Duration.parse(record.getDatapointInterval()))
                 .instanceType(record.getTemplateType())
                 .lastDatapointTime(record.getCreateTime())
-                .datapoints(Stream.of(record.getData().split(","))
+                .datapoints(Stream.of(new String(record.getData()).split(","))
                         .map(String::trim)
                         .map(Float::parseFloat)
                         .collect(ImmutableList.toImmutableList()))
