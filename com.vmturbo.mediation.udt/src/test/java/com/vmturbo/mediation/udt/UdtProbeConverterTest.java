@@ -37,13 +37,14 @@ public class UdtProbeConverterTest {
      */
     @Test
     public void testConvertToResponse() {
-        long serviceOid = 1000L;
+        long serviceUdtId = 111L;
+        UdtChildEntity serviceChild = new UdtChildEntity(1000L, EntityType.SERVICE);
         UdtEntity btEntity = new UdtEntity(EntityType.BUSINESS_TRANSACTION, "10", "bt-0",
-                Collections.singleton(new UdtChildEntity(serviceOid, EntityType.SERVICE)));
-        UdtEntity serviceEntity = new UdtEntity(EntityType.SERVICE, "20", "svc-0",
+                Collections.singleton(serviceChild));
+        UdtEntity serviceEntity = new UdtEntity(EntityType.SERVICE, String.valueOf(serviceUdtId), "svc-0",
                 Collections.singleton(new UdtChildEntity(2000L, EntityType.VIRTUAL_MACHINE)));
-        // btEntity's child is the serviceEntity
-        serviceEntity.setOid(serviceOid);
+        // btEntity's child is the serviceEntity: serviceChild = serviceEntity
+        serviceChild.setUdtId(serviceUdtId);
         UdtProbeConverter converter = new UdtProbeConverter(Sets.newHashSet(btEntity, serviceEntity));
         DiscoveryResponse response = converter.createDiscoveryResponse();
         List<EntityDTO> dtos = response.getEntityDTOList();
@@ -58,7 +59,7 @@ public class UdtProbeConverterTest {
         Assert.assertNotNull(svcDto);
         Assert.assertNotNull(btDto);
 
-        Assert.assertEquals(serviceOid, Long.parseLong(svcDto.getId()));    // Service DTO has ID == Oid (not UDT ID).
+        Assert.assertEquals(serviceUdtId, Long.parseLong(svcDto.getId()));    // Service DTO has ID == Oid (not UDT ID).
 
         Assert.assertEquals(EntityDTO.EntityOrigin.DISCOVERED, btDto.getOrigin());
         Assert.assertEquals(EntityDTO.EntityOrigin.DISCOVERED, svcDto.getOrigin());

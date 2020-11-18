@@ -40,12 +40,8 @@ public class UdtEntityTest {
      */
     @Test
     public void testOidValue() {
-        final UdtEntity udtEntity = new UdtEntity(EntityType.SERVICE, "605040", "vm-0", emptySet());
         final String tddId = "605040";
-        final long oid = 905673826477L;
-        udtEntity.setOid(oid);
-        Assert.assertEquals(oid, Long.parseLong(udtEntity.getDtoId()));
-        udtEntity.setOid(null);
-        Assert.assertEquals(tddId, udtEntity.getDtoId());
+        final UdtEntity udtEntity = new UdtEntity(EntityType.SERVICE, tddId, "vm-0", emptySet());
+        Assert.assertEquals(tddId, udtEntity.getId());
     }
 }

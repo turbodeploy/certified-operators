@@ -113,6 +113,7 @@ public class UdtProbeTest {
         UdtProbe probe = new UdtProbe();
         Connection connection = probe.createProbeConnection(configuration);
         Assert.assertNotNull(connection);
+        probe.destroy();
     }
 
     /**

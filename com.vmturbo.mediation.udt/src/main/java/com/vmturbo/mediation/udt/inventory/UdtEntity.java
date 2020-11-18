@@ -11,7 +11,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class UdtEntity {
 
-    private Long oid;
     private final String id;
     private final String name;
     private final EntityType entityType;
@@ -48,27 +47,11 @@ public class UdtEntity {
         return entityType;
     }
 
-    /**
-     * Provider an ID for EntityDTO.
-     * If this UDT entity has defined OID, it is used as ID of EntityDTO.
-     *
-     * @return EntityDTO identification.
-     */
-    public String getDtoId() {
-        return oid != null
-                ? String.valueOf(oid)
-                : id;
-    }
-
-    public void setOid(Long oid) {
-        this.oid = oid;
-    }
-
     @Override
     public String toString() {
-        String childrenStr = children.stream().map(ch -> String.valueOf(ch.getOid()))
+        String childrenStr = children.stream().map(ch -> String.valueOf(ch.getDtoId()))
                 .collect(Collectors.joining(","));
-        return String.format("[id=%s name=%s type=%s oid=%d children=%s]", id, name,
-                entityType.name(), oid, childrenStr);
+        return String.format("[id=%s name=%s type=%s children=%s]", id, name,
+                entityType.name(), childrenStr);
     }
 }

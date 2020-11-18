@@ -30,22 +30,23 @@ public class OidToUdtMappingTaskTest {
      */
     @Test
     public void testMapping() {
-        long topologyDtoId = 1000L;
-        String definitionId = "222";
+        long oid = 1000L;
+        long udtId = 222L;
         DataProvider dataProvider = Mockito.mock(DataProvider.class);
-        UdtEntity udtService = new UdtEntity(EntityType.SERVICE, definitionId, "Service-B", emptySet());
-        UdtChildEntity childService = new UdtChildEntity(topologyDtoId, EntityType.SERVICE);
+        UdtEntity udtService = new UdtEntity(EntityType.SERVICE, String.valueOf(udtId), "Service-B", emptySet());
+        UdtChildEntity childService = new UdtChildEntity(oid, EntityType.SERVICE);
+        //childService.setUdtId(definitionId);
         UdtEntity udtTransaction = new UdtEntity(EntityType.BUSINESS_TRANSACTION, "111",
                 "TransactionX", Collections.singleton(childService));
         // 'udtService' EQUAL 'childService'
-        TopologyEntityDTO entityDTO = TestUtils.createTopologyDto(topologyDtoId, "Service-B", EntityType.SERVICE)
+        TopologyEntityDTO entityDTO = TestUtils.createTopologyDto(oid, "Service-B", EntityType.SERVICE)
                 .toBuilder()
                 .putEntityPropertyMap(VENDOR, UDT_PROBE_TAG)
-                .putEntityPropertyMap(VENDOR_ID, definitionId)
+                .putEntityPropertyMap(VENDOR_ID, String.valueOf(udtId))
                 .build();
         Mockito.when(dataProvider.searchEntitiesByTargetId(Mockito.anyLong()))
                 .thenReturn(Collections.singleton(entityDTO));
         OidToUdtMappingTask.execute(Sets.newHashSet(udtTransaction, udtService), dataProvider);
-        Assert.assertEquals(String.valueOf(topologyDtoId), udtService.getDtoId());
+        Assert.assertEquals(udtId, childService.getDtoId());
     }
 }
