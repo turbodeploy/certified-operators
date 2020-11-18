@@ -132,7 +132,7 @@ public class VDIStitchingIntegrationTest extends StitchingIntegrationTest {
         final String journalOutput = testVDIStitching(vdiVdcStitchingOperation);
 
         assertThat(journalOutput,
-                containsString("Merging from VIRTUAL_DATACENTER-5-SITE02-POD01-POOL04 onto"));
+                containsString("Merging from [VIRTUAL_DATACENTER-5-SITE02-POD01-POOL04] onto"));
         assertThat(journalOutput, containsString("VIRTUAL_DATACENTER-8-SITE02-POD01-POOL04"));
         assertThat(journalOutput, containsString(
                 "Providers: removed=[VIRTUAL_DATACENTER-5-3333] added=[VIRTUAL_DATACENTER-8-2222]"));
@@ -151,7 +151,7 @@ public class VDIStitchingIntegrationTest extends StitchingIntegrationTest {
         final String journalOutput = testVDIStitching(vdiStorageStitchingOperation);
 
         assertThat(journalOutput, containsString(
-                "Merging from STORAGE-3-QS4:ESXDC25DS1 onto STORAGE-10-QS4:ESXDC25DS1"));
+                "Merging from [STORAGE-3-QS4:ESXDC25DS1] onto STORAGE-10-QS4:ESXDC25DS1"));
         assertThat(journalOutput, containsString("STORAGE fb5f0bc9-a0c52693 QS4:ESXDC25DS1"));
         assertThat(journalOutput, containsString("REMOVED ENTITY"));
         assertThat(journalOutput, containsString(
@@ -201,7 +201,7 @@ public class VDIStitchingIntegrationTest extends StitchingIntegrationTest {
         final String journalOutput = testVDIStitching(vdiPMStitchingOperation);
 
         assertThat(journalOutput,
-                containsString("Merging from PHYSICAL_MACHINE-7-hp-esx113.eng.vmturbo.com onto"));
+                containsString("Merging from [PHYSICAL_MACHINE-7-hp-esx113.eng.vmturbo.com] onto"));
         assertThat(journalOutput, containsString(" PHYSICAL_MACHINE-12-hp-esx113.eng.vmturbo.com"));
         assertThat(journalOutput, containsString(
                 "++++\"key\": \"PhysicalMachine" + "::6521b6717ffed86e9e7a3d541f0537b9bc52b548"));

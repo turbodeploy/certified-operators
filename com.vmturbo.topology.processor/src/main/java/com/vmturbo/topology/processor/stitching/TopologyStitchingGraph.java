@@ -639,8 +639,7 @@ public class TopologyStitchingGraph {
      * @return The set of localIds for all entities affected by the removal. The localId of the removed
      *         entity is always in this set unless no entity was actually removed.
      */
-    public Set<TopologyStitchingEntity>
-    removeEntity(@Nonnull final TopologyStitchingEntity toRemove) {
+    public Set<TopologyStitchingEntity> removeEntity(@Nonnull final TopologyStitchingEntity toRemove) {
         final Set<TopologyStitchingEntity> affected = new HashSet<>();
 
         final TopologyStitchingEntity removedEntity = stitchingEntities.remove(toRemove.getEntityBuilder());
@@ -660,6 +659,21 @@ public class TopologyStitchingGraph {
 
             toRemove.clearConsumers();
             toRemove.clearProviders();
+
+            // remove connected to and connected from relationship from the other side
+            toRemove.getConnectedToByType().forEach((connectionType, entities) -> entities.forEach(
+                    connectedTo -> {
+                        connectedTo.removeConnectedFrom(toRemove, connectionType);
+                        affected.add((TopologyStitchingEntity)connectedTo);
+                    }));
+            toRemove.clearConnectedTo();
+
+            toRemove.getConnectedFromByType().forEach((connectionType, entities) -> entities.forEach(
+                    connectedFrom -> {
+                        connectedFrom.removeConnectedTo(toRemove, connectionType);
+                        affected.add((TopologyStitchingEntity)connectedFrom);
+                    }));
+            toRemove.clearConnectedFrom();
         }
 
         return affected;

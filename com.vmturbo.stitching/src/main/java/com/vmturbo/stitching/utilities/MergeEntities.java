@@ -50,33 +50,35 @@ public class MergeEntities {
      * A builder for creating a description of an entity merge change.
      */
     public static class MergeEntitiesStart {
-        private final StitchingEntity mergeFromEntity;
+        private final List<StitchingEntity> mergeFromEntities;
 
-        private MergeEntitiesStart(@Nonnull final StitchingEntity mergeFromEntity) {
-            this.mergeFromEntity = Objects.requireNonNull(mergeFromEntity);
+        private MergeEntitiesStart(@Nonnull final List<StitchingEntity> mergeFromEntities) {
+            this.mergeFromEntities = Objects.requireNonNull(mergeFromEntities);
         }
 
         public MergeEntitiesDetails onto(@Nonnull final StitchingEntity mergeOntoEntity) {
-            return onto(mergeOntoEntity, MergePropertiesStrategy.KEEP_ONTO);
+            return onto(mergeOntoEntity, MergePropertiesStrategy.KEEP_ONTO, true);
         }
 
         public MergeEntitiesDetails onto(@Nonnull final StitchingEntity mergeOntoEntity,
                                          @Nonnull final MergeCommoditySoldStrategy mergeCommoditySoldStrategy) {
             return onto(mergeOntoEntity, mergeCommoditySoldStrategy,
-                    MergePropertiesStrategy.KEEP_ONTO);
+                    MergePropertiesStrategy.KEEP_ONTO, true);
         }
 
         /**
-         * Create {@link MergeEntitiesDetails} for given "onto" entity and merge properties
-         * strategy.
+         * Create {@link MergeEntitiesDetails} for given "onto" entity, merge properties
+         * strategy and the given selected fields.
          *
          * @param mergeOntoEntity "Onto" entity to merge.
          * @param mergePropertiesStrategy Merge properties strategy.
+         * @param mergeCommodities Merge commodities.
          * @return New instance of {@link MergeEntitiesDetails}.
          */
         public MergeEntitiesDetails onto(@Nonnull final StitchingEntity mergeOntoEntity,
-                                         @Nonnull final MergePropertiesStrategy mergePropertiesStrategy) {
-            return onto(mergeOntoEntity, KEEP_DISTINCT_FAVOR_ONTO, mergePropertiesStrategy);
+                @Nonnull final MergePropertiesStrategy mergePropertiesStrategy,
+                final boolean mergeCommodities) {
+            return onto(mergeOntoEntity, KEEP_DISTINCT_FAVOR_ONTO, mergePropertiesStrategy, mergeCommodities);
         }
 
         /**
@@ -86,13 +88,15 @@ public class MergeEntities {
          * @param mergeOntoEntity "Onto" entity to merge.
          * @param mergeCommoditySoldStrategy Merge sold commodities strategy.
          * @param mergePropertiesStrategy Merge properties strategy.
+         * @param mergeCommodities Merge commodities.
          * @return New instance of {@link MergeEntitiesDetails}.
          */
         public MergeEntitiesDetails onto(@Nonnull final StitchingEntity mergeOntoEntity,
                                          @Nonnull final MergeCommoditySoldStrategy mergeCommoditySoldStrategy,
-                                         @Nonnull final MergePropertiesStrategy mergePropertiesStrategy) {
-            return new MergeEntitiesDetails(mergeFromEntity, mergeOntoEntity,
-                    mergeCommoditySoldStrategy, mergePropertiesStrategy);
+                                         @Nonnull final MergePropertiesStrategy mergePropertiesStrategy,
+                                         final boolean mergeCommodities) {
+            return new MergeEntitiesDetails(mergeFromEntities, mergeOntoEntity,
+                    mergeCommoditySoldStrategy, mergePropertiesStrategy, mergeCommodities);
         }
     }
 
@@ -101,25 +105,28 @@ public class MergeEntities {
      * how the merge should be performed.
      */
     public static class MergeEntitiesDetails {
-        private final StitchingEntity mergeFromEntity;
+        private final List<StitchingEntity> mergeFromEntities;
         private final StitchingEntity mergeOntoEntity;
         private final MergeCommoditySoldStrategy mergeCommoditySoldStrategy;
         private final MergePropertiesStrategy mergePropertiesStrategy;
         private final List<EntityFieldMerger<?>> fieldMergers;
+        private final boolean mergeCommodities;
 
-        private MergeEntitiesDetails(@Nonnull final StitchingEntity entityToBeReplaced,
+        private MergeEntitiesDetails(@Nonnull final List<StitchingEntity> entitiesToBeReplaced,
                                      @Nonnull final StitchingEntity mergeOntoEntity,
                                      @Nonnull final MergeCommoditySoldStrategy mergeCommoditySoldStrategy,
-                                     @Nonnull final MergePropertiesStrategy mergePropertiesStrategy) {
-            this.mergeFromEntity = Objects.requireNonNull(entityToBeReplaced);
+                                     @Nonnull final MergePropertiesStrategy mergePropertiesStrategy,
+                                     final boolean mergeCommodities) {
+            this.mergeFromEntities = Objects.requireNonNull(entitiesToBeReplaced);
             this.mergeOntoEntity = Objects.requireNonNull(mergeOntoEntity);
             this.mergeCommoditySoldStrategy = mergeCommoditySoldStrategy;
             this.mergePropertiesStrategy = mergePropertiesStrategy;
             this.fieldMergers = new ArrayList<>();
+            this.mergeCommodities = mergeCommodities;
         }
 
-        public StitchingEntity getMergeFromEntity() {
-            return mergeFromEntity;
+        public List<StitchingEntity> getMergeFromEntities() {
+            return mergeFromEntities;
         }
 
         public StitchingEntity getMergeOntoEntity() {
@@ -179,6 +186,15 @@ public class MergeEntities {
          */
         public List<EntityFieldMerger<?>> getFieldMergers() {
             return Collections.unmodifiableList(fieldMergers);
+        }
+
+        /**
+         * Check whether to merge commodities or not.
+         *
+         * @return true if commodities should be merged.
+         */
+        public boolean mergeCommodities() {
+            return mergeCommodities;
         }
     }
 
@@ -303,6 +319,20 @@ public class MergeEntities {
      *         the description of the merge.
      */
     public static MergeEntitiesStart mergeEntity(@Nonnull final StitchingEntity mergeFromEntity) {
-        return new MergeEntitiesStart(mergeFromEntity);
+        return new MergeEntitiesStart(Collections.singletonList(mergeFromEntity));
+    }
+
+    /**
+     * Create a change description for merging a list of instances of an entity onto a single instance.
+     *
+     * @param mergeFromEntities The entities that should be merged "from" onto the "onto" entity.
+     *                          These instances of the entity will be removed from the topology at the
+     *                          end of the merge operation while the "onto" entity that has had the result
+     *                          of the merge placed onto it will be kept.
+     * @return A {@link com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesStart} object for building
+     *         the description of the merge.
+     */
+    public static MergeEntitiesStart mergeEntities(@Nonnull final List<StitchingEntity> mergeFromEntities) {
+        return new MergeEntitiesStart(mergeFromEntities);
     }
 }

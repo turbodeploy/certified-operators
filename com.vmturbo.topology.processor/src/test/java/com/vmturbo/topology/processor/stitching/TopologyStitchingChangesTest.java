@@ -217,7 +217,7 @@ public class TopologyStitchingChangesTest {
                 contains(entity6));
 
         new UpdateEntityRelationshipsChange(entity5, toUpdate ->
-                toUpdate.removeConnection(entity6, ConnectionType.AGGREGATED_BY_CONNECTION))
+                toUpdate.removeConnectedTo(entity6, ConnectionType.AGGREGATED_BY_CONNECTION))
             .applyChange(new StitchingJournal<>());
 
         assertThat(entity6.getConnectedFromByType().get(ConnectionType.AGGREGATED_BY_CONNECTION),
@@ -237,7 +237,7 @@ public class TopologyStitchingChangesTest {
         assertThat(entity2.getConnectedFromByType().get(ConnectionType.OWNS_CONNECTION), contains(entity6));
 
         new UpdateEntityRelationshipsChange(entity6, toUpdate ->
-            toUpdate.removeConnection(entity3, ConnectionType.OWNS_CONNECTION))
+            toUpdate.removeConnectedTo(entity3, ConnectionType.OWNS_CONNECTION))
             .applyChange(new StitchingJournal<>());
 
         assertThat(entity6.getConnectedToByType().get(ConnectionType.OWNS_CONNECTION), contains(entity2));

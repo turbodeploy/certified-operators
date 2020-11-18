@@ -135,9 +135,9 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
         testNetappStitching(journalFactory, storageStitchingOperationToUse);
 
         final String journalOutput = journalStringBuilder.toString();
-        assertThat(journalOutput, containsString("Merging from STORAGE-31-svm1.test.com:ONTAP_SIM9_LUN1_vol onto"));
+        assertThat(journalOutput, containsString("Merging from [STORAGE-31-svm1.test.com:ONTAP_SIM9_LUN1_vol] onto"));
         assertThat(journalOutput, containsString("STORAGE-70-NetApp90:ISCSI-SVM1"));
-        assertThat(journalOutput, containsString("Merging from DISK_ARRAY-78-DiskArray-NetApp90:ISCSI-SVM1 onto"));
+        assertThat(journalOutput, containsString("Merging from [DISK_ARRAY-78-DiskArray-NetApp90:ISCSI-SVM1] onto"));
         assertThat(journalOutput, containsString("DISK_ARRAY-34-dataontap-vsim-cm3:aggr2"));
     }
 

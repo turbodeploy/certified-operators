@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -122,110 +123,161 @@ public class TopologyStitchingChanges {
     @Immutable
     public static class MergeEntitiesChange extends BaseTopologicalChange<StitchingEntity> {
         private final StitchingContext stitchingContext;
-        private final StitchingEntity mergeFromEntity;
+        private List<StitchingEntity> mergeFromEntities;
         private final StitchingEntity mergeOntoEntity;
         private final CommoditySoldMerger commoditySoldMerger;
         private final PropertiesMerger propertiesMerger;
         private final List<EntityFieldMerger<?>> fieldMergers;
+        private final boolean mergeCommodities;
 
         public MergeEntitiesChange(@Nonnull final StitchingContext stitchingContext,
-                                   @Nonnull final StitchingEntity mergeFromEntity,
+                                   @Nonnull final List<StitchingEntity> mergeFromEntities,
                                    @Nonnull final StitchingEntity mergeOntoEntity,
                                    @Nonnull final CommoditySoldMerger commoditySoldMerger,
                                    @Nonnull final PropertiesMerger propertiesMerger,
-                                   @Nonnull final List<EntityFieldMerger<?>> fieldMergers) {
+                                   @Nonnull final List<EntityFieldMerger<?>> fieldMergers,
+                                   final boolean mergeCommodities) {
             this.stitchingContext = Objects.requireNonNull(stitchingContext);
-            this.mergeFromEntity = Objects.requireNonNull(mergeFromEntity);
+            this.mergeFromEntities = Objects.requireNonNull(mergeFromEntities);
             this.mergeOntoEntity = Objects.requireNonNull(mergeOntoEntity);
             this.commoditySoldMerger = Objects.requireNonNull(commoditySoldMerger);
             this.propertiesMerger = Objects.requireNonNull(propertiesMerger);
             this.fieldMergers = Objects.requireNonNull(fieldMergers);
+            this.mergeCommodities = mergeCommodities;
+        }
+
+        public MergeEntitiesChange(@Nonnull final StitchingContext stitchingContext,
+                @Nonnull final StitchingEntity mergeFromEntity,
+                @Nonnull final StitchingEntity mergeOntoEntity,
+                @Nonnull final CommoditySoldMerger commoditySoldMerger,
+                @Nonnull final PropertiesMerger propertiesMerger,
+                @Nonnull final List<EntityFieldMerger<?>> fieldMergers) {
+            this.stitchingContext = Objects.requireNonNull(stitchingContext);
+            this.mergeFromEntities = Collections.singletonList(Objects.requireNonNull(mergeFromEntity));
+            this.mergeOntoEntity = Objects.requireNonNull(mergeOntoEntity);
+            this.commoditySoldMerger = Objects.requireNonNull(commoditySoldMerger);
+            this.propertiesMerger = Objects.requireNonNull(propertiesMerger);
+            this.fieldMergers = Objects.requireNonNull(fieldMergers);
+            this.mergeCommodities = true;
         }
 
         public MergeEntitiesChange(@Nonnull final StitchingContext stitchingContext,
                                    @Nonnull final MergeEntitiesDetails mergeDetails) {
             this(stitchingContext,
-                mergeDetails.getMergeFromEntity(),
+                mergeDetails.getMergeFromEntities(),
                 mergeDetails.getMergeOntoEntity(),
                 new CommoditySoldMerger(mergeDetails.getMergeCommoditySoldStrategy()),
                 new PropertiesMerger(mergeDetails.getMergePropertiesStrategy()),
-                mergeDetails.getFieldMergers());
+                mergeDetails.getFieldMergers(),
+                mergeDetails.mergeCommodities());
         }
 
         @Override
         protected String getPreamble() {
-            return "Merging from " + mergeFromEntity.getJournalableSignature() + " onto "
+            List<String> fromEntitySignatures = mergeFromEntities.stream()
+                    .map(StitchingEntity::getJournalableSignature)
+                    .collect(Collectors.toList());
+            return "Merging from " + fromEntitySignatures + " onto "
                 + mergeOntoEntity.getJournalableSignature();
         }
 
         @Override
         protected void applyChangeInternal(@Nonnull final JournalChangeset<StitchingEntity> changeset) {
-            Preconditions.checkArgument(mergeFromEntity instanceof TopologyStitchingEntity);
             Preconditions.checkArgument(mergeOntoEntity instanceof TopologyStitchingEntity);
             Preconditions.checkArgument(stitchingContext.hasEntity(mergeOntoEntity));
-            if (mergeFromEntity == mergeOntoEntity) {
-                logger.debug("mergeFromEntity and mergeOntoEntity {} are the same. " +
-                    "Merging an entity onto itself is a no-op.", mergeFromEntity);
-                return;
-            }
-            if (!stitchingContext.hasEntity(mergeFromEntity)) {
-                logger.debug("mergeFromEntity {} is not in the StitchingContext so not applying. " +
-                    "Was it already merged or removed?", mergeFromEntity);
-                return;
-            }
 
-            final TopologyStitchingEntity from = (TopologyStitchingEntity)mergeFromEntity;
             final TopologyStitchingEntity onto = (TopologyStitchingEntity)mergeOntoEntity;
+            // create once for use by all mergeFrom entities below
+            final Map<ConnectionType, Set<Long>> ontoEntityConnectedToIdsByType =
+                    onto.getConnectedToByType().entrySet().stream()
+                            .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().stream()
+                                    .map(StitchingEntity::getOid)
+                                    .collect(Collectors.toSet())));
+            final Map<ConnectionType, Set<Long>> ontoEntityConnectedFromIdsByType =
+                    onto.getConnectedFromByType().entrySet().stream()
+                            .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().stream()
+                                    .map(StitchingEntity::getOid)
+                                    .collect(Collectors.toSet())));
+
+            mergeFromEntities.forEach(mergeFromEntity -> {
+                Preconditions.checkArgument(mergeFromEntity instanceof TopologyStitchingEntity);
+                if (mergeFromEntity == mergeOntoEntity) {
+                    logger.debug("mergeFromEntity and mergeOntoEntity {} are the same. " +
+                            "Merging an entity onto itself is a no-op.", mergeFromEntity);
+                    return;
+                }
+                if (!stitchingContext.hasEntity(mergeFromEntity)) {
+                    logger.debug("mergeFromEntity {} is not in the StitchingContext so not applying. " +
+                            "Was it already merged or removed?", mergeFromEntity);
+                    return;
+                }
+                final TopologyStitchingEntity from = (TopologyStitchingEntity)mergeFromEntity;
+                mergeEntity(from, onto, ontoEntityConnectedToIdsByType,
+                        ontoEntityConnectedFromIdsByType, changeset);
+            });
+        }
+
+        /**
+         * Merge the 'from' entity to the 'onto' entity.
+         *
+         * @param from the entity to merge from
+         * @param onto the entity to merge onto
+         * @param ontoEntityConnectedTo connected to relationship data
+         * @param ontoEntityConnectedFrom connected from relationship data
+         * @param changeset The changeset to record the semantic differences before and after merge
+         */
+        private void mergeEntity(@Nonnull final TopologyStitchingEntity from,
+                                 @Nonnull final TopologyStitchingEntity onto,
+                                 @Nonnull final Map<ConnectionType, Set<Long>> ontoEntityConnectedTo,
+                                 @Nonnull final Map<ConnectionType, Set<Long>> ontoEntityConnectedFrom,
+                                 @Nonnull final JournalChangeset<StitchingEntity> changeset) {
             changeset.beforeChange(from);
             changeset.beforeChange(onto);
 
             // Run all custom field mergers.
             fieldMergers.forEach(merger -> merger.merge(from, onto));
 
-            // Set up commodities sold on the merged (onto) entity.
-            onto.setCommoditiesSold(commoditySoldMerger.mergeCommoditiesSold(
-                from.getTopologyCommoditiesSold(),
-                onto.getTopologyCommoditiesSold()
-            ));
+            if (mergeCommodities) {
+                // Set up commodities sold on the merged (onto) entity.
+                onto.setCommoditiesSold(commoditySoldMerger.mergeCommoditiesSold(
+                        from.getTopologyCommoditiesSold(),
+                        onto.getTopologyCommoditiesSold()
+                ));
+            }
 
             // Everything that used to buy from replaced should now buy from replacement.
             from.getConsumers().forEach(consumer -> {
                 changeset.beforeChange(consumer);
-                buyFromNewProvider(consumer, from, onto);
+                buyFromNewProvider(consumer, from, onto, mergeCommodities);
             });
 
             // merge "connectedTo" from "from" entity to "onto" entity
             from.getConnectedToByType().forEach((connectionType, connectedEntities) -> {
-                onto.addConnectedTo(connectionType, connectedEntities);
-                connectedEntities.stream()
-                        .filter(stitchingEntity -> stitchingEntity
-                                instanceof TopologyStitchingEntity)
-                        .map(TopologyStitchingEntity.class::cast)
-                        .forEach(topoStitchingEntity -> {
-                            changeset.beforeChange(topoStitchingEntity);
-                            topoStitchingEntity.removeConnectedFrom(connectionType, from);
-                            topoStitchingEntity.addConnectedFrom(connectionType, onto);
-                        });
+                final Set<Long> ontoEntityConnectedIds = ontoEntityConnectedTo.get(connectionType);
+                connectedEntities.forEach(entity -> {
+                    // only merge if the connections doesn't already contain an entity with same oid
+                    if (ontoEntityConnectedIds == null || !ontoEntityConnectedIds.contains(entity.getOid())) {
+                        onto.addConnectedTo(connectionType, entity);
+                        changeset.beforeChange(entity);
+                        ((TopologyStitchingEntity)entity).addConnectedFrom(connectionType, onto);
                     }
-            );
+                });
+            });
 
             // merge "connectedFrom" from "from" entity to "onto" entity.  In this case, we need to
             // make sure the other end of connectedFrom has connectedTo moved from the "from" entity
             // to the "onto" entity.
             from.getConnectedFromByType().forEach((connectionType, connectedEntities) -> {
-                    onto.addConnectedFrom(connectionType, connectedEntities);
-                        connectedEntities.stream()
-                                .filter(stitchingEntity -> stitchingEntity
-                                        instanceof TopologyStitchingEntity)
-                                .map(TopologyStitchingEntity.class::cast)
-                                .forEach(topoStitchingEntity -> {
-                                    changeset.beforeChange(topoStitchingEntity);
-                                    topoStitchingEntity.removeConnectedTo(connectionType, from);
-                                    topoStitchingEntity.addConnectedTo(connectionType, onto);
-                                });
+                final Set<Long> ontoEntityConnectedIds = ontoEntityConnectedFrom.get(connectionType);
+                connectedEntities.forEach(entity -> {
+                    // only merge if the connections doesn't already contain an entity with same oid
+                    if (ontoEntityConnectedIds == null || !ontoEntityConnectedIds.contains(entity.getOid())) {
+                        onto.addConnectedFrom(connectionType, entity);
+                        changeset.beforeChange(entity);
+                        ((TopologyStitchingEntity)entity).addConnectedTo(connectionType, onto);
                     }
-
-            );
+                });
+            });
 
             // Merge entity properties
             propertiesMerger.merge(from.getEntityBuilder(), onto.getEntityBuilder());
@@ -242,20 +294,31 @@ public class TopologyStitchingChanges {
          * @param toUpdate The entity to update.
          * @param oldProvider The provider that the entity to update should no longer buy from.
          * @param newProvider The provider that the entity to update should now buy from.
+         * @param mergeCommodity Merge commodity.
          */
         private void buyFromNewProvider(@Nonnull final StitchingEntity toUpdate,
                                         @Nonnull final TopologyStitchingEntity oldProvider,
-                                        @Nonnull final TopologyStitchingEntity newProvider) {
+                                        @Nonnull final TopologyStitchingEntity newProvider,
+                                        final boolean mergeCommodity) {
             // All commodities that used to be bought by the old provider should now be bought from the new provider.
             Optional<List<CommoditiesBought>> commoditiesBought = toUpdate.removeProvider(oldProvider);
             if (!commoditiesBought.isPresent()) {
                 throw new IllegalStateException("Entity " + toUpdate + " is a consumer of " + oldProvider
                         + " but is not buying any commodities from it.");
             }
+            // Make the buying entity a consumer of the new provider.
+            newProvider.addConsumer(toUpdate);
 
             final List<CommoditiesBought> commoditiesBoughtList =
                 toUpdate.getCommodityBoughtListByProvider().computeIfAbsent(newProvider, p ->
                     new ArrayList<>(commoditiesBought.get().size()));
+
+            if (!mergeCommodity) {
+                // just switch the commodity bought to new provider without the compare&merge below
+                commoditiesBoughtList.addAll(commoditiesBought.get());
+                return;
+            }
+
             // merge old commodities bought list from old provider to new provider
             commoditiesBought.get().forEach(fromCommoditiesBought -> {
                 final Optional<CommoditiesBought> matchingCommoditiesBought =
@@ -287,9 +350,6 @@ public class TopologyStitchingChanges {
                     commoditiesBoughtList.add(newCommoditiesBought);
                 }
             });
-
-            // Make the buying entity a consumer of the new provider.
-            newProvider.addConsumer(toUpdate);
         }
 
         /**

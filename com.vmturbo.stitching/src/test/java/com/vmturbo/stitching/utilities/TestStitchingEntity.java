@@ -148,7 +148,13 @@ public class TestStitchingEntity implements StitchingEntity {
     }
 
     @Override
-    public boolean removeConnection(@Nonnull final StitchingEntity connectedTo, @Nonnull final ConnectionType type) {
+    public boolean removeConnectedTo(@Nonnull final StitchingEntity connectedTo, @Nonnull final ConnectionType type) {
+        throw new IllegalStateException();
+    }
+
+    @Override
+    public boolean removeConnectedFrom(@Nonnull StitchingEntity connectedFrom,
+            @Nonnull ConnectionType type) {
         throw new IllegalStateException();
     }
 
@@ -164,7 +170,7 @@ public class TestStitchingEntity implements StitchingEntity {
 
     @Nonnull
     @Override
-    public List<StitchingMergeInformation> getMergeInformation() {
+    public Collection<StitchingMergeInformation> getMergeInformation() {
         throw new IllegalStateException();
     }
 
@@ -174,7 +180,7 @@ public class TestStitchingEntity implements StitchingEntity {
     }
 
     @Override
-    public void addAllMergeInformation(@Nonnull List<StitchingMergeInformation> mergeInformation) {
+    public void addAllMergeInformation(@Nonnull Collection<StitchingMergeInformation> mergeInformation) {
         throw new IllegalStateException();
     }
 

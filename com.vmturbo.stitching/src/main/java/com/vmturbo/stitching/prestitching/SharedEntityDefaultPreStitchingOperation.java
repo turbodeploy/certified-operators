@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -85,12 +86,20 @@ public class SharedEntityDefaultPreStitchingOperation implements PreStitchingOpe
             // Merge into the most recently updated entity.
             sharedEntities.stream()
                     .max(Comparator.comparing(StitchingEntity::getLastUpdatedTime))
-                    .ifPresent(entityToKeep -> sharedEntities.stream()
-                            .filter(duplicateEntity -> duplicateEntity != entityToKeep)
-                            .forEach(duplicateEntity -> mergeSharedEntities(duplicateEntity,
-                                    entityToKeep, resultBuilder)));
+                    .ifPresent(entityToKeep -> {
+                        final List<StitchingEntity> duplicateEntities = sharedEntities.stream()
+                                .filter(duplicateEntity -> duplicateEntity != entityToKeep)
+                                .collect(Collectors.toList());
+                        mergeSharedEntities(duplicateEntities, entityToKeep, resultBuilder);
+                    });
         });
         return resultBuilder.build();
+    }
+
+    protected void mergeSharedEntities(@Nonnull final List<StitchingEntity> sources,
+            @Nonnull final StitchingEntity destination,
+            @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
+        sources.forEach(source -> mergeSharedEntities(source, destination, resultBuilder));
     }
 
     protected void mergeSharedEntities(@Nonnull final StitchingEntity source,

@@ -4,11 +4,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SessionData;
@@ -16,7 +18,6 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.prestitching.ADGroupsPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.ConnectedNetworkPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.RemoveNonMarketEntitiesPreStitchingOperation;
-import com.vmturbo.stitching.prestitching.SharedAzureRegionPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedCloudEntityPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedEntityCustomProbePreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedEntityDefaultPreStitchingOperation;
@@ -35,38 +36,54 @@ public class PreStitchingOperationLibrary {
     private final ImmutableList<PreStitchingOperation> preStitchingOperations;
 
     /**
-     * Entity types from AWS that need to be merged.
+     * Entity types from AWS that need to be merged, merge properties boolean.
      */
-    private static final List<EntityType> AWS_ENTITY_TYPES = ImmutableList.of(
-        EntityType.SERVICE_PROVIDER,
-        EntityType.CLOUD_SERVICE,
-        EntityType.COMPUTE_TIER,
-        EntityType.DATABASE_SERVER_TIER,
-        EntityType.STORAGE_TIER,
-        EntityType.REGION,
-        EntityType.AVAILABILITY_ZONE);
+    private static final Map<EntityType, Boolean> AWS_ENTITY_TYPES =
+            ImmutableMap.<EntityType, Boolean>builder()
+                    .put(EntityType.SERVICE_PROVIDER, false)
+                    .put(EntityType.CLOUD_SERVICE, false)
+                    .put(EntityType.COMPUTE_TIER, false)
+                    .put(EntityType.DATABASE_SERVER_TIER, false)
+                    .put(EntityType.STORAGE_TIER, false)
+                    .put(EntityType.REGION, false)
+                    .put(EntityType.AVAILABILITY_ZONE, false)
+                    .build();
 
     /**
-     * Entity types from Azure that need to be merged.
+     * Entity types from Azure that need to be merged, merge properties boolean.
      */
-    private static final List<EntityType> AZURE_ENTITY_TYPES = ImmutableList.of(
-        EntityType.SERVICE_PROVIDER,
-        EntityType.CLOUD_SERVICE,
-        EntityType.COMPUTE_TIER,
-        EntityType.DATABASE_TIER,
-        EntityType.STORAGE_TIER,
-        EntityType.RESERVED_INSTANCE);
+    public static final Map<EntityType, Boolean> AZURE_ENTITY_TYPES =
+            ImmutableMap.<EntityType, Boolean>builder()
+                    .put(EntityType.SERVICE_PROVIDER, false)
+                    .put(EntityType.CLOUD_SERVICE, false)
+                    // there is some difference in properties between targets for azure compute tiers
+                    // like: some return [standardA0_A7Family] while some return
+                    // [standardA0_A7Family, Standard A0-A7 Family vCPUs]
+                    .put(EntityType.COMPUTE_TIER, true)
+                    .put(EntityType.DATABASE_TIER, false)
+                    .put(EntityType.STORAGE_TIER, false)
+                    // merge all properties of Azure Regions that are shared by more than one Azure
+                    // Subscription target. Azure Subscription targets send CPU quota information
+                    // in entity properties of EntityDTOs representing Regions. Since Regions are
+                    // shared by Azure targets and each target sends quotas for one subscription
+                    // only, we need to merge properties of Region entities so that resulting
+                    // entity represent quotas for all subscriptions.
+                    .put(EntityType.REGION, true)
+                    .put(EntityType.RESERVED_INSTANCE, false)
+                    .build();
 
     /**
-     * Entity types from GCP that need to be merged.
+     * Entity types from GCP that need to be merged, merge properties boolean.
      */
-    private static final List<EntityType> GCP_ENTITY_TYPES = ImmutableList.of(
-        EntityType.SERVICE_PROVIDER,
-        EntityType.CLOUD_SERVICE,
-        EntityType.COMPUTE_TIER,
-        EntityType.STORAGE_TIER,
-        EntityType.REGION,
-        EntityType.AVAILABILITY_ZONE);
+    private static final Map<EntityType, Boolean> GCP_ENTITY_TYPES =
+            ImmutableMap.<EntityType, Boolean>builder()
+                    .put(EntityType.SERVICE_PROVIDER, false)
+                    .put(EntityType.CLOUD_SERVICE, false)
+                    .put(EntityType.COMPUTE_TIER, false)
+                    .put(EntityType.STORAGE_TIER, false)
+                    .put(EntityType.REGION, false)
+                    .put(EntityType.AVAILABILITY_ZONE, false)
+                    .build();
 
     /**
      * Create a new {@link PreStitchingOperation} library.
@@ -75,7 +92,6 @@ public class PreStitchingOperationLibrary {
         ImmutableList.Builder<PreStitchingOperation> listBuilder = new ImmutableList.Builder<>();
         listBuilder.addAll(createCloudEntityPreStitchingOperations());
         preStitchingOperations = listBuilder.add(
-                new SharedAzureRegionPreStitchingOperation(),
                 new RemoveNonMarketEntitiesPreStitchingOperation(),
                 new SharedStoragePreStitchingOperation(),
                 new SharedEntityDefaultPreStitchingOperation(
@@ -96,20 +112,30 @@ public class PreStitchingOperationLibrary {
     }
 
     private static Collection<PreStitchingOperation> createCloudEntityPreStitchingOperations() {
-        final Collection<PreStitchingOperation> operations = AWS_ENTITY_TYPES.stream()
-                .map(entityType -> new SharedCloudEntityPreStitchingOperation(
-                        stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(
-                                SDKProbeType.AWS.getProbeType(), entityType)))
+        final Collection<PreStitchingOperation> operations = AWS_ENTITY_TYPES.entrySet().stream()
+                .map(entry -> createCloudEntityPreStitchingOperation(
+                        SDKProbeType.AWS, entry.getKey(), entry.getValue()))
                 .collect(Collectors.toList());
-        AZURE_ENTITY_TYPES.forEach(entityType -> operations.add(
-                new SharedCloudEntityPreStitchingOperation(
-                        stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(
-                                SDKProbeType.AZURE.getProbeType(), entityType))));
-        GCP_ENTITY_TYPES.forEach(entityType -> operations.add(
-            new SharedCloudEntityPreStitchingOperation(
-                stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(
-                    SDKProbeType.GCP.getProbeType(), entityType))));
+        AZURE_ENTITY_TYPES.forEach((entityType, mergeProperties) -> operations.add(
+                createCloudEntityPreStitchingOperation(SDKProbeType.AZURE, entityType, mergeProperties)));
+        GCP_ENTITY_TYPES.forEach((entityType, mergeProperties) -> operations.add(
+                createCloudEntityPreStitchingOperation(SDKProbeType.GCP, entityType, mergeProperties)));
         return operations;
+    }
+
+    /**
+     * Create a CloudEntityPreStitchingOperation for the parameters.
+     *
+     * @param probeType probe type
+     * @param entityType type of entity to merge
+     * @param mergeProperties whether to merge properties
+     * @return CloudEntityPreStitchingOperation
+     */
+    public static PreStitchingOperation createCloudEntityPreStitchingOperation(
+            SDKProbeType probeType, EntityType entityType, boolean mergeProperties) {
+        return new SharedCloudEntityPreStitchingOperation(
+                stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(
+                        probeType.getProbeType(), entityType), mergeProperties);
     }
 
     /**

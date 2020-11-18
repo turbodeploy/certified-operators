@@ -52,7 +52,7 @@ public class SharedEntityPreStitchingOperationBenchmarkTest {
     public void testBenchmarkCloud() {
         testBenchmark(new SharedCloudEntityPreStitchingOperation(
                 stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(
-                        SDKProbeType.AZURE.getProbeType(), EntityType.AVAILABILITY_ZONE)));
+                        SDKProbeType.AZURE.getProbeType(), EntityType.AVAILABILITY_ZONE), false));
     }
 
     /**

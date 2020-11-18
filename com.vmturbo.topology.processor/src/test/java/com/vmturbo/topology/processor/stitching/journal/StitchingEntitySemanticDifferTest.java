@@ -332,15 +332,15 @@ public class StitchingEntitySemanticDifferTest {
                 "  ++++\"error\": {\n" +
                 "  ++++++\"errCode\": 0\n" +
                 "  ++++},\n" +
-                "  ++++\"oid\": \"1234\",\n" +
-                "  ++++\"targetId\": \"5678\"\n" +
+                "  ++++\"oid\": \"5555\",\n" +
+                "  ++++\"targetId\": \"4444\"\n" +
                 "  ++},\n" +
                 "  ++{\n" +
                 "  ++++\"error\": {\n" +
                 "  ++++++\"errCode\": 0\n" +
                 "  ++++},\n" +
-                "  ++++\"oid\": \"5555\",\n" +
-                "  ++++\"targetId\": \"4444\"\n" +
+                "  ++++\"oid\": \"1234\",\n" +
+                "  ++++\"targetId\": \"5678\"\n" +
                 "  ++}\n" +
                 "  ]",
             differ.semanticDiff(snapshot, a, FormatRecommendation.PRETTY)

@@ -280,8 +280,19 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * @return True if the connection was successfully removed. False if there was no connection
      *         of the right type to remove.
      */
-    boolean removeConnection(@Nonnull StitchingEntity connectedTo,
+    boolean removeConnectedTo(@Nonnull StitchingEntity connectedTo,
                              @Nonnull ConnectionType type);
+
+    /**
+     * Remove the connection from this entity to an entity this entity is connected from.
+     *
+     * @param connectedFrom The entity this entity is connected from.
+     * @param type The type of connection to remove.
+     * @return True if the connection was successfully removed. False if there was no connection
+     *         of the right type to remove.
+     */
+    boolean removeConnectedFrom(@Nonnull StitchingEntity connectedFrom,
+            @Nonnull ConnectionType type);
 
     /**
      * Check if this entity is providing commodities to another {@link StitchingEntity}.
@@ -310,7 +321,7 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      *         this entity during stitching.
      */
     @Nonnull
-    List<StitchingMergeInformation> getMergeInformation();
+    Collection<StitchingMergeInformation> getMergeInformation();
 
     /**
      * Add tracking information for another {@link StitchingEntity} that was merged onto this one.
@@ -327,9 +338,9 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      *
      * Equivalent to calling {@link #addMergeInformation} for each element of the input list.
      *
-     * @param mergeInformation The list of {@link StitchingMergeInformation} to be added.
+     * @param mergeInformation The collection of {@link StitchingMergeInformation} to be added.
      */
-    void addAllMergeInformation(@Nonnull List<StitchingMergeInformation> mergeInformation);
+    void addAllMergeInformation(@Nonnull Collection<StitchingMergeInformation> mergeInformation);
 
     /**
      * True if this {@link StitchingEntity}'s merge information contains at least one entry.

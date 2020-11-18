@@ -108,8 +108,8 @@ public class TopologyStitchingEntityTest {
         pm.addMergeInformation(new StitchingMergeInformation(999L, 123456L, StitchingErrors.none()));
 
         assertEquals(1, pm.getMergeInformation().size());
-        assertEquals(123456L, pm.getMergeInformation().get(0).getTargetId());
-        assertEquals(999L, pm.getMergeInformation().get(0).getOid());
+        assertEquals(123456L, pm.getMergeInformation().iterator().next().getTargetId());
+        assertEquals(999L, pm.getMergeInformation().iterator().next().getOid());
     }
 
     @Test

@@ -112,7 +112,7 @@ public class AwsBillingBusinessAccountStitchingOperation implements StitchingOpe
                     logger.warn("AWS probe reported inconsistent ownership relationship " +
                             "from account {} to {}", awsAccount, ownedAccount);
                     resultBuilder.queueChangeRelationships(awsAccount,
-                        acct -> acct.removeConnection(ownedAccount, ConnectionType.OWNS_CONNECTION));
+                        acct -> acct.removeConnectedTo(ownedAccount, ConnectionType.OWNS_CONNECTION));
                 }
             });
         });
@@ -133,7 +133,7 @@ public class AwsBillingBusinessAccountStitchingOperation implements StitchingOpe
                         "and {} because it conflicts with the relationships reported by AWS Probe",
                         billingAccount, ownedAccount);
                     resultBuilder.queueChangeRelationships(billingAccount,
-                        acct -> acct.removeConnection(ownedAccount, ConnectionType.OWNS_CONNECTION));
+                        acct -> acct.removeConnectedTo(ownedAccount, ConnectionType.OWNS_CONNECTION));
                 }
             });
         });

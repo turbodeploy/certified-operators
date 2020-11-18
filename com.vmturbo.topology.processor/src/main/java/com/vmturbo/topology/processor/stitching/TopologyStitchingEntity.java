@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.stitching;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,17 +56,18 @@ public class TopologyStitchingEntity implements StitchingEntity {
     private final StitchingErrors stitchingErrors = new StitchingErrors();
 
     /**
-     * A list of {@link StitchingMergeInformation} for entities that were that were merged onto this entity.
+     * A set of {@link StitchingMergeInformation} for entities that were that were merged onto this entity.
      * For additional details, see {@link com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails}.
      *
      * Note that for memory reasons, internally this is initialized to null but all public accessors
      * guarantee a non-null value (ie if the internal value is null but it is accessed publicly,
-     * we will return an empty list).
+     * we will return an empty set).
      *
-     * Use a list instead of a set even though the list should contain distinct elements because we
-     * expect these to be generally quite small and this will help reduce the memory footprint.
+     * Use a set instead of a list since there may be hundreds of StitchingMergeInformation
+     * for shared cloud entities if there are hundreds of cloud targets. This speeds up adding new
+     * StitchingMergeInformation with the price of a slightly higher memory footprint.
      */
-    private List<StitchingMergeInformation> mergeInformation;
+    private Set<StitchingMergeInformation> mergeInformation;
 
     private final Map<StitchingEntity, List<CommoditiesBought>> commodityBoughtListByProvider = new IdentityHashMap<>();
     private final Set<StitchingEntity> consumers = Sets.newIdentityHashSet();
@@ -293,10 +295,21 @@ public class TopologyStitchingEntity implements StitchingEntity {
     }
 
     @Override
-    public boolean removeConnection(@Nonnull final StitchingEntity connectedTo, @Nonnull final ConnectionType type) {
+    public boolean removeConnectedTo(@Nonnull final StitchingEntity connectedTo, @Nonnull final ConnectionType type) {
         final Set<StitchingEntity> connectedToOfType = this.connectedTo.get(type);
         if (connectedToOfType != null) {
             return connectedToOfType.remove(connectedTo);
+        } else {
+            return false;
+        }
+    }
+
+    @Override
+    public boolean removeConnectedFrom(@Nonnull StitchingEntity connectedFrom,
+            @Nonnull ConnectionType type) {
+        final Set<StitchingEntity> connectedFromOfType = this.connectedFrom.get(type);
+        if (connectedFromOfType != null) {
+            return connectedFromOfType.remove(connectedFrom);
         } else {
             return false;
         }
@@ -331,7 +344,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
     public void addConnectedTo(@Nonnull final ConnectionType connectionType,
                                @Nonnull final StitchingEntity entity) {
         Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
-        addConnectedTo(connectionType, Sets.newHashSet(entity));
+        connectedTo.computeIfAbsent(connectionType, k -> Sets.newIdentityHashSet()).add(entity);
     }
 
     public void addConnectedTo(@Nonnull final ConnectionType connectionType,
@@ -352,7 +365,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
     public void addConnectedFrom(@Nonnull final ConnectionType connectionType,
                                @Nonnull final StitchingEntity entity) {
         Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
-        addConnectedFrom(connectionType, Sets.newHashSet(entity));
+        connectedFrom.computeIfAbsent(connectionType, k -> Sets.newIdentityHashSet()).add(entity);
     }
 
     public void addConnectedFrom(@Nonnull final ConnectionType connectionType,
@@ -370,6 +383,20 @@ public class TopologyStitchingEntity implements StitchingEntity {
         return connectedFromEntities.remove(entity);
     }
 
+    /**
+     * Clear connected to relationship.
+     */
+    public void clearConnectedTo() {
+        connectedTo.clear();
+    }
+
+    /**
+     * Clear connected from relationship.
+     */
+    public void clearConnectedFrom() {
+        connectedFrom.clear();
+    }
+
     @Override
     public String toString() {
         return String.format("(%s %s %s %s numConsumers-%d numProviders-%d)",
@@ -380,13 +407,14 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     /**
      * {@inheritDoc}
+     * @return
      */
     @Override
-    public List<StitchingMergeInformation> getMergeInformation() {
+    public Collection<StitchingMergeInformation> getMergeInformation() {
         if (mergeInformation == null) {
-            return Collections.emptyList();
+            return Collections.emptySet();
         } else {
-            return Collections.unmodifiableList(mergeInformation);
+            return Collections.unmodifiableSet(mergeInformation);
         }
     }
 
@@ -396,22 +424,20 @@ public class TopologyStitchingEntity implements StitchingEntity {
     @Override
     public boolean addMergeInformation(@Nonnull final StitchingMergeInformation mergeInfo) {
         if (mergeInformation == null) {
-            mergeInformation = new ArrayList<>();
-        }
-
-        if (mergeInformation.contains(mergeInfo)) {
+            mergeInformation = new HashSet<>();
+        } else if (mergeInformation.contains(mergeInfo)) {
             return false;
         }
-
         mergeInformation.add(mergeInfo);
         return true;
     }
 
     /**
      * {@inheritDoc}
+     * @param mergeInfo information to be stitched.
      */
     @Override
-    public void addAllMergeInformation(@Nonnull final List<StitchingMergeInformation> mergeInfo) {
+    public void addAllMergeInformation(@Nonnull final Collection<StitchingMergeInformation> mergeInfo) {
         mergeInfo.forEach(this::addMergeInformation);
     }
 
