@@ -698,6 +698,9 @@ public class ActionInterpreter {
         if (!CollectionUtils.isEmpty(resizeInfoList)) {
             builder.addAllCommodityResizes(resizeInfoList);
         }
+        if (moveTO.hasScalingGroupId()) {
+            builder.setScalingGroupId(moveTO.getScalingGroupId());
+        }
         return builder.build();
     }
 
@@ -1180,6 +1183,9 @@ public class ActionInterpreter {
         ChangeProviderExplanation.Builder changeProviderExplanation =
                 changeExplanation(actionTO, moveTO, savings, projectedTopology, true);
         scaleExpBuilder.addChangeProviderExplanation(changeProviderExplanation);
+        if (moveTO.hasScalingGroupId()) {
+            scaleExpBuilder.setScalingGroupId(moveTO.getScalingGroupId());
+        }
         return scaleExpBuilder.build();
     }
 
