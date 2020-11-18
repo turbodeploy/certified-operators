@@ -8,6 +8,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -21,6 +22,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -447,10 +450,10 @@ public class ActionTranslatorTest {
     }
 
     /**
-     * Test container VCPU resize translation.
+     * Test container VCPU resize translation from topology.
      */
     @Test
-    public void testContainerVCPUResizeBatchTranslate() {
+    public void testContainerVCPUResizeBatchTranslateInTopologyGraph() {
         when(mockSnapshot.getEntityFromOid(CONTAINER_ID)).thenReturn(Optional.of(
             ActionPartialEntity.newBuilder()
                 .setEntityType(EntityType.CONTAINER_VALUE)
@@ -490,6 +493,59 @@ public class ActionTranslatorTest {
         assertEquals(1000 * NEW_VCPU_MHZ / CONTAINER_CPU_SPEED, translatedVCPUResize.getNewCapacity(), 0);
     }
 
+    /**
+     * Test container VCPU resize translation when fetching data from repository.
+     * We have two containers running in the same pod. The action for both containers
+     * should be successfully translated.
+     */
+    @Test
+    public void testContainerVCPUResizeBatchTranslateFromRepo() {
+        when(mockSnapshot.getEntityFromOid(CONTAINER_ID)).thenReturn(Optional.of(
+            ActionPartialEntity.newBuilder()
+                .setEntityType(EntityType.CONTAINER_VALUE)
+                .setOid(CONTAINER_ID)
+                .setPrimaryProviderId(CONTAINER_POD_ID)
+                .build()));
+        when(mockSnapshot.getEntityFromOid(CONTAINER_ID + 1)).thenReturn(Optional.of(
+            ActionPartialEntity.newBuilder()
+                .setEntityType(EntityType.CONTAINER_VALUE)
+                .setOid(CONTAINER_ID + 1)
+                .setPrimaryProviderId(CONTAINER_POD_ID)
+                .build()));
+        when(mockSnapshot.getTopologyContextId()).thenReturn(actionPlanId);
+
+        final ActionPartialEntity.Builder pod = ActionPartialEntity.newBuilder()
+            .setOid(CONTAINER_POD_ID)
+            .setPrimaryProviderId(VM_TARGET_ID);
+        final ActionPartialEntity.Builder vm = ActionPartialEntity.newBuilder()
+            .setOid(VM_TARGET_ID)
+            .setTypeSpecificInfo(ActionEntityTypeSpecificInfo.newBuilder()
+                .setVirtualMachine(ActionVirtualMachineInfo.newBuilder()
+                    .setCpuCoreMhz(CONTAINER_CPU_SPEED)));
+
+        when(actionTopologyStore.getSourceTopology()).thenReturn(Optional.empty());
+        setupRepoEntity(pod.getOid(), pod);
+        setupRepoEntity(vm.getOid(), vm);
+
+        final Action vCPUResizeAction1 = new Action(ActionOrchestratorTestUtils.createResizeRecommendation(
+            1, CONTAINER_ID, CommodityType.VCPU_VALUE, OLD_VCPU_MHZ, NEW_VCPU_MHZ, EntityType.CONTAINER_VALUE),
+            actionPlanId, actionModeCalculator, 2249L);
+        final Action vCPUResizeAction2 = new Action(ActionOrchestratorTestUtils.createResizeRecommendation(
+            1, CONTAINER_ID + 1, CommodityType.VCPU_VALUE, OLD_VCPU_MHZ, NEW_VCPU_MHZ, EntityType.CONTAINER_VALUE),
+            actionPlanId, actionModeCalculator, 2249L);
+
+        List<Action> translatedActions =
+            translator.translate(Stream.of(vCPUResizeAction1, vCPUResizeAction2), mockSnapshot).collect(Collectors.toList());
+        assertEquals(2, translatedActions.size());
+        translatedActions.forEach(action -> {
+            assertEquals(TranslationStatus.TRANSLATION_SUCCEEDED, action.getTranslationStatus());
+            ActionDTO.Action translatedVCPUAction = action.getActionTranslation().getTranslatedRecommendation().get();
+            ActionDTO.Resize translatedVCPUResize = translatedVCPUAction.getInfo().getResize();
+            assertEquals(1000 * OLD_VCPU_MHZ / CONTAINER_CPU_SPEED, translatedVCPUResize.getOldCapacity(), 0);
+            assertEquals(1000 * NEW_VCPU_MHZ / CONTAINER_CPU_SPEED, translatedVCPUResize.getNewCapacity(), 0);
+        });
+    }
+
     private TopologyGraph<ActionGraphEntity> mockTopologyGraph() {
         TopologyGraph<ActionGraphEntity> topologyGraph = mock(TopologyGraph.class);
         ActionGraphEntity containerPodEntity = ActionOrchestratorTestUtils.mockActionGraphEntity(CONTAINER_POD_ID, EntityType.CONTAINER_POD_VALUE);
@@ -500,6 +556,18 @@ public class ActionTranslatorTest {
         when(vmEntity.getActionEntityInfo()).thenReturn(ActionEntityTypeSpecificInfo.newBuilder().build());
         when(topologyGraph.getProviders(CONTAINER_POD_ID)).thenReturn(Stream.of(vmEntity));
         return topologyGraph;
+    }
+
+    private void setupRepoEntity(@Nonnull final long queryOid,
+                                 @Nonnull final ActionPartialEntity.Builder entityResponse) {
+        when(repositoryServiceSpy.retrieveTopologyEntities(
+            eq(RetrieveTopologyEntitiesRequest.newBuilder()
+                .addAllEntityOids(Arrays.asList(queryOid))
+                .setTopologyContextId(actionPlanId)
+                .setReturnType(Type.ACTION)
+                .setTopologyType(TopologyType.SOURCE).build())
+        )).thenReturn(Arrays.asList(PartialEntityBatch.newBuilder().addEntities(
+            PartialEntity.newBuilder().setAction(entityResponse)).build()));
     }
 
     private Action setupDefaultResizeAction() {

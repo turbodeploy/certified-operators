@@ -1,5 +1,10 @@
 package com.vmturbo.action.orchestrator.translation.batch.translator;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -118,12 +123,14 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
                 action.getRecommendation().getInfo().getResize().getTarget().getId()));
         Map<Long, Long> targetIdToProviderId = Maps.newHashMap();
         Set<Long> hostsToRetrieve = Sets.newHashSet();
-        Set<ActionGraphEntity> vmsToRetrieve = Sets.newHashSet();
 
         Optional<TopologyGraph<ActionGraphEntity>> topologyGraph =
             actionTopologyStore.getSourceTopology()
             .filter(topo -> topo.topologyInfo().getTopologyContextId() == snapshot.getTopologyContextId())
             .map(BaseTopology::entityGraph);
+        final ContainerNodeCpuSpeedFetcher containerNodeCpuSpeedFetcher = topologyGraph.isPresent()
+            ? new TopologyGraphCpuSpeedFetcher(topologyGraph.get(), targetIdToProviderId)
+            : new RepoCpuSpeedFetcher(snapshot, repoService, targetIdToProviderId);
 
         for (long targetId : resizeActionsByEntityTargetId.keySet()) {
             Optional<ActionPartialEntity> targetEntity = snapshot.getEntityFromOid(targetId);
@@ -132,10 +139,7 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
                     targetIdToProviderId.put(entity.getOid(), entity.getPrimaryProviderId());
                     hostsToRetrieve.add(entity.getPrimaryProviderId());
                 } else if (entity.getEntityType() == EntityType.CONTAINER_VALUE) {
-                    getVMFromContainer(topologyGraph, targetId).ifPresent(vmEntity -> {
-                        targetIdToProviderId.put(targetId, vmEntity.getOid());
-                        vmsToRetrieve.add(vmEntity);
-                    });
+                    containerNodeCpuSpeedFetcher.addContainerToFetch(entity);
                 }
             });
         }
@@ -143,8 +147,7 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
         final Map<Long, Double> hostCPUCoreMhzMap = topologyGraph.isPresent()
             ? getHostCPUCoreMhzMapFromTopology(topologyGraph.get(), hostsToRetrieve)
             : getHostCPUCoreMhzMapFromRepo(snapshot, hostsToRetrieve);
-
-        final Map<Long, Double> vmToCPUMillicoreMhzMap = getVMCPUMillicoreMhzMapFromTopology(vmsToRetrieve);
+        final Map<Long, Double> vmToCPUMillicoreMhzMap = containerNodeCpuSpeedFetcher.fetchVmCpuSpeeds();
 
         final Map<Long, Double> entityToCPUSpeedMap = Maps.newHashMap();
         entityToCPUSpeedMap.putAll(hostCPUCoreMhzMap);
@@ -153,62 +156,6 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
         return resizeActionsByEntityTargetId.entrySet().stream().flatMap(
             entry -> translateVcpuResizes(entry.getKey(), targetIdToProviderId.get(entry.getKey()),
                 entry.getValue(), entityToCPUSpeedMap));
-    }
-
-
-    /**
-     * Get VM ActionGraphEntity from the given container based on topology graph.
-     *
-     * @param topologyGraph A minimal topology graph for traversal.
-     * @param containerId   Given container OID to retrieve CPU speed for.
-     * @return Optional of VM ActionGraphEntity.
-     */
-    private Optional<ActionGraphEntity> getVMFromContainer(@Nonnull final Optional<TopologyGraph<ActionGraphEntity>> topologyGraph,
-                                                           final long containerId) {
-        if (!topologyGraph.isPresent()) {
-            logger.error("Failed to apply CPU translation to container {} because topologyGraph is empty.", containerId);
-            return Optional.empty();
-        }
-        Optional<Long> containerPod = topologyGraph.get().getProviders(containerId)
-            .filter(entity -> entity.getEntityType() == EntityType.CONTAINER_POD_VALUE)
-            .map(BaseGraphEntity::getOid)
-            .findFirst();
-        if (!containerPod.isPresent()) {
-            logger.error("Failed to apply CPU translation to container {} because no provider pod.", containerId);
-            return Optional.empty();
-        }
-        Optional<ActionGraphEntity> vm = topologyGraph.get().getProviders(containerPod.get())
-            .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-            .findFirst();
-        if (!vm.isPresent()) {
-            logger.error("Failed to apply CPU translation to container {} because no provider VM.",
-                containerId);
-            return Optional.empty();
-        }
-        return vm;
-    }
-
-    /**
-     * Lookup CPU speed in MHz/core from VMs and convert to MHz/millicore to translate container
-     * VCPU/VCPURequest resize actions.
-     *
-     * @param vmsToRetrieve Given VMs to retrieve CPU speed in MHz/core.
-     * @return Map from VM OID to CPU speed in MHz/millicore.
-     */
-    private Map<Long, Double>
-    getVMCPUMillicoreMhzMapFromTopology(@Nonnull final Set<ActionGraphEntity> vmsToRetrieve) {
-        return vmsToRetrieve.stream()
-            .collect(Collectors.toMap(ActionGraphEntity::getOid, this::getVMCpuMillicoreMhz));
-    }
-
-    private double getVMCpuMillicoreMhz(@Nonnull final ActionGraphEntity vmEntity) {
-        if (vmEntity.getActionEntityInfo().hasVirtualMachine()
-            && vmEntity.getActionEntityInfo().getVirtualMachine().hasCpuCoreMhz()) {
-            return vmEntity.getActionEntityInfo().getVirtualMachine().getCpuCoreMhz() / 1000;
-        } else {
-            logger.error("CPU core MHz is not found from VM {}", vmEntity.getOid());
-            return 0;
-        }
     }
 
     /**
@@ -382,5 +329,220 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
         }
 
         return builder.build();
+    }
+
+    /**
+     * An interface for fetching VCPU speeds for VM providers of containers
+     * (the CPU speeds for the nodes the containers are running on). Subclasses
+     * are capable of fetching from either the TopologyGraph (when available)
+     * or repository (slower, only fetch from repo when TopologyGraph is not
+     * available which right now is when running a plan).
+     */
+    private interface ContainerNodeCpuSpeedFetcher {
+        /**
+         * Fetch the VM CPU Speeds. The speeds are in MHz/millicore so that we can
+         * convert container CPU resize action values from MHz to millicores.
+         *
+         * @return A map from VM provider OID -> CPU speed for that VM.
+         */
+        Map<Long, Double> fetchVmCpuSpeeds();
+
+        /**
+         * Add a container to the fetcher's list of entities that require conversion.
+         * The fetcher will fetch the CPU speeds for all VMs hosting a container added
+         * to the fetcher.
+         *
+         * @param container The container whose hosting VM CPU speed needs to be fetched.
+         */
+        void addContainerToFetch(@Nonnull ActionPartialEntity container);
+
+        /**
+         * Get the CPU speed in MHz / millicore for a given VM entity.
+         *
+         * @param tsInfo The type-specific info for the VM entity whose CPU speed needs to be fetched.
+         * @param oid The oid of the entity being translated.
+         * @return the CPU speed in MHz / millicore for the given VM entity. Returns
+         *         0 if the speed cannot be fetched.
+         */
+        static double getVMCpuMillicoreMhz(@Nonnull final ActionEntityTypeSpecificInfo tsInfo,
+                                           final long oid) {
+            if (tsInfo.hasVirtualMachine()
+                && tsInfo.getVirtualMachine().hasCpuCoreMhz()) {
+                return tsInfo.getVirtualMachine().getCpuCoreMhz() / 1000;
+            } else {
+                logger.error("CPU core MHz is not found from VM {}", oid);
+                return 0;
+            }
+        }
+
+    }
+
+    /**
+     * Fetch VM CPU Speeds from the TopologyGraph.
+     */
+    private static class TopologyGraphCpuSpeedFetcher implements ContainerNodeCpuSpeedFetcher {
+        private final TopologyGraph<ActionGraphEntity> graph;
+        private final Set<ActionGraphEntity> vms = new HashSet<>();
+        private final Map<Long, Long> targetIdToProviderId;
+
+        /**
+         * Create a new {@link TopologyGraphCpuSpeedFetcher}.
+         *
+         * @param graph The graph containing the entities in the topology.
+         * @param targetIdToProviderId The map of action targets to their providers whose speeds
+         *                             need to be fetched.
+         */
+        private TopologyGraphCpuSpeedFetcher(@Nonnull final TopologyGraph<ActionGraphEntity> graph,
+                                             @Nonnull final Map<Long, Long> targetIdToProviderId) {
+            this.graph = Objects.requireNonNull(graph);
+            this.targetIdToProviderId = Objects.requireNonNull(targetIdToProviderId);
+        }
+
+        @Override
+        public Map<Long, Double> fetchVmCpuSpeeds() {
+            return vms.stream()
+                .collect(Collectors.toMap(ActionGraphEntity::getOid,
+                    vm -> ContainerNodeCpuSpeedFetcher.getVMCpuMillicoreMhz(vm.getActionEntityInfo(), vm.getOid())));
+
+        }
+
+        @Override
+        public void addContainerToFetch(@Nonnull ActionPartialEntity container) {
+            getVMFromContainer(graph, container.getOid())
+                .ifPresent(vmEntity -> {
+                    vms.add(vmEntity);
+                    targetIdToProviderId.put(container.getOid(), vmEntity.getOid());
+                });
+        }
+
+        /**
+         * Get VM ActionGraphEntity from the given container based on topology graph.
+         *
+         * @param topologyGraph A minimal topology graph for traversal.
+         * @param containerId   Given container OID to retrieve CPU speed for.
+         * @return Optional of VM ActionGraphEntity.
+         */
+        private Optional<ActionGraphEntity> getVMFromContainer(
+            @Nonnull final TopologyGraph<ActionGraphEntity> topologyGraph,
+            final long containerId) {
+            Optional<Long> containerPod = topologyGraph.getProviders(containerId)
+                .filter(entity -> entity.getEntityType() == EntityType.CONTAINER_POD_VALUE)
+                .map(BaseGraphEntity::getOid)
+                .findFirst();
+            if (!containerPod.isPresent()) {
+                logger.error("Failed to apply CPU translation to container {} because no provider pod.", containerId);
+                return Optional.empty();
+            }
+            Optional<ActionGraphEntity> vm = topologyGraph.getProviders(containerPod.get())
+                .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .findFirst();
+            if (!vm.isPresent()) {
+                logger.error("Failed to apply CPU translation to container {} because no provider VM.",
+                    containerId);
+                return Optional.empty();
+            }
+            return vm;
+        }
+    }
+
+    /**
+     * Fetches VM CPU speeds from the repository using the retrieveTopologyEntities RPC from
+     * the repository service.
+     */
+    private static class RepoCpuSpeedFetcher implements ContainerNodeCpuSpeedFetcher {
+        private final EntitiesAndSettingsSnapshot snapshot;
+        private final RepositoryServiceBlockingStub repoService;
+        private final Map<Long, Long> targetIdToProviderId;
+        private final Set<ActionPartialEntity> containers = new HashSet<>();
+
+        /**
+         * Create a new {@link RepoCpuSpeedFetcher}.
+         *
+         * @param snapshot The {@link EntitiesAndSettingsSnapshot} for the actions.
+         * @param repoService The repository service to use to fetch CPU speed data.
+         * @param targetIdToProviderId The map of action targets to their providers whose speeds
+         *                             need to be fetched.
+         */
+        private RepoCpuSpeedFetcher(@Nonnull final EntitiesAndSettingsSnapshot snapshot,
+                                    @Nonnull final RepositoryServiceBlockingStub repoService,
+                                    @Nonnull final Map<Long, Long> targetIdToProviderId) {
+            this.snapshot = Objects.requireNonNull(snapshot);
+            this.repoService = Objects.requireNonNull(repoService);
+            this.targetIdToProviderId = Objects.requireNonNull(targetIdToProviderId);
+        }
+
+        @Override
+        public Map<Long, Double> fetchVmCpuSpeeds() {
+            if (containers.isEmpty()) {
+                // Don't do any work if there's nothing to fetch.
+                return Collections.emptyMap();
+            }
+
+            // Ideally we would fetch the values from repository in a single call using something
+            // like the Search RPCs, but Search is only available for realtime topologies and not plans
+            // so we cannot use Search. Instead we make one call to fetch Pod providers followed by
+            // a second call to fetch VM providers since we are unable to identify the VM providers
+            // without first fetching the pods.
+            final Map<Long, List<Long>> podToContainers = new HashMap<>();
+            containers.forEach(container -> podToContainers
+                .computeIfAbsent(container.getPrimaryProviderId(), k -> new ArrayList<>())
+                .add(container.getOid()));
+
+            // First fetch pod provider information
+            final Map<Long, List<Long>> vmToPods = new HashMap<>();
+            getActionPartialEntityStream(podToContainers.keySet()).forEach(pod ->
+                vmToPods.computeIfAbsent(pod.getPrimaryProviderId(), k -> new ArrayList<>())
+                    .add(pod.getOid()));
+
+            // Then fetch VM provider information
+            final Map<Long, Double> vmMillicoreMHz = new HashMap<>();
+            getActionPartialEntityStream(vmToPods.keySet()).forEach(vm -> {
+                containersOnVm(vm.getOid(), vmToPods, podToContainers).forEach(
+                    containerId -> targetIdToProviderId.put(containerId, vm.getOid()));
+                vmMillicoreMHz.put(vm.getOid(),
+                    ContainerNodeCpuSpeedFetcher.getVMCpuMillicoreMhz(vm.getTypeSpecificInfo(), vm.getOid()));
+            });
+
+            return vmMillicoreMHz;
+        }
+
+        @Override
+        public void addContainerToFetch(@Nonnull ActionPartialEntity container) {
+            containers.add(container);
+        }
+
+        /**
+         * Lookup all known containers hosted on a particular VM.
+         *
+         * @param vmOid The OID of the hosting VM.
+         * @param vmToPods A map of VM OID -> all known ContainerPods hosted on that VM.
+         * @param podsToContainers A map of Pod OID -> All known Containers hosted on that pod.
+         * @return A stream of all known containers hosted on a particular VM.
+         */
+        private Stream<Long> containersOnVm(final long vmOid,
+                                            @Nonnull final Map<Long, List<Long>> vmToPods,
+                                            @Nonnull final Map<Long, List<Long>> podsToContainers) {
+            return vmToPods.get(vmOid).stream()
+                .flatMap(podOid -> podsToContainers.get(podOid).stream());
+        }
+
+        /**
+         * Get a stream of {@link ActionPartialEntity} objects from the repository service corresponding
+         * to this fetcher's snapshot and the collection of entity OIDs.
+         *
+         * @param oids The oids of the entities to fetch.
+         * @return a stream of {@link ActionPartialEntity} for the entities whose OIDs were provided.
+         */
+        private Stream<ActionPartialEntity> getActionPartialEntityStream(@Nonnull final Collection<Long> oids) {
+            return RepositoryDTOUtil.topologyEntityStream(
+                repoService.retrieveTopologyEntities(
+                    RetrieveTopologyEntitiesRequest.newBuilder()
+                        .setTopologyContextId(snapshot.getTopologyContextId())
+                        .addAllEntityOids(oids)
+                        .setReturnType(Type.ACTION)
+                        .setTopologyType(snapshot.getTopologyType())
+                        .build()))
+                .map(PartialEntity::getAction);
+        }
     }
 }
