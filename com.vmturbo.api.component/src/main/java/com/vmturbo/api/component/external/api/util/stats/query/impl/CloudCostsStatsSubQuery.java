@@ -1039,7 +1039,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
      * @param statSnapshot stat snap shot
      * @return StatSnapshotApiDTO
      */
-    private static StatSnapshotApiDTO toCloudStatSnapshotApiDTO(final CloudCostStatRecord statSnapshot) {
+    public static StatSnapshotApiDTO toCloudStatSnapshotApiDTO(final CloudCostStatRecord statSnapshot) {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         if (statSnapshot.hasSnapshotDate()) {
             dto.setDate(DateTimeUtil.toString(statSnapshot.getSnapshotDate()));

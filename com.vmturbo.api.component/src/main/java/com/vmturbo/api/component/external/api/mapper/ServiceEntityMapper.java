@@ -1,12 +1,12 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -22,9 +22,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.protobuf.Descriptors.EnumValueDescriptor;
 
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,6 +38,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.AspectName;
@@ -45,7 +48,9 @@ import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
@@ -322,27 +327,85 @@ public class ServiceEntityMapper {
     }
 
     /**
+     * Given a set of entity OIDs, retrieve corresponding {@link CloudCostStatRecord}s.
+     *
+     * @param entities A collection of entity OIDs for which cost data should be retrieved.
+     * @return A collection of {@link CloudCostStatRecord} associated with {@param entities}
+     */
+    public List<CloudCostStatRecord> getCloudCostStatRecords(Iterable<Long> entities) {
+        return getCloudCostStatRecords(entities,
+                null,
+                Collections.emptyList(),
+                Collections.emptyList());
+    }
+
+    /**
+     * Given a set of entity OIDs, retrieve corresponding {@link CloudCostStatRecord}s.
+     *
+     * @param entities A collection of entity OIDs for which cost data should be retrieved
+     * @param topologyContextId The topology from which cost records should be selected
+     * @param costFilters A collection of filters that should be applied to the cost query
+     * @param costGroupings A collection of dimensions by which the cost query should be grouped
+     * @return A collection of {@link CloudCostStatRecord} associated with {@param entities}
+     */
+    public List<CloudCostStatRecord> getCloudCostStatRecords(
+            Iterable<Long> entities,
+            final Long topologyContextId,
+            @Nonnull final List<StatFilterApiDTO> costFilters,
+            @Nonnull final List<String> costGroupings) {
+        final CloudCostStatsQuery.Builder cloudCostStatsQueryBuilder = CloudCostStatsQuery.newBuilder()
+                .setEntityFilter(EntityFilter.newBuilder().addAllEntityId(entities));
+        if (Objects.nonNull(topologyContextId)) {
+            cloudCostStatsQueryBuilder
+                    .setRequestProjected(true)
+                    .setTopologyContextId(topologyContextId);
+        }
+        if (CollectionUtils.isNotEmpty(costFilters)) {
+            final Set<String> costCategoryValues = Arrays.stream(CostCategory.values())
+                    .map(Enum::name)
+                    .collect(Collectors.toSet());
+            cloudCostStatsQueryBuilder.setCostCategoryFilter(CostCategoryFilter.newBuilder()
+                    .addAllCostCategory(costFilters.stream()
+                    .filter(filterApiDTO -> costCategoryValues.contains(filterApiDTO.getValue()))
+                    .map(filterApiDTO -> CostCategory.valueOf(filterApiDTO.getValue()))
+                    .collect(Collectors.toList())));
+        }
+        if (CollectionUtils.isNotEmpty(costGroupings)) {
+            final Set<String> groupByValues = Arrays.stream(GroupBy.values())
+                    .map(GroupBy::getValueDescriptor)
+                    .map(EnumValueDescriptor::getName)
+                    .collect(Collectors.toSet());
+            cloudCostStatsQueryBuilder.addAllGroupBy(costGroupings.stream()
+                    .filter(costGrouping -> groupByValues.contains(costGrouping))
+                    .map(costGrouping -> GroupBy.valueOf(costGrouping))
+                    .collect(Collectors.toList()));
+        }
+        final Iterator<GetCloudCostStatsResponse> response = costServiceBlockingStub.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
+                .addCloudCostStatsQuery(cloudCostStatsQueryBuilder.build())
+                .build());
+
+        final List<CloudCostStatRecord> cloudStatRecords = new ArrayList<>();
+        while (response.hasNext()) {
+            cloudStatRecords.addAll(response.next().getCloudStatRecordList());
+        }
+        return cloudStatRecords;
+    }
+
+    /**
      * Set prices for entity components, including the cost of the entity itself and its components,
      * such as a template.
      *
      * @param entities map {@link ServiceEntityApiDTO#getUuid()} -> {@link ServiceEntityApiDTO}.
+     * @param cloudStatRecords entity cost stats from which entity costs are populated.
      */
     @Nonnull
     protected void setPriceValuesForEntityComponents(
-            final Map<Long, ServiceEntityApiDTO> entities) {
+            final Map<Long, ServiceEntityApiDTO> entities,
+            final List<CloudCostStatRecord> cloudStatRecords) {
         if (entities.isEmpty()) {
             return;
         }
         try {
-            final Iterator<GetCloudCostStatsResponse> response = costServiceBlockingStub.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
-                    .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
-                            .setEntityFilter(EntityFilter.newBuilder().addAllEntityId(entities.keySet())))
-                    .build());
-
-            final List<CloudCostStatRecord> cloudStatRecords = new ArrayList<>();
-            while (response.hasNext()) {
-                cloudStatRecords.addAll(response.next().getCloudStatRecordList());
-            }
             cloudStatRecords.forEach(cloudCostStatRecord -> {
                 // On average, 1 or 2 stat record is expected per entity.
                 cloudCostStatRecord.getStatRecordsList().forEach(statRecord -> {
@@ -369,6 +432,18 @@ public class ServiceEntityMapper {
         } catch (StatusRuntimeException e) {
             logger.error("Failed to retrieve cost stats for entities: {}", e.toString());
         }
+    }
+
+    /**
+     * Set prices for entity components, including the cost of the entity itself and its components,
+     * such as a template.
+     *
+     * @param entities map {@link ServiceEntityApiDTO#getUuid()} -> {@link ServiceEntityApiDTO}.
+     */
+    @Nonnull
+    protected void setPriceValuesForEntityComponents(
+            final Map<Long, ServiceEntityApiDTO> entities) {
+        setPriceValuesForEntityComponents(entities, getCloudCostStatRecords(entities.keySet()));
     }
 
     /**

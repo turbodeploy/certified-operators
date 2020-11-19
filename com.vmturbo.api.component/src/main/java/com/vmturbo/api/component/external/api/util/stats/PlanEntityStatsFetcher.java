@@ -1,15 +1,20 @@
 package com.vmturbo.api.component.external.api.util.stats;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.FormattedMessage;
@@ -17,8 +22,11 @@ import org.apache.logging.log4j.message.FormattedMessage;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.service.StatsService;
+import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudCostsStatsSubQuery;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -26,6 +34,7 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanCombinedStatsRequest;
@@ -36,6 +45,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRes
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
  * Retrieve plan entity stats from the repository.
@@ -211,6 +221,42 @@ public class PlanEntityStatsFetcher {
     }
 
     /**
+     * Get cost stats for an entity in a given topology.
+     *
+     * @param topologyContextId The topology for which entity cost stats should be retrieved
+     * @param inputDto The {@link StatScopesApiInputDTO} specifying the scopes and period of the request
+     * @param planEntityOid The entity OID for which the query is made
+     * @return A collection of {@link StatSnapshotApiDTO} representing entity x topology cost stats
+     */
+    private List<StatSnapshotApiDTO> getCostStats(
+            final long topologyContextId,
+            @Nonnull final StatScopesApiInputDTO inputDto,
+            final long planEntityOid) {
+        final List<StatApiInputDTO> requestedStats = Objects.nonNull(inputDto.getPeriod())
+                ? inputDto.getPeriod().getStatistics()
+                : null;
+        if (CollectionUtils.isEmpty(requestedStats)) {
+            return Collections.emptyList();
+        }
+        final Optional<StatApiInputDTO> costStatOptional = requestedStats.stream()
+                .filter(stat -> StringConstants.COST_PRICE.equals(stat.getName()))
+                .findFirst();
+        if (!costStatOptional.isPresent()) {
+            return Collections.emptyList();
+        }
+        final StatApiInputDTO costStat = costStatOptional.get();
+        final List<StatFilterApiDTO> filters = costStat.getFilters();
+        final List<String> groupings = costStat.getGroupBy();
+        return serviceEntityMapper.getCloudCostStatRecords(
+                Collections.singletonList(planEntityOid),
+                topologyContextId,
+                CollectionUtils.isNotEmpty(filters) ? filters : Collections.emptyList(),
+                CollectionUtils.isNotEmpty(groupings) ? groupings : Collections.emptyList()).stream()
+                    .map(CloudCostsStatsSubQuery::toCloudStatSnapshotApiDTO)
+                    .collect(Collectors.toList());
+    }
+
+    /**
      * Return per-entity combined stats representing both the source and projected plan topologies.
      *
      * <p>Specifically, each returned plan entity will contain list of {@link StatSnapshotApiDTO}s.
@@ -226,9 +272,10 @@ public class PlanEntityStatsFetcher {
      * @return per-entity combined stats representing both the source and projected plan topologies
      */
     @Nonnull
-    private EntityStatsPaginationResponse getPlanEntityCombinedStats(final long topologyContextId,
-                @Nonnull final StatScopesApiInputDTO inputDto,
-                @Nonnull final EntityStatsPaginationRequest paginationRequest) {
+    private EntityStatsPaginationResponse getPlanEntityCombinedStats(
+            final long topologyContextId,
+            @Nonnull final StatScopesApiInputDTO inputDto,
+            @Nonnull final EntityStatsPaginationRequest paginationRequest) {
         // For now, we'll always sort on projected topology
         // TODO: OM-52803 Allow the API user to specify which topoloy type or epoch to sort on
         TopologyType topologyToSortOn = TopologyType.PROJECTED;
@@ -245,6 +292,10 @@ public class PlanEntityStatsFetcher {
         final AtomicReference<Optional<PaginationResponse>> paginationResponseReference =
             new AtomicReference<>(Optional.ofNullable(null));
 
+        final Set<Integer> cloudEnvTypes = new HashSet<Integer>() {{
+            add(EnvironmentType.CLOUD.getNumber());
+            add(EnvironmentType.HYBRID.getNumber());
+        }};
         // Reconstruct the streamed response, representing a single page
         StreamSupport.stream(response.spliterator(), false)
             .forEach(chunk -> {
@@ -261,19 +312,31 @@ public class PlanEntityStatsFetcher {
                                 entityAndCombinedStats.hasPlanProjectedEntity()
                                 ? entityAndCombinedStats.getPlanProjectedEntity().getApi()
                                 : entityAndCombinedStats.getPlanSourceEntity().getApi();
+                            final long planEntityOid = planEntity.getOid();
                             final ServiceEntityApiDTO serviceEntityApiDTO =
                                 serviceEntityMapper.toServiceEntityApiDTO(planEntity);
                             StatsMapper.populateEntityDataEntityStatsApiDTO(
                                     planEntity, entityStatsApiDTO);
                             entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
-                            final List<StatSnapshotApiDTO> statSnapshotsList = entityAndCombinedStats
+                            final List<StatSnapshotApiDTO> combinedStatSnapshots = entityAndCombinedStats
                                 .getPlanCombinedStats()
                                 .getStatSnapshotsList()
                                 .stream()
                                 .map(statsMapper::toStatSnapshotApiDTO)
                                 .collect(Collectors.toList());
-                            entityStatsApiDTO.setStats(statSnapshotsList);
-                            entityStatsList.add( entityStatsApiDTO);
+                            final EnvironmentType environmentType = planEntity.getEnvironmentType();
+                            if (Objects.nonNull(environmentType)
+                                    && cloudEnvTypes.contains(environmentType.getNumber())) {
+                                final List<StatSnapshotApiDTO> costStats = getCostStats(
+                                        topologyContextId, inputDto, planEntityOid);
+                                combinedStatSnapshots.addAll(costStats);
+                                combinedStatSnapshots.stream()
+                                        .sorted(Comparator.comparing(StatSnapshotApiDTO::getDate))
+                                        .collect(Collectors.toList());
+                            }
+                            entityStatsApiDTO.setStats(combinedStatSnapshots);
+
+                            entityStatsList.add(entityStatsApiDTO);
                         });
                 }
             });

@@ -12,6 +12,7 @@ import java.util.List;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -22,12 +23,19 @@ import org.mockito.Mockito;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
+import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanCombinedStatsRequest;
@@ -120,8 +128,16 @@ public class PlanEntityStatsFetcherTest {
         // the plan start date. The end date must be greater than the plan start date.
         final String startDate = Long.toString(planStartTime);
         final String futureEndDate = Long.toString(planStartTime + 1000);
+        final String costPrice = "costPrice";
         period.setStartDate(startDate);
         period.setEndDate(futureEndDate);
+        StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName(costPrice);
+        final StatFilterApiDTO filter = new StatFilterApiDTO();
+        filter.setType("costComponent");
+        filter.setValue("Storage");
+        statApiInputDTO.setFilters(Collections.singletonList(filter));
+        period.setStatistics(Collections.singletonList(statApiInputDTO));
         inputDto.setPeriod(period);
 
         final EntityStatsPaginationRequest paginationRequest =
@@ -136,11 +152,13 @@ public class PlanEntityStatsFetcherTest {
             .toPlanCombinedStatsRequest(planOid, TopologyType.PROJECTED, inputDto, paginationRequest))
             .thenReturn(planCombinedStatsRequest);
 
+        final long statSnapshotDate = 1L;
         // Mock the response from repositoryRpcServices
-        final StatSnapshot sourceStatSnapshot = getStatSnapshot(StatEpoch.PLAN_SOURCE);
-        final StatSnapshot projectedStatSnapshot = getStatSnapshot(StatEpoch.PLAN_PROJECTED);
+        final StatSnapshot sourceStatSnapshot = getStatSnapshot(StatEpoch.PLAN_SOURCE, statSnapshotDate);
+        final StatSnapshot projectedStatSnapshot = getStatSnapshot(StatEpoch.PLAN_PROJECTED, statSnapshotDate);
+        final long cloudEntityOid = 7L;
         final PlanEntityAndCombinedStats sourceOnlyEntityStats =
-            getPlanEntityCombinedStats(7L, sourceStatSnapshot, null);
+            getPlanEntityCombinedStats(cloudEntityOid, sourceStatSnapshot, null, true);
         final PlanEntityAndCombinedStats projectedOnlyEntityStats =
             getPlanEntityCombinedStats(8L, null, projectedStatSnapshot);
         final PlanEntityAndCombinedStats combinedEntityStats =
@@ -152,14 +170,31 @@ public class PlanEntityStatsFetcherTest {
                     .addEntityAndCombinedStats(projectedOnlyEntityStats)
                     .addEntityAndCombinedStats(combinedEntityStats))
                 .build()));
-
         // Mock a second call to statsMapper, which is used to process the returned stats
         final StatSnapshotApiDTO sourceStatSnapshotApiDTO = new StatSnapshotApiDTO();
         sourceStatSnapshotApiDTO.setEpoch(Epoch.PLAN_SOURCE);
+        sourceStatSnapshotApiDTO.setDate(DateTimeUtil.toString(statSnapshotDate));
         final StatSnapshotApiDTO projectedStatSnapshotApiDTO = new StatSnapshotApiDTO();
         projectedStatSnapshotApiDTO.setEpoch(Epoch.PLAN_PROJECTED);
+        projectedStatSnapshotApiDTO.setDate(DateTimeUtil.toString(statSnapshotDate + 1));
         when(statsMapper.toStatSnapshotApiDTO(sourceStatSnapshot)).thenReturn(sourceStatSnapshotApiDTO);
         when(statsMapper.toStatSnapshotApiDTO(projectedStatSnapshot)).thenReturn(projectedStatSnapshotApiDTO);
+        final CloudCostStatRecord.StatRecord storageStatRecord = CloudCostStatRecord.StatRecord.newBuilder()
+                .setName(costPrice)
+                .setCategory(CostCategory.STORAGE)
+                .setValues(StatValue.newBuilder()
+                        .setAvg((float).15).build())
+                .build();
+        when(serviceEntityMapper.getCloudCostStatRecords(
+                Collections.singletonList(cloudEntityOid),
+                planOid,
+                statApiInputDTO.getFilters(),
+                Collections.emptyList())).thenReturn(Collections.singletonList(
+                        CloudCostStatRecord.newBuilder()
+                                .setSnapshotDate(statSnapshotDate)
+                                .addAllStatRecords(
+                                        Collections.singletonList(storageStatRecord))
+                                .build()));
 
         // Act
         final EntityStatsPaginationResponse response =
@@ -167,6 +202,16 @@ public class PlanEntityStatsFetcherTest {
 
         // Verify
         verify(repositoryServiceSpy).getPlanCombinedStats(any(), any());
+        verify(serviceEntityMapper).getCloudCostStatRecords(any(), any(), any(), any());
+        final java.util.Optional<StatSnapshotApiDTO> cloudEntityStatistics = response.getRawResults().stream()
+                .filter(entityStatsApiDTO -> Long.valueOf(entityStatsApiDTO.getUuid()) == cloudEntityOid)
+                .flatMap(entityStatsApiDTO -> entityStatsApiDTO.getStats().stream())
+                .filter(statSnapshotApiDTO -> CollectionUtils.isNotEmpty(statSnapshotApiDTO.getStatistics()))
+                .findFirst();
+        Assert.assertTrue(cloudEntityStatistics.isPresent());
+        Assert.assertTrue(
+                cloudEntityStatistics.get().getStatistics().get(0).getValue()
+                        == storageStatRecord.getValues().getAvg());
         final List<EntityStatsApiDTO> rawResults = response.getRawResults();
         Assert.assertEquals(3, rawResults.size());
         final long countWithSource = getCountWithEpoch(rawResults, Epoch.PLAN_SOURCE);
@@ -391,48 +436,64 @@ public class PlanEntityStatsFetcherTest {
             .setStatus(PlanInstance.PlanStatus.SUCCEEDED);
     }
 
-    private StatSnapshot getStatSnapshot(final StatEpoch planProjected) {
+    private StatSnapshot getStatSnapshot(final StatEpoch planProjected, final long statSnapshotDate) {
         return StatSnapshot.newBuilder()
-            .setStatEpoch(planProjected)
-            .setSnapshotDate(Clock.systemUTC().millis())
-            // Omitting the stat details because they will be handed off to StatsMapper
-            // anyway--which is a mock.
-            .addStatRecords(StatRecord.newBuilder())
-            .build();
+                .setStatEpoch(planProjected)
+                .setSnapshotDate(statSnapshotDate)
+                // Omitting the stat details because they will be handed off to StatsMapper
+                // anyway--which is a mock.
+                .addStatRecords(StatRecord.newBuilder())
+                .build();
     }
 
-    private PlanEntityAndCombinedStats getPlanEntityCombinedStats(@Nonnull final Long entityId,
-                                                                  @Nullable final StatSnapshot sourceStatSnapshot,
-                                                                  @Nullable final StatSnapshot projectedStatSnapshot) {
+    private StatSnapshot getStatSnapshot(final StatEpoch planProjected) {
+        return getStatSnapshot(planProjected, Clock.systemUTC().millis());
+    }
+
+    private static ApiPartialEntity.Builder getApiPartialEntity(final long entityId) {
+        return ApiPartialEntity.newBuilder()
+                .setEntityType(10)
+                .setDisplayName("foo")
+                .setOid(entityId);
+    }
+
+    private PlanEntityAndCombinedStats getPlanEntityCombinedStats(
+            @Nonnull final Long entityId,
+            @Nullable final StatSnapshot sourceStatSnapshot,
+            @Nullable final StatSnapshot projectedStatSnapshot,
+            final boolean isCloudEntity) {
         final PlanEntityAndCombinedStats.Builder planCombinedStatsBuilder =
             PlanEntityAndCombinedStats.newBuilder();
         EntityStats.Builder entityStatsBuilder = EntityStats.newBuilder();
+        final ApiPartialEntity.Builder apiPartialEntityBuilder = getApiPartialEntity(entityId);
+        if (isCloudEntity) {
+              apiPartialEntityBuilder.setEnvironmentType(EnvironmentType.CLOUD);
+        }
         if (sourceStatSnapshot != null) {
             planCombinedStatsBuilder.setPlanSourceEntity(PartialEntity.newBuilder()
-                .setApi(ApiPartialEntity.newBuilder()
-                    .setEntityType(10)
-                    .setDisplayName("foo")
-                    .setOid(entityId)))
+                .setApi(apiPartialEntityBuilder))
                 .setPlanCombinedStats(entityStatsBuilder.addStatSnapshots(sourceStatSnapshot));
         }
         if (projectedStatSnapshot != null) {
             planCombinedStatsBuilder.setPlanProjectedEntity(PartialEntity.newBuilder()
-                .setApi(ApiPartialEntity.newBuilder()
-                    .setEntityType(10)
-                    .setDisplayName("foo")
-                    .setOid(entityId)))
+                .setApi(apiPartialEntityBuilder))
                 .setPlanCombinedStats(entityStatsBuilder.addStatSnapshots(projectedStatSnapshot));
         }
         return planCombinedStatsBuilder.build();
     }
 
-    private PlanEntityStats getPlanEntityStats(final long oid, final StatSnapshot statSnapshot) {
+    private PlanEntityAndCombinedStats getPlanEntityCombinedStats(@Nonnull final Long entityId,
+            @Nullable final StatSnapshot sourceStatSnapshot,
+            @Nullable final StatSnapshot projectedStatSnapshot) {
+        return getPlanEntityCombinedStats(entityId, sourceStatSnapshot, projectedStatSnapshot, false);
+    }
+
+    private PlanEntityStats getPlanEntityStats(
+            final long oid,
+            final StatSnapshot statSnapshot) {
         return PlanEntityStats.newBuilder()
             .setPlanEntity(PartialEntity.newBuilder()
-                .setApi(ApiPartialEntity.newBuilder()
-                    .setEntityType(10)
-                    .setDisplayName("foo")
-                    .setOid(oid)))
+                .setApi(getApiPartialEntity(oid)))
         .setPlanEntityStats(EntityStats.newBuilder()
                 .addStatSnapshots(statSnapshot))
         .build();
