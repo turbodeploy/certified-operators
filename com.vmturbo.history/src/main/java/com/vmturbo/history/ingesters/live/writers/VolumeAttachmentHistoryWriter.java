@@ -55,7 +55,11 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class VolumeAttachmentHistoryWriter extends TopologyWriterBase {
 
-    private static final long VM_OID_VALUE_FOR_UNATTACHED_VOLS = 0;
+    /**
+     * Placeholder VM oid needed to write records for Unattached Volumes as the VM OID column of
+     * Volume Attachment History table is part of the composite primary key (hence can't be null).
+     */
+    public static final long VM_OID_VALUE_FOR_UNATTACHED_VOLS = 0;
 
     private Logger logger = LogManager.getLogger();
     private final BulkLoader<VolumeAttachmentHistoryRecord> attachedVolumeLoader;
