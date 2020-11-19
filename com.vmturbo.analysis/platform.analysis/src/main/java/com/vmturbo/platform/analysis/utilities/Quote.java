@@ -426,7 +426,7 @@ public abstract class Quote {
                 // There is not much information available when the infinite quote value is not
                 // commodity related.
                 return Optional.of(new InfiniteQuoteExplanation(false, new HashSet<>(),
-                        Optional.empty(), Optional.of((getSeller().getType()))));
+                        Optional.empty(), Optional.of(getSeller().getType()), shoppingList));
             } else { // No insufficient commodity and quote is finite, no need to explain
                 return Optional.empty();
             }
@@ -452,7 +452,7 @@ public abstract class Quote {
         public Optional<InfiniteQuoteExplanation> getExplanation(@Nonnull ShoppingList shoppingList) {
             // InitialInfiniteQuote is created initially. It is unlikely to be used as an explanation.
             return Optional.of(new InfiniteQuoteExplanation(false, new HashSet<>(), Optional.empty(),
-                    Optional.empty()));
+                    Optional.empty(), shoppingList));
         }
     }
 
@@ -527,7 +527,7 @@ public abstract class Quote {
                 });
                 return Optional.of(new InfiniteQuoteExplanation(false, commodities,
                         getSeller() == null ? Optional.empty() : Optional.of(getSeller()),
-                        getSeller() == null ? Optional.empty() : Optional.of(getSeller().getType())));
+                        getSeller() == null ? Optional.empty() : Optional.of(getSeller().getType()), shoppingList));
             } else {
                 return Optional.empty();
             }
@@ -677,7 +677,7 @@ public abstract class Quote {
                 });
                 return Optional.of(new InfiniteQuoteExplanation(false, commodities,
                         getSeller() == null ? Optional.empty() : Optional.of(getSeller()),
-                        getSeller() == null ? Optional.empty() : Optional.of(getSeller().getType())));
+                        getSeller() == null ? Optional.empty() : Optional.of(getSeller().getType()), shoppingList));
             } else {
                 return Optional.empty();
             }
@@ -716,7 +716,7 @@ public abstract class Quote {
         public Optional<InfiniteQuoteExplanation> getExplanation(@Nonnull final ShoppingList shoppingList) {
             return Optional.of(new InfiniteQuoteExplanation(false,
                     Sets.newHashSet(new CommodityBundle(licenseCommodity, 1, Optional.empty())),
-                    Optional.empty(), Optional.of(getSeller().getType())));
+                    Optional.empty(), Optional.of(getSeller().getType()), shoppingList));
         }
 
     }
@@ -764,7 +764,7 @@ public abstract class Quote {
             return Optional.of(new InfiniteQuoteExplanation(false,
                     Sets.newHashSet(new CommodityBundle(commoditySpecification,
                             commodityQuantity, Optional.empty())), Optional.empty(),
-                    Optional.of(getSeller().getType())));
+                    Optional.of(getSeller().getType()), shoppingList));
         }
     }
 
@@ -809,7 +809,7 @@ public abstract class Quote {
             return Optional.of(new InfiniteQuoteExplanation(false,
                     Sets.newHashSet(new CommodityBundle(dependentResourcePair.getDependentCommodity(),
                             dependentCommodityQuantity,  Optional.empty())), Optional.empty(),
-                    Optional.of(getSeller().getType())));
+                    Optional.of(getSeller().getType()), shoppingList));
         }
 
     }
@@ -863,7 +863,7 @@ public abstract class Quote {
             return Optional.of(new InfiniteQuoteExplanation(false,
                     Sets.newHashSet(new CommodityBundle(dependentCommodityType,
                             dependentCommodityQuantity, Optional.empty())), Optional.empty(),
-                    Optional.of(getSeller().getType())));
+                    Optional.of(getSeller().getType()), shoppingList));
         }
     }
 
@@ -917,7 +917,7 @@ public abstract class Quote {
             commBundles.add(new CommodityBundle(comm1Type, comm1BoughtQuantity, Optional.empty()));
             commBundles.add(new CommodityBundle(comm2Type, comm2BoughtQuantity, Optional.empty()));
             return Optional.of(new InfiniteQuoteExplanation(false, commBundles, Optional.empty(),
-                    Optional.of(getSeller().getType())));
+                    Optional.of(getSeller().getType()), shoppingList));
         }
 
         /**
@@ -1020,7 +1020,7 @@ public abstract class Quote {
         @Override
         public Optional<InfiniteQuoteExplanation> getExplanation(ShoppingList shoppingList) {
             return Optional.of(new InfiniteQuoteExplanation(true, new HashSet<>(), Optional.empty(),
-                    Optional.of(getSeller().getType())));
+                    Optional.of(getSeller().getType()), shoppingList));
         }
     }
 

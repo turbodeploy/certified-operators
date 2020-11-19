@@ -4,6 +4,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 
 /**
@@ -11,6 +12,10 @@ import com.vmturbo.platform.analysis.economy.Trader;
  */
 public class InfiniteQuoteExplanation {
 
+    /**
+     * The shopping list that has infinite quote.
+     */
+    public ShoppingList shoppingList;
     /**
      * Whether the infinite quote is due to cost missing or not.
      */
@@ -35,13 +40,16 @@ public class InfiniteQuoteExplanation {
      * @param commBundle A set of commodityBundle associated with commodity that failed the placement.
      * @param seller The seller associated with a given infinity quote.
      * @param providerType The supplier type of the shopping list.
+     * @param shoppingList The shopping list that has the infinite quote.
      */
     public InfiniteQuoteExplanation(final boolean costUnavailable, final Set<CommodityBundle> commBundle,
-                                    final Optional<Trader> seller, final Optional<Integer> providerType) {
+                                    final Optional<Trader> seller, final Optional<Integer> providerType,
+                                    final ShoppingList shoppingList) {
         this.costUnavailable = costUnavailable;
         this.commBundle = commBundle;
         this.seller = seller;
         this.providerType = providerType;
+        this.shoppingList = shoppingList;
     }
 
     /**
