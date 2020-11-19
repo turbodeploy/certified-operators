@@ -291,10 +291,10 @@ public class RICostDataUploader {
                         ri.getLocalId(), purchasingAccountOId, ri.getTargetId());
             }
 
-            // We skip partial term Reserved Instances ie RI's whose term is not 1 or 3 years
+            // We log partial term Reserved Instances ie RI's whose term is not 1 or 3 years
             if (!isRIDurationStandard(riData)) {
-                logger.info("Ignoring partial term RI {}.", ri.getLocalId());
-                return;
+                final long durationInDays = Duration.ofMillis(riData.getDuration()).abs().toDays();
+                logger.info("Partial term RI with ID {} and duration {} days.", ri.getLocalId(), durationInDays);
             }
 
             final ReservedInstanceSpecInfo.Builder reservedInstanceSpecInfo =
