@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -28,6 +29,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.common.pipeline.Pipeline.PipelineException;
+import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStore;
@@ -476,6 +478,26 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
                             .stream()
                             .collect(Collectors.toList()),
                         probeStore);
+
+            // Check if the target with the same identifier have ever existed. If we find that this
+            // target was created and exists right now, but it's not the same target,
+            // then throw an exception - target with the same identifier already existed.
+            // If we find the target was created but now doesn't exist then remove oid because
+            // it should be updated.
+            final Set<Long> oldItems = identityStore
+                            .filterItemOids(getOidMatchingPredicate(retTarget.getSpec()));
+            if (!oldItems.isEmpty()) {
+                final long existingTargetId = oldItems.iterator().next();
+                if (existingTargetId != targetId) {
+                    if (targetsById.containsKey(existingTargetId)) {
+                        throw new IdentifierConflictException(
+                                        String.format("Updated item %d with identifier "
+                                                      + "%s already exists.", targetId,
+                                                      retTarget.getSpec()));
+                    }
+                    identityStore.removeItemOids(Collections.singleton(existingTargetId));
+                }
+            }
             identityStore.updateItemAttributes(ImmutableMap.of(targetId, retTarget.getSpec()));
             targetsById.put(targetId, retTarget);
             targetDao.store(retTarget);
@@ -485,6 +507,16 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
             retTarget.getProbeId());
         listeners.forEach(listener -> listener.onTargetUpdated(retTarget));
         return retTarget;
+    }
+
+    private Predicate<IdentityMatchingAttributes> getOidMatchingPredicate(TargetSpec targetSpec) {
+        final TargetSpecAttributeExtractor attributeExtractor =
+                        new TargetSpecAttributeExtractor(probeStore);
+        return (IdentityMatchingAttributes foo) -> {
+            IdentityMatchingAttributes attributes =
+                            attributeExtractor.extractAttributes(targetSpec);
+            return foo.equals(attributes);
+        };
     }
 
     /**

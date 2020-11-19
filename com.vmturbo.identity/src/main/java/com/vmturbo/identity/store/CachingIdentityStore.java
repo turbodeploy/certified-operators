@@ -183,7 +183,7 @@ public class CachingIdentityStore<ITEM_TYPE> implements IdentityStore<ITEM_TYPE>
                 // If updated item identifiers are same with other existing items, terminate and throw
                 // exception.
                 if (previousOid != null && !previousOid.equals(entry.getKey())) {
-                    throw new IdentifierConflictException(String.format("Updated item %d with identitfier "
+                    throw new IdentifierConflictException(String.format("Updated item %d with identifier "
                             + "%s already exists.", previousOid, attributes));
                 }
                 attrsToOidMap.put(attributes, entry.getKey());

@@ -399,6 +399,27 @@ public class CachingTargetStoreTest {
     }
 
     /**
+     * Tests that target can be updated with spec of previously removed target.
+     *
+     * @throws Exception on exceptions occur
+     */
+    @Test
+    public void testUpdateRemovedTarget() throws Exception {
+        prepareInitialProbe();
+        final TargetSpec targetSpec = createTargetSpec(0, 1);
+        targetStore.createTarget(targetSpec);
+        targetStore.removeAllTargets();
+
+        Target target = targetStore.createTarget(createTargetSpec(0, 2));
+
+        final Collection<TopologyProcessorDTO.AccountValue> targetFieldsNew = createAccountValue(1);
+        target = targetStore.updateTarget(target.getId(), targetFieldsNew);
+        Assert.assertEquals("1",
+            target.getMediationAccountVals(groupScopeResolver)
+                .iterator().next().getStringValue());
+    }
+
+    /**
      * Tests that derivedTargetIds field has populated correctly after "CreateOrUpdateDerivedTargets"
      * getting called.
      *
