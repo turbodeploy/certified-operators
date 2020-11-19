@@ -1615,6 +1615,11 @@ serverFiles:
             target_label: service
           - action: replace
             source_labels:
+              - __meta_kubernetes_service_name
+            replacement: service
+            target_label: component
+          - action: replace
+            source_labels:
               - __meta_kubernetes_endpoint_node_name
             target_label: node
           - action: replace
@@ -1625,6 +1630,7 @@ serverFiles:
       # Scrape config for xl mediation components
       #
       - job_name: 'xl-mediation'
+        scrape_interval: 20s
         kubernetes_sd_configs:
           - role: endpoints
         relabel_configs:
@@ -1640,7 +1646,7 @@ serverFiles:
               - __meta_kubernetes_service_name
             regex: ^(mediation-.*)$
             action: replace
-            replacement: "xl"
+            replacement: xl
             target_label: job
           - source_labels:
               -  __meta_kubernetes_service_name
@@ -1648,6 +1654,11 @@ serverFiles:
             action: replace
             replacement: $1
             target_label: service
+          - source_labels:
+              - __meta_kubernetes_service_name
+            action: replace
+            replacement: mediation
+            target_label: component
           - source_labels:
               - __meta_kubernetes_endpoint_node_name
             target_label: node
@@ -1687,43 +1698,49 @@ serverFiles:
               # to review the existing ~300 metrics (or ~3k time series) exported by XL components
               # to decide what is safe and useful to send. Also look at OM-61607.
 
+      # Scrape config for XL mysql.
+      #
+      - job_name: 'xl-mysql'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels:
+              - __meta_kubernetes_pod_label_app
+            regex: prometheus-mysql-exporter
+            action: keep
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - source_labels:
+              - __meta_kubernetes_pod_host_ip
+            action: replace
+            target_label: host_ip
+          - source_labels:
+              - __meta_kubernetes_pod_label_app
+            action: replace
+            replacement: xl
+            target_label: job
+          - source_labels:
+              - __meta_kubernetes_pod_label_app
+            action: replace
+            replacement: db
+            target_label: service
+          - source_labels:
+              - __meta_kubernetes_pod_label_app
+            action: replace
+            replacement: db
+            target_label: component
+          - source_labels:
+              - __meta_kubernetes_namespace
+            action: replace
+            target_label: namespace
+
 # adds additional scrape configs to prometheus.yml
 # must be a string so you have to add a | after extraScrapeConfigs:
 # example adds prometheus-blackbox-exporter scrape config
-extraScrapeConfigs: |
-  - job_name: 'xl-mysql'
-    kubernetes_sd_configs:
-      - role: pod
-    relabel_configs:
-      - source_labels:
-          - __meta_kubernetes_pod_label_app
-        regex: prometheus-mysql-exporter
-        action: keep
-      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
-        action: replace
-        regex: ([^:]+)(?::\d+)?;(\d+)
-        replacement: $1:$2
-        target_label: __address__
-      - source_labels:
-          - __meta_kubernetes_pod_host_ip
-        action: replace
-        target_label: host_ip
-      - source_labels:
-          - __meta_kubernetes_pod_label_app
-        regex: prometheus-mysql-exporter
-        action: replace
-        replacement: "xl"
-        target_label: job
-      - source_labels:
-          - __meta_kubernetes_pod_label_app
-        regex: prometheus-mysql-exporter
-        action: replace
-        replacement: "db"
-        target_label: service
-      - source_labels:
-          - __meta_kubernetes_namespace
-        action: replace
-        target_label: namespace
+extraScrapeConfigs:
 
 # Adds option to add alert_relabel_configs to avoid duplicate alerts in alertmanager
 # useful in H/A prometheus with different external labels but the same alerts
