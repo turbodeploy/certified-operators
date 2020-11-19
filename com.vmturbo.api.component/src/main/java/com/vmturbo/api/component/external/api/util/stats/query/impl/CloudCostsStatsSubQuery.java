@@ -81,8 +81,6 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search.SearchFilter;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -282,22 +280,24 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             final List<StatSnapshotApiDTO> statSnapshots = new ArrayList<>();
             final List<StatApiDTO> numWorkloadStats = new ArrayList<>();
             if (!isGenericGroupBy) {
+                final Map<ApiEntityType, Set<Long>> inputScopeEntitiesByType = inputScope.getScopeEntitiesByType();
+                // Including all cloud volumes in scope, with cost and without cost.
+                // Can't rely on the volumes within cloudCostStatRecords, because AWS ephemeral volumes don't have cost.
                 Set<TopologyEntityDTO> volumeEntities = new HashSet<>();
-                if (!CollectionUtils.isEmpty(cloudEntityOids)) {
-                    // Including all cloud volumes, with cost and without cost(AWS ephemeral disks have no cost)
-                    volumeEntities = repositoryApi.entitiesRequest(cloudEntityOids)
-                            .getFullEntities().filter(t -> t.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
-                            .collect(toSet());
-                } else if (globalScope.isPresent() && globalScope.get().entityTypes().contains(ApiEntityType.VIRTUAL_VOLUME)
-                        && globalScope.get().environmentType().orElse(null) == EnvironmentType.CLOUD) {
-                    // For Cloud tab, global scope of all cloud volumes.
-                    final SearchParameters searchParameters = SearchProtoUtil
-                            .makeSearchParameters(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_VOLUME))
-                            .addSearchFilter(SearchFilter.newBuilder()
-                                    .setPropertyFilter(SearchProtoUtil.environmentTypeFilter(EnvironmentType.CLOUD))
-                                    .build())
-                            .build();
-                    volumeEntities = repositoryApi.newSearchRequest(searchParameters).getFullEntities().collect(toSet());
+                if (inputScopeEntitiesByType.containsKey(ApiEntityType.VIRTUAL_VOLUME)) {
+                    // Handle scope of resourceGroup(s) and volume(s),
+                    // including cloud tab when selecting global scope of all cloud volumes where expandedScopeIds would be empty.
+                    volumeEntities = repositoryApi.entitiesRequest(inputScopeEntitiesByType.get(ApiEntityType.VIRTUAL_VOLUME))
+                            .getFullEntities().collect(toSet());
+                } else {
+                    // Handle scope of BusinessAccount(s), Region(s), Zone(s), VM(s).
+                    // Get expanded scope ids, which include entities within scope.
+                    final Set<Long> expandedScopeIds = context.getQueryScope().getExpandedOids();
+                    if (!CollectionUtils.isEmpty(expandedScopeIds)) {
+                        volumeEntities = repositoryApi.entitiesRequest(expandedScopeIds)
+                                .getFullEntities().filter(t -> t.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                                .collect(toSet());
+                    }
                 }
                 if (!groupByAttachmentInputs.isEmpty()) {
                     final Set<Long> attachedOids = volumeEntities.stream()
