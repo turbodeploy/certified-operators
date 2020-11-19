@@ -56,10 +56,6 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                 // never traverse from parent to child account
                 new AccountRule<>(),
 
-                // Always traverse from workload controller to namespace
-                // (Cloud native)
-                new WorkloadControllerRule<>(),
-
                 // never traverse from a tier to an aggregating region or zone
                 new TierRule<>(),
 
@@ -67,11 +63,6 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                     // ignore traversing further up from vm consumers if a pod is
                     // also consuming the volume.
                 new VolumeToPodRule<>(),
-
-                // rule specific to namespaces as seed
-                    // ensure associated volumes are pulled in when traversing
-                    // from a namesapace as seed.
-                new NamespaceToVolumeRule<>(),
 
                 // use default traversal rule in all other cases
                 new DefaultTraversalRule<>());
@@ -361,66 +352,6 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
     }
 
     /**
-     * Rule specific to traversal of Workload Controller.
-     *
-     * <p>When a Workload Controller is traversed:
-     * <ul>
-     *     <li>Include all neighboring Namespaces
-     *     </li>
-     *     <li>When traversing from WorkloadController as a seed, ensure
-     *         we include Nodes (VMs and Hosts) and volumes in the supply chain.
-     *     </li>
-     * </ul>
-     * </p>
-     *
-     * @param <E> The type of {@link TopologyGraphEntity} in the graph.
-     */
-    private static class WorkloadControllerRule<E extends TopologyGraphEntity<E>> extends DefaultTraversalRule<E> {
-        @Override
-        public boolean isApplicable(@Nonnull final E entity, @Nonnull final TraversalMode traversalMode) {
-            return entity.getEntityType() == EntityType.WORKLOAD_CONTROLLER_VALUE;
-        }
-
-        @Override
-        protected Stream<TraversalState.Builder> include(
-                @Nonnull E entity, @Nonnull TraversalMode traversalMode) {
-            switch (traversalMode) {
-                // Ensure that we pull in the nodes (VMs and PMs) associated
-                // with the Workload Controller through its pods when the Workload
-                // Controller is the seed
-                case START:
-                    return entity.getConsumers().stream()
-                        .filter(e -> e.getEntityType() == EntityType.CONTAINER_POD_VALUE)
-                        .flatMap(e -> e.getProviders().stream()
-                                            .filter(podProvider -> {
-                                                final int entityType = podProvider.getEntityType();
-                                                return entityType == EntityType.VIRTUAL_MACHINE_VALUE
-                                                        || entityType == EntityType.PHYSICAL_MACHINE_VALUE
-                                                        || entityType == EntityType.VIRTUAL_VOLUME_VALUE;
-                                            }))
-                        .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.CONSUMES));
-                case AGGREGATED_BY:
-                    return entity.getProviders().stream()
-                            .filter(e -> e.getEntityType() == EntityType.NAMESPACE_VALUE)
-                            .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP));
-                default:
-                    return Stream.empty();
-            }
-        }
-
-        @Override
-        protected Predicate<E> filter(@Nonnull E entity,
-                                      @Nonnull EdgeTraversalDescription edgeTraversalDescription,
-                                      boolean seed) {
-            if (edgeTraversalDescription == EdgeTraversalDescription.FROM_AGGREGATOR_TO_AGGREGATED) {
-                return e -> false;
-            } else {
-                return e -> true;
-            }
-        }
-    }
-
-    /**
      * Tier-specific rule: do not traverse to regions or availability zones.
      *
      * @param <E> The type of {@link TopologyGraphEntity} in the graph.
@@ -494,42 +425,6 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
             } else {
                 return e -> true;
             }
-        }
-    }
-
-    /**
-     * Rule specific to namespace.
-     *
-     * <p>When namespace is traversed as seed:
-     * <ul>
-     *     <li>Include associated volumes.
-     *     </li>
-     * </ul>
-     * </p>
-     *
-     * @param <E> The type of {@link TopologyGraphEntity} in the graph.
-     */
-    private static class NamespaceToVolumeRule<E extends TopologyGraphEntity<E>>
-            extends DefaultTraversalRule<E> {
-        @Override
-        public boolean isApplicable(@Nonnull E entity, @Nonnull TraversalMode traversalMode) {
-            return entity.getEntityType() == EntityType.NAMESPACE_VALUE
-                    && traversalMode == TraversalMode.START;
-        }
-
-        @Override
-        protected Stream<TraversalState.Builder> include(
-                @Nonnull E entity, @Nonnull TraversalMode traversalMode) {
-                // Ensure that we pull in the volumes associated with the namespace
-                // through the pods, which are consumers of the workloads which are
-                // consumers of the namespace, when namespace is the seed.
-                    return entity.getConsumers().stream()
-                            .filter(e -> e.getEntityType() == EntityType.WORKLOAD_CONTROLLER_VALUE)
-                            .flatMap(e -> e.getConsumers().stream()
-                                    .filter(consumer -> consumer.getEntityType() == EntityType.CONTAINER_POD_VALUE))
-                            .flatMap(e -> e.getProviders().stream()
-                                    .filter(provider -> provider.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE))
-                            .map(e -> new TraversalState.Builder(e.getOid(), TraversalMode.STOP));
         }
     }
 }

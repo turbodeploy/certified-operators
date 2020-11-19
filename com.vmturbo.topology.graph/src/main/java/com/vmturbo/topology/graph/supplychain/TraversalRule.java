@@ -69,30 +69,17 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
             include(entity, traversalMode).forEach(mode -> frontier.add(mode.withDepth(newDepth)));
 
             // traverse the inclusion chain outwards
-            // Add all Controllers of the
-            // traversed entity to the frontier.
-            // For example, if the entity is a cloud VM,
-            // this will add the VMSpec(Represending the AWS ASG for example)
+                // Add all Controllers of the
+                // traversed entity to the frontier.
+                // For example, if the entity is a cloud VM,
+                // this will add the VMSpec(Representing the AWS ASG for example)
             // for the new traversal state introduced in the frontier,
             // the traversal mode becomes CONTROLLED_BY
-            // This ensures that further traversal from the
-            // entities newly added to the frontier will only continue
-            // in the same direction.
+                // This ensures that further traversal from the
+                // entities newly added to the frontier will only continue
+                // in the same direction.
             entity.getControllers().forEach(e ->
                 frontier.add(new TraversalState(e.getOid(), TraversalMode.CONTROLLED_BY, newDepth)));
-            // In the case when a VMSpec controls multiple VM, when one of the VM is the seed,
-            // we don't want to see other vms in the Supply Chain. In this case, when the mode
-            // is CONTROLLED_BY, then nothing else should be added to the frontier
-            if (traversalMode == TraversalMode.CONTROLLED_BY) {
-                return;
-            }
-            // traverse the inclusion chain inwards
-            // traversal mode remains the same
-            // Like with the outwards traversal, when an entity
-            // is traversed, then any other entity it controls
-            // should also be traversed.
-            entity.getControlledEntities().forEach(e ->
-                frontier.add(new TraversalState(e.getOid(), traversalMode, newDepth)));
 
             // traverse the inclusion chain outwards
                 // Add all aggregators and the owner of the
@@ -114,13 +101,13 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
                 .forEach(e ->
                     frontier.add(new TraversalState(e.getOid(), TraversalMode.AGGREGATED_BY, newDepth)));
 
-            // if the traversal mode is AGGREGATED_BY,
+            // if the traversal mode is AGGREGATED_BY or CONTROLLED_BY,
             // then nothing else should be added to the frontier
                 // For example, if the current entity is a zone and
                 // we have already added to the frontier the region
                 // that owns it. If the traversal mode is AGGREGATED_BY,
                 // we shouldn't add anything else.
-            if (traversalMode == TraversalMode.AGGREGATED_BY) {
+            if (traversalMode == TraversalMode.AGGREGATED_BY || traversalMode == TraversalMode.CONTROLLED_BY) {
                 return;
             }
 
@@ -138,8 +125,15 @@ public interface TraversalRule<E extends TopologyGraphEntity<E>> {
                 // will be START), which will in turn bring consuming
                 // applications, anything higher the supply chain, etc.
             entity.getAggregatedAndOwnedEntities().stream()
-                .filter(filter(entity, EdgeTraversalDescription.FROM_AGGREGATOR_TO_AGGREGATED))
-                .forEach(e ->
+                    .filter(filter(entity, EdgeTraversalDescription.FROM_AGGREGATOR_TO_AGGREGATED))
+                    .forEach(e ->
+                            frontier.add(new TraversalState(e.getOid(), traversalMode, newDepth)));
+            // traverse the inclusion chain inwards
+                // traversal mode remains the same
+                // Like with the outwards traversal, when an entity
+                // is traversed, then any other entity it controls
+                // should also be traversed.
+            entity.getControlledEntities().forEach(e ->
                     frontier.add(new TraversalState(e.getOid(), traversalMode, newDepth)));
 
             // downward traversal of the supply chain

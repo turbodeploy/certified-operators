@@ -196,6 +196,7 @@ public class SupplyChainFetcherTest {
         final long containerSpec1 = nextId();
         final long workloadController1 = nextId();
         final long namespace1 = nextId();
+        final long cluster1 = nextId();
 
         final long vm1 = nextId();
         final long vol1 = nextId();
@@ -223,11 +224,13 @@ public class SupplyChainFetcherTest {
                 .addProviders(containerPod1).addAggregatedBy(containerSpec1).build();
 
         TopologyEntityDTO containerPodDTO1 = EntityBuilder.newBuilder(containerPod1, EntityType.CONTAINER_POD)
-                .addProviders(vm1, workloadController1).build();
+                .addProviders(vm1, workloadController1).addAggregatedBy(workloadController1).build();
         TopologyEntityDTO containerSpecDTO1 = EntityBuilder.newBuilder(containerSpec1, EntityType.CONTAINER_SPEC).build();
         TopologyEntityDTO workloadControllerDTO1 = EntityBuilder.newBuilder(workloadController1, EntityType.WORKLOAD_CONTROLLER)
-                .addOwns(containerSpec1).addProviders(namespace1).build();
-        TopologyEntityDTO namespaceDTO1 = EntityBuilder.newBuilder(namespace1, EntityType.NAMESPACE).build();
+                .addOwns(containerSpec1).addAggregatedBy(namespace1).addProviders(namespace1).build();
+        TopologyEntityDTO namespaceDTO1 = EntityBuilder.newBuilder(namespace1,
+                EntityType.NAMESPACE).addAggregatedBy(cluster1).build();
+        TopologyEntityDTO clusterDTO1 = EntityBuilder.newBuilder(cluster1, EntityType.CONTAINER_PLATFORM_CLUSTER).build();
 
         TopologyEntityDTO vmDTO1 = EntityBuilder.newBuilder(vm1, EntityType.VIRTUAL_MACHINE)
                 .addProviders(st1, st2, pm1).addNormalConnected(vol1, vol2).build();
@@ -249,8 +252,8 @@ public class SupplyChainFetcherTest {
         TopologyGraph<SupplyChainEntity> graph = new TopologyGraphCreator<SupplyChainEntity.Builder, SupplyChainEntity>()
                 .addEntities(Stream.of(businessAppDTO1, businessTrxDTO1, businessTrxDTO2,
                         serviceDTO1, appDTO1, containerDTO1, containerPodDTO1, containerSpecDTO1,
-                        workloadControllerDTO1, namespaceDTO1, vmDTO1, volumeDTO1, volumeDTO2,
-                        stDTO1, lpDTO1, daDTO1, stDTO2, daDTO2, pmDTO1, dcDTO)
+                        workloadControllerDTO1, namespaceDTO1, clusterDTO1, vmDTO1, volumeDTO1,
+                        volumeDTO2, stDTO1, lpDTO1, daDTO1, stDTO2, daDTO2, pmDTO1, dcDTO)
                         .map(SupplyChainEntity::newBuilder)
                         .collect(Collectors.toList()))
                 .build();

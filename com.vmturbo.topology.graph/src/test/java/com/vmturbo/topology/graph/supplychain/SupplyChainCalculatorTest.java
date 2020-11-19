@@ -5,7 +5,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Collection;
@@ -53,13 +52,23 @@ public class SupplyChainCalculatorTest {
     /**
      * Constants for cloud-native checks.
      */
-    private static final long WORKLOAD_CONTROLLER_ID = 7L;
-    private static final long CONTAINER_SPEC_ID = 8L;
-    private static final long NAMESPACE_ID = 9L;
-    private static final long CONTAINER_1_ID = 10L;
-    private static final long CONTAINER_2_ID = 11L;
-    private static final long CONTAINER_POD_1_ID = 12L;
-    private static final long CONTAINER_POD_2_ID = 13L;
+    private static final long CONTAINER_CLUSTER_ID = 600L;
+    private static final long NAMESPACE_DEMO_APP_ID = 610L;
+    private static final long NAMESPACE_ROBOT_SHOP_ID = 611L;
+    private static final long WORKLOAD_CONTROLLER_CART_ID = 620L;
+    private static final long WORKLOAD_CONTROLLER_REDIS_ID = 621L;
+    private static final long CONTAINER_POD_CART1_ID = 630L;
+    private static final long CONTAINER_POD_CART2_ID = 631L;
+    private static final long CONTAINER_POD_REDIS1_ID = 632L;
+    private static final long CONTAINER_SPEC_CART_ID = 640L;
+    private static final long CONTAINER_SPEC_ISTIO_PROXY_ID = 641L;
+    private static final long CONTAINER_SPEC_REDIS_ID = 642L;
+    private static final long CONTAINER_CART1_ID = 650L;
+    private static final long CONTAINER_CART2_ID = 651L;
+    private static final long CONTAINER_ISTIO_PROXY1_ID = 652L;
+    private static final long CONTAINER_ISTIO_PROXY2_ID = 653L;
+    private static final long CONTAINER_REDIS1_ID = 654L;
+    private static final long ANOTHER_VM_IN_CLUSTER_ID = 660L;
 
     /**
      * Constants and variables for the main cloud checks.
@@ -532,80 +541,160 @@ public class SupplyChainCalculatorTest {
     }
 
     /**
-     * Test cloud native topology starting from WorkloadController and Namespaces.
-     * Ensure that we include VMs, Hosts and volumes connected through our related pods.
-     * Also ensure that these entities are included when traversing from a Namespace.
+     * Test supply chains for cloud native topology starting from each container type.  Traversal
+     * coverage includes VMs, Hosts and volumes connected through our related pods.
      */
     @Test
-    public void testWorkloadControllerAndNamespaceSeed() {
+    public void testContainerTopology() {
         /*
          *      Container -- ContainerSpec
          *          |             |
          *    ----Pod ------ WorkloadController
-         *   |     /|             |
-         *   |    / VM----        |
-         *   |   |        |       |
-         *   |   VV       |       Namespace
-         *   PM          ST
+         *   /      |             |
+         *   |   /--VM--\    Namespace
+         *   |   |    \  \        |
+         *   |   PM    |  \- ContainerCluster
+         *   VV        ST
+         *
+         * Actual topology
+         * - A cluster has two namespaces: demoapp and robot-shop
+         * - The robot-shop namespace has two workload controllers: cart and redis
+         * - The cart workload controller has two pods: 1 & 2
+         * - The cart pod has two containers: cart and istio-proxy
+         * - The redis pod has a single container: redis
+         *
+         * Onto the connectivity with the infra topology; we reuse some already defined for
+         * other tests ("VM_ID", "PM_ID", "VOLUME_ID", "ST_ID") and an additional VM
+         * ("ANOTHER_VM_IN_CLUSTER_ID"):
+         * - The cluster has two VMs: "VM_ID" and "ANOTHER_VM_IN_CLUSTER_ID".
+         * - Both cart pod 1 and the redis pod run on "VM_ID"; cart pod 2 runs on
+         *   "ANOTHER_VM_IN_CLUSTER_ID".
+         * - Redis pod is attached to virtual volume "VOLUME_ID"; both cart pods are not.
+         * - "VM_ID" sits on "PM_ID" and also consumes from "ST_ID".
+         * - How "ANOTHER_VM_IN_CLUSTER_ID" is related to other infra pieces is omitted.
          */
-        final TopologyGraph<TestGraphEntity> graph =
-            TestGraphEntity.newGraph(
+        final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
                 TestGraphEntity.newBuilder(PM_ID, ApiEntityType.PHYSICAL_MACHINE),
                 TestGraphEntity.newBuilder(ST_ID, ApiEntityType.STORAGE),
                 TestGraphEntity.newBuilder(VOLUME_ID, ApiEntityType.VIRTUAL_VOLUME),
                 TestGraphEntity.newBuilder(VM_ID, ApiEntityType.VIRTUAL_MACHINE)
-                    .addProviderId(ST_ID),
-                TestGraphEntity.newBuilder(NAMESPACE_ID, ApiEntityType.NAMESPACE),
-                TestGraphEntity.newBuilder(WORKLOAD_CONTROLLER_ID, ApiEntityType.WORKLOAD_CONTROLLER)
-                    .addProviderId(NAMESPACE_ID)
-                    .addConnectedEntity(CONTAINER_SPEC_ID, ConnectionType.OWNS_CONNECTION),
-                TestGraphEntity.newBuilder(CONTAINER_POD_1_ID, ApiEntityType.CONTAINER_POD)
-                    .addProviderId(VM_ID)
-                    .addProviderId(WORKLOAD_CONTROLLER_ID)
-                    .addProviderId(VOLUME_ID),
-                TestGraphEntity.newBuilder(CONTAINER_POD_2_ID, ApiEntityType.CONTAINER_POD)
+                    .addProviderId(ST_ID)
                     .addProviderId(PM_ID)
-                    .addProviderId(WORKLOAD_CONTROLLER_ID),
-                TestGraphEntity.newBuilder(CONTAINER_1_ID, ApiEntityType.CONTAINER)
-                    .addProviderId(CONTAINER_POD_1_ID)
-                    .addConnectedEntity(CONTAINER_SPEC_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
-                TestGraphEntity.newBuilder(CONTAINER_2_ID, ApiEntityType.CONTAINER)
-                    .addProviderId(CONTAINER_POD_2_ID)
-                    .addConnectedEntity(CONTAINER_SPEC_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
-                TestGraphEntity.newBuilder(CONTAINER_SPEC_ID, ApiEntityType.CONTAINER_SPEC)
+                    .addConnectedEntity(CONTAINER_CLUSTER_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(ANOTHER_VM_IN_CLUSTER_ID, ApiEntityType.VIRTUAL_MACHINE)
+                    .addConnectedEntity(CONTAINER_CLUSTER_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_CLUSTER_ID, ApiEntityType.CONTAINER_PLATFORM_CLUSTER),
+                TestGraphEntity.newBuilder(NAMESPACE_DEMO_APP_ID, ApiEntityType.NAMESPACE)
+                    .addProviderId(CONTAINER_CLUSTER_ID)
+                    .addConnectedEntity(CONTAINER_CLUSTER_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(NAMESPACE_ROBOT_SHOP_ID, ApiEntityType.NAMESPACE)
+                    .addProviderId(CONTAINER_CLUSTER_ID)
+                    .addConnectedEntity(CONTAINER_CLUSTER_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(WORKLOAD_CONTROLLER_CART_ID, ApiEntityType.WORKLOAD_CONTROLLER)
+                    .addProviderId(NAMESPACE_ROBOT_SHOP_ID)
+                    .addConnectedEntity(NAMESPACE_ROBOT_SHOP_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(WORKLOAD_CONTROLLER_REDIS_ID, ApiEntityType.WORKLOAD_CONTROLLER)
+                    .addProviderId(NAMESPACE_ROBOT_SHOP_ID)
+                    .addConnectedEntity(NAMESPACE_ROBOT_SHOP_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_POD_CART1_ID, ApiEntityType.CONTAINER_POD)
+                    .addProviderId(VM_ID)
+                    .addProviderId(WORKLOAD_CONTROLLER_CART_ID)
+                    .addConnectedEntity(WORKLOAD_CONTROLLER_CART_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_POD_CART2_ID, ApiEntityType.CONTAINER_POD)
+                    .addProviderId(ANOTHER_VM_IN_CLUSTER_ID)
+                    .addProviderId(WORKLOAD_CONTROLLER_CART_ID)
+                    .addConnectedEntity(WORKLOAD_CONTROLLER_CART_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_POD_REDIS1_ID, ApiEntityType.CONTAINER_POD)
+                    .addProviderId(VM_ID)
+                    .addProviderId(VOLUME_ID)
+                    .addProviderId(WORKLOAD_CONTROLLER_REDIS_ID)
+                    .addConnectedEntity(WORKLOAD_CONTROLLER_REDIS_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_CART1_ID, ApiEntityType.CONTAINER)
+                    .addProviderId(CONTAINER_POD_CART1_ID)
+                    .addConnectedEntity(CONTAINER_SPEC_CART_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_CART2_ID, ApiEntityType.CONTAINER)
+                    .addProviderId(CONTAINER_POD_CART2_ID)
+                    .addConnectedEntity(CONTAINER_SPEC_CART_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_ISTIO_PROXY1_ID, ApiEntityType.CONTAINER)
+                    .addProviderId(CONTAINER_POD_CART1_ID)
+                    .addConnectedEntity(CONTAINER_SPEC_ISTIO_PROXY_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_ISTIO_PROXY2_ID, ApiEntityType.CONTAINER)
+                    .addProviderId(CONTAINER_POD_CART2_ID)
+                    .addConnectedEntity(CONTAINER_SPEC_ISTIO_PROXY_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_CART1_ID, ApiEntityType.CONTAINER)
+                    .addProviderId(CONTAINER_POD_CART1_ID)
+                    .addConnectedEntity(CONTAINER_SPEC_CART_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_CART2_ID, ApiEntityType.CONTAINER)
+                    .addProviderId(CONTAINER_POD_CART2_ID)
+                    .addConnectedEntity(CONTAINER_SPEC_CART_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_ISTIO_PROXY1_ID, ApiEntityType.CONTAINER)
+                    .addProviderId(CONTAINER_POD_CART1_ID)
+                    .addConnectedEntity(CONTAINER_SPEC_ISTIO_PROXY_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_ISTIO_PROXY2_ID, ApiEntityType.CONTAINER)
+                    .addProviderId(CONTAINER_POD_CART2_ID)
+                    .addConnectedEntity(CONTAINER_SPEC_ISTIO_PROXY_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_REDIS1_ID, ApiEntityType.CONTAINER)
+                    .addProviderId(CONTAINER_POD_REDIS1_ID)
+                    .addConnectedEntity(CONTAINER_SPEC_REDIS_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_SPEC_CART_ID, ApiEntityType.CONTAINER_SPEC)
+                    .addConnectedEntity(WORKLOAD_CONTROLLER_CART_ID, ConnectionType.CONTROLLED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_SPEC_ISTIO_PROXY_ID, ApiEntityType.CONTAINER_SPEC)
+                    .addConnectedEntity(WORKLOAD_CONTROLLER_CART_ID, ConnectionType.CONTROLLED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_SPEC_REDIS_ID, ApiEntityType.CONTAINER_SPEC)
+                    .addConnectedEntity(WORKLOAD_CONTROLLER_REDIS_ID, ConnectionType.CONTROLLED_BY_CONNECTION)
             );
 
-        // Ensure nodes are reachable from workload controller
-        Map<Integer, SupplyChainNode> supplychain = getSupplyChain(graph, WORKLOAD_CONTROLLER_ID);
-        SupplyChainNode vmNode = supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
-        SupplyChainNode pmNode = supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber());
-        SupplyChainNode volNode = supplychain.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber());
-        SupplyChainNode stNode = supplychain.get(ApiEntityType.STORAGE.typeNumber());
+        // Cart scenarios (without volume)
+        // Container cart1 as seed
+        final Collection<Long> cart1ContainerChain = ImmutableSet.of(CONTAINER_CLUSTER_ID,
+                NAMESPACE_ROBOT_SHOP_ID, WORKLOAD_CONTROLLER_CART_ID, CONTAINER_SPEC_CART_ID,
+                CONTAINER_CART1_ID, CONTAINER_POD_CART1_ID, VM_ID, PM_ID, ST_ID);
+        assertEquals(cart1ContainerChain, getAllNodeIds(getSupplyChain(graph, CONTAINER_CART1_ID)));
+        // ContainerSpec cart as seed
+        final Collection<Long> cartSpecChain = ImmutableSet.<Long>builder()
+                .addAll(cart1ContainerChain).add(CONTAINER_CART2_ID).add(CONTAINER_POD_CART2_ID)
+                .add(ANOTHER_VM_IN_CLUSTER_ID).build();
+        assertEquals(cartSpecChain, getAllNodeIds(getSupplyChain(graph, CONTAINER_SPEC_CART_ID)));
+        // ContainerPod cart1 as seed
+        final Collection<Long> cart1PodChain = ImmutableSet.<Long>builder()
+                .addAll(cart1ContainerChain).add(CONTAINER_ISTIO_PROXY1_ID)
+                .add(CONTAINER_SPEC_ISTIO_PROXY_ID).build();
+        assertEquals(cart1PodChain, getAllNodeIds(getSupplyChain(graph, CONTAINER_POD_CART1_ID)));
+        // WorkloadController cart as seed
+        final Collection<Long> cartControllerChain = ImmutableSet.<Long>builder()
+                .addAll(cartSpecChain).add(CONTAINER_ISTIO_PROXY1_ID).add(CONTAINER_ISTIO_PROXY2_ID)
+                .add(CONTAINER_SPEC_ISTIO_PROXY_ID).build();
+        assertEquals(cartControllerChain, getAllNodeIds(getSupplyChain(graph, WORKLOAD_CONTROLLER_CART_ID)));
 
-        assertEquals(Collections.singleton(PM_ID), getAllNodeIds(pmNode));
-        assertEquals(Collections.singleton(VM_ID), getAllNodeIds(vmNode));
-        assertEquals(Collections.singleton(VOLUME_ID), getAllNodeIds(volNode));
-        assertEquals(Collections.singleton(ST_ID), getAllNodeIds(stNode));
+        // Redis scenarios (with volume)
+        // Container redis as seed
+        final Collection<Long> redis1ContainerChain = ImmutableSet.of(CONTAINER_CLUSTER_ID,
+                NAMESPACE_ROBOT_SHOP_ID, WORKLOAD_CONTROLLER_REDIS_ID, CONTAINER_SPEC_REDIS_ID,
+                CONTAINER_REDIS1_ID, CONTAINER_POD_REDIS1_ID, VM_ID, PM_ID, ST_ID, VOLUME_ID);
+        assertEquals(redis1ContainerChain, getAllNodeIds(getSupplyChain(graph, CONTAINER_REDIS1_ID)));
+        // ContainerSpec redis as seed
+        final Collection<Long> redisSpecChain = redis1ContainerChain;
+        assertEquals(redisSpecChain, getAllNodeIds(getSupplyChain(graph, CONTAINER_SPEC_REDIS_ID)));
+        // ContainerPod redis as seed
+        final Collection<Long> redis1PodChain = redis1ContainerChain;
+        assertEquals(redis1PodChain, getAllNodeIds(getSupplyChain(graph, CONTAINER_POD_REDIS1_ID)));
+        // WorkloadController redis as seed
+        final Collection<Long> redisControllerChain = redis1ContainerChain;
+        assertEquals(redisControllerChain, getAllNodeIds(getSupplyChain(graph, WORKLOAD_CONTROLLER_REDIS_ID)));
 
-        // Ensure nodes are NOT reachable from namespace
-        supplychain = getSupplyChain(graph, NAMESPACE_ID);
-        assertNull(supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
-        assertNull(supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
+        // Robot-shop namespace
+        final Collection<Long> robotShopNamespaceChain = ImmutableSet.<Long>builder()
+                .addAll(cartControllerChain).addAll(redisControllerChain).build();
+        assertEquals(robotShopNamespaceChain, getAllNodeIds(getSupplyChain(graph, NAMESPACE_ROBOT_SHOP_ID)));
 
-        // Ensure volume(s) are reachable from namespaces
-        final SupplyChainNode volumeControllerNode = supplychain.get(ApiEntityType.VIRTUAL_VOLUME.typeNumber());
-        assertEquals(Collections.singleton(VOLUME_ID), getAllNodeIds(volumeControllerNode));
+        // Demo app namespace
+        final Collection<Long> demoAppNamespaceChain = ImmutableSet.of(NAMESPACE_DEMO_APP_ID, CONTAINER_CLUSTER_ID);
+        assertEquals(demoAppNamespaceChain, getAllNodeIds(getSupplyChain(graph, NAMESPACE_DEMO_APP_ID)));
 
-        // Ensure namespaces are reachable from containers
-        supplychain = getSupplyChain(graph, CONTAINER_1_ID);
-        final SupplyChainNode workloadControllerNode = supplychain.get(ApiEntityType.WORKLOAD_CONTROLLER.typeNumber());
-        assertEquals(Collections.singleton(WORKLOAD_CONTROLLER_ID), getAllNodeIds(workloadControllerNode));
-
-        // Ensure when we start from a single pod seed we don't wind up incorrectly
-        // including other pods due to a loop through other relations.
-        supplychain = getSupplyChain(graph, CONTAINER_POD_1_ID);
-        final SupplyChainNode podNode = supplychain.get(ApiEntityType.CONTAINER_POD.typeNumber());
-        assertEquals(Collections.singleton(CONTAINER_POD_1_ID), getAllNodeIds(podNode));
+        // ContainerCluster as seed
+        final Collection<Long> clusterChain = ImmutableSet.<Long>builder()
+                .addAll(robotShopNamespaceChain).addAll(demoAppNamespaceChain).build();
+        assertEquals(clusterChain, getAllNodeIds(getSupplyChain(graph, CONTAINER_CLUSTER_ID)));
     }
 
     /**
@@ -1110,11 +1199,17 @@ public class SupplyChainCalculatorTest {
        vmspec = graph.get(ApiEntityType.VM_SPEC.typeNumber());
    }
 
-   private Collection<Long> getAllNodeIds(@Nonnull SupplyChainNode supplyChainNode) {
-       return supplyChainNode.getMembersByStateMap().values().stream()
-                    .flatMap(m -> m.getMemberOidsList().stream())
-                    .collect(Collectors.toSet());
-   }
+    private Collection<Long> getAllNodeIds(@Nonnull SupplyChainNode supplyChainNode) {
+        return supplyChainNode.getMembersByStateMap().values().stream()
+                .flatMap(m -> m.getMemberOidsList().stream())
+                .collect(Collectors.toSet());
+    }
+
+    private Collection<Long> getAllNodeIds(@Nonnull Map<Integer, SupplyChainNode> supplyChain) {
+        return supplyChain.values().stream()
+                .flatMap(node -> getAllNodeIds(node).stream())
+                .collect(Collectors.toSet());
+    }
 
     /**
      * Tests the case where nodes in the seed do not satisfy the entity predicate.
