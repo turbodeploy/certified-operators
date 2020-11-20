@@ -82,27 +82,29 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.Vir
  */
 public class VirtualVolumeAspectMapperTest {
 
+    private static final double DELTA = 0.0001;
+
     // aws
-    private Long vmId1 = 11L;
-    private Long volumeId1 = 21L;
-    private Long volumeId2 = 22L;
-    private Long storageTierId1 = 31L;
-    private Long zoneId1 = 41L;
-    private Long regionId1 = 51L;
-    private String vmName1 = "testVM1";
-    private String volumeName1 = "vol-123";
-    private String volumeName2 = "vol-234";
-    private String storageTierName1 = "GP2";
+    private final Long vmId1 = 11L;
+    private final Long volumeId1 = 21L;
+    private final Long volumeId2 = 22L;
+    private final Long storageTierId1 = 31L;
+    private final Long zoneId1 = 41L;
+    private final Long regionId1 = 51L;
+    private final String vmName1 = "testVM1";
+    private final String volumeName1 = "vol-123";
+    private final String volumeName2 = "vol-234";
+    private final String storageTierName1 = "GP2";
 
     // azure
-    private Long azureVmId = 12L;
-    private Long azureVolumeId = 23L;
-    private Long azureStorageTierId = 32L;
-    private Long azureRegionId = 52L;
-    private float azureVolumeIoThroughput = 30;
-    private String azureVmName = "testAzureVM";
-    private String azureVolumeName = "azureVolume";
-    private String azureStorageTierName = "UNMANAGED_STANDARD";
+    private final Long azureVmId = 12L;
+    private final Long azureVolumeId = 23L;
+    private final Long azureStorageTierId = 32L;
+    private final Long azureRegionId = 52L;
+    private final float azureVolumeIoThroughput = 30;
+    private final String azureVmName = "testAzureVM";
+    private final String azureVolumeName = "azureVolume";
+    private final String azureStorageTierName = "UNMANAGED_STANDARD";
 
     // VCenter
     private static final Long volumeId4 = 24L;
@@ -354,9 +356,10 @@ public class VirtualVolumeAspectMapperTest {
 
     private final int storageAccessCapacity = 512000;
     private final int storageAmountCapacityInMB = 2 * 1024;
+    private final double hourlyBilledOps = 1234;
     private final String snapshotId = "snap-vv1";
 
-    private ApiPartialEntity region = ApiPartialEntity.newBuilder().setOid(azureRegionId)
+    private final ApiPartialEntity region = ApiPartialEntity.newBuilder().setOid(azureRegionId)
             .setEntityType(EntityType.REGION_VALUE)
             .addConnectedTo(RelatedEntity.newBuilder().setOid(volumeConnectedZoneId)
                     .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE).build()).build();
@@ -379,6 +382,7 @@ public class VirtualVolumeAspectMapperTest {
                             .setSnapshotId(snapshotId)
                             .setAttachmentState(AttachmentState.ATTACHED)
                             .setEncryption(true)
+                            .setHourlyBilledOps(hourlyBilledOps)
                             .build()))
             .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                     .setCommodityType(CommodityType.newBuilder()
@@ -551,6 +555,7 @@ public class VirtualVolumeAspectMapperTest {
         VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper.mapEntitiesToAspect(
                 Lists.newArrayList(getVirtualVolume.apply(EnvironmentType.CLOUD)));
 
+        assertNotNull(aspect);
         assertEquals(1, aspect.getVirtualDisks().size());
 
         // check the virtual disks for each file on the wasted storage
@@ -568,7 +573,7 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(String.valueOf(volumeConnectedBusinessAccountId), volumeAspect.getBusinessAccount().getUuid());
 
         // check stats for volume
-        java.util.List<StatApiDTO> stats = volumeAspect.getStats();
+        List<StatApiDTO> stats = volumeAspect.getStats();
         assertEquals(3, stats.size());
         java.util.Optional<StatApiDTO> statApiDTOStorageAccess = stats.stream().filter(stat -> stat.getName() == "StorageAccess").findFirst();
         assertEquals(statApiDTOStorageAccess.get().getCapacity().getAvg().longValue(), storageAccessCapacity);
@@ -582,6 +587,8 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(virtualVolumeDisplayName, volumeAspect.getDisplayName());
 
         assertEquals(String.valueOf(vmId1), volumeAspect.getAttachedVirtualMachine().getUuid());
+
+        assertEquals(hourlyBilledOps, volumeAspect.getHourlyBilledOps(), DELTA);
     }
 
     /**
@@ -724,7 +731,7 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(String.valueOf(volumeConnectedBusinessAccountId), volumeAspect.getBusinessAccount().getUuid());
 
         // check stats for volume
-        java.util.List<StatApiDTO> stats = volumeAspect.getStats();
+        List<StatApiDTO> stats = volumeAspect.getStats();
         assertEquals(3, stats.size());
         java.util.Optional<StatApiDTO> statApiDTOStorageAccess = stats.stream().filter(stat -> stat.getName() == "StorageAccess").findFirst();
         assertEquals(statApiDTOStorageAccess.get().getCapacity().getAvg().longValue(), storageAccessCapacity);
