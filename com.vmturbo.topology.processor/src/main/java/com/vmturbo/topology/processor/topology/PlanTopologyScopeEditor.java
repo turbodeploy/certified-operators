@@ -39,6 +39,7 @@ import gnu.trove.set.hash.TLongHashSet;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -64,11 +65,17 @@ import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
+/**
+ * Class to build a list of entities to be included in a plan based on a list of seed entities.
+ */
 public class PlanTopologyScopeEditor {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final Set<EntityType> CLOUD_SCOPE_ENTITY_TYPES = Stream.of(
+    /**
+     * List of entity types to be included in the seed ID list.
+     */
+    private static final Set<EntityType> CLOUD_SCOPE_SEED_ENTITY_TYPES = Stream.of(
             EntityType.REGION,
             EntityType.BUSINESS_ACCOUNT,
             EntityType.VIRTUAL_MACHINE,
@@ -76,6 +83,44 @@ public class PlanTopologyScopeEditor {
             EntityType.DATABASE_SERVER,
             EntityType.VIRTUAL_VOLUME,
             EntityType.AVAILABILITY_ZONE)
+            .collect(Collectors.collectingAndThen(Collectors.toSet(),
+                                                          Collections::unmodifiableSet));
+
+    /*
+     * List of entity types to be included in cloud plans. We maintain separate lists so
+     * that we can use the seeds types to discover the related entities, but later omit the original
+     * entity.  This was added to handle the case where we want to include the VMs, volumes, and
+     * databases related to a database server, but to exclude the database server itself.
+     */
+
+    /**
+     * Entity types to include in optimize cloud plans.
+     */
+    private static final Set<EntityType> OPTIMIZE_CLOUD_SCOPE_ENTITY_TYPES = Stream.of(
+            EntityType.REGION,
+            EntityType.BUSINESS_ACCOUNT,
+            EntityType.VIRTUAL_MACHINE,
+            EntityType.DATABASE,
+            EntityType.DATABASE_SERVER,
+            EntityType.VIRTUAL_VOLUME,
+            EntityType.AVAILABILITY_ZONE,
+            EntityType.SERVICE_PROVIDER,
+            EntityType.APPLICATION_COMPONENT)
+            .collect(Collectors.collectingAndThen(Collectors.toSet(),
+                                                          Collections::unmodifiableSet));
+
+    /**
+     * Entity types to include in optimize cloud plans.
+     */
+    private static final Set<EntityType> MIGRATE_CLOUD_SCOPE_ENTITY_TYPES = Stream.of(
+            EntityType.REGION,
+            EntityType.BUSINESS_ACCOUNT,
+            EntityType.VIRTUAL_MACHINE,
+            EntityType.DATABASE,
+            EntityType.VIRTUAL_VOLUME,
+            EntityType.AVAILABILITY_ZONE,
+            EntityType.SERVICE_PROVIDER,
+            EntityType.APPLICATION_COMPONENT)
             .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
@@ -95,6 +140,10 @@ public class PlanTopologyScopeEditor {
 
     private final GroupServiceBlockingStub groupServiceClient;
 
+    /**
+     * Constructor.
+     * @param groupServiceClient gRPC handle to group service
+     */
     public PlanTopologyScopeEditor(@Nonnull final GroupServiceBlockingStub groupServiceClient) {
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
     }
@@ -127,8 +176,11 @@ public class PlanTopologyScopeEditor {
                     if (entity.getOwner().isPresent()
                             && entity.getOwner().get().getEntityType() == BUSINESS_ACCOUNT_VALUE) {
                         cloudSourceEntities.add(entity.getOid());
-                    } else {
+                    } else if (EnvironmentType.ON_PREM == entity.getEnvironmentType()) {
                         onPremSourceEntities.add(entity.getOid());
+                    } else {
+                        logger.debug("Entity {} oid: {} not cloud or on-prem - excluding from plan",
+                                entity.getDisplayName(), entity.getOid());
                     }
                 });
 
@@ -156,7 +208,7 @@ public class PlanTopologyScopeEditor {
         final Set<Long> seedIds =
             topologyInfo.getScopeSeedOidsList().stream()
                 .filter(oid -> graph.getEntity(oid)
-                                    .map(e -> CLOUD_SCOPE_ENTITY_TYPES.contains(
+                                    .map(e -> CLOUD_SCOPE_SEED_ENTITY_TYPES.contains(
                                                     EntityType.forNumber(e.getEntityType())))
                                     .orElse(false))
                 .collect(Collectors.toCollection(HashSet::new));
@@ -255,7 +307,15 @@ public class PlanTopologyScopeEditor {
                 .map(Optional::get)
                 .collect(Collectors.toSet());
 
-        resultEntityMap.putAll(Stream.concat(Stream.of(cloudConsumers, tiers, services)
+        final Set<EntityType> validEntityTypes =
+                topologyInfo.getPlanInfo().getPlanProjectType() == PlanProjectType.CLOUD_MIGRATION
+                        ? MIGRATE_CLOUD_SCOPE_ENTITY_TYPES
+                        : OPTIMIZE_CLOUD_SCOPE_ENTITY_TYPES;
+        Set<TopologyEntity> validCloudConsumersForPlanType = cloudConsumers.stream()
+                .filter(e -> e.getEnvironmentType().equals(EnvironmentType.CLOUD)
+                        && validEntityTypes.contains(EntityType.forNumber(e.getEntityType())))
+                .collect(Collectors.toSet());
+        resultEntityMap.putAll(Stream.concat(Stream.of(validCloudConsumersForPlanType, tiers, services)
                         .flatMap(Collection::stream)
                         .filter(e -> discoveredBy(e, targetIds)),
                 graph.entitiesOfType(BUSINESS_ACCOUNT_VALUE))
@@ -520,7 +580,7 @@ public class PlanTopologyScopeEditor {
     }
 
     /**
-     * Get all the accesses relations of an entity
+     * Get all the accesses relations of an entity.
      * @param entity TopologyEntity to get the accesses relations of
      * @param topology the topology graph
      * @return all the accesses relations of the entity

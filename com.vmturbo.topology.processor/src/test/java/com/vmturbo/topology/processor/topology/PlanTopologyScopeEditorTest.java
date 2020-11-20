@@ -32,6 +32,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -212,7 +213,7 @@ public class PlanTopologyScopeEditorTest {
             basketSoldByPM2inDC1, Arrays.asList(40001L));
     private final TopologyEntity.Builder pmInDc2 = createHypervisorTopologyEntity(20004L, "pmInDc2", EntityType.PHYSICAL_MACHINE, commBoughtByPMinDC2,
             basketSoldByPMToVMinDC2);
-    private final TopologyEntity.Builder virtualVolume = TopologyEntityUtils.connectedTopologyEntity(25001L, HYPERVISOR_TARGET, 0, "virtualVolume", EntityType.VIRTUAL_VOLUME, st1.getOid());
+    private final TopologyEntity.Builder virtualVolume = createHypervisorConnectedTopologyEntity(25001L, HYPERVISOR_TARGET, 0, "virtualVolume", EntityType.VIRTUAL_VOLUME, st1.getOid());
     private final TopologyEntity.Builder vm1InDc1 = createHypervisorTopologyEntity(30001L, "vm1InDc1", EntityType.VIRTUAL_MACHINE,
             commBoughtByVMinDC1PM1DS1VDC, basketSoldByVM1, virtualVolume.getOid());
     private final TopologyEntity.Builder vm2InDc1 = createHypervisorTopologyEntity(30002L, "vm2InDc1", EntityType.VIRTUAL_MACHINE,
@@ -251,8 +252,8 @@ public class PlanTopologyScopeEditorTest {
             CLOUD_TARGET_1, 4007L, "VM in US East", basketSoldByVMInUSEast, VIRTUAL_VOLUME_IN_US_EAST_ID);
 
     private final TopologyEntity.Builder appAws =
-            TopologyEntityUtils.topologyEntity(900000L, CLOUD_TARGET_1, 0,
-                                               EntityType.APPLICATION_COMPONENT, vm1InLondon.getOid());
+            createCloudTopologyEntity(900000L, CLOUD_TARGET_1, 0,
+                                           EntityType.APPLICATION_COMPONENT, vm1InLondon.getOid());
 
     private final TopologyEntity.Builder dbLondon = createCloudConnectedTopologyEntity(
             CLOUD_TARGET_1, 8001L, "DB in London", EntityType.DATABASE);
@@ -350,7 +351,7 @@ public class PlanTopologyScopeEditorTest {
             businessAcc3, vm1InLondon, virtualVolumeInLondon, appAws);
 
     private final TopologyEntity.Builder appAzure =
-            TopologyEntityUtils.topologyEntity(900001L, CLOUD_TARGET_2, 0,
+            createCloudTopologyEntity(900001L, CLOUD_TARGET_2, 0,
                                                EntityType.APPLICATION_COMPONENT, vmInCanada.getOid());
 
     private final TopologyEntity.Builder regionCentralUs = createRegion(
@@ -492,6 +493,13 @@ public class PlanTopologyScopeEditorTest {
     private final GroupServiceMole groupServiceClient = spy(new GroupServiceMole());
 
     final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+
+    PlanTopologyInfo.Builder migrationPlanInfo = PlanTopologyInfo.newBuilder()
+            .setPlanProjectType(PlanProjectType.CLOUD_MIGRATION)
+            .setPlanType("MIGRATE_TO_CLOUD");
+    PlanTopologyInfo.Builder optimizePlanInfo = PlanTopologyInfo.newBuilder()
+            .setPlanProjectType(PlanProjectType.USER)
+            .setPlanType("OPTIMIZE_CLOUD");
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceClient);
@@ -641,6 +649,26 @@ public class PlanTopologyScopeEditorTest {
     }
 
     /**
+     * Tests scope cloud topology for the plan scope with group of 2 DBS.
+     * Topology graph contains entities for 3 targets: hypervisor and 2 clouds.
+     * expectedEntitiesForAwsDbsGroup - set of cloud entities expected as result of applying plan
+     * scope to the topology.
+     *
+     * <p>This is similar to the above test, except that this is a migration plan, so the database
+     * servers should not be present in the topology.
+     */
+    @Test
+    public void testScopeMigrateCloudTopologyForDBSGroup() {
+        // DBS in London and DBS in Hong Kong
+        final List<Long> oidsList = Arrays.asList(9001L, 9002L);
+        final Set<TopologyEntity.Builder> expectedEntitiesWithoutDBS =
+                expectedEntitiesForAwsDbsGroup.stream()
+                        .filter(e -> EntityType.DATABASE_SERVER_VALUE != e.getEntityType())
+                        .collect(Collectors.toSet());
+        testScopeCloudTopology(oidsList, expectedEntitiesWithoutDBS, true);
+    }
+
+    /**
      * Tests scope cloud topology for the plan scope with resource group of DB and virtual volume.
      * Topology graph contains entities for 3 targets: hypervisor and 2 clouds.
      * expectedEntitiesForResourceGroup - set of cloud entities expected as result of applying plan scope to the topology.
@@ -652,12 +680,16 @@ public class PlanTopologyScopeEditorTest {
         testScopeCloudTopology(oidsList, expectedEntitiesForResourceGroup);
     }
 
-    private void testScopeCloudTopology(List<Long> oidsList, Set<TopologyEntity.Builder> expectedEntities) {
+    private void testScopeCloudTopology(List<Long> oidsList,
+            Set<TopologyEntity.Builder> expectedEntities,
+            boolean isMigrationPlan) {
         final TopologyInfo cloudTopologyInfo = TopologyInfo.newBuilder()
                         .setTopologyContextId(1)
                         .setTopologyId(1)
                         .setTopologyType(TopologyType.PLAN)
-                        .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
+                        .setPlanInfo(isMigrationPlan
+                                ? migrationPlanInfo
+                                : optimizePlanInfo)
                         .addAllScopeSeedOids(oidsList)
                         .build();
         final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeTopology(
@@ -665,6 +697,11 @@ public class PlanTopologyScopeEditorTest {
         Assert.assertEquals(expectedEntities.size(), result.size());
         expectedEntities.forEach(entity -> assertTrue(entity.getOid() + " is missing", result.getEntity(entity.getOid())
                         .isPresent()));
+    }
+
+    private void testScopeCloudTopology(List<Long> oidsList,
+            Set<TopologyEntity.Builder> expectedEntities) {
+        testScopeCloudTopology(oidsList, expectedEntities, false);
     }
 
     /**
@@ -825,6 +862,7 @@ public class PlanTopologyScopeEditorTest {
             entityType, producers, soldComms, connectedEntities);
         connectedStorages.forEach(st -> entity.getEntityBuilder().addCommoditySoldList(
             CommoditySoldDTO.newBuilder().setCommodityType(DATASTORE).setAccesses(st)));
+        entity.getEntityBuilder().setEnvironmentType(EnvironmentType.ON_PREM);
         return entity;
     }
 
@@ -1018,6 +1056,7 @@ public class PlanTopologyScopeEditorTest {
                                                                          long... connectedEntities) {
         TopologyEntity.Builder entity = TopologyEntityUtils.topologyEntity(oid, HYPERVISOR_TARGET, 0, displayName,
                 entityType, producers, soldComms);
+        entity.getEntityBuilder().setEnvironmentType(EnvironmentType.ON_PREM);
         Arrays.stream(connectedEntities).forEach(e ->
             entity.getEntityBuilder()
                 .addConnectedEntityList(ConnectedEntity.newBuilder()
@@ -1025,6 +1064,19 @@ public class PlanTopologyScopeEditorTest {
                         .setConnectionType(ConnectionType.NORMAL_CONNECTION)
                         .build()));
         return entity;
+    }
+
+    private TopologyEntity.Builder createHypervisorConnectedTopologyEntity(long oid,
+            long discoveringTargetId,
+            long lastUpdatedTime,
+            String displayName,
+            EntityType entityType,
+            long... connectedToEntities) {
+        TopologyEntity.Builder builder = TopologyEntityUtils.connectedTopologyEntity(
+                oid, discoveringTargetId, lastUpdatedTime, displayName, entityType,
+                connectedToEntities);
+        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.ON_PREM);
+        return builder;
     }
 
     /**
@@ -1080,9 +1132,11 @@ public class PlanTopologyScopeEditorTest {
                                 .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
                                 .setConnectedEntityId(oid)
                                 .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)));
-        return TopologyEntityUtils.connectedTopologyEntity(oid, targetId, 0,
+        TopologyEntity.Builder builder = TopologyEntityUtils.connectedTopologyEntity(oid, targetId, 0,
                                                            displayName, EntityType.AVAILABILITY_ZONE,
                                                            Collections.emptySet());
+        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        return builder;
     }
 
     private static TopologyEntity.Builder createOwner(
@@ -1096,15 +1150,31 @@ public class PlanTopologyScopeEditorTest {
                                 .setConnectionType(ConnectionType.OWNS_CONNECTION)
                                 .build())
                         .collect(Collectors.toList());
-        return TopologyEntityUtils.connectedTopologyEntity(oid, targetId, 0,
+        TopologyEntity.Builder builder = TopologyEntityUtils.connectedTopologyEntity(oid, targetId, 0,
                 displayName, entityType, connectedEntities);
+        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        return builder;
+    }
+
+    private static TopologyEntity.Builder createCloudTopologyEntity(long oid,
+            long discoveringTargetId,
+            long lastUpdatedTime,
+            EntityType entityType,
+            long... producers) {
+        TopologyEntity.Builder builder = TopologyEntityUtils.topologyEntity(
+                oid, discoveringTargetId, lastUpdatedTime,
+                entityType, producers);
+        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        return builder;
     }
 
     private static TopologyEntity.Builder createCloudConnectedTopologyEntity(
             long targetId, long oid, String displayName, EntityType entityType,
             long... connectedToEntities) {
-        return TopologyEntityUtils.connectedTopologyEntity(oid, targetId, 0, displayName,
-                                                           entityType, connectedToEntities);
+        TopologyEntity.Builder builder = TopologyEntityUtils.connectedTopologyEntity(oid, targetId,
+                0, displayName, entityType, connectedToEntities);
+        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        return builder;
     }
 
     private static TopologyEntity.Builder createRegion(
@@ -1128,9 +1198,11 @@ public class PlanTopologyScopeEditorTest {
                         .setConnectedEntityId(oid)
                         .setConnectedEntityType(EntityType.REGION_VALUE)));
 
-        return TopologyEntityUtils.connectedTopologyEntity(oid, targetId, 0,
+        TopologyEntity.Builder builder = TopologyEntityUtils.connectedTopologyEntity(oid, targetId, 0,
                                                            displayName, EntityType.REGION,
                                                            connectedAvailabilityZones);
+        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        return builder;
     }
 
     /**
@@ -1149,7 +1221,7 @@ public class PlanTopologyScopeEditorTest {
                 as2, az1London, az2London, azOhio,
                 az1HongKong, az2HongKong, regionLondon, regionOhio,
                 regionHongKong, computeTier, vm1InLondon,
-                vm2InLondon, dbLondon, dbsLondon, dbsHongKong,
+                vm2InLondon, dbLondon, dbsHongKong,
                 vmInOhio, vmInHongKong, businessAcc1, businessAcc2, businessAcc3,
                 virtualVolumeInOhio, virtualVolumeInLondon, virtualVolumeInHongKong,
                 storageTier, regionCentralUs, regionCanada, dbCentralUs, dbsCentralUs,
@@ -1177,7 +1249,7 @@ public class PlanTopologyScopeEditorTest {
         final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeTopology(
                 cloudTopologyInfo, cloudMigrationGraph, context);
         // Now we use generic scoping, that pulls in more entities than directly connected ones.
-        Assert.assertEquals(22, result.size());
+        Assert.assertEquals(21, result.size());
         awsRegionExpectedEntities.forEach(entity -> assertTrue(entity.getOid()
                 + " is missing", result.getEntity(entity.getOid()).isPresent()));
     }
@@ -1196,8 +1268,10 @@ public class PlanTopologyScopeEditorTest {
             final String displayName,
             List<TopologyDTO.CommodityType> soldComms,
             final long... volumeOids) {
-        return TopologyEntityUtils.topologyEntity(
+        TopologyEntity.Builder builder = TopologyEntityUtils.topologyEntity(
                 oid, targetId, 0, displayName, EntityType.VIRTUAL_MACHINE, soldComms, volumeOids);
+        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        return builder;
     }
 
     private static TopologyEntity.Builder createCloudVolume(
@@ -1205,7 +1279,9 @@ public class PlanTopologyScopeEditorTest {
             final long oid,
             final String displayName,
             final long storageTierOid) {
-        return TopologyEntityUtils.topologyEntity(
+        TopologyEntity.Builder builder = TopologyEntityUtils.topologyEntity(
                 oid, targetId, 0, displayName, EntityType.VIRTUAL_VOLUME, storageTierOid);
+        builder.getEntityBuilder().setEnvironmentType(EnvironmentType.CLOUD);
+        return builder;
     }
 }
