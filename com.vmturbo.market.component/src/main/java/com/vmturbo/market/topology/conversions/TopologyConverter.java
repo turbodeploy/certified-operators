@@ -3797,9 +3797,9 @@ public class TopologyConverter {
         float reverseScaleCapacity = commSoldTO.getCapacity();
         float reverseScalePeakQuantity = peak;
         if (originalCommoditySold.isPresent()) {
-            final float scalingFactor = (float)originalCommoditySold.get().getScalingFactor();
+            final double scalingFactor = originalCommoditySold.get().getScalingFactor();
             if (scalingFactor > EPSILON) {
-                float inverseScalingFactor = 1.0f / scalingFactor;
+                double inverseScalingFactor = 1.0 / scalingFactor;
                 reverseScaleQuantity *= inverseScalingFactor;
                 reverseScaleCapacity *= inverseScalingFactor;
                 reverseScalePeakQuantity *= inverseScalingFactor;

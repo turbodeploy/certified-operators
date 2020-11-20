@@ -145,7 +145,7 @@ public class CommodityConverter {
                         : null);
         // if this commodity has a scaling factor set, then scale up the
         // USED and CAPACITY by scalingFactor for use in the new CommoditySoldTO
-        final float scalingFactor = (float)topologyCommSold.getScalingFactor();
+        final double scalingFactor = topologyCommSold.getScalingFactor();
         if (topologyCommSold.hasScalingFactor() && logger.isDebugEnabled()) {
             logger.debug("Scaling comm {}, factor {}, for topology entity {},"
                             + " prev used {}, new {}, prev capacity {}, new {}",
@@ -239,21 +239,21 @@ public class CommodityConverter {
         final CommodityDTOs.CommoditySoldSettingsTO.Builder economyCommSoldSettings =
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
                         .setResizable(resizable)
-                        .setCapacityIncrement(topologyCommSold.getCapacityIncrement() * scalingFactor)
+                        .setCapacityIncrement((float)(topologyCommSold.getCapacityIncrement() * scalingFactor))
                         .setUtilizationUpperBound(utilizationUpperBound)
                         .setPriceFunction(priceFunction(topologyCommSold.getCommodityType(),
-                                scale, dto))
+                            scale, dto))
                         .setUpdateFunction(updateFunction(topologyCommSold, commodityTypeAllocator));
 
         // Set thresholds for the commodity sold (min/Max of VCPU/VMem for on-prem VMs).
         if (topologyCommSold.hasThresholds()) {
             final Thresholds threshold = topologyCommSold.getThresholds();
             if (threshold.hasMax()) {
-                final float maxThreshold = Double.valueOf(threshold.getMax()).floatValue() * scalingFactor;
+                final float maxThreshold = (float)((float)threshold.getMax() * scalingFactor);
                 economyCommSoldSettings.setCapacityUpperBound(maxThreshold);
             }
             if (threshold.hasMin()) {
-                final float minThreshold = Double.valueOf(threshold.getMin()).floatValue() * scalingFactor;
+                final float minThreshold = (float)((float)threshold.getMin() * scalingFactor);
                 economyCommSoldSettings.setCapacityLowerBound(minThreshold);
             }
 
@@ -335,7 +335,7 @@ public class CommodityConverter {
                         topologyCommSold.getHistoricalUsed().getPercentile(),
                         topologyCommSold.getCommodityType().getType(),
                         dto.getDisplayName());
-                soldCommBuilder.setHistoricalQuantity((float)(topologyCommSold.getCapacity()
+                soldCommBuilder.setHistoricalQuantity((float)((float)topologyCommSold.getCapacity()
                         * topologyCommSold.getScalingFactor()
                         * topologyCommSold.getHistoricalUsed().getPercentile()));
             }

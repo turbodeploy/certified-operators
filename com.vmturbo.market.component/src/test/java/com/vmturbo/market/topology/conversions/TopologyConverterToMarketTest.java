@@ -57,6 +57,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
@@ -73,7 +74,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -2260,5 +2260,83 @@ public class TopologyConverterToMarketTest {
 
         // Check that Reversibility mode is enabled.
         assertFalse(volumeSL.getDemandScalable());
+    }
+
+    /**
+     * Test that the scaling factor is applied in the same way to commodities bought
+     * and sold and that floating point precision loss happens in a consistent manner
+     * to reduce problems downstream in the market.
+     * <p/>
+     * We want to ensure that commodities bought and sold have the scaling factor applied
+     * in the same way. Consider the following:
+     * <p/>
+     * (float)((float)540.0 * 2.7617943704573737) == 1491.369f
+     * (float)(540.0 * (float)2.7617943704573737) == 1491.3689f
+     * <p/>
+     * Both the above ways of doing the computation are fine, we just have be sure
+     * to do the calculation consistently during the conversion otherwise some quantities
+     * that we expected to be equal downstream may not be. For example, if we apply scaling
+     * rules to some commodity fields in the first way and to other commodity
+     * fields in the second way, that could result in problems like setting an illegal quantity
+     * on a field when we subtract off values in the market, or winding up on the wrong side
+     * of a threshold when comparing to capacityUpperBound/capacityLowerBound etc.
+     * <p/>
+     * Market conversion happens using the first option shown above.
+     */
+    @Test
+    public void testScalingFactorAppliedConsistently() {
+        final double originalValue = 540.0;
+        final double scalingFactor = 2.7617943704573737;
+        testScalingFactorAppliedConsistently(originalValue, scalingFactor);
+
+        // Now flip it and all values should still be computed uniformly.
+        testScalingFactorAppliedConsistently(scalingFactor, originalValue);
+    }
+
+    private void testScalingFactorAppliedConsistently(double originalValue, double scalingFactor) {
+
+        final TopologyEntityDTO dto = TopologyEntityDTO.newBuilder()
+            .setOid(1L)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .addCommoditySoldList(
+                CommoditySoldDTO.newBuilder()
+                    .setScalingFactor(scalingFactor)
+                    .setUsed(originalValue)
+                    .setPeak(originalValue)
+                    .setCapacity(originalValue)
+                    .setThresholds(Thresholds.newBuilder()
+                        .setMax(originalValue)
+                        .setMin(originalValue)
+                        .build())
+                    .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                    .setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(1.0).setMaxQuantity(originalValue))
+                    .setHistoricalPeak(HistoricalValues.newBuilder().setPercentile(1.0).setMaxQuantity(originalValue)))
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_VALUE))
+                        .setScalingFactor(scalingFactor)
+                        .setUsed(originalValue)
+                        .setPeak(originalValue)
+                        .setHistoricalUsed(HistoricalValues.newBuilder().setMaxQuantity(originalValue))
+                        .setHistoricalPeak(HistoricalValues.newBuilder().setMaxQuantity(originalValue))
+                ))
+            .build();
+
+        float expectedValue = (float)((float)originalValue * scalingFactor);
+        final TraderTO converted = convertToMarketTO(Collections.singleton(dto), REALTIME_TOPOLOGY_INFO)
+            .iterator()
+            .next();
+
+        final CommodityBoughtTO cb = converted.getShoppingLists(0).getCommoditiesBought(0);
+        assertEquals(expectedValue, cb.getQuantity(), 0);
+        assertEquals(expectedValue, cb.getPeakQuantity(), 0);
+
+        final CommoditySoldTO cs = converted.getCommoditiesSold(0);
+        assertEquals(expectedValue, cs.getCapacity(), 0);
+        assertEquals(expectedValue, cs.getQuantity(), 0);
+        assertEquals(expectedValue, cs.getHistoricalQuantity(), 0);
+        assertEquals(expectedValue, cs.getSettings().getCapacityLowerBound(), 0);
+        assertEquals(expectedValue, cs.getSettings().getCapacityUpperBound(), 0);
+        assertEquals(expectedValue, cs.getMaxQuantity(), 0);
     }
 }
