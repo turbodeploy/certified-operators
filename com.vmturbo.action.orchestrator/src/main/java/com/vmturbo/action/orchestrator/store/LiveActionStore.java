@@ -453,7 +453,7 @@ public class LiveActionStore implements ActionStore {
                     if (action.getState() == ActionState.READY
                             || action.getState() == ActionState.ACCEPTED
                             || action.getState() == ActionState.REJECTED) {
-                        action.updateRecommendation(recommendedAction);
+                        action.updateRecommendationAndCategory(recommendedAction);
                     }
                 } else {
                     newActionCounts.getAndIncrement();
@@ -858,7 +858,7 @@ public class LiveActionStore implements ActionStore {
                 action = existingActionOpt.get();
                 if (action.getState() == ActionState.READY || action.getState() == ActionState.ACCEPTED
                         || action.getState() == ActionState.REJECTED) {
-                    action.updateRecommendation(recommendedAction);
+                    action.updateRecommendationAndCategory(recommendedAction);
                 }
             } else {
                 newActionCounts++;

@@ -36,6 +36,7 @@ import com.vmturbo.action.orchestrator.action.ActionModeCalculator.ActionSpecifi
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -43,6 +44,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
@@ -545,5 +550,41 @@ public class ActionTest {
                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                         .setValue(mode.toString()).build())
                 .build();
+    }
+
+    /**
+     * Update action with a new recommendation. Initial recommendation has Efficiency explanation.
+     * Updated recommendation has Compliance explanation.
+     * Verify that the updated action is assigned the updated action category after the update.
+     */
+    @Test
+    public void testActionCategoryUpdate() {
+        ActionDTO.Action initialActionRecommendation = makeRec(makeVmResizeInfo(11L), SupportLevel.SUPPORTED)
+                .setExplanation(Explanation.newBuilder().setScale(ScaleExplanation.newBuilder()
+                                .addChangeProviderExplanation(
+                                        ChangeProviderExplanation.newBuilder()
+                                                .setEfficiency(Efficiency.newBuilder().build())
+                                                .build()))
+                        .build())
+                .build();
+
+        final Action action = new Action(initialActionRecommendation, actionPlanId,
+                actionModeCalculator, IdentityGenerator.next());
+
+        // Assert initial action category is Efficiency.
+        assertEquals(ActionCategory.EFFICIENCY_IMPROVEMENT, action.getActionCategory());
+
+        ActionDTO.Action updatedActionRecommendation = makeRec(makeVmResizeInfo(11L), SupportLevel.SUPPORTED)
+                .setExplanation(Explanation.newBuilder().setScale(ScaleExplanation.newBuilder()
+                        .addChangeProviderExplanation(
+                                ChangeProviderExplanation.newBuilder()
+                                        .setCompliance(Compliance.newBuilder().build())
+                                        .build()))
+                        .build())
+                .build();
+        action.updateRecommendationAndCategory(updatedActionRecommendation);
+
+        // Assert updated action category is Compliance.
+        assertEquals(ActionCategory.COMPLIANCE, action.getActionCategory());
     }
 }
