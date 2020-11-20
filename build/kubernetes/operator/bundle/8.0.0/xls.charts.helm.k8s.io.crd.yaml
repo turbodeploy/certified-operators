@@ -713,6 +713,12 @@ spec:
                   description: Enable MySQL Server mediation
                   type: boolean
               type: object
+            oracle:
+              properties:
+                enabled:
+                  description: Enable Oracle mediation
+                  type: boolean
+              type: object
             netapp:
               properties:
                 enabled:
@@ -2565,6 +2571,45 @@ spec:
                       type: object
                   type: object
               type: object
+            mediation-jvm:
+              properties:
+                annotations:
+                  description: component specific pod annotations list
+                  type: object
+                image:
+                  description: component specific image options
+                  properties:
+                    repository:
+                      description: component container registry and repository name
+                      type: string
+                    tag:
+                      description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
+                    pullPolicy:
+                      description: component image pull policy
+                      type: string
+                  type: object
+                javaComponentOptions:
+                  description: component additional java options
+                  type: string
+                debug:
+                  description: component debug
+                  type: boolean
+                resources:
+                  description: component resource configuration
+                  properties:
+                    limits:
+                      description: component limits
+                      properties:
+                        memory:
+                          description: component memory limits
+                          type: string
+                      type: object
+                  type: object
+              type: object
             mediation-mssql:
               properties:
                 annotations:
@@ -2605,45 +2650,6 @@ spec:
                   type: object
               type: object
             mediation-mysql:
-              properties:
-                annotations:
-                  description: component specific pod annotations list
-                  type: object
-                image:
-                  description: component specific image options
-                  properties:
-                    repository:
-                      description: component container registry and repository name
-                      type: string
-                    tag:
-                      description: component container tag
-                      type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
-                    pullPolicy:
-                      description: component image pull policy
-                      type: string
-                  type: object
-                javaComponentOptions:
-                  description: component additional java options
-                  type: string
-                debug:
-                  description: component debug
-                  type: boolean
-                resources:
-                  description: component resource configuration
-                  properties:
-                    limits:
-                      description: component limits
-                      properties:
-                        memory:
-                          description: component memory limits
-                          type: string
-                      type: object
-                  type: object
-              type: object
-            mediation-tomcat:
               properties:
                 annotations:
                   description: component specific pod annotations list
@@ -2799,45 +2805,6 @@ spec:
                       type: object
                   type: object
               type: object
-            mediation-jvm:
-              properties:
-                annotations:
-                  description: component specific pod annotations list
-                  type: object
-                image:
-                  description: component specific image options
-                  properties:
-                    repository:
-                      description: component container registry and repository name
-                      type: string
-                    tag:
-                      description: component container tag
-                      type: string
-                    serviceAccountName:
-                      description: component serviceAccountName
-                      type: string
-                    pullPolicy:
-                      description: component image pull policy
-                      type: string
-                  type: object
-                javaComponentOptions:
-                  description: component additional java options
-                  type: string
-                debug:
-                  description: component debug
-                  type: boolean
-                resources:
-                  description: component resource configuration
-                  properties:
-                    limits:
-                      description: component limits
-                      properties:
-                        memory:
-                          description: component memory limits
-                          type: string
-                      type: object
-                  type: object
-              type: object
             mediation-nutanix:
               properties:
                 annotations:
@@ -2917,6 +2884,45 @@ spec:
                   type: object
               type: object
             mediation-openstack:
+              properties:
+                annotations:
+                  description: component specific pod annotations list
+                  type: object
+                image:
+                  description: component specific image options
+                  properties:
+                    repository:
+                      description: component container registry and repository name
+                      type: string
+                    tag:
+                      description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
+                    pullPolicy:
+                      description: component image pull policy
+                      type: string
+                  type: object
+                javaComponentOptions:
+                  description: component additional java options
+                  type: string
+                debug:
+                  description: component debug
+                  type: boolean
+                resources:
+                  description: component resource configuration
+                  properties:
+                    limits:
+                      description: component limits
+                      properties:
+                        memory:
+                          description: component memory limits
+                          type: string
+                      type: object
+                  type: object
+              type: object
+            mediation-oracle:
               properties:
                 annotations:
                   description: component specific pod annotations list
@@ -3190,6 +3196,45 @@ spec:
                   type: object
               type: object
             mediation-tetration:
+              properties:
+                annotations:
+                  description: component specific pod annotations list
+                  type: object
+                image:
+                  description: component specific image options
+                  properties:
+                    repository:
+                      description: component container registry and repository name
+                      type: string
+                    tag:
+                      description: component container tag
+                      type: string
+                    serviceAccountName:
+                      description: component serviceAccountName
+                      type: string
+                    pullPolicy:
+                      description: component image pull policy
+                      type: string
+                  type: object
+                javaComponentOptions:
+                  description: component additional java options
+                  type: string
+                debug:
+                  description: component debug
+                  type: boolean
+                resources:
+                  description: component resource configuration
+                  properties:
+                    limits:
+                      description: component limits
+                      properties:
+                        memory:
+                          description: component memory limits
+                          type: string
+                      type: object
+                  type: object
+              type: object
+            mediation-tomcat:
               properties:
                 annotations:
                   description: component specific pod annotations list
