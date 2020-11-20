@@ -4,6 +4,7 @@ import static com.vmturbo.components.common.stats.StatsUtils.collectCommodityNam
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
 import static org.apache.commons.lang.time.DateUtils.MILLIS_PER_DAY;
 
+import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -49,6 +50,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
+import org.jooq.Record3;
 import org.jooq.exception.DataAccessException;
 import org.springframework.util.CollectionUtils;
 
@@ -80,6 +82,9 @@ import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryResponse;
+import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryResponse.VolumeAttachmentHistory;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
 import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
@@ -111,6 +116,7 @@ import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkLoader;
+import com.vmturbo.history.ingesters.live.writers.VolumeAttachmentHistoryWriter;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
@@ -121,6 +127,7 @@ import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
 import com.vmturbo.history.stats.readers.MostRecentLiveStatReader;
+import com.vmturbo.history.stats.readers.VolumeAttachmentHistoryReader;
 import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
 import com.vmturbo.history.stats.writers.PercentileWriter;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -153,6 +160,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     private final SystemLoadReader systemLoadReader;
     private final RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader;
     private final MostRecentLiveStatReader mostRecentLiveStatReader;
+    private final VolumeAttachmentHistoryReader volumeAttachmentHistoryReader;
     private final ExecutorService statsWriterExecutorService;
 
     private final int systemLoadRecordsPerChunk;
@@ -189,7 +197,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             final int systemLoadRecordsPerChunk,
             @Nonnull RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader,
             @Nonnull ExecutorService statsWriterExecutorService,
-            @Nonnull MostRecentLiveStatReader mostRecentLiveStatReader) {
+            @Nonnull MostRecentLiveStatReader mostRecentLiveStatReader,
+            @Nonnull VolumeAttachmentHistoryReader volumeAttachmentHistoryReader) {
         this.realtimeContextId = realtimeContextId;
         this.liveStatsReader = Objects.requireNonNull(liveStatsReader);
         this.planStatsReader = Objects.requireNonNull(planStatsReader);
@@ -205,6 +214,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         this.percentileReader = Objects.requireNonNull(percentileReader);
         this.statsWriterExecutorService = Objects.requireNonNull(statsWriterExecutorService);
         this.mostRecentLiveStatReader = Objects.requireNonNull(mostRecentLiveStatReader);
+        this.volumeAttachmentHistoryReader = Objects.requireNonNull(volumeAttachmentHistoryReader);
     }
 
     /**
@@ -1420,5 +1430,43 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             () -> returnObject);
         responseObserver.onNext(returnObject);
         responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getVolumeAttachmentHistory(GetVolumeAttachmentHistoryRequest request,
+        StreamObserver<GetVolumeAttachmentHistoryResponse> responseObserver) {
+        final List<Record3<Long, Long, Date>> historyList =
+            volumeAttachmentHistoryReader.getVolumeAttachmentHistory(request.getVolumeOidList());
+        final GetVolumeAttachmentHistoryResponse response = GetVolumeAttachmentHistoryResponse
+            .newBuilder()
+            .addAllHistory(createVolumeAttachmentHistory(historyList, request.getRetrieveVmNames()))
+            .build();
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+    }
+
+    private List<VolumeAttachmentHistory> createVolumeAttachmentHistory(
+        final List<Record3<Long, Long, Date>> records, final boolean retrieveVmNames) {
+        return records.stream()
+            .map(record -> {
+                final VolumeAttachmentHistory.Builder builder =
+                    VolumeAttachmentHistory.newBuilder()
+                        .setVolumeOid(record.component1())
+                        .setLastAttachedDateMs(record.component3().getTime());
+                final long vmOid = record.component2();
+                // Note: The following logic retrieves VM names from the entities table
+                // one-at-a-time instead of bulk. This is inefficient but OK for now as the
+                // RPC is expected to be called with a single Volume oid when retrieveVmNames
+                // is set to true ensuring single access to entities table.
+                // When the RPC is called with a bulk of Volume oids, it is expected that
+                // retrieveVmNames is false and hence the entities table will not be accessed.
+                if (retrieveVmNames
+                    && vmOid != VolumeAttachmentHistoryWriter.VM_OID_VALUE_FOR_UNATTACHED_VOLS) {
+                    Optional.ofNullable(
+                        liveStatsReader.getEntityDisplayNameForId(vmOid))
+                        .ifPresent(builder::addVmName);
+                }
+                return builder.build();
+            }).collect(Collectors.toList());
     }
 }

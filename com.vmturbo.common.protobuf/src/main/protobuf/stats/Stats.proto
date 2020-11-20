@@ -221,6 +221,29 @@ message GetMostRecentStatResponse {
     optional uint64 entity_uuid = 4;
 }
 
+// Request for GetVolumeAttachmentHistory rpc
+message GetVolumeAttachmentHistoryRequest {
+    // volume oids for which Volume Attachment History is requested
+    repeated uint64 volume_oid = 1;
+    // true if last attached vm names to be included as a part of the response, false if not
+    optional bool retrieve_vm_names = 2 [default = false];
+}
+
+// Response for GetVolumeAttachment History rpc
+message GetVolumeAttachmentHistoryResponse {
+    // List of Volume Attachment History for the requested Volumes
+    repeated VolumeAttachmentHistory history = 1;
+    // Represents the Volume Attachment History for a Volume
+    message VolumeAttachmentHistory {
+        // oid of Volume for whom this Volume Attachment History is being represented
+        optional uint64 volume_oid = 1;
+        // date on which the Volume was last attached
+        optional uint64 last_attached_date_ms = 2;
+        // VMs that the Volume was last attached to
+        repeated string vm_name = 3;
+    }
+}
+
 // Historical epoch to which a stat may belong. For example, if a stat was retrieved from an hourly
 // table, then the StatHistoricalEpoch would be HOUR.
 enum StatHistoricalEpoch {
@@ -736,4 +759,8 @@ service StatsHistoryService {
 
     // Get the most recent stat for a commodity from the hourly, daily or monthly tables
     rpc GetMostRecentStat (GetMostRecentStatRequest) returns (GetMostRecentStatResponse);
+
+    // Get the Volume Attachment History for a list of Volumes
+    rpc GetVolumeAttachmentHistory (GetVolumeAttachmentHistoryRequest) returns
+    (stream GetVolumeAttachmentHistoryResponse);
 }

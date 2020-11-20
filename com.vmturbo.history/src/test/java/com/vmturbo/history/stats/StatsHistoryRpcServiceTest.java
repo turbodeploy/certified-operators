@@ -27,11 +27,13 @@
  import static org.mockito.Mockito.verifyNoMoreInteractions;
  import static org.mockito.Mockito.when;
 
+ import java.sql.Date;
  import java.sql.Timestamp;
  import java.time.Duration;
  import java.util.ArrayList;
  import java.util.Arrays;
  import java.util.Collections;
+ import java.util.Iterator;
  import java.util.List;
  import java.util.Map;
  import java.util.Optional;
@@ -53,6 +55,7 @@
  import io.grpc.stub.StreamObserver;
 
  import org.jooq.Record;
+ import org.jooq.Record3;
  import org.junit.Assert;
  import org.junit.Before;
  import org.junit.Rule;
@@ -82,6 +85,9 @@
  import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatResponse;
  import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
  import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
+ import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryRequest;
+ import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryResponse;
+ import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryResponse.VolumeAttachmentHistory;
  import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
  import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
  import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
@@ -120,6 +126,7 @@
  import com.vmturbo.history.stats.readers.LiveStatsReader;
  import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
  import com.vmturbo.history.stats.readers.MostRecentLiveStatReader;
+ import com.vmturbo.history.stats.readers.VolumeAttachmentHistoryReader;
  import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
 
 /**
@@ -171,6 +178,8 @@ public class StatsHistoryRpcServiceTest {
 
     private MostRecentLiveStatReader mostRecentLiveStatReader =
             mock(MostRecentLiveStatReader.class);
+    private VolumeAttachmentHistoryReader volumeAttachmentHistoryReader =
+        mock(VolumeAttachmentHistoryReader.class);
     private ExecutorService threadPool = mock(ExecutorService.class);
 
     private StatsHistoryRpcService statsHistoryRpcService =
@@ -182,7 +191,8 @@ public class StatsHistoryRpcServiceTest {
                     statSnapshotCreatorSpy,
                     statRecordBuilderSpy,
                     systemLoadReader, 100,
-                    percentileReader, threadPool, mostRecentLiveStatReader));
+                    percentileReader, threadPool, mostRecentLiveStatReader,
+                    volumeAttachmentHistoryReader));
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryRpcService);
@@ -1041,6 +1051,110 @@ public class StatsHistoryRpcServiceTest {
 
         // then
         Assert.assertEquals(vmName, response.getEntityDisplayName());
+    }
+
+    private static final long VOLUME_ID_1 = 11111L;
+    private static final long VOLUME_ID_2 = 22222L;
+    private static final long INSTANT = 1605846218244L;
+    private static final long INSTANT_2 = 1605846118244L;
+    private static final long VM_ID_1 = 555555L;
+    private static final long VM_ID_2 = 666666L;
+    private static final String VM_1_NAME = "vm-1";
+
+    /**
+     * Test that GetVolumeAttachmentHistory returns correct response for single volume request
+     * without VM name retrieval.
+     */
+    @Test
+    public void testGetVolumeAttachmentHistorySingleVolumeNoVmName() {
+        final Record3<Long, Long, Date> record = createMockRecord(VOLUME_ID_1, VM_ID_1, INSTANT);
+        when(volumeAttachmentHistoryReader.getVolumeAttachmentHistory(
+            Collections.singletonList(VOLUME_ID_1)))
+            .thenReturn(Collections.singletonList(record));
+
+        final GetVolumeAttachmentHistoryRequest request =
+            createRequest(Collections.singletonList(VOLUME_ID_1), false);
+        final Iterator<GetVolumeAttachmentHistoryResponse> responseIterator =
+            clientStub.getVolumeAttachmentHistory(request);
+
+        verifyVolumeAttachmentHistoryResponse(VOLUME_ID_1, null, INSTANT, responseIterator.next());
+    }
+
+    /**
+     * Test that GetVolumeAttachmentHistory returns correct response for single volume request
+     * with VM name retrieval.
+     */
+    @Test
+    public void testGetVolumeAttachmentHistorySingleVolumeWithVmName() {
+        final Record3<Long, Long, Date> record = createMockRecord(VOLUME_ID_1, VM_ID_1, INSTANT_2);
+        when(volumeAttachmentHistoryReader.getVolumeAttachmentHistory(
+            Collections.singletonList(VOLUME_ID_1)))
+            .thenReturn(Collections.singletonList(record));
+
+        final GetVolumeAttachmentHistoryRequest request =
+            createRequest(Collections.singletonList(VOLUME_ID_1), true);
+        when(mockLivestatsreader.getEntityDisplayNameForId(VM_ID_1)).thenReturn(VM_1_NAME);
+        final Iterator<GetVolumeAttachmentHistoryResponse> responseIterator =
+            clientStub.getVolumeAttachmentHistory(request);
+
+        verifyVolumeAttachmentHistoryResponse(VOLUME_ID_1, VM_1_NAME, INSTANT_2,
+            responseIterator.next());
+    }
+
+    /**
+     * Test that GetVolumeAttachmentHistory returns correct response for multiple volume request
+     * (multiple volume requests are always expected to be without VM name retrieval).
+     */
+    @Test
+    public void testGetVolumeAttachmentHistoryBulkVolumesNoVmName() {
+        final Record3<Long, Long, Date> record1 = createMockRecord(VOLUME_ID_1, VM_ID_1, INSTANT);
+        final Record3<Long, Long, Date> record2 = createMockRecord(VOLUME_ID_2, VM_ID_2, INSTANT_2);
+        final List<Long> requestedVolumes = Stream.of(VOLUME_ID_1, VOLUME_ID_2)
+            .collect(Collectors.toList());
+        when(volumeAttachmentHistoryReader.getVolumeAttachmentHistory(requestedVolumes))
+            .thenReturn(Stream.of(record1, record2).collect(Collectors.toList()));
+
+        final GetVolumeAttachmentHistoryRequest request = createRequest(requestedVolumes, false);
+        final Iterator<GetVolumeAttachmentHistoryResponse> responseIterator =
+            clientStub.getVolumeAttachmentHistory(request);
+        final GetVolumeAttachmentHistoryResponse response = responseIterator.next();
+
+        verifyVolumeAttachmentHistoryResponse(VOLUME_ID_1, null, INSTANT, response);
+        verifyVolumeAttachmentHistoryResponse(VOLUME_ID_2, null, INSTANT_2, response);
+    }
+
+    private void verifyVolumeAttachmentHistoryResponse(
+        final long expectedVolumeOid, final String expectedVmName, final long expectedInstant,
+        final GetVolumeAttachmentHistoryResponse actualResponse) {
+        final Optional<VolumeAttachmentHistory> history = actualResponse.getHistoryList().stream()
+            .filter(h -> h.getVolumeOid() == expectedVolumeOid)
+            .findAny();
+        Assert.assertTrue(history.isPresent());
+        if (expectedVmName == null) {
+            Assert.assertTrue(history.get().getVmNameList().isEmpty());
+        } else {
+            final String actualVmName = history.get().getVmNameList().iterator().next();
+            Assert.assertEquals(expectedVmName, actualVmName);
+        }
+        Assert.assertEquals(expectedInstant, history.get().getLastAttachedDateMs());
+    }
+
+    private GetVolumeAttachmentHistoryRequest createRequest(final List<Long> volumeOids,
+                                                            final boolean retrieveVmNames) {
+        return Stats.GetVolumeAttachmentHistoryRequest
+            .newBuilder()
+            .addAllVolumeOid(volumeOids)
+            .setRetrieveVmNames(retrieveVmNames)
+            .build();
+    }
+
+    private Record3<Long, Long, Date> createMockRecord(final long volumeOid, final long vmOid,
+                                                       final long instant) {
+        final Record3<Long, Long, Date> record = mock(Record3.class);
+        when(record.component1()).thenReturn(volumeOid);
+        when(record.component2()).thenReturn(vmOid);
+        when(record.component3()).thenReturn(new Date(instant));
+        return record;
     }
 
     private static SystemLoadRecord newSystemLoadInfo(@Nonnull final String clusterId) {

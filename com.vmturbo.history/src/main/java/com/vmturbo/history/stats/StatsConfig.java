@@ -49,6 +49,7 @@ import com.vmturbo.history.stats.readers.HistUtilizationReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
 import com.vmturbo.history.stats.readers.MostRecentLiveStatReader;
 import com.vmturbo.history.stats.readers.PercentileReader;
+import com.vmturbo.history.stats.readers.VolumeAttachmentHistoryReader;
 import com.vmturbo.history.stats.snapshots.CapacityRecordVisitor.CapacityPopulator;
 import com.vmturbo.history.stats.snapshots.DefaultStatSnapshotCreator;
 import com.vmturbo.history.stats.snapshots.ProducerIdVisitor.ProducerIdPopulator;
@@ -199,7 +200,8 @@ public class StatsConfig {
                 systemLoadRecordsPerChunk,
                 percentileReader(),
                 statsSvcThreadPool(),
-                mostRecentLiveStatsReader());
+                mostRecentLiveStatsReader(),
+                volumeAttachmentHistoryReader());
     }
 
     @Bean
@@ -338,6 +340,11 @@ public class StatsConfig {
     @Bean
     MostRecentLiveStatReader mostRecentLiveStatsReader() {
         return new MostRecentLiveStatReader(historyDbConfig.historyDbIO());
+    }
+
+    @Bean
+    VolumeAttachmentHistoryReader volumeAttachmentHistoryReader() {
+        return new VolumeAttachmentHistoryReader(historyDbConfig.historyDbIO());
     }
 
     @Bean

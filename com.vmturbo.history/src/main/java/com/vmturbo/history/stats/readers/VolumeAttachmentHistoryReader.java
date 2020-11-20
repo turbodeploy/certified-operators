@@ -24,14 +24,19 @@ import com.vmturbo.history.schema.abstraction.tables.VolumeAttachmentHistory;
 /**
  * Class that queries Volume Attachment History table.
  */
-class VolumeAttachmentHistoryReader {
+public class VolumeAttachmentHistoryReader {
 
     private static final Logger logger = LogManager.getLogger();
     private static final VolumeAttachmentHistory table =
         VolumeAttachmentHistory.VOLUME_ATTACHMENT_HISTORY;
     private final HistorydbIO historydbIO;
 
-    VolumeAttachmentHistoryReader(@Nonnull final HistorydbIO historydbIO) {
+    /**
+     * Creates an instance of VolumeAttachmentHistoryReader.
+     *
+     * @param historydbIO instance to execute queries.
+     */
+    public VolumeAttachmentHistoryReader(@Nonnull final HistorydbIO historydbIO) {
         this.historydbIO = historydbIO;
     }
 
@@ -42,7 +47,7 @@ class VolumeAttachmentHistoryReader {
      * @return list of records for the volumeOids provided.
      */
     @Nonnull
-    List<Record3<Long, Long, Date>> getVolumeAttachmentHistory(
+    public List<Record3<Long, Long, Date>> getVolumeAttachmentHistory(
         @Nonnull final List<Long> volumeOids) {
         if (volumeOids.isEmpty()) {
             return Collections.emptyList();
