@@ -35,20 +35,34 @@ public class ActionStateMachine {
 
     /**
      * Generate a new state machine for an action. The state machine looks like:
-     *
-     * READY
-     *   ^
-     *   |------->   CLEARED
-     *   |         ^   ^       ^
-     *   |         |   |       |
-     *   |-> REJECTED  |       |
-     *   |             |       |
-     *   |             |       |
-     *   |-----> ACCEPTED <--> QUEUED ---> PRE_IN_PROGRESS ---> IN_PROGRESS ----> POST_IN_PROGRESS
-     *                                       |                                     |
-     *                                       |                                     |-------> SUCCEEDED
-     *                                       |                                     |
-     *                                       |------------------------------------>|-------> FAILED
+     * <pre>
+     *          READY ----------> CLEARED
+     *           ^  ^               ^^^
+     *           |  |               |||
+     *           |  v               |||
+     *           |  REJECTED ------- ||
+     *           v                   ||
+     *        ACCEPTED---------------||
+     *           ^                    |
+     *           |                    |
+     *           v                    |
+     *        QUEUED------------------
+     *           |
+     *           v
+     *        PRE_IN_PROGRESS---------------------------------
+     *           |                                           |
+     *           V                                           |
+     *   -----IN_PROGRESS----------------------              |
+     *  |  ___/  |                             |             |
+     *  | |      v                             v             |
+     *  | |   POST_IN_PROGRESS -----         FAILING         |
+     *  | |      |                  |           |            |
+     *  | |      v                  |           v            |
+     *  |  -->SUCCEEDED              -------> FAILED <-------
+     *  |                                       ^
+     *  |                                       |
+     *   ---------------------------------------
+     * </pre>
      *
      * Transitions from READY -> QUEUED are guarded by checks that verify the action
      * is in an appropriate mode that allows such a transition.
@@ -72,7 +86,6 @@ public class ActionStateMachine {
             .addTransition(from(ActionState.READY).to(ActionState.CLEARED)
                 .onEvent(CannotExecuteEvent.class)
                 .after(action::onActionCleared))
-
             .addTransition(from(ActionState.READY).to(ActionState.ACCEPTED)
                 .onEvent(ManualAcceptanceEvent.class)
                 .guardedBy(action::acceptanceGuard)
@@ -116,7 +129,6 @@ public class ActionStateMachine {
             .addTransition(from(ActionState.PRE_IN_PROGRESS).to(ActionState.PRE_IN_PROGRESS)
                 .onEvent(ProgressEvent.class)
                 .after(action::onActionProgress))
-
             // Transition from PRE_IN_PROGRESS to IN_PROGRESS when no PRE workflow is required
             // If a pre workflow is in progress, this will not transition.
             .addTransition(from(ActionState.PRE_IN_PROGRESS).to(ActionState.IN_PROGRESS)
@@ -133,26 +145,36 @@ public class ActionStateMachine {
             .addTransition(from(ActionState.IN_PROGRESS).to(ActionState.IN_PROGRESS)
                 .onEvent(ProgressEvent.class)
                 .after(action::onActionProgress))
-
             .addTransition(from(ActionState.IN_PROGRESS).to(
-                    () -> action.getPostExecutionStep(ActionState.SUCCEEDED))
+                    () -> action.getPostExecutionStep(
+                            ActionState.POST_IN_PROGRESS,
+                            ActionState.SUCCEEDED))
                 .onEvent(SuccessEvent.class)
                 .after(action::onActionPostSuccess))
-
             .addTransition(from(ActionState.IN_PROGRESS).to(
-                    () -> action.getPostExecutionStep(ActionState.FAILED))
+                    () -> action.getPostExecutionStep(
+                            ActionState.FAILING,
+                            ActionState.FAILED))
                 .onEvent(FailureEvent.class)
                 .after(action::onActionPostFailure))
 
             .addTransition(from(ActionState.POST_IN_PROGRESS).to(ActionState.POST_IN_PROGRESS)
                 .onEvent(ProgressEvent.class)
                 .after(action::onActionProgress))
-
             .addTransition(from(ActionState.POST_IN_PROGRESS).to(ActionState.FAILED)
                 .onEvent(FailureEvent.class)
                 .after(action::onActionFailure))
+            .addTransition(from(ActionState.POST_IN_PROGRESS).to(ActionState.SUCCEEDED)
+                .onEvent(SuccessEvent.class)
+                .after(action::onActionSuccess))
 
-            .addTransition(from(ActionState.POST_IN_PROGRESS).to(action::getPostExecutionSuccessState)
+            .addTransition(from(ActionState.FAILING).to(ActionState.FAILING)
+                .onEvent(ProgressEvent.class)
+                .after(action::onActionProgress))
+            .addTransition(from(ActionState.FAILING).to(ActionState.FAILED)
+                .onEvent(FailureEvent.class)
+                .after(action::onActionFailure))
+            .addTransition(from(ActionState.FAILING).to(ActionState.FAILED)
                 .onEvent(SuccessEvent.class)
                 .after(action::onActionSuccess))
 

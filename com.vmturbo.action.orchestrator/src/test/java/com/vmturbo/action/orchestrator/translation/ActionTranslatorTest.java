@@ -546,6 +546,19 @@ public class ActionTranslatorTest {
         });
     }
 
+    /**
+     * Failing actions should set hasFailure on {@link ActionSpec}. Actions that did not fail yet
+     * should set the flag to false.
+     */
+    @Test
+    public void testFailingState() {
+        final Action actionFailing = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator, 2244L));
+        actionFailing.setDescription("Move VM1 from PM1 to PM2");
+        when(actionFailing.getState()).thenReturn(ActionState.FAILING);
+        final ActionSpec actionSpecFailing = translator.translateToSpec(actionFailing);
+        assertEquals(ActionState.FAILING, actionSpecFailing.getActionState());
+    }
+
     private TopologyGraph<ActionGraphEntity> mockTopologyGraph() {
         TopologyGraph<ActionGraphEntity> topologyGraph = mock(TopologyGraph.class);
         ActionGraphEntity containerPodEntity = ActionOrchestratorTestUtils.mockActionGraphEntity(CONTAINER_POD_ID, EntityType.CONTAINER_POD_VALUE);

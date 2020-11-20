@@ -27,6 +27,9 @@ message ExecuteActionRequest {
     optional action.ActionType action_type = 5;
 
     optional string explanation = 6;
+
+    // The state that action orchestrator reports.
+    required action.ActionState actionState = 7;
 }
 
 message ExecuteActionResponse {}

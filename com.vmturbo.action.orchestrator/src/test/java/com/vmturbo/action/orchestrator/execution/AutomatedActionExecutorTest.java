@@ -4,6 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -124,7 +125,7 @@ public class AutomatedActionExecutorTest {
                         actionTargetSelector, entitySettingsCache, scheduleService);
         when(actionStore.getActions()).thenReturn(actionMap);
         Mockito.doNothing().when(actionExecutor).executeSynchronously(anyLong(),
-                any(ActionDTO.Action.class), any(Optional.class));
+                any(ActionDTO.Action.class), any(Optional.class), any());
         when(actionStore.allowsExecution()).thenReturn(true);
     }
 
@@ -202,6 +203,7 @@ public class AutomatedActionExecutorTest {
 
         final ActionTranslation translation = new ActionTranslation(crossTargetRec);
         translation.setPassthroughTranslationSuccess();
+        when(crossTargetAction.getState()).thenReturn(ActionState.IN_PROGRESS);
         when(crossTargetAction.getActionTranslation()).thenReturn(translation);
         when(crossTargetAction.getWorkflow(workflowStore, crossTargetAction.getState())).thenReturn(
                 Optional.empty());
@@ -221,7 +223,7 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
-        Mockito.verify(actionExecutor).executeSynchronously(targetId1, crossTargetRec, workflowOpt);
+        Mockito.verify(actionExecutor).executeSynchronously(targetId1, crossTargetRec, workflowOpt, ActionState.IN_PROGRESS);
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
     }
 
@@ -365,7 +367,7 @@ public class AutomatedActionExecutorTest {
                 failedExecuteAction.getState())).thenReturn(Optional.empty());
         when(failedExecuteAction.getWorkflowExecutionTarget(workflowStore)).thenReturn(Optional.empty());
         Mockito.doThrow(new ExecutionStartException("EPIC FAIL!!!"))
-                .when(actionExecutor).executeSynchronously(targetId1, rec, workflowOpt);
+                .when(actionExecutor).executeSynchronously(targetId1, rec, workflowOpt, ActionState.IN_PROGRESS);
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
 
         executorService.shutdown();
@@ -385,7 +387,7 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
-        Mockito.verify(actionExecutor).executeSynchronously(targetId1, rec, workflowOpt);
+        Mockito.verify(actionExecutor).executeSynchronously(targetId1, rec, workflowOpt, ActionState.IN_PROGRESS);
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
     }
 
@@ -407,7 +409,7 @@ public class AutomatedActionExecutorTest {
         when(goodAction.getActionTranslation()).thenReturn(translation);
         when(goodAction.getWorkflow(workflowStore, goodAction.getState())).thenReturn(Optional.empty());
         when(goodAction.getWorkflowExecutionTarget(workflowStore)).thenReturn(Optional.empty());
-
+        when(goodAction.getState()).thenReturn(ActionState.IN_PROGRESS);
 
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
 
@@ -422,12 +424,12 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
-        Mockito.verify(actionExecutor).executeSynchronously(targetId1, rec, workflowOpt);
+        Mockito.verify(actionExecutor).executeSynchronously(targetId1, rec, workflowOpt, ActionState.IN_PROGRESS);
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
     }
 
     @Test
-    public void testAutomatedexecuteSynchronously() throws Exception {
+    public void testAutomatedExecuteSynchronously() throws Exception {
         //all together now!
 
         final Action nonAutoAction = Mockito.mock(Action.class);
@@ -476,7 +478,7 @@ public class AutomatedActionExecutorTest {
         setUpMocksForAutomaticAction(failedExecuteAction, execFailId, execFailRec);
         when(failedExecuteAction.getActionTranslation()).thenReturn(execFailTrans);
         Mockito.doThrow(new ExecutionStartException("EPIC FAIL!!!!"))
-                .when(actionExecutor).executeSynchronously(targetId2, execFailRec, workflowOpt);
+                .when(actionExecutor).executeSynchronously(targetId2, execFailRec, workflowOpt, ActionState.IN_PROGRESS);
 
         final Action goodAction = Mockito.mock(Action.class);
         final long goodId = 1L;
@@ -541,8 +543,8 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).allowsExecution();
         // This mapping happens once, for all actions
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
-        Mockito.verify(actionExecutor).executeSynchronously(targetId1, goodRec, workflowOpt);
-        Mockito.verify(actionExecutor).executeSynchronously(targetId2, execFailRec, workflowOpt);
+        Mockito.verify(actionExecutor).executeSynchronously(targetId1, goodRec, workflowOpt, ActionState.IN_PROGRESS);
+        Mockito.verify(actionExecutor).executeSynchronously(targetId2, execFailRec, workflowOpt, ActionState.IN_PROGRESS);
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
 
     }
@@ -653,7 +655,7 @@ public class AutomatedActionExecutorTest {
         Mockito.verify(actionStore).getActions();
         Mockito.verify(actionStore).allowsExecution();
         Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any(), any());
-        Mockito.verify(actionExecutor).executeSynchronously(targetId1, recommendation, workflowOpt);
+        Mockito.verify(actionExecutor).executeSynchronously(targetId1, recommendation, workflowOpt, ActionState.IN_PROGRESS);
         Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
     }
 
@@ -714,6 +716,8 @@ public class AutomatedActionExecutorTest {
         setUpMocks(action, id, recommendation);
         when(action.getMode()).thenReturn(ActionMode.AUTOMATIC);
         when(action.getSchedule()).thenReturn(Optional.empty());
+        when(action.getState()).thenReturn(ActionState.IN_PROGRESS);
+        when(action.getWorkflow(any(), eq(ActionState.IN_PROGRESS))).thenReturn(Optional.empty());
     }
 
     private void setUpMocksForManuallyAcceptedAction(@Nonnull Action action, long id,
@@ -721,6 +725,8 @@ public class AutomatedActionExecutorTest {
             boolean isActiveExecutionSchedule) throws WorkflowStoreException {
         setUpMocks(action, id, recommendation);
         when(action.getMode()).thenReturn(ActionMode.MANUAL);
+        when(action.getState()).thenReturn(ActionState.IN_PROGRESS);
+        when(action.getWorkflow(any(), eq(ActionState.IN_PROGRESS))).thenReturn(Optional.empty());
 
         when(actionSchedule.isActiveSchedule()).thenReturn(isActiveExecutionSchedule);
         when(actionSchedule.getAcceptingUser()).thenReturn("administrator");

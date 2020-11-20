@@ -10,13 +10,16 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -30,6 +33,11 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
+/**
+ * Verifies that {@link AbstractActionExecutionContext} and all the classes that extend it like
+ * {@link ResizeContext} convert action info into the expected {@link ActionExecutionDTO} and
+ *  {@link ActionItemDTO}.
+ */
 public class ActionExecutionContextTest {
 
     private final ActionDataManager actionDataManagerMock = Mockito.mock(ActionDataManager.class);
@@ -46,6 +54,9 @@ public class ActionExecutionContextTest {
     // Builds the class under test
     private ActionExecutionContextFactory actionExecutionContextFactory;
 
+    /**
+     * Set up all of the mocks so they return reasonable values for unit testing.
+     */
     @Before
     public void setup() {
         Target target = Mockito.mock(Target.class);
@@ -61,6 +72,11 @@ public class ActionExecutionContextTest {
                 probeStoreMock);
     }
 
+    /**
+     * Test converting activate action info in ActionItemDTO.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testActivateContext() throws Exception {
         // Construct an activate action request
@@ -76,6 +92,7 @@ public class ActionExecutionContextTest {
                 .setTargetId(targetId)
                 .setActionInfo(activate)
                 .setActionType(ActionDTO.ActionType.ACTIVATE)
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Set up the mocks
@@ -136,6 +153,11 @@ public class ActionExecutionContextTest {
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
+    /**
+     * Test converting deactivate action info in ActionItemDTO.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testDeactivateContext() throws Exception {
         // Construct an deactivate action request
@@ -151,6 +173,7 @@ public class ActionExecutionContextTest {
                 .setTargetId(targetId)
                 .setActionInfo(deactivate)
                 .setActionType(ActionDTO.ActionType.DEACTIVATE)
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Set up the mocks
@@ -198,6 +221,11 @@ public class ActionExecutionContextTest {
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
+    /**
+     * Test converting resize action info in ActionItemDTO.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testResizeContext() throws Exception {
         // Construct an resize action request
@@ -222,6 +250,7 @@ public class ActionExecutionContextTest {
                 .setTargetId(targetId)
                 .setActionInfo(resize)
                 .setActionType(ActionDTO.ActionType.RESIZE)
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Set up the mocks
@@ -295,6 +324,11 @@ public class ActionExecutionContextTest {
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
+    /**
+     * Test converting provision action info in ActionItemDTO.
+     *
+     * @throws Exception should not be thrown.
+     */
     @Test
     public void testProvisionContext() throws Exception {
         // Construct a provision action request
@@ -310,6 +344,7 @@ public class ActionExecutionContextTest {
                 .setTargetId(targetId)
                 .setActionInfo(provision)
                 .setActionType(ActionDTO.ActionType.PROVISION)
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Set up the mocks
@@ -369,4 +404,95 @@ public class ActionExecutionContextTest {
         Mockito.verifyNoMoreInteractions(actionDataManagerMock);
     }
 
+    /**
+     * {@link AbstractActionExecutionContext} should populate
+     * {@link ActionExecutionDTO#getActionState()}.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testActionStates() throws Exception {
+        // Construct an resize action request
+        final long entityId = 35;
+        final float oldCapacity = 2000;
+        final float newCapacity = 3000;
+        final ActionDTO.ActionInfo resize = ActionInfo.newBuilder()
+            .setResize(Resize.newBuilder()
+                .setTarget(ActionExecutionTestUtils.createActionEntity(entityId))
+                .setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.VMEM_VALUE)
+                    .build())
+                .setHotAddSupported(true)
+                .setNewCapacity(newCapacity)
+                .setOldCapacity(oldCapacity)
+                .setCommodityAttribute(CommodityAttribute.CAPACITY))
+            .build();
+        final int targetId = 13;
+        final int actionId = 5;
+
+        // Set up the mocks
+        Mockito.when(actionDataManagerMock.getContextData(resize))
+            .thenReturn(Collections.emptyList());
+
+        // We need entity info for both the primary entity and its host
+        final EntityType entityType = EntityType.VIRTUAL_MACHINE;
+        final Entity entity = new Entity(entityId, entityType);
+        final EntityDTO entityDTO = EntityDTO.newBuilder()
+            .setEntityType(entityType)
+            .setId(Long.toString(entityId))
+            .build();
+        entity.addTargetInfo(targetId, entityDTO);
+        final int hostEntityId = 42;
+        entity.setHostedBy(targetId, hostEntityId);
+
+        final EntityType hostEntityType = EntityType.PHYSICAL_MACHINE;
+        final Entity hostEntity = new Entity(hostEntityId, hostEntityType);
+        final EntityDTO hostEntityDTO = EntityDTO.newBuilder()
+            .setEntityType(hostEntityType)
+            .setId(Long.toString(hostEntityId))
+            .build();
+        hostEntity.addTargetInfo(targetId, hostEntityDTO);
+
+        // Retrieve the raw entity info (used only for setting the host field)
+        Mockito.when(entityStoreMock.getEntity(entityId)).thenReturn(Optional.of(entity));
+        // Retrieve the full entity info
+        Mockito.when(entityRetrieverMock.fetchAndConvertToEntityDTO(entityId)).thenReturn(entityDTO);
+        Mockito.when(entityRetrieverMock.fetchAndConvertToEntityDTO(hostEntityId))
+            .thenReturn(hostEntityDTO);
+
+        // Construct a resize action context to pull in additional data for action execution
+        // This is the method call being tested
+        final ExecuteActionRequest templateAction = ExecuteActionRequest.newBuilder()
+            .setActionId(actionId)
+            .setTargetId(targetId)
+            .setActionInfo(resize)
+            .setActionType(ActionDTO.ActionType.RESIZE)
+            .setActionState(ActionState.IN_PROGRESS)
+            .build();
+
+        assertActionState(templateAction, ActionState.READY, ActionResponseState.PENDING_ACCEPT);
+        assertActionState(templateAction, ActionState.CLEARED, ActionResponseState.CLEARED);
+        assertActionState(templateAction, ActionState.REJECTED, ActionResponseState.REJECTED);
+        assertActionState(templateAction, ActionState.ACCEPTED, ActionResponseState.ACCEPTED);
+        assertActionState(templateAction, ActionState.QUEUED, ActionResponseState.QUEUED);
+        assertActionState(templateAction, ActionState.IN_PROGRESS, ActionResponseState.IN_PROGRESS);
+        assertActionState(templateAction, ActionState.SUCCEEDED, ActionResponseState.SUCCEEDED);
+        assertActionState(templateAction, ActionState.FAILED, ActionResponseState.FAILED);
+        assertActionState(templateAction, ActionState.PRE_IN_PROGRESS, ActionResponseState.IN_PROGRESS);
+        assertActionState(templateAction, ActionState.POST_IN_PROGRESS, ActionResponseState.IN_PROGRESS);
+        assertActionState(templateAction, ActionState.FAILING, ActionResponseState.FAILING);
+    }
+
+    private void assertActionState(
+            ExecuteActionRequest templateAction,
+            ActionState stateInActionOrchestrator,
+            ActionResponseState expectedState) throws ContextCreationException {
+        final ExecuteActionRequest inputRequest = templateAction.toBuilder()
+            .setActionState(stateInActionOrchestrator)
+            .build();
+        final ActionExecutionContext actionExecutionContext =
+            actionExecutionContextFactory.getActionExecutionContext(inputRequest);
+        final ActionExecutionDTO succeedingActionExecutionDTO = actionExecutionContext.buildActionExecutionDto();
+        Assert.assertEquals(expectedState, succeedingActionExecutionDTO.getActionState());
+    }
 }

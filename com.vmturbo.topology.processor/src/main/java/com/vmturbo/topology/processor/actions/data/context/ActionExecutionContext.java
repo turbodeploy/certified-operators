@@ -11,34 +11,33 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
-import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 
 /**
  * An interface for collecting data needed for action execution
  *
- * The action execution context provides a single place to store all the data required for action
+ * <p>The action execution context provides a single place to store all the data required for action
  * execution. The primary payload is the list of {@link ActionItemDTO}s, which is the SDK/probe
- * representation of an action.
+ * representation of an action.</p>
  */
 public interface ActionExecutionContext {
 
     /**
      * Get all of the action item DTOs associated with executing this action
      *
-     * In constrast to {@link ActionDTO ActionDTOs}, which are used throughout XL to represent
+     * <p>In contrast to {@link ActionDTO ActionDTOs}, which are used throughout XL to represent
      * actions, ActionItemDTOs are used to communicate actions to the probes.
-     * This is the main carrier of data sent to the probes when executing an action.
+     * This is the main carrier of data sent to the probes when executing an action.</p>
      *
-     * An action is represented as a list of action items because some actions, such as a move
+     * <p>An action is represented as a list of action items because some actions, such as a move
      * together or a cross target move, will translate to multiple action items. For example, if a
      * VM is changing hosts and changing storage, it would have one action item for the hosts change
      * and another action item for the storage change. Any change of providers is represented as
      * a separate action item in the list. The entire list of action items executes atomically,
-     * as a single logical action with multiple parts.
+     * as a single logical action with multiple parts.</p>
      *
-     * By convention, the first ActionItem in the list will declare the overarching type of the
+     * <p>By convention, the first ActionItem in the list will declare the overarching type of the
      *   action being executed, as well as include any additional ContextData needed to execute
-     *   the action.
+     *   the action.</p>
      *
      * @return a list of {@link ActionItemDTO} to send to the probe for action execution.
      * @throws ContextCreationException when the context cannot successfully create the action items
@@ -81,7 +80,7 @@ public interface ActionExecutionContext {
     Optional<Workflow> getWorkflow();
 
     /**
-     * Return a Set of entities to that are directly involved in the action
+     * Return a Set of entities to that are directly involved in the action.
      *
      * @return a Set of entities involved in the action
      */
@@ -90,7 +89,7 @@ public interface ActionExecutionContext {
 
     /**
      * Get the ID of the secondary target involved in this action, or null if no secondary target is
-     * involved
+     * involved.
      *
      * @return the secondary target involved in this action, or null if no secondary target is
      *         involved

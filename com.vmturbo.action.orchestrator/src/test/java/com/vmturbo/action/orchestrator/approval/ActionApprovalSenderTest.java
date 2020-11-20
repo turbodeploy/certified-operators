@@ -90,7 +90,7 @@ public class ActionApprovalSenderTest {
     /**
      * Tests successful flow.
      *
-     * @throws Exception on exceptions occurred.
+     * @throws Exception should not be thrown.
      */
     @Test
     public void testSuccessfulFlow() throws Exception {
@@ -123,7 +123,7 @@ public class ActionApprovalSenderTest {
     /**
      * Tests that there is no message sent when action store is not executable.
      *
-     * @throws Exception on exception occurred
+     * @throws Exception should not be thrown.
      */
     @Test
     public void testActionNotExecutable() throws Exception {
@@ -136,7 +136,7 @@ public class ActionApprovalSenderTest {
     /**
      * Tests that there is no message sent when action has REJECTED state.
      *
-     * @throws Exception on exception occurred
+     * @throws Exception should not be thrown.
      */
     @Test
     public void testRejectedAction() throws Exception {
@@ -149,7 +149,7 @@ public class ActionApprovalSenderTest {
     /**
      * Tests that if one request send fails with exception, the flow is not interrupted.
      *
-     * @throws Exception on exceptions occurred
+     * @throws Exception should not be thrown.
      */
     @Test
     public void testOneFailureOneSuccess() throws Exception {
@@ -201,7 +201,7 @@ public class ActionApprovalSenderTest {
     /**
      * Tests that only READY actions are sent to external approval backend.
      *
-     * @throws Exception on exceptions occurred
+     * @throws Exception should not be thrown.
      */
     @Test
     public void testActionsInTeminalState() throws Exception {
@@ -224,7 +224,7 @@ public class ActionApprovalSenderTest {
     /**
      * Test that actions without associated target don't send to external approval backend.
      *
-     * @throws Exception if something goes wrong
+     * @throws Exception should not be thrown.
      */
     @Test
     public void testActionWithoutTarget() throws Exception {
@@ -240,7 +240,33 @@ public class ActionApprovalSenderTest {
         Mockito.verifyZeroInteractions(requestSender);
     }
 
-    private Action createAction(long oid, @Nonnull ActionMode actionMode,
+    /**
+     * ActionApprovalSender should pass on the the state ActionExecutor.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testStateSent() throws Exception {
+        createAction(ACTION1, ActionMode.EXTERNAL_APPROVAL, ActionState.READY);
+        aas.sendApprovalRequests(actionStore);
+        final ArgumentCaptor<ActionApprovalRequests> captor = ArgumentCaptor.forClass(
+            ActionApprovalRequests.class);
+        Mockito.verify(requestSender)
+            .sendMessage(captor.capture());
+
+        Assert.assertEquals(1, captor.getAllValues().size());
+        Assert.assertEquals(1,
+            captor.getAllValues()
+                .get(0)
+                .getActionsList().size());
+        Assert.assertEquals(ActionState.READY,
+            captor.getAllValues().get(0)
+                .getActionsList().get(0).getActionState());
+    }
+
+    private Action createAction(
+            long oid,
+            @Nonnull ActionMode actionMode,
             @Nonnull ActionState actionState) {
         final ActionDTO.Action actionDTO = ActionDTO.Action.newBuilder()
                 .setId(oid)

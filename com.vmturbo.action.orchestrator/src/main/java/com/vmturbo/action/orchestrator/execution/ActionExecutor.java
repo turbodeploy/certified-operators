@@ -27,6 +27,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionStateFactory.DefaultSynchronousExecutionStateFactory;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
@@ -47,13 +48,14 @@ public class ActionExecutor implements ActionExecutionListener {
     private static final Logger logger = LogManager.getLogger();
 
     /**
-     * A client for making remote calls to the Topology Processor service to execute actions
+     * A client for making remote calls to the Topology Processor service to execute actions.
      */
     private final ActionExecutionServiceBlockingStub actionExecutionService;
 
     /**
      * Futures to track success or failure of actions that are executing synchronously
-     * (i.e. via the {@link ActionExecutor#executeSynchronously(long, ActionDTO.Action, Optional)}
+     * (i.e. via the
+     * {@link ActionExecutor#executeSynchronously(long, ActionDTO.Action, Optional, ActionState)}
      * method).
      */
     private final Map<Long, SynchronousExecutionState> inProgressSyncActions =
@@ -95,16 +97,19 @@ public class ActionExecutor implements ActionExecutionListener {
      *                 Workflow specified - see below)
      * @param action the Action to execute
      * @param workflowOpt an Optional specifying a Workflow to override the execution of the Action
+     * @param actionState The current state of the action.
      * @throws ExecutionStartException if the Action fails to start
      * @throws InterruptedException if the "wait for completion" is interrupted
      * @throws SynchronousExecutionException any other execute exception
      */
-    public void executeSynchronously(final long targetId, @Nonnull final ActionDTO.Action action,
-                                     @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt)
+    public void executeSynchronously(final long targetId,
+                                     @Nonnull final ActionDTO.Action action,
+                                     @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt,
+                                     ActionState actionState)
             throws ExecutionStartException, InterruptedException, SynchronousExecutionException {
         Objects.requireNonNull(action);
         Objects.requireNonNull(workflowOpt);
-        execute(targetId, action, workflowOpt);
+        execute(targetId, action, workflowOpt, actionState);
         SynchronousExecutionState synchronousExecutionState = synchronousExecutionStateFactory.newState();
         inProgressSyncActions.put(action.getId(), synchronousExecutionState);
         try {
@@ -114,8 +119,8 @@ public class ActionExecutor implements ActionExecutionListener {
         } catch (TimeoutException e) {
             throw new SynchronousExecutionException(ActionFailure.newBuilder()
                 .setActionId(action.getId())
-                .setErrorDescription("Action timed out after " +
-                    executionTimeout + " " + executionTimeoutUnit.toString())
+                .setErrorDescription("Action timed out after "
+                    + executionTimeout + " " + executionTimeoutUnit.toString())
                 .build());
         }
     }
@@ -126,12 +131,16 @@ public class ActionExecutor implements ActionExecutionListener {
      * @param targetId target to execute action on
      * @param action action to execute
      * @param workflowOpt workflow associated with this target (if any)
+     * @param actionState The current state of the action.
      * @return DTO to send request to topology processor
      */
     @Nonnull
-    public static ExecuteActionRequest createRequest(final long targetId, @Nonnull final ActionDTO.Action action,
-                                                     @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt) {
-        return createRequest(targetId, action, workflowOpt, null, action.getId());
+    public static ExecuteActionRequest createRequest(
+            final long targetId,
+            @Nonnull final ActionDTO.Action action,
+            @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt,
+            ActionState actionState) {
+        return createRequest(targetId, action, workflowOpt, null, action.getId(), actionState);
     }
 
     /**
@@ -143,13 +152,16 @@ public class ActionExecutor implements ActionExecutionListener {
      * @param explanation the explanation string describing the action
      * @param actionId the action identifier (actionId or recommendationId used for external
      *        audit/approve operations)
+     * @param actionState The current state of the action.
      * @return DTO to send request to topology processor
      */
     @Nonnull
     public static ExecuteActionRequest createRequest(final long targetId,
             @Nonnull final ActionDTO.Action action,
-            @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt, @Nullable String explanation,
-            final long actionId) {
+            @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt,
+            @Nullable String explanation,
+            final long actionId,
+            ActionState actionState) {
         Objects.requireNonNull(action);
         Objects.requireNonNull(workflowOpt);
 
@@ -174,6 +186,9 @@ public class ActionExecutor implements ActionExecutionListener {
             // Target Entity was discovered
             executionRequestBuilder.setTargetId(targetId);
         }
+
+        executionRequestBuilder.setActionState(actionState);
+
         return executionRequestBuilder.build();
     }
 
@@ -184,10 +199,13 @@ public class ActionExecutor implements ActionExecutionListener {
      *                 Workflow specified - see below)
      * @param action the Action to execute
      * @param workflowOpt an Optional specifying a Workflow to override the execution of the Action
+     * @param actionState The current state of the action.
      * @throws ExecutionStartException if action execution failed to start
      */
-    public void execute(final long targetId, @Nonnull final ActionDTO.Action action,
-                        @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt)
+    public void execute(final long targetId,
+                        @Nonnull final ActionDTO.Action action,
+                        @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt,
+                        ActionState actionState)
             throws ExecutionStartException {
         // pjs: make sure a license is available when it's time to execute an action
         if (!licenseCheckClient.hasValidNonExpiredLicense()) {
@@ -196,7 +214,7 @@ public class ActionExecutor implements ActionExecutionListener {
             // component or this component could be in the middle of starting up.
             throw new ExecutionStartException("No valid license was detected. Will not execute the action.");
         }
-        final ExecuteActionRequest request = createRequest(targetId, action, workflowOpt);
+        final ExecuteActionRequest request = createRequest(targetId, action, workflowOpt, actionState);
         try {
             // TODO (roman, July 30 2019): OM-49080 - persist the state of in-progress actions in
             // the database, so that we don't lose the information across restarts.
@@ -205,8 +223,8 @@ public class ActionExecutor implements ActionExecutionListener {
             logger.info("Action: {} started.", action.getId());
         } catch (StatusRuntimeException e) {
             throw new ExecutionStartException(
-                    "Action: " + action.getId() + " failed to start. Failure status: " +
-                            e.getStatus(), e);
+                    "Action: " + action.getId() + " failed to start. Failure status: "
+                        + e.getStatus(), e);
         }
     }
 
@@ -260,7 +278,7 @@ public class ActionExecutor implements ActionExecutionListener {
 
     /**
      * Exception thrown when an action executed via
-     * {@link ActionExecutor#executeSynchronously(long, ActionDTO.Action, Optional)} fail
+     * {@link ActionExecutor#executeSynchronously(long, ActionDTO.Action, Optional, ActionState)} fail
      * to complete.
      */
     public static class SynchronousExecutionException extends Exception {

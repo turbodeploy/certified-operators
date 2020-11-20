@@ -24,6 +24,7 @@ import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
@@ -131,6 +132,7 @@ public class ActionExecutionRpcServiceTest {
                 .setActionId(0)
                 .setTargetId(targetId)
                 .setActionInfo(ActionInfo.newBuilder().setMove(moveSpec))
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         List<ChangeProvider> changes = moveSpec.getChangesList();
@@ -187,6 +189,7 @@ public class ActionExecutionRpcServiceTest {
                 .setTargetId(targetId)
                 .setActionId(0L)
                 .setActionInfo(ActionInfo.newBuilder().setMove(move))
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Entity with ID 3 (destination) is missing.
@@ -219,6 +222,7 @@ public class ActionExecutionRpcServiceTest {
                 .setTargetId(targetId)
                 .setActionInfo(ActionInfo.newBuilder().setMove(moveSpec))
                 .setActionType(ActionDTO.ActionType.MOVE)
+            .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -269,6 +273,7 @@ public class ActionExecutionRpcServiceTest {
                 .setActionId(0)
                 .setTargetId(targetId)
                 .setActionInfo(ActionInfo.newBuilder().setMove(moveSpec))
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -315,6 +320,7 @@ public class ActionExecutionRpcServiceTest {
                 .setTargetId(targetId1)
                 .setActionId(0L)
                 .setActionInfo(ActionInfo.newBuilder().setMove(move))
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         initializeTopology(targetId1, NewEntityRequest.virtualMachine(move.getTarget().getId(), move
@@ -344,6 +350,7 @@ public class ActionExecutionRpcServiceTest {
                 .setTargetId(targetId)
                 .setActionInfo(ActionInfo.newBuilder().setResize(resizeSpec))
                 .setActionType(ActionDTO.ActionType.RESIZE)
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -389,6 +396,7 @@ public class ActionExecutionRpcServiceTest {
                 .setActionId(0)
                 .setTargetId(targetId)
                 .setActionInfo(ActionInfo.newBuilder().setResize(resizeSpec))
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // No entities in topology; target entity is missing.
@@ -413,6 +421,7 @@ public class ActionExecutionRpcServiceTest {
                 .setActionId(0)
                 .setTargetId(targetId)
                 .setActionInfo(ActionInfo.newBuilder().setResize(resizeSpec))
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Include a virtual machine, but no host that matches the host ID.
@@ -436,6 +445,7 @@ public class ActionExecutionRpcServiceTest {
                 .setActionId(0)
                 .setTargetId(targetId)
                 .setActionInfo(ActionInfo.newBuilder().setActivate(activate))
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -475,6 +485,7 @@ public class ActionExecutionRpcServiceTest {
                 .setActionId(0)
                 .setTargetId(targetId)
                 .setActionInfo(ActionInfo.newBuilder().setActivate(activate))
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -510,6 +521,7 @@ public class ActionExecutionRpcServiceTest {
                 .setTargetId(targetId)
                 .setActionInfo(ActionInfo.newBuilder().setActivate(activate))
                 .setActionType(ActionDTO.ActionType.ACTIVATE)
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -544,6 +556,7 @@ public class ActionExecutionRpcServiceTest {
                 .setActionId(0)
                 .setTargetId(targetId)
                 .setActionInfo(ActionInfo.newBuilder().setActivate(activate))
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Empty topology.
@@ -566,6 +579,7 @@ public class ActionExecutionRpcServiceTest {
                 .setActionId(0)
                 .setTargetId(targetId)
                 .setActionInfo(ActionInfo.newBuilder().setActivate(activate))
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // No host for VM topology.
@@ -588,6 +602,7 @@ public class ActionExecutionRpcServiceTest {
                 .setActionId(0)
                 .setTargetId(targetId)
                 .setActionInfo(ActionInfo.newBuilder().setDeactivate(deactivate))
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -628,6 +643,7 @@ public class ActionExecutionRpcServiceTest {
                 .setActionId(0)
                 .setTargetId(targetId)
                 .setActionInfo(ActionInfo.newBuilder().setDeactivate(deactivate))
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -664,6 +680,7 @@ public class ActionExecutionRpcServiceTest {
                 .setTargetId(targetId)
                 .setActionInfo(ActionInfo.newBuilder().setDeactivate(deactivate))
                 .setActionType(ActionDTO.ActionType.DEACTIVATE)
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
@@ -699,6 +716,7 @@ public class ActionExecutionRpcServiceTest {
                 .setActionId(0)
                 .setTargetId(targetId)
                 .setActionInfo(ActionInfo.newBuilder().setDeactivate(deactivate))
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Empty topology.
@@ -721,6 +739,7 @@ public class ActionExecutionRpcServiceTest {
                 .setActionId(0)
                 .setTargetId(targetId)
                 .setActionInfo(ActionInfo.newBuilder().setDeactivate(deactivate))
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // No host for VM topology.

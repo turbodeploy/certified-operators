@@ -442,8 +442,15 @@ public class ActionSpecMapper {
         }
     }
 
+    /**
+     * Converts an action orchestrator action state into an API action state.
+     *
+     * @param actionState the state of the action reported by action orchestrator.
+     * @return the API action state representing the action orchestrator action state.
+     */
     @Nonnull
-    public static ActionState mapXlActionStateToApi(@Nonnull final ActionDTO.ActionState actionState) {
+    public static ActionState mapXlActionStateToApi(
+            @Nonnull final ActionDTO.ActionState actionState) {
         switch (actionState) {
             case PRE_IN_PROGRESS:
             case POST_IN_PROGRESS:
@@ -530,7 +537,8 @@ public class ActionSpecMapper {
         // For plan action, set the state to successes, so it will not be selectable
         // TODO (Gary, Jan 17 2019): handle case when realtimeTopologyContextId is changed (if needed)
         if (topologyContextId == realtimeTopologyContextId) {
-            actionApiDTO.setActionState(mapXlActionStateToApi(actionSpec.getActionState()));
+            actionApiDTO.setActionState(mapXlActionStateToApi(
+                actionSpec.getActionState()));
         } else {
             // In classic all the plan actions have "Succeeded" state; in XL all the plan actions
             // have default state (ready). Set the state to "Succeeded" here to make it Not selectable

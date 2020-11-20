@@ -107,7 +107,8 @@ public class ActionAuditSender {
 
         final ExecuteActionRequest request = ActionExecutor.createRequest(
                 workflow.getWorkflowInfo().getTargetId(), action.getRecommendation(),
-                Optional.of(workflow), action.getDescription(), action.getRecommendationOid());
+                Optional.of(workflow), action.getDescription(), action.getRecommendationOid(),
+                action.getState());
         final ActionEvent event = ActionEvent.newBuilder()
                 .setOldState(oldState)
                 .setNewState(newState)

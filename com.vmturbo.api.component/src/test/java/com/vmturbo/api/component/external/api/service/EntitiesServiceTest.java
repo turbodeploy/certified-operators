@@ -515,7 +515,8 @@ public class EntitiesServiceTest {
     @Test
     public void testGetActionByEntityUuid() throws Exception {
         // fake an action and its translation by the ActionSpecMapper
-        final ActionSpec dummyActionSpec = ActionSpec.getDefaultInstance();
+        final ActionSpec dummyActionSpec = ActionSpec.newBuilder()
+            .build();
         final ActionOrchestratorAction dummyActionOrchestratorResponse =
             ActionOrchestratorAction.newBuilder().setActionSpec(dummyActionSpec).build();
         final ActionApiDTO actionApiDTO = mock(ActionApiDTO.class);
@@ -555,7 +556,8 @@ public class EntitiesServiceTest {
     @Test
     public void testGetActionsByEntityUuid() throws Exception {
         // fake an action and its translation by the ActionSpecMapper
-        final ActionSpec dummyActionSpec = ActionSpec.getDefaultInstance();
+        final ActionSpec dummyActionSpec = ActionSpec.newBuilder()
+            .build();
         final FilteredActionResponse dummyActionOrchestratorResponse =
             FilteredActionResponse.newBuilder()
                     .setActionChunk(ActionChunk.newBuilder()

@@ -26,6 +26,7 @@ import org.mockito.MockitoAnnotations;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionEvent;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -336,6 +337,7 @@ public class ActionAuditServiceTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(oid)
                 .setTargetId(AUDIT_TARGET)
+                .setActionState(ActionState.IN_PROGRESS)
                 .setActionInfo(ActionInfo.newBuilder()
                         .setDelete(Delete.newBuilder()
                                 .setTarget(ActionEntity

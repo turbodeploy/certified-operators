@@ -840,16 +840,6 @@ public class Action implements ActionView {
     }
 
     /**
-     * Selects a targeting state after POST_EXECUTION is finished successfully.
-     * Global action state will still be FAILED if previous failures detected.
-     *
-     * @return next state to transition to after POST_EXECUTION is succeeded
-     */
-    ActionState getPostExecutionSuccessState() {
-        return hasFailures() ? ActionState.FAILED : ActionState.SUCCEEDED;
-    }
-
-    /**
      * Check if a user has permission to accept this action.
      *
      * @param userUuid The user who should be checked for permission.
@@ -875,12 +865,6 @@ public class Action implements ActionView {
             default:
                 return false;
         }
-    }
-
-    @Override
-    public boolean hasFailures() {
-        return executableSteps.values().stream()
-                .anyMatch(step -> Status.FAILED == step.getStatus());
     }
 
     public Map<ActionState, ExecutableStep> getExecutableSteps() {
@@ -952,17 +936,19 @@ public class Action implements ActionView {
      * ActionState#POST_IN_PROGRESS} if there is a POST workflow for this action. Alternatively it
      * will be {@link ActionState#SUCCEEDED} or {@link ActionState#FAILED}.
      *
-     * @param resultState result state that this action will go to. If there is a post-execution
-     *          workflow, it will be executed. Otherwise the result state will be applied.
+     * @param nextWithWorkflowState next state to go to if there is a workflow.
+     * @param noPostWorkflowState next state when there is no work.
      *          Should be either {@link ActionState#SUCCEEDED} or {@link ActionState#FAILED}
      * @return destination action state
      */
-    ActionState getPostExecutionStep(@Nonnull ActionState resultState) {
+    ActionState getPostExecutionStep(
+            @Nonnull ActionState nextWithWorkflowState,
+            @Nonnull ActionState noPostWorkflowState) {
         final Optional<Setting> preExecSetting = getWorkflowSetting(ActionState.POST_IN_PROGRESS);
         if (preExecSetting.isPresent()) {
-            return ActionState.POST_IN_PROGRESS;
+            return nextWithWorkflowState;
         } else {
-            return resultState;
+            return noPostWorkflowState;
         }
     }
 
@@ -981,7 +967,8 @@ public class Action implements ActionView {
             // Add the current executable step to the map of all steps with the PRE_IN_PROGRESS key
             executableSteps.put(getState(), currentExecutableStep.get());
             // Mark this action as in-progress
-            // (PRE_IN_PROGRESS, IN_PROGRESS and POST_IN_PROGRESS states all count as in-progress)
+            // (PRE_IN_PROGRESS, IN_PROGRESS, POST_IN_PROGRESS, and FAILING states all count as
+            // in-progress)
             updateExecutionStatus(step -> {
                     step.execute();
                     IN_PROGRESS_ACTION_COUNTS_GAUGE
@@ -1080,7 +1067,7 @@ public class Action implements ActionView {
      * @param event The event signaling the end of action execution
      */
     private void onActionPost(@Nonnull final ActionEvent event) {
-        if (hasWorkflowForCurrentState() && getState() == ActionState.POST_IN_PROGRESS) {
+        if (hasWorkflowForCurrentState() && isPostState()) {
             final String outcomeDescription = currentExecutableStep.map(ExecutableStep::getStatus)
                 .map(status -> Status.SUCCESS == status)
                 .orElse(false) ? "succeeded" : "failed";
@@ -1093,6 +1080,12 @@ public class Action implements ActionView {
             updateExecutionStatus(ExecutableStep::execute, event.getEventName());
             // ActionStateUpdater will kick off the actual execution of the POST workflow
         }
+    }
+
+    private boolean isPostState() {
+        ActionState currentState = getState();
+        return currentState == ActionState.POST_IN_PROGRESS
+            || currentState == ActionState.FAILING;
     }
 
     /**

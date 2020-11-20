@@ -2,7 +2,12 @@ package com.vmturbo.action.orchestrator.approval;
 
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -46,7 +51,9 @@ public class ActionApprovalManagerTest {
 
     private static long ids = 1;
     private static final long ACTION_ID = ids++;
+    private static final long ANOTHER_ACTION_ID = ids++;
     private static final long ACTION_RECOMMENDATION_OID = ids++;
+    private static final long ANOTHER_ACTION_RECOMMENDATION_OID = ids++;
     private static final long TARGET_ID = ids++;
     private static final long ACTION_PLAN_ID = ids++;
     private static final String EXTERNAL_USER_ID = "ExternalUserId";
@@ -186,6 +193,26 @@ public class ActionApprovalManagerTest {
         actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
         Mockito.verify(action, Mockito.never()).receive(Mockito.eq(new QueuedEvent()));
         Assert.assertEquals(ActionState.ACCEPTED, action.getState());
+    }
+
+    /**
+     * ApprovalManager should send the appropriate state to ActionExecutor.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testSendState() throws Exception {
+        Action action = spy(new MockedAction(
+            ActionDTO.Action.newBuilder()
+                .setId(ACTION_ID)
+                .buildPartial(),
+            ACTION_PLAN_ID,
+            ACTION_RECOMMENDATION_OID));
+        action.getActionTranslation().setTranslationSuccess(
+            ActionDTO.Action.newBuilder().buildPartial());
+        when(action.getState()).thenReturn(ActionState.READY);
+        actionApprovalManager.attemptAndExecute(actionStore, EXTERNAL_USER_ID, action);
+        verify(actionExecutor, times(1)).execute(anyLong(), any(), any(), eq(ActionState.READY));
     }
 
     /**

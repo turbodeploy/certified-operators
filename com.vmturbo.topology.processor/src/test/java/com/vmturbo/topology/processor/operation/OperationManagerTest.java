@@ -892,8 +892,6 @@ public class OperationManagerTest {
      */
     @Test
     public void testStartAction() throws Exception {
-        final List<ActionItemDTO> actionItemDtos = actionItemDtos();
-
         final Action moveAction = operationManager.requestActions(actionDto(),
                 targetId,
                 null,
@@ -942,8 +940,6 @@ public class OperationManagerTest {
      */
     @Test
     public void testProcessActionSuccess() throws Exception {
-        final List<ActionItemDTO> actionItemDtos = actionItemDtos();
-
         final Action action = operationManager.requestActions(actionDto(),
                 targetId,
                 null,
@@ -1000,8 +996,6 @@ public class OperationManagerTest {
      */
     @Test
     public void testActionDiscoveryFailure() throws Exception {
-        final List<ActionItemDTO> actionItemDtos = actionItemDtos();
-
         final Action action = operationManager.requestActions(actionDto(),
                 targetId,
                 null,
@@ -1062,7 +1056,6 @@ public class OperationManagerTest {
      */
     @Test
     public void testProcessActionTargetRemoval() throws Exception {
-        final List<ActionItemDTO> actionItemDtos = actionItemDtos();
         final Target target = targetStore.getTarget(targetId).get();
 
         final Action action = operationManager.requestActions(actionDto(),
@@ -1120,6 +1113,7 @@ public class OperationManagerTest {
                 .setActionOid(111L)
                 .addAllActionItem(actionItemDtos())
                 .setActionType(ActionType.MOVE)
+                .setActionState(ActionResponseState.IN_PROGRESS)
                 .build();
     }
 

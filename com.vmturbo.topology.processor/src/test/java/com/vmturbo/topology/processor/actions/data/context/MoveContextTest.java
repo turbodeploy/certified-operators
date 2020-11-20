@@ -12,6 +12,7 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.topology.ActionExecution;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -64,8 +65,8 @@ public class MoveContextTest {
         .setTargetId(TARGET_ID)
         .setActionInfo(actionInfo)
         .setActionType(ActionDTO.ActionType.RESIZE)
+        .setActionState(ActionState.IN_PROGRESS)
         .build();
-
 
     /**
      * Initializes the test.

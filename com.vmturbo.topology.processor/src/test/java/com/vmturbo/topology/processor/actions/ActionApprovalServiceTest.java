@@ -28,6 +28,7 @@ import org.mockito.MockitoAnnotations;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionApprovalRequests;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -458,6 +459,7 @@ public class ActionApprovalServiceTest {
         return ExecuteActionRequest.newBuilder()
                 .setActionId(oid)
                 .setTargetId(TGT_ID)
+                .setActionState(ActionState.IN_PROGRESS)
                 .setActionInfo(ActionInfo.newBuilder()
                         .setDelete(Delete.newBuilder()
                                 .setTarget(ActionEntity.newBuilder()

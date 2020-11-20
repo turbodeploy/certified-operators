@@ -91,7 +91,8 @@ public class ActionApprovalSender {
                             final ExecuteActionRequest request =
                                     ActionExecutor.createRequest(targetForAction.get(),
                                     recommendation, workflowOpt,
-                                            action.getDescription(), action.getRecommendationOid());
+                                            action.getDescription(), action.getRecommendationOid(),
+                                            action.getState());
                             builder.addActions(request);
                         } else {
                             logger.warn(

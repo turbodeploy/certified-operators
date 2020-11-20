@@ -796,6 +796,11 @@ public class ActionModeCalculator {
                 ActionSettingType.POST,
                 ActionState.POST_IN_PROGRESS,
                 actionStateSettings);
+            addActionModeRelatedSettings(
+                configurableActionSetting,
+                ActionSettingType.POST,
+                ActionState.FAILING,
+                actionStateSettings);
             // audit work flows
             addActionModeRelatedSettings(
                 configurableActionSetting,

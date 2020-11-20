@@ -18,8 +18,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]ActionsConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]SdkToProbeActionsConverter.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]data[/\\]EntityRetrievalException.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]data[/\\]context[/\\]AbstractActionExecutionContext.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]data[/\\]context[/\\]ActionExecutionContext.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]data[/\\]context[/\\]ActionExecutionContextFactory.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]data[/\\]context[/\\]ActivateContext.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]data[/\\]context[/\\]ChangeProviderContext.java" />
@@ -295,7 +293,6 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]ActionItemDTOValidator.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]SdkToProbeActionsConverterTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]data[/\\]DataRequirementSpecTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]data[/\\]context[/\\]ActionExecutionContextTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]actions[/\\]data[/\\]context[/\\]ChangeProviderContextTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]analysis[/\\]AnalysisRpcServiceTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]test[/\\]java[/\\]com[/\\]vmturbo[/\\]topology[/\\]processor[/\\]api[/\\]AbstractApiCallsTest.java" />

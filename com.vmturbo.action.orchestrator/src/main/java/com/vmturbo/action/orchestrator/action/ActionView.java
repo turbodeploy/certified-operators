@@ -272,13 +272,6 @@ public interface ActionView {
     boolean hasPendingExecution();
 
     /**
-     * Whether this action has at least one execution step in a failed state.
-     *
-     * @return true, if this action has at least one execution step in a failed state
-     */
-    boolean hasFailures();
-
-    /**
      * Fetch an Optional of the {@link WorkflowDTO.Workflow} corresponding to this Action for
      * certain state, if any.
      * The Workflow is controlled by an Orchestration Setting whose name is based on the name of

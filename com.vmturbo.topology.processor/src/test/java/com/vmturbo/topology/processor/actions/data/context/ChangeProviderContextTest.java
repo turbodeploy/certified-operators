@@ -13,6 +13,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -110,6 +111,7 @@ public class ChangeProviderContextTest {
                 .setTargetId(targetId)
                 .setActionInfo(move)
                 .setActionType(ActionDTO.ActionType.MOVE)
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Set up the mocks
@@ -179,6 +181,7 @@ public class ChangeProviderContextTest {
                 .setTargetId(targetId)
                 .setActionInfo(move)
                 .setActionType(ActionDTO.ActionType.MOVE)
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Set up the mocks
@@ -252,6 +255,7 @@ public class ChangeProviderContextTest {
                 .setTargetId(primaryTargetId)
                 .setActionInfo(move)
                 .setActionType(ActionDTO.ActionType.MOVE)
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Set up the mocks
@@ -382,6 +386,7 @@ public class ChangeProviderContextTest {
             .setTargetId(primaryTargetId)
             .setActionInfo(move)
             .setActionType(ActionDTO.ActionType.MOVE)
+            .setActionState(ActionState.IN_PROGRESS)
             .build();
 
         // Set up the mocks
@@ -489,6 +494,7 @@ public class ChangeProviderContextTest {
             .setTargetId(primaryTargetId)
             .setActionInfo(move)
             .setActionType(ActionDTO.ActionType.MOVE)
+            .setActionState(ActionState.IN_PROGRESS)
             .build();
 
         // Set up the mocks
@@ -595,6 +601,7 @@ public class ChangeProviderContextTest {
             .setTargetId(primaryTargetId)
             .setActionInfo(move)
             .setActionType(ActionDTO.ActionType.MOVE)
+            .setActionState(ActionState.IN_PROGRESS)
             .build();
 
         // Set up the mocks
@@ -651,6 +658,7 @@ public class ChangeProviderContextTest {
             .setTargetId(primaryTargetId)
             .setActionInfo(move)
             .setActionType(ActionDTO.ActionType.MOVE)
+            .setActionState(ActionState.IN_PROGRESS)
             .build();
 
         // Set up the mocks
@@ -725,6 +733,7 @@ public class ChangeProviderContextTest {
                 .setTargetId(targetId)
                 .setActionInfo(move)
                 .setActionType(ActionDTO.ActionType.MOVE)
+                .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         final ActionExecutionContext actionExecutionContext =
@@ -765,6 +774,7 @@ public class ChangeProviderContextTest {
                 .setTargetId(targetId)
                 .setActionInfo(scale)
                 .setActionType(ActionDTO.ActionType.SCALE)
+            .setActionState(ActionState.IN_PROGRESS)
                 .build();
 
         // Set up the mocks

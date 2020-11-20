@@ -37,6 +37,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
@@ -508,6 +509,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0L)
                 .setTargetId(target)
+                .setActionState(ActionState.IN_PROGRESS)
                 .setActionInfo(ActionInfo.newBuilder()
                     .setMove(Move.newBuilder()
                         .addChanges(ChangeProvider.newBuilder()

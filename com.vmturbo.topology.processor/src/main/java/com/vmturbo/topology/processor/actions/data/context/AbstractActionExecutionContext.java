@@ -17,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
@@ -27,6 +28,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.Builder;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow.ActionScriptPhase;
 import com.vmturbo.platform.common.dto.CommonDTO.ContextData;
@@ -116,12 +118,14 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     /**
      * The SDK (probe-facing) type that will be sent to the probes.
      */
-    protected ActionItemDTO.ActionType SDKActionType;
+    protected ActionItemDTO.ActionType sdkActionType;
 
     protected ActionDTO.ActionType actionType;
 
     @Nullable
     protected final String explanation;
+
+    private final ActionState actionState;
 
     protected AbstractActionExecutionContext(@Nonnull final ExecuteActionRequest request,
                                              @Nonnull final ActionDataManager dataManager,
@@ -141,16 +145,17 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         this.probeStore = Objects.requireNonNull(probeStore);
         this.actionType = Objects.requireNonNull(request.getActionType());
         this.explanation = request.getExplanation();
+        this.actionState = request.getActionState();
     }
 
     @Nonnull
     @Override
     public final ActionItemDTO.ActionType getSDKActionType() throws ContextCreationException {
-        if (SDKActionType == null) {
-            SDKActionType = doesProbeSupportV2ActionType()
+        if (sdkActionType == null) {
+            sdkActionType = doesProbeSupportV2ActionType()
                 ? getApiActionType() : getLegacySDKActionType();
         }
-        return SDKActionType;
+        return sdkActionType;
     }
 
     /**
@@ -278,8 +283,8 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     /**
      * Return a Set of entities to that are directly involved in the action.
      *
-     * This default implementation assumes that only the primary entity (the entity being acted upon)
-     * is affected by the action.
+     * <p>This default implementation assumes that only the primary entity (the entity being acted upon)
+     * is affected by the action.</p>
      *
      * @return a Set of entities involved in the action
      */
@@ -289,7 +294,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     }
 
     /**
-     * Get the secondary target involved in this action, or null if no secondary target is involved
+     * Get the secondary target involved in this action, or null if no secondary target is involved.
      *
      * @return the secondary target involved in this action, or null if no secondary target is
      * involved
@@ -305,10 +310,10 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      * action being executed, as well as include any additional ContextData needed to execute
      * the action.
      *
-     * TODO: Improve this logic. The reason this is here is because it's a convention that was
+     * <p>TODO: Improve this logic. The reason this is here is because it's a convention that was
      * established in OpsManager, and now several (many?) probes rely on the order of the action
      * items to determine their meaning. Hopefully someday we can remove the importance of ordering
-     * action items, and remove this logic that treats the first item in the list as special.
+     * action items, and remove this logic that treats the first item in the list as special.</p>
      *
      * @param actionItemBuilders the full list of action items, from which the primary one will be extracted
      * @return the primary {@link ActionItemDTO.Builder} for this action
@@ -348,7 +353,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      *   data. A builder is returned so that further modifications can be made by subclasses, before
      *   the final build is done.
      *
-     * The default implementation creates a single {@link ActionItemDTO.Builder}
+     * <p>The default implementation creates a single {@link ActionItemDTO.Builder}</p>
      *
      * @return a list of {@link ActionItemDTO.Builder ActionItemDTO builders}
      * @throws ContextCreationException if failure occurred while constructing context
@@ -415,8 +420,8 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         // Hosted by for VM -> PM relationships is most notably required by the HyperV probe.
         // TODO (roman, May 16 2017): Generalize to all entities where this is necessary.
         final EntityType entityType = entity.getEntityType();
-        if (entityType.equals(EntityType.VIRTUAL_MACHINE) ||
-                entityType.equals(EntityType.CONTAINER)) {
+        if (entityType.equals(EntityType.VIRTUAL_MACHINE)
+                || entityType.equals(EntityType.CONTAINER)) {
             // Look up the raw entity info to find the host
             // TODO: This is bad. Why store host separately from the rest of the entity data? This
             //     should be stored somewhere in the EntityDTO, not in the PerTargetInfo itself!
@@ -443,12 +448,42 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         return dataManager.getContextData(actionInfo);
     }
 
+    private static ActionResponseState convertInternalToExternalState(
+            ActionState actionOrchestratorState) {
+        switch (actionOrchestratorState) {
+            case READY:
+                return ActionResponseState.PENDING_ACCEPT;
+            case QUEUED:
+                return ActionResponseState.QUEUED;
+            case IN_PROGRESS:
+            case PRE_IN_PROGRESS:
+            case POST_IN_PROGRESS:
+                return ActionResponseState.IN_PROGRESS;
+            case FAILING:
+                return ActionResponseState.FAILING;
+            case ACCEPTED:
+                return ActionResponseState.ACCEPTED;
+            case CLEARED:
+                return ActionResponseState.CLEARED;
+            case REJECTED:
+                return ActionResponseState.REJECTED;
+            case SUCCEEDED:
+                return ActionResponseState.SUCCEEDED;
+            case FAILED:
+                return ActionResponseState.FAILED;
+            default:
+                throw new IllegalStateException("ActionState from action orchestrator "
+                    + actionOrchestratorState + " is not supported yet");
+        }
+    }
+
     @Override
     @Nonnull
     public ActionExecutionDTO buildActionExecutionDto() throws ContextCreationException {
         final ActionExecutionDTO.Builder actionExecutionBuilder = ActionExecutionDTO.newBuilder()
                 .setActionOid(getActionId())
                 .setActionType(getSDKActionType())
+                .setActionState(convertInternalToExternalState(actionState))
                 .addAllActionItem(getActionItems());
 
         if (explanation != null) {

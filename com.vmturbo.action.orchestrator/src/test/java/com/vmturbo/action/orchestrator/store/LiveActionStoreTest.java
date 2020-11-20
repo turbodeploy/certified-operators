@@ -118,6 +118,7 @@ public class LiveActionStoreTest {
     private final long vm2 = 2;
     private final long vm3 = 3;
     private final long vm4 = 4;
+    private final long vm5 = 5;
 
     private final long container1 = 11;
     private final long container2 = 12;
@@ -281,6 +282,9 @@ public class LiveActionStoreTest {
         when(snapshot.getEntityFromOid(eq(vm4)))
                 .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(vm4,
                         EntityType.VIRTUAL_MACHINE.getNumber()));
+        when(snapshot.getEntityFromOid(eq(vm5)))
+            .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(vm5,
+                EntityType.VIRTUAL_MACHINE.getNumber()));
         when(snapshot.getEntityFromOid(eq(hostA)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(hostA,
                 EntityType.PHYSICAL_MACHINE.getNumber()));
@@ -518,6 +522,7 @@ public class LiveActionStoreTest {
         final ActionDTO.Action inProgressMove = move(vm2, hostA, vmType, hostB, vmType).build();
         final ActionDTO.Action preInProgressMove = move(vm3, hostA, vmType, hostB, vmType).build();
         final ActionDTO.Action postInProgressMove = move(vm4, hostA, vmType, hostB, vmType).build();
+        final ActionDTO.Action failingMove = move(vm5, hostA, vmType, hostB, vmType).build();
 
         final ActionPlan firstPlan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
@@ -526,7 +531,8 @@ public class LiveActionStoreTest {
                         .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                         .setTopologyId(topologyId))))
             .setId(firstPlanId)
-            .addAllAction(Arrays.asList(queuedMove, inProgressMove, preInProgressMove, postInProgressMove))
+            .addAllAction(Arrays.asList(queuedMove, inProgressMove, preInProgressMove,
+                postInProgressMove, failingMove))
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
@@ -538,6 +544,7 @@ public class LiveActionStoreTest {
         when(actionStore.getAction(inProgressMove.getId()).get().getState()).thenReturn(ActionState.IN_PROGRESS);
         when(actionStore.getAction(preInProgressMove.getId()).get().getState()).thenReturn(ActionState.PRE_IN_PROGRESS);
         when(actionStore.getAction(postInProgressMove.getId()).get().getState()).thenReturn(ActionState.POST_IN_PROGRESS);
+        when(actionStore.getAction(failingMove.getId()).get().getState()).thenReturn(ActionState.FAILING);
 
         final ActionPlan secondPlan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
@@ -549,7 +556,7 @@ public class LiveActionStoreTest {
             .build();
         actionStore.populateRecommendedActions(secondPlan);
 
-        assertEquals(4, actionStore.size());
+        assertEquals(5, actionStore.size());
     }
 
     /**
@@ -564,6 +571,7 @@ public class LiveActionStoreTest {
         final ActionDTO.Action inProgressMove = move(vm2, hostA, vmType, hostB, vmType).build();
         final ActionDTO.Action preInProgressMove = move(vm3, hostA, vmType, hostB, vmType).build();
         final ActionDTO.Action postInProgressMove = move(vm4, hostA, vmType, hostB, vmType).build();
+        final ActionDTO.Action failingMove = move(vm5, hostA, vmType, hostB, vmType).build();
 
         final ActionPlan firstPlan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
@@ -573,7 +581,7 @@ public class LiveActionStoreTest {
                         .setTopologyId(topologyId))))
             .setId(firstPlanId)
             .addAllAction(Arrays.asList(queuedMove, preInProgressMove, inProgressMove,
-                    postInProgressMove))
+                    postInProgressMove, failingMove))
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
@@ -585,6 +593,7 @@ public class LiveActionStoreTest {
         when(actionStore.getAction(inProgressMove.getId()).get().getState()).thenReturn(ActionState.IN_PROGRESS);
         when(actionStore.getAction(preInProgressMove.getId()).get().getState()).thenReturn(ActionState.PRE_IN_PROGRESS);
         when(actionStore.getAction(postInProgressMove.getId()).get().getState()).thenReturn(ActionState.POST_IN_PROGRESS);
+        when(actionStore.getAction(failingMove.getId()).get().getState()).thenReturn(ActionState.FAILING);
 
         final ActionPlan secondPlan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
@@ -594,15 +603,16 @@ public class LiveActionStoreTest {
                         .setTopologyId(topologyId))))
             .setId(secondPlanId)
             .addAllAction(Arrays.asList(queuedMove, preInProgressMove, inProgressMove,
-                    postInProgressMove))
+                    postInProgressMove, failingMove))
             .build();
         actionStore.populateRecommendedActions(secondPlan);
 
-        assertEquals(4, actionStore.size());
+        assertEquals(5, actionStore.size());
         assertThat(actionStore.getActionView(queuedMove.getId()).isPresent(), is(true));
         assertThat(actionStore.getActionView(preInProgressMove.getId()).isPresent(), is(true));
         assertThat(actionStore.getActionView(inProgressMove.getId()).isPresent(), is(true));
         assertThat(actionStore.getActionView(postInProgressMove.getId()).isPresent(), is(true));
+        assertThat(actionStore.getActionView(failingMove.getId()).isPresent(), is(true));
     }
 
     @Test

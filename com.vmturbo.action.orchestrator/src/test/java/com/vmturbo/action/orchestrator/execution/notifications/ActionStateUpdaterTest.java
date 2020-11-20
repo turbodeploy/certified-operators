@@ -320,7 +320,9 @@ public class ActionStateUpdaterTest {
         // failed IN_PROGRESS execution step
         actionStateUpdater.onActionFailure(failure);
 
-        Assert.assertEquals(ActionState.POST_IN_PROGRESS, manualWithWorkflowsAction.getState());
+        // When REPLACE/Native fails and there's a post workflow we go to the FAILING state.
+        // As a result do not update the database yet. We still need to run the POST workflow.
+        Assert.assertEquals(ActionState.FAILING, manualWithWorkflowsAction.getState());
         Mockito.verifyZeroInteractions(actionHistoryDao);
 
         // successfully finished POST execution step for action
@@ -510,6 +512,7 @@ public class ActionStateUpdaterTest {
             .addStates(ActionState.IN_PROGRESS)
             .addStates(ActionState.PRE_IN_PROGRESS)
             .addStates(ActionState.POST_IN_PROGRESS)
+            .addStates(ActionState.FAILING)
             .build());
         assertEquals(ActionState.FAILED, externalApprovalAction.getState());
         assertEquals(ActionState.FAILED, manualAction.getState());
@@ -567,6 +570,7 @@ public class ActionStateUpdaterTest {
             .addStates(ActionState.IN_PROGRESS)
             .addStates(ActionState.PRE_IN_PROGRESS)
             .addStates(ActionState.POST_IN_PROGRESS)
+            .addStates(ActionState.FAILING)
             .build());
 
         // No failure.

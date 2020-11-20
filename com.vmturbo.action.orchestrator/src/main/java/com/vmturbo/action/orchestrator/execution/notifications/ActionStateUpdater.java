@@ -253,6 +253,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
                     .addStates(ActionState.IN_PROGRESS)
                     .addStates(ActionState.PRE_IN_PROGRESS)
                     .addStates(ActionState.POST_IN_PROGRESS)
+                    .addStates(ActionState.FAILING)
                     .build())
                 .filter(actionView -> actionView.getDecision()
                     // Only include actions that HAD a decision (should be all in progress
@@ -304,8 +305,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
 
         final ActionState actionStateAfterTransition = transitionResult.getAfterState();
         // if IN_PROGRESS execution was failed for action then general execution result will
-        // be FAILED for action regardless of results of POST_IN_PROGRESS execution
-        if (actionStateAfterTransition == ActionState.FAILED || actionStateAfterTransition == ActionState.POST_IN_PROGRESS) {
+        // be FAILED for action regardless of results of POST execution
+        if (actionStateAfterTransition == ActionState.FAILED || actionStateAfterTransition == ActionState.FAILING) {
             notifySystemAboutFailedActionExecution(action, actionFailure, errorDescription);
         }
     }
@@ -378,6 +379,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
             case PRE_IN_PROGRESS:
             case POST_IN_PROGRESS:
                 return ActionResponseState.IN_PROGRESS;
+            case FAILING:
+                return ActionResponseState.FAILING;
             case FAILED:
                 return ActionResponseState.FAILED;
             case CLEARED:
@@ -478,7 +481,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
             // execute the action, passing the workflow override (if any)
             try {
                 actionExecutor.execute(targetId, translatedRecommendation.get(),
-                    action.getWorkflow(workflowStore, action.getState()));
+                    action.getWorkflow(workflowStore, action.getState()),
+                    action.getState());
             } catch (ExecutionStartException | WorkflowStoreException e) {
                 logger.error("Failed to start next executable step of action " + action.getId()
                     + " due to error: " + e.getMessage(), e);

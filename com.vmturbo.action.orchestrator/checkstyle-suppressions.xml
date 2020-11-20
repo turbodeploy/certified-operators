@@ -26,9 +26,7 @@ The goal is for the module to become - and remain - clear of violations.
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]diagnostics[/\\]ActionOrchestratorDiagnosticsConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]execution[/\\]ActionExecutionConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]execution[/\\]ActionExecutionEntitySelector.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]execution[/\\]ActionExecutor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]execution[/\\]ActionTargetSelector.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]execution[/\\]AutomatedActionExecutor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]execution[/\\]EntitiesResolutionException.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]execution[/\\]EntityAndActionTypeBasedEntitySelector.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src[/\\]main[/\\]java[/\\]com[/\\]vmturbo[/\\]action[/\\]orchestrator[/\\]execution[/\\]ExecutionStartException.java" />

@@ -501,7 +501,7 @@ public class ActionStateMachineTest {
 
         final String errorDescription = "Insufficient haptic fozzlers";
         // Action will enter POST phase to execute the POST workflow, even after action failure
-        Assert.assertEquals(ActionState.POST_IN_PROGRESS,
+        Assert.assertEquals(ActionState.FAILING,
             action.receive(new FailureEvent(errorDescription)).getAfterState());
         // Action will finally enter the FAILED state, when the POST workflow completes successfully
         final String postFailureDescription = "Failing action due to previous failure.";
@@ -513,7 +513,7 @@ public class ActionStateMachineTest {
         Assert.assertEquals(Status.FAILED, executableStep.getStatus());
         Assert.assertTrue(executableStep.getCompletionTime().isPresent());
         // Get the results of the POST action execution phase
-        ExecutableStep postExecutableStep = action.getExecutableSteps().get(ActionState.POST_IN_PROGRESS);
+        ExecutableStep postExecutableStep = action.getExecutableSteps().get(ActionState.FAILING);
         Assert.assertEquals(postFailureDescription, postExecutableStep.getErrors().get(0));
         Assert.assertEquals(Status.FAILED, postExecutableStep.getStatus());
         Assert.assertTrue(postExecutableStep.getCompletionTime().isPresent());

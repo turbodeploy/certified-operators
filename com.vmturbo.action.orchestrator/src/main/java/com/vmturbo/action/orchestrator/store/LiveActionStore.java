@@ -381,6 +381,7 @@ public class LiveActionStore implements ActionStore {
                     case IN_PROGRESS:
                     case POST_IN_PROGRESS:
                     case QUEUED:
+                    case FAILING:
                         recommendations.add(action);
                         break;
                     case READY:

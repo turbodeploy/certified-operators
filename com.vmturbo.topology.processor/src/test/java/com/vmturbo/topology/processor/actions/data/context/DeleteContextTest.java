@@ -20,6 +20,7 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
@@ -112,6 +113,7 @@ public class DeleteContextTest {
             .setTargetId(awsTargetId)
             .setActionInfo(delete)
             .setActionType(ActionDTO.ActionType.DELETE)
+            .setActionState(ActionState.IN_PROGRESS)
             .build();
 
         // Setup VV entity in entityStore
@@ -166,6 +168,7 @@ public class DeleteContextTest {
             .setTargetId(awsTargetId)
             .setActionInfo(delete)
             .setActionType(ActionDTO.ActionType.DELETE)
+            .setActionState(ActionState.IN_PROGRESS)
             .build();
 
         // Setup VV entity in entityStore

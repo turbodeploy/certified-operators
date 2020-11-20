@@ -816,19 +816,32 @@ enum ActionType {
     ALLOCATE = 12;
 }
 
-// The ActionState describes the current state of an action.
-// The possible state transitions are:
-//
-// READY
-//   ^
-//   |-------->  CLEARED
-//   |          ^   ^     ^
-//   |          |   |     |
-//   |--> REJECTED  |     |
-//   |-----> ACCEPTED <-> QUEUED ---> PRE_IN_PROGRESS ---> IN_PROGRESS ---> POST_IN_PROGRESS
-//                                           |                                      |
-//                                           |                                      | ---> SUCCEEDED
-//                                           |--------------------------------------| ---> FAILED
+//          READY ----------> CLEARED
+//           ^  ^               ^^^
+//           |  |               |||
+//           |  v               |||
+//           |  REJECTED ------- ||
+//           v                   ||
+//        ACCEPTED---------------||
+//           ^                    |
+//           |                    |
+//           v                    |
+//        QUEUED------------------
+//           |
+//           v
+//        PRE_IN_PROGRESS---------------------------------
+//           |                                           |
+//           V                                           |
+//   -----IN_PROGRESS----------------------              |
+//  |  ___/  |                             |             |
+//  | |      v                             v             |
+//  | |   POST_IN_PROGRESS -----         FAILING         |
+//  | |      |                  |           |            |
+//  | |      v                  |           v            |
+//  |  -->SUCCEEDED              -------> FAILED <-------
+//  |                                       ^
+//  |                                       |
+//   ---------------------------------------
 enum ActionState {
     // An action that is READY is one that has not yet been decided by the system.
     // Changes in policy or capability that affect actions in the READY state will be applied to
@@ -871,6 +884,10 @@ enum ActionState {
     // this may involve invoking a workflow, or it may do nothing.
     // Note: The POST state is entered regardless of whether the action succeeded or failed
     POST_IN_PROGRESS = 7;
+
+    // An execution step failed. We are running the configured execution steps to clean up the action.
+    // For instance, a native for REPLACE action failing still needs to run the POST stage.
+    FAILING = 10;
 }
 
 enum ActionPhase {

@@ -192,6 +192,22 @@
                     <suppressionsLocation>checkstyle-suppressions.xml</suppressionsLocation>
                 </configuration>
             </plugin>
+            <plugin>
+               <groupId>com.github.spotbugs</groupId>
+               <artifactId>spotbugs-maven-plugin</artifactId>
+               <version>${spotbugs.version}</version>
+               <configuration>
+                   <maxAllowedViolations>11</maxAllowedViolations>
+                   <failOnError>true</failOnError>
+               </configuration>
+               <executions>
+                   <execution>
+                       <goals>
+                           <goal>check</goal>
+                       </goals>
+                   </execution>
+               </executions>
+            </plugin>
         </plugins>
     </build>
 

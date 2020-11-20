@@ -43,43 +43,48 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 
+/**
+ * Manages initiating the execution of actions.
+ */
 public class AutomatedActionExecutor {
 
     private static final Logger logger = LogManager.getLogger();
 
     @VisibleForTesting
-    static final String TARGET_RESOLUTION_MSG = "Action %d has no resolvable target " +
-            "and cannot be executed.";
+    static final String TARGET_RESOLUTION_MSG = "Action %d has no resolvable target "
+        + "and cannot be executed.";
     @VisibleForTesting
     static final String FAILED_TRANSFORM_MSG = "Failed to translate action %d for execution.";
     @VisibleForTesting
     static final String EXECUTION_START_MSG = "Failed to start action %d due to error.";
 
     /**
-     * To execute actions (by sending them to Topology Processor)
+     * To execute actions (by sending them to Topology Processor).
      */
     private final ActionExecutor actionExecutor;
 
     /**
-     * To schedule actions for asynchronous execution
+     * To schedule actions for asynchronous execution.
      */
     private final ExecutorService executionService;
 
     /**
-     * For selecting which target/probe to execute each action against
+     * For selecting which target/probe to execute each action against.
      */
     private final ActionTargetSelector actionTargetSelector;
 
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
 
     /**
-     * the store for all the known {@link WorkflowDTO.Workflow} items
+     * The store for all the known {@link WorkflowDTO.Workflow} items.
      */
     private final WorkflowStore workflowStore;
 
     private final ScheduleServiceBlockingStub scheduleService;
 
     /**
+     * Creates a AutomatedActionExecutor that talks will all the provided services.
+     *
      * @param actionExecutor to execute actions (by sending them to Topology Processor)
      * @param executorService to schedule actions for asynchronous execution
      * @param workflowStore to determine if any workflows should be used to execute actions
@@ -248,7 +253,7 @@ public class AutomatedActionExecutor {
                                     // Execute the Action on the given target, or the Workflow target
                                     // if a Workflow is specified.
                                     actionExecutor.executeSynchronously(targetId, translated.get(),
-                                            workflowOpt);
+                                            workflowOpt, action.getState());
                                 } catch (ExecutionStartException e) {
                                     final String errorMsg = String.format(EXECUTION_START_MSG, actionId);
                                     logger.error(errorMsg, e);
@@ -327,11 +332,21 @@ public class AutomatedActionExecutor {
                 isAutomaticallyAccepted);
     }
 
+    /**
+     * Holds the action and the future that completes when the action completes.
+     */
     public static class ActionExecutionTask {
 
         private final Action action;
         private final Future<Action> future;
 
+        /**
+         * Creates a ActionExecutionTask holding the provided action and future that completes
+         * when the action executes.
+         *
+         * @param action action that's executing.
+         * @param future the future that completes when the action executes.
+         */
         public ActionExecutionTask(Action action, Future<Action> future) {
             this.action = action;
             this.future = future;

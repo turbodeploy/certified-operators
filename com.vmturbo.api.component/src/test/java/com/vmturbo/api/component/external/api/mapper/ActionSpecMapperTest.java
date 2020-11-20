@@ -42,7 +42,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import org.hamcrest.collection.IsArrayContainingInAnyOrder;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -75,6 +74,7 @@ import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.ActionDisruptiveness;
 import com.vmturbo.api.enums.ActionReversibility;
+import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
@@ -2358,6 +2358,55 @@ public class ActionSpecMapperTest {
     @Test (expected = IllegalArgumentException.class)
     public void testInvalidMapApiCostTypeToXL() throws IllegalArgumentException {
         ActionSpecMapper.mapApiCostTypeToXL(ActionCostType.SUPER_SAVING);
+    }
+
+    /**
+     * {@link ActionSpec#getHasFailure()} should chnage the value of
+     * {@link ActionApiDTO#getActionState()}.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testStateMappings() throws Exception {
+        ActionInfo moveInfo = getHostMoveActionInfo();
+        Explanation compliance = Explanation.newBuilder()
+            .setMove(MoveExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setCompliance(Compliance.newBuilder()
+                        .addMissingCommodities(MEM)
+                        .addMissingCommodities(CPU)
+                        .build())
+                    .build())
+                .build())
+            .build();
+
+        ActionSpec templateAction = buildActionSpec(moveInfo, compliance);
+        assertActionState(templateAction, ActionDTO.ActionState.READY, ActionState.READY);
+        assertActionState(templateAction, ActionDTO.ActionState.CLEARED, ActionState.CLEARED);
+        assertActionState(templateAction, ActionDTO.ActionState.REJECTED, ActionState.REJECTED);
+        assertActionState(templateAction, ActionDTO.ActionState.ACCEPTED, ActionState.ACCEPTED);
+        assertActionState(templateAction, ActionDTO.ActionState.QUEUED, ActionState.QUEUED);
+        assertActionState(templateAction, ActionDTO.ActionState.IN_PROGRESS, ActionState.IN_PROGRESS);
+        assertActionState(templateAction, ActionDTO.ActionState.SUCCEEDED, ActionState.SUCCEEDED);
+        assertActionState(templateAction, ActionDTO.ActionState.FAILED, ActionState.FAILED);
+        assertActionState(templateAction, ActionDTO.ActionState.PRE_IN_PROGRESS, ActionState.IN_PROGRESS);
+        assertActionState(templateAction, ActionDTO.ActionState.POST_IN_PROGRESS, ActionState.IN_PROGRESS);
+        assertActionState(templateAction, ActionDTO.ActionState.FAILING, ActionState.FAILING);
+    }
+
+    private void assertActionState(
+            ActionSpec templateAction,
+            ActionDTO.ActionState stateInActionOrchestrator,
+            ActionState expectedState) throws Exception {
+        final ActionSpec inputRequest = templateAction.toBuilder()
+            .setActionState(stateInActionOrchestrator)
+            .build();
+
+        ActionApiDTO actionApiDTOFailed = mapper.mapActionSpecToActionApiDTO(
+            inputRequest,
+            REAL_TIME_TOPOLOGY_CONTEXT_ID);
+
+        Assert.assertEquals(expectedState, actionApiDTOFailed.getActionState());
     }
 
     private ActionInfo getHostMoveActionInfo() {
