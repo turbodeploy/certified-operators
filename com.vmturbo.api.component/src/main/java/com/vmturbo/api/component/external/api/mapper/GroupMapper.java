@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import static com.vmturbo.api.component.external.api.service.GroupsService.GROUPDTO_ORIGIN_TO_API_CREATION_ORIGIN;
-import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -66,7 +65,6 @@ import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
-import com.vmturbo.common.protobuf.severity.SeverityMap;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
@@ -93,6 +91,7 @@ import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.severity.SeverityMap;
 import com.vmturbo.common.protobuf.severity.SeverityMapper;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -659,7 +658,7 @@ public class GroupMapper {
                 .getMembersByTypeList()
                 .stream()
                 .filter(membersByType -> membersByType.getType().hasEntity()
-                    && WORKLOAD_ENTITY_TYPES.contains(
+                    && ApiEntityType.WORKLOAD_ENTITY_TYPES.contains(
                         ApiEntityType.fromType(membersByType.getType().getEntity())))
                 .map(StaticMembersByType::getMembersList)
                 .flatMap(List::stream)
