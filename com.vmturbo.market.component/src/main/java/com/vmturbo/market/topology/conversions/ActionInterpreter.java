@@ -274,6 +274,23 @@ public class ActionInterpreter {
         } catch (Exception e) {
             logger.error(EconomyConstants.EXCEPTION_MESSAGE,
                 "interpretAction of actionTO " + actionTO, e.getMessage(), e);
+
+            final String message = "Related shopping list info: ";
+            // Add more info to the log
+            switch (actionTO.getActionTypeCase()) {
+                case MOVE:
+                    logger.error(message + shoppingListOidToInfos.get(actionTO.getMove().getShoppingListToMove()));
+                    break;
+                case RECONFIGURE:
+                    logger.error(message + shoppingListOidToInfos.get(actionTO.getReconfigure().getShoppingListToReconfigure()));
+                    break;
+                case COMPOUND_MOVE:
+                    actionTO.getCompoundMove().getMovesList().forEach(move ->
+                            logger.error(message + shoppingListOidToInfos.get(move.getShoppingListToMove())));
+                    break;
+                default:
+                    break;
+            }
         }
         return actionList;
     }

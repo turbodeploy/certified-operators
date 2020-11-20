@@ -89,7 +89,7 @@ public class CommodityTypeAllocator {
         return CommoditySpecificationTO.newBuilder()
                 .setBaseType(CommodityDTO.CommodityType.BICLIQUE_VALUE)
                 .setType(idAllocator.allocate(
-                        CommodityDTO.CommodityType.BICLIQUE_VALUE
+                        String.valueOf(CommodityDTO.CommodityType.BICLIQUE_VALUE)
                                 + TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR_CHAR + bcKey))
                 .setDebugInfoNeverUseInCode(CommodityDTO.CommodityType.BICLIQUE.toString() + " " + bcKey)
                 .build();

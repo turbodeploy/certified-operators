@@ -204,4 +204,14 @@ public class CommodityTypeAllocatorTest {
             new CommodityTypeAllocator.TimeSlotCommodityIDKeyGenerator();
         assertEquals(Optional.empty(), keyGenerator.getCommoditySlotNumber("foo|bar|123:baz"));
     }
+
+    /**
+     * Test {@link CommodityTypeAllocator#commoditySpecificationBiClique(String)}.
+     */
+    @Test
+    public void testCommoditySpecificationBiClique() {
+        final CommoditySpecificationTO commSpec =
+            commodityTypeAllocator.commoditySpecificationBiClique("BC-T2-73562409263120");
+        assertEquals("105|BC-T2-73562409263120", commodityTypeAllocator.getMarketCommodityName(commSpec.getType()));
+    }
 }

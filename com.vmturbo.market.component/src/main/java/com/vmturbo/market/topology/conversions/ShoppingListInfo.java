@@ -93,4 +93,16 @@ public class ShoppingListInfo {
     public Optional<Long> getCollapsedBuyerId() {
         return Optional.ofNullable(collapsedBuyerId);
     }
+
+    @Override
+    public String toString() {
+        return "ShoppingListInfo{" +
+            "id=" + id +
+            ", buyerId=" + buyerId +
+            ", sellerId=" + sellerId +
+            ", resourceId=" + resourceId +
+            ", collapsedBuyerId=" + collapsedBuyerId +
+            ", sellerEntityType=" + sellerEntityType +
+            '}';
+    }
 }
