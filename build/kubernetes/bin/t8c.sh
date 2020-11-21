@@ -410,7 +410,7 @@ then
   externalTimescaleDB=$(echo $?)
   if [ X${externalTimescaleDB} = X0 ]
   then
-    externalTimescaleDB=$(egrep "externalTimescaleDBName" ${chartsFile}
+    externalTimescaleDB=$(egrep "externalTimescaleDBName" ${chartsFile})
     echo "The TimescaleDB database is external from this server"
     echo "${externalTimescaleDB}"
   else
