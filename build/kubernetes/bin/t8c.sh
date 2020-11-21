@@ -9,6 +9,12 @@
 
 # Variable to use if a non-turbonomic deployment
 deploymentBrand=${1}
+serviceAccountFile="/opt/turbonomic/kubernetes/operator/deploy/service_account.yaml"
+roleFile="/opt/turbonomic/kubernetes/operator/deploy/cluster_role.yaml"
+roleBindingFile="/opt/turbonomic/kubernetes/operator/deploy/cluster_role_binding.yaml"
+crdsFile="/opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_crd.yaml"
+operetorFile="/opt/turbonomic/kubernetes/operator/deploy/operator.yaml"
+chartsFile="/opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml"
 
 # Set the ip address for a single node setup.  Multinode should have the
 # ip values set manually in /opt/local/etc/turbo.conf
@@ -360,22 +366,22 @@ then
   echo "                   Operator Installation                              "
   echo "######################################################################"
   # See if the operator has an external ip
-  sed -i "s/tag:.*/tag: ${turboVersion}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
-  grep -r "externalIP:" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+  sed -i "s/tag:.*/tag: ${turboVersion}/g" ${chartsFile}
+  grep -r "externalIP:" ${chartsFile}
   result="$?"
   if [ $result -ne 0 ]; then
     sed -i "/tag:/a\
-\    externalIP: ${node}\n" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+\    externalIP: ${node}\n" ${chartsFile}
   fi
 
   # Set branding if not turbonomic
   if [ ! -z "${deploymentBrand}" ]
   then
     # Adjust regular installs
-    echo "  ui:" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
-    echo "    image:" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
-    echo "      repository: ${deploymentBrand}" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
-    echo "      tag: ${turboVersion}" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+    echo "  ui:" >> ${chartsFile}
+    echo "    image:" >> ${chartsFile}
+    echo "      repository: ${deploymentBrand}" >> ${chartsFile}
+    echo "      tag: ${turboVersion}" >> ${chartsFile}
   fi
 
   # Enable services for gluster
@@ -386,11 +392,11 @@ then
   # Setup mariadb before brining up XL components
   #./mariadb_storage_setup.sh
   # Check to see if an external db is being used.  If so, do not run mariadb locally
-  egrep "externalDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+  egrep "externalDBName" ${chartsFile}
   externalDB=$(echo $?)
   if [ X${externalDB} = X0 ]
   then
-    externalDB=$(egrep "externalDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml)
+    externalDB=$(egrep "externalDBName" ${chartsFile})
     echo "The database is external from this server"
     echo "${externalDB}"
   else
@@ -400,11 +406,11 @@ then
   # Setup timescaledb before bringing up XL components
   # ./configure_timescaledb.sh
   # Check to see if an external timescaledb is being used. If so, do not run timescaledb locally
-  egrep "externalTimescaleDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+  egrep "externalTimescaleDBName" ${chartsFile}
   externalTimescaleDB=$(echo $?)
   if [ X${externalTimescaleDB} = X0 ]
   then
-    externalTimescaleDB=$(egrep "externalTimescaleDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml)
+    externalTimescaleDB=$(egrep "externalTimescaleDBName" ${chartsFile}
     echo "The TimescaleDB database is external from this server"
     echo "${externalTimescaleDB}"
   else
@@ -414,10 +420,10 @@ then
   fi
 
   # Create the operator
-  kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/service_account.yaml -n turbonomic
-  kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/cluster_role.yaml -n turbonomic
-  kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/cluster_role_binding.yaml -n turbonomic
-  kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_crd.yaml -n turbonomic
-  kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/operator.yaml -n turbonomic
-  kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml -n turbonomic
+  kubectl create -f ${serviceAccountFile} -n turbonomic
+  kubectl create -f ${roleFile} -n turbonomic
+  kubectl create -f ${roleBindingFile} -n turbonomic
+  kubectl create -f ${crdsFile} -n turbonomic
+  kubectl create -f ${operetorFile} -n turbonomic
+  kubectl create -f ${chartsFile} -n turbonomic
 fi
