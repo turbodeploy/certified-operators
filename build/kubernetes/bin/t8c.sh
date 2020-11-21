@@ -372,7 +372,7 @@ then
   if [ ! -z "${deploymentBrand}" ]
   then
     # Adjust regular installs
-    echo "  api:" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+    echo "  ui:" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
     echo "    image:" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
     echo "      repository: ${deploymentBrand}" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
     echo "      tag: ${turboVersion}" >> /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
