@@ -2417,7 +2417,7 @@ public class TopologyConverter {
             final long traderOid, final long supplierOid, final long slOid,
             @Nonnull final CommodityBoughtTO commBoughtTO,
             @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis,
-            final TopologyEntityDTO originalEntity,
+            @Nullable final TopologyEntityDTO originalEntity,
             @Nonnull Map<CommodityType, List<Double>> timeSlotsByCommType,
             boolean isProvisioned) {
 
@@ -2604,10 +2604,10 @@ public class TopologyConverter {
     private float getOriginalUsedValue(final CommodityBoughtTO commBoughtTO, final long traderOid,
                                        final long supplierOid, final CommodityType commType,
                                        final long volumeId,
-                                       final TopologyEntityDTO originalEntity) {
+                                       @Nullable final TopologyEntityDTO originalEntity) {
         float currentUsage = commBoughtTO.getQuantity();
         // If this is a cloud entity, find the original bought commodity from supplier.
-        if (cloudTc.isMarketTier(supplierOid)) {
+        if (/*originalEntity != null && */cloudTc.isMarketTier(supplierOid)) {
             if (cloudTc.getMarketTier(supplierOid).getTier() != null &&
                     TopologyConversionConstants.CLOUD_BOUGHT_COMMODITIES_RESIZED
                             .contains(commType.getType())) {
