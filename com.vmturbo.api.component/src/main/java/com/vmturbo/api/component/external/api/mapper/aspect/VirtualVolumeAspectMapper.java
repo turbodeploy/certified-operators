@@ -48,6 +48,7 @@ import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
@@ -58,9 +59,9 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatRequest;
-import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatResponse;
-import com.vmturbo.common.protobuf.stats.Stats.StatHistoricalEpoch;
+import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryResponse;
+import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryResponse.VolumeAttachmentHistory;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -109,9 +110,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
 
     private final StatsHistoryServiceBlockingStub historyRpcService;
 
-    private final long getMostRecentStatRpcDeadlineDurationSeconds;
-
-    private final long getMostRecentStatRpcFutureTimeoutSeconds;
+    private final long getVolumeAttachmentHistoryRpcFutureTimeoutSeconds;
 
     // Function to get the "correct" used value which was used in the analysis.
     private static final Function<CommoditySoldDTO, Float> getUsedFromCommodity = commoditySoldDTO -> {
@@ -133,15 +132,13 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     public VirtualVolumeAspectMapper(@Nonnull final CostServiceBlockingStub costServiceRpc,
                                      @Nonnull final RepositoryApi repositoryApi,
                                      @Nonnull final StatsHistoryServiceBlockingStub
-                                             historyRpcService,
-                                     final long getMostRecentStatRpcDeadlineDurationSeconds,
-                                     final long getMostRecentStatRpcFutureTimeoutSeconds) {
+                                         historyRpcService,
+                                     final long getVolumeAttachmentHistoryRpcFutureTimeoutSeconds) {
         this.costServiceRpc = costServiceRpc;
         this.repositoryApi = repositoryApi;
         this.historyRpcService = historyRpcService;
-        this.getMostRecentStatRpcDeadlineDurationSeconds =
-            getMostRecentStatRpcDeadlineDurationSeconds;
-        this.getMostRecentStatRpcFutureTimeoutSeconds = getMostRecentStatRpcFutureTimeoutSeconds;
+        this.getVolumeAttachmentHistoryRpcFutureTimeoutSeconds =
+            getVolumeAttachmentHistoryRpcFutureTimeoutSeconds;
     }
 
     @Override
@@ -360,7 +357,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         final List<VirtualDiskApiDTO> virtualDisks = new ArrayList<>(volumes.size());
         for (TopologyEntityDTO volume: volumes) {
             virtualDisks.add(convert(volume, new HashMap<>(), vmByVolumeId, storageTierByVolumeId,
-                    regionByVolumeId, volumeCostStatById, volumes.size() == 1));
+                    regionByVolumeId, volumeCostStatById, Collections.emptyMap()));
         }
         if (virtualDisks.isEmpty()) {
             return null;
@@ -672,17 +669,10 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 }
             }
         }
-
         // Get cost stats
         if (costStats != null) {
             statDTOs.addAll(costStats);
         }
-        if (virtualDiskApiDTO.getEnvironmentType() == EnvironmentType.CLOUD
-                && AttachmentState.UNATTACHED.name()
-                .equals(virtualDiskApiDTO.getAttachmentState()) && fetchAttachmentHistory) {
-            populateUnattachedHistoryInfo(volume, virtualDiskApiDTO);
-        }
-
         virtualDiskApiDTO.setStats(statDTOs);
         return virtualDiskApiDTO;
     }
@@ -753,7 +743,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                         .filter(connectedEntity -> connectedEntity.getEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
                         .forEach(connectedEntity -> regionByZoneId.put(connectedEntity.getOid(), region))
         );
-
+        final List<Long> unattachedVolumes = new ArrayList<>();
         vols.forEach(vol -> {
             volumeIds.add(vol.getOid());
 
@@ -795,7 +785,17 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                             ApiEntityType.VIRTUAL_MACHINE))
                     .getFullEntities().forEach(vm ->
                         vmByVolumeId.put(vol.getOid(), vm));
+            if (vol.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD
+                && vol.hasTypeSpecificInfo()
+                && vol.getTypeSpecificInfo().hasVirtualVolume()
+                && vol.getTypeSpecificInfo().getVirtualVolume().getAttachmentState()
+                == AttachmentState.UNATTACHED) {
+                unattachedVolumes.add(vol.getOid());
+            }
         });
+
+        final Map<Long, VolumeAttachmentHistory> volumeAttachmentHistory =
+            retrieveVolumeAttachmentHistory(unattachedVolumes);
 
         final Map<Long, ServiceEntityApiDTO> stTierBasicEntityById = Maps.newHashMap();
         repositoryApi.entitiesRequest(storageTierIds).getMinimalEntities()
@@ -824,7 +824,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 : new HashMap<>();
         for (TopologyEntityDTO volume : vols) {
             final VirtualDiskApiDTO disk = convert(volume, planProjectedVolumeMap, vmByVolumeId, storageTierByVolumeId,
-                    regionByVolumeId, volumeCostStatById, vols.size() == 1);
+                    regionByVolumeId, volumeCostStatById, volumeAttachmentHistory);
             virtualDisks.add(disk);
         }
         if (virtualDisks.isEmpty()) {
@@ -834,6 +834,47 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         final VirtualDisksAspectApiDTO aspect = new VirtualDisksAspectApiDTO();
         aspect.setVirtualDisks(virtualDisks);
         return aspect;
+    }
+
+    private Map<Long, VolumeAttachmentHistory> retrieveVolumeAttachmentHistory(
+        final List<Long> unattachedVolumeOids) throws InterruptedException {
+        if (unattachedVolumeOids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        final GetVolumeAttachmentHistoryRequest request = GetVolumeAttachmentHistoryRequest
+            .newBuilder()
+            .addAllVolumeOid(unattachedVolumeOids)
+            // single unattached volume passed to this method implies that this request is being
+            // made for displaying Delete Volume Action details. For this case, last attached VM
+            // names must be retrieved. This is a workaround as there is no mechanism currently
+            // for the UI to include whether it needs last attached VM name information or not.
+            // For all other cases such as Action Summary and Storage Breakdown widgets, there is no
+            // need to retrieve last attached VM name.
+            .setRetrieveVmNames(unattachedVolumeOids.size() == 1)
+            .build();
+        final Future<Iterator<GetVolumeAttachmentHistoryResponse>> responseFuture =
+            CompletableFuture.supplyAsync(
+                () -> historyRpcService.getVolumeAttachmentHistory(request));
+        final List<GetVolumeAttachmentHistoryResponse> responses = new ArrayList<>();
+        Iterator<GetVolumeAttachmentHistoryResponse> responseIterator;
+        try {
+            responseIterator =
+                responseFuture.get(getVolumeAttachmentHistoryRpcFutureTimeoutSeconds,
+                    TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            logger.error("Error encountered while retrieving volume attachment history for: {}",
+                unattachedVolumeOids, e.getCause());
+            responseIterator = Collections.emptyIterator();
+        } catch (TimeoutException e) {
+            logger.error("Timed out while retrieving volume attachment history for volume: {}",
+                unattachedVolumeOids);
+            responseIterator = Collections.emptyIterator();
+        }
+        responseIterator.forEachRemaining(responses::add);
+        return responses.stream()
+            .map(GetVolumeAttachmentHistoryResponse::getHistoryList)
+            .flatMap(Collection::stream)
+            .collect(Collectors.toMap(VolumeAttachmentHistory::getVolumeOid, Function.identity()));
     }
 
     /**
@@ -987,7 +1028,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
      * @param storageTierByVolumeId mapping from volume id to storage tier
      * @param regionByVolumeId mapping from volume id to region
      * @param volumeCostStatById mapping from volume id to its cost stat
-     * @param fetchAttachmentHistory true if attachment history should be retrieved for the volume
+     * @param volumeAttachmentHistoryMap map from volume oid to Volume Attachment History
      * @return VirtualDiskApiDTO representing the volume
      * @throws InterruptedException if thread has been interrupted
      * @throws ConversionException if errors faced during converting data to API DTOs
@@ -999,7 +1040,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             @Nonnull Map<Long, ServiceEntityApiDTO> storageTierByVolumeId,
             @Nonnull Map<Long, ApiPartialEntity> regionByVolumeId,
             @Nonnull Multimap<Long, StatApiDTO> volumeCostStatById,
-            boolean fetchAttachmentHistory)
+            @Nonnull Map<Long, VolumeAttachmentHistory> volumeAttachmentHistoryMap)
             throws InterruptedException, ConversionException {
         final VirtualDiskApiDTO virtualDiskApiDTO = convertToApiDto(volume, regionByVolumeId,
                 storageTierByVolumeId);
@@ -1061,14 +1102,22 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             getVolumeCommStats(planProjectedVolume, null, statDTOs,
                     storageAmountUsed, storageAccessUsed, ioThroughputUsed, false);
         }
-
-        virtualDiskApiDTO.setStats(statDTOs);
-
-        if (virtualDiskApiDTO.getEnvironmentType() == EnvironmentType.CLOUD
-                && AttachmentState.UNATTACHED.name()
-                .equals(virtualDiskApiDTO.getAttachmentState()) && fetchAttachmentHistory) {
-            populateUnattachedHistoryInfo(volume, virtualDiskApiDTO);
+        final VolumeAttachmentHistory history = volumeAttachmentHistoryMap.get(volumeId);
+        if (history != null && history.hasLastAttachedDateMs()) {
+            final long currentTime = System.currentTimeMillis();
+            final long lastAttachedDate = history.getLastAttachedDateMs();
+            if (currentTime > lastAttachedDate) {
+                virtualDiskApiDTO.setNumDaysUnattached(
+                    Long.toString(TimeUnit.MILLISECONDS.toDays(currentTime - lastAttachedDate)));
+            }
+            final List<String> lastAttachedVms = history.getVmNameList();
+            if (!lastAttachedVms.isEmpty()) {
+                // Currently assume that a Volume can have exactly one VM name in the history.
+                // This may not be the case once multi-attach Volumes are supported.
+                virtualDiskApiDTO.setLastAttachedVm(lastAttachedVms.iterator().next());
+            }
         }
+        virtualDiskApiDTO.setStats(statDTOs);
         return virtualDiskApiDTO;
     }
 
@@ -1176,67 +1225,6 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                         == commodityType.getNumber())
                 .map(CommoditySoldDTO::getCapacity)
                 .findAny().orElse(0D).floatValue();
-    }
-
-    private void populateUnattachedHistoryInfo(final TopologyEntityDTO volume,
-                                               final VirtualDiskApiDTO virtualDiskApiDTO)
-        throws InterruptedException {
-        final GetMostRecentStatResponse response = retrieveUnattachedHistoryStat(volume);
-        if (response.hasSnapshotDate() && response.hasEpoch()) {
-            final long currentTime = System.currentTimeMillis();
-            final long lastAttachedTime = response.getSnapshotDate();
-            if (currentTime > lastAttachedTime) {
-                final long numDaysUnattached =
-                        TimeUnit.MILLISECONDS.toDays(currentTime - lastAttachedTime);
-                String numDaysUnattachedDisplayValue = Long.toString(numDaysUnattached);
-                if (response.getEpoch() == StatHistoricalEpoch.MONTH) {
-                    numDaysUnattachedDisplayValue += "+";
-                }
-                numDaysUnattachedDisplayValue += numDaysUnattached == 1 ? " day" : " days";
-                virtualDiskApiDTO.setNumDaysUnattached(numDaysUnattachedDisplayValue);
-                if (response.hasEntityDisplayName()) {
-                    virtualDiskApiDTO.setLastAttachedVm(response.getEntityDisplayName());
-                }
-            }
-            logger.trace("Last attached history for volume: {}, days: {}, vm name: {}",
-                    volume.getOid(), virtualDiskApiDTO.getNumDaysUnattached(),
-                    virtualDiskApiDTO.getLastAttachedVm());
-        }
-    }
-
-    private GetMostRecentStatResponse retrieveUnattachedHistoryStat(
-            final TopologyEntityDTO volume) throws InterruptedException {
-        final GetMostRecentStatRequest request = GetMostRecentStatRequest.newBuilder()
-                .setCommodityName(StringConstants.STORAGE_AMOUNT)
-                .setEntityType(StringConstants.VIRTUAL_MACHINE)
-                .setProviderId(Long.toString(volume.getOid()))
-                .build();
-        final GetMostRecentStatResponse response = executeGetMostRecentStatQuery(request, volume);
-        logger.debug("Unattached volume history for volume: {}, request: {}, response: {}",
-                volume::getOid, () -> request, () -> response);
-        return response;
-    }
-
-    private GetMostRecentStatResponse executeGetMostRecentStatQuery(
-        final GetMostRecentStatRequest request, final TopologyEntityDTO volume)
-        throws InterruptedException {
-        final Future<GetMostRecentStatResponse> responseFuture =
-            CompletableFuture.supplyAsync(() -> historyRpcService
-                .withDeadlineAfter(getMostRecentStatRpcDeadlineDurationSeconds,
-                    TimeUnit.SECONDS).getMostRecentStat(request));
-        GetMostRecentStatResponse response = GetMostRecentStatResponse.newBuilder().build();
-        try {
-            response = responseFuture.get(getMostRecentStatRpcFutureTimeoutSeconds,
-                TimeUnit.SECONDS);
-        } catch (ExecutionException e) {
-            logger.debug("Error encountered while retrieving volume attachment history for: "
-                + volume.getOid(), e.getCause());
-        } catch (TimeoutException e) {
-            logger.error("Timed out while retrieving volume attachment history for volume: {}",
-                volume::getOid);
-            responseFuture.cancel(true);
-        }
-        return response;
     }
 
     /**

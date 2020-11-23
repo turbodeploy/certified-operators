@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
@@ -51,8 +52,8 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatResponse;
-import com.vmturbo.common.protobuf.stats.Stats.StatHistoricalEpoch;
+import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryResponse;
+import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryResponse.VolumeAttachmentHistory;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
@@ -801,7 +802,7 @@ public class VirtualVolumeAspectMapperTest {
         final StatsHistoryServiceBlockingStub historyRpc =
                 StatsHistoryServiceGrpc.newBlockingStub(grpcTestHistoryServer.getChannel());
         volumeAspectMapper = spy(new VirtualVolumeAspectMapper(costRpc, repositoryApi, historyRpc,
-            5, 10));
+            10));
     }
 
     @Test
@@ -973,18 +974,23 @@ public class VirtualVolumeAspectMapperTest {
                 vdAspect2.getVirtualDisks().iterator().next().getProvider().getUuid());
     }
 
+    private static final long VOLUME_OID_1 = 1111111L;
+    private static final long VOLUME_OID_2 = 2222222L;
+
     /**
-     * Test that if the current time is less than the snapshot time returned by
+     * Test that if the current time is less than the last attached date returned by
      * HistoryRpcService, then numDaysUnattached and lastAttachedVm are not populated.
      */
     @Test
     public void testUnattachedVolumeInvalidSnapshotTime() throws Exception {
         // given
-        final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
-        when(statsHistoryServiceMole.getMostRecentStat(any()))
-                .thenReturn(createMostRecentStatsResponse("vm-123",
-                        System.currentTimeMillis() + TimeUnit.DAYS.toMillis(3),
-                        StatHistoricalEpoch.HOUR));
+        final TopologyEntityDTO unattachedVolume = createUnattachedVolume(VOLUME_OID_1);
+        final long currentTime = System.currentTimeMillis();
+        when(statsHistoryServiceMole.getVolumeAttachmentHistory(any()))
+                .thenReturn(Collections.singletonList(GetVolumeAttachmentHistoryResponse.newBuilder()
+                    .addHistory(createVolumeAttachmentHistoryResponse(unattachedVolume.getOid(),
+                        null, currentTime + TimeUnit.DAYS.toMillis(3)))
+                    .build()));
         stubRepositoryApi();
         // when
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
@@ -1001,8 +1007,9 @@ public class VirtualVolumeAspectMapperTest {
     /**
      * Test that numDaysUnattached and lastAttachedVm are being set correctly for the following
      * valid conditions:
-     * 1. HistoryRpcService response contains the epoch and snapshot time values.
-     * 2. The snapshot time returned by historyRpcService is a date in the past (< current time).
+     * 1. HistoryRpcService response contains the last attached VM name and last attached date
+     * 2. The last attached date returned by historyRpcService is a date in the past
+     * (i.e. < current time)
      *
      * @throws Exception on exception occurred
      */
@@ -1010,22 +1017,24 @@ public class VirtualVolumeAspectMapperTest {
     public void testUnattachedVolumePropertiesValidData() throws Exception {
         // given
         final String lastAttachedVmName = "vm-11111";
-        final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
-        when(statsHistoryServiceMole.getMostRecentStat(any()))
-                .thenReturn(createMostRecentStatsResponse(lastAttachedVmName,
-                        System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3),
-                        StatHistoricalEpoch.HOUR));
+        final TopologyEntityDTO unattachedVolume = createUnattachedVolume(VOLUME_OID_2);
+        final long currentTime = System.currentTimeMillis();
+        when(statsHistoryServiceMole.getVolumeAttachmentHistory(any()))
+            .thenReturn(
+                Collections.singletonList(GetVolumeAttachmentHistoryResponse.newBuilder()
+                    .addHistory(createVolumeAttachmentHistoryResponse(unattachedVolume.getOid(),
+                        lastAttachedVmName, currentTime - TimeUnit.DAYS.toMillis(3)))
+                    .build()));
         stubRepositoryApi();
         // when
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
                 .mapEntitiesToAspect(Collections.singletonList(unattachedVolume));
-
         // then
         Assert.assertNotNull(aspect);
         Assert.assertFalse(aspect.getVirtualDisks().isEmpty());
         final VirtualDiskApiDTO virtualDiskApiDTO = aspect.getVirtualDisks().iterator().next();
         Assert.assertEquals(lastAttachedVmName, virtualDiskApiDTO.getLastAttachedVm());
-        Assert.assertEquals("3 days", virtualDiskApiDTO.getNumDaysUnattached());
+        Assert.assertEquals("3", virtualDiskApiDTO.getNumDaysUnattached());
     }
 
     /**
@@ -1037,9 +1046,9 @@ public class VirtualVolumeAspectMapperTest {
     @Test
     public void testUnattachedVolumeNoHistory() throws Exception {
         // given
-        final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
-        when(statsHistoryServiceMole.getMostRecentStat(any()))
-                .thenReturn(createEmptyMostRecentStatsResponse());
+        final TopologyEntityDTO unattachedVolume = createUnattachedVolume(VOLUME_OID_1);
+        when(statsHistoryServiceMole.getVolumeAttachmentHistory(any()))
+                .thenReturn(Collections.emptyList());
         stubRepositoryApi();
         // when
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
@@ -1054,42 +1063,21 @@ public class VirtualVolumeAspectMapperTest {
     }
 
     /**
-     * Test that if the HistoryRpcService response contains the Month StatHistoricalEpoch, then the
-     * numDaysUnattached has a '+' suffix.
-     *
-     * @throws Exception on exception occurred
-     */
-    @Test
-    public void testUnattachedVolumeHistoryMonthEpoch() throws Exception {
-        // given
-        final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
-        when(statsHistoryServiceMole.getMostRecentStat(any()))
-                .thenReturn(createMostRecentStatsResponse("vm-1111", 123L,
-                        StatHistoricalEpoch.MONTH));
-        stubRepositoryApi();
-        // when
-        final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
-                .mapEntitiesToAspect(Collections.singletonList(unattachedVolume));
-
-        // then
-        Assert.assertNotNull(aspect);
-        final VirtualDiskApiDTO virtualDiskApiDTO = aspect.getVirtualDisks().iterator().next();
-        assertTrue(virtualDiskApiDTO.getNumDaysUnattached().endsWith("+ days"));
-    }
-
-    /**
-     * Test that if the HistoryRpcService response does not have contain entity display name, then
-     * lastAttachedVm is not set.
+     * Test that if the HistoryRpcService response does not contain VM name, then lastAttachedVm
+     * is not set.
      *
      * @throws Exception on exception occurred
      */
     @Test
     public void testUnattachedVolumeInfoNoVmInfo() throws Exception {
         // given
-        final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
-        when(statsHistoryServiceMole.getMostRecentStat(any()))
-                .thenReturn(createMostRecentStatsResponse(null, 123L,
-                        StatHistoricalEpoch.MONTH));
+        final TopologyEntityDTO unattachedVolume = createUnattachedVolume(VOLUME_OID_2);
+        final long currentTime = System.currentTimeMillis();
+        when(statsHistoryServiceMole.getVolumeAttachmentHistory(any()))
+                .thenReturn(Collections.singletonList(GetVolumeAttachmentHistoryResponse.newBuilder()
+                    .addHistory(createVolumeAttachmentHistoryResponse(unattachedVolume.getOid(),
+                        null, currentTime - TimeUnit.DAYS.toMillis(3)))
+                    .build()));
         stubRepositoryApi();
         // when
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
@@ -1102,54 +1090,71 @@ public class VirtualVolumeAspectMapperTest {
     }
 
     /**
-     * Test that the attachment history is not retrieved for bulk calls to mapEntitiesToAspect.
+     * Test that the attachment history is correctly retrieved for bulk calls to
+     * mapEntitiesToAspect.
      *
      * @throws Exception on exception occurred
      */
     @Test
-    public void testUnattachedVolumeHistoryRpcSkippedForBulk() throws Exception {
+    public void testUnattachedVolumeHistoryRpcForBulk() throws Exception {
         // given
-        final TopologyEntityDTO unattachedVolume = createUnattachedVolume();
-        when(statsHistoryServiceMole.getMostRecentStat(any()))
-                .thenReturn(createMostRecentStatsResponse("vm-1111", 123L,
-                        StatHistoricalEpoch.DAY));
+        final TopologyEntityDTO unattachedVolume1 = createUnattachedVolume(VOLUME_OID_1);
+        final int vol1NumDaysAgoDetached = 3;
+        final TopologyEntityDTO unattachedVolume2 = createUnattachedVolume(VOLUME_OID_2);
+        final int vol2NumDaysAgoDetached = 4;
+        final long currentTime = System.currentTimeMillis();
+        when(statsHistoryServiceMole.getVolumeAttachmentHistory(any()))
+                .thenReturn(Collections.singletonList(
+                    GetVolumeAttachmentHistoryResponse.newBuilder()
+                        .addHistory(createVolumeAttachmentHistoryResponse(
+                            unattachedVolume1.getOid(), null,
+                            currentTime - TimeUnit.DAYS.toMillis(vol1NumDaysAgoDetached)))
+                        .addHistory(createVolumeAttachmentHistoryResponse(
+                            unattachedVolume2.getOid(), null,
+                            currentTime - TimeUnit.DAYS.toMillis(vol2NumDaysAgoDetached)))
+                    .build()));
         stubRepositoryApi();
 
         // when
         final VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper
-                .mapEntitiesToAspect(Arrays.asList(unattachedVolume, unattachedVolume));
+                .mapEntitiesToAspect(Arrays.asList(unattachedVolume1, unattachedVolume2));
 
         // then
         verify(statsHistoryServiceMole, never()).getMostRecentStat(any());
         Assert.assertNotNull(aspect);
-        final VirtualDiskApiDTO virtualDiskApiDTO = aspect.getVirtualDisks().iterator().next();
-        Assert.assertNull(virtualDiskApiDTO.getNumDaysUnattached());
-        Assert.assertNull(virtualDiskApiDTO.getLastAttachedVm());
+        final Map<String, VirtualDiskApiDTO> virtualDiskApiDTOs = aspect.getVirtualDisks().stream()
+            .collect(Collectors.toMap(VirtualDiskApiDTO::getUuid, Function.identity()));
+        // verify data related to unattachedVolume1
+        final VirtualDiskApiDTO vol1Aspect =
+            virtualDiskApiDTOs.get(Long.toString(unattachedVolume1.getOid()));
+        Assert.assertNotNull(vol1Aspect);
+        Assert.assertEquals(Integer.toString(vol1NumDaysAgoDetached),
+            vol1Aspect.getNumDaysUnattached());
+        Assert.assertNull(vol1Aspect.getLastAttachedVm());
+        // verify data related to unattachedVolume2
+        final VirtualDiskApiDTO vol2Aspect =
+            virtualDiskApiDTOs.get(Long.toString(unattachedVolume2.getOid()));
+        Assert.assertNotNull(vol2Aspect);
+        Assert.assertEquals(Integer.toString(vol2NumDaysAgoDetached),
+            vol2Aspect.getNumDaysUnattached());
+        Assert.assertNull(vol1Aspect.getLastAttachedVm());
     }
 
-    private GetMostRecentStatResponse createEmptyMostRecentStatsResponse() {
-        return GetMostRecentStatResponse.newBuilder().build();
-    }
-
-    private GetMostRecentStatResponse createMostRecentStatsResponse(final String vmDisplayName,
-                                                                    final long snapshotTime,
-                                                                    final StatHistoricalEpoch
-                                                                            epoch) {
-        final GetMostRecentStatResponse.Builder response = GetMostRecentStatResponse.newBuilder()
-                .setSnapshotDate(snapshotTime)
-                .setEpoch(epoch);
-        if (vmDisplayName != null) {
-            response.setEntityDisplayName(vmDisplayName);
+    private VolumeAttachmentHistory createVolumeAttachmentHistoryResponse(
+        final long volumeOid, final String vmName, final long lastAttachedDate) {
+        final VolumeAttachmentHistory.Builder builder = VolumeAttachmentHistory.newBuilder()
+            .setVolumeOid(volumeOid)
+            .setLastAttachedDateMs(lastAttachedDate);
+        if (vmName != null) {
+            builder.addVmName(vmName);
         }
-        return response.build();
+        return builder.build();
     }
 
-    private TopologyEntityDTO createUnattachedVolume() {
-        final long volId = 77777L;
+    private TopologyEntityDTO createUnattachedVolume(final long volumeOid) {
         return TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setOid(volId)
-                .setDisplayName("random_vol")
+                .setOid(volumeOid)
                 .setEnvironmentType(EnvironmentType.CLOUD)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                         .setVirtualVolume(VirtualVolumeInfo.newBuilder()

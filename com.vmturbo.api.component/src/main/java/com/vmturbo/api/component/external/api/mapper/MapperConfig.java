@@ -57,11 +57,8 @@ public class MapperConfig {
     @Value("${settingStyleFile}")
     private String settingStyleFile;
 
-    @Value("${getMostRecentStatRpcDeadlineDurationSeconds:5}")
-    private long getMostRecentStatRpcDeadlineDurationSeconds;
-
-    @Value("${getMostRecentStatRpcFutureTimeoutSeconds:10}")
-    private long getMostRecentStatRpcFutureTimeoutSeconds;
+    @Value("${getVolumeAttachmentHistoryRpcFutureTimeoutSeconds:10}")
+    private long getVolumeAttachmentHistoryRpcFutureTimeoutSeconds;
 
     /**
      * Enable 'Scale for Performance' and 'Scale for Savings' settings.
@@ -305,7 +302,7 @@ public class MapperConfig {
     public VirtualVolumeAspectMapper virtualVolumeAspectMapper() {
         return new VirtualVolumeAspectMapper(communicationConfig.costServiceBlockingStub(),
             communicationConfig.repositoryApi(), communicationConfig.historyRpcService(),
-            getMostRecentStatRpcDeadlineDurationSeconds, getMostRecentStatRpcFutureTimeoutSeconds);
+            getVolumeAttachmentHistoryRpcFutureTimeoutSeconds);
     }
 
     @Bean
