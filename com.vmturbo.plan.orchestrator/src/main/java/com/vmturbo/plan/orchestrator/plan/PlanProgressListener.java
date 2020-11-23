@@ -601,13 +601,14 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                         && Status.SUCCESS.equals(planEntityCostStatus);
 
         final boolean commonNotificationsSuccessful = checkCommonNotificationsSuccessful(plan);
+        final boolean commonAndCostSuccessful = commonNotificationsSuccessful && costNotificationsSuccessful;
         final boolean commonAndAnalysisAndCostSuccessful = analysisSuccessful
                 && commonNotificationsSuccessful
                 && costNotificationsSuccessful;
         String planSubType = PlanRpcServiceUtil.getCloudPlanSubType(plan.getScenario()
                 .getScenarioInfo());
         if (isOCPBuyRIOnly(planSubType)) {
-            return commonNotificationsSuccessful
+            return commonAndCostSuccessful
                     ? PlanStatus.SUCCEEDED
                     : PlanStatus.WAITING_FOR_RESULT;
         } else if (isOCPOptimizeServices(planSubType)) {
