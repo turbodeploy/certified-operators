@@ -61,20 +61,6 @@ enum TopologyDumpOptions {
     DUMP_AFTER_POST_STITCHING = 50;
 }
 
-// Where to send the output of the stitching journal.
-enum OutputOptions {
-    // Return the output of the journal to the caller that triggered the journal request.
-    RETURN_TO_CALLER = 1;
-
-    // Log the output of the journal to the logger at INFO level. The output is NOT
-    // returned to the caller.
-    LOGGER = 2;
-
-    // Log the output of the journal to the logger at INFO level AND return the journal
-    // output to the caller.
-    LOG_AND_RETURN_TO_CALLER = 3;
-}
-
 // Options that control the behavior of the journal.
 message JournalOptions {
     // The verbosity of the journal.
@@ -319,8 +305,6 @@ message JournalEntry {
 message FilteredJournalRequest {
     // Options to control the behavior of the journal. If none are passed, defaults are used.
     optional JournalOptions journal_options = 1;
-
-    optional OutputOptions output_options = 2 [default = LOG_AND_RETURN_TO_CALLER];
 
     // A filter to use when deciding what changes to enter into the journal.
     oneof filter_type {

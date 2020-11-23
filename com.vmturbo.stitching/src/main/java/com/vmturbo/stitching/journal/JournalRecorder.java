@@ -18,7 +18,6 @@ import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.base.Preconditions;
 import com.google.gson.Gson;
 
 import io.grpc.stub.StreamObserver;
@@ -479,12 +478,6 @@ public interface JournalRecorder {
         private final Logger logger;
 
         private final StringBuilder stringBuilder;
-        private final long flushingCharacterLength;
-
-        /**
-         * The default length at which we will flush the buffering StringBuilder for the LoggerRecorder.
-         */
-        public static final long DEFAULT_FLUSHING_CHARACTER_LENGTH = 1024 * 1024;
 
         /**
          * Record journal entries to a logger associated with the {@Link StitchingJournal} class.
@@ -496,26 +489,11 @@ public interface JournalRecorder {
         public LoggerRecorder(@Nonnull final Logger logger) {
             this.logger = Objects.requireNonNull(logger);
             stringBuilder = new StringBuilder(4096);
-            flushingCharacterLength = DEFAULT_FLUSHING_CHARACTER_LENGTH;
-        }
-
-        public LoggerRecorder(@Nonnull final Logger logger,
-                              final long flushingCharacterLength) {
-            this.logger = Objects.requireNonNull(logger);
-            stringBuilder = new StringBuilder(4096);
-            Preconditions.checkArgument(flushingCharacterLength > 1024);
-            this.flushingCharacterLength = flushingCharacterLength;
         }
 
         @Override
         public void record(@Nonnull String entry) {
             stringBuilder.append(entry).append("\n");
-
-            // If the buffer is getting too long, flush and clear it to prevent running
-            // ourselves out of memory.
-            if (stringBuilder.length() > flushingCharacterLength) {
-                flush();
-            }
         }
 
         @Override
@@ -525,25 +503,7 @@ public interface JournalRecorder {
 
         @Override
         public void flush() {
-            // Only write anything when we have data to write.
-            if (stringBuilder.length() > 0) {
-                logger.info(stringBuilder);
-                stringBuilder.setLength(0); // Clear the backing stringBuilder
-            }
-        }
-
-        @Override
-        public void recordOperationEnd(@Nonnull JournalableOperation operation,
-                                       @Nonnull final Collection<String> operationDetails,
-                                       final int changesetsGenerated,
-                                       final int changesetsIncluded,
-                                       final int emptychangesets,
-                                       @Nonnull final Duration duration) {
-            super.recordOperationEnd(operation, operationDetails, changesetsGenerated, changesetsIncluded,
-                emptychangesets, duration);
-
-            // Flush at the end of an operation
-            flush();
+            logger.info(stringBuilder);
         }
     }
 
