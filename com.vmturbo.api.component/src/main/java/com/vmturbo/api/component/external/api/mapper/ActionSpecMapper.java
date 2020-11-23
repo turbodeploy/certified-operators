@@ -1769,7 +1769,8 @@ public class ActionSpecMapper {
                     riSpec, context.getServiceEntityApiDTOs(),
                     null, null, null);
             actionApiDTO.setReservedInstance(riApiDTO);
-            actionApiDTO.setTarget(getServiceEntityDTO(context, buyRI.getRegion()));
+            actionApiDTO.setTarget(getServiceEntityDTO(context, buyRI.getMasterAccount()));
+            actionApiDTO.setCurrentLocation(getServiceEntityDTO(context, buyRI.getRegion()));
             // For less brittle UI integration, we set the current entity to an empty object.
             // The UI sometimes checks the validity of the "currentEntity.uuid" field,
             // which throws an error if current entity is unset.
