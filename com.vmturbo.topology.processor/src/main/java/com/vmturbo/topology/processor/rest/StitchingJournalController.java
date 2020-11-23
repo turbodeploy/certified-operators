@@ -1,9 +1,17 @@
 package com.vmturbo.topology.processor.rest;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.time.Clock;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.annotations.VisibleForTesting;
+
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -16,11 +24,9 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-
+import com.vmturbo.common.protobuf.topology.Stitching;
 import com.vmturbo.common.protobuf.topology.StitchingREST.FilteredJournalRequest;
+import com.vmturbo.stitching.journal.JournalRecorder.LoggerRecorder;
 import com.vmturbo.stitching.journal.JournalRecorder.OutputStreamRecorder;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.journal.JournalFilterFactory;
@@ -72,28 +78,54 @@ public class StitchingJournalController {
 
             final ConfigurableStitchingJournalFactory journalFactory =
                 StitchingJournalFactory.configurableStitchingJournalFactory(clock);
-            journalFactory.setFilter(filterFactory.filterFor(protoRequest));
-            journalFactory.setJournalOptions(protoRequest.getJournalOptions());
-
-            // Use a streaming response body to allow the response to be streamed.
-            // This prevents a massive buildup in memory of the log as stitching occurs.
-            // It also allows the caller not to have to receive the entire log at once.
-            final StreamingResponseBody body = outputStream -> {
-                final OutputStreamRecorder outputStreamRecorder = new OutputStreamRecorder(outputStream);
-                journalFactory.addRecorder(outputStreamRecorder);
-
-                scheduler.resetBroadcastSchedule();
-                try {
-                    topologyHandler.broadcastLatestTopology(journalFactory);
-                } catch (Exception e) {
-                    outputStream.write(e.getMessage().getBytes());
-                }
-            };
+            final StreamingResponseBody body = streamTextJournal(protoRequest, journalFactory);
 
             return new ResponseEntity<>(body, HttpStatus.OK);
         } catch (Exception e) {
             logger.error("Unable to broadcast topology and capture stitching log due to error: ", e);
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @VisibleForTesting
+    @Nonnull
+    StreamingResponseBody streamTextJournal(@Nonnull final Stitching.FilteredJournalRequest protoRequest,
+                                            @Nonnull final ConfigurableStitchingJournalFactory journalFactory)
+        throws IOException {
+        journalFactory.setFilter(filterFactory.filterFor(protoRequest));
+        journalFactory.setJournalOptions(protoRequest.getJournalOptions());
+
+        // Use a streaming response body to allow the response to be streamed.
+        // This prevents a massive buildup in memory of the log as stitching occurs.
+        // It also allows the caller not to have to receive the entire log at once.
+        return outputStream -> {
+            addRecorders(protoRequest, journalFactory, outputStream);
+
+            scheduler.resetBroadcastSchedule();
+            try {
+                topologyHandler.broadcastLatestTopology(journalFactory);
+            } catch (Exception e) {
+                outputStream.write(e.getMessage().getBytes());
+            }
+        };
+    }
+
+    private void addRecorders(@Nonnull final Stitching.FilteredJournalRequest request,
+                              @Nonnull final ConfigurableStitchingJournalFactory journalFactory,
+                              @Nonnull final OutputStream outputStream) {
+        switch (request.getOutputOptions()) {
+            case RETURN_TO_CALLER:
+                journalFactory.addRecorder(new OutputStreamRecorder(outputStream));
+                break;
+            case LOGGER:
+                journalFactory.addRecorder(new LoggerRecorder(logger,
+                    LoggerRecorder.DEFAULT_FLUSHING_CHARACTER_LENGTH));
+                break;
+            case LOG_AND_RETURN_TO_CALLER:
+                journalFactory.addRecorder(new LoggerRecorder(logger,
+                    LoggerRecorder.DEFAULT_FLUSHING_CHARACTER_LENGTH));
+                journalFactory.addRecorder(new OutputStreamRecorder(outputStream));
+                break;
         }
     }
 }
