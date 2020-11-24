@@ -21,7 +21,6 @@ import com.cisco.intersight.client.ApiException;
 import com.cisco.intersight.client.api.AssetApi;
 import com.cisco.intersight.client.model.AssetTarget;
 import com.cisco.intersight.client.model.AssetTarget.TargetTypeEnum;
-import com.cisco.intersight.client.model.AssetTargetList;
 import com.cisco.intersight.client.model.AssetWorkloadOptimizerService;
 import com.cisco.intersight.client.model.AssetWorkloadOptimizerVmwareVcenterOptions;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -33,7 +32,6 @@ import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.mediation.connector.intersight.IntersightConnection;
-import com.vmturbo.mediation.connector.intersight.IntersightDefaultQueryParameters;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -148,22 +146,8 @@ public class IntersightTargetSyncService implements Runnable {
         // "Status": this is a top-level status field and is an enum and read-only;
         //           To ensure accepted by the server, this has to be passed back unchanged.
         final String select = "$select=Moid,TargetType,Services,Status,CreateTime,ModTime";
-        AssetTargetList assetTargetList = null;
-        try {
-            assetTargetList = assetApi.getAssetTargetList(IntersightDefaultQueryParameters.$filter,
-                    IntersightDefaultQueryParameters.$orderby,
-                    IntersightDefaultQueryParameters.$top, IntersightDefaultQueryParameters.$skip,
-                    select, IntersightDefaultQueryParameters.$expand,
-                    IntersightDefaultQueryParameters.$apply,
-                    IntersightDefaultQueryParameters.$count,
-                    IntersightDefaultQueryParameters.$inlinecount,
-                    IntersightDefaultQueryParameters.$at, IntersightDefaultQueryParameters.$tags);
-        } catch (ApiException e) {
-            logger.error("Error Getting Targets using Intersight API. Query TraceId {} ",
-                    e.getResponseHeaders() != null ?
-                            e.getResponseHeaders().get(INTERSIGHT_TRACEID) : "Unknown");
-            throw e;
-        }
+        final List<AssetTarget> assetTargetList =
+                new AssetTargetQuery(select).getAllQueryInstancesOrElseThrow(apiClient);
 
         // Sync Intersight Targets
         syncIntersightTargets(probesByType, staleTargets, targetsByProbeId);
@@ -183,47 +167,39 @@ public class IntersightTargetSyncService implements Runnable {
     }
 
     private void syncAssetTargets(final Map<String, ProbeInfo> probesByType,
-            final Set<TargetInfo> staleTargets, final Map<Long, List<TargetInfo>> targetsByProbeId,
-            final ApiClient apiClient, final AssetTargetList assetTargetList)
-            throws InterruptedException {
-        if (assetTargetList != null && assetTargetList.getResults() != null) {
-            final IntersightTargetUpdater targetUpdater =
-                    new IntersightTargetUpdater(apiClient, topologyProcessor,
-                            noUpdateOnChangePeriodSeconds);
-            for (final AssetTarget assetTarget : assetTargetList.getResults()) {
-                for (final SDKProbeType probeType : findProbeType(assetTarget)) {
-                    final ProbeInfo probeInfo = probesByType.get(probeType.getProbeType());
-                    if (probeInfo == null) {
-                        logger.error(
-                                "No probe found for probe type {}; can't process asset target {}",
-                                probeType, assetTarget.getMoid());
-                        continue;
+            final Set<TargetInfo> staleTargets,
+            final Map<Long, List<TargetInfo>> targetsByProbeId, final ApiClient apiClient,
+            @Nonnull final List<AssetTarget> assetTargets) throws InterruptedException {
+        final IntersightTargetUpdater targetUpdater = new IntersightTargetUpdater(apiClient,
+                topologyProcessor, noUpdateOnChangePeriodSeconds);
+        for (final AssetTarget assetTarget : assetTargets) {
+            for (final SDKProbeType probeType : findProbeType(assetTarget)) {
+                final ProbeInfo probeInfo = probesByType.get(probeType.getProbeType());
+                if (probeInfo == null) {
+                    logger.error("No probe found for probe type {}; can't process asset target {}",
+                            probeType, assetTarget.getMoid());
+                    continue;
+                }
+                try {
+                    TargetInfo targetInfo = findTargetInfo(assetTarget, probeInfo, targetsByProbeId);
+                    if (targetInfo == null) {
+                        final TargetData targetData = new AssetTargetData(assetTarget, probeInfo);
+                        final long targetId = topologyProcessor.addTarget(probeInfo.getId(), targetData);
+                        logger.info("Added {} target {}", probeType, assetTarget.getMoid());
+                        targetInfo = topologyProcessor.getTarget(targetId);
+                    } else {
+                        staleTargets.remove(targetInfo);
                     }
-                    try {
-                        TargetInfo targetInfo =
-                                findTargetInfo(assetTarget, probeInfo, targetsByProbeId);
-                        if (targetInfo == null) {
-                            final TargetData targetData =
-                                    new AssetTargetData(assetTarget, probeInfo);
-                            final long targetId =
-                                    topologyProcessor.addTarget(probeInfo.getId(), targetData);
-                            logger.info("Added {} target {}", probeType, assetTarget.getMoid());
-                            targetInfo = topologyProcessor.getTarget(targetId);
-                        } else {
-                            staleTargets.remove(targetInfo);
-                        }
-                        if (probeInfo.getCreationMode() != CreationMode.DERIVED) {
-                            // skip derived targets as it should be the same as the original target;
-                            // sometimes derived targets such as storage browsing has a much
-                            // bigger discovery interval, so its status might be stale.
-                            targetUpdater.update(assetTarget, targetInfo);
-                        }
-                    } catch (TopologyProcessorException | ApiException | CommunicationException | RuntimeException | JsonProcessingException e) {
-                        logger.error(
-                                "Error adding or updating status for target {} of probe type {} due to: {}",
-                                assetTarget.getMoid(), probeType, e);
-                        e.printStackTrace();
+                    if (probeInfo.getCreationMode() != CreationMode.DERIVED) {
+                        // skip derived targets as it should be the same as the original target;
+                        // sometimes derived targets such as storage browsing has a much
+                        // bigger discovery interval, so its status might be stale.
+                        targetUpdater.update(assetTarget, targetInfo);
                     }
+                } catch (TopologyProcessorException | ApiException | CommunicationException | RuntimeException | JsonProcessingException e) {
+                    logger.error(
+                            "Error adding or updating status for target {} of probe type {} due to: {}",
+                            assetTarget.getMoid(), probeType, e);
                 }
             }
         }
@@ -409,7 +385,7 @@ public class IntersightTargetSyncService implements Runnable {
     private static Collection<SDKProbeType> findProbeType(@Nonnull final AssetTarget assetTarget) {
         final TargetTypeEnum targetType = Objects.requireNonNull(assetTarget).getTargetType();
         if (targetType == null) {
-            logger.warn("Null Intersight target type in asset.Target {}", assetTarget.getMoid());
+            logger.debug("Null Intersight target type in asset.Target {}", assetTarget.getMoid());
             return Collections.emptySet();
         }
         switch (targetType) {
@@ -458,7 +434,7 @@ public class IntersightTargetSyncService implements Runnable {
             case AMAZONWEBSERVICEBILLING:
                 return Collections.singleton(SDKProbeType.AWS_BILLING);
             default:
-                logger.warn("Unsupported Intersight target type {} in asset.Target {}",
+                logger.debug("Unsupported Intersight target type {} in asset.Target {}",
                         assetTarget.getTargetType(), assetTarget.getMoid());
                 return Collections.emptySet();
         }
