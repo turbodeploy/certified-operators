@@ -1,8 +1,6 @@
  package com.vmturbo.history.stats;
 
- import static com.vmturbo.common.protobuf.utils.StringConstants.STORAGE_AMOUNT;
  import static com.vmturbo.common.protobuf.utils.StringConstants.USED;
- import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_MACHINE;
  import static com.vmturbo.history.schema.RelationType.COMMODITIES;
  import static com.vmturbo.history.stats.StatsTestUtils.newStatRecord;
  import static junit.framework.TestCase.assertTrue;
@@ -51,7 +49,6 @@
 
  import io.grpc.Status.Code;
  import io.grpc.StatusRuntimeException;
- import io.grpc.stub.ServerCallStreamObserver;
  import io.grpc.stub.StreamObserver;
 
  import org.jooq.Record;
@@ -82,7 +79,6 @@
  import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
  import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
  import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
- import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatResponse;
  import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
  import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
  import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryRequest;
@@ -125,7 +121,6 @@
  import com.vmturbo.history.stats.projected.ProjectedStatsStore;
  import com.vmturbo.history.stats.readers.LiveStatsReader;
  import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
- import com.vmturbo.history.stats.readers.MostRecentLiveStatReader;
  import com.vmturbo.history.stats.readers.VolumeAttachmentHistoryReader;
  import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
 
@@ -174,10 +169,6 @@ public class StatsHistoryRpcServiceTest {
     private RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader
             = mock(RequestBasedReader.class);
 
-    final BulkLoader clusterStatsByDayWriter = mock(BulkLoader.class);
-
-    private MostRecentLiveStatReader mostRecentLiveStatReader =
-            mock(MostRecentLiveStatReader.class);
     private VolumeAttachmentHistoryReader volumeAttachmentHistoryReader =
         mock(VolumeAttachmentHistoryReader.class);
     private ExecutorService threadPool = mock(ExecutorService.class);
@@ -191,7 +182,7 @@ public class StatsHistoryRpcServiceTest {
                     statSnapshotCreatorSpy,
                     statRecordBuilderSpy,
                     systemLoadReader, 100,
-                    percentileReader, threadPool, mostRecentLiveStatReader,
+                    percentileReader, threadPool,
                     volumeAttachmentHistoryReader));
 
     @Rule
@@ -1023,34 +1014,6 @@ public class StatsHistoryRpcServiceTest {
         assertNotNull(this.getEntityStatsResponseStreamObserver.getGetEntityStatsResponse());
         assertNotNull(this.getEntityStatsResponseStreamObserver.getGetEntityStatsResponse().getPaginationResponse());
         assertTrue(this.getEntityStatsResponseStreamObserver.getGetEntityStatsResponse().getPaginationResponse().getTotalRecordCount() == 2);
-    }
-
-    /**
-     * Test that GetMostRecentStat returns response with entityDisplayName set.
-     */
-    @Test
-    public void testGetMostRecentStat() {
-        // given
-        final long vmId = 11111L;
-        final String vmName = "vm-1";
-        final String volId = "1234";
-        final GetMostRecentStatResponse.Builder stubbedResponse = GetMostRecentStatResponse
-                .newBuilder().setEntityUuid(vmId);
-        when(mostRecentLiveStatReader.getMostRecentStat(eq(VIRTUAL_MACHINE), eq(STORAGE_AMOUNT),
-            eq(volId), any(ServerCallStreamObserver.class)))
-            .thenReturn(Optional.of(stubbedResponse));
-        when(mockLivestatsreader.getEntityDisplayNameForId(vmId)).thenReturn(vmName);
-        Stats.GetMostRecentStatRequest request = Stats.GetMostRecentStatRequest.newBuilder()
-                .setEntityType(VIRTUAL_MACHINE)
-                .setCommodityName(STORAGE_AMOUNT)
-                .setProviderId(volId)
-                .build();
-
-        // when
-        final Stats.GetMostRecentStatResponse response = clientStub.getMostRecentStat(request);
-
-        // then
-        Assert.assertEquals(vmName, response.getEntityDisplayName());
     }
 
     private static final long VOLUME_ID_1 = 11111L;

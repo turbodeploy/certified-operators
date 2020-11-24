@@ -47,7 +47,6 @@ import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRang
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.stats.readers.HistUtilizationReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
-import com.vmturbo.history.stats.readers.MostRecentLiveStatReader;
 import com.vmturbo.history.stats.readers.PercentileReader;
 import com.vmturbo.history.stats.readers.VolumeAttachmentHistoryReader;
 import com.vmturbo.history.stats.snapshots.CapacityRecordVisitor.CapacityPopulator;
@@ -200,7 +199,6 @@ public class StatsConfig {
                 systemLoadRecordsPerChunk,
                 percentileReader(),
                 statsSvcThreadPool(),
-                mostRecentLiveStatsReader(),
                 volumeAttachmentHistoryReader());
     }
 
@@ -335,11 +333,6 @@ public class StatsConfig {
     public ClusterStatsReader clusterStatsReader() {
         return new ClusterStatsReader(historyDbConfig.historyDbIO(), clusterTimeRangeFactory(),
                 computedPropertiesProcessorFactory(), maxAmountOfEntitiesPerGrpcMessage);
-    }
-
-    @Bean
-    MostRecentLiveStatReader mostRecentLiveStatsReader() {
-        return new MostRecentLiveStatReader(historyDbConfig.historyDbIO());
     }
 
     @Bean

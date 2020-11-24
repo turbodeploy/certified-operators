@@ -40,7 +40,6 @@ import com.google.common.collect.Table.Cell;
 
 import io.grpc.Status;
 import io.grpc.StatusException;
-import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.Summary;
 import io.prometheus.client.Summary.Timer;
@@ -78,8 +77,6 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityIdToEntityTypeMappingReq
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityIdToEntityTypeMappingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
-import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatRequest;
-import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetVolumeAttachmentHistoryRequest;
@@ -126,7 +123,6 @@ import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
 import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
-import com.vmturbo.history.stats.readers.MostRecentLiveStatReader;
 import com.vmturbo.history.stats.readers.VolumeAttachmentHistoryReader;
 import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
 import com.vmturbo.history.stats.writers.PercentileWriter;
@@ -159,7 +155,6 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
     private final SystemLoadReader systemLoadReader;
     private final RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader;
-    private final MostRecentLiveStatReader mostRecentLiveStatReader;
     private final VolumeAttachmentHistoryReader volumeAttachmentHistoryReader;
     private final ExecutorService statsWriterExecutorService;
 
@@ -197,7 +192,6 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             final int systemLoadRecordsPerChunk,
             @Nonnull RequestBasedReader<GetPercentileCountsRequest, PercentileChunk> percentileReader,
             @Nonnull ExecutorService statsWriterExecutorService,
-            @Nonnull MostRecentLiveStatReader mostRecentLiveStatReader,
             @Nonnull VolumeAttachmentHistoryReader volumeAttachmentHistoryReader) {
         this.realtimeContextId = realtimeContextId;
         this.liveStatsReader = Objects.requireNonNull(liveStatsReader);
@@ -213,7 +207,6 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         this.systemLoadRecordsPerChunk = systemLoadRecordsPerChunk;
         this.percentileReader = Objects.requireNonNull(percentileReader);
         this.statsWriterExecutorService = Objects.requireNonNull(statsWriterExecutorService);
-        this.mostRecentLiveStatReader = Objects.requireNonNull(mostRecentLiveStatReader);
         this.volumeAttachmentHistoryReader = Objects.requireNonNull(volumeAttachmentHistoryReader);
     }
 
@@ -1404,32 +1397,6 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             responseObserver.onError(
                     Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void getMostRecentStat(GetMostRecentStatRequest request,
-                                  StreamObserver<GetMostRecentStatResponse> responseObserver) {
-        final ServerCallStreamObserver streamObserver =
-            responseObserver instanceof ServerCallStreamObserver ?
-                (ServerCallStreamObserver)responseObserver : null;
-        final Optional<GetMostRecentStatResponse.Builder> response = mostRecentLiveStatReader
-            .getMostRecentStat(request.getEntityType(), request.getCommodityName(),
-                request.getProviderId(), streamObserver);
-        final GetMostRecentStatResponse returnObject = response.map(stat -> {
-            final String entityDisplayName = liveStatsReader
-                .getEntityDisplayNameForId(stat.getEntityUuid());
-            if (entityDisplayName != null) {
-                stat.setEntityDisplayName(entityDisplayName);
-            }
-            return stat.build();
-        }).orElse(GetMostRecentStatResponse.newBuilder().build());
-        logger.debug("Most recent stat response for request {}, is {}", () -> request,
-            () -> returnObject);
-        responseObserver.onNext(returnObject);
-        responseObserver.onCompleted();
     }
 
     @Override

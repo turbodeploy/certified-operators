@@ -197,30 +197,6 @@ message ProjectedStatsRequest {
     repeated int64 providers = 3;
 }
 
-// Request for GetMostRecentStat rpc
-message GetMostRecentStatRequest {
-    // name of commodity for which stat is requested. E.g. StorageAmount.
-    optional string commodity_name = 1;
-    // key of the commodity for which stat is requested. E.g. vol-0d4bca84.
-    optional string commodity_key = 2 [deprecated = true];
-    // entity type for which the stat is requested. E.g. VirtualMachine.
-    optional string entity_type = 3;
-    // oid of the provider of the commodity for which the stat is being requested.
-    optional string provider_id = 4;
-}
-
-// Response for GetMostRecentStat rpc
-message GetMostRecentStatResponse {
-    // date of the most recent stat
-    optional uint64 snapshot_date = 1;
-    // historical epoch of the stat
-    optional StatHistoricalEpoch epoch = 2;
-    // name of the entity to which the stat belongs
-    optional string entity_display_name = 3;
-    // uuid of the entity to which the stat belongs
-    optional uint64 entity_uuid = 4;
-}
-
 // Request for GetVolumeAttachmentHistory rpc
 message GetVolumeAttachmentHistoryRequest {
     // volume oids for which Volume Attachment History is requested
@@ -242,14 +218,6 @@ message GetVolumeAttachmentHistoryResponse {
         // VMs that the Volume was last attached to
         repeated string vm_name = 3;
     }
-}
-
-// Historical epoch to which a stat may belong. For example, if a stat was retrieved from an hourly
-// table, then the StatHistoricalEpoch would be HOUR.
-enum StatHistoricalEpoch {
-    HOUR = 1;
-    DAY = 2;
-    MONTH = 3;
 }
 
 // Request for per-entity stats from the latest projected topology.
@@ -756,9 +724,6 @@ service StatsHistoryService {
 
     // Store the percentile counts for the passed start timestamp or entire observation window
     rpc SetPercentileCounts (stream PercentileChunk) returns (SetPercentileCountsResponse);
-
-    // Get the most recent stat for a commodity from the hourly, daily or monthly tables
-    rpc GetMostRecentStat (GetMostRecentStatRequest) returns (GetMostRecentStatResponse);
 
     // Get the Volume Attachment History for a list of Volumes
     rpc GetVolumeAttachmentHistory (GetVolumeAttachmentHistoryRequest) returns

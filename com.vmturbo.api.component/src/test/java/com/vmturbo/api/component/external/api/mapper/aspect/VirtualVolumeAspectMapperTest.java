@@ -1120,7 +1120,6 @@ public class VirtualVolumeAspectMapperTest {
                 .mapEntitiesToAspect(Arrays.asList(unattachedVolume1, unattachedVolume2));
 
         // then
-        verify(statsHistoryServiceMole, never()).getMostRecentStat(any());
         Assert.assertNotNull(aspect);
         final Map<String, VirtualDiskApiDTO> virtualDiskApiDTOs = aspect.getVirtualDisks().stream()
             .collect(Collectors.toMap(VirtualDiskApiDTO::getUuid, Function.identity()));
