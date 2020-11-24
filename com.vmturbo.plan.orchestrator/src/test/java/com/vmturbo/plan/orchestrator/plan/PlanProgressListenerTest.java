@@ -249,12 +249,13 @@ public class PlanProgressListenerTest {
                 .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).addChanges(scenarioChangeRI);
         final Scenario.Builder scenario = Scenario.newBuilder().setScenarioInfo(scenarioInfo);
         PlanStatus planStatus1 = PlanProgressListener.getCloudPlanStatus(getPlan(
-                getPlanProgress(null, null, null).setAnalysisStatus(SUCCESS),
+                getPlanProgress(Status.SUCCESS, Status.SUCCESS, Status.SUCCESS).setAnalysisStatus(SUCCESS),
                 true, SOURCE_TOPOLOGY_ID, PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID,
                 null, scenario));
         Assert.assertEquals(SUCCEEDED, planStatus1);
         PlanStatus planStatus2 = PlanProgressListener.getCloudPlanStatus(getPlan(
-                    getPlanProgress(null, null, null).setAnalysisStatus(Status.UNKNOWN),
+                    getPlanProgress(Status.SUCCESS, Status.SUCCESS, Status.SUCCESS)
+                            .setAnalysisStatus(Status.UNKNOWN),
                     true, SOURCE_TOPOLOGY_ID, PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID,
                     null, scenario));
         Assert.assertEquals(SUCCEEDED, planStatus2);
@@ -284,7 +285,7 @@ public class PlanProgressListenerTest {
     }
 
     /**
-     * Tests get OCP with buy RI and optimize services failure because of projected cost
+     * Tests get OCP with buy RI and optimize services failure because of entity cost
      * notification.
      */
     @Test
@@ -298,7 +299,6 @@ public class PlanProgressListenerTest {
         final ScenarioInfo.Builder scenarioInfo = ScenarioInfo.newBuilder()
                 .setType(StringConstants.OPTIMIZE_CLOUD_PLAN)
                 .addChanges(scenarioChangeScale);
-        final Scenario.Builder scenario = Scenario.newBuilder().setScenarioInfo(scenarioInfo);
         PlanStatus planStatus = PlanProgressListener.getCloudPlanStatus(getPlan(
                 getPlanProgress(SUCCESS, SUCCESS, null), null,
                 null, null, null, null,
@@ -306,6 +306,26 @@ public class PlanProgressListenerTest {
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
     }
 
+    /**
+     * Tests get OCP with only buy RI failure because of entity cost notification.
+     */
+    @Test
+    public void testGetOCPWithOnlyBuyRIPlanStatusNoPlanEntityCostNotification() {
+        final Setting.Builder setting =
+                Setting.newBuilder().setSettingSpecName(ConfigurableActionSettings.Resize.getSettingName());
+        final SettingOverride.Builder scaleSetting =
+                SettingOverride.newBuilder().setSetting(setting);
+        final ScenarioChange.Builder scenarioChangeScale =
+                ScenarioChange.newBuilder().setSettingOverride(scaleSetting);
+        final ScenarioInfo.Builder scenarioInfo = ScenarioInfo.newBuilder()
+                .setType(StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY)
+                .addChanges(scenarioChangeScale);
+        PlanStatus planStatus = PlanProgressListener.getCloudPlanStatus(getPlan(
+                getPlanProgress(SUCCESS, SUCCESS, null), null,
+                null, null, null, null,
+                null));
+        Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
+    }
 
     /**
      * Tests get OCP with buy RI and optimize services failure because of projected RI coverage
@@ -492,7 +512,7 @@ public class PlanProgressListenerTest {
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
         final PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(
-            getPlan(getPlanProgress(null, null, null),
+            getPlan(getPlanProgress(Status.SUCCESS, Status.SUCCESS, Status.SUCCESS),
                         true, SOURCE_TOPOLOGY_ID, PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID,
                         null, scenario));
         Assert.assertEquals(SUCCEEDED, planStatus);
