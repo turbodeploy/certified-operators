@@ -309,7 +309,7 @@ public class CloudMigrationPlanHelper {
         if (migrationChange.getDestinationEntityType()
             .equals(TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)) {
             context.addSettingPolicyEditor(new CloudMigrationSettingsPolicyEditor(
-                sourceEntities, outputGraph));
+                sourceEntities));
         }
         // Certain stitching operations need to be skipped to for HyperV VMs.
         context.setPostStitchingOperationsToSkip(ImmutableSet.of(
@@ -1668,65 +1668,15 @@ public class CloudMigrationPlanHelper {
         private static final String AWS_STANDARD_POLICY = "Cloud Compute Tier AWS:standard:";
         private static final String AZURE_STANDARD_POLICY = "Cloud Compute Tier Azure:standard:";
 
-        /**
-         * Windows SQL Server settings policy name to look for. Policy name is like:
-         * "EXP:adveng.aws.amazon.com - Windows_SQL_Server_VMs:73707226000912"
-         */
-        @VisibleForTesting
-        static final String WINDOWS_SQL_SERVER_POLICY = " Windows_SQL_Server_VMs:";
-        private final ResolvedGroup resolvedMigratingVmGroup;
-        private final ResolvedGroup sqlServerVmGroup;
+        private ResolvedGroup resolvedMigratingVmGroup;
 
-        CloudMigrationSettingsPolicyEditor(@Nonnull final Set<Long> migratingVmOids,
-                @Nonnull final TopologyGraph<TopologyEntity> graph) {
+        CloudMigrationSettingsPolicyEditor(@Nonnull final Set<Long> migratingVmOids) {
             this.resolvedMigratingVmGroup = new ResolvedGroup(
                 PolicyManager.generateStaticGroup(
                     migratingVmOids,
                     VIRTUAL_MACHINE_VALUE,
                     POLICY_GROUP_DESCRIPTION),
                 Collections.singletonMap(ApiEntityType.VIRTUAL_MACHINE, migratingVmOids));
-            this.sqlServerVmGroup = createSqlServerVmGroup(migratingVmOids, graph);
-        }
-
-        /**
-         * From the set of VMs that are being migrated, creates a group of any VMs that are of
-         * Windows SQL Server variants, returns null if no matching VMs found. Need to create an
-         * exclusion policy for such VMs, as certain instance types are disallowed for these VMs.
-         *
-         * @param migratingVmOids All VMs being migrated.
-         * @param graph Temporarily used to look up the VM's OS type to check for Windows SQL Server.
-         * @return Resolved group instance if found matching VMs, else null.
-         */
-        @Nullable
-        private ResolvedGroup createSqlServerVmGroup(@Nonnull final Set<Long> migratingVmOids,
-                @Nonnull final TopologyGraph<TopologyEntity> graph) {
-            final Set<Long> sqlServerVmIds = migratingVmOids.stream()
-                    .map(graph::getEntity)
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .filter(entity -> {
-                        if (!entity.getTopologyEntityDtoBuilder().hasTypeSpecificInfo()
-                                || !entity.getTopologyEntityDtoBuilder().getTypeSpecificInfo()
-                                .hasVirtualMachine()) {
-                            return false;
-                        }
-                        final VirtualMachineInfo vmInfo = entity.getTopologyEntityDtoBuilder()
-                                .getTypeSpecificInfo().getVirtualMachine();
-                        if (!vmInfo.hasGuestOsInfo()) {
-                            return false;
-                        }
-                        OsType osType = OsType.fromDtoOS(vmInfo.getGuestOsInfo().getGuestOsType());
-                        return osType.isWindowsSqlServer();
-                    })
-                    .map(TopologyEntity::getOid)
-                    .collect(Collectors.toSet());
-            if (sqlServerVmIds.size() == 0) {
-                return null;
-            }
-            final String groupName = "Cloud migration policy Windows SQL Server generated group";
-            return new ResolvedGroup(PolicyManager.generateStaticGroup(sqlServerVmIds,
-                    VIRTUAL_MACHINE_VALUE, groupName),
-                    Collections.singletonMap(ApiEntityType.VIRTUAL_MACHINE, sqlServerVmIds));
         }
 
         @Nonnull
@@ -1734,9 +1684,6 @@ public class CloudMigrationPlanHelper {
         public List<SettingPolicy> applyEdits(@Nonnull final List<SettingPolicy> settingPolicies,
                                               @Nonnull final Map<Long, ResolvedGroup> groups) {
             groups.put(resolvedMigratingVmGroup.getGroup().getId(), resolvedMigratingVmGroup);
-            if (sqlServerVmGroup != null) {
-                groups.put(sqlServerVmGroup.getGroup().getId(), sqlServerVmGroup);
-            }
 
             return settingPolicies.stream().map(this::editSettingPolicy).collect(Collectors.toList());
         }
@@ -1771,20 +1718,13 @@ public class CloudMigrationPlanHelper {
             if (Type.DISCOVERED.equals(settingPolicy.getSettingPolicyType())) {
                 SettingPolicyInfo info = settingPolicy.getInfo();
                 if (hasTemplateExclusionSetting(info.getSettingsList())) {
-                    final String policyName = info.getName();
-                    Long resolvedGroupId = null;
-                    if (policyName.contains(AWS_STANDARD_POLICY)
-                        || policyName.contains(AZURE_STANDARD_POLICY)) {
-                        resolvedGroupId = resolvedMigratingVmGroup.getGroup().getId();
-                    } else if (sqlServerVmGroup != null
-                            && policyName.contains(WINDOWS_SQL_SERVER_POLICY)) {
-                        resolvedGroupId = sqlServerVmGroup.getGroup().getId();
-                    }
-                    // Add the group of migrating VMs to the scope of this SettingPolicy.
-                    if (resolvedGroupId != null) {
-                        final Scope newScope = info.getScope().toBuilder().addGroups(
-                                resolvedGroupId).build();
-                        final SettingPolicyInfo newInfo = info.toBuilder().setScope(newScope).build();
+                    if (info.getName().contains(AWS_STANDARD_POLICY)
+                        || info.getName().contains(AZURE_STANDARD_POLICY)) {
+
+                        // Add the group of migrating VMs to the scope of this SettingPolicy.
+                        Scope newScope = info.getScope().toBuilder().addGroups(
+                            resolvedMigratingVmGroup.getGroup().getId()).build();
+                        SettingPolicyInfo newInfo = info.toBuilder().setScope(newScope).build();
 
                         return settingPolicy.toBuilder().setInfo(newInfo).build();
                     }
