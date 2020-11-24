@@ -2,10 +2,8 @@ package com.vmturbo.api.component.communication;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.util.Arrays;
@@ -33,7 +31,6 @@ import org.mockito.Mockito;
 import org.springframework.http.ResponseEntity;
 
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
-import com.vmturbo.api.component.communication.RepositoryApi.PaginatedSearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
@@ -45,7 +42,6 @@ import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.exceptions.ConversionException;
-import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
@@ -60,7 +56,6 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
@@ -1060,118 +1055,4 @@ public class RepositoryApiTest {
         verify(this.severityPopulator).populate(this.realtimeContextId, serviceEntityApiDTOList);
     }
 
-    /**
-     * Tests {@link PaginatedSearchRequest#getResponse()} setting up rpc call correctly.
-     * @throws Exception something wrong
-     */
-    @Test
-    public void testPaginatedSearchRequestGetResponseCreatesRpcRequest() throws Exception {
-        //GIVEN
-        final SearchQuery searchQuery = SearchQuery.getDefaultInstance();
-        final Set<Long> scopeIds = Collections.EMPTY_SET;
-        final SearchPaginationRequest searchPaginationRequest =
-                        new SearchPaginationRequest(null, null, true, null);
-        final PaginatedSearchRequest paginatedSearchRequest =
-                        repositoryApi.newPaginatedSearch(searchQuery, scopeIds, searchPaginationRequest);
-        final PaginationParameters paginationParameters = PaginationParameters.getDefaultInstance();
-        doReturn(PaginationParameters.getDefaultInstance()).when(paginationMapper).toProtoParams(searchPaginationRequest);
-        //WHEN
-        paginatedSearchRequest.getResponse();
-
-        //THEN
-        ArgumentCaptor<SearchEntitiesRequest> searchEntitiesRequestArgumentCaptor =
-                        ArgumentCaptor.forClass(SearchEntitiesRequest.class);
-        verify(searchBackend).searchEntities(searchEntitiesRequestArgumentCaptor.capture());
-
-        final SearchEntitiesRequest searchEntitiesRequest = searchEntitiesRequestArgumentCaptor.getValue();
-        assertEquals(searchQuery, searchEntitiesRequest.getSearch());
-        assertEquals(Type.API, searchEntitiesRequest.getReturnType());
-        assertEquals(scopeIds, new HashSet<Long>(searchEntitiesRequest.getEntityOidList()));
-        assertEquals(paginationParameters, searchEntitiesRequest.getPaginationParams());
-    }
-
-
-    /**
-     * Tests {@link PaginatedSearchRequest#getResponse()} setting up rpc with full aspects.
-     * @throws Exception something wrong
-     */
-    @Test
-    public void testPaginatedSearchRequestGetResponseCreatesRpcRequestWithFullAspects() throws Exception {
-        //GIVEN
-        final SearchQuery searchQuery = SearchQuery.getDefaultInstance();
-        final Set<Long> scopeIds = Collections.EMPTY_SET;
-        final SearchPaginationRequest searchPaginationRequest =
-                        new SearchPaginationRequest(null, null, true, null);
-        final PaginatedSearchRequest paginatedSearchRequest =
-                        repositoryApi.newPaginatedSearch(searchQuery, scopeIds, searchPaginationRequest);
-
-        //Set aspects
-        final List<String> aspectNames = Collections.singletonList("aspects");
-        paginatedSearchRequest.requestAspects(mock(EntityAspectMapper.class), aspectNames);
-
-        doReturn(PaginationParameters.getDefaultInstance()).when(paginationMapper).toProtoParams(searchPaginationRequest);
-        //WHEN
-        paginatedSearchRequest.getResponse();
-
-        //THEN
-        ArgumentCaptor<SearchEntitiesRequest> searchEntitiesRequestArgumentCaptor =
-                        ArgumentCaptor.forClass(SearchEntitiesRequest.class);
-        verify(searchBackend).searchEntities(searchEntitiesRequestArgumentCaptor.capture());
-
-        final SearchEntitiesRequest searchEntitiesRequest = searchEntitiesRequestArgumentCaptor.getValue();
-        assertEquals(Type.FULL, searchEntitiesRequest.getReturnType());
-    }
-
-    /**
-     * Tests {@link PaginatedSearchRequest#getResponse()} mapping results based on full aspects.
-     * @throws Exception something wrong
-     */
-    @Test
-    public void testPaginatedSearchRequestGetResponseMapResultsWithAspects() throws Exception {
-        //GIVEN
-        final SearchQuery searchQuery = SearchQuery.getDefaultInstance();
-        final Set<Long> scopeIds = Collections.EMPTY_SET;
-        final SearchPaginationRequest searchPaginationRequest =
-                        new SearchPaginationRequest(null, null, true, null);
-        final PaginatedSearchRequest paginatedSearchRequest =
-                        repositoryApi.newPaginatedSearch(searchQuery, scopeIds, searchPaginationRequest);
-
-        //Set aspects
-        final List<String> aspectNames = Collections.singletonList("aspects");
-        paginatedSearchRequest.requestAspects(mock(EntityAspectMapper.class), aspectNames);
-
-        doReturn(PaginationParameters.getDefaultInstance())
-                        .when(paginationMapper).toProtoParams(searchPaginationRequest);
-
-        //WHEN
-        paginatedSearchRequest.getResponse();
-
-        //THEN
-        verify(serviceEntityMapper, times(1))
-                        .entitiesWithAspects(any(), any(), Mockito.eq(aspectNames));
-    }
-
-    /**
-     * Tests {@link PaginatedSearchRequest#getResponse()} mapping results based on partial aspects.
-     * @throws Exception something wrong
-     */
-    @Test
-    public void testPaginatedSearchRequestGetResponseMapResultsWithoutAspects() throws Exception {
-        //GIVEN
-        final SearchQuery searchQuery = SearchQuery.getDefaultInstance();
-        final Set<Long> scopeIds = Collections.EMPTY_SET;
-        final SearchPaginationRequest searchPaginationRequest =
-                        new SearchPaginationRequest(null, null, true, null);
-        final PaginatedSearchRequest paginatedSearchRequest =
-                        repositoryApi.newPaginatedSearch(searchQuery, scopeIds, searchPaginationRequest);
-
-        doReturn(PaginationParameters.getDefaultInstance())
-                        .when(paginationMapper).toProtoParams(searchPaginationRequest);
-
-        //WHEN
-        paginatedSearchRequest.getResponse();
-
-        //THEN
-        verify(serviceEntityMapper, times(1)).toServiceEntityApiDTOMap(any());
-    }
 }

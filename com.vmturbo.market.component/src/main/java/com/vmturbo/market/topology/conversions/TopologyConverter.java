@@ -4013,7 +4013,8 @@ public class TopologyConverter {
                     entityOidToDto.get(providerId).getDisplayName());
             }
         } else {
-            logger.error("VM with OID = {} has no PM provider.", traderOid);
+            logger.error("VM {} has no PM provider.",
+                entityOidToDto.get(traderOid).getDisplayName());
         }
         return capacity;
     }
