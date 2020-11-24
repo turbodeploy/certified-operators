@@ -43,7 +43,7 @@ public class CloudCostConfig {
     @Value("${fullAzureEARIDiscovery:false}")
     private boolean fullAzureEARIDiscovery;
 
-    @Value("${riSupportInPartialCloudEnvironment:true}")
+    @Value("${riSupportInPartialCloudEnvironment:false}")
     private boolean riSupportInPartialCloudEnvironment;
 
     @Bean
