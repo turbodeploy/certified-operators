@@ -77,11 +77,29 @@ spec:
                 externalIP:
                   description: Static external IP address for ingress LoadBalancer
                   type: string
+                externalConsul:
+                  description: DNS name for external consul server
+                  type: string
+                externalConsulIP:
+                  description: IP address for external consul server
+                  type: string
                 externalDBName:
                   description: DNS name for external mysql compliant database server
                   type: string
                 externalDbIP:
                   description: IP address for external mysql compliant database server
+                  type: string
+                externalInfluxDBName:
+                  description: DNS name for external influx database server
+                  type: string
+                externalKafka:
+                  description: DNS name for external kafka server
+                  type: string
+                externalKafkaIP:
+                  description: IP address for external kafka server
+                  type: string
+                externalSyslog:
+                  description: DNS name for external syslog server
                   type: string
                 nodeSelector:
                   description: Global pod nodeSelector list

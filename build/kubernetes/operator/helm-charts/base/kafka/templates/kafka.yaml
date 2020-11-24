@@ -159,15 +159,30 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
+  ports:
+  - name: tcp-kafka
+    port: {{ .Values.global.externalKafkaPort | default 9092 }}
 {{- if .Values.global }}
   {{- if .Values.global.externalKafka }}
   type: ExternalName
   externalName: {{ .Values.global.externalKafka }}
   {{- end -}}
-{{- end }}
-  ports:
-  - name: tcp-kafka
-    port: 9092
+  {{- if and (not .Values.global.externalKafka) (not .Values.global.externalKafkaIP)}}
   selector:
     app.kubernetes.io/name: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
+  {{- end -}}
+  {{- if and (.Values.global.externalKafkaIP) (not .Values.global.externalKafka)}}
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: {{ .Chart.Name }}
+subsets:
+  - addresses:
+    - ip: {{ .Values.global.externalKafkaIP | quote }}
+    ports:
+    - name: tcp-kafka
+      port: {{ .Values.global.externalKafkaPort | default 9092 }}
+  {{- end -}}
+{{- end }}
