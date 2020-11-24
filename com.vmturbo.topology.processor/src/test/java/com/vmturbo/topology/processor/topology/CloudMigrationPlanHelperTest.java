@@ -606,7 +606,8 @@ public class CloudMigrationPlanHelperTest {
 
     /**
      * Check that the CloudMigrationSettingsPolicyEditor adds a group of migrating VMs
-     * to certain discovered policies (and only those policies).
+     * to certain discovered policies (and only those policies). Also verify that exclusion
+     * policy for Windows SQL server VMs being migrated, is correctly updated.
      */
     @Test
     public void testSettingsPolicyEditor() {
@@ -625,6 +626,15 @@ public class CloudMigrationPlanHelperTest {
         Map<Long, ResolvedGroup> groups = new HashMap<>();
         groups.put(existingCloudVMsGrouping.getId(), existingCloudVMsResolvedGroup);
 
+        final Grouping windowsVmGrouping = PolicyManager.generateStaticGroup(
+                EXISTING_CLOUD_VM_OIDS,
+                VIRTUAL_MACHINE_VALUE,
+                "Existing Cloud VMs with Windows SQL exclusion policy");
+        final ResolvedGroup windowsVmResolvedGroup = new ResolvedGroup(
+                windowsVmGrouping,
+                Collections.singletonMap(ApiEntityType.VIRTUAL_MACHINE, EXISTING_CLOUD_VM_OIDS));
+        groups.put(windowsVmGrouping.getId(), windowsVmResolvedGroup);
+
         List<SettingPolicy> settingPolicies = new ArrayList<>();
 
         settingPolicies.add(
@@ -639,15 +649,29 @@ public class CloudMigrationPlanHelperTest {
             createExclusionSettingsPolicy("blahblah:Cloud Compute Tier Azure:standard:blahblah",
                 existingCloudVMsGrouping.getId()));
 
+        settingPolicies.add(
+                createExclusionSettingsPolicy(String.format("vmturbodev %s policy",
+                        CloudMigrationSettingsPolicyEditor.WINDOWS_SQL_SERVER_POLICY),
+                        windowsVmGrouping.getId()));
+
+        final long windowsSqlServerVmId = 4L;
+        final String windowsSqlServerVmName = "SQLServerTestVM";
+        final TopologyEntity.Builder windowsSqlServerVm = TopologyEntityUtils
+                .topologyEntity(windowsSqlServerVmId, 0, 0,
+                        windowsSqlServerVmName, EntityType.VIRTUAL_MACHINE);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityUtils.topologyGraphOf(
+                windowsSqlServerVm);
+
         CloudMigrationSettingsPolicyEditor editor = new CloudMigrationSettingsPolicyEditor(
-            MIGRATING_VM_OIDS);
+            MIGRATING_VM_OIDS, graph);
 
         List<SettingPolicy> updatedSettingPolicies = editor.applyEdits(settingPolicies, groups);
         assertEquals(settingPolicies.size(), updatedSettingPolicies.size());
 
         // Find groups newly added to the map
         List<Long> addedGroupOids = groups.keySet().stream()
-            .filter(oid -> oid != existingCloudVMsGrouping.getId())
+            .filter(oid -> oid != existingCloudVMsGrouping.getId()
+                    && oid != windowsVmGrouping.getId())
             .collect(Collectors.toList());
 
         // There should be one added group consisting of the migrating VMs.
@@ -666,6 +690,14 @@ public class CloudMigrationPlanHelperTest {
             .filter(sp -> !IRRELEVANT_SETTING_POLICY.equals(sp.getInfo().getName()))
             .filter(sp -> sp.getInfo().getScope().getGroupsList().contains(addedGroupOid))
             .count());
+
+        // Verify that the Windows SQL server policy is correctly updated with the right VM group id.
+        assertEquals(1, updatedSettingPolicies.stream()
+                .filter(sp -> sp.getInfo().getName().contains(CloudMigrationSettingsPolicyEditor
+                        .WINDOWS_SQL_SERVER_POLICY))
+                .filter(sp -> sp.getInfo().getScope().getGroupsList().contains(windowsVmGrouping
+                        .getId()))
+                .count());
     }
 
     private SettingPolicy createExclusionSettingsPolicy(@Nonnull final String name,
