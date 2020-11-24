@@ -579,8 +579,9 @@ public class CostFunctionFactoryHelper {
             } else {
                 // MaxRatio constraint is met.
                 // Update commodity capacity in commCapacityMap if needed.
-                final Double oldCap = commCapacityMap.get(dependentType);
-                if (oldCap == null || maxAllowedQuantity < oldCap) {
+                final double capacityLimitationMax = commCapacityLimitation.containsKey(dependentType)
+                        ? commCapacityLimitation.get(dependentType).getMaxCapacity() : Double.MAX_VALUE;
+                if (maxAllowedQuantity < capacityLimitationMax) {
                     commCapacityMap.put(dependentType, maxAllowedQuantity);
                 }
             }
@@ -621,10 +622,8 @@ public class CostFunctionFactoryHelper {
                 if (dependentCommQuantity == null) {
                     continue;
                 } else if (dependentCapacity >= dependentCommQuantity) {
-                    // Update commodity capacity in commCapacityMap if needed.
-                    if (dependentCapacity < commCapacityMap.computeIfAbsent(dependentType, d -> dependentCapacity)) {
-                        commCapacityMap.put(dependentType, dependentCapacity);
-                    }
+                    // Update commodity capacity in commCapacityMap.
+                    commCapacityMap.put(dependentType, dependentCapacity);
                     continue;
                 }
                 // dependentCommQuantity exceeds dependentCapacity.
