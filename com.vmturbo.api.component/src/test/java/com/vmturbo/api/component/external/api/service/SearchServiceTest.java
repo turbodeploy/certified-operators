@@ -8,6 +8,7 @@ import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.V
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getMembersBasedOnFilter;
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getSearchResults;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
@@ -19,7 +20,7 @@ import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
-import static org.mockito.Mockito.doReturn;
+
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -38,6 +39,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -59,7 +61,6 @@ import org.mockito.Mockito;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
-import com.vmturbo.api.component.communication.RepositoryApi.PaginatedSearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
@@ -76,6 +77,7 @@ import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -84,10 +86,11 @@ import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
+import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
+import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EntityDetailType;
-import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.Origin;
 import com.vmturbo.api.enums.QueryType;
@@ -96,22 +99,22 @@ import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -125,6 +128,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
@@ -138,10 +142,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.Att
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
-import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * Unit test for {@link SearchService}.
@@ -153,7 +154,7 @@ public class SearchServiceTest {
 
     private final SupplyChainTestUtils supplyChainTestUtils = new SupplyChainTestUtils();
     private SearchService searchService;
-    private final ThinTargetCache thinTargetCacheMock = mock(ThinTargetCache.class);
+    private final ThinTargetCache targetCache = mock(ThinTargetCache.class);
     private MarketsService marketsService = mock(MarketsService.class);
     private GroupsService groupsService = mock(GroupsService.class);
     private TargetsService targetsService = mock(TargetsService.class);
@@ -168,7 +169,7 @@ public class SearchServiceTest {
     private final BusinessAccountRetriever businessAccountRetriever = mock(BusinessAccountRetriever.class);
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
     private final EntityFilterMapper entityFilterMapper =
-            new EntityFilterMapper(groupUseCaseParser, thinTargetCacheMock);
+            new EntityFilterMapper(groupUseCaseParser, targetCache);
     private final EntityAspectMapper entityAspectMapper = mock(EntityAspectMapper.class);
     private final PriceIndexPopulator priceIndexPopulator = mock(PriceIndexPopulator.class);
 
@@ -261,8 +262,7 @@ public class SearchServiceTest {
                 entityFilterMapper,
                 entityAspectMapper,
                 searchFilterResolver,
-                priceIndexPopulator,
-                thinTargetCacheMock));
+                priceIndexPopulator));
     }
 
     /**
@@ -319,22 +319,18 @@ public class SearchServiceTest {
         getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD, null, null);
         verify(businessAccountRetriever).getBusinessAccountsInScope(null, Collections.emptyList());
 
-        //TODO: MOVE TO OWN TEST
-        final PaginatedSearchRequest mockPaginatedSearchRequest = mock(PaginatedSearchRequest.class);
-        when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(mockPaginatedSearchRequest);
-        when(mockPaginatedSearchRequest.getResponse()).thenReturn(mock(SearchPaginationResponse.class));
-        final SearchPaginationRequest paginatedSearchRequest = new SearchPaginationRequest(null, null, true, null);
-        searchService.getSearchResults(null,
+        final SearchRequest mockSearchRequest = mock(SearchRequest.class);
+        when(repositoryApi.newSearchRequest(any())).thenReturn(mockSearchRequest);
+        when(mockSearchRequest.getSEList()).thenReturn(Collections.emptyList());
+        getSearchResults(searchService, null,
                          Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()), null, null,
-                         null, EnvironmentType.CLOUD, null, paginatedSearchRequest, null, null, true, null, null);
-        SearchQuery searchQuery = SearchQuery.newBuilder()
-                        .addSearchParameters(
-                                        SearchProtoUtil
-                                                        .makeSearchParameters(SearchProtoUtil.entityTypeFilter(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr())))
-                                                        .addSearchFilter(SearchProtoUtil.searchFilterProperty(SearchProtoUtil.environmentTypeFilter(EnvironmentTypeEnum.EnvironmentType.CLOUD))))
-                        .build();
-
-        verify(repositoryApi).newPaginatedSearch(searchQuery, Collections.EMPTY_SET, paginatedSearchRequest);
+                         null, EnvironmentType.CLOUD, null, null);
+        verify(repositoryApi).newSearchRequest(
+            SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(
+                    Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr())))
+                .addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                        SearchProtoUtil.environmentTypeFilter(EnvironmentTypeEnum.EnvironmentType.CLOUD)))
+                .build());
 
         when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true), isA(
                 Origin.class))).thenReturn(paginationResponse);
@@ -436,7 +432,9 @@ public class SearchServiceTest {
     @Test
     public void testGetSearchResultsWithSpecialCharNameQuery() throws Exception {
 
-        final SearchPaginationRequest searchPaginationRequest = new SearchPaginationRequest(null, null, true, null);
+        final SearchPaginationRequest paginationRequest =
+                Mockito.mock(SearchPaginationRequest.class);
+
         List<ServiceEntityApiDTO> searchResultDTOs = Lists.newArrayList(
                 supplyChainTestUtils.createServiceEntityApiDTO(999, targetId1),
                 supplyChainTestUtils.createServiceEntityApiDTO(1, targetId1),
@@ -444,20 +442,23 @@ public class SearchServiceTest {
                 supplyChainTestUtils.createServiceEntityApiDTO(3, targetId1),
                 supplyChainTestUtils.createServiceEntityApiDTO(4, targetId1));
 
-        PaginatedSearchRequest paginatedSearchRequest = ApiTestUtils.mockPaginatedSearchRequest(searchPaginationRequest, searchResultDTOs);
-        doReturn(paginatedSearchRequest).when(repositoryApi).newPaginatedSearch(any(), any(), eq(searchPaginationRequest));
+        SearchRequest req = ApiTestUtils.mockSearchSEReq(searchResultDTOs);
+
+
+
+        when(repositoryApi.newSearchRequest(any())).thenReturn(req);
 
         for (Entry<String, ImmutableMap<QueryType, String>> entry : nameQueryMap.entrySet()) {
             for (QueryType queryType : QueryType.values()) {
                 searchService.getSearchResults(entry.getKey(), Lists.newArrayList("VirtualMachine"),
                         Lists.newArrayList("Market"), null, null, EnvironmentType.ONPREM, null,
-                                               searchPaginationRequest, null, null, true, null, queryType);
+                        paginationRequest, null, null, true, null, queryType);
 
-                final ArgumentCaptor<SearchQuery> searchQueryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
-                final ArgumentCaptor<Set<Long>> scopeIds = ArgumentCaptor.forClass((Class)Set.class);
-                verify(repositoryApi, Mockito.atMost(nameQueryMap.size() * QueryType.values().length)).newPaginatedSearch(searchQueryCaptor.capture(), scopeIds.capture(), eq(searchPaginationRequest));
-                assertThat(searchQueryCaptor.getValue()
-                        .getSearchParameters(0)
+                final ArgumentCaptor<SearchParameters> paramsCaptor = ArgumentCaptor.forClass(
+                        SearchParameters.class);
+
+                verify(repositoryApi, Mockito.atMost(nameQueryMap.size() * QueryType.values().length)).newSearchRequest(paramsCaptor.capture());
+                assertThat(paramsCaptor.getValue()
                         .getSearchFilter(0)
                         .getPropertyFilter()
                         .getStringFilter()
@@ -494,6 +495,60 @@ public class SearchServiceTest {
     }
 
     @Test
+    public void testGetSearchEntitiesByProbeTypes() throws Exception {
+        ServiceEntityApiDTO se1 = supplyChainTestUtils.createServiceEntityApiDTO(1L, targetId1);
+        se1.getDiscoveredBy().setType(probeType1);
+        se1.setEnvironmentType(EnvironmentType.CLOUD);
+        ServiceEntityApiDTO se2 = supplyChainTestUtils.createServiceEntityApiDTO(2L, targetId1);
+        se2.getDiscoveredBy().setType(probeType1);
+        se2.setEnvironmentType(EnvironmentType.CLOUD);
+        ServiceEntityApiDTO se3 = supplyChainTestUtils.createServiceEntityApiDTO(3L, targetId2);
+        se3.getDiscoveredBy().setType(probeType2);
+        se3.setEnvironmentType(EnvironmentType.CLOUD);
+        List<ServiceEntityApiDTO> regions = Lists.newArrayList(se1, se2, se3);
+        List<String> types = Lists.newArrayList("Region");
+        SearchRequest req = ApiTestUtils.mockSearchSEReq(regions);
+        when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(req);
+
+        // filter by AWS
+        Collection<BaseApiDTO> regions_aws = getSearchResults(searchService, null,
+            types, null, null, null, null,
+            Lists.newArrayList(probeType1), null);
+        assertThat(regions_aws.stream()
+            .map(dto -> Long.valueOf(dto.getUuid()))
+            .collect(Collectors.toList()), containsInAnyOrder(1L, 2L));
+
+        // filter by Azure
+        Collection<BaseApiDTO> regions_azure = getSearchResults(searchService, null,
+            types, null, null, null, EnvironmentType.CLOUD,
+            Lists.newArrayList(probeType2), null);
+        assertThat(regions_azure.stream()
+            .map(dto -> Long.valueOf(dto.getUuid()))
+            .collect(Collectors.toList()), containsInAnyOrder(3L));
+
+        // filter by both AWS and Azure
+        Collection<BaseApiDTO> regions_all = getSearchResults(searchService, null,
+            types, null, null, null, EnvironmentType.CLOUD,
+            Lists.newArrayList(probeType1, probeType2),  null);
+        assertThat(regions_all.stream()
+            .map(dto -> Long.valueOf(dto.getUuid()))
+            .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L));
+
+        // filter by a vc probe type
+        Collection<BaseApiDTO> regions_vc = getSearchResults(searchService, null,
+            types, null, null, null, EnvironmentType.CLOUD,
+            Lists.newArrayList(SDKProbeType.VCENTER.getProbeType()), null);
+        assertThat(regions_vc, empty());
+
+        // filter by null probeTypes
+        Collection<BaseApiDTO> regions_null_probeType = getSearchResults(searchService, null,
+            types, null, null, null, EnvironmentType.CLOUD, null, null);
+        assertThat(regions_null_probeType.stream()
+            .map(dto -> Long.valueOf(dto.getUuid()))
+            .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L));
+    }
+
+    @Test
     public void testGetSearchGroup() throws Exception {
         final SearchPaginationResponse paginationResponse =
             Mockito.mock(SearchPaginationResponse.class);
@@ -510,8 +565,7 @@ public class SearchServiceTest {
                 null,
                 null,
                 true,
-                null,
-                null));
+                null, null));
         verify(targetsService, Mockito.never()).getTargets(null);
         verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
         verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true), eq(null));
@@ -519,16 +573,18 @@ public class SearchServiceTest {
 
     }
     /**
-     * Test scoped to a cluster;  Expanded entities passed as scope arguments
+     * Test scoped to a cluster;  search result returns 5 SE's, one of which isn't in cluster.
      * https://ml-xl-dev-2/vmturbo/rest/search?disable_hateoas=true&q=&scopes=283218897841408&types=PhysicalMachine
      */
     @Test
     public void testSearchWithClusterInScopes() throws Exception {
+
         // Arrange
         final String CLUSTER_OID = "283218897841408";
         GroupApiDTO clusterGroup = new GroupApiDTO();
         clusterGroup.setMemberUuidList(Lists.newArrayList("1", "2", "3", "4"));
         List<ServiceEntityApiDTO> searchResultDTOs = Lists.newArrayList(
+                supplyChainTestUtils.createServiceEntityApiDTO(999, targetId1),
                 supplyChainTestUtils.createServiceEntityApiDTO(1, targetId1),
                 supplyChainTestUtils.createServiceEntityApiDTO(2, targetId1),
                 supplyChainTestUtils.createServiceEntityApiDTO(3, targetId1),
@@ -536,34 +592,58 @@ public class SearchServiceTest {
 
         List<String> scopes = Lists.newArrayList(CLUSTER_OID);
         List<String> types = Lists.newArrayList("PhysicalMachine");
+        SearchRequest req = ApiTestUtils.mockSearchSEReq(searchResultDTOs);
+        when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(req);
 
-        SearchPaginationRequest searchPaginationRequest = new SearchPaginationRequest(null, null, true, null);
-        PaginatedSearchRequest req = ApiTestUtils.mockPaginatedSearchRequest(searchPaginationRequest, searchResultDTOs);
-        when(repositoryApi.newPaginatedSearch(any(SearchQuery.class), any(), any())).thenReturn(req);
+        SupplychainEntryDTO pmSupplyChainEntryDTO = new SupplychainEntryDTO();
+        pmSupplyChainEntryDTO.setInstances(ImmutableMap.of(
+                "1", supplyChainTestUtils.createServiceEntityApiDTO(1, targetId1),
+                "2", supplyChainTestUtils.createServiceEntityApiDTO(2, targetId1),
+                "3", supplyChainTestUtils.createServiceEntityApiDTO(3, targetId1),
+                "4", supplyChainTestUtils.createServiceEntityApiDTO(4, targetId1)));
+
+        SupplychainApiDTO mockSupplychainApiDto = supplyChainTestUtils.createSupplychainApiDTO();
+        mockSupplychainApiDto.getSeMap().put("PhysicalMachine", pmSupplyChainEntryDTO);
+        Map<String, SupplychainEntryDTO> seMap = ImmutableMap.of("PhysicalMachine", pmSupplyChainEntryDTO);
+        mockSupplychainApiDto.setSeMap(seMap);
+        /*
+                    SupplychainApiDTO supplychain = supplyChainFetcher.fetch(
+                    uuidMapper.fromUuid(UuidMapper.UI_REAL_TIME_MARKET_STR).oid(),
+                    scopeEntities, types, environmentType, null, false, 3, TimeUnit.MINUTES);
+
+         */
+        SupplychainApiDTOFetcherBuilder mockOperationBuilder =
+            ApiTestUtils.mockApiDTOFetcherBuilder(mockSupplychainApiDto);
+        when(supplyChainFetcherFactory.newApiDtoFetcher()).thenReturn(mockOperationBuilder);
 
         when(groupsService.expandUuids(eq(Sets.newHashSet(scopes)), eq(types), eq(null)))
-                        .thenReturn(ImmutableSet.of(1L, 2L, 3L, 4L));
+            .thenReturn(ImmutableSet.of(1L, 2L, 3L, 4L));
 
         ApiTestUtils.mockRealtimeId(UuidMapper.UI_REAL_TIME_MARKET_STR, 777777, uuidMapper);
 
         when(groupExpander.getGroup(any())).thenReturn(Optional.of(Grouping.newBuilder()
-                                                                                   .setId(5L)
-                                                                                   .setDefinition(GroupDefinition.getDefaultInstance())
-                                                                                   .build()
+                .setId(5L)
+                .setDefinition(GroupDefinition.getDefaultInstance())
+                .build()
         ));
 
         // Act
-        searchService.getSearchResults(
-                        null, types, scopes, null, null, null,
-                        null, searchPaginationRequest, null, null, true, null, null);
-        //Assert
+        Collection<BaseApiDTO> results = getSearchResults(searchService, null, types,
+                scopes, null, null, null, null,
+                null);
 
-        final ArgumentCaptor<SearchQuery> searchQueryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
-        final ArgumentCaptor<Set<Long>> scopeIds = ArgumentCaptor.forClass((Class)Set.class);
-        verify(repositoryApi).newPaginatedSearch(searchQueryCaptor.capture(), scopeIds.capture(), eq(searchPaginationRequest));
+        // Assert
+        assertThat(results.size(), is(4));
+        assertThat(results.stream().map(BaseApiDTO::getUuid).collect(Collectors.toList()),
+                containsInAnyOrder("1", "2", "3", "4"));
 
-        assertEquals(scopeIds.getValue().size(), 4);
-        assertThat(scopeIds.getValue(), containsInAnyOrder(1L, 2L, 3L, 4L));
+        verify(groupsService, Mockito.never()).getGroups();
+        verify(targetsService, Mockito.never()).getTargets(null);
+        verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
+
+        ArgumentCaptor<SearchParameters> paramsCaptor = ArgumentCaptor.forClass(SearchParameters.class);
+        verify(repositoryApi).newSearchRequest(paramsCaptor.capture());
+        assertThat(paramsCaptor.getValue().getStartingFilter(), is(SearchProtoUtil.entityTypeFilter("PhysicalMachine")));
     }
 
     /**
@@ -604,9 +684,9 @@ public class SearchServiceTest {
     @Test
     public void testSearchWithClusterEntityDetailTypeAspects() throws Exception {
         //GIVEN
-        PaginatedSearchRequest req = mock(PaginatedSearchRequest.class);
-        when(repositoryApi.newPaginatedSearch(any(SearchQuery.class), any(), any())).thenReturn(req);
-        when(req.getResponse()).thenReturn(null);
+        SearchRequest req = mock(SearchRequest.class);
+        when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(req);
+        when(req.getSEList()).thenReturn(Collections.EMPTY_LIST);
 
         List<String> scopes = Lists.newArrayList("283218897841408");
         List<String> types = Lists.newArrayList("VirtualMachine");
@@ -620,23 +700,11 @@ public class SearchServiceTest {
         when(groupsService.expandUuids(any(), any(), any())).thenReturn(ImmutableSet.of(2L, 4L,
                 5L));
 
-        final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
-
         //WHEN
-        searchService.getSearchResults(
-                        null,
-                        types,
-                        scopes,
-                        null,
-                        null,
-                        null,
-                        entityDetailType,
-                        paginationRequest,
-                        null,
-                        null, true, null, null);
+        Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes, null, null, null, null, entityDetailType);
 
         //THEN
-        verify(req).requestAspects(entityAspectMapper, null);
+        verify(req).useAspectMapper(entityAspectMapper);
     }
 
     /**
@@ -648,9 +716,9 @@ public class SearchServiceTest {
     @Test
     public void testSearchWithClusterEntityDetailTypeNoneAspects() throws Exception {
         //GIVEN
-        PaginatedSearchRequest req = mock(PaginatedSearchRequest.class);
-        when(repositoryApi.newPaginatedSearch(any(SearchQuery.class), any(), any())).thenReturn(req);
-        when(req.getResponse()).thenReturn(null);
+        SearchRequest req = mock(SearchRequest.class);
+        when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(req);
+        when(req.getSEList()).thenReturn(Collections.EMPTY_LIST);
 
         List<String> scopes = Lists.newArrayList("283218897841408");
         List<String> types = Lists.newArrayList("VirtualMachine");
@@ -665,20 +733,10 @@ public class SearchServiceTest {
                 5L));
 
         //WHEN
-        searchService.getSearchResults(
-                        null,
-                        types,
-                        scopes,
-                        null,
-                        null,
-                        null,
-                        entityDetailType,
-                        Mockito.mock(SearchPaginationRequest.class),
-                        null,
-                        null, true, null, null);
+        Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes, null, null, null, null, entityDetailType);
 
         //THEN
-        verify(req, times(0)).requestAspects(entityAspectMapper, null);
+        verify(req, times(0)).useAspectMapper(entityAspectMapper);
     }
 
     /**
@@ -693,7 +751,7 @@ public class SearchServiceTest {
         businessUnitApiDTO.setDisplayName("Test Business Account");
         final List<String> scopes = ImmutableList.of("target1", "target2");
         final List<String> types = ImmutableList.of(ApiEntityType.BUSINESS_ACCOUNT.apiStr());
-        getSearchResults(searchService, null, types, scopes,
+        Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes,
             null, null, null, null, null);
         verify(businessAccountRetriever).getBusinessAccountsInScope(scopes, Collections.emptyList());
     }
@@ -806,21 +864,40 @@ public class SearchServiceTest {
      */
     @Test
     public void testGetMembersBasedOnFilterQuery() throws Exception {
-        //Given
-        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        GroupApiDTO request = new GroupApiDTO();
+        List<ApiPartialEntity> entities = setupEntitiesForMemberQuery();
+        when(searchServiceSpy.searchEntities(any())).thenReturn(SearchEntitiesResponse.newBuilder()
+            .addAllEntities(entities.stream()
+                .map(e -> PartialEntity.newBuilder().setApi(e).build())
+                .collect(Collectors.toList()))
+            .setPaginationResponse(PaginationResponse.newBuilder())
+            .build());
 
+        final ArgumentCaptor<List<BaseApiDTO>> resultCaptor =
+                ArgumentCaptor.forClass((Class)List.class);
+        final ArgumentCaptor<Integer> totalRecordCount =
+                ArgumentCaptor.forClass((Class)Integer.class);
         final SearchPaginationRequest paginationRequest = mock(SearchPaginationRequest.class);
+        Mockito.when(paginationRequest.getCursor()).thenReturn(Optional.empty());
+        Mockito.when(paginationRequest.allResultsResponse(any()))
+                .thenReturn(mock(SearchPaginationResponse.class));
+        Mockito.when(paginationRequest.getOrderBy())
+                .thenReturn(SearchOrderBy.NAME);
 
-        PaginatedSearchRequest mockPaginatedSearchRequest = mock(PaginatedSearchRequest.class);
-        when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(mockPaginatedSearchRequest);
-        doReturn(null).when(mockPaginatedSearchRequest).getResponse();
+        searchService.getMembersBasedOnFilter("foo", request, paginationRequest, null, null);
+        verify(paginationRequest).finalPageResponse(resultCaptor.capture(), totalRecordCount.capture());
 
+        final List<Long> resultIds = resultCaptor.getValue()
+                .stream()
+                .map(BaseApiDTO::getUuid)
+                .map(Long::parseLong)
+                .collect(Collectors.toList());
 
-        //WHEN
-        searchService.getMembersBasedOnFilter("foo", groupApiDTO, paginationRequest, null, null);
+        final Map<Long, BaseApiDTO> resultById = resultCaptor.getValue().stream()
+            .collect(Collectors.toMap(se -> Long.valueOf(se.getUuid()), Function.identity()));
 
-        //THEN
-        verify(mockPaginatedSearchRequest, times(1)).getResponse();
+        assertThat(resultIds.size(), is(3));
+        assertThat(resultById.keySet(), containsInAnyOrder(1L, 4L, 5L));
     }
 
     /**
@@ -830,28 +907,37 @@ public class SearchServiceTest {
      */
     @Test
     public void testGetMembersBasedOnFilterQueryWSpecialCharsWithQueryType() throws Exception {
-        //GIVEN
-        PaginatedSearchRequest paginatedSearchRequestMock = mock(PaginatedSearchRequest.class);
-        doReturn(paginatedSearchRequestMock).when(repositoryApi).newPaginatedSearch(any(), any(), any());
+        final GroupApiDTO request = new GroupApiDTO();
+        List<ApiPartialEntity> entities = setupEntitiesForMemberQuery();
+        when(searchServiceSpy.searchEntities(any())).thenReturn(SearchEntitiesResponse.newBuilder()
+                .addAllEntities(entities.stream()
+                        .map(e -> PartialEntity.newBuilder().setApi(e).build())
+                        .collect(Collectors.toList()))
+                .setPaginationResponse(PaginationResponse.newBuilder())
+                .build());
 
-        final SearchPaginationRequest paginationRequest = new SearchPaginationRequest(null, null, true, null);
+        final SearchPaginationRequest paginationRequest = mock(SearchPaginationRequest.class);
+        Mockito.when(paginationRequest.getCursor()).thenReturn(Optional.empty());
+        Mockito.when(paginationRequest.allResultsResponse(any()))
+                .thenReturn(mock(SearchPaginationResponse.class));
+        Mockito.when(paginationRequest.getOrderBy())
+                .thenReturn(SearchOrderBy.NAME);
 
         // Test a search with a special character
-        final GroupApiDTO request = new GroupApiDTO();
         request.setClassName("VirtualMachine");
 
         for (Entry<String, ImmutableMap<QueryType, String>> entry : nameQueryMap.entrySet()) {
             for (QueryType queryType : QueryType.values()) {
-                //WHEN
-                SearchPaginationResponse response = searchService.getMembersBasedOnFilter(entry.getKey(), request, paginationRequest, null, queryType);
+                searchService.getMembersBasedOnFilter(entry.getKey(), request, paginationRequest, null, queryType);
 
-                //THEN
-                final ArgumentCaptor<SearchQuery> searchQueryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
-                final ArgumentCaptor<Set<Long>> scopeIdsCaptor = ArgumentCaptor.forClass((Class)Set.class);
-                final ArgumentCaptor<SearchPaginationRequest> searchPaginationRequestCaptor = ArgumentCaptor.forClass(SearchPaginationRequest.class);
-                verify(repositoryApi, Mockito.atMost(nameQueryMap.size() * QueryType.values().length)).newPaginatedSearch(searchQueryCaptor.capture(), scopeIdsCaptor.capture(), searchPaginationRequestCaptor.capture());
+                final ArgumentCaptor<SearchEntitiesRequest> captor = ArgumentCaptor.forClass(
+                        SearchEntitiesRequest.class);
+                verify(searchServiceSpy, Mockito.atMost(nameQueryMap.size() * QueryType.values().length)).searchEntities(captor.capture());
 
-                assertEquals(searchQueryCaptor.getValue().getSearchParameters(0)
+                final SearchEntitiesRequest params = captor.getValue();
+                assertEquals(captor.getValue()
+                        .getSearch()
+                        .getSearchParameters(0)
                         .getSearchFilter(0)
                         .getPropertyFilter()
                         .getStringFilter()
@@ -867,35 +953,36 @@ public class SearchServiceTest {
      */
     @Test
     public void testGetMembersBasedOnFilterQueryWSpecialChars() throws Exception {
-        //Given
         GroupApiDTO request = new GroupApiDTO();
+        List<ApiPartialEntity> entities = setupEntitiesForMemberQuery();
+        when(searchServiceSpy.searchEntities(any())).thenReturn(SearchEntitiesResponse.newBuilder()
+                .addAllEntities(entities.stream()
+                        .map(e -> PartialEntity.newBuilder().setApi(e).build())
+                        .collect(Collectors.toList()))
+                .setPaginationResponse(PaginationResponse.newBuilder())
+                .build());
+
+        final SearchPaginationRequest paginationRequest = mock(SearchPaginationRequest.class);
+        Mockito.when(paginationRequest.getCursor()).thenReturn(Optional.empty());
+        Mockito.when(paginationRequest.allResultsResponse(any()))
+                .thenReturn(mock(SearchPaginationResponse.class));
+        Mockito.when(paginationRequest.getOrderBy())
+                .thenReturn(SearchOrderBy.NAME);
 
         // Test a search with a special character
         request.setClassName("VirtualMachine");
-        PaginatedSearchRequest paginatedSearchRequestMock = mock(PaginatedSearchRequest.class);
-        doReturn(paginatedSearchRequestMock).when(repositoryApi).newPaginatedSearch(any(), any(), any());
-
-        final SearchPaginationRequest paginationRequest = new SearchPaginationRequest(null, null, true, null);
-
-        //WHEN
         searchService.getMembersBasedOnFilter("[b", request, paginationRequest, null, null);
 
-        //THEN
-        final ArgumentCaptor<SearchQuery> searchQueryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
-        final ArgumentCaptor<Set<Long>> scopeIds = ArgumentCaptor.forClass((Class)Set.class);
-        final ArgumentCaptor<SearchPaginationRequest> searchPaginationRequestCaptor = ArgumentCaptor.forClass(SearchPaginationRequest.class);
-        verify(repositoryApi).newPaginatedSearch(searchQueryCaptor.capture(), scopeIds.capture(), searchPaginationRequestCaptor.capture());
+        final ArgumentCaptor<SearchEntitiesRequest> captor = ArgumentCaptor.forClass(SearchEntitiesRequest.class);
+        verify(searchServiceSpy).searchEntities(captor.capture());
 
-        final SearchQuery searchQuery = searchQueryCaptor.getValue();
-        assertEquals(1, searchQuery.getSearchParametersCount());
-        SearchParameters searchParameters = searchQuery.getSearchParameters(0);
+        final SearchEntitiesRequest params = captor.getValue();
+        assertEquals(1, params.getSearch().getSearchParametersCount());
+        SearchParameters searchParameters = params.getSearch().getSearchParameters(0);
         assertEquals(1, searchParameters.getSearchFilterCount());
         SearchFilter nameFilter = searchParameters.getSearchFilter(0);
         String value = nameFilter.getPropertyFilter().getStringFilter().getStringPropertyRegex();
         assertEquals("^.*\\Q[b\\E.*$", value);
-
-        verify(paginatedSearchRequestMock, times(1)).getResponse();
-        assertTrue(scopeIds.getValue().isEmpty());
     }
 
     /**
@@ -1054,12 +1141,28 @@ public class SearchServiceTest {
      */
     @Test
     public void testGetMembersOfResourceGroupBasedOnFilterQuery() throws Exception {
-        //GIVEN
         final long oid = 1234;
         GroupApiDTO request = new GroupApiDTO();
         request.setClassName(StringConstants.WORKLOAD);
         request.setCriteriaList(Collections.emptyList());
         request.setScope(Arrays.asList(String.valueOf(oid)));
+
+        List<ApiPartialEntity> entities = setupEntitiesForMemberQuery();
+        when(searchServiceSpy.searchEntities(any())).thenReturn(SearchEntitiesResponse.newBuilder()
+            .addAllEntities(entities.stream()
+                .map(e -> PartialEntity.newBuilder().setApi(e).build())
+                .collect(Collectors.toList()))
+            .setPaginationResponse(PaginationResponse.newBuilder())
+            .build());
+
+        final ArgumentCaptor<List<BaseApiDTO>> resultCaptor =
+            ArgumentCaptor.forClass((Class)List.class);
+        final SearchPaginationRequest paginationRequest = mock(SearchPaginationRequest.class);
+        Mockito.when(paginationRequest.getCursor()).thenReturn(Optional.empty());
+        Mockito.when(paginationRequest.allResultsResponse(any()))
+            .thenReturn(mock(SearchPaginationResponse.class));
+        Mockito.when(paginationRequest.getOrderBy())
+            .thenReturn(SearchOrderBy.NAME);
 
         SingleEntityRequest singleEntityRequest = mock(SingleEntityRequest.class);
         when(repositoryApi.entityRequest(oid)).thenReturn(singleEntityRequest);
@@ -1075,43 +1178,22 @@ public class SearchServiceTest {
         when(groupsService.expandUuids(any(), any(), any())).thenReturn(ImmutableSet.of(1L, 4L,
             5L));
 
-        PaginatedSearchRequest paginatedSearchRequestMock = mock(PaginatedSearchRequest.class);
-        doReturn(paginatedSearchRequestMock).when(repositoryApi).newPaginatedSearch(any(), any(), any());
-        final SearchPaginationRequest paginationRequest = new SearchPaginationRequest(null, null, true, null);
-
-        //WHEN
         searchService.getMembersBasedOnFilter("foo", request, paginationRequest, null, null);
 
-        //THEN
-        final ArgumentCaptor<SearchQuery> searchQueryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
-        final ArgumentCaptor<Set<Long>> scopeIdsCaptor = ArgumentCaptor.forClass((Class)Set.class);
-        final ArgumentCaptor<SearchPaginationRequest> searchPaginationRequestCaptor = ArgumentCaptor.forClass(SearchPaginationRequest.class);
-        verify(repositoryApi).newPaginatedSearch(searchQueryCaptor.capture(), scopeIdsCaptor.capture(), searchPaginationRequestCaptor.capture());
+        final ArgumentCaptor<Integer> totalRecordCount = ArgumentCaptor.forClass((Class)Integer.class);
+        verify(paginationRequest).finalPageResponse(resultCaptor.capture(), totalRecordCount.capture());
 
-        //Filter Checks
-        SearchQuery searchQuery = searchQueryCaptor.getValue();
-        assertEquals(searchQuery.getSearchParametersCount(), 1);
+        final List<Long> resultIds = resultCaptor.getValue()
+            .stream()
+            .map(BaseApiDTO::getUuid)
+            .map(Long::parseLong)
+            .collect(Collectors.toList());
 
-        //Scope check
-        Set<Long> scopeIds = scopeIdsCaptor.getValue();
-        assertTrue(scopeIds.size() == 3);
-        assertTrue(scopeIds.contains(1L));
-        assertTrue(scopeIds.contains(4L));
-        assertTrue(scopeIds.contains(5L));
+        final Map<Long, BaseApiDTO> resultById = resultCaptor.getValue().stream()
+            .collect(Collectors.toMap(se -> Long.valueOf(se.getUuid()), Function.identity()));
 
-        //EntityTypeCheck
-        PropertyFilter startingFilter = searchQuery.getSearchParameters(0).getStartingFilter();
-        assertEquals(startingFilter.getPropertyName(), "entityType");
-        //Workload gets expanded to 3 entityTypes
-        assertEquals(startingFilter.getStringFilter().getOptionsCount(), 3);
-
-        Collection<SearchFilter> searchFilters = searchQuery.getSearchParameters(0).getSearchFilterList();
-
-        SearchFilter queryFilter = SearchProtoUtil.searchFilterProperty(
-                        SearchProtoUtil.nameFilterRegex("^.*\\Qfoo\\E.*$"));
-
-        assertTrue(searchFilters.contains(queryFilter));
-
+        assertThat(resultIds.size(), is(3));
+        assertThat(resultById.keySet(), containsInAnyOrder(1L, 4L, 5L));
     }
 
     /**
@@ -1474,170 +1556,5 @@ public class SearchServiceTest {
         entity4.setClassName(StringConstants.VIRTUAL_MACHINE);
 
         return Arrays.asList(entity1, entity2, entity3, entity4);
-    }
-
-    /**
-     * Tests search service entities with all nullable options unset.
-     * @throws Exception pagination request is invalid
-     */
-    @Test
-    public void getSearchResultsonServiceEntities() throws Exception {
-        //GIVEN
-        final List<String> types = Collections.singletonList("VirtualMachine");
-
-        PaginatedSearchRequest mockPaginatedSearchRequest = mock(PaginatedSearchRequest.class);
-        when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(mockPaginatedSearchRequest);
-        doReturn(null).when(mockPaginatedSearchRequest).getResponse();
-
-        //WHEN
-        searchService.getSearchResults(null, types, null, null, null, null, null,
-                                       null, null, null, true, null, null);
-        //THEN
-        final ArgumentCaptor<SearchQuery> searchQueryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
-        final ArgumentCaptor<Set<Long>> scopeIds = ArgumentCaptor.forClass((Class)Set.class);
-        final ArgumentCaptor<SearchPaginationRequest> searchPaginationRequestCaptor = ArgumentCaptor.forClass(SearchPaginationRequest.class);
-        verify(repositoryApi).newPaginatedSearch(searchQueryCaptor.capture(), scopeIds.capture(), searchPaginationRequestCaptor.capture());
-
-        SearchQuery searchQuery = searchQueryCaptor.getValue();
-        assertEquals(searchQuery.getSearchParametersCount(), 1);
-        assertEquals(searchQuery.getSearchParameters(0).getStartingFilter().getNumericFilter().getValue(), 10L);
-        assertTrue(scopeIds.getValue().isEmpty());
-    }
-
-    /**
-     * Tests search service entities, types is null.
-     * @throws Exception something went wrong
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void getSearchResultsOnServiceEntitiesWithTypesNull() throws Exception {
-        //WHEN
-        searchService.queryServiceEntitiesPaginated(null, null, null, null, null, null, null,
-                                       null, null);
-    }
-
-    /**
-     * Tests search service entities, types is empty collection.
-     * @throws Exception something went wrong
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void getSearchResultsonServiceEntitiesWithTypesEmptyCollection() throws Exception {
-        searchService.queryServiceEntitiesPaginated(null, Collections.EMPTY_LIST, null, null, null, null, null,
-                                                    null, null);
-    }
-
-    /**
-     * Tests search service entities.
-     *
-     * <p>All options non null</p>
-     * @throws Exception something went wrong
-     */
-    @Test
-    public void getSearchResultsonServiceEntitiesWithAllParamsNonNull() throws Exception {
-        //GIVEN
-        final String nameRegex = "nameRegex";
-        final List<String> types = Collections.singletonList("VirtualMachine");
-        final String state = EntityState.ACTIVE.name();
-        final EnvironmentType envirType = EnvironmentType.CLOUD;
-        final EntityDetailType entityDetailType = EntityDetailType.aspects;
-        final SearchPaginationRequest searchPaginationRequest = new SearchPaginationRequest("99", 99, true, SearchOrderBy.DEFAULT);
-        final List<String> scopes = Collections.EMPTY_LIST;
-        final List<String> probeTypes = Collections.singletonList("AWS");
-        long targetID = 12345;
-        final ThinTargetInfo thinTargetInfoAWS = ImmutableThinTargetInfo
-                        .builder()
-                        .oid(targetID)
-                        .displayName("mockedThinTargetInfo")
-                        .isHidden(false)
-                        .probeInfo(ImmutableThinProbeInfo.builder()
-                                                   .oid(1)
-                                                   .type(probeTypes.get(0))
-                                                   .category("Cloud")
-                                                   .uiCategory("Cloud")
-                                                   .build())
-                        .build();
-
-        final ThinTargetInfo thinTargetInfoRandom = ImmutableThinTargetInfo
-                        .builder()
-                        .oid(1222222)
-                        .displayName("mockedThinTargetInfo")
-                        .isHidden(false)
-                        .probeInfo(ImmutableThinProbeInfo.builder()
-                                                   .oid(444)
-                                                   .type("SOME TYPE")
-                                                   .category("Cloud")
-                                                   .uiCategory("Cloud")
-                                                   .build())
-                        .build();
-
-        doReturn(Arrays.asList(thinTargetInfoRandom, thinTargetInfoAWS)).when(thinTargetCacheMock).getAllTargets();
-
-        PaginatedSearchRequest mockPaginatedSearchRequest = mock(PaginatedSearchRequest.class);
-        when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(mockPaginatedSearchRequest);
-        doReturn(null).when(mockPaginatedSearchRequest).getResponse();
-
-        //WHEN
-        searchService.getSearchResults(nameRegex, types, scopes, state, null, envirType, entityDetailType,
-                                       searchPaginationRequest, null, probeTypes, true, null, null);
-        //THEN
-        final ArgumentCaptor<SearchQuery> searchQueryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
-        final ArgumentCaptor<Set<Long>> scopeIds = ArgumentCaptor.forClass((Class)Set.class);
-        final ArgumentCaptor<SearchPaginationRequest> searchPaginationRequestCaptor = ArgumentCaptor.forClass(SearchPaginationRequest.class);
-        verify(repositoryApi).newPaginatedSearch(searchQueryCaptor.capture(), scopeIds.capture(), searchPaginationRequestCaptor.capture());
-
-        //Filter Checks
-        SearchQuery searchQuery = searchQueryCaptor.getValue();
-        assertEquals(searchQuery.getSearchParametersCount(), 1);
-        assertEquals(searchQuery.getSearchParameters(0).getStartingFilter().getNumericFilter().getValue(), 10L);
-
-        Collection<SearchFilter> searchFilters = searchQuery.getSearchParameters(0).getSearchFilterList();
-        assertEquals(searchFilters.size(), 4);
-
-        SearchFilter envFilter = SearchProtoUtil.searchFilterProperty(SearchProtoUtil.environmentTypeFilter(
-                        EnvironmentTypeMapper.fromApiToXL(envirType)));
-        assertTrue(searchFilters.contains(envFilter));
-
-        SearchFilter queryFilter = SearchProtoUtil.searchFilterProperty(
-                        SearchProtoUtil.nameFilterRegex(nameRegex));
-        assertTrue(searchFilters.contains(queryFilter));
-
-        SearchFilter stateFilter = SearchProtoUtil.searchFilterProperty(SearchProtoUtil.stateFilter(state));
-        assertTrue(searchFilters.contains(stateFilter));
-
-        SearchFilter probeFilters = SearchProtoUtil.searchFilterProperty(SearchProtoUtil.discoveredBy(Collections.singletonList(targetID)));
-        assertTrue(searchFilters.contains(probeFilters));
-
-        //Scope check
-        assertTrue(scopeIds.getValue().isEmpty());
-        assertEquals(searchPaginationRequestCaptor.getValue(), searchPaginationRequest);
-    }
-
-    /**
-     * Tests search service entities.
-     *
-     * <p>Tests scope added to search parameters</p>
-     * @throws Exception something went wrong
-     */
-    @Test
-    public void getSearchResultsEntityWithScope() throws Exception {
-        //GIVEN
-        final String scopeID = "324234";
-        List<String> scopes = Collections.singletonList(scopeID);
-
-        PaginatedSearchRequest mockPaginatedSearchRequest = mock(PaginatedSearchRequest.class);
-        when(repositoryApi.newPaginatedSearch(any(), any(), any())).thenReturn(mockPaginatedSearchRequest);
-        doReturn(null).when(mockPaginatedSearchRequest).getResponse();
-
-        //WHEN
-            searchService.queryServiceEntitiesPaginated(null, Collections.singletonList("VirtualMachine"),
-                                                        null, null, null, null,
-                                                        scopes, null, null);
-        //THEN
-        final ArgumentCaptor<SearchQuery> searchQueryCaptor = ArgumentCaptor.forClass(SearchQuery.class);
-        final ArgumentCaptor<Set<Long>> scopeIdsCaptor = ArgumentCaptor.forClass((Class)Set.class);
-        final ArgumentCaptor<SearchPaginationRequest> searchPaginationRequestCaptor = ArgumentCaptor.forClass(SearchPaginationRequest.class);
-        verify(repositoryApi).newPaginatedSearch(searchQueryCaptor.capture(), scopeIdsCaptor.capture(), searchPaginationRequestCaptor.capture());
-
-        assertEquals(1, scopeIdsCaptor.getValue().size());
-        assertTrue(scopeIdsCaptor.getValue().contains(Long.valueOf(scopeID)));
     }
 }
