@@ -558,8 +558,8 @@ public class RIDataUploaderTest {
         final RICostComponentData riData = riCostDataUploader.createRICostComponentData(
                 mockStitchingContext, cloudEntitiesMap, costDataByTargetId);
 
-        Assert.assertEquals(4, riData.riSpecs.size());
-        Assert.assertEquals(5, riData.riBoughtByLocalId.size());
+        Assert.assertEquals(5, riData.riSpecs.size());
+        Assert.assertEquals(6, riData.riBoughtByLocalId.size());
         // Verify an RI Spec -- the data should have come from the stitching entities rather than
         // the nme's.
 
