@@ -22,7 +22,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -46,7 +45,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.PaginatedSearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
@@ -93,8 +92,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -115,7 +112,6 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo.ControllerTypeCase;
@@ -124,6 +120,7 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Service entry points to search the Repository.
@@ -173,6 +170,8 @@ public class SearchService implements ISearchService {
     private final EntityFilterMapper entityFilterMapper;
     private final SearchFilterResolver filterResolver;
 
+    private final ThinTargetCache thinTargetCache;
+
     private static Map<String, CriteriaOptionProvider> criteriaOptionProviders;
 
     SearchService(@Nonnull final RepositoryApi repositoryApi,
@@ -195,7 +194,8 @@ public class SearchService implements ISearchService {
                   @Nonnull final EntityFilterMapper entityFilterMapper,
                   @Nonnull final EntityAspectMapper entityAspectMapper,
                   @Nonnull final SearchFilterResolver searchFilterResolver,
-                  @Nonnull final PriceIndexPopulator priceIndexPopulator) {
+                  @Nonnull final PriceIndexPopulator priceIndexPopulator,
+                  @Nonnull final ThinTargetCache thinTargetCache) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.marketsService = Objects.requireNonNull(marketsService);
         this.groupsService = Objects.requireNonNull(groupsService);
@@ -216,6 +216,7 @@ public class SearchService implements ISearchService {
         this.entityFilterMapper = Objects.requireNonNull(entityFilterMapper);
         this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
         this.priceIndexPopulator = Objects.requireNonNull(priceIndexPopulator);
+        this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
 
         this.filterResolver = Objects.requireNonNull(searchFilterResolver);
         criteriaOptionProviders = ImmutableMap.<String, CriteriaOptionProvider>builder().put(STATE,
@@ -317,12 +318,34 @@ public class SearchService implements ISearchService {
         }
     }
 
-    private Stream<ServiceEntityApiDTO> queryByTypeAndStateAndName(
-            @Nullable String nameQueryString, @Nullable List<String> types,
-            @Nullable String state, @Nullable EnvironmentTypeEnum.EnvironmentType envType,
-            @Nullable EntityDetailType entityDetailType,
-            @Nullable QueryType queryType)
-            throws ConversionException, InterruptedException{
+    /**
+     * Handles paginated search request on service entities with options.
+     * @param nameQueryString matching name pattern
+     * @param types Object types
+     * @param state service entity state
+     * @param envType service entity environment type
+     * @param entityDetailType level of details of the response
+     * @param searchPaginationRequest the {@link SearchPaginationRequest}
+     * @param scopes scope to focus search
+     * @param probeTypes The probe types used to filter results
+     * @param queryType Pattern matching strategy to be used for stringToMatch.
+     * @return SearchPaginationResponse service entity results
+     * @throws ConversionException If there is an issue with entity conversion.
+     * @throws InterruptedException If there is an issue waiting for a dependent operation.
+     * @throws InvalidOperationException if pagination request is invalid
+     */
+    @VisibleForTesting
+    SearchPaginationResponse queryServiceEntitiesPaginated(
+                    @Nullable String nameQueryString,
+                    @Nonnull List<String> types,
+                    @Nullable String state,
+                    @Nullable EnvironmentTypeEnum.EnvironmentType envType,
+                    @Nullable EntityDetailType entityDetailType,
+                    @Nullable SearchPaginationRequest searchPaginationRequest,
+                    @Nullable List<String> scopes,
+                    @Nullable List<String> probeTypes,
+                    @Nullable QueryType queryType)
+                    throws ConversionException, InterruptedException, InvalidOperationException {
         // TODO Now, we only support one type of entities in the search
         if (types == null || types.isEmpty()) {
             IllegalArgumentException e = new IllegalArgumentException("Type must be set for search result.");
@@ -331,7 +354,7 @@ public class SearchService implements ISearchService {
         }
 
         final SearchParameters.Builder searchParamsBuilder =
-            SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(types));
+                        SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(types));
 
         if (!StringUtils.isEmpty(nameQueryString)) {
             if (queryType != null) {
@@ -347,25 +370,45 @@ public class SearchService implements ISearchService {
 
         if (envType != null) {
             searchParamsBuilder.addSearchFilter(
-                SearchProtoUtil.searchFilterProperty(SearchProtoUtil.environmentTypeFilter(envType)));
+                            SearchProtoUtil.searchFilterProperty(SearchProtoUtil.environmentTypeFilter(envType)));
         }
 
         if (!StringUtils.isEmpty(state)) {
             searchParamsBuilder.addSearchFilter(SearchProtoUtil.searchFilterProperty(
-                SearchProtoUtil.stateFilter(state)));
+                            SearchProtoUtil.stateFilter(state)));
         }
 
-        SearchRequest searchRequest = repositoryApi.newSearchRequest(searchParamsBuilder.build());
+        if (probeTypes != null && !probeTypes.isEmpty()) {
+            //Map probeTypes to targetIds
+            Set<String> probes = new HashSet<>(probeTypes);
+            Set<Long> targetsIds = thinTargetCache.getAllTargets()
+                            .stream()
+                            .filter(target -> probes.contains(target.probeInfo().type()))
+                            .map(target -> target.oid())
+                            .collect(Collectors.toSet());
+            searchParamsBuilder.addSearchFilter(SearchProtoUtil.searchFilterProperty(SearchProtoUtil.discoveredBy(targetsIds)));
+        }
+
+        final SearchQuery searchQuery = SearchQuery.newBuilder().addSearchParameters(searchParamsBuilder).build();
+
+        final Set<Long> scopeOids = scopes == null
+                                    || (scopes.size() == 1
+                                        && scopes.get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR))
+                                    ? Collections.EMPTY_SET : scopes.stream()
+                        .map(Long::valueOf).collect(Collectors.toSet());
+
+        searchPaginationRequest = searchPaginationRequest != null ? searchPaginationRequest
+                        : new SearchPaginationRequest(null, null, true, null);
+
+        PaginatedSearchRequest paginatedSearchRequest = repositoryApi.newPaginatedSearch(searchQuery,
+            scopeOids, searchPaginationRequest);
 
         if (EntityDetailType.aspects == entityDetailType) {
-            searchRequest.useAspectMapper(entityAspectMapper);
+            //TODO: OM-52167 Differentiate between EntityDetailType.compact and EntityDetailType.entity
+            paginatedSearchRequest.requestAspects(entityAspectMapper, null);
         }
 
-        //TODO: OM-52167 Differentiate between EntityDetailType.compact and EntityDetailType.entity
-
-        return searchRequest
-            .getSEList()
-            .stream();
+        return paginatedSearchRequest.getResponse();
     }
 
     /**
@@ -443,66 +486,41 @@ public class SearchService implements ISearchService {
             }
         }
 
-        final EnvironmentTypeEnum.EnvironmentType environmentTypeXl =
-                EnvironmentTypeMapper.fromApiToXL(environmentType);
-
         // Must be a search for a ServiceEntity
-        final Stream<ServiceEntityApiDTO> entitiesResult;
-        // Patrick: I am scoping this clause of the request on the results side rather than on the
-        // source side (in the search service), because this search is still using REST, and
-        // converting this method to GRPC looks like it will take more time than I have right now.
-        // TODO: Convert the entity search to use GRPC isntead of REST.
-        Predicate<ServiceEntityApiDTO> scopeFilter = userSessionContext.isUserScoped()
-                ? entity -> userSessionContext.getUserAccessScope().contains(Long.valueOf(entity.getUuid()))
-                : entity -> true; // no-op if the user is not scoped
+        final EnvironmentTypeEnum.EnvironmentType environmentTypeXl = EnvironmentTypeMapper
+                        .fromApiToXL(environmentType);
+
         if (scopes == null || scopes.size() <= 0 ||
                 (scopes.get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR))) {
             // Search with no scope requested; or a single scope == "Market"; then search in live Market
-            entitiesResult =
-                queryByTypeAndStateAndName(query, types, state, environmentTypeXl, entityDetailType, queryType)
-                    .filter(scopeFilter);
+            return  queryServiceEntitiesPaginated(query, types, state, environmentTypeXl, entityDetailType,
+                                                  paginationRequest, scopes, probeTypes, queryType);
         } else {
             // expand to include the supplychain for the 'scopes', some of which may be groups or
             // clusters, and derive a list of ServiceEntities
             Set<String> scopeServiceEntityIds = groupsService.expandUuids(Sets.newHashSet(scopes),
                 types, environmentType).stream().map(String::valueOf).collect(Collectors.toSet());
 
-            final boolean isGlobalScope = ApiUtils.containsGlobalScope(
-                    Sets.newHashSet(scopes), groupExpander);
+        final boolean isGlobalScope = ApiUtils.containsGlobalScope(Sets.newHashSet(scopes), groupExpander);
 
-            // Check if the scope is not global and the set of scope ids is empty.
-            // This means there is an invalid scope.
-            if (!isGlobalScope && scopeServiceEntityIds.isEmpty()) {
-                // checking if the scope is valid
-                Stream<ApiPartialEntity> scopeEntities = repositoryApi.entitiesRequest(scopes.stream()
-                    .map(Long::parseLong).collect(Collectors.toSet()))
-                    .getEntities();
-                if (scopeEntities == null || scopeEntities.count() == 0) {
-                    throw new IllegalArgumentException("Invalid scope specified. There are no entities"
-                        + " related to the scope.");
-                }
-                // returning an empty response
-                return paginationRequest.allResultsResponse(Collections.emptyList());
-            }
 
-            // TODO (roman, June 17 2019: We should probably include the IDs in the query, unless
-            // there are a lot of IDs.
-
-            // Fetch service entities matching the given specs
-            // Restrict entities to those whose IDs are in the expanded 'scopeEntities'
-           entitiesResult = queryByTypeAndStateAndName(query, types, state,
-                                                       environmentTypeXl, entityDetailType, queryType)
-                                .filter(scopeFilter)
-                                .filter(se -> scopeServiceEntityIds.contains(se.getUuid()));
+        if (isGlobalScope || !scopeServiceEntityIds.isEmpty()) {
+            return queryServiceEntitiesPaginated(query, types, state, environmentTypeXl, entityDetailType,
+                                                 paginationRequest, new ArrayList<>(scopeServiceEntityIds), probeTypes, queryType);
         }
 
-        // set discoveredBy, filter by probe types and environment type
-        List<BaseApiDTO> result = entitiesResult
-                .filter(se -> CollectionUtils.isEmpty(probeTypes) ||
-                        probeTypes.contains(se.getDiscoveredBy().getType()))
-                .collect(Collectors.toList());
+        // checking if the scope is valid
+        Stream<ApiPartialEntity> scopeEntities = repositoryApi.entitiesRequest(scopes.stream()
+            .map(Long::parseLong).collect(Collectors.toSet()))
+            .getEntities();
+        if (scopeEntities == null || scopeEntities.count() == 0) {
+            throw new IllegalArgumentException("Invalid scope specified. There are no entities"
+                + " related to the scope.");
+        }
+            // returning an empty response
+            return paginationRequest.allResultsResponse(Collections.emptyList());
+        }
 
-        return paginationRequest.allResultsResponse(result);
     }
 
     /**
@@ -519,7 +537,7 @@ public class SearchService implements ISearchService {
      */
     @Override
     public SearchPaginationResponse getMembersBasedOnFilter(String nameQueryString, GroupApiDTO inputDTO,
-            SearchPaginationRequest paginationRequest, @Nullable List<String> aspectNames, QueryType queryType)
+            SearchPaginationRequest paginationRequest, @Nullable List<String> aspectNames, @Nullable QueryType queryType)
             throws OperationFailedException, InvalidOperationException, ConversionException,
             InterruptedException {
         // the query input is called a GroupApiDTO even though this search can apply to any type
@@ -716,14 +734,8 @@ public class SearchService implements ISearchService {
         }
 
         try {
-            if (paginationRequest.getOrderBy().equals(SearchOrderBy.SEVERITY)) {
-                final RepositoryApi.PaginatedSearchRequest searchReq =
-                    repositoryApi.newPaginatedSearch(SearchQuery.newBuilder()
-                        .addAllSearchParameters(searchParameters)
-                        .build(), allEntityOids, paginationRequest);
-                return searchReq.requestAspects(entityAspectMapper, aspectNames)
-                        .getResponse();
-            } else if (paginationRequest.getOrderBy().equals(SearchOrderBy.UTILIZATION)) {
+            //Repository does not support sorting on utilization
+            if (paginationRequest.getOrderBy().equals(SearchOrderBy.UTILIZATION)) {
                 final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
                     .setSearch(SearchQuery.newBuilder()
                         .addAllSearchParameters(searchParameters))
@@ -743,23 +755,14 @@ public class SearchService implements ISearchService {
                         paginationRequest.getOrderBy(), e);
             }
         }
-        // We don't use the RepositoryAPI utility because we do pagination,
-        // and want to handle the pagination parameters.
-        final SearchEntitiesRequest searchEntitiesRequest = SearchEntitiesRequest.newBuilder()
-            .setSearch(SearchQuery.newBuilder()
-                .addAllSearchParameters(searchParameters))
-            .addAllEntityOid(allEntityOids)
-            .setReturnType(PartialEntity.Type.API)
-            .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
-            .build();
-        final SearchEntitiesResponse response = searchServiceRpc.searchEntities(searchEntitiesRequest);
-        List<ApiPartialEntity> partialEntities = response.getEntitiesList().stream()
-                .map(PartialEntity::getApi).collect(Collectors.toList());
-        List<ServiceEntityApiDTO> entities = serviceEntityMapper.toServiceEntityApiDTOMap(partialEntities)
-                .values().stream().collect(Collectors.toList());
-        severityPopulator.populate(realtimeContextId, entities);
-        return buildPaginationResponse(entities,
-                response.getPaginationResponse(), paginationRequest);
+        //Paginated calls to repository, supports order_by Name and Severity
+        final RepositoryApi.PaginatedSearchRequest paginatedSearchRequest =
+                        repositoryApi.newPaginatedSearch(SearchQuery.newBuilder().addAllSearchParameters(searchParameters).build(), allEntityOids, paginationRequest);
+        if (aspectNames != null && !aspectNames.isEmpty()) {
+            paginatedSearchRequest.requestAspects(entityAspectMapper, aspectNames);
+        }
+
+        return paginatedSearchRequest.getResponse();
     }
 
     /**
