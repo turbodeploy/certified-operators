@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.execution;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -108,9 +109,15 @@ public class AutomatedActionExecutor {
     private Map<Long, Set<Long>> mapActionsToTarget(
             Map<Long, ActionExecutionReadinessDetails> allActions) {
         final Map<Long, Set<Long>> result = new HashMap<>();
+        final Map<Long, Long> workflowExecutionTargetsForActions =
+                getWorkflowExecutionTargetsForActions(allActions.values()
+                        .stream()
+                        .map(ActionExecutionReadinessDetails::getAction)
+                        .collect(Collectors.toList()));
         final Map<Long, ActionTargetInfo> targetIdsForActions =
-                actionTargetSelector.getTargetsForActions(allActions.values().stream()
-                    .map(el -> el.getAction().getRecommendation()), entitySettingsCache.emptySnapshot());
+                actionTargetSelector.getTargetsForActions(
+                        allActions.values().stream().map(el -> el.getAction().getRecommendation()),
+                        entitySettingsCache.emptySnapshot(), workflowExecutionTargetsForActions);
         for (Entry<Long, ActionTargetInfo> targetIdForActionEntry : targetIdsForActions.entrySet()) {
             final Long actionId = targetIdForActionEntry.getKey();
             final ActionTargetInfo targetInfo = targetIdForActionEntry.getValue();
@@ -121,6 +128,19 @@ public class AutomatedActionExecutor {
             }
         }
         return result;
+    }
+
+    private Map<Long, Long> getWorkflowExecutionTargetsForActions(
+            @Nonnull Collection<Action> actions) {
+        final Map<Long, Long> workflowExecutionTargetsForActions = new HashMap<>();
+        for (Action action : actions) {
+            final Optional<Long> workflowExecutionTarget =
+                    action.getWorkflowExecutionTarget(workflowStore);
+            workflowExecutionTarget.ifPresent(
+                    discoveredTarget -> workflowExecutionTargetsForActions.put(action.getId(),
+                            discoveredTarget));
+        }
+        return workflowExecutionTargetsForActions;
     }
 
     /**
@@ -223,7 +243,8 @@ public class AutomatedActionExecutor {
                                 try {
                                     logger.info("Attempting to execute action {}", action);
                                     // Fetch the Workflow, if any, that controls this Action
-                                    Optional<WorkflowDTO.Workflow> workflowOpt = action.getWorkflow(workflowStore);
+                                    Optional<WorkflowDTO.Workflow> workflowOpt =
+                                            action.getWorkflow(workflowStore, action.getState());
                                     // Execute the Action on the given target, or the Workflow target
                                     // if a Workflow is specified.
                                     actionExecutor.executeSynchronously(targetId, translated.get(),

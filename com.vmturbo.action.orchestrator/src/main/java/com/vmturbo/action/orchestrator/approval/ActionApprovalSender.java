@@ -82,9 +82,11 @@ public class ActionApprovalSender {
                 if (recommendationOptional.isPresent()) {
                     final ActionDTO.Action recommendation = recommendationOptional.get();
                     try {
-                        final Optional<WorkflowDTO.Workflow> workflowOpt = action.getWorkflow(workflowStore);
+                        final Optional<WorkflowDTO.Workflow> workflowOpt =
+                                action.getWorkflow(workflowStore, action.getState());
 
-                        final Optional<Long> targetForAction = getTargetForAction(recommendation);
+                        final Optional<Long> targetForAction = getTargetForAction(recommendation,
+                                action.getWorkflowExecutionTarget(workflowStore));
                         if (targetForAction.isPresent()) {
                             final ExecuteActionRequest request =
                                     ActionExecutor.createRequest(targetForAction.get(),
@@ -122,12 +124,15 @@ public class ActionApprovalSender {
      * Get target which should execute the action.
      *
      * @param recommendation the recommendation
+     * @param workflowExecutionTarget execution target for action with REPLACE workflow
      * @return target id or {@link Optional#empty()} if there is no target where action can be
      * executed
      */
-    private Optional<Long> getTargetForAction(@Nonnull ActionDTO.Action recommendation) {
+    private Optional<Long> getTargetForAction(@Nonnull ActionDTO.Action recommendation,
+            @Nonnull Optional<Long> workflowExecutionTarget) {
         final ActionTargetInfo actionTargetInfo =
-                actionTargetSelector.getTargetForAction(recommendation, entitySettingsCache);
+                actionTargetSelector.getTargetForAction(recommendation, entitySettingsCache,
+                        workflowExecutionTarget);
         return actionTargetInfo.targetId();
     }
 }

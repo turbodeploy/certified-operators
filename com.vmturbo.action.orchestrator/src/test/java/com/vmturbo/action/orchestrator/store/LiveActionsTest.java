@@ -61,6 +61,7 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander.InvolvedEntitiesFilter;
 import com.vmturbo.action.orchestrator.store.LiveActions.QueryFilterFactory;
 import com.vmturbo.action.orchestrator.store.query.QueryFilter;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
@@ -103,6 +104,7 @@ public class LiveActionsTest {
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
     private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
     private final RejectedActionsDAO rejectedActionsStore = Mockito.mock(RejectedActionsDAO.class);
+    private final WorkflowStore workflowStore = Mockito.mock(WorkflowStore.class);
 
     private final InvolvedEntitiesExpander involvedEntitiesExpander = mock(InvolvedEntitiesExpander.class);
 
@@ -115,7 +117,7 @@ public class LiveActionsTest {
     public void setup() {
         liveActions =
                 new LiveActions(actionHistoryDao, acceptedActionsStore, rejectedActionsStore, clock,
-                        queryFilterFactory, userSessionContext, involvedEntitiesExpander);
+                        queryFilterFactory, userSessionContext, involvedEntitiesExpander, workflowStore);
         when(involvedEntitiesExpander.expandInvolvedEntitiesFilter(anyCollection())).thenAnswer(
             (Answer<InvolvedEntitiesFilter>)invocationOnMock -> {
                 Set<Long> oids = new HashSet<>(
@@ -257,7 +259,7 @@ public class LiveActionsTest {
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,
             acceptedActionWithRemovedSchedule);
 
-        Mockito.when(actionTargetSelector.getTargetsForActions(any(), any()))
+        Mockito.when(actionTargetSelector.getTargetsForActions(any(), any(), any()))
                 .thenAnswer(invocation -> {
                     Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
                     return actions.collect(Collectors.toMap(ActionDTO.Action::getId,
@@ -363,7 +365,7 @@ public class LiveActionsTest {
         Mockito.when(entityCacheSnapshot.getSettingsForEntity(acceptedActionEntity.getId()))
                 .thenReturn(settingMap);
 
-        Mockito.when(actionTargetSelector.getTargetsForActions(any(), any()))
+        Mockito.when(actionTargetSelector.getTargetsForActions(any(), any(), any()))
                 .thenAnswer(invocation -> {
                     Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
                     return actions.collect(Collectors.toMap(ActionDTO.Action::getId,
@@ -650,7 +652,7 @@ public class LiveActionsTest {
 
         liveActions =
                 new LiveActions(actionHistoryDao, acceptedActionsStore, rejectedActionsStore, clock,
-                        QueryFilter::new, userSessionContext, involvedEntitiesExpander);
+                        QueryFilter::new, userSessionContext, involvedEntitiesExpander, workflowStore);
         liveActions.replaceMarketActions(Stream.of(
             moveActionInTarget, moveActionInSource, moveActionInDestination));
 

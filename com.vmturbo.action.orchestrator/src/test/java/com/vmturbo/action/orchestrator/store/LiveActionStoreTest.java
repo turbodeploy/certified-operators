@@ -75,6 +75,7 @@ import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
 import com.vmturbo.action.orchestrator.store.identity.InMemoryIdentityStore;
 import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -210,6 +211,7 @@ public class LiveActionStoreTest {
 
     private ActionTopologyStore actionTopologyStore = new ActionTopologyStore();
     private EntitySeverityCache entitySeverityCache = mock(EntitySeverityCache.class);
+    private WorkflowStore workflowStore = mock(WorkflowStore.class);
 
     final AtomicActionSpecsCache atomicActionSpecsCache = Mockito.spy(new AtomicActionSpecsCache());
     final AtomicActionFactory atomicActionFactory = Mockito.spy(new AtomicActionFactory(atomicActionSpecsCache));
@@ -235,9 +237,9 @@ public class LiveActionStoreTest {
                 actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
                 actionIdentityService, involvedEntitiesExpander,
-                Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60);
+                Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60, workflowStore);
 
-        when(targetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
+        when(targetSelector.getTargetsForActions(any(), any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
             return actions
                 .collect(Collectors.toMap(ActionDTO.Action::getId, action -> ImmutableActionTargetInfo.builder()
@@ -423,7 +425,7 @@ public class LiveActionStoreTest {
                         actionsStatistician, actionTranslator, atomicActionFactory, clock,
                         userSessionContext, licenseCheckClient, acceptedActionsStore,
                         rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
-                        Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60);
+                        Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60, workflowStore);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 
@@ -475,7 +477,7 @@ public class LiveActionStoreTest {
                         actionsStatistician, actionTranslator, atomicActionFactory, clock,
                         userSessionContext, licenseCheckClient, acceptedActionsStore,
                         rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
-                        listener, entitySeverityCache, 60);
+                        listener, entitySeverityCache, 60, workflowStore);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 

@@ -257,11 +257,11 @@ public class ActionExecutionSecureRpcTest {
             .supportingLevel(SupportLevel.SUPPORTED)
             .targetId(123)
             .build();
-        when(actionTargetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
+        when(actionTargetSelector.getTargetsForActions(any(), any(), any())).thenAnswer(invocation -> {
             Stream<Action> actions = invocation.getArgumentAt(0, Stream.class);
             return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action -> targetInfo));
         });
-        when(actionTargetSelector.getTargetForAction(any(), any())).thenReturn(targetInfo);
+        when(actionTargetSelector.getTargetForAction(any(), any(), any())).thenReturn(targetInfo);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         actionIdentityService = Mockito.mock(IdentityServiceImpl.class);
@@ -280,7 +280,7 @@ public class ActionExecutionSecureRpcTest {
                 actionsStatistician, actionTranslator, atomicActionFactory, clock,
                 userSessionContext, licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
                 actionIdentityService, involvedEntitiesExpander,
-                Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60));
+                Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60, workflowStore));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");

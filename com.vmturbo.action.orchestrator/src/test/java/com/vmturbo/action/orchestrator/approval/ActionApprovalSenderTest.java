@@ -82,7 +82,7 @@ public class ActionApprovalSenderTest {
         final ActionTargetInfo actionTargetInfo = Mockito.mock(ActionTargetInfo.class);
         Mockito.when(actionTargetInfo.targetId()).thenReturn(Optional.of(TARGET_ID));
         Mockito.when(actionTargetSelector.getTargetForAction(Mockito.any(ActionDTO.Action.class),
-                Mockito.any(EntitiesAndSettingsSnapshotFactory.class)))
+                Mockito.any(EntitiesAndSettingsSnapshotFactory.class), Mockito.any(Optional.class)))
                 .thenReturn(actionTargetInfo);
         this.aas = new ActionApprovalSender(workflowStore, requestSender, actionTargetSelector, entitySettingsCache);
     }
@@ -234,7 +234,7 @@ public class ActionApprovalSenderTest {
         Mockito.when(actionTargetInfo.targetId()).thenReturn(Optional.empty());
         Mockito.when(actionTargetSelector.getTargetForAction(
                 Mockito.eq(actionWithoutTarget.getRecommendation()),
-                Mockito.any(EntitiesAndSettingsSnapshotFactory.class)))
+                Mockito.any(EntitiesAndSettingsSnapshotFactory.class), Mockito.any()))
                 .thenReturn(actionTargetInfo);
         aas.sendApprovalRequests(actionStore);
         Mockito.verifyZeroInteractions(requestSender);

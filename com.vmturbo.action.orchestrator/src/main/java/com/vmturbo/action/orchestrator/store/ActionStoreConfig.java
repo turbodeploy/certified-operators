@@ -320,6 +320,7 @@ public class ActionStoreConfig {
             .withActionAuditSender(auditCommunicationConfig.actionAuditSender())
             .withRiskPropagationEnabledFlag(riskPropagationEnabled)
             .withQueryTimeWindowForLastExecutedActionsMins(queryTimeWindowForLastExecutedActionsMins)
+            .withWorkflowStore(workflowConfig.workflowStore())
             .build();
     }
 

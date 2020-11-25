@@ -90,7 +90,7 @@ public class ActionApprovalManagerTest {
         when(actionTargetInfo.supportingLevel()).thenReturn(SupportLevel.SUPPORTED);
         when(actionTargetInfo.targetId()).thenReturn(Optional.of(TARGET_ID));
 
-        when(actionTargetSelector.getTargetForAction(any(), any())).thenReturn(actionTargetInfo);
+        when(actionTargetSelector.getTargetForAction(any(), any(), any())).thenReturn(actionTargetInfo);
 
         when(actionStore.getEntitySeverityCache()).thenReturn(Optional.of(entitySeverityCache));
 

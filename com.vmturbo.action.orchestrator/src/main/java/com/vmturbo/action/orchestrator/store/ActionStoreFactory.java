@@ -16,9 +16,11 @@ import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
 import com.vmturbo.action.orchestrator.topology.ActionTopologyStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.identity.IdentityService;
 
 /**
@@ -72,6 +74,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final boolean riskPropagationEnabled;
     private final int queryTimeWindowForLastExecutedActionsMins;
+    private final WorkflowStore workflowStore;
 
     /**
      * To create a new ActionStoreFactory, use the {@link #newBuilder()}.
@@ -99,6 +102,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.involvedEntitiesExpander = Objects.requireNonNull(builder.involvedEntitiesExpander);
         this.entitySeverityCache = Objects.requireNonNull(builder.entitySeverityCache);
         this.externalAuditEventSender = Objects.requireNonNull(builder.actionAuditSender);
+        this.workflowStore =  Objects.requireNonNull(builder.workflowStore);
         this.riskPropagationEnabled =  builder.riskPropagationEnabled;
         this.queryTimeWindowForLastExecutedActionsMins = builder.queryTimeWindowForLastExecutedActionsMins;
     }
@@ -117,7 +121,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
                     actionHistoryDao, actionsStatistician, actionTranslator, atomicActionFactory,
                     clock, userSessionContext, licenseCheckClient, acceptedActionsStore,
                     rejectedActionsStore, actionIdentityService, involvedEntitiesExpander,
-                    externalAuditEventSender, entitySeverityCache, queryTimeWindowForLastExecutedActionsMins);
+                    externalAuditEventSender, entitySeverityCache,
+                    queryTimeWindowForLastExecutedActionsMins, workflowStore);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId,
                 entitySettingsCache, actionTranslator, realtimeTopologyContextId, actionTargetSelector,
@@ -165,6 +170,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         private InvolvedEntitiesExpander involvedEntitiesExpander;
         private ActionAuditSender actionAuditSender;
         private EntitySeverityCache entitySeverityCache;
+        private WorkflowStore workflowStore;
         private boolean riskPropagationEnabled;
         private int queryTimeWindowForLastExecutedActionsMins = -1;
 
@@ -413,6 +419,17 @@ public class ActionStoreFactory implements IActionStoreFactory {
                 int queryTimeWindowForLastExecutedActionsMins) {
             this.queryTimeWindowForLastExecutedActionsMins =
                     queryTimeWindowForLastExecutedActionsMins;
+            return this;
+        }
+
+        /**
+         * Sets the workflow store.
+         *
+         * @param workflowStore the store for all the known {@link WorkflowDTO.Workflow} items
+         * @return the builder for chained calls
+         */
+        public Builder withWorkflowStore(@Nonnull WorkflowStore workflowStore) {
+            this.workflowStore = workflowStore;
             return this;
         }
 

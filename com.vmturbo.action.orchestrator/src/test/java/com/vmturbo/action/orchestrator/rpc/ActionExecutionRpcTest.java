@@ -162,6 +162,7 @@ public class ActionExecutionRpcTest {
     private final SupplyChainServiceMole supplyChainServiceMole = spy(new SupplyChainServiceMole());
     private final RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
     private final EntitySeverityCache entitySeverityCache = mock(EntitySeverityCache.class);
+    private final WorkflowStore workflowStore = mock(WorkflowStore.class);
 
     private GrpcTestServer grpcServer;
     private ActionStore actionStoreSpy;
@@ -191,11 +192,11 @@ public class ActionExecutionRpcTest {
             .supportingLevel(SupportLevel.SUPPORTED)
             .targetId(123)
             .build();
-        when(actionTargetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
+        when(actionTargetSelector.getTargetsForActions(any(), any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
             return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action -> targetInfo));
         });
-        when(actionTargetSelector.getTargetForAction(any(), any())).thenReturn(targetInfo);
+        when(actionTargetSelector.getTargetForAction(any(), any(), any())).thenReturn(targetInfo);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
@@ -203,7 +204,7 @@ public class ActionExecutionRpcTest {
                 statistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
                 actionIdentityService, involvedEntitiesExpander,
-                Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60));
+                Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60, workflowStore));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
@@ -474,7 +475,7 @@ public class ActionExecutionRpcTest {
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
-        when(actionTargetSelector.getTargetForAction(eq(recommendation), any()))
+        when(actionTargetSelector.getTargetForAction(eq(recommendation), any(), any()))
             .thenReturn(ImmutableActionTargetInfo.builder()
                 .supportingLevel(SupportLevel.UNSUPPORTED)
                 .build());
@@ -507,7 +508,7 @@ public class ActionExecutionRpcTest {
 
         actionStorehouse.storeActions(plan);
 
-        when(actionTargetSelector.getTargetForAction(Mockito.eq(recommendation), any())).thenReturn(
+        when(actionTargetSelector.getTargetForAction(Mockito.eq(recommendation), any(), any())).thenReturn(
             ImmutableActionTargetInfo.builder()
                 .supportingLevel(SupportLevel.SUPPORTED)
                 .targetId(targetId)
@@ -568,11 +569,11 @@ public class ActionExecutionRpcTest {
                 statistician, actionTranslator, atomicActionFactory, clock, userSessionContext,
                 licenseCheckClient, acceptedActionsStore, rejectedActionsStore,
                 actionIdentityService, involvedEntitiesExpander,
-                Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60));
+                Mockito.mock(ActionAuditSender.class), entitySeverityCache, 60, workflowStore));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
 
         actionStorehouse.storeActions(plan);
-        when(actionTargetSelector.getTargetForAction(Mockito.eq(recommendation), any())).thenReturn(
+        when(actionTargetSelector.getTargetForAction(Mockito.eq(recommendation), any(), any())).thenReturn(
             ImmutableActionTargetInfo.builder()
                 .supportingLevel(SupportLevel.SUPPORTED)
                 .targetId(targetId)

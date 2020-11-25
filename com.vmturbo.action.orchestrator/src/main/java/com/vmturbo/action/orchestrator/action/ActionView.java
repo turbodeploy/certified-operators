@@ -279,7 +279,8 @@ public interface ActionView {
     boolean hasFailures();
 
     /**
-     * Fetch an Optional of the {@link WorkflowDTO.Workflow} corresponding to this Action, if any.
+     * Fetch an Optional of the {@link WorkflowDTO.Workflow} corresponding to this Action for
+     * certain state, if any.
      * The Workflow is controlled by an Orchestration Setting whose name is based on the name of
      * this action. For example, a "Provision" action workflow is configured by creating a
      * "ProvisionActionWorkflow" setting. The ID of the workflow is given by the "value" of the
@@ -289,12 +290,13 @@ public interface ActionView {
      * then return Optional.empty().
      *
      * @param workflowStore the store of all known Workflow objects
+     * @param actionState the state of the action
      * @return an Optional of the corresponding Workflow based on an Orchestration Setting for the
      * corresponding Action type.
      * @throws WorkflowStoreException if failure occurred retrieving workflow.
      */
-    Optional<WorkflowDTO.Workflow> getWorkflow(WorkflowStore workflowStore) throws
-            WorkflowStoreException;
+    Optional<WorkflowDTO.Workflow> getWorkflow(@Nonnull WorkflowStore workflowStore,
+            @Nonnull ActionState actionState) throws WorkflowStoreException;
 
     /**
      * Gets the action description.

@@ -121,7 +121,8 @@ public class ActionAuditSenderTest {
                 new Action(actionDTO, ACTION_PLAN_ID, Mockito.mock(ActionModeCalculator.class),
                         oid));
         action.getActionTranslation().setTranslationSuccess(actionDTO);
-        Mockito.when(action.getWorkflow(Mockito.any())).thenReturn(Optional.ofNullable(workflow));
+        Mockito.when(action.getWorkflow(Mockito.any(), Mockito.any()))
+                .thenReturn(Optional.ofNullable(workflow));
         return action;
     }
 }

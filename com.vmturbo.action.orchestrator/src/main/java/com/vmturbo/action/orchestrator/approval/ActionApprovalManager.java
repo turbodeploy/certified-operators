@@ -148,8 +148,9 @@ public class ActionApprovalManager {
                 return errors.get();
             }
         }
-        final ActionTargetInfo actionTargetInfo = actionTargetSelector.getTargetForAction(
-                action.getTranslationResultOrOriginal(), entitySettingsCache);
+        final ActionTargetInfo actionTargetInfo =
+                actionTargetSelector.getTargetForAction(action.getTranslationResultOrOriginal(),
+                        entitySettingsCache, action.getWorkflowExecutionTarget(workflowStore));
         final Optional<String> validationError =
                 checkActionExecutionValidity(action, actionTargetInfo);
         if (!validationError.isPresent()) {
@@ -227,7 +228,7 @@ public class ActionApprovalManager {
             if (translatedRecommendation.isPresent()) {
                 // execute the action, passing the workflow override (if any)
                 actionExecutor.execute(targetId, translatedRecommendation.get(),
-                        action.getWorkflow(workflowStore));
+                        action.getWorkflow(workflowStore, action.getState()));
                 return AcceptActionResponse.newBuilder()
                         .setActionSpec(actionTranslator.translateToSpec(action))
                         .build();

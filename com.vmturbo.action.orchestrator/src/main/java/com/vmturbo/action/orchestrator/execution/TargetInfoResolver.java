@@ -85,19 +85,21 @@ public class TargetInfoResolver {
      * @param action the {@link Action}
      * @param actionPartialEntityMap mapping entity oid to {@link ActionPartialEntity}
      * @param snapshot the {@link EntitiesAndSettingsSnapshot}
+     * @param workflowExecutionTargetsForActions id of the execution targets for actions with REPLACE workflow
      * @return the {@link ActionTargetInfo}
      */
     @Nonnull
     public ActionTargetInfo getTargetInfoForAction(@Nonnull ActionDTO.Action action,
             @Nonnull Map<Long, ActionPartialEntity> actionPartialEntityMap,
-            @Nonnull EntitiesAndSettingsSnapshot snapshot) {
+            @Nonnull EntitiesAndSettingsSnapshot snapshot,
+            @Nonnull Map<Long, Long> workflowExecutionTargetsForActions) {
         try {
             final ActionEntity executantEntity = getExecutantEntity(action);
             final ActionPartialEntity actionPartialEntity =
                     actionPartialEntityMap.get(executantEntity.getId());
             if (actionPartialEntity != null) {
                 return getTargetInfoForAction(action, executantEntity, actionPartialEntity,
-                        actionPartialEntityMap, snapshot);
+                        actionPartialEntityMap, snapshot, workflowExecutionTargetsForActions);
             } else {
                 logger.warn("Selected entity {} involved in action {} no longer present in system",
                         executantEntity::getId, action::getId);
@@ -119,7 +121,18 @@ public class TargetInfoResolver {
     private ActionTargetInfo getTargetInfoForAction(@Nonnull ActionDTO.Action action,
             @Nonnull ActionEntity executantEntity, @Nonnull ActionPartialEntity actionPartialEntity,
             @Nonnull Map<Long, ActionPartialEntity> actionPartialEntityMap,
-            @Nonnull EntitiesAndSettingsSnapshot snapshot) {
+            @Nonnull EntitiesAndSettingsSnapshot snapshot,
+            @Nonnull Map<Long, Long> workflowExecutionTargetsForActions) {
+        final Long workflowExecutionTargetId =
+                workflowExecutionTargetsForActions.get(action.getId());
+        if (workflowExecutionTargetId != null) {
+            // if action has associated REPLACE workflow then the target to execute the action
+            // should be the one from which the workflow was discovered
+            return ImmutableActionTargetInfo.builder()
+                    .targetId(workflowExecutionTargetId)
+                    .supportingLevel(SupportLevel.SUPPORTED)
+                    .build();
+        }
         final CachedCapabilities cachedCapabilities = probeCapabilityCache.getCachedCapabilities();
         final List<TargetInfo> targetInfos = new ArrayList<>();
         for (Long discoveringTargetId : actionPartialEntity.getDiscoveringTargetIdsList()) {

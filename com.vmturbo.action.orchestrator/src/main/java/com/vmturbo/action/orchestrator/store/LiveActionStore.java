@@ -50,6 +50,7 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.action.orchestrator.store.LiveActions.RecommendationTracker;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -64,6 +65,7 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.identity.IdentityService;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
@@ -123,6 +125,7 @@ public class LiveActionStore implements ActionStore {
 
     private final EntitiesWithNewStateCache entitiesWithNewStateCache;
     private final ActionAuditSender actionAuditSender;
+    private final WorkflowStore workflowStore;
 
     /**
      * For certain actions that have already executed successfully, it is valid to execute them
@@ -171,6 +174,7 @@ public class LiveActionStore implements ActionStore {
      * @param queryTimeWindowForLastExecutedActionsMins time window within which actions will not
      *          be populated if they are already executed (SUCEEDED)
      * @param entitySeverityCache The {@link EntitySeverityCache}.
+     * @param workflowStore the store for all the known {@link WorkflowDTO.Workflow} items
      */
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,
@@ -190,7 +194,8 @@ public class LiveActionStore implements ActionStore {
                            @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander,
                            @Nonnull final ActionAuditSender actionAuditSender,
                            @Nonnull final EntitySeverityCache entitySeverityCache,
-                           final int queryTimeWindowForLastExecutedActionsMins
+                           final int queryTimeWindowForLastExecutedActionsMins,
+                           @Nonnull final WorkflowStore workflowStore
     ) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
@@ -203,7 +208,8 @@ public class LiveActionStore implements ActionStore {
                 new LiveActions(actionHistoryDao, Objects.requireNonNull(acceptedActionsStore),
                         Objects.requireNonNull(rejectedActionsStore), clock,
                         Objects.requireNonNull(userSessionContext),
-                        Objects.requireNonNull(involvedEntitiesExpander));
+                        Objects.requireNonNull(involvedEntitiesExpander),
+                        Objects.requireNonNull(workflowStore));
         this.actionsStatistician = Objects.requireNonNull(liveActionsStatistician);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.atomicActionFactory = Objects.requireNonNull(atomicActionFactory);
@@ -216,6 +222,7 @@ public class LiveActionStore implements ActionStore {
         }
         this.queryTimeWindowForLastExecutedActionsMins = queryTimeWindowForLastExecutedActionsMins;
         this.severityCache = entitySeverityCache;
+        this.workflowStore = workflowStore;
     }
 
     /**
@@ -652,7 +659,8 @@ public class LiveActionStore implements ActionStore {
                 }
             }
             final Map<Long, ActionTargetInfo> actionAndTargetInfo =
-                actionTargetSelector.getTargetsForActions(newActions.stream(), snapshot);
+                    actionTargetSelector.getTargetsForActions(newActions.stream(), snapshot,
+                            Collections.emptyMap());
 
             // Increment the relevant counters.
             final Map<SupportLevel, Long> actionsBySupportLevel =

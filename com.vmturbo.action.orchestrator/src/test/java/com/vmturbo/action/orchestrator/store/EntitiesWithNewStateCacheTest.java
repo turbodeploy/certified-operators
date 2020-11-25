@@ -17,6 +17,7 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.RejectedActionsDAO;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
@@ -57,7 +58,8 @@ public class EntitiesWithNewStateCacheTest {
     public void setup() {
         actions =
                 new LiveActions(actionHistoryDao, acceptedActionsStore, rejectedActionsStore, clock,
-                        userSessionContext, Mockito.mock(InvolvedEntitiesExpander.class));
+                        userSessionContext, Mockito.mock(InvolvedEntitiesExpander.class),
+                        Mockito.mock(WorkflowStore.class));
         entitiesWithNewStateCache = new EntitiesWithNewStateCache(actions);
         actionModeCalculator = new ActionModeCalculator();
         IdentityGenerator.initPrefix(0);

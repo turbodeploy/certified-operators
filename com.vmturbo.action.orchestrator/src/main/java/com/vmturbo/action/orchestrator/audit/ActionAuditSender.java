@@ -56,7 +56,7 @@ public class ActionAuditSender {
         for (ActionView action : actions) {
             Optional<WorkflowDTO.Workflow> workflowOptional;
             try {
-                workflowOptional = action.getWorkflow(workflowStore);
+                workflowOptional = action.getWorkflow(workflowStore, action.getState());
             } catch (WorkflowStoreException e) {
                 logger.warn("Failed to fetch workflow for " + action.getId()
                         + ". Will be sent for audit without a workflow");

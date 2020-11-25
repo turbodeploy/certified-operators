@@ -64,6 +64,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
@@ -597,12 +599,13 @@ public class Action implements ActionView {
      */
     @Override
     @Nonnull
-    public Optional<WorkflowDTO.Workflow> getWorkflow(WorkflowStore workflowStore)
+    public Optional<WorkflowDTO.Workflow> getWorkflow(@Nonnull WorkflowStore workflowStore,
+            @Nonnull ActionState actionState)
             throws WorkflowStoreException {
         // Fetch the setting, if any, that defines whether a Workflow should be applied in the *next*
         // step of this action's execution. This may be a PRE, REPLACE or POST workflow, depending
         // on the policies defined and the current state of the action.
-        final Optional<SettingProto.Setting> workflowSettingOpt = getWorkflowSetting();
+        final Optional<SettingProto.Setting> workflowSettingOpt = getWorkflowSetting(actionState);
         // An empty value indicates no workflow has been set
         if (hasNonEmptyStringSetting(workflowSettingOpt)) {
             final String workflowIdString = workflowSettingOpt.get().getStringSettingValue()
@@ -621,8 +624,26 @@ public class Action implements ActionView {
         return Optional.empty();
     }
 
+    /**
+     * Return id of the target discovered REPLACE workflow for action if any.
+     * This target will be used as execution target for action.
+     *
+     * @param workflowStore the store for all the known {@link WorkflowDTO.Workflow} items
+     * @return an Optional of the target discovered REPLACE workflow, otherwise {@link Optional#empty()}
+     */
+    public Optional<Long> getWorkflowExecutionTarget(@Nonnull WorkflowStore workflowStore) {
+        try {
+            final Optional<Workflow> replaceWorkflow =
+                    getWorkflow(workflowStore, ActionState.IN_PROGRESS);
+            return replaceWorkflow.map(Workflow::getWorkflowInfo).map(WorkflowInfo::getTargetId);
+        } catch (WorkflowStoreException ex) {
+            logger.error("Failed to get REPLACE workflow for action {}.", getId(), ex);
+        }
+        return Optional.empty();
+    }
+
     private boolean hasWorkflowForCurrentState() {
-        return hasNonEmptyStringSetting(getWorkflowSetting());
+        return hasNonEmptyStringSetting(getWorkflowSetting(stateMachine.getState()));
     }
 
     private boolean hasNonEmptyStringSetting(Optional<SettingProto.Setting> settingOpt) {
@@ -779,19 +800,6 @@ public class Action implements ActionView {
 
     /**
      * Find the Setting for a Workflow Orchestration Policy, if there is one, that applies to
-     * the current Action in its current state (e.g. PRE, POST).
-     * The calculation uses the ActionDTO.Action and the EntitySettingsCache.
-     *
-     * @return an Optional containing the Setting for a Workflow Orchestration Policy, if there
-     * is one defined for this action, or Optional.empty() otherwise
-     */
-    @Nonnull
-    private Optional<SettingProto.Setting> getWorkflowSetting() {
-        return getWorkflowSetting(stateMachine.getState());
-    }
-
-    /**
-     * Find the Setting for a Workflow Orchestration Policy, if there is one, that applies to
      * the current Action in the given state (e.g. PRE, POST).
      * The calculation uses the ActionDTO.Action and the EntitySettingsCache.
      *
@@ -829,19 +837,6 @@ public class Action implements ActionView {
      */
     boolean acceptanceGuard(@Nonnull final AuthorizedActionEvent event) {
         return modePermitsExecution() && hasPermissionToAccept(event.getAuthorizerUuid());
-    }
-
-    /**
-     * Guard against attempts to begin action execution while a PRE workflow is still running.
-     * If it returns true, the action may begin execution.
-     * If it returns false, the action may NOT begin execution yet.
-     *
-     * @param event The event that caused the execution.
-     * @return true if the action may begin execution, false if not.
-     */
-    boolean executionGuard(@Nonnull final BeginExecutionEvent event) {
-        boolean runningPreWorkflow = ActionState.PRE_IN_PROGRESS == getState() && hasWorkflowForCurrentState();
-        return !runningPreWorkflow;
     }
 
     /**

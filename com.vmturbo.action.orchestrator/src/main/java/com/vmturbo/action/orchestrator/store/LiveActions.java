@@ -54,6 +54,7 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander.InvolvedEntitiesFilter;
 import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
@@ -61,7 +62,6 @@ import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
@@ -142,6 +142,8 @@ class LiveActions implements QueryableActionViews {
 
     private final InvolvedEntitiesExpander involvedEntitiesExpander;
 
+    private final WorkflowStore workflowStore;
+
     /**
      * Specifies action related descriptions.
      */
@@ -158,12 +160,13 @@ class LiveActions implements QueryableActionViews {
                 @Nonnull final RejectedActionsDAO rejectedActionsStore,
                 @Nonnull final Clock clock,
                 @Nonnull final UserSessionContext userSessionContext,
-                @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander) {
+                @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander,
+                @Nonnull final WorkflowStore workflowStore) {
         this(actionHistoryDao, acceptedActionsStore, rejectedActionsStore,
             clock,
             QueryFilter::new,
             userSessionContext,
-            involvedEntitiesExpander);
+            involvedEntitiesExpander, workflowStore);
     }
 
     @VisibleForTesting
@@ -173,7 +176,8 @@ class LiveActions implements QueryableActionViews {
                 @Nonnull final Clock clock,
                 @Nonnull QueryFilterFactory queryFilterFactory,
                 @Nonnull final UserSessionContext userSessionContext,
-                @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander) {
+                @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander,
+                @Nonnull final WorkflowStore workflowStore) {
         this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
         this.clock = Objects.requireNonNull(clock);
         this.queryFilterFactory = Objects.requireNonNull(queryFilterFactory);
@@ -181,6 +185,7 @@ class LiveActions implements QueryableActionViews {
         this.acceptedActionsStore = Objects.requireNonNull(acceptedActionsStore);
         this.rejectedActionsStore = Objects.requireNonNull(rejectedActionsStore);
         this.involvedEntitiesExpander = Objects.requireNonNull(involvedEntitiesExpander);
+        this.workflowStore = Objects.requireNonNull(workflowStore);
     }
 
     /**
@@ -520,10 +525,17 @@ class LiveActions implements QueryableActionViews {
                 .collect(Collectors.toList());
 
         if (!acceptedActions.isEmpty()) {
+            final Map<Long, Long> workflowExecutionTargetsForActions = new HashMap<>();
+            for (final Action action : acceptedActions) {
+                final Optional<Long> workflowExecutionTarget =
+                        action.getWorkflowExecutionTarget(workflowStore);
+                workflowExecutionTarget.ifPresent(
+                        target -> workflowExecutionTargetsForActions.put(action.getId(), target));
+            }
             final Map<Long, ActionTargetInfo> targetsForAcceptedActions =
                     actionTargetSelector.getTargetsForActions(
                             acceptedActions.stream().map(Action::getRecommendation),
-                            entitiesAndSettingsSnapshot);
+                            entitiesAndSettingsSnapshot, workflowExecutionTargetsForActions);
             acceptedActions.forEach(action -> updateActionState(targetsForAcceptedActions, action));
         }
     }

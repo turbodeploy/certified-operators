@@ -500,7 +500,9 @@ public class PlanActionStore implements ActionStore {
         }
         final EntitiesAndSettingsSnapshot snapshot = snapshotHack;
 
-        Map<Long, ActionTargetInfo> actionTargetInfo = actionTargetSelector.getTargetsForActions(actions.stream(), snapshot);
+        Map<Long, ActionTargetInfo> actionTargetInfo =
+                actionTargetSelector.getTargetsForActions(actions.stream(), snapshot,
+                        Collections.emptyMap());
         Stream<ActionDTO.Action> actionStream = actions.stream().map(
             action -> {
                 final ActionTargetInfo targetInfo = actionTargetInfo.get(action.getId());

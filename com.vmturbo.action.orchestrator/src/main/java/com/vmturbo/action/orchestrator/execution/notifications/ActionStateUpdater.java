@@ -478,7 +478,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
             // execute the action, passing the workflow override (if any)
             try {
                 actionExecutor.execute(targetId, translatedRecommendation.get(),
-                    action.getWorkflow(workflowStore));
+                    action.getWorkflow(workflowStore, action.getState()));
             } catch (ExecutionStartException | WorkflowStoreException e) {
                 logger.error("Failed to start next executable step of action " + action.getId()
                     + " due to error: " + e.getMessage(), e);

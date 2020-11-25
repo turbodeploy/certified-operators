@@ -148,7 +148,7 @@ public class PlanActionStoreTest {
                         actionModeCalculator, "Move VM from H1 to H2", 321L, 121L, 2244L);
             });
         setEntitiesOIDs();
-        when(actionTargetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
+        when(actionTargetSelector.getTargetsForActions(any(), any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
             return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action ->
                 ImmutableActionTargetInfo.builder()
