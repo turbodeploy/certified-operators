@@ -586,6 +586,11 @@ public final class AnalysisToProtobuf {
      *
      */
     public static Trader replaceNewSupplier(ShoppingList buyer, UnmodifiableEconomy economy, Trader newSupplier) {
+        // If the Shopping list is not movable, then even if the supplier is a CBTP, do not replace
+        // it. Movable false shopping list should remain on the CBTP when going out of the market.
+        if (!buyer.isMovable()) {
+            return null;
+        }
         final Set<Entry<ShoppingList, Market>> shoppingListsInMarket =
                 economy.getMarketsAsBuyer(newSupplier).entrySet();
         if (shoppingListsInMarket.isEmpty()) {

@@ -342,6 +342,33 @@ public class CloudActionsIntegrationTest {
         assertEquals(8, slVM2.getQuantity(1), 0);
     }
 
+
+    /**
+     * VM1 is placed on CBTP1.
+     * Test that ReplaceNewSupplier returns TP1 when movable is true.
+     * Test that ReplaceNewSupplier returns null when movable is false.
+     */
+    @Test
+    public void testReplaceNewSupplier() {
+        Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
+        Topology t = new Topology();
+        Trader[] vms = setupConsumers(e, false);
+        Trader[] sellers = setupProviders(e, t, 0, false);
+        Trader cbtp1 = sellers[2];
+        cbtp1.getCommoditySold(COUPON).setCapacity(40);
+        ShoppingList slVM1 = getSl(e, vms[0]);
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+        slVM1.move(cbtp1);
+
+        Trader tp = AnalysisToProtobuf.replaceNewSupplier(slVM1, e, cbtp1);
+        assertEquals(sellers[0], tp);
+
+        slVM1.setMovable(false);
+        tp = AnalysisToProtobuf.replaceNewSupplier(slVM1, e, cbtp1);
+        assertEquals(null, tp);
+    }
+
     @Test
     public void testCouponUpdationOnMoves2() {
         // CBTP has a capacity of 30 coupons
