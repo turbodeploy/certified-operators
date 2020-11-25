@@ -507,7 +507,7 @@ public class ServiceEntityMapper {
     }
 
     private void setDiscoveredBy(Supplier<Map<Long, PerTargetEntityInformation>> idMapGetter, ServiceEntityApiDTO result) {
-        Map<Long, PerTargetEntityInformation> target2data = idMapGetter.get();
+         Map<Long, PerTargetEntityInformation> target2data = idMapGetter.get();
         if (!target2data.isEmpty()) {
             // only one target will be returned - preferably any non-hidden, if none then any at all
             ThinTargetInfo preferredInfo = null;
