@@ -11,10 +11,12 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -28,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 
 import org.apache.commons.lang3.concurrent.BasicThreadFactory;
@@ -45,6 +48,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.operation.OperationTestUtilities;
+import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Schedule.ScheduleData;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule.TargetDiscoveryScheduleData;
@@ -59,7 +63,7 @@ import com.vmturbo.topology.processor.topology.TopologyHandler;
  */
 public class SchedulerTest {
 
-    private final OperationManager operationManager = Mockito.mock(OperationManager.class);
+    private final OperationManager operationManager = mock(OperationManager.class);
     private final ScheduledExecutorService fullDiscoveryExecutorSpy1 =
             Mockito.spy(new DelegationExecutor());
     private final ScheduledExecutorService fullDiscoveryExecutorSpy2 =
@@ -72,10 +76,10 @@ public class SchedulerTest {
             Mockito.spy(new DelegationExecutor());
     private final ScheduledExecutorService expirationExecutorSpy =
             Mockito.spy(new DelegationExecutor());
-    private final TargetStore targetStore = Mockito.mock(TargetStore.class);
-    private final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
-    private final TopologyHandler topologyHandler = Mockito.mock(TopologyHandler.class);
-    private final KeyValueStore keyValueStore = Mockito.mock(KeyValueStore.class);
+    private final TargetStore targetStore = mock(TargetStore.class);
+    private final ProbeStore probeStore = mock(ProbeStore.class);
+    private final TopologyHandler topologyHandler = mock(TopologyHandler.class);
+    private final KeyValueStore keyValueStore = mock(KeyValueStore.class);
     private final StitchingJournalFactory journalFactory =
             StitchingJournalFactory.emptyStitchingJournalFactory();
     private Scheduler scheduler;
@@ -139,11 +143,11 @@ public class SchedulerTest {
 
     @Before
     public void setup() throws Exception {
-        Target target = Mockito.mock(Target.class);
+        Target target = mock(Target.class);
         when(target.getId()).thenReturn(targetId);
         when(target.getProbeId()).thenReturn(PROBE_ID_1);
         when(target.getProbeInfo()).thenReturn(PROBE_TYPE_1_INFO);
-        Target target3 = Mockito.mock(Target.class);
+        Target target3 = mock(Target.class);
         when(target3.getId()).thenReturn(targetId3);
         when(target3.getProbeId()).thenReturn(PROBE_ID_3);
         when(target3.getProbeInfo()).thenReturn(PROBE_TYPE_3_INFO);
@@ -248,7 +252,7 @@ public class SchedulerTest {
     @Test
     public void testUpdateScheduledDiscoveryCancelsExistingSchedule() throws Exception {
         final long tenMinutesMillis = TimeUnit.MILLISECONDS.convert(10, TimeUnit.MINUTES);
-        final ScheduledFuture<?> mockFuture = Mockito.mock(ScheduledFuture.class);
+        final ScheduledFuture<?> mockFuture = mock(ScheduledFuture.class);
         Mockito.doReturn(mockFuture).when(fullDiscoveryExecutorSpy1).scheduleAtFixedRate(
             any(), Mockito.anyLong(), eq(tenMinutesMillis), any()
         );
@@ -307,7 +311,7 @@ public class SchedulerTest {
         final long tenMinutesMillis = TimeUnit.MILLISECONDS.convert(10, TimeUnit.MINUTES);
 
         // Mock the first schedule to say that 7 minutes remain on the schedule..
-        final ScheduledFuture<?> mockFuture = Mockito.mock(ScheduledFuture.class);
+        final ScheduledFuture<?> mockFuture = mock(ScheduledFuture.class);
         when(mockFuture.getDelay(TimeUnit.MILLISECONDS))
             .thenReturn(TimeUnit.MILLISECONDS.convert(7, TimeUnit.MINUTES));
         Mockito.doReturn(mockFuture).when(fullDiscoveryExecutorSpy1).scheduleAtFixedRate(
@@ -347,7 +351,7 @@ public class SchedulerTest {
         final long tenMinutesMillis = TimeUnit.MILLISECONDS.convert(10, TimeUnit.MINUTES);
 
         // Mock the first schedule to say that 3 minutes remain.
-        final ScheduledFuture<?> mockFuture = Mockito.mock(ScheduledFuture.class);
+        final ScheduledFuture<?> mockFuture = mock(ScheduledFuture.class);
         when(mockFuture.getDelay(TimeUnit.MILLISECONDS))
             .thenReturn(TimeUnit.MILLISECONDS.convert(3, TimeUnit.MINUTES));
         Mockito.doReturn(mockFuture).when(fullDiscoveryExecutorSpy1).scheduleAtFixedRate(
@@ -497,7 +501,7 @@ public class SchedulerTest {
     @Test
     public void testUpdateBroadcastScheduleUpdatesSynchedDiscoveries() throws Exception {
         long synchedTarget = 9999;
-        Target target = Mockito.mock(Target.class);
+        Target target = mock(Target.class);
         when(target.getProbeInfo()).thenReturn(PROBE_TYPE_1_INFO);
         when(targetStore.getTarget(synchedTarget)).thenReturn(Optional.of(target));
         when(target.getProbeId()).thenReturn(PROBE_ID_1);
@@ -531,7 +535,7 @@ public class SchedulerTest {
         final long tenMinutesMillis = TimeUnit.MILLISECONDS.convert(10, TimeUnit.MINUTES);
 
         // Mock the first schedule to say that 7 minutes remain on the schedule..
-        final ScheduledFuture<?> mockFuture = Mockito.mock(ScheduledFuture.class);
+        final ScheduledFuture<?> mockFuture = mock(ScheduledFuture.class);
         when(mockFuture.getDelay(TimeUnit.MILLISECONDS))
             .thenReturn(TimeUnit.MILLISECONDS.convert(7, TimeUnit.MINUTES));
         Mockito.doReturn(mockFuture).when(broadcastExecutorSpy).scheduleAtFixedRate(
@@ -570,7 +574,7 @@ public class SchedulerTest {
         final long tenMinutesMillis = TimeUnit.MILLISECONDS.convert(10, TimeUnit.MINUTES);
 
         // Mock the first schedule to say that 3 minutes remain.
-        final ScheduledFuture<?> mockFuture = Mockito.mock(ScheduledFuture.class);
+        final ScheduledFuture<?> mockFuture = mock(ScheduledFuture.class);
         when(mockFuture.getDelay(TimeUnit.MILLISECONDS))
             .thenReturn(TimeUnit.MILLISECONDS.convert(3, TimeUnit.MINUTES));
         Mockito.doReturn(mockFuture).when(broadcastExecutorSpy).scheduleAtFixedRate(
@@ -758,7 +762,7 @@ public class SchedulerTest {
     @Test
     public void testDifferentProbeTypesGetDifferentExecutors() throws Exception {
         long target2Id = 9999;
-        Target target2 = Mockito.mock(Target.class);
+        Target target2 = mock(Target.class);
         when(target2.getProbeInfo()).thenReturn(PROBE_TYPE_2_INFO);
         when(targetStore.getTarget(target2Id)).thenReturn(Optional.of(target2));
         when(target2.getProbeId()).thenReturn(PROBE_ID_2);
@@ -797,6 +801,25 @@ public class SchedulerTest {
         discoveryCompleteLatch.await();
         assertEquals(0, discoveryCompleteLatch.getCount());
         assertEquals(0, discovery2StartedLatch.getCount());
+    }
+
+    /**
+     * Test that logging code does not throw an exception when a discovery has a null completion
+     * time.
+     */
+    @Test
+    public void testLoggingWithNullCompletionTime() {
+        when(probeStore.getProbes()).thenReturn(ImmutableMap.of(PROBE_ID_1, PROBE_TYPE_1_INFO,
+                PROBE_ID_2, PROBE_TYPE_2_INFO));
+        final Target target = targetStore.getTarget(targetId).get();
+        when(targetStore.getProbeTargets(PROBE_ID_1)).thenReturn(Collections.singletonList(target));
+        when(targetStore.getProbeTargets(PROBE_ID_2)).thenReturn(Collections.emptyList());
+        final Discovery discovery = mock(Discovery.class);
+        when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
+                .thenReturn(Optional.of(discovery));
+        when(discovery.getCompletionTime()).thenReturn(null);
+        scheduler.logLaggingDiscoveries();
+        // no assertion needed, we just want to make sure no exception was thrown
     }
 
     /**

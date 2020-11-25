@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
@@ -845,7 +846,7 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
         targetStore.getProbeTargets(probeId).forEach(target -> {
             final Optional<Discovery> discovery =
                     operationManager.getLastDiscoveryForTarget(target.getId(), discoveryType);
-            if (discovery.isPresent()) {
+            if (discovery.isPresent() && discovery.get().getCompletionTime() != null) {
                 if (LocalDateTime.now().minusSeconds(staleSeconds)
                         .isAfter(discovery.get().getCompletionTime())) {
                     staleTargetMap.put(target.getId(), discovery.get().getCompletionTime());
@@ -856,7 +857,8 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
         });
     }
 
-    private void logLaggingDiscoveries() {
+    @VisibleForTesting
+    void logLaggingDiscoveries() {
         final Map<Long, LocalDateTime> staleFullDiscoveryTargetMap = Maps.newHashMap();
         final Map<Long, LocalDateTime> staleIncrementalDiscoveryTargetMap = Maps.newHashMap();
         final Set<Long> fullDiscoveryUndiscovered = Sets.newHashSet();
@@ -918,8 +920,14 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener, Requi
             // Propagate the interrupt status.
             Thread.currentThread().interrupt();
         }
-        // log information about lagging discoveries
-        logLaggingDiscoveries();
+        // we need to catch RuntimeException because if the logging call throws one, future
+        // topology broadcasts will not be scheduled
+        try {
+            // log information about lagging discoveries
+            logLaggingDiscoveries();
+        } catch (RuntimeException e) {
+            logger.warn("Error while logging discovery information.", e);
+        }
     }
 
     /**
