@@ -3,6 +3,7 @@ package com.vmturbo.topology.graph;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -92,17 +93,14 @@ public class TagIndexTest {
 
     private void checkTagsEqual(Map<String, Set<String>> actual, Map<String, Set<String>> expected) {
         assertThat(actual.keySet(), is(expected.keySet()));
-        expected.forEach((key, vals) -> {
-            assertThat(actual.get(key), is(vals));
-        });
+        expected.forEach((key, vals) -> assertThat(actual.get(key), is(vals)));
     }
 
     private Map<String, Set<String>> extractTags(Tags... tags) {
         Map<String, Set<String>> ret = new HashMap<>();
         for (Tags t : tags) {
-            t.getTagsMap().forEach((key, vals) -> {
-                ret.computeIfAbsent(key, k -> new HashSet<>()).addAll(vals.getValuesList());
-            });
+            t.getTagsMap().forEach((key, vals) ->
+                ret.computeIfAbsent(key, k -> new HashSet<>()).addAll(vals.getValuesList()));
         }
         return ret;
     }
@@ -239,6 +237,26 @@ public class TagIndexTest {
         assertFalse(tagIndex.isMatchingEntity(1L, filter));
         assertFalse(tagIndex.isMatchingEntity(2L, filter));
         assertFalse(tagIndex.isMatchingEntity(3L, filter));
+    }
+
+    /**
+     * Test retrieving entities by tag.
+     */
+    @Test
+    public void testGettingExistingTag() {
+        final Map<String, LongSet> entities = tagIndex.getEntitiesByValueMap(MY_TAG);
+        assertEquals(1, entities.size());
+    }
+
+    /**
+     * Test retrieving entities by unknown tag.
+     * Expected result: empty collection; no errors.
+     */
+    @Test
+    public void testGettingUnknownTag() {
+        String tagKey = "unknownTag";
+        final Map<String, LongSet> entities = tagIndex.getEntitiesByValueMap(tagKey);
+        assertTrue(entities.isEmpty());
     }
 
 }

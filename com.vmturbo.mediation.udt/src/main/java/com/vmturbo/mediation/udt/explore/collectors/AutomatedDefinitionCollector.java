@@ -63,7 +63,12 @@ public class AutomatedDefinitionCollector extends UdtCollector<AutomatedEntityDe
         final String tagKey = definition.getTagGrouping().getTagKey();
         final Map<String, TaggedEntities> valuesToOidsMap
                 = dataProvider.retrieveTagValues(tagKey, definition.getConnectedEntityType());
-        LOGGER.info("For tag {} retrieved {} values.", tagKey, valuesToOidsMap.size());
+        if (valuesToOidsMap.isEmpty()) {
+            LOGGER.warn("No entities found for the tag {}, cannot create entities based "
+                        + "on automated definition: {}", tagKey, definition);
+        } else {
+            LOGGER.info("For tag {} retrieved {} values.", tagKey, valuesToOidsMap.size());
+        }
         return valuesToOidsMap.entrySet().stream()
                 .map(entry -> createUdtEntity(entry.getKey(), entry.getValue().getOidList()))
                 .collect(Collectors.toSet());

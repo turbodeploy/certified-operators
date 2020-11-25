@@ -4,6 +4,7 @@ import static com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -89,6 +90,31 @@ public class AutomatedDefinitionCollectorTest {
         Assert.assertEquals("udt_Region_us", usRegionEntity.getName());
         Assert.assertEquals("0474bc8c48a6b0bfc77bda29c045075e9451c384", usRegionEntity.getId());
         Assert.assertEquals(EntityType.SERVICE, usRegionEntity.getEntityType());
+    }
+
+    /**
+     * Check that there is no error occurs if entities can not be retrieved by tag.
+     */
+    @Test
+    public void testCollectEntitiesWithUnknownTag() {
+        String tag = "unknownTag";
+        EntityType connectedEntityType = EntityType.VIRTUAL_MACHINE;
+        DataProvider dataProvider = Mockito.mock(DataProvider.class);
+
+        Mockito.when(dataProvider.retrieveTagValues(tag, connectedEntityType))
+                        .thenReturn(Collections.emptyMap());
+
+        AutomatedEntityDefinition definition = AutomatedEntityDefinition.newBuilder()
+                        .setNamingPrefix("udt")
+                        .setEntityType(EntityType.SERVICE)
+                        .setConnectedEntityType(connectedEntityType)
+                        .setTagGrouping(TagBasedGenerationAndConnection.newBuilder()
+                                                        .setTagKey(tag)
+                                                        .build())
+                        .build();
+        AutomatedDefinitionCollector collector = new AutomatedDefinitionCollector(1000L, definition);
+        Set<UdtEntity> set = collector.collectEntities(dataProvider);
+        Assert.assertTrue(set.isEmpty());
     }
 
     /**

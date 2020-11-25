@@ -153,9 +153,15 @@ public interface TagIndex {
             });
         }
 
+        /**
+         * Get unmodifiable map of entities by tag.
+         *
+         * @param tagKey tag
+         * @return unmodifiable map
+         */
         @Nonnull
         public Map<String, LongSet> getEntitiesByValueMap(@Nonnull String tagKey) {
-            return Collections.unmodifiableMap(tags.get(tagKey));
+            return Collections.unmodifiableMap(tags.getOrDefault(tagKey, Collections.emptyMap()));
         }
 
         /**
