@@ -17,7 +17,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -45,6 +44,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
@@ -75,6 +75,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.CostSourceFilte
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
+import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
@@ -115,10 +116,6 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     private static final Set<ApiEntityType> ENTITY_TYPES_TO_GET_COST_BY_FILTER = ImmutableSet.of(
         ApiEntityType.BUSINESS_ACCOUNT, ApiEntityType.REGION, ApiEntityType.AVAILABILITY_ZONE
     );
-
-    private static final Set<Integer> WORKLOAD_ENTITY_TYPE_NUMBERS =
-            ApiEntityType.WORKLOAD_ENTITY_TYPES.stream().map(ApiEntityType::typeNumber).collect(
-                    Collectors.toSet());
 
     // Internally generated stat name when stats period are not set.
     private static final String CURRENT_COST_PRICE = "currentCostPrice";
@@ -338,7 +335,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     if (!countInputs.isEmpty()) {
                         final Map<String, Long> counts = tierNameToVolumeOids.entrySet().stream()
                             .collect(
-                                Collectors.toMap(Entry::getKey, e -> (long)e.getValue().size()));
+                                Collectors.toMap(e -> e.getKey(), e -> (long)e.getValue().size()));
                         countInputs.forEach(inputDTO -> numWorkloadStats.addAll(
                             toCountStatApiDtos(inputDTO, ApiEntityType.STORAGE_TIER.apiStr(), counts)));
                     }
@@ -445,10 +442,9 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                         .orElse(false);
     }
 
-    private boolean isResourceGroup(final ApiId inputScope) {
-        return inputScope.getCachedGroupInfo()
-                .map(g -> g.getGroupType() == GroupType.RESOURCE)
-                .orElse(false);
+    private boolean isResourceGroup(ApiId inputScope) {
+        final Optional<CachedGroupInfo> groupInfo = inputScope.getCachedGroupInfo();
+        return groupInfo.isPresent() && groupInfo.get().getGroupType() == GroupType.RESOURCE;
     }
 
     /**
@@ -460,18 +456,20 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
      */
     @Nonnull
     private Set<StatApiInputDTO> filterRequestedCostStatsForResourceGroups(
-            @Nonnull final Set<StatApiInputDTO> requestedCostPriceStats,
-            @Nonnull final ApiId inputScope) {
-        return inputScope.getScopeTypes().map(scopeTypes -> {
-            final Set<String> entityTypesInResourceGroup = scopeTypes.stream().map(
-                    ApiEntityType::apiStr).collect(Collectors.toSet());
-            return requestedCostPriceStats.stream().filter(
-                    s -> entityTypesInResourceGroup.contains(s.getRelatedEntityType()) || (
-                            StringConstants.WORKLOAD.equals(s.getRelatedEntityType())
-                                    && !Sets.intersection(entityTypesInResourceGroup,
-                                    WORKLOAD_ENTITY_TYPES_API_STR).isEmpty())).collect(
-                    Collectors.toSet());
-        }).orElse(requestedCostPriceStats);
+            @Nonnull Set<StatApiInputDTO> requestedCostPriceStats, @Nonnull ApiId inputScope) {
+        final Optional<Set<ApiEntityType>> scopeTypesOpt = inputScope.getScopeTypes();
+
+        if (scopeTypesOpt.isPresent()) {
+            final Set<String> entityTypesInResourceGroup = scopeTypesOpt.get()
+                    .stream()
+                    .map(ApiEntityType::apiStr)
+                    .collect(Collectors.toSet());
+            return requestedCostPriceStats.stream()
+                    .filter(el -> entityTypesInResourceGroup.contains(el.getRelatedEntityType()))
+                    .collect(Collectors.toSet());
+        } else {
+            return requestedCostPriceStats;
+        }
     }
 
     /**
@@ -747,25 +745,12 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
         List<String> costCategoryValues = Arrays.stream(CostCategory.values()).map(Enum::name).collect(toList());
         stats.forEach(statApiInputDTO -> {
-            final CloudCostStatsQuery.Builder cloudCostStatsQuery =
-                    CloudCostStatsQuery.newBuilder();
-            final ApiEntityType apiEntityType = ApiEntityType.fromString(
-                    statApiInputDTO.getRelatedEntityType());
-            if (apiEntityType != ApiEntityType.UNKNOWN) {
-                cloudCostStatsQuery.getEntityTypeFilterBuilder().addEntityTypeId(
-                        apiEntityType.typeNumber());
-            } else if (StringConstants.WORKLOAD.equals(statApiInputDTO.getRelatedEntityType())) {
-                final ApiId inputScope = context.getInputScope();
-                if (isResourceGroup(inputScope)) {
-                    inputScope.getScopeTypes().ifPresent(
-                            scopeTypes -> ApiEntityType.WORKLOAD_ENTITY_TYPES.stream()
-                                    .filter(scopeTypes::contains)
-                                    .forEach(t -> cloudCostStatsQuery.getEntityTypeFilterBuilder()
-                                            .addEntityTypeId(t.typeNumber())));
-                } else {
-                    cloudCostStatsQuery.getEntityTypeFilterBuilder().addAllEntityTypeId(
-                            WORKLOAD_ENTITY_TYPE_NUMBERS);
-                }
+            Builder cloudCostStatsQuery = CloudCostStatsQuery.newBuilder();
+            if (ApiEntityType.fromString(statApiInputDTO.getRelatedEntityType()) != ApiEntityType.UNKNOWN) {
+                EntityTypeFilter.Builder entityTypeFilter = EntityTypeFilter.newBuilder();
+                entityTypeFilter.addEntityTypeId(ApiEntityType
+                        .fromStringToSdkType(statApiInputDTO.getRelatedEntityType()));
+                cloudCostStatsQuery.setEntityTypeFilter(entityTypeFilter);
             }
             addCloudCostStatsQueryFilter(cloudCostStatsQuery, entityStatOids, context);
             if (statApiInputDTO.getFilters() != null) {
