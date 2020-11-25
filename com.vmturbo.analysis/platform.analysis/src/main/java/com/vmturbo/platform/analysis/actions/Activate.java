@@ -2,8 +2,10 @@ package com.vmturbo.platform.analysis.actions;
 
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.IntUnaryOperator;
 
 import javax.annotation.Nullable;
 
@@ -14,12 +16,16 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
+
+import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.utilities.exceptions.ActionCantReplayException;
 
 /**
  * An action to activate a deactivated {@link Trader trader}.
@@ -170,5 +176,55 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
     @Override
     public ActionType getType() {
         return ActionType.ACTIVATE;
+    }
+
+    /**
+     * Extract commodity ids that appear in the action,
+     * which includes reasonCommodity and triggeringBasket.
+     *
+     * @return commodity ids that appear in the action
+     */
+    @Override
+    public @NonNull Set<Integer> extractCommodityIds() {
+        final IntOpenHashSet commodityIds = new IntOpenHashSet();
+        for (CommoditySpecification commSpec : getTriggeringBasket()) {
+            commodityIds.add(commSpec.getType());
+        }
+        if (reasonCommodity != null) {
+            commodityIds.add(reasonCommodity.getType());
+        }
+        return commodityIds;
+    }
+
+    /**
+     * Create the same type of action with new commodity ids.
+     * Here we create a new reasonCommodity and a new triggeringBasket.
+     *
+     * @param commodityIdMapping a mapping from old commodity id to new commodity id.
+     *                           If the returned value is {@link NumericIDAllocator#nonAllocableId},
+     *                           it means no mapping is available for the input and we thrown an
+     *                           {@link ActionCantReplayException}
+     * @return a new action
+     * @throws ActionCantReplayException ActionCantReplayException
+     */
+    @Override
+    public @NonNull Activate createActionWithNewCommodityId(
+            final IntUnaryOperator commodityIdMapping) throws ActionCantReplayException {
+        for (int id : extractCommodityIds()) {
+            if (commodityIdMapping.applyAsInt(id) == NumericIDAllocator.nonAllocableId) {
+                throw new ActionCantReplayException(id);
+            }
+        }
+
+        CommoditySpecification newReasonCommodity = null;
+        if (reasonCommodity != null) {
+            newReasonCommodity = reasonCommodity.createCommSpecWithNewCommodityId(
+                commodityIdMapping.applyAsInt(reasonCommodity.getType()));
+        }
+
+        final Basket newTriggeringBasket =
+            getTriggeringBasket().createBasketWithNewCommodityId(commodityIdMapping);
+        return new Activate(getEconomy(), getTarget(), newTriggeringBasket,
+            getModelSeller(), newReasonCommodity);
     }
 } // end Activate class

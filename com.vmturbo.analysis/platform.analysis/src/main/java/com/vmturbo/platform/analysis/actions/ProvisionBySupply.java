@@ -11,7 +11,10 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.IntUnaryOperator;
+import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.hash.Hashing;
 
@@ -22,6 +25,9 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
+import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
+
+import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper.BuyerInfo;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -34,6 +40,7 @@ import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ede.BootstrapSupply;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
+import com.vmturbo.platform.analysis.utilities.exceptions.ActionCantReplayException;
 
 /**
  * An action to provision a new {@link Trader seller} using another {@link Trader seller} as the
@@ -44,7 +51,7 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
     // Fields
     private static final Logger logger = LogManager.getLogger();
     private @NonNull Map<CommoditySpecification, CommoditySpecification> commSoldToReplaceMap_;
-    private @NonNull CommoditySpecification reasonCommodity;
+    private @Nullable CommoditySpecification reasonCommodity;
     // TODO: may need to add a 'triggering buyer' for debugReason...
 
     // Constructors
@@ -379,4 +386,66 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
         return ActionType.PROVISION_BY_SUPPLY;
     }
 
+    /**
+     * Extract commodity ids that appear in the action,
+     * which includes reasonCommodity and commSoldToReplaceMap_.
+     *
+     * @return commodity ids that appear in the action
+     */
+    @Override
+    public @NonNull Set<Integer> extractCommodityIds() {
+        final IntOpenHashSet commodityIds = new IntOpenHashSet();
+        for (CommoditySpecification commSpec : commSoldToReplaceMap_.keySet()) {
+            commodityIds.add(commSpec.getType());
+        }
+        if (reasonCommodity != null) {
+            commodityIds.add(reasonCommodity.getType());
+        }
+        return commodityIds;
+    }
+
+    /**
+     * Create the same type of action with new commodity ids.
+     * Here we create a new reasonCommodity and a new commSoldToReplaceMap_.
+     *
+     * @param commodityIdMapping a mapping from old commodity id to new commodity id.
+     *                           If the returned value is {@link NumericIDAllocator#nonAllocableId},
+     *                           it means no mapping is available for the input and we thrown an
+     *                           {@link ActionCantReplayException}
+     * @return a new action
+     * @throws ActionCantReplayException ActionCantReplayException
+     */
+    @Override
+    public @NonNull ProvisionBySupply createActionWithNewCommodityId(
+            final IntUnaryOperator commodityIdMapping) throws ActionCantReplayException {
+        for (int id : extractCommodityIds()) {
+            if (commodityIdMapping.applyAsInt(id) == NumericIDAllocator.nonAllocableId) {
+                throw new ActionCantReplayException(id);
+            }
+        }
+
+        CommoditySpecification newReasonCommodity = null;
+        if (reasonCommodity != null) {
+            newReasonCommodity = reasonCommodity.createCommSpecWithNewCommodityId(
+                commodityIdMapping.applyAsInt(reasonCommodity.getType()));
+        }
+
+        final Map<CommoditySpecification, CommoditySpecification> newCommSoldToReplaceMap =
+            commSoldToReplaceMap_.entrySet().stream().collect(Collectors.toMap(
+                entry -> entry.getKey().createCommSpecWithNewCommodityId(
+                        commodityIdMapping.applyAsInt(entry.getKey().getType())),
+                Entry::getValue));
+
+        return new ProvisionBySupply(
+            getEconomy(), getModelSeller(), newCommSoldToReplaceMap, newReasonCommodity);
+    }
+
+    /**
+     * Only used in testing. Return commSoldToReplaceMap.
+     * @return commSoldToReplaceMap
+     */
+    @VisibleForTesting
+    Map<CommoditySpecification, CommoditySpecification> getCommSoldToReplaceMap() {
+        return commSoldToReplaceMap_;
+    }
 } // end ProvisionBySupply class

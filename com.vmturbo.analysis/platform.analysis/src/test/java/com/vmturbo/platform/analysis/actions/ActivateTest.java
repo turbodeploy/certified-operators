@@ -5,6 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
@@ -12,22 +13,30 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 
+import com.google.common.collect.ImmutableSet;
+
+import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.economy.TraderWithSettings;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
+import com.vmturbo.platform.analysis.utilities.exceptions.ActionCantReplayException;
 
 /**
  * A test case for the {@link Activate} class.
@@ -36,6 +45,11 @@ import com.vmturbo.platform.analysis.topology.LegacyTopology;
 public class ActivateTest {
     // Fields
     private static final Basket EMPTY = new Basket();
+
+    // Expected exception
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
+
     // Methods
 
     @Test
@@ -255,4 +269,62 @@ public class ActivateTest {
         assertEquals(expect, activate1.hashCode() == activate2.hashCode());
     }
 
+    /**
+     * Test extractCommodityIds and createActionWithNewCommodityId.
+     *
+     * @throws ActionCantReplayException ActionCantReplayException
+     */
+    @Test
+    public void testCreateActionWithNewCommodityId() throws ActionCantReplayException {
+        final Basket triggeringBasket = new Basket(
+            new CommoditySpecification(1, 2),
+            new CommoditySpecification(3, 4));
+        final CommoditySpecification reasonCommodity = new CommoditySpecification(5, 6);
+        final Activate activate = new Activate(new Economy(), mock(TraderWithSettings.class), triggeringBasket,
+            mock(TraderWithSettings.class), reasonCommodity);
+
+        assertEquals(ImmutableSet.of(1, 3, 5), activate.extractCommodityIds());
+
+        // Create mapping
+        final Int2IntOpenHashMap commodityIdMapping = new Int2IntOpenHashMap();
+        commodityIdMapping.defaultReturnValue(NumericIDAllocator.nonAllocableId);
+        commodityIdMapping.put(1, 11);
+        commodityIdMapping.put(3, 33);
+        commodityIdMapping.put(5, 55);
+
+        final Activate newActivate = activate.createActionWithNewCommodityId(commodityIdMapping);
+        assertEquals(new Basket(
+                new CommoditySpecification(11, 2),
+                new CommoditySpecification(33, 4)),
+            newActivate.getTriggeringBasket());
+        assertEquals(new CommoditySpecification(55, 6), newActivate.getReason());
+    }
+
+    /**
+     * Test createActionWithNewCommodityId thorws an exception.
+     *
+     * @throws ActionCantReplayException ActionCantReplayException
+     */
+    @Test
+    public void testCreateActionWithNewCommodityIdThrowException() throws ActionCantReplayException {
+        expectedException.expect(ActionCantReplayException.class);
+
+        final Basket triggeringBasket = new Basket(
+            new CommoditySpecification(1, 2),
+            new CommoditySpecification(3, 4));
+        final CommoditySpecification reasonCommodity = new CommoditySpecification(5, 6);
+        final Activate activate = new Activate(new Economy(), mock(TraderWithSettings.class), triggeringBasket,
+            mock(TraderWithSettings.class), reasonCommodity);
+
+        assertEquals(ImmutableSet.of(1, 3, 5), activate.extractCommodityIds());
+
+        // Create mapping
+        final Int2IntOpenHashMap commodityIdMapping = new Int2IntOpenHashMap();
+        commodityIdMapping.defaultReturnValue(NumericIDAllocator.nonAllocableId);
+        commodityIdMapping.put(1, 11);
+        commodityIdMapping.put(3, 33);
+
+        // Throws an exception
+        activate.createActionWithNewCommodityId(commodityIdMapping);
+    }
 } // end ActivateTest class

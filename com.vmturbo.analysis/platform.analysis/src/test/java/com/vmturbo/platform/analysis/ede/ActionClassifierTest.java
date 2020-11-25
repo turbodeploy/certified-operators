@@ -191,8 +191,7 @@ public class ActionClassifierTest {
             Deactivate thirdDeactivate = new Deactivate(first, pm1, pmShoppingList.getBasket());
             third.populateMarketsWithSellersAndMergeConsumerCoverage();
             ReplayActions thirdReplayActions = new ReplayActions(ImmutableList.of(),
-                                                                 ImmutableList.of(thirdDeactivate),
-                                                                 firstTopology);
+                                                                 ImmutableList.of(thirdDeactivate));
             assertEquals(1,
                 thirdReplayActions.tryReplayDeactivateActions(third, new Ledger(third),
                                            SuspensionsThrottlingConfig.DEFAULT).size());

@@ -208,4 +208,17 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
     public String getDebugInfoNeverUseInCode(@ReadOnly CommoditySpecification this) {
         return debugInfoNeverUseInCode_;
     }
+
+    /**
+     * Return a new commSpec with new commodity id.
+     *
+     * @param newCommodityId new commodity id
+     * @return a new commSpec
+     */
+    public CommoditySpecification createCommSpecWithNewCommodityId(final int newCommodityId) {
+        final CommoditySpecification newCommSpec = new CommoditySpecification(newCommodityId,
+            getBaseType(), isCloneWithNewType());
+        newCommSpec.setDebugInfoNeverUseInCode(getDebugInfoNeverUseInCode());
+        return newCommSpec;
+    }
 } // end CommoditySpecification class

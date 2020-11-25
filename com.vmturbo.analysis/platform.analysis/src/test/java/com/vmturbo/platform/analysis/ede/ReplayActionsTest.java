@@ -149,7 +149,7 @@ public class ReplayActionsTest {
         pmShoppingList.setMovable(true);
         Move move = new Move(first, pmShoppingList, pm2);
         ReplayActions replayActions = new ReplayActions(ImmutableList.of(move),
-                                                        ImmutableList.of(), firstTopology);
+                                                        ImmutableList.of());
         assertEquals(1, replayActions.replayActions(second).size());
     }
 
@@ -162,15 +162,14 @@ public class ReplayActionsTest {
 
         Move move = new Move(first, pmShoppingList, pm2);
         ReplayActions replayActions = new ReplayActions(ImmutableList.of(move),
-                                                        ImmutableList.of(), firstTopology);
+                                                        ImmutableList.of());
         List<Action> actions = replayActions.replayActions(second);
         assertEquals(1, actions.size());
 
         // replay action which has already taken place
         try {
             @NonNull Economy third = cloneEconomy(second);
-            ReplayActions replayActionsSecond = new ReplayActions(actions, ImmutableList.of(),
-                                                                  second.getTopology());
+            ReplayActions replayActionsSecond = new ReplayActions(actions, ImmutableList.of());
             assertEquals(0, replayActionsSecond.replayActions(third).size());
         } catch (ClassNotFoundException | IOException e) {
             fail();

@@ -3,20 +3,25 @@ package com.vmturbo.platform.analysis.actions;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.IntUnaryOperator;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.utilities.exceptions.ActionCantReplayException;
 
 /**
  * The root of the action hierarchy.
@@ -260,5 +265,30 @@ public interface Action {
         actions.add(this);
         actions.addAll(getSubsequentActions());
         return actions;
+    }
+
+    /**
+     * Extract commodity ids that appear in the action.
+     * This method is declared as default so that actions, which won't replay, don't need to implement this method.
+     *
+     * @return commodity ids that appear in the action
+     */
+    default @NonNull Set<Integer> extractCommodityIds() {
+        return Collections.emptySet();
+    }
+
+    /**
+     * Create the same type of action with new commodity ids.
+     *
+     * @param commodityIdMapping a mapping from old commodity id to new commodity id.
+     *                           If the returned value is {@link NumericIDAllocator#nonAllocableId},
+     *                           it means no mapping is available for the input and we thrown an
+     *                           {@link ActionCantReplayException}
+     * @return a new action
+     * @throws ActionCantReplayException ActionCantReplayException
+     */
+    default @NonNull Action createActionWithNewCommodityId(
+            final IntUnaryOperator commodityIdMapping) throws ActionCantReplayException {
+        return this;
     }
 } // end Action interface

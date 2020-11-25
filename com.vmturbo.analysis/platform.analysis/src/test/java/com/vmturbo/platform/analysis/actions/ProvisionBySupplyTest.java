@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -18,26 +19,35 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
+import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+
+import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.economy.TraderWithSettings;
 import com.vmturbo.platform.analysis.ede.Provision;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
 import com.vmturbo.platform.analysis.updatingfunction.MM1Distribution;
 import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
+import com.vmturbo.platform.analysis.utilities.exceptions.ActionCantReplayException;
 
 /**
  * A test case for the {@link ProvisionBySupply} class.
@@ -45,6 +55,10 @@ import com.vmturbo.platform.analysis.updatingfunction.UpdatingFunctionFactory;
 @RunWith(JUnitParamsRunner.class)
 public class ProvisionBySupplyTest {
     // Fields
+    // Expected exception
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
+
     private static final CommoditySpecification CPU = new CommoditySpecification(0);
     private static final CommoditySpecification MEM = new CommoditySpecification(1);
     private static final CommoditySpecification VCPU = new CommoditySpecification(0);
@@ -781,5 +795,60 @@ public class ProvisionBySupplyTest {
             }
         }
         assertTrue(findAppCommInContainerClone);
+    }
+
+    /**
+     * Test extractCommodityIds and createActionWithNewCommodityId.
+     *
+     * @throws ActionCantReplayException ActionCantReplayException
+     */
+    @Test
+    public void testCreateActionWithNewCommodityId() throws ActionCantReplayException {
+        final CommoditySpecification reasonCommodity = new CommoditySpecification(0, 1);
+        final Map<CommoditySpecification, CommoditySpecification> commToReplaceMap = ImmutableMap.of(
+            new CommoditySpecification(2, 3), new CommoditySpecification(4, 5),
+            new CommoditySpecification(6, 7), new CommoditySpecification(8, 9)
+        );
+        final ProvisionBySupply provision = new ProvisionBySupply(
+            new Economy(), mock(TraderWithSettings.class), commToReplaceMap, reasonCommodity);
+
+        assertEquals(ImmutableSet.of(0, 2, 6), provision.extractCommodityIds());
+
+        // Create mapping
+        final Int2IntOpenHashMap commodityIdMapping = new Int2IntOpenHashMap();
+        commodityIdMapping.defaultReturnValue(NumericIDAllocator.nonAllocableId);
+        commodityIdMapping.put(0, 10);
+        commodityIdMapping.put(2, 20);
+        commodityIdMapping.put(6, 60);
+
+        final ProvisionBySupply newProvision = provision.createActionWithNewCommodityId(commodityIdMapping);
+        assertEquals(new CommoditySpecification(10, 1), newProvision.getReason());
+        assertEquals(ImmutableMap.of(
+            new CommoditySpecification(20, 3), new CommoditySpecification(4, 5),
+            new CommoditySpecification(60, 7), new CommoditySpecification(8, 9)),
+            newProvision.getCommSoldToReplaceMap());
+    }
+
+    /**
+     * Test createActionWithNewCommodityId thorws an exception.
+     *
+     * @throws ActionCantReplayException ActionCantReplayException
+     */
+    @Test
+    public void testCreateActionWithNewCommodityIdThrowException() throws ActionCantReplayException {
+        expectedException.expect(ActionCantReplayException.class);
+
+        final CommoditySpecification reasonCommodity = new CommoditySpecification(0, 1);
+        final ProvisionBySupply provision = new ProvisionBySupply(
+            new Economy(), mock(TraderWithSettings.class), reasonCommodity);
+
+        assertEquals(ImmutableSet.of(0), provision.extractCommodityIds());
+
+        // Create mapping
+        final Int2IntOpenHashMap commodityIdMapping = new Int2IntOpenHashMap();
+        commodityIdMapping.defaultReturnValue(NumericIDAllocator.nonAllocableId);
+
+        // Throws an exception
+        provision.createActionWithNewCommodityId(commodityIdMapping);
     }
 } // end ProvisionBySupplyTest class

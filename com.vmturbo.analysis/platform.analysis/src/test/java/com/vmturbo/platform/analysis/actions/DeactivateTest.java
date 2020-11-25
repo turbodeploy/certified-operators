@@ -5,6 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
@@ -13,23 +14,31 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.IntUnaryOperator;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 
+import com.google.common.collect.ImmutableSet;
+
+import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.economy.TraderWithSettings;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
+import com.vmturbo.platform.analysis.utilities.exceptions.ActionCantReplayException;
 
 /**
  * A test case for the {@link Deactivate} class.
@@ -38,6 +47,10 @@ import com.vmturbo.platform.analysis.topology.LegacyTopology;
 public class DeactivateTest {
     // Fields
     private static final Basket EMPTY = new Basket();
+
+    // Expected exception
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     // Methods
 
@@ -285,5 +298,76 @@ public class DeactivateTest {
         final @NonNull List<@NonNull Trader> sellers =
                 e.getMarket(sl4).getActiveSellersAvailableForPlacement();
         assertEquals(0, sellers.size());
+    }
+
+    /**
+     * testExtractCommodityIds.
+     */
+    @Test
+    public void testExtractCommodityIds() {
+        final Basket triggeringBasket = new Basket(
+            new CommoditySpecification(1, 2),
+            new CommoditySpecification(11, 12));
+        final Deactivate deactivate = new Deactivate(new Economy(), mock(TraderWithSettings.class), triggeringBasket);
+        assertEquals(ImmutableSet.of(1, 11), deactivate.extractCommodityIds());
+    }
+
+    /**
+     * Test extractCommodityIds and createActionWithNewCommodityId.
+     *
+     * @throws ActionCantReplayException ActionCantReplayException
+     */
+    @Test
+    public void testCreateActionWithNewCommodityId() throws ActionCantReplayException {
+        final Basket triggeringBasket = new Basket(
+            new CommoditySpecification(1, 2),
+            new CommoditySpecification(3, 4));
+        final Deactivate deactivate = new Deactivate(new Economy(), mock(TraderWithSettings.class), triggeringBasket);
+
+        assertEquals(ImmutableSet.of(1, 3), deactivate.extractCommodityIds());
+
+        // Create mapping
+        final IntUnaryOperator commodityIdMapping = id -> {
+            if (id == 1) {
+                return 11;
+            } else {
+                return 33;
+            }
+        };
+
+        final Deactivate newDeactivate = deactivate.createActionWithNewCommodityId(commodityIdMapping);
+        assertEquals(new Basket(
+            new CommoditySpecification(11, 2),
+            new CommoditySpecification(33, 4)),
+            newDeactivate.getTriggeringBasket());
+    }
+
+    /**
+     * Test createActionWithNewCommodityId thorws an exception.
+     *
+     * @throws ActionCantReplayException ActionCantReplayException
+     */
+    @Test
+    public void testCreateActionWithNewCommodityIdThrowException() throws ActionCantReplayException {
+        expectedException.expect(ActionCantReplayException.class);
+
+        final Basket triggeringBasket = new Basket(
+            new CommoditySpecification(1, 2),
+            new CommoditySpecification(3, 4));
+        final Deactivate deactivate = new Deactivate(new Economy(), mock(TraderWithSettings.class), triggeringBasket);
+
+        assertEquals(ImmutableSet.of(1, 3), deactivate.extractCommodityIds());
+
+        // Create mapping
+        final IntUnaryOperator commodityIdMapping = id -> {
+            if (id == 1) {
+                return NumericIDAllocator.nonAllocableId;
+            } else {
+                return 33;
+            }
+        };
+
+        // Throws an exception
+        deactivate.createActionWithNewCommodityId(commodityIdMapping);
     }
 } // end DeactivateTest class

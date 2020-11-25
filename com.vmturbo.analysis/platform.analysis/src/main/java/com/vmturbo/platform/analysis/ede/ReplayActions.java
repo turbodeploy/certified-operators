@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 
@@ -56,11 +57,9 @@ public class ReplayActions {
      * @param deactivateActions The list of deactivate actions {@code this} object will attempt to
      *                          replay. It may be copied internally as needed to ensure that the
      *                          internal list wont be modified.
-     * @param topology The topology with which the above actions are associated with.
      */
     public ReplayActions(@NonNull List<@NonNull Action> actions,
-                         @NonNull List<@NonNull Deactivate> deactivateActions,
-                         @NonNull Topology topology) {
+                         @NonNull List<@NonNull Deactivate> deactivateActions) {
         actions_ = ImmutableList.copyOf(actions);
         deactivateActions_ = ImmutableList.copyOf(deactivateActions);
 
@@ -218,5 +217,23 @@ public class ReplayActions {
         }
 
         return newTrader;
+    }
+
+    /**
+     * Return all actions.
+     *
+     * @return all actions
+     */
+    public Stream<Action> getAllActions() {
+        return Stream.concat(getActions().stream(), getDeactivateActions().stream());
+    }
+
+    /**
+     * Check if there's any replay action.
+     *
+     * @return if there's any replay action
+     */
+    public boolean isEmpty() {
+        return getActions().isEmpty() && getDeactivateActions().isEmpty();
     }
 }

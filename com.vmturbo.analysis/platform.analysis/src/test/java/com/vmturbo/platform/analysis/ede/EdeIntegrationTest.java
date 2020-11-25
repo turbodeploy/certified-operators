@@ -126,9 +126,9 @@ public class EdeIntegrationTest {
 
         Deactivate deactivate = new Deactivate(first, pm1, shoppingListOfVm1.getBasket());
         ReplayActions replayActions = new ReplayActions(ImmutableList.of(),
-                                                    ImmutableList.of(deactivate), firstTopology);
+                                                    ImmutableList.of(deactivate));
         // assert absence of replayed suspension
-        assertTrue(replayActions.tryReplayDeactivateActions(first, ledger, 
+        assertTrue(replayActions.tryReplayDeactivateActions(first, ledger,
                                                  SuspensionsThrottlingConfig.DEFAULT).isEmpty());
 
         // assert absence of provision/activates
@@ -151,10 +151,10 @@ public class EdeIntegrationTest {
 
         Deactivate deactivate = new Deactivate(first, pm1, shoppingListOfVm1.getBasket());
         ReplayActions replayActions = new ReplayActions(ImmutableList.of(),
-                                                    ImmutableList.of(deactivate), firstTopology);
+                                                    ImmutableList.of(deactivate));
         Ledger ledger = new Ledger(first);
         // validate that suspension was replayed
-        assertFalse(replayActions.tryReplayDeactivateActions(first, ledger, 
+        assertFalse(replayActions.tryReplayDeactivateActions(first, ledger,
                                                  SuspensionsThrottlingConfig.DEFAULT).isEmpty());
 
         // validate that there is a resize
@@ -180,7 +180,7 @@ public class EdeIntegrationTest {
         pm1.getSettings().setControllable(true);
         Deactivate deactivate = new Deactivate(first, pm1, shoppingListOfVm1.getBasket());
         ReplayActions replayActions = new ReplayActions(ImmutableList.of(),
-            ImmutableList.of(deactivate), firstTopology);
+            ImmutableList.of(deactivate));
         Ledger ledger = new Ledger(first);
         List<Action> actions = replayActions.tryReplayDeactivateActions(first, ledger,
             SuspensionsThrottlingConfig.DEFAULT);
@@ -201,7 +201,7 @@ public class EdeIntegrationTest {
         vm1.getSettings().setDaemon(false);
         Deactivate deactivate = new Deactivate(first, pm1, shoppingListOfVm1.getBasket());
         ReplayActions replayActions = new ReplayActions(ImmutableList.of(),
-            ImmutableList.of(deactivate), firstTopology);
+            ImmutableList.of(deactivate));
         Ledger ledger = new Ledger(first);
         List<Action> actions = replayActions.tryReplayDeactivateActions(first, ledger,
             SuspensionsThrottlingConfig.DEFAULT);

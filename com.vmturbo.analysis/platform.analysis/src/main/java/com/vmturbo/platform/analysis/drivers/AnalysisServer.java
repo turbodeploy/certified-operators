@@ -467,7 +467,7 @@ public class AnalysisServer implements AutoCloseable {
                 ReplayActions newReplayActions = new ReplayActions();
                 // the OIDs have to be updated after analysisResults
                 if (instInfo.isReplayActions()) {
-                    newReplayActions = new ReplayActions(actions, ImmutableList.of(), lastComplete);
+                    newReplayActions = new ReplayActions(actions, ImmutableList.of());
                 } else if (instInfo.isRealTime()) {
                     // if replay is disabled, perform selective replay to deactivate entities in RT
                     // (OM-19855)
@@ -475,8 +475,7 @@ public class AnalysisServer implements AutoCloseable {
                                                 actions.stream()
                                                     .filter(action -> action instanceof Deactivate)
                                                     .map(action -> (Deactivate)action)
-                                                    .collect(Collectors.toList()),
-                                                lastComplete);
+                                                    .collect(Collectors.toList()));
                 }
                 replayActionsMap.put(mktName, newReplayActions);
             }

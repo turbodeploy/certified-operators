@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.TreeSet;
+import java.util.function.IntUnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -20,6 +21,9 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
+
+import com.vmturbo.commons.analysis.NumericIDAllocator;
+import com.vmturbo.platform.analysis.utilities.exceptions.ActionCantReplayException;
 
 /**
  * A set of commodity specifications specifying the commodities a trader may try to buy or sell.
@@ -363,5 +367,28 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
             return contents_[index].getDebugInfoNeverUseInCode();
         }
         return StringUtils.EMPTY;
+    }
+
+    /**
+     * Return a new basket with new commodity ids.
+     *
+     * @param commodityIdMapping a mapping from old commodity id to new commodity id.
+     *                           If the returned value is {@link NumericIDAllocator#nonAllocableId},
+     *                           it means no mapping is available for the input and we thrown an
+     *                           {@link ActionCantReplayException}
+     * @return a new basket
+     * @throws ActionCantReplayException ActionCantReplayException
+     */
+    public Basket createBasketWithNewCommodityId(final IntUnaryOperator commodityIdMapping)
+            throws ActionCantReplayException {
+        final List<CommoditySpecification> newCommSpecs = new ArrayList<>(this.size());
+        for (CommoditySpecification commSpec : this) {
+            final int newCommodityId = commodityIdMapping.applyAsInt(commSpec.getType());
+            if (newCommodityId == NumericIDAllocator.nonAllocableId) {
+                throw new ActionCantReplayException(commSpec.getType());
+            }
+            newCommSpecs.add(commSpec.createCommSpecWithNewCommodityId(newCommodityId));
+        }
+        return new Basket(newCommSpecs);
     }
 } // end Basket interface
