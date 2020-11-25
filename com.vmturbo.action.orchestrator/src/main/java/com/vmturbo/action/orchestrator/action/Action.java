@@ -1080,7 +1080,7 @@ public class Action implements ActionView {
      * @param event The event signaling the end of action execution
      */
     private void onActionPost(@Nonnull final ActionEvent event) {
-        if (hasWorkflowForCurrentState()) {
+        if (hasWorkflowForCurrentState() && getState() == ActionState.POST_IN_PROGRESS) {
             final String outcomeDescription = currentExecutableStep.map(ExecutableStep::getStatus)
                 .map(status -> Status.SUCCESS == status)
                 .orElse(false) ? "succeeded" : "failed";

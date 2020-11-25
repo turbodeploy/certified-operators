@@ -37,8 +37,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionNotificationDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.topology.processor.api.ActionExecutionListener;
 
 /**
  * Action approval manager is responsible for accepting actions that are pending acceptance.
@@ -75,6 +77,8 @@ public class ActionApprovalManager {
     private final WorkflowStore workflowStore;
     private final AcceptedActionsDAO acceptedActionsStore;
 
+    private final ActionExecutionListener executionListener;
+
     /**
      * Constructs action approval manager.
      *
@@ -84,18 +88,21 @@ public class ActionApprovalManager {
      * @param actionTranslator action translator
      * @param workflowStore workflow store
      * @param acceptedActionsStore accepted actions store
+     * @param executionListener the listener for action updates.
      */
     public ActionApprovalManager(@Nonnull ActionExecutor actionExecutor,
-            @Nonnull ActionTargetSelector actionTargetSelector,
-            @Nonnull EntitiesAndSettingsSnapshotFactory entitySettingsCache,
-            @Nonnull ActionTranslator actionTranslator, @Nonnull WorkflowStore workflowStore,
-            @Nonnull AcceptedActionsDAO acceptedActionsStore) {
+                                 @Nonnull ActionTargetSelector actionTargetSelector,
+                                 @Nonnull EntitiesAndSettingsSnapshotFactory entitySettingsCache,
+                                 @Nonnull ActionTranslator actionTranslator, @Nonnull WorkflowStore workflowStore,
+                                 @Nonnull AcceptedActionsDAO acceptedActionsStore,
+                                 @Nonnull ActionExecutionListener executionListener) {
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.acceptedActionsStore = Objects.requireNonNull(acceptedActionsStore);
+        this.executionListener = Objects.requireNonNull(executionListener);
     }
 
     /**
@@ -241,7 +248,8 @@ public class ActionApprovalManager {
             }
         } catch (ExecutionStartException | WorkflowStoreException e) {
             logger.error("Failed to start action {} due to error {}.", action.getId(), e);
-            action.receive(new FailureEvent(e.getMessage()));
+            executionListener.onActionFailure(ActionNotificationDTO.ActionFailure.newBuilder()
+              .setActionId(action.getId()).setErrorDescription(e.getMessage()).build());
             throw new ExecutionInitiationException(e.toString(), e, Status.Code.INTERNAL);
         }
     }

@@ -104,6 +104,7 @@ import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.identity.ArrayOidSet;
+import com.vmturbo.topology.processor.api.ActionExecutionListener;
 
 /**
  * Integration tests for secure action execution RPC.
@@ -152,6 +153,8 @@ public class ActionExecutionSecureRpcTest {
     private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
             executor, actionStoreLoader, Mockito.mock(ActionApprovalSender.class));
+    private final ActionExecutionListener actionExecutionListener =
+        Mockito.mock(ActionExecutionListener.class);
     private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);
 
     private final LiveActionsStatistician actionsStatistician = mock(LiveActionsStatistician.class);
@@ -167,7 +170,7 @@ public class ActionExecutionSecureRpcTest {
     private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
     private final ActionApprovalManager actionApprovalManager = new ActionApprovalManager(
             actionExecutor, actionTargetSelector, entitySettingsCache, actionTranslator,
-            workflowStore, acceptedActionsStore);
+            workflowStore, acceptedActionsStore, actionExecutionListener);
 
     private final InvolvedEntitiesExpander involvedEntitiesExpander =
         mock(InvolvedEntitiesExpander.class);

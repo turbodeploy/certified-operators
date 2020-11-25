@@ -519,18 +519,57 @@ public class ActionStateMachineTest {
         Assert.assertTrue(postExecutableStep.getCompletionTime().isPresent());
     }
 
-    private static Map<String, Setting> makePostMoveWorkflowSetting(ActionMode mode, String workflowName) {
+    /**
+     * Test the case where the action is failed and there is no post workflow but there is a an
+     * audit workflow which is the after exec workflow.
+     *
+     * @throws UnsupportedActionException if something goes wrong.
+     */
+    @Test
+    public void testFailureWithAuditWorkflow() throws UnsupportedActionException {
+        when(entitySettingsCache.getSettingsForEntity(eq(1L)))
+            .thenReturn(makeMoveWorkflowSetting(ActionMode.MANUAL, "audit",
+                ActionSettingType.AFTER_EXEC));
+
+        setEntitiesOIDs();
+        Action action = new Action(move, actionPlanId, actionModeCalculator, 2244L);
+        action.getActionTranslation().setPassthroughTranslationSuccess();
+        action.refreshAction(entitySettingsCache);
+        action.receive(new ManualAcceptanceEvent(userUuid, targetId));
+        action.receive(new QueuedEvent());
+        action.receive(new BeginExecutionEvent());
+
+        ExecutableStep executableStep = action.getCurrentExecutableStep().get();
+        Assert.assertEquals(Status.IN_PROGRESS, executableStep.getStatus());
+        Assert.assertEquals(0, executableStep.getErrors().size());
+        Assert.assertFalse(executableStep.getCompletionTime().isPresent());
+
+        final String errorDescription = "too much haptic fozzlers";
+        Assert.assertEquals(ActionState.FAILED,
+            action.receive(new FailureEvent(errorDescription)).getAfterState());
+        executableStep = action.getCurrentExecutableStep().get();
+        Assert.assertEquals(Status.FAILED, executableStep.getStatus());
+        Assert.assertEquals(1, executableStep.getErrors().size());
+    }
+
+    private static Map<String, Setting> makePostMoveWorkflowSetting(ActionMode mode,
+                                                                    String workflowName) {
+        return makeMoveWorkflowSetting(mode, workflowName, ActionSettingType.POST);
+    }
+
+    private static Map<String, Setting> makeMoveWorkflowSetting(ActionMode mode,
+                String workflowName, ActionSettingType settingType) {
         final String settingName = ActionSettingSpecs.getSubSettingFromActionModeSetting(
-            ConfigurableActionSettings.Move, ActionSettingType.POST);
+            ConfigurableActionSettings.Move, settingType);
         return ImmutableMap.of(settingName, Setting.newBuilder()
-            .setSettingSpecName(settingName)
-            .setStringSettingValue(StringSettingValue.newBuilder()
-                .setValue(workflowName)).build(),
+                .setSettingSpecName(settingName)
+                .setStringSettingValue(StringSettingValue.newBuilder()
+                    .setValue(workflowName)).build(),
             "move", Setting.newBuilder()
                 .setSettingSpecName("move")
                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                     .setValue(mode.toString()).build())
-            .build());
+                .build());
     }
 
     private void verifyQueuedExecutionStep(@Nonnull final ExecutableStep executableStep) {

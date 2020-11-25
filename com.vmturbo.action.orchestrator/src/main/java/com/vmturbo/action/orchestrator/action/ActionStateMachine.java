@@ -148,10 +148,6 @@ public class ActionStateMachine {
                 .onEvent(ProgressEvent.class)
                 .after(action::onActionProgress))
 
-            .addTransition(from(ActionState.POST_IN_PROGRESS).to(ActionState.SUCCEEDED)
-                .onEvent(SuccessEvent.class)
-                .after(action::onActionSuccess))
-
             .addTransition(from(ActionState.POST_IN_PROGRESS).to(ActionState.FAILED)
                 .onEvent(FailureEvent.class)
                 .after(action::onActionFailure))

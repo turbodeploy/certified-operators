@@ -15,6 +15,7 @@ import com.vmturbo.action.orchestrator.approval.ActionApprovalManager;
 import com.vmturbo.action.orchestrator.approval.ExternalActionApprovalManager;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
+import com.vmturbo.action.orchestrator.execution.notifications.NotificationsConfig;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
@@ -40,7 +41,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
     ActionStatsConfig.class,
     UserSessionConfig.class,
     TopologyProcessorClientConfig.class,
-    TopologyProcessorConfig.class})
+    TopologyProcessorConfig.class,
+    NotificationsConfig.class})
 public class RpcConfig {
 
     @Autowired
@@ -72,6 +74,9 @@ public class RpcConfig {
 
     @Autowired
     private TopologyProcessorConfig topologyProcessorConfig;
+
+    @Autowired
+    private NotificationsConfig notificationsConfig;
 
     @Value("${actionPaginationDefaultLimit:100}")
     private int actionPaginationDefaultLimit;
@@ -116,7 +121,8 @@ public class RpcConfig {
         return new ActionApprovalManager(actionExecutor,
                 actionExecutionConfig.actionTargetSelector(),
                 actionStoreConfig.entitySettingsCache(), actionTranslator,
-                workflowConfig.workflowStore(), actionStoreConfig.acceptedActionsStore());
+                workflowConfig.workflowStore(), actionStoreConfig.acceptedActionsStore(),
+            notificationsConfig.actionExecutionListener());
     }
 
     /**

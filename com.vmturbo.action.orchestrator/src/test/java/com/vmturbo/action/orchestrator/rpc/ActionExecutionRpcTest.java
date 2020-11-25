@@ -100,6 +100,7 @@ import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.setting.ActionSettingSpecs;
 import com.vmturbo.components.common.setting.ActionSettingType;
 import com.vmturbo.components.common.setting.ConfigurableActionSettings;
+import com.vmturbo.topology.processor.api.ActionExecutionListener;
 
 /**
  * Tests for action execution RPCs.
@@ -123,6 +124,8 @@ public class ActionExecutionRpcTest {
     private final IActionStoreLoader actionStoreLoader = mock(IActionStoreLoader.class);
     private final AutomatedActionExecutor executor = mock(AutomatedActionExecutor.class);
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
+    private final ActionExecutionListener actionExecutionListener =
+        Mockito.mock(ActionExecutionListener.class);
 
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
     private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
@@ -178,7 +181,7 @@ public class ActionExecutionRpcTest {
         IdentityGenerator.initPrefix(0);
         actionApprovalManager = new ActionApprovalManager(actionExecutor, actionTargetSelector,
                 entitySettingsCache, actionTranslator, Mockito.mock(WorkflowStore.class),
-                acceptedActionsStore);
+                acceptedActionsStore, actionExecutionListener);
         actionIdentityService = Mockito.mock(IdentityServiceImpl.class);
         Mockito.when(actionIdentityService.getOidsForObjects(Mockito.any()))
                 .thenReturn(Arrays.asList(1L, 2L, 3L, 4L, 5L, 6L, 7L));

@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.topology.processor.api.ActionExecutionListener;
 
 /**
  * Tests accepting actions.
@@ -79,6 +80,9 @@ public class ActionApprovalManagerTest {
     @Mock
     private EntitySeverityCache entitySeverityCache;
 
+    @Mock
+    private ActionExecutionListener actionExecutionListener;
+
     /**
      * Setup all the mocks.
      */
@@ -102,7 +106,7 @@ public class ActionApprovalManagerTest {
             actionTargetSelector,
             entitiesAndSettingsSnapshotFactory,
             actionTranslator,
-            workflowStore, acceptedActionsDAO);
+            workflowStore, acceptedActionsDAO, actionExecutionListener);
     }
 
     /**
