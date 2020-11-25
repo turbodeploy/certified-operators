@@ -23,6 +23,7 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.javatuples.Triplet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -35,6 +36,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
+import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCategory;
 import com.vmturbo.market.topology.conversions.TopologyConverter.UsedAndPeak;
@@ -228,9 +230,30 @@ public class CommodityConverter {
                 // because of historical utilization.
                 && dto.getEntityState() == EntityState.POWERED_ON;
 
-        // Overwrite the flag for vSAN
-        if (TopologyConversionUtils.isVsanStorage(dto)
-                && type == CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE) {
+        // Set resizable to false if raw material is missing.
+        resizable = resizable && RawMaterialsMap.rawMaterialsMap.containsKey(type);
+        if (resizable) {
+            final Set<Integer> rawMaterials = RawMaterialsMap.rawMaterialsMap.get(type).stream()
+                .map(Triplet::getValue0).collect(Collectors.toSet());
+            if (rawMaterials.isEmpty()) {
+                resizable = false;
+            } else {
+                // Check if entity is buying raw material
+                resizable = dto.getCommoditiesBoughtFromProvidersList().stream()
+                    .flatMap(cbfp -> cbfp.getCommodityBoughtList().stream())
+                    .map(comBought -> comBought.getCommodityType().getType())
+                    .anyMatch(rawMaterials::contains);
+            }
+            if (!resizable) {
+                logger.warn("Raw material of commodity {}({}) of entity {}({}) is missing",
+                    comName, type, dto.getDisplayName(), dto.getOid());
+            }
+        }
+
+        // Overwrite the flag for vSAN and PORT_CHANEL
+        if ((TopologyConversionUtils.isVsanStorage(dto)
+                && type == CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE)
+            || type == CommodityDTO.CommodityType.PORT_CHANEL_VALUE) {
             resizable = true;
         }
 

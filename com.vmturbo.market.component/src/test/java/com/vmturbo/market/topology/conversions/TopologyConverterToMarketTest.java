@@ -256,7 +256,6 @@ public class TopologyConverterToMarketTest {
         assertEquals(CommodityDTO.CommodityType.MEM_ALLOCATION_VALUE, commSoldSpec.getBaseType());
         assertEquals("MEM_ALLOCATION|P1", commSoldSpec.getDebugInfoNeverUseInCode());
         CommoditySoldSettingsTO commSoldSettings = commSold.getSettings();
-        assertTrue(commSoldSettings.getResizable());
         assertEquals(3.4028230607370965E38, commSoldSettings.getCapacityUpperBound(), epsilon);
         assertThat(commSoldSettings.getCapacityIncrement(), is(20.0f));
         assertEquals(0.8, commSoldSettings.getUtilizationUpperBound(), epsilon);
