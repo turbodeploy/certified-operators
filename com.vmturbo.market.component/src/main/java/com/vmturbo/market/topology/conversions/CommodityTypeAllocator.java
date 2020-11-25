@@ -55,7 +55,7 @@ public class CommodityTypeAllocator {
             CommodityDTO.CommodityType.NETWORK_VALUE, CommodityDTO.CommodityType.DRS_SEGMENTATION_VALUE,
             CommodityDTO.CommodityType.SEGMENTATION_VALUE);
 
-    CommodityTypeAllocator(final NumericIDAllocator commodityTypeAllocator) {
+    public CommodityTypeAllocator(final NumericIDAllocator commodityTypeAllocator) {
         this.idAllocator = commodityTypeAllocator;
     }
 
@@ -141,9 +141,29 @@ public class CommodityTypeAllocator {
      * @param commType a commodity description that contains the numeric type and the key
      * @return and integer identifying the type
      */
-    int topologyToMarketCommodityId(@Nonnull final CommodityType commType) {
+    public int topologyToMarketCommodityId(@Nonnull final CommodityType commType) {
         String commodityTypeString = defaultKeyGenerator.commodityTypeToString(commType, 0);
         return idAllocator.allocate(commodityTypeString);
+    }
+
+    /**
+     * Check if the give commodity type is allocated.
+     *
+     * @param commType commodity type
+     * @return if the give commodity type is allocated
+     */
+    public boolean containsCommodityType(final CommodityType commType) {
+        String commodityTypeString = defaultKeyGenerator.commodityTypeToString(commType, 0);
+        return idAllocator.contains(commodityTypeString);
+    }
+
+    /**
+     * Return size of allocated commodities.
+     *
+     * @return size of allocated commodities.
+     */
+    public int size() {
+        return idAllocator.size();
     }
 
     @Nonnull
@@ -192,8 +212,8 @@ public class CommodityTypeAllocator {
      * @return {@link CommodityType}
      */
     @VisibleForTesting
-    @Nonnull
-    CommodityType marketCommIdToCommodityType(final int marketCommodityId) {
+    @Nullable
+    public CommodityType marketCommIdToCommodityType(final int marketCommodityId) {
         return defaultKeyGenerator.stringToCommodityType(getMarketCommodityName(marketCommodityId));
     }
 

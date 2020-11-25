@@ -245,6 +245,8 @@ public class Analysis {
      */
     private final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService;
 
+    private final CommodityIdUpdater commodityIdUpdater;
+
     // a set of on-prem application entity type
     private static final Set<Integer> entityTypesToSkip =
             new HashSet<>(Collections.singletonList(EntityType.BUSINESS_APPLICATION_VALUE));
@@ -270,6 +272,7 @@ public class Analysis {
      * @param initialPlacementFinder the class to perform fast reservation
      * @param reversibilitySettingFetcherFactory factory for {@link ReversibilitySettingFetcher}.
      * @param migratedWorkloadCloudCommitmentAnalysisService cloud migration analysis
+     * @param commodityIdUpdater commodity id updater
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Collection<TopologyEntityDTO> topologyDTOs,
@@ -286,7 +289,8 @@ public class Analysis {
                     @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
                     @Nonnull final InitialPlacementFinder initialPlacementFinder,
                     @Nonnull final ReversibilitySettingFetcherFactory reversibilitySettingFetcherFactory,
-                    @NonNull final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService) {
+                    @NonNull final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService,
+                    @Nonnull final CommodityIdUpdater commodityIdUpdater) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -312,6 +316,7 @@ public class Analysis {
         this.initialPlacementFinder = initialPlacementFinder;
         this.reversibilitySettingFetcherFactory = reversibilitySettingFetcherFactory;
         this.migratedWorkloadCloudCommitmentAnalysisService = migratedWorkloadCloudCommitmentAnalysisService;
+        this.commodityIdUpdater = commodityIdUpdater;
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -534,9 +539,18 @@ public class Analysis {
                 processResultTime = RESULT_PROCESSING.startTimer();
 
                 if (!stopAnalysis) {
+                    if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
+                        commodityIdUpdater.updateReplayActions(
+                            this, converter.getCommodityConverter().getCommTypeAllocator());
+                    }
                     Ede ede = new Ede();
                     results = TopologyEntitiesHandler.performAnalysis(topologyInfo,
                             config, this, convertedTopology.topology, ede);
+                    if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
+                        commodityIdUpdater.saveCommodityIdToCommodityType(
+                            converter.getCommodityConverter().getCommTypeAllocator(), getReplayActions());
+                    }
+
                     try {
                         Map<Trader, List<InfiniteQuoteExplanation>> infiniteQuoteTraderMap = ede
                                 .getPlacementResults().getExplanations();

@@ -645,8 +645,8 @@ public class CommodityConverter {
      * @return {@link CommodityType}
      */
     @VisibleForTesting
-    @Nonnull
-    CommodityType commodityIdToCommodityType(final int marketCommodityId) {
+    @Nullable
+    public CommodityType commodityIdToCommodityType(final int marketCommodityId) {
         return commodityTypeAllocator.marketCommIdToCommodityType(marketCommodityId);
     }
 

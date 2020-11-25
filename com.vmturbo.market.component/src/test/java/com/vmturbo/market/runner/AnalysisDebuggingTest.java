@@ -301,7 +301,8 @@ public class AnalysisDebuggingTest {
             analysisConfig.build(), cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
                 wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, tierExcluderFactory,
                 mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory, initialPlacementFinder,
-                        reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService);
+                        reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService,
+                        new CommodityIdUpdater());
         return analysis;
     }
 

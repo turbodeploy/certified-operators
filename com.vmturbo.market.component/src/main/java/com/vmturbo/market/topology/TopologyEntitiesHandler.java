@@ -367,16 +367,16 @@ public class TopologyEntitiesHandler {
 
                     // Update replay actions
                     analysis.setReplayActions(new ReplayActions(
-                        secondRoundActions.stream()
+                        // porting ProvisionByDemand not supported yet!
+                        analysisConfig.getReplayProvisionsForRealTime()
+                            ? secondRoundActions.stream()
                             .filter(action -> action instanceof ProvisionBySupply
                                 || action instanceof Activate)
-                            .collect(Collectors.toList()), // porting ProvisionByDemand not supported yet!
+                            .collect(Collectors.toList()) : Collections.emptyList(),
                         actions.stream()
                             .filter(action -> action instanceof Deactivate)
                             .map(action -> (Deactivate)action)
-                            .collect(Collectors.toList()),
-                        topology
-                    ));
+                            .collect(Collectors.toList())));
                 }
             } catch (Exception e) {
                 logger.error(EconomyConstants.EXCEPTION_MESSAGE,
