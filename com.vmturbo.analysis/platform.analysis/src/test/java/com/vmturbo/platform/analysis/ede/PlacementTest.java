@@ -1,6 +1,7 @@
 package com.vmturbo.platform.analysis.ede;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
@@ -8,11 +9,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -30,6 +33,8 @@ import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Context;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -901,6 +906,38 @@ public class PlacementTest {
             PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, sl1);
             assertArrayEquals(expectedActions, results.getActions().toArray());
             assertTrue(results.getInfinityQuoteTraders().isEmpty());
+        }
+
+        /**
+         * Create 2 sets of contexts.
+         * S1 - context1WithNullParent, context2, context4
+         * S2 - context1WithNullParent, context1, context3, context4
+         * Context2 gets eliminated because it is only present in S1, but not in S2.
+         * Context3 gets eliminated because it is only present in S2, but not in S1.
+         * Context1WithNullParent gets eliminated because we choose Context1 over the version without parent.
+         * Context4 remains because it is present in both.
+         */
+        @Test
+        public void testMergingContexts() {
+            final Long regionId = 1L;
+            final Long zoneId = 2L;
+            final Long parentId1 = 789000L;
+            final Long accountId1 = 123L;
+            final Long accountId2 = 345L;
+            final Long accountId3 = 678L;
+            final Long accountId4 = 987L;
+            Context context1 = new Context(regionId, zoneId, new BalanceAccount(0, 0, accountId1, accountId1, parentId1));
+            Context context1WithNullParent = new Context(regionId, zoneId, new BalanceAccount(0, 0, accountId1, accountId1, null));
+            Context context2 = new Context(regionId, zoneId, new BalanceAccount(0, 0, accountId2, accountId2, parentId1));
+            Context context3 = new Context(regionId, zoneId, new BalanceAccount(0, 0, accountId3, accountId3, parentId1));
+            Context context4 = new Context(regionId, zoneId, new BalanceAccount(0, 0, accountId4, accountId4, null));
+
+            Set<Context> s1 = Sets.newHashSet(context1WithNullParent, context2, context4);
+            Set<Context> s2 = Sets.newHashSet(context1WithNullParent, context1, context3, context4);
+
+            Optional<Set<Context>> result = Stream.of(s1, s2).reduce(Placement.mergeContextSets);
+            assertTrue(result.isPresent());
+            assertEquals(ImmutableSet.of(context1, context4), result.get());
         }
     }
 } // end PlacementTest class

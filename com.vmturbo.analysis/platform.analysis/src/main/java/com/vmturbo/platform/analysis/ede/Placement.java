@@ -70,22 +70,17 @@ public class Placement {
      */
     @VisibleForTesting
     static final BinaryOperator<Set<Context>> mergeContextSets = (s1, s2) -> {
-        java.util.TreeMap<Context, Optional<Long>> existing =
-                new TreeMap<>(new ContextComparator());
         Set<Context> buyerContexts = Sets.newHashSet();
 
-        // Part 1: Populate existing set and note the parentIds.  Overwrite entries that are
+        // Part 1: Note the parentIds for each context. Overwrite entries that are
         // duplicates and have a null parentId.
-        for (Context context : s1) {
-            Optional<Long> existingParentId = existing.get(context);
-            if (existingParentId == null || !existingParentId.isPresent()) {
-                existing.put(context, Optional.ofNullable(context.getBalanceAccount().getParentId()));
-            }
-        }
+        Map<Context, Optional<Long>> collapsedS1 = getUniqueContexts(s1);
+        Map<Context, Optional<Long>> collapsedS2 = getUniqueContexts(s2);
+
         // Part 2: Check for intersecting Contexts while noting parent IDs
-        for (Context context : s2) {
-            Optional<Long> existingParentId = existing.get(context);
-            if (existingParentId != null) {
+        for (Context context : collapsedS2.keySet()) {
+            Optional<Long> parentIdFromS1 = collapsedS1.get(context);
+            if (parentIdFromS1 != null) {
                 // We have a Context in both sets
                 // make clones of commonContext which derived from active sellers and later pass
                 // them to buying trader. The buying trader can not use the same context as the
@@ -93,14 +88,31 @@ public class Placement {
                 // The above intersection on context will exclude the cbtp seller context, but it
                 // is needed for later cost calculation.
                 // In the event that we have two different parentIds, prefer a non-null one.
-                Long parentId = existingParentId.orElseGet(() -> null);
+                Long parentId = parentIdFromS1.orElseGet(() -> collapsedS2.get(context).orElse(null));
                 BalanceAccount ba = new BalanceAccount(context.getBalanceAccount().getId());
-                ba.setParentId(parentId == null ? context.getBalanceAccount().getParentId() : parentId);
+                ba.setParentId(parentId);
                 buyerContexts.add(new Context(context.getRegionId(), context.getZoneId(), ba));
             }
         }
         return buyerContexts;
     };
+
+    /**
+     * Gets the mapping between each context and its parentId. Overwrite entries that are duplicates
+     * and have a null parentId.
+     * @param contexts the contexts to collapse
+     * @return A Map of context to parent id
+     */
+    private static Map<Context, Optional<Long>> getUniqueContexts(Set<Context> contexts) {
+        TreeMap<Context, Optional<Long>> uniqueContexts = new TreeMap<>(new ContextComparator());
+        for (Context context : contexts) {
+            Optional<Long> existingParentId = uniqueContexts.get(context);
+            if (existingParentId == null || !existingParentId.isPresent()) {
+                uniqueContexts.put(context, Optional.ofNullable(context.getBalanceAccount().getParentId()));
+            }
+        }
+        return uniqueContexts;
+    }
 
     /**
      * Returns a list of recommendations to optimize the placement of all traders in the economy.
@@ -840,6 +852,7 @@ public class Placement {
                         .map(c -> c.getBalanceAccount().getParentId()).collect(Collectors.toSet()));
             }
             CliqueMinimizer bestMinimizer = null;
+            Context bestContext = null;
             for (Context context : contextCombination) {
                 // assign a context to buying trader at a time so that it shop by the same context
                 // in all markets. For a buying trader, it should have at most 1 context in contextlist.
@@ -852,12 +865,14 @@ public class Placement {
                 // different buying context on same seller. 2. The number of cliques in cloud are a
                 // lot less than on prem because of the static infrastructure in AWS/Azure
                 CliqueMinimizer minimizer = commonCliques.stream()
-                        .collect(() -> new CliqueMinimizer(economy, movableSlByMarket, null, performOptimization),
+                    .collect(() -> new CliqueMinimizer(economy, movableSlByMarket, null, performOptimization),
                         CliqueMinimizer::accept, CliqueMinimizer::combine);
                 if (bestMinimizer == null || minimizer.getBestTotalQuote() < bestMinimizer.getBestTotalQuote()) {
                     bestMinimizer = minimizer;
+                    bestContext = context;
                 }
             }
+            trader.getSettings().setContext(bestContext);
             if (logger.isDebugEnabled()) {
                 boolean noBestMinimizer = bestMinimizer == null
                         || bestMinimizer.getBestSellers() == null;
