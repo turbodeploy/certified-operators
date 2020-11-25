@@ -26,6 +26,9 @@ cp /etc/rsyslog.conf /tmp/rsyslog.conf
 if [ -n "${VMTFORMAT}" ]; then
   sed -i "s/template VMTFormat.*/template VMTFormat,\"$(echo -n ${VMTFORMAT})\\\n\"/" /tmp/rsyslog.conf
 fi
+if [ -n "${AUDITFORMAT}" ]; then
+  sed -i "s/template AuditFormat.*/template AuditFormat,\"$(echo -n ${AUDITFORMAT})\\\n\"/" /tmp/rsyslog.conf
+fi
 # Use custom external auditlog desctionation if specified
 if [ -n "${EXTERNAL_AUDITLOG}" ]; then
   sed -i "s/remote_auditlog/${EXTERNAL_AUDITLOG}/" /tmp/rsyslog.conf
