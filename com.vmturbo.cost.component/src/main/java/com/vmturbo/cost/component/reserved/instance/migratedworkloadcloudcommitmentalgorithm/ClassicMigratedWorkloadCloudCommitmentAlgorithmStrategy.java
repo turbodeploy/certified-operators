@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -455,7 +456,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                 .build();
 
         // Create the BuyReservationInstance in the database
-        createBuyReservedInstanceDbRecord(action, costRecord, topologyContextId, masterBusinessAccountOid, placement.getVirtualMachine().getOid());
+        createBuyReservedInstanceDbRecord(action, costRecord, topologyContextId, masterBusinessAccountOid);
 
         // Create the ActionContextRiBuy record in the database
         createActionContextRiBuy(placement, action, topologyContextId);
@@ -527,9 +528,8 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
      * @param costRecord               The cost record that contains the various on-demand and RI costs
      * @param topologyContextId        The topologyContextId with which the BuyReservedInstance record should be associated
      * @param masterBusinessAccountOid The business account with which the BuyReservedInstance should be associated
-     * @param vmId                     The VM for which we are recommending buying this RI
      */
-    private void createBuyReservedInstanceDbRecord(ActionDTO.Action action, CostRecord costRecord, Long topologyContextId, Long masterBusinessAccountOid, Long vmId) {
+    private void createBuyReservedInstanceDbRecord(ActionDTO.Action action, CostRecord costRecord, Long topologyContextId, Long masterBusinessAccountOid) {
         // Create the BuyReservationInstance in the database
         BuyReservedInstance buyReservedInstance = new BuyReservedInstance(
                 action.getInfo().getBuyRi().getBuyRiId(),
@@ -663,7 +663,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
 
                 // Set the on-demand license price
                 OSType osType = costRecord.getOsType();
-                Optional<Double> onDemandLicenseCost = Optional.empty();
+                final Optional<Double> onDemandLicenseCost;
                 if (osType == OSType.LINUX || cloudType == CloudType.AZURE) {
                     // Linux Defaults to 0 and Azure only covers compute, not license, so do not add the on-demand license
                     onDemandLicenseCost = Optional.of(0d);
@@ -699,7 +699,7 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
         }
 
         // Find the reserved instance spec for the RI we want to buy
-        List<Cost.ReservedInstanceSpec> riSpecs = new ArrayList<>();
+        List<Cost.ReservedInstanceSpec> riSpecs;
         if (cloudType == CloudType.AWS) {
             riSpecs = planReservedInstanceSpecStore.getReservedInstanceSpecs(
                     placement.getRegion().getOid(),
@@ -710,6 +710,8 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
                     CloudCostDTO.Tenancy.DEFAULT,
                     costRecord.getOsType());
         } else if (cloudType == CloudType.AZURE) {
+            // NOTE: (2020/11/27) all Azure RIs are OfferingClass.CONVERTIBLE,
+            // PaymentOption.ALL_UPFRONT, Tenancy.DEFAULT, OSType.LINUX, platform flexible.
             riSpecs = planReservedInstanceSpecStore.getReservedInstanceSpecs(
                     placement.getRegion().getOid(),
                     placement.getComputeTier().getOid(),
@@ -719,7 +721,19 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
             return Optional.empty();
         }
 
-        if (riSpecs.size() == 0) {
+        final Map<Long, PricingDTO.ReservedInstancePrice> reservedInstancePriceMap =
+                riPriceTable.getRiPricesBySpecIdMap();
+
+        riSpecs = riSpecs.stream().filter(s -> {
+            if (!reservedInstancePriceMap.containsKey(s.getId())) {
+                logger.trace("RI spec with id {} was skipped, no price were found for it.",
+                        s.getId());
+                return false;
+            }
+            return true;
+        }).collect(Collectors.toList());
+
+        if (riSpecs.isEmpty()) {
             logger.warn("Could not find RI for: region={}, compute tier={}, offering class={}, payment option={}, term={}, tenancy={}, os={}",
                     placement.getRegion().getOid(),
                     placement.getComputeTier().getOid(),
@@ -734,7 +748,6 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
         costRecord.setTerm(riProviderSetting.getPreferredTerm());
 
         // Get RI costs
-        Map<Long, PricingDTO.ReservedInstancePrice> reservedInstancePriceMap = riPriceTable.getRiPricesBySpecIdMap();
         if (reservedInstancePriceMap != null) {
             PricingDTO.ReservedInstancePrice reservedInstancePrice = reservedInstancePriceMap.get(costRecord.getRiSpecId());
             if (reservedInstancePrice != null) {
@@ -787,9 +800,6 @@ public class ClassicMigratedWorkloadCloudCommitmentAlgorithmStrategy implements 
      * @return The total hourly cost, including the base cost and the OS license cost
      */
     private Optional<Double> getOnDemandLicenseHourlyCost(PricingDTO.ComputeTierPriceList computeTierPriceList, OSType osType) {
-        // Get the hourly cost
-        double basePrice = computeTierPriceList.getBasePrice().getPricesList().get(0).getPriceAmount().getAmount();
-
         // Get OS license cost
         Optional<ComputeTierConfigPrice> licenseCost = computeTierPriceList.getPerConfigurationPriceAdjustmentsList().stream()
                 .filter(adj -> adj.getGuestOsType() == osType)
