@@ -197,7 +197,7 @@ public class IntersightLicenseSyncService {
                 sb.append(" count:").append(licenseInfo.getLicenseCount());
                 sb.append(" with ").append(licenseInfo.getDaysLeft()).append(" days left. ");
             }
-            logger.debug(sb.toString());
+            logger.info(sb.toString());
         }
         // build a list of the licenses we want to create proxy licenses for
         final List<LicenseLicenseInfo> targetedIntersightLicenses = new ArrayList<>();

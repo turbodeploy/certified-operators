@@ -222,6 +222,24 @@ public class IntersightLicenseUtilsTest {
     }
 
     /**
+     * Verify if there are multiple active IWO licenses, we can identify the best one by state.
+     *
+     */
+    @Test
+    public void testBestActiveLicenseComparatorByEditionByState() {
+        LicenseLicenseInfo inactivePremier = createIwoLicense("1", LicenseTypeEnum.PREMIER, LicenseStateEnum.GRACEEXPIRED);
+        LicenseLicenseInfo noLicensePremier = createIwoLicense("2", LicenseTypeEnum.PREMIER, LicenseStateEnum.NOTLICENSED);
+        LicenseLicenseInfo noLicenseEssential = createIwoLicense("3", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.NOTLICENSED);
+
+        List<LicenseLicenseInfo> licenses = Arrays.asList(noLicensePremier, noLicenseEssential, inactivePremier);
+        licenses.sort(new BestAvailableIntersightLicenseComparator());
+        // they should be in order of best -> worst editions
+        assertEquals("1", licenses.get(0).getMoid());
+        assertEquals("2", licenses.get(1).getMoid());
+        assertEquals("3", licenses.get(2).getMoid());
+    }
+
+    /**
      * Verify that if there are two licenses with the same edition but different active states, the
      * active one is higher in the list.
      */
@@ -274,6 +292,7 @@ public class IntersightLicenseUtilsTest {
         assertTrue(optionalBestAvailable.isPresent());
         assertEquals(activePremier, optionalBestAvailable.get());
     }
+
 
     /**
      * Validate that pickBestAvailableLicense will return an empty optional when there are no
