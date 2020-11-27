@@ -134,7 +134,7 @@ public class LiveActionStoreTest {
     private final int vmType = 1;
 
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
-    private IdentityServiceImpl<ActionInfo, ActionInfoModel> actionIdentityService;
+    private IdentityServiceImpl<ActionInfo, String, ActionInfoModel> actionIdentityService;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -229,8 +229,8 @@ public class LiveActionStoreTest {
         when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
         final IdentityDataStore<ActionInfoModel> idDataStore = new InMemoryIdentityStore<>();
         this.actionIdentityService =
-                new IdentityServiceImpl(idDataStore, new ActionInfoModelCreator(),
-                        Clock.systemUTC(), 1000);
+                new IdentityServiceImpl<>(idDataStore, new ActionInfoModelCreator(),
+                   ActionInfoModel::getActionHexHash, Clock.systemUTC(), 1000);
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID,
                 targetSelector,
                 probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
