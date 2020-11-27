@@ -22,6 +22,7 @@ import org.jooq.SQLDialect;
 import org.jooq.exception.DataAccessException;
 import org.mariadb.jdbc.MariaDbDataSource;
 
+import com.vmturbo.history.flyway.MigrationCallbackForVersion121;
 import com.vmturbo.history.flyway.ResetChecksumsForMyIsamInfectedMigrations;
 import com.vmturbo.history.flyway.V1_28_1_And_V1_35_1_Callback;
 import com.vmturbo.sql.utils.flyway.ForgetMigrationCallback;
@@ -111,7 +112,9 @@ public class SchemaUtil {
                 new ResetChecksumsForMyIsamInfectedMigrations(),
                 // V1.28.1 and V1.35.1 java migrations needed to change
                 // V1.28.1 formerly supplied a checksum but no longer does
-                new V1_28_1_And_V1_35_1_Callback()
+                new V1_28_1_And_V1_35_1_Callback(),
+                // V1.21 checksum has to change
+                new MigrationCallbackForVersion121()
         );
         return fway;
     }

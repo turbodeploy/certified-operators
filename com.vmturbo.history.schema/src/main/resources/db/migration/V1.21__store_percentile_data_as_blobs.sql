@@ -1,8 +1,8 @@
 -- Cleanup for the previous percentile implementation described here
 -- https://vmturbo.atlassian.net/wiki/spaces/PC/pages/623214725/Persistence+of+UtilizationCountStore+data
 
-DROP TABLE `resource_utilization_counts`;
-DROP TABLE `resource_latest_timestamp`;
+DROP TABLE IF EXISTS `resource_utilization_counts`;
+DROP TABLE IF EXISTS `resource_latest_timestamp`;
 
 
 -- Creation percentile tables for new design described:

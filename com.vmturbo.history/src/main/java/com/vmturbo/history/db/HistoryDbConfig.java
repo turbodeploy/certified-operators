@@ -25,6 +25,7 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.history.db.bulk.BulkInserter;
 import com.vmturbo.history.db.bulk.BulkInserterConfig;
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
+import com.vmturbo.history.flyway.MigrationCallbackForVersion121;
 import com.vmturbo.history.flyway.ResetChecksumsForMyIsamInfectedMigrations;
 import com.vmturbo.history.flyway.V1_28_1_And_V1_35_1_Callback;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
@@ -187,7 +188,9 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
                 new ResetChecksumsForMyIsamInfectedMigrations(),
                 // V1.28.1 and V1.35.1 java migrations needed to change
                 // V1.28.1 formerly supplied a checksum but no longer does
-                new V1_28_1_And_V1_35_1_Callback()
+                new V1_28_1_And_V1_35_1_Callback(),
+                // V1.21 checksum has to change
+                new MigrationCallbackForVersion121()
         };
     }
 
