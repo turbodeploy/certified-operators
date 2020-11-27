@@ -223,7 +223,7 @@ public class RecommendationIdentityServiceImplTest {
     public ExpectedException expectedException = ExpectedException.none();
 
     private ActionInfoModelCreator attributeExtractor;
-    private IdentityServiceImpl<ActionInfo, String, ActionInfoModel> identityService;
+    private IdentityServiceImpl<ActionInfo, ActionInfoModel> identityService;
     private RecommendationIdentityStore store;
     private Clock clock;
 
@@ -245,8 +245,7 @@ public class RecommendationIdentityServiceImplTest {
         clock = Mockito.mock(Clock.class);
         Mockito.when(clock.millis()).thenReturn(0L);
         identityService =
-                new IdentityServiceImpl<>(store, new ActionInfoModelCreator(),
-                    ActionInfoModel::getActionHexHash, clock, TTL_MILLIS);
+                new IdentityServiceImpl<>(store, new ActionInfoModelCreator(), clock, TTL_MILLIS);
     }
 
     /**
@@ -340,8 +339,7 @@ public class RecommendationIdentityServiceImplTest {
     public void testRestartOfStore() {
         final List<Long> update1 = identityService.getOidsForObjects(Arrays.asList(move, resize));
 
-        identityService = new IdentityServiceImpl<>(store, attributeExtractor,
-            ActionInfoModel::getActionHexHash, clock, TTL_MILLIS);
+        identityService = new IdentityServiceImpl<>(store, attributeExtractor, clock, TTL_MILLIS);
 
         final List<Long> update2 =
                 identityService.getOidsForObjects(Arrays.asList(move, provision));

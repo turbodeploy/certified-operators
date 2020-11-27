@@ -24,19 +24,17 @@ import com.vmturbo.platform.sdk.common.util.Pair;
  * the specified objects.
  *
  * @param <T> type of an objects this identity store is supposed to assign OIDs to.
- * @param <S> type of the object that oid cache use as the key.
  * @param <M> type of a model. Model is a representation of the input object {@code T}
  *         that is immutable and implements {@link #hashCode()} and {@link #equals(Object)} in a way
  *         usable to recognize objects of type {@code T}
  */
-public class IdentityServiceImpl<T, S, M> implements IdentityService<T> {
+public class IdentityServiceImpl<T, M> implements IdentityService<T> {
 
     private final Logger logger = LogManager.getLogger(getClass());
     private final IdentityDataStore<M> identityStore;
     private final Function<T, M> extractor;
-    private final Function<M, S> cacheKeyCreator;
     @GuardedBy("lock")
-    private final Map<S, Pair<Long, Long>> oidsCache = new HashMap<>();
+    private final Map<M, Pair<Long, Long>> oidsCache = new HashMap<>();
     private final Object lock = new Object();
     private final Clock clock;
     private final long timeToCacheMillis;
@@ -46,16 +44,13 @@ public class IdentityServiceImpl<T, S, M> implements IdentityService<T> {
      *
      * @param identityStore identity data store to use
      * @param extractor identity model creator
-     * @param cacheKeyCreator function that creates the cache key
      * @param clock clock to use (for cache cleanup)
      * @param timeToCacheMillis time of cache entries to leave after the last hit
      */
     public IdentityServiceImpl(@Nonnull IdentityDataStore<M> identityStore,
-            @Nonnull Function<T, M> extractor, @Nonnull Function<M, S> cacheKeyCreator,
-            @Nonnull Clock clock, long timeToCacheMillis) {
+            @Nonnull Function<T, M> extractor, @Nonnull Clock clock, long timeToCacheMillis) {
         this.identityStore = Objects.requireNonNull(identityStore);
         this.extractor = Objects.requireNonNull(extractor);
-        this.cacheKeyCreator = Objects.requireNonNull(cacheKeyCreator);
         this.clock = Objects.requireNonNull(clock);
         this.timeToCacheMillis = timeToCacheMillis;
         if (timeToCacheMillis < 0) {
@@ -72,7 +67,7 @@ public class IdentityServiceImpl<T, S, M> implements IdentityService<T> {
         logger.trace("Converted objects to following models: {}", models::toString);
         synchronized (lock) {
             final List<M> uncached = models.stream()
-                    .filter(model -> !oidsCache.containsKey(cacheKeyCreator.apply(model)))
+                    .filter(model -> !oidsCache.containsKey(model))
                     .collect(Collectors.toList());
             logger.debug("In-memory cache missed for {} of {} models", uncached::size,
                     businessObjects::size);
@@ -99,17 +94,15 @@ public class IdentityServiceImpl<T, S, M> implements IdentityService<T> {
     @GuardedBy("lock")
     private void addToCache(@Nonnull Map<M, Long> models, long currentTime) {
         for (Entry<M, Long> entry : models.entrySet()) {
-            oidsCache.put(cacheKeyCreator.apply(entry.getKey()), Pair.create(entry.getValue(),
-                currentTime));
+            oidsCache.put(entry.getKey(), Pair.create(entry.getValue(), currentTime));
         }
     }
 
     @GuardedBy("lock")
     private long getFromCache(@Nonnull M model, long currentTime) {
-        final Pair<Long, Long> result =
-            Objects.requireNonNull(oidsCache.get(cacheKeyCreator.apply(model)));
+        final Pair<Long, Long> result = Objects.requireNonNull(oidsCache.get(model));
         if (result.getSecond() != currentTime) {
-            oidsCache.put(cacheKeyCreator.apply(model), Pair.create(result.getFirst(), currentTime));
+            oidsCache.put(model, Pair.create(result.getFirst(), currentTime));
         }
         return result.getFirst();
     }
