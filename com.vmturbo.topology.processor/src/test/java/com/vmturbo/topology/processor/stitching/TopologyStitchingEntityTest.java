@@ -148,7 +148,7 @@ public class TopologyStitchingEntityTest {
 
         String localName2 = "www";
         long targetId2 = 5555L;
-        pm.addMergeInformation(new StitchingMergeInformation(123L, targetId2, StitchingErrors.none(), localName2));
+        pm.addMergeInformation(new StitchingMergeInformation(123L, targetId2, StitchingErrors.none(), localName2, EntityOrigin.DISCOVERED));
         target2name = pm.buildDiscoveryOrigin().getDiscoveredTargetDataMap();
         assertThat(target2name.keySet(), containsInAnyOrder(pm.getTargetId(), targetId2));
         assertEquals(pmLocalName, target2name.get(targetId).getVendorId());

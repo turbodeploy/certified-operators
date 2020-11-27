@@ -1060,6 +1060,8 @@ message PerTargetEntityInformation {
     // identifier for the entity as vendor sees it ("local name")
     // to be retained and passed to action execution, needs not be set
     optional string vendor_id = 1;
+    // specifies the origin of an entity from the target
+    optional .common_dto.EntityDTO.EntityOrigin origin = 2;
 }
 
 // The Topology Extension.

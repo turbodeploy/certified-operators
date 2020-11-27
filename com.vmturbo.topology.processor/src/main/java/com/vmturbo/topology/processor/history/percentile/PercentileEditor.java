@@ -163,7 +163,10 @@ public class PercentileEditor extends
 
     @Override
     public boolean isEntityApplicable(TopologyEntity entity) {
-        return !NOT_APPLICABLE_ENTITY_TYPES.contains(EntityType.forNumber(entity.getEntityType()));
+        if (NOT_APPLICABLE_ENTITY_TYPES.contains(EntityType.forNumber(entity.getEntityType()))) {
+            return false;
+        }
+        return super.isEntityApplicable(entity);
     }
 
     @Override

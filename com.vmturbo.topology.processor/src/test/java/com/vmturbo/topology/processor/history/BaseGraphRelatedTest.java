@@ -15,9 +15,13 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -26,6 +30,9 @@ import com.vmturbo.topology.graph.TopologyGraph;
  * Base functionality for mocking topology graph for historical editing tests.
  */
 public abstract class BaseGraphRelatedTest {
+
+    private static final long TARGET_ID = 1L;
+
     /**
      * Mock the topology graph from the entities. Only the entity retrieval.
      *
@@ -134,10 +141,17 @@ public abstract class BaseGraphRelatedTest {
                                                long value,
                                                @Nonnull Map<Long, Builder> topologyBuilderMap,
                                                @Nonnull Map<Long, EntitySettings> entitySettings) {
-        topologyBuilderMap.put(entityOid, TopologyEntity.newBuilder(
-                                        TopologyEntityDTO.newBuilder()
-                                                        .setOid(entityOid)
-                                                        .setEntityType(entityType)));
+        topologyBuilderMap.put(entityOid, TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                .setOid(entityOid)
+                .setEntityType(entityType)
+                .setOrigin(Origin.newBuilder()
+                        .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                .putDiscoveredTargetData(TARGET_ID,
+                                        PerTargetEntityInformation.newBuilder()
+                                                .setOrigin(EntityOrigin.DISCOVERED)
+                                                .build())
+                                .build())
+                        .build())));
         entitySettings.put(entityOid,
                            createEntitySetting(entityOid, value, entitySettingSpecs));
     }

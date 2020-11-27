@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.DiscoveryOriginBuilder;
 import com.vmturbo.stitching.TopologyEntity;
@@ -214,7 +215,9 @@ public class TopologyEntityUtils {
                 .setEntityType(entityType.getNumber())
                 .setDisplayName(displayName)
                 .setOrigin(Origin.newBuilder()
-                    .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(discoveringTargetId, null)
+                        .setDiscoveryOrigin(
+                                DiscoveryOriginBuilder.discoveredBy(discoveringTargetId, null,
+                                        EntityOrigin.DISCOVERED)
                         .lastUpdatedAt(lastUpdatedTime))));
         for (CommodityType ct : soldComms) {
             builder.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(ct).build());
@@ -250,7 +253,9 @@ public class TopologyEntityUtils {
                         .setEntityType(entityType.getNumber())
                         .setDisplayName(displayName)
                         .setOrigin(Origin.newBuilder()
-                                .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(discoveringTargetId, null)
+                                .setDiscoveryOrigin(
+                                        DiscoveryOriginBuilder.discoveredBy(discoveringTargetId,
+                                                null, EntityOrigin.DISCOVERED)
                                         .lastUpdatedAt(lastUpdatedTime))));
         for (CommodityType ct : soldComms) {
             builder.getEntityBuilder().addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(ct).build());
@@ -303,7 +308,9 @@ public class TopologyEntityUtils {
                 .setEntityType(entityType.getNumber())
                 .setDisplayName(displayName)
                 .setOrigin(Origin.newBuilder()
-                    .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(discoveringTargetId, null)
+                        .setDiscoveryOrigin(
+                                DiscoveryOriginBuilder.discoveredBy(discoveringTargetId, null,
+                                        EntityOrigin.DISCOVERED)
                         .lastUpdatedAt(lastUpdatedTime))));
 
         for (long connectedTo : connectedToEntities) {

@@ -333,6 +333,7 @@ public class StitchingEntitySemanticDifferTest {
                 "  ++++++\"errCode\": 0\n" +
                 "  ++++},\n" +
                 "  ++++\"oid\": \"5555\",\n" +
+                "  ++++\"origin\": \"DISCOVERED\",\n" +
                 "  ++++\"targetId\": \"4444\"\n" +
                 "  ++},\n" +
                 "  ++{\n" +
@@ -340,6 +341,7 @@ public class StitchingEntitySemanticDifferTest {
                 "  ++++++\"errCode\": 0\n" +
                 "  ++++},\n" +
                 "  ++++\"oid\": \"1234\",\n" +
+                "  ++++\"origin\": \"DISCOVERED\",\n" +
                 "  ++++\"targetId\": \"5678\"\n" +
                 "  ++}\n" +
                 "  ]",

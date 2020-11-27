@@ -180,7 +180,8 @@ public class TopologyStitchingEntity implements StitchingEntity {
                 .addMergeInformation(new StitchingMergeInformation(mergeInfo.getOid(),
                                                                    mergeInfo.getTargetId(),
                                                                    mergeInfo.getError(),
-                                                                   mergeInfo.getVendorId())));
+                                                                   mergeInfo.getVendorId(),
+                                                                   mergeInfo.getOrigin())));
 
         return copy;
     }

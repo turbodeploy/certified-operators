@@ -41,8 +41,12 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanCh
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
 import com.vmturbo.commons.Units;
@@ -50,6 +54,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
@@ -232,6 +237,25 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         // Percentile should be set for business user entities
         Assert.assertTrue(percentileEditor.isEntityApplicable(
             topologyBuilderMap.get(BUSINESS_USER_OID).build()));
+
+        // Percentile should not be set for entity with not discovered origin from targets
+        Assert.assertFalse(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
+                TopologyEntityDTO.newBuilder()
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                        .putDiscoveredTargetData(1L,
+                                                PerTargetEntityInformation.newBuilder()
+                                                        .setOrigin(EntityOrigin.PROXY)
+                                                        .build())
+                                        .build())
+                                .build())).build()));
+
+        // Percentile should not be set for entity with controllable false
+        Assert.assertFalse(percentileEditor.isEntityApplicable(TopologyEntity.newBuilder(
+                TopologyEntityDTO.newBuilder()
+                        .setAnalysisSettings(
+                                AnalysisSettings.newBuilder().setControllable(false).build()))
+                .build()));
     }
 
     /**

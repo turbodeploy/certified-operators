@@ -107,7 +107,7 @@ public class TimeSlotEditor extends
 
     @Override
     public boolean isEntityApplicable(TopologyEntity entity) {
-        return true;
+        return super.isEntityApplicable(entity);
     }
 
     @Override

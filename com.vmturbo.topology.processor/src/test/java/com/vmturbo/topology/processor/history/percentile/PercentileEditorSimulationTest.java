@@ -33,9 +33,13 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
@@ -317,7 +321,15 @@ public class PercentileEditorSimulationTest {
                 TopologyDTO.TopologyEntityDTO.newBuilder()
                     .setOid(entry.getKey())
                     .setDisplayName(entry.getValue())
-                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                        .putDiscoveredTargetData(1L,
+                                                PerTargetEntityInformation.newBuilder()
+                                                        .setOrigin(EntityOrigin.DISCOVERED)
+                                                        .build())
+                                        .build())
+                                .build()));
 
             float capacity = vmCapacities.get(entry.getKey());
             float usage = nextUtilizationSupplier.get(entry.getKey()).get() * capacity;

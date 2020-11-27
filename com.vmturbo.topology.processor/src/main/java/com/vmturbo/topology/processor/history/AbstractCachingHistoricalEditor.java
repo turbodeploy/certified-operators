@@ -33,10 +33,14 @@ import io.grpc.stub.AbstractStub;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.components.common.diagnostics.BinaryDiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
+import com.vmturbo.stitching.TopologyEntity;
 
 /**
  * Historical editor with state that caches pre-calculated data from previous topology broadcast
@@ -264,6 +268,22 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
             .contains(new EntityCommodityReference(field.getEntityOid(),
                 field.getCommodityType(),
                 field.getProviderOid())));
+    }
+
+    @Override
+    public boolean isEntityApplicable(TopologyEntity entity) {
+        final TopologyEntityDTO.Builder builder = entity.getTopologyEntityDtoBuilder();
+        // check the entity origin from all entity targets
+        if (!builder.hasOrigin() || builder.getOrigin()
+                .getDiscoveryOrigin()
+                .getDiscoveredTargetDataMap()
+                .values()
+                .stream()
+                .noneMatch(i -> i.getOrigin() == EntityOrigin.DISCOVERED)) {
+            return false;
+        }
+        final AnalysisSettings analysisSettings = builder.getAnalysisSettings();
+        return !analysisSettings.hasControllable() || analysisSettings.getControllable();
     }
 
     protected Map<EntityCommodityFieldReference, HistoryData> getCache() {

@@ -11,7 +11,9 @@ import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 
 /**
  * Builder for information describing when the entity was last updated and by which target(s)
@@ -20,7 +22,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Discov
 public class DiscoveryOriginBuilder {
     private final long targetId;
     private Stream<StitchingMergeInformation> mergeFromTargets;
-    private String vendorId;
+    private final String vendorId;
+    private final EntityOrigin origin;
 
     /**
      * Builder for information describing when the entity was last updated and by which target(s)
@@ -28,11 +31,14 @@ public class DiscoveryOriginBuilder {
      *
      * @param targetId The id of the target that originally discovered the entity.
      * @param vendorId external identity as seen by the target
+     * @param origin the origin type.
      */
-    private DiscoveryOriginBuilder(final long targetId, @Nullable String vendorId) {
+    private DiscoveryOriginBuilder(final long targetId, @Nullable String vendorId,
+            @Nonnull EntityOrigin origin) {
         this.targetId = targetId;
         this.mergeFromTargets = Stream.empty();
         this.vendorId = vendorId;
+        this.origin = origin;
     }
 
     /**
@@ -88,17 +94,20 @@ public class DiscoveryOriginBuilder {
         final DiscoveryOrigin.Builder builder = DiscoveryOrigin.newBuilder()
             .setLastUpdatedTime(lastUpdateTime);
 
-        mergeFromTargets.forEach(smi -> addPerTargetInformation(builder, smi.getTargetId(), smi.getVendorId()));
-        addPerTargetInformation(builder, targetId, vendorId);
+        mergeFromTargets.forEach(smi -> addPerTargetInformation(builder, smi.getTargetId(), smi.getVendorId(), smi.getOrigin()));
+        addPerTargetInformation(builder, targetId, vendorId, origin);
 
         return builder.build();
     }
 
-    private static void addPerTargetInformation(DiscoveryOrigin.Builder builder, long targetId, String vendorId) {
-        PerTargetEntityInformation info = StringUtils.isEmpty(vendorId)
-                        ? PerTargetEntityInformation.getDefaultInstance()
-                        : PerTargetEntityInformation.newBuilder().setVendorId(vendorId).build();
-        builder.putDiscoveredTargetData(targetId, info);
+    private static void addPerTargetInformation(@Nonnull DiscoveryOrigin.Builder builder,
+            long targetId, @Nullable String vendorId, @Nonnull EntityOrigin origin) {
+        final Builder infoBuilder = PerTargetEntityInformation.newBuilder();
+        if (!StringUtils.isEmpty(vendorId)) {
+            infoBuilder.setVendorId(vendorId);
+        }
+        infoBuilder.setOrigin(origin);
+        builder.putDiscoveredTargetData(targetId, infoBuilder.build());
     }
 
     /**
@@ -106,10 +115,11 @@ public class DiscoveryOriginBuilder {
      *
      * @param targetId target identifier
      * @param localName vendor id
+     * @param origin the origin type.
      * @return this for chaining
      */
-    public static DiscoveryOriginBuilder discoveredBy(final long targetId, String localName) {
-        return new DiscoveryOriginBuilder(targetId, localName);
+    public static DiscoveryOriginBuilder discoveredBy(final long targetId, String localName, EntityOrigin origin) {
+        return new DiscoveryOriginBuilder(targetId, localName, origin);
     }
 
     /**
@@ -120,6 +130,6 @@ public class DiscoveryOriginBuilder {
      * @return this for chaining
      */
     public static DiscoveryOriginBuilder discoveredBy(final long targetId) {
-        return discoveredBy(targetId, null);
+        return discoveredBy(targetId, null, EntityOrigin.DISCOVERED);
     }
 }

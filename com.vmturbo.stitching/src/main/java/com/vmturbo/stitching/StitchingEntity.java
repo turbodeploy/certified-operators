@@ -388,9 +388,10 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
         if (StringUtils.isBlank(localName)) {
             localName = getEntityBuilder().getId();
         }
-        return DiscoveryOriginBuilder.discoveredBy(getTargetId(), localName)
-            .withMerge(getMergeInformation().stream())
-            .lastUpdatedAt(getLastUpdatedTime());
+        return DiscoveryOriginBuilder.discoveredBy(getTargetId(), localName,
+                getEntityBuilder().getOrigin())
+                .withMerge(getMergeInformation().stream())
+                .lastUpdatedAt(getLastUpdatedTime());
     }
 
     /**

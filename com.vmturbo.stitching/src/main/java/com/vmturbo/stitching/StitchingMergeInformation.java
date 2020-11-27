@@ -6,6 +6,7 @@ import javax.annotation.Nullable;
 import com.google.common.base.Objects;
 
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.stitching.utilities.DTOFieldAndPropertyHandler;
 
 /**
@@ -21,6 +22,7 @@ public class StitchingMergeInformation {
     private final long targetId;
     private final StitchingErrors error;
     private final String vendorId;
+    private final EntityOrigin origin;
 
     /**
      * Create {@link StitchingMergeInformation} associated with a particular entity.
@@ -29,7 +31,8 @@ public class StitchingMergeInformation {
      */
     public StitchingMergeInformation(@Nonnull final StitchingEntity entity) {
         this(entity.getOid(), entity.getTargetId(), entity.getStitchingErrors(),
-             DTOFieldAndPropertyHandler.getVendorId(entity.getEntityBuilder()));
+                DTOFieldAndPropertyHandler.getVendorId(entity.getEntityBuilder()),
+                entity.getEntityBuilder().getOrigin());
     }
 
     /**
@@ -42,7 +45,7 @@ public class StitchingMergeInformation {
      */
     public StitchingMergeInformation(final long oid, final long targetId,
                                      final StitchingErrors errorCode) {
-        this(oid, targetId, errorCode, null);
+        this(oid, targetId, errorCode, null, EntityOrigin.DISCOVERED);
     }
 
     /**
@@ -53,13 +56,16 @@ public class StitchingMergeInformation {
      * @param targetId The id of the target that discvoered the entity with the given oid.
      * @param errorCode collection of errors applicable to an entity
      * @param vendorId external identifier on a target
+     * @param origin the origin type.
      */
     public StitchingMergeInformation(final long oid, final long targetId,
-                                     final StitchingErrors errorCode, String vendorId) {
+            @Nonnull final StitchingErrors errorCode, @Nullable String vendorId,
+            @Nonnull EntityOrigin origin) {
         this.oid = oid;
         this.targetId = targetId;
         this.error = errorCode;
         this.vendorId = vendorId;
+        this.origin = origin;
     }
 
     /**
@@ -83,6 +89,11 @@ public class StitchingMergeInformation {
     @Nullable
     public String getVendorId() {
         return vendorId;
+    }
+
+    @Nonnull
+    public EntityOrigin getOrigin() {
+        return origin;
     }
 
     @Override

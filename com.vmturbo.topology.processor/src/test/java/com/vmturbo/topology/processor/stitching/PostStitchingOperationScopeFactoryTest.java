@@ -32,6 +32,7 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -57,13 +58,10 @@ public class PostStitchingOperationScopeFactoryTest {
         discoveredBy(2L).lastUpdatedAt(22L), Collections.emptyList());
     private final TopologyEntity.Builder vm3 = topologyEntityBuilder(3L, EntityType.VIRTUAL_MACHINE,
         discoveredBy(3L).lastUpdatedAt(33L), Collections.emptyList());
-    private final TopologyEntity.Builder pm =
-        topologyEntityBuilder(4L, EntityType.PHYSICAL_MACHINE,
-                              discoveredBy(1L, null).withMerge(new StitchingMergeInformation(4L,
-                                                                                       4L,
-                                                                                       StitchingErrors.none()))
-                                              .lastUpdatedAt(11L),
-                              Collections.emptyList());
+    private final TopologyEntity.Builder pm = topologyEntityBuilder(4L, EntityType.PHYSICAL_MACHINE,
+            discoveredBy(1L, null, EntityOrigin.DISCOVERED).withMerge(
+                    new StitchingMergeInformation(4L, 4L, StitchingErrors.none()))
+                    .lastUpdatedAt(11L), Collections.emptyList());
     private final TopologyEntity.Builder vm4 = topologyEntityBuilder(5L, EntityType.VIRTUAL_MACHINE,
             discoveredBy(4L).lastUpdatedAt(44L), Collections.emptyList());
 
