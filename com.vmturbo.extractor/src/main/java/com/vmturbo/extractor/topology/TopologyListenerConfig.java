@@ -76,7 +76,7 @@ public class TopologyListenerConfig {
      * Max time to wait for results of COPY FROM command that streams data to postgres, after all
      * records have been sent.
      */
-    @Value("${insertTimeoutSeconds:300}")
+    @Value("${insertTimeoutSeconds:7200}") // two-hours as short-term fix to OM-64013
     private int insertTimeoutSeconds;
 
     @Value("${reportingCommodityWhitelistAdded:#{null}}")
