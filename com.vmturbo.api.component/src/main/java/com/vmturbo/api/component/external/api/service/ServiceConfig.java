@@ -551,8 +551,7 @@ public class ServiceConfig {
                 mapperConfig.entityFilterMapper(),
                 mapperConfig.entityAspectMapper(),
                 searchFilterResolver(),
-                communicationConfig.priceIndexPopulator(),
-                communicationConfig.thinTargetCache());
+                communicationConfig.priceIndexPopulator());
     }
 
     @Bean
