@@ -253,9 +253,11 @@ public class ActionStoreConfig {
      * @return identity service
      */
     @Bean
-    public IdentityServiceImpl<ActionInfo, ActionInfoModel> actionIdentityService() {
-        final IdentityServiceImpl<ActionInfo, ActionInfoModel> service = new IdentityServiceImpl<>(
-                recommendationIdentityStore(), new ActionInfoModelCreator(), Clock.systemUTC(),
+    public IdentityServiceImpl<ActionInfo, String, ActionInfoModel> actionIdentityService() {
+        final IdentityServiceImpl<ActionInfo, String, ActionInfoModel> service =
+            new IdentityServiceImpl<>(
+                recommendationIdentityStore(), new ActionInfoModelCreator(),
+                ActionInfoModel::getActionHexHash, Clock.systemUTC(),
                 24 * 3600 * 1000);
         cleanupExecutorService().scheduleWithFixedDelay(
                 new RteLoggingRunnable(service::pruneObsoleteCache, "Prune action identity cache"),
