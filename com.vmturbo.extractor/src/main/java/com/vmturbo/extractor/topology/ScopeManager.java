@@ -14,23 +14,32 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.function.IntConsumer;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntCollection;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
 import it.unimi.dsi.fastutil.ints.IntSets;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.Field;
 import org.jooq.Record2;
 import org.jooq.Record5;
 import org.jooq.Select;
+import org.jooq.Table;
+import org.jooq.conf.ParamType;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -41,7 +50,6 @@ import com.vmturbo.extractor.models.Table.TableWriter;
 import com.vmturbo.extractor.schema.enums.EntityType;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
-import com.vmturbo.sql.utils.jooq.JooqUtil;
 import com.vmturbo.sql.utils.jooq.JooqUtil.TempTable;
 
 /**
@@ -84,6 +92,7 @@ import com.vmturbo.sql.utils.jooq.JooqUtil.TempTable;
  * to the new schema.</p>
  */
 public class ScopeManager {
+    private static final Logger logger = LogManager.getLogger();
 
     /** valid DB timestamp value that's far in the future.
      *
@@ -121,6 +130,9 @@ public class ScopeManager {
         this.db = db;
         this.pool = pool;
         this.config = config;
+        if (!config.populateScopeTable()) {
+            logger.info("Scope table data population is disabled in this installation");
+        }
     }
 
     /**
@@ -142,9 +154,11 @@ public class ScopeManager {
         if (dsl == null) {
             this.dsl = db.dslContext();
         }
-        if (priorScope.isEmpty()) {
+        if (priorScope.isEmpty() && config.populateScopeTable()) {
             reloadPriorScope();
         }
+        logger.info("Scope initialized for timestamp {}; prior scope timestamp {}",
+                currentTimestamp, priorTimestamp);
     }
 
     /**
@@ -169,10 +183,16 @@ public class ScopeManager {
      * data.
      */
     public void finishTopology() {
+        logger.info("Scope is complete for {}", currentTimestamp);
         trim(currentScope); // scope map is complete, so this is a good time to optimize
+        if (!config.populateScopeTable()) {
+            // don't update database unless the feature flag is enabled
+            return;
+        }
         try (TableWriter scopeInserter = getScopeInsertWriter();
              TableWriter scopeUpdater = getScopeUpdateWriter()) {
 
+            // we need to process every iid that appears in either prior scope or current scope
             final IntStream priorIids = priorScope.keySet().stream().mapToInt(Integer::intValue);
             final IntStream currentIids = currentScope.keySet().stream().mapToInt(Integer::intValue);
             IntStream.concat(priorIids, currentIids).distinct()
@@ -189,6 +209,7 @@ public class ScopeManager {
                     .set(SCOPE.FINISH, currentTimestamp)
                     .execute();
         } finally {
+            logger.info("Finished scope updates for {}", currentTimestamp);
             priorScope = currentScope;
             currentScope = new Int2ObjectOpenHashMap<>();
             priorTimestamp = currentTimestamp;
@@ -225,11 +246,11 @@ public class ScopeManager {
     }
 
     private TableWriter getScopeInsertWriter() {
-        return SCOPE_TABLE.open(new ScopeInserterSink());
+        return SCOPE_TABLE.open(new ScopeInserterSink(), "Scope Inserter", logger);
     }
 
     private TableWriter getScopeUpdateWriter() {
-        return SCOPE_TABLE.open(new ScopeUpdaterSink());
+        return SCOPE_TABLE.open(new ScopeUpdaterSink(), "Scope Updater", logger);
     }
 
     /**
@@ -287,6 +308,10 @@ public class ScopeManager {
         long scopedOid = entityIdManager.toOid(scopedIid);
         final IntSet priorSet = priorScope.getOrDefault(scopedIid, IntSets.EMPTY_SET);
         final IntSet currentSet = currentScope.getOrDefault(scopedIid, IntSets.EMPTY_SET);
+        boolean debugEnabled = logger.isDebugEnabled();
+        final IntSet adds = debugEnabled ? new IntOpenHashSet() : null;
+        final IntSet keeps = debugEnabled ? new IntOpenHashSet() : null;
+        final IntSet drops = debugEnabled ? new IntOpenHashSet() : null;
         IntStream.concat(
                 Arrays.stream(priorSet.toIntArray()), Arrays.stream(currentSet.toIntArray()))
                 .distinct().forEach(seedIid -> {
@@ -297,6 +322,9 @@ public class ScopeManager {
                         r.set(SEED_OID, entityIdManager.toOid(seedIid));
                         r.set(SCOPED_OID, scopedOid);
                     }
+                    if (debugEnabled) {
+                        drops.add(seedIid);
+                    }
                 }
             } else if (currentSet.contains(seedIid)) {
                 // new entity (or reappearance of an old entity) requires a new record
@@ -305,8 +333,21 @@ public class ScopeManager {
                     r.set(SCOPED_OID, scopedOid);
                     r.set(SCOPE_START, currentTimestamp);
                 }
+                if (debugEnabled) {
+                    adds.add(seedIid);
+                }
+            } else if (debugEnabled) {
+                keeps.add(seedIid);
             }
         });
+        if (debugEnabled) {
+            logger.debug("Added {} seed ids for scoped entity {}: [{}]",
+                    adds.size(), toOidList(adds), scopedOid);
+            logger.debug("Kept {} seed ids for scoped entity {}: [{}]",
+                    keeps.size(), toOidList(keeps), scopedIid);
+            logger.debug("Dropped {} seed ids for scoped entity {}: [{}]",
+                    drops.size(), toOidList(drops), scopedOid);
+        }
     }
 
     /**
@@ -346,6 +387,7 @@ public class ScopeManager {
      * a record with `oid` set to zero, set aside for this purpose.</p>
      */
     private void reloadPriorScope() {
+        logger.info("Loading prior scope from database after restart");
         try (Stream<Record2<Long, Long>> stream =
                      dsl.select(SCOPE.SEED_OID, SCOPE.SCOPED_OID).from(SCOPE)
                              // greater-than comparison because MAX_TIMESTAMP used to be the
@@ -362,6 +404,21 @@ public class ScopeManager {
                 .where(SCOPE.SEED_OID.eq(0L).and(SCOPE.SCOPED_OID.eq(0L))
                         .and(SCOPE.START.eq(EPOCH_TIMESTAMP)))
                 .fetchOne(SCOPE.FINISH);
+        if (priorTimestamp != null) {
+            logger.info("Prior scopes for {} entities loaded for timestamp {}",
+                    priorScope.size(), priorTimestamp);
+        } else {
+            logger.warn("No prior scope available from database; proceeding with empty prior scope; "
+                    + "this is expected during initial installation");
+        }
+    }
+
+    // utility used in debug logging
+    private List<Long> toOidList(IntCollection iids) {
+        return iids.stream()
+                .map(entityIdManager::toOid)
+                .sorted()
+                .collect(Collectors.toList());
     }
 
     /**
@@ -384,12 +441,17 @@ public class ScopeManager {
         /**
          * Create the temp table with the fields we need.
          *
-         * @param conn database connection on which COPY will execute
+         * @param transConn database connection on which COPY will execute
          */
         @Override
-        protected void preCopyHook(final Connection conn) {
-            this.tempTable = JooqUtil.createTemporaryTable(conn, null, getWriteTableName(),
-                    SCOPE.SEED_OID, SCOPE.SCOPED_OID, SCOPE.START);
+        protected List<String> getPreCopyHookSql(final Connection transConn) {
+            Field<?>[] fields = new Field[]{SCOPE.SEED_OID, SCOPE.SCOPED_OID, SCOPE.START};
+            this.tempTable = new TempTable<>((Table<?>)null, getWriteTableName(), fields);
+            try (DSLContext transDsl = DSL.using(transConn)) {
+                final String sql = transDsl.createTemporaryTable(tempTable.table()).columns(fields)
+                        .getSQL(ParamType.INLINED);
+                return Collections.singletonList(sql);
+            }
         }
 
         /**
@@ -397,10 +459,10 @@ public class ScopeManager {
          * type as well as start and finish timestamps while copying them into the real `scopes`
          * table.
          *
-         * @param conn database connection on which COPY operation executed (still open)
+         * @param transConn database connection on which COPY operation executed (still open)
          */
         @Override
-        protected void postCopyHook(final Connection conn) {
+        protected List<String> getPostCopyHookSql(final Connection transConn) {
             final Select<Record5<Long, Long, EntityType, OffsetDateTime, OffsetDateTime>> selectStmt;
             // TODO Remove "distinct" during transition away from old schema; it's there because
             // there will often be multiple matching `entity` records for a given entity oid
@@ -412,10 +474,11 @@ public class ScopeManager {
                     DSL.inline(MAX_TIMESTAMP).as(SCOPE.FINISH)
             ).from(tempTable.table()).innerJoin(ENTITY)
                     .on(ENTITY.OID.eq(tempTable.field(SCOPE.SCOPED_OID)));
-            DSL.using(conn, dsl.configuration().settings())
+            final String sql = DSL.using(transConn, dsl.configuration().settings())
                     .insertInto(SCOPE, SCOPE.SEED_OID, SCOPE.SCOPED_OID, SCOPE.SCOPED_TYPE, SCOPE.START, SCOPE.FINISH)
                     .select(selectStmt)
-                    .execute();
+                    .getSQL(ParamType.INLINED);
+            return Collections.singletonList(sql);
         }
 
         @Override
@@ -445,21 +508,27 @@ public class ScopeManager {
         }
 
         @Override
-        protected void preCopyHook(final Connection conn) {
-            this.tempTable = JooqUtil.createTemporaryTable(conn, null, getWriteTableName(),
-                    SCOPE.SEED_OID, SCOPE.SCOPED_OID);
+        protected List<String> getPreCopyHookSql(final Connection transConn) {
+            Field<?>[] fields = new Field[]{SCOPE.SEED_OID, SCOPE.SCOPED_OID};
+            this.tempTable = new TempTable<>((Table<?>)null, getWriteTableName(), fields);
+            try (DSLContext transDsl = DSL.using(transConn)) {
+                final String sql = transDsl.createTemporaryTable(tempTable.table()).columns(fields)
+                        .getSQL(ParamType.INLINED);
+                return Collections.singletonList(sql);
+            }
         }
 
         @Override
-        protected void postCopyHook(final Connection conn) {
-            DSL.using(conn, dsl.configuration().settings())
+        protected List<String> getPostCopyHookSql(final Connection transConn) {
+            final String sql = DSL.using(transConn, dsl.configuration().settings())
                     .update(SCOPE)
                     .set(SCOPE.FINISH, priorTimestamp)
                     .from(tempTable.table())
                     .where(SCOPE.SEED_OID.eq(tempTable.field(SCOPE.SEED_OID))
                             .and(SCOPE.SCOPED_OID.eq(tempTable.field(SCOPE.SCOPED_OID)))
                             .and(SCOPE.FINISH.ge(MAX_TIMESTAMP)))
-                    .execute();
+                    .getSQL(ParamType.INLINED);
+            return Collections.singletonList(sql);
         }
 
         @Override

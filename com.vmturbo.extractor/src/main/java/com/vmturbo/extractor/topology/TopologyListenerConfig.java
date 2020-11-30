@@ -76,7 +76,7 @@ public class TopologyListenerConfig {
      * Max time to wait for results of COPY FROM command that streams data to postgres, after all
      * records have been sent.
      */
-    @Value("${insertTimeoutSeconds:7200}") // two-hours as short-term fix to OM-64013
+    @Value("${insertTimeoutSeconds:300}") // 5 minutes
     private int insertTimeoutSeconds;
 
     @Value("${reportingCommodityWhitelistAdded:#{null}}")
@@ -98,6 +98,15 @@ public class TopologyListenerConfig {
      */
     @Value("${enableReporting:false}")
     private boolean enableReporting;
+
+    /**
+     * Whether the scope table should be populated.
+     *
+     * <p>This is a feature flag that should be removed when we are ready to turn enable this
+     * feature in production.</p>
+     */
+    @Value("${enableScopeTable:false}")
+    public boolean enableScopeTable;
 
     /**
      * Create an instance of our topology listener.
@@ -129,6 +138,7 @@ public class TopologyListenerConfig {
                 .insertTimeoutSeconds(insertTimeoutSeconds)
                 .addAllReportingCommodityWhitelist(getReportingCommodityWhitelist())
                 .unaggregatedCommodities(Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES)
+                .populateScopeTable(enableScopeTable)
                 .build();
     }
 

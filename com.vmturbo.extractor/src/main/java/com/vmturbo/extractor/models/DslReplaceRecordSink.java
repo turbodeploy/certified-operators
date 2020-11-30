@@ -2,6 +2,9 @@ package com.vmturbo.extractor.models;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
@@ -44,29 +47,27 @@ public class DslReplaceRecordSink extends DslRecordSink {
     }
 
     @Override
-    protected void preCopyHook(final Connection conn) throws SQLException {
+    protected List<String> getPreCopyHookSql(final Connection transConn) {
         final String createSql = String.format("CREATE TABLE %s (LIKE %s INCLUDING ALL)",
                 getWriteTableName(), table.getName());
-        conn.createStatement().execute(createSql);
+        return Collections.singletonList(createSql);
     }
 
     @Override
-    protected void postCopyHook(final Connection conn) throws SQLException {
+    protected List<String> getPostCopyHookSql(final Connection transConn) throws SQLException {
         // rename old table: search_entity -> search_entity_old
         final String renameOldTable = String.format("ALTER TABLE %s RENAME TO %s",
                 table.getName(), renameOldTable(table.getName()));
-        conn.createStatement().execute(renameOldTable);
 
         // rename new table to old table: search_entity_new -> search_entity
         final String renameNewTable = String.format("ALTER TABLE %s RENAME TO %s",
                 getWriteTableName(), table.getName());
-        conn.createStatement().execute(renameNewTable);
 
         // drop old table: search_entity_old
         final String dropOldTable = String.format("DROP TABLE %s", renameOldTable(table.getName()));
-        conn.createStatement().execute(dropOldTable);
 
-        logger.info("Replaced all records in table {} with table {}", table.getName(), getWriteTableName());
+        logger.info("Replacing all records in table {} with table {}", table.getName(), getWriteTableName());
+        return Arrays.asList(renameOldTable, renameNewTable, dropOldTable);
     }
 
     /**

@@ -2,8 +2,9 @@ package com.vmturbo.extractor.models;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
@@ -58,17 +59,17 @@ public class DslUpdateRecordSink extends DslRecordSink {
     }
 
     @Override
-    protected void preCopyHook(final Connection conn) throws SQLException {
+    protected List<String> getPreCopyHookSql(final Connection transConn) {
         String colSpecs = includeColumns.stream()
                 .map(c -> String.format("%s %s", c.getName(), c.getDbType()))
                 .collect(Collectors.joining(", "));
         final String createSql = String.format("CREATE TEMPORARY TABLE %s (%s)",
                 getWriteTableName(), colSpecs);
-        conn.createStatement().execute(createSql);
+        return Collections.singletonList(createSql);
     }
 
     @Override
-    protected void postCopyHook(final Connection conn) throws SQLException {
+    protected List<String> getPostCopyHookSql(final Connection transConn) throws SQLException {
         final String sets = updateColumns.stream()
                 .map(Column::getName)
                 .map(c -> String.format("%s = _temp.%s", c, c))
@@ -79,9 +80,6 @@ public class DslUpdateRecordSink extends DslRecordSink {
                 .collect(Collectors.joining(" AND "));
         final String updateSql = String.format("UPDATE %s AS _t SET %s FROM %s AS _temp WHERE %s",
                 table.getName(), sets, getWriteTableName(), conditions);
-        logger.info("Update SQL: {}", updateSql);
-        final Statement statement = conn.createStatement();
-        statement.execute(updateSql);
-        logger.info("Updated {} values in table {}", statement.getUpdateCount(), table.getName());
+        return Collections.singletonList(updateSql);
     }
 }

@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.logging.log4j.LogManager;
 import org.junit.Test;
 
 import com.vmturbo.extractor.models.Table.Record;
@@ -69,7 +70,7 @@ public class TableTest {
         // since the table doesn't yet have a record sink
         Record r0 = new Record(table);
         r0.set(C1, 0);
-        try (TableWriter writer = table.open(sink)) {
+        try (TableWriter writer = table.open(sink, "test writer", LogManager.getLogger())) {
             Record r1 = writer.open();
             // manually open and close record
             r1.set(C1, 1);
@@ -112,7 +113,7 @@ public class TableTest {
         r.mergeIf(false, C1, () -> 2, (a, b) -> (int)a + (int)b);
         r.mergeIf(true, C1, () -> 3, (a, b) -> (int)a + (int)b);
         assertThat(r.get(C1), is(4));
-        r.merge(C3, "!", (a, b) -> ((String)a + (String)b));
+        r.merge(C3, "!", (a, b) -> (a + (String)b));
         assertThat(r.get(C3), is("so long!"));
         r.set(C2, new Long[]{1L, 2L});
         assertThat(Arrays.asList(r.get(C2)), contains(1L, 2L));

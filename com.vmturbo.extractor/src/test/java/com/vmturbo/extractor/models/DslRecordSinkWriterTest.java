@@ -56,6 +56,7 @@ public class DslRecordSinkWriterTest {
             .lastSeenAdditionalFuzzMinutes(10)
             .lastSeenUpdateIntervalMinutes(10)
             .unaggregatedCommodities(Constants.UNAGGREGATED_KEYED_COMMODITY_TYPES)
+            .populateScopeTable(true)
             .build();
 
     private DslRecordSink metricSink;

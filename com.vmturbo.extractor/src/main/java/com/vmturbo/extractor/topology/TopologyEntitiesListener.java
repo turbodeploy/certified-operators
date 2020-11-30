@@ -59,7 +59,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
             .build()
             .register();
 
-    private static final DataMetricCounter  PROCESSING_ERRORS_CNT = DataMetricCounter.builder()
+    private static final DataMetricCounter PROCESSING_ERRORS_CNT = DataMetricCounter.builder()
             .withName("xtr_topology_processing_error_count")
             .withHelp("Errors encountered during topology processing, broken down by high level type.")
             .withLabelNames("type")
@@ -96,10 +96,11 @@ public class TopologyEntitiesListener implements EntitiesListener {
     public void onTopologyNotification(@Nonnull final TopologyInfo topologyInfo,
             @Nonnull final RemoteIterator<DataSegment> entityIterator,
             @Nonnull final SpanContext tracingContext) {
-        String label = TopologyDTOUtil.getSourceTopologyLabel(topologyInfo);
+        final String label = TopologyDTOUtil.getSourceTopologyLabel(topologyInfo);
+        logger.info("Received topology {}", label);
         if (busy.compareAndSet(false, true)) {
-            logger.info("Received topology {}", TopologyDTOUtil.getSourceTopologyLabel(topologyInfo));
             try (TracingScope scope = Tracing.trace("extractor_run_topology", tracingContext)) {
+                logger.info("Processing topology {}", label);
                 new TopologyRunner(topologyInfo, entityIterator).runTopology();
             } catch (SQLException | UnsupportedDialectException e) {
                 logger.error("Failed to process topology", e);
@@ -108,8 +109,8 @@ public class TopologyEntitiesListener implements EntitiesListener {
                 busy.set(false);
             }
         } else {
-            RemoteIteratorDrain.drainIterator(
-                    entityIterator, TopologyDTOUtil.getSourceTopologyLabel(topologyInfo), true);
+            logger.info("Skipping topology {} because prior execution is not complete", label);
+            RemoteIteratorDrain.drainIterator(entityIterator, label, true);
         }
     }
 
@@ -125,10 +126,12 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
         private final TopologyInfo topologyInfo;
         private final RemoteIterator<DataSegment> entityIterator;
+        private final String topologyLabel;
 
         TopologyRunner(final TopologyInfo topologyInfo, final RemoteIterator<DataSegment> entityIterator) {
             this.topologyInfo = topologyInfo;
             this.entityIterator = entityIterator;
+            this.topologyLabel = TopologyDTOUtil.getSourceTopologyLabel(topologyInfo);
         }
 
         private void runTopology() throws UnsupportedDialectException, SQLException {
@@ -138,7 +141,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
             try {
                 successCount = writeTopology();
             } catch (IOException | InterruptedException e) {
-                logger.error("Interrupted while writing topology", e);
+                logger.error("Interrupted while writing topology {}", topologyLabel, e);
                 Thread.currentThread().interrupt();
             }
             elapsedTimer.close();
@@ -153,6 +156,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
         }
 
         private long writeTopology() throws IOException, UnsupportedDialectException, SQLException, InterruptedException {
+            // fetch cluster membership
             List<ITopologyWriter> writers = new ArrayList<>();
             writerFactories.stream()
                     .map(Supplier::get)
@@ -185,7 +189,20 @@ public class TopologyEntitiesListener implements EntitiesListener {
                         timer.stop();
                     }
                 }
+            } catch (CommunicationException | TimeoutException e) {
+                logger.error("Error occurred while receiving topology {}", topologyLabel, e);
+                PROCESSING_ERRORS_CNT.labels("communication").increment();
+            } catch (InterruptedException e) {
+                logger.error("Thread interrupted receiving topology {}", topologyLabel, e);
+                PROCESSING_ERRORS_CNT.labels("interrupted").increment();
+                Thread.currentThread().interrupt();
+            } catch (RuntimeException e) {
+                logger.error("Unexpected error occurred while receiving topology {}", topologyLabel, e);
+                PROCESSING_ERRORS_CNT.labels(e.getClass().getSimpleName()).increment();
+                throw e; // Re-throw the exception to abort reading the topology.
+            }
 
+            try {
                 // fetch all data from other components for use in finish stage
                 if (!writers.isEmpty()) {
                     final boolean requireFullSupplyChain = writers.stream()
@@ -198,28 +215,14 @@ public class TopologyEntitiesListener implements EntitiesListener {
                     writer.finish(dataProvider);
                     asyncTimer.close();
                 }
-
-                // clean unneeded data while keeping useful data for actions ingestion
-                dataProvider.clean();
-            } catch (CommunicationException | TimeoutException e) {
-                logger.error("Error occurred while receiving topology " + topologyId
-                        + " for context " + topologyContextId, e);
-                PROCESSING_ERRORS_CNT.labels("communication").increment();
-            } catch (InterruptedException e) {
-                logger.error("Thread interrupted receiving topology " + topologyId
-                        + " for context " + topologyContextId, e);
-                PROCESSING_ERRORS_CNT.labels("interrupted").increment();
             } catch (RuntimeException e) {
-                logger.error("Unexpected error occurred while receiving topology " + topologyId
-                        + " for context " + topologyContextId, e);
-                PROCESSING_ERRORS_CNT.labels(e.getClass().getSimpleName()).increment();
-                throw e; // Re-throw the exception to abort reading the topology.
+                logger.error("Unexpected error during finish processing for topology {}", topologyLabel, e);
             }
             return entityCount;
         }
 
         private void scrapeChunk(final Collection<DataSegment> chunk,
-                                 final DataProvider dataProvider) {
+                final DataProvider dataProvider) {
             for (DataSegment dataSegment : chunk) {
                 if (shouldIngest(dataSegment)) {
                     TopologyEntityDTO topologyEntityDTO = dataSegment.getEntity();

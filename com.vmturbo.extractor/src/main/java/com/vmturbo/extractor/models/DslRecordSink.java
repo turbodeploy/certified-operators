@@ -8,11 +8,14 @@ import java.io.Reader;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -22,7 +25,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
-import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
 import org.postgresql.copy.CopyManager;
 import org.postgresql.jdbc.PgConnection;
 
@@ -101,7 +104,7 @@ public class DslRecordSink implements Consumer<Record> {
         if (record == null) {
             synchronized (this) {
                 if (recordWriter != null) {
-                    recordWriter.close(false);
+                    recordWriter.close();
                 }
             }
         } else {
@@ -132,78 +135,68 @@ public class DslRecordSink implements Consumer<Record> {
      * <p>We use the high-speed Postgres COPY statement, sending records in CSV format.</p>
      */
     class RecordWriter {
-        private PrintWriter writer;
+        private final PrintWriter writer;
         private final Collection<Column<?>> columns;
-        private final Connection conn;
-        private Future<InsertResults> future;
+        private final Future<InsertResults> future;
         private int recordSentCount = 0;
         private boolean closed = false;
 
         RecordWriter(Collection<Column<?>> columns, ExecutorService pool) throws IOException {
             this.columns = columns;
-            this.conn = getTransactionalConnection();
-            if (conn != null && runPreCopyHook(conn)) {
-                final PipedReader reader = new PipedReader();
-                this.writer = new PrintWriter(new PipedWriter(reader));
-                this.future = pool.submit(() -> writeData(String.format("COPY \"%s\" FROM STDIN WITH CSV", getWriteTableName()), conn, reader));
-            } else {
-                if (future != null) {
-                    future.cancel(true);
-                }
-                close(true);
-            }
-        }
-
-        private Connection getTransactionalConnection() {
-            try {
-                final Connection conn = dsl.configuration().connectionProvider().acquire();
-                conn.setAutoCommit(false);
-                return conn;
-            } catch (DataAccessException | SQLException e) {
-                logger.error("Failed to obtain a connection for sink operation", e);
-                return null;
-            }
-        }
-
-        private boolean runPreCopyHook(Connection conn) {
-            try {
-                preCopyHook(conn);
-                return true;
-            } catch (SQLException e) {
-                logger.error("Failed to execute pre-copy hook; will not write any records", e);
-                return false;
-            }
-        }
-
-        private void runPostCopyHook(Connection conn) {
-            try {
-                postCopyHook(conn);
-            } catch (SQLException e) {
-                logger.error("Failed to execute postCopy hook; rolling back all work", e);
-            }
+            final PipedReader reader = new PipedReader();
+            this.writer = new PrintWriter(new PipedWriter(reader));
+            this.future = pool.submit(() -> {
+                final String stmt = String.format("COPY \"%s\" FROM STDIN WITH CSV",
+                        getWriteTableName());
+                return writeData(stmt, dsl, reader);
+            });
         }
 
         /**
          * This method set up the COPY operation in a parallel thread.
          *
          * @param copySql SQL for copy operation
-         * @param conn    connection to use
+         * @param dsl     {@link DSLContext} for DB access
          * @param reader  a {@link Reader} from which data for the operation can be read
          * @return a {@link Future} that will report results when we're finished
          */
-        private InsertResults writeData(String copySql, Connection conn, Reader reader) {
+        private InsertResults writeData(String copySql, DSLContext dsl, Reader reader) {
             long start = System.nanoTime();
-            long recordCount;
-            try {
-                // execute the copy operation, with data coming from our reader
-                recordCount = new CopyManager(conn.unwrap(PgConnection.class))
-                        .copyIn(copySql, reader);
-            } catch (Exception e) {
-                logger.error("Failed performing copy to table {}", getWriteTableName(), e);
-                recordCount = 0L;
-            }
+            final AtomicLong recordCount = new AtomicLong(0L);
+            dsl.transaction(trans -> DSL.using(trans).connection(transConn -> {
+                runPreCopyHook(transConn);
+                try {
+                    // execute the copy operation, with data coming from our reader
+                    final CopyManager copier = new CopyManager(transConn.unwrap(PgConnection.class));
+                    recordCount.set(copier.copyIn(copySql, reader));
+                } catch (Exception e) {
+                    logger.error("Failed performing copy to table {}", getWriteTableName(), e);
+                    // rethrow to rollback transaction
+                    throw e;
+                }
+                try {
+                    runPostCopyHook(transConn);
+                } catch (SQLException e) {
+                    // rolling back, so nothing written
+                    recordCount.set(0L);
+                    // rethrow to rollback transaction
+                    throw e;
+                }
+            }));
             final long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
-            return new InsertResults(recordCount, elapsed);
+            return new InsertResults(recordCount.get(), elapsed);
+        }
+
+        private void runPreCopyHook(Connection transConn) throws SQLException {
+            try {
+                for (final String sql : getPreCopyHookSql(transConn)) {
+                    logger.info("Executing pre-copy hook SQL: {}", sql);
+                    DSL.using(transConn).execute(sql);
+                }
+            } catch (SQLException e) {
+                logger.error("Failed to execute pre-copy hook; will not write any records", e);
+                throw e;
+            }
         }
 
         public void write(final Record record) {
@@ -214,14 +207,24 @@ public class DslRecordSink implements Consumer<Record> {
             }
         }
 
+        private void runPostCopyHook(Connection transConn) throws SQLException {
+            try {
+                for (final String sql : getPostCopyHookSql(transConn)) {
+                    logger.info("Executing post-copy hook SQL: {}", sql);
+                    DSL.using(transConn).execute(sql);
+                }
+            } catch (SQLException e) {
+                logger.error("Failed to execute postCopy hook; rolling back all work", e);
+                throw e;
+            }
+        }
+
         /**
          * Called when the sink is detached from its table, to finish up the COPY operation and
          * report its results.
-         *
-         * @param failed true if the operation is known to have failed
          */
         @VisibleForTesting
-        void close(boolean failed) {
+        void close() {
             try {
                 if (writer != null) {
                     // this will cause the COPY operation to hit EOF on its reader and complete its
@@ -232,23 +235,9 @@ public class DslRecordSink implements Consumer<Record> {
                 if (future != null) {
                     InsertResults result = future.get(config.insertTimeoutSeconds(), TimeUnit.SECONDS);
                     logger.info("Wrote {} records to table {}", result.getRecordCount(), getWriteTableName());
-                    runPostCopyHook(conn);
                 }
             } catch (TimeoutException | InterruptedException | ExecutionException e) {
                 logger.error("Failed to complete writing to table {}", getWriteTableName(), e);
-            } finally {
-                if (conn != null) {
-                    try {
-                        if (failed) {
-                            conn.rollback();
-                        } else {
-                            conn.commit();
-                        }
-                    } catch (SQLException e) {
-                        logger.error("Failed to rollback failed transaction", e);
-                    }
-                    dsl.configuration().connectionProvider().release(conn);
-                }
             }
             this.closed = true;
         }
@@ -259,21 +248,37 @@ public class DslRecordSink implements Consumer<Record> {
     }
 
     /**
-     * Perform sink-specific setup operations before beginning the COPY operation.
+     * Compose sink-specific SQL and perform other operations required before beginning the COPY
+     * operation.
      *
-     * @param conn database connection on which COPY will execute
-     * @throws SQLException if there's a problem with setup
+     * <p>Throwing an exception will cause the transaction to  roll back.</p>
+     *
+     * <p>Executing the SQL within this statement is perfectly suitable. The only downside is that
+     * built-in logging of the SQL will not occur.</p>
+     *
+     * @param transConn database connection on which COPY will execute
+     * @return list of SQL statements to execute in order
+     * @throws SQLException if there's a DB error
      */
-    protected void preCopyHook(final Connection conn) throws SQLException {
+    protected List<String> getPreCopyHookSql(final Connection transConn) throws SQLException {
+        return Collections.emptyList();
     }
 
     /**
-     * Perform sink-specific operations after all the data has been sent for the COPY operation.
+     * Compose sink-specific SQL and perform other operations required after the COPY operation has
+     * completed.
      *
-     * @param conn database connection on which COPY operation executed (still open)
+     * <p>Throwing an exception will cause the transaction to  roll back.</p>
+     *
+     * <p>Executing the SQL within this statement is perfectly suitable. The only downside is that
+     * built-in logging of the SQL will not occur.</p>
+     *
+     * @param transConn database connection on which COPY operation executed (still open)
+     * @return SQL statements to execute
      * @throws SQLException if there's a problem
      */
-    protected void postCopyHook(final Connection conn) throws SQLException {
+    protected List<String> getPostCopyHookSql(final Connection transConn) throws SQLException {
+        return Collections.emptyList();
     }
 
     protected String getWriteTableName() {

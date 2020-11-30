@@ -2,7 +2,6 @@ package com.vmturbo.extractor.search;
 
 import static com.vmturbo.extractor.models.ModelDefinitions.ATTRS;
 import static com.vmturbo.extractor.models.ModelDefinitions.SEARCH_ENTITY_TABLE;
-import static com.vmturbo.extractor.models.ModelDefinitions.SEARCH_MODEL;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -118,7 +117,7 @@ public class SearchEntityWriter extends TopologyWriterBase {
      * @param pool thread pool
      */
     public SearchEntityWriter(final DbEndpoint dbEndpoint, final ExecutorService pool) {
-        super(dbEndpoint, SEARCH_MODEL, pool);
+         super(dbEndpoint, pool);
     }
 
     @Override
@@ -162,7 +161,8 @@ public class SearchEntityWriter extends TopologyWriterBase {
             throws UnsupportedDialectException, SQLException, InterruptedException {
         final AtomicInteger counter = new AtomicInteger();
         try (DSLContext dsl = dbEndpoint.dslContext();
-             TableWriter entitiesReplacer = SEARCH_ENTITY_TABLE.open(getEntityReplacerSink(dsl))) {
+             TableWriter entitiesReplacer = SEARCH_ENTITY_TABLE.open(
+                     getEntityReplacerSink(dsl), "Entities Replacer", logger)) {
             // patch entities
             logger.info("Starting stage: Patch entities");
             timer.start("Patch entities");

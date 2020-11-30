@@ -7,8 +7,8 @@ import java.util.function.Consumer;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.utils.MultiStageTimer;
-import com.vmturbo.extractor.models.Model;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
@@ -19,9 +19,9 @@ public abstract class TopologyWriterBase implements ITopologyWriter {
     protected final ExecutorService pool;
 
     protected TopologyInfo topologyInfo;
+    protected String topologyLabel;
     protected final DbEndpoint dbEndpoint;
     protected MultiStageTimer timer;
-    private final Model model;
     protected WriterConfig config;
 
     /**
@@ -29,12 +29,10 @@ public abstract class TopologyWriterBase implements ITopologyWriter {
      *
      * @param dbEndpoint a {@link DbEndpoint} for the database where extracted data will be
      *                   persisted
-     * @param model      model containing tables that will take part
      * @param pool       thread pool for parallel operations
      */
-    public TopologyWriterBase(DbEndpoint dbEndpoint, Model model, ExecutorService pool) {
+    public TopologyWriterBase(DbEndpoint dbEndpoint, ExecutorService pool) {
         this.dbEndpoint = dbEndpoint;
-        this.model = model;
         this.pool = pool;
     }
 
@@ -43,6 +41,7 @@ public abstract class TopologyWriterBase implements ITopologyWriter {
             final TopologyInfo topologyInfo, WriterConfig config, MultiStageTimer timer)
             throws IOException, UnsupportedDialectException, SQLException, InterruptedException {
         this.topologyInfo = topologyInfo;
+        this.topologyLabel = TopologyDTOUtil.getSourceTopologyLabel(topologyInfo);
         this.config = config;
         this.timer = timer;
         return this::writeEntity;

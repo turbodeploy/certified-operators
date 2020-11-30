@@ -145,7 +145,8 @@ class SearchActionWriter implements IActionWriter {
 
         // process and write to db
         try (DSLContext dsl = dbEndpoint.dslContext();
-             TableWriter actionsReplacer = SEARCH_ENTITY_ACTION_TABLE.open(getSearchActionReplacerSink(dsl))) {
+             TableWriter actionsReplacer = SEARCH_ENTITY_ACTION_TABLE.open(
+                     getSearchActionReplacerSink(dsl), "Action Replacer", logger)) {
             // write action data for entities (only write those with actions)
             timer.start("Write action data for search entities");
             topology.entities()

@@ -130,7 +130,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
     public EntityMetricWriter(final DbEndpoint dbEndpoint, final EntityHashManager entityHashManager,
             final ScopeManager scopeManager, final EntityIdManager entityIdManager,
             final ExecutorService pool) {
-        super(dbEndpoint, ModelDefinitions.REPORTING_MODEL, pool);
+        super(dbEndpoint, pool);
         this.entityHashManager = entityHashManager;
         this.scopeManager = scopeManager;
         this.entityIdManager = entityIdManager;
@@ -141,6 +141,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
             final WriterConfig config, final MultiStageTimer timer)
             throws IOException, UnsupportedDialectException, SQLException, InterruptedException {
         super.startTopology(topologyInfo, config, timer);
+        logger.info("Starting to process topology {}", topologyLabel);
         scopeManager.startTopology(topologyInfo);
         return this::writeEntity;
     }
@@ -153,11 +154,15 @@ public class EntityMetricWriter extends TopologyWriterBase {
             return;
         }
         final long oid = e.getOid();
+        logger.debug("Capturing entity data for entity {}", oid);
         final int iid = entityIdManager.toIid(oid);
         Record entitiesRecord = new Record(ENTITY_TABLE);
         final HashMap<String, Object> attrs = new HashMap<>();
         PartialRecordInfo rec = new PartialRecordInfo(e.getOid(), e.getEntityType(), entitiesRecord, attrs);
+        // populate record with data from entity dto per metadata rules
         tedPatcher.patch(rec, e);
+        // TODO remove entityTagsPatcher and its use here when tags are handled by metadata
+        // capture tag data (not yet handled by metadata
         entityTagsPatcher.patch(rec, e);
         rec.finalizeAttrs();
         // supply chain will be added during finish processing
@@ -180,6 +185,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * @param iid entity iid (for same entity - we use both)
      */
     private void writeMetrics(final TopologyEntityDTO e, final long oid, final int iid) {
+        logger.debug("Capturing metric data for entity {}", oid);
         final List<Record> metricRecords = metricRecordsMap.computeIfAbsent(iid, k -> new ArrayList<>());
         // write bought commodity records
         e.getCommoditiesBoughtFromProvidersList().forEach(cbfp -> {
@@ -411,16 +417,21 @@ public class EntityMetricWriter extends TopologyWriterBase {
     @Override
     public int finish(final DataProvider dataProvider)
             throws UnsupportedDialectException, SQLException, InterruptedException {
+        logger.info("Performing finish processing for topology {}", topologyLabel);
         // capture entity count before we add groups
         int n = entityRecordsMap.size();
         try (DSLContext dsl = dbEndpoint.dslContext();
              TableWriter entitiesUpserter = ENTITY_TABLE.open(
-                     getEntityUpsertSink(dsl, upsertConflicts, upsertUpdates));
-             TableWriter entitiesUpdater = ENTITY_TABLE.open(getEntityUpdaterSink(
-                     dsl, updateIncludes, updateMatches, updateUpdates));
-             TableWriter metricInserter = METRIC_TABLE.open(getMetricInserterSink(dsl));
+                     getEntityUpsertSink(dsl, upsertConflicts, upsertUpdates),
+                     "Entities Upserter", logger);
+             TableWriter entitiesUpdater = ENTITY_TABLE.open(
+                     getEntityUpdaterSink(dsl, updateIncludes, updateMatches, updateUpdates),
+                     "Entities Updater", logger);
+             TableWriter metricInserter = METRIC_TABLE.open(
+                     getMetricInserterSink(dsl), "Metric Inserter", logger);
              SnapshotManager snapshotManager = entityHashManager.open(topologyInfo.getCreationTime());
-             TableWriter wastedFileReplacer = WASTED_FILE_TABLE.open(getWastedFileReplacerSink(dsl))) {
+             TableWriter wastedFileReplacer = WASTED_FILE_TABLE.open(
+                     getWastedFileReplacerSink(dsl), "Wasted File Replacer", logger)) {
 
             // prepare and write all our entity and metric records
             writeGroupsAsEntities(dataProvider);
@@ -459,8 +470,10 @@ public class EntityMetricWriter extends TopologyWriterBase {
     }
 
     private void writeGroupsAsEntities(final DataProvider dataProvider) {
+        logger.info("Creating entity records for groups in topology {}", topologyLabel);
         dataProvider.getAllGroups()
                 .forEach(group -> {
+                    logger.debug("Creating record for group {}", group.getId());
                     Record r = new Record(ENTITY_TABLE);
                     final PartialRecordInfo rec = new PartialRecordInfo(
                             group.getId(), group.getDefinition().getType().getNumber(), r, new HashMap<>());
@@ -473,6 +486,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
     private void upsertEntityRecords(final DataProvider dataProvider, final TableWriter tableWriter,
             final SnapshotManager snapshotManager) {
+        logger.info("Upserting entity records for topology {}", topologyLabel);
         entityRecordsMap.int2ObjectEntrySet().forEach(entry -> {
             int iid = entry.getIntKey();
             Record record = entry.getValue();
@@ -482,6 +496,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
             // only store entity if hash changes
             Long newHash = snapshotManager.updateRecordHash(record);
             if (newHash != null) {
+                logger.debug("Entity {} hash changed, writing new record", () -> entityIdManager.toOid(iid));
                 try (Record r = tableWriter.open(record)) {
                     r.set(ModelDefinitions.ENTITY_HASH_AS_HASH, newHash);
                     snapshotManager.setRecordTimes(r);
@@ -503,11 +518,13 @@ public class EntityMetricWriter extends TopologyWriterBase {
                 .distinct()
                 // ... and add their iids to the result as well
                 .forEach(result::add);
-        this.scopeManager.addInCurrentScope(oid, result.toLongArray());
+        logger.debug("Setting scope for entity {} to {}", () -> oid, () -> result);
+        scopeManager.addInCurrentScope(oid, result.toLongArray());
         return result;
     }
 
     private void writeMetricRecords(TableWriter tableWriter) {
+        logger.info("Inserting metric records for topology {}", topologyLabel);
         final Timestamp time = new Timestamp(topologyInfo.getCreationTime());
         metricRecordsMap.int2ObjectEntrySet().forEach(entry -> {
             long oid = entityIdManager.toOid(entry.getIntKey());
@@ -528,6 +545,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
      * @param dataProvider data provider
      */
     private void writeWastedFileRecords(TableWriter tableWriter, DataProvider dataProvider) {
+        logger.info("Writing wasted file records for topology {}", topologyLabel);
         wastedFileRecordsByStorageId.long2ObjectEntrySet().forEach(entry -> {
             final long storageId = entry.getLongKey();
             final String storageName = dataProvider.getDisplayName(storageId).orElseGet(() -> {

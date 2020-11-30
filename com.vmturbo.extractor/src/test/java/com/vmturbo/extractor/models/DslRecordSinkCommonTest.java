@@ -19,7 +19,6 @@ import static org.mockito.Mockito.spy;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -61,8 +60,6 @@ public class DslRecordSinkCommonTest {
     private Column<Long> idColumn;
     private Column<String> descColumn;
     private Column<Double> valueColumn;
-    private final List<String> preHookSql = new ArrayList<>();
-    private final List<String> postHookSql = new ArrayList<>();
     private List<Record> sinkCapture;
 
     /**
@@ -235,13 +232,9 @@ public class DslRecordSinkCommonTest {
             default:
                 throw new IllegalArgumentException("Unknown sink type: " + sinkType);
         }
-        doAnswer(inv -> {
-            inv.getArguments()[0] = getMockConnection(preHookSql);
-            return inv.callRealMethod();
-        }).when(sink).preCopyHook(any(Connection.class));
         sink.accept(createRecord(1L, "xxx", 1.0));
         sink.accept(null);
-        assertThat(preHookSql, matcher);
+        assertThat(sink.getPreCopyHookSql(mock(Connection.class)), matcher);
     }
 
     /**
@@ -272,13 +265,9 @@ public class DslRecordSinkCommonTest {
             default:
                 throw new IllegalArgumentException("Unknown sink type: " + sinkType);
         }
-        doAnswer(inv -> {
-            inv.getArguments()[0] = getMockConnection(postHookSql);
-            return inv.callRealMethod();
-        }).when(sink).postCopyHook(any(Connection.class));
         sink.accept(createRecord(1L, "xxx", 1.0));
         sink.accept(null);
-        assertThat(postHookSql, matcher);
+        assertThat(sink.getPostCopyHookSql(mock(Connection.class)), matcher);
     }
 
     /**

@@ -23,6 +23,8 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -41,7 +43,7 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  * Tests for the {@link EntityHashManager}.
  */
 public class EntityHashManagerTest {
-
+    private static final Logger logger = LogManager.getLogger();
     private EntityHashManager entityHashManager;
     private Record baseEntity;
     private List<Record> sinkCapture;
@@ -80,7 +82,7 @@ public class EntityHashManagerTest {
         // entity initially seen at time 1; new entity => needs to be recorded
         Long hash1;
         try (SnapshotManager snapshotManager = entityHashManager.open(++topologyTime);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             assertThat(snapshotManager.updateRecordHash(baseEntity), notNullValue());
             snapshotManager.processChanges(entitiesWriter);
             hash1 = entityHashManager.getEntityHash(oid);
@@ -89,7 +91,7 @@ public class EntityHashManagerTest {
 
         // same entity seen at time 2, no change so no need to record
         try (SnapshotManager snapshotManager = entityHashManager.open(++topologyTime);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             assertThat(snapshotManager.updateRecordHash(baseEntity), nullValue());
             snapshotManager.processChanges(entitiesWriter);
             assertThat(entityHashManager.getEntityHash(oid), is(hash1));
@@ -99,7 +101,7 @@ public class EntityHashManagerTest {
         // change entity type (unrealistic, but...); change => need to record
         Long hash2;
         try (SnapshotManager snapshotManager = entityHashManager.open(++topologyTime);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             baseEntity.set(ENTITY_TYPE_ENUM, EntityType.PHYSICAL_MACHINE);
             assertThat(snapshotManager.updateRecordHash(baseEntity), notNullValue());
             snapshotManager.processChanges(entitiesWriter);
@@ -115,7 +117,7 @@ public class EntityHashManagerTest {
         // change environment... similar checks as above
         Long hash3;
         try (SnapshotManager snapshotManager = entityHashManager.open(++topologyTime);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             baseEntity.set(ENVIRONMENT_TYPE_ENUM, EnvironmentType.CLOUD);
             assertThat(snapshotManager.updateRecordHash(baseEntity), notNullValue());
             hash3 = entityHashManager.getEntityHash(oid);
@@ -131,7 +133,7 @@ public class EntityHashManagerTest {
         // same deal, change entity state
         Long hash4;
         try (SnapshotManager snapshotManager = entityHashManager.open(++topologyTime);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             baseEntity.set(ENTITY_STATE_ENUM, EntityState.MAINTENANCE);
             assertThat(snapshotManager.updateRecordHash(baseEntity), notNullValue());
             hash4 = entityHashManager.getEntityHash(oid);
@@ -147,7 +149,7 @@ public class EntityHashManagerTest {
         // change attrs
         Long hash5;
         try (SnapshotManager snapshotManager = entityHashManager.open(++topologyTime);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             baseEntity.set(ATTRS, new JsonString("{\"x\": 1}"));
             assertThat(snapshotManager.updateRecordHash(baseEntity), notNullValue());
             hash5 = entityHashManager.getEntityHash(oid);
@@ -163,7 +165,7 @@ public class EntityHashManagerTest {
         // change scope
         Long hash6;
         try (SnapshotManager snapshotManager = entityHashManager.open(++topologyTime);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             baseEntity.set(SCOPED_OIDS, new Long[]{1234L});
             assertThat(snapshotManager.updateRecordHash(baseEntity), notNullValue());
             hash6 = entityHashManager.getEntityHash(oid);
@@ -179,7 +181,7 @@ public class EntityHashManagerTest {
         // entity is back to original state... make sure we see first hash again
         Long hash7;
         try (SnapshotManager snapshotManager = entityHashManager.open(++topologyTime);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             assertThat(snapshotManager.updateRecordHash(baseEntity), notNullValue());
             hash7 = entityHashManager.getEntityHash(oid);
             snapshotManager.processChanges(entitiesWriter);
@@ -243,13 +245,13 @@ public class EntityHashManagerTest {
     public void testThatOrphanedEntitiesAreRemoved() {
         long baseOid = baseEntity.get(ENTITY_OID_AS_OID);
         try (SnapshotManager sm = entityHashManager.open(1L);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             sm.updateRecordHash(baseEntity);
             sm.processChanges(entitiesWriter);
             assertThat(entityHashManager.getEntityHash(baseOid), notNullValue());
         }
         try (SnapshotManager sm = entityHashManager.open(2L);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             baseEntity.set(ENTITY_OID_AS_OID, baseEntity.get(ENTITY_OID_AS_OID) + 1);
             sm.updateRecordHash(baseEntity);
             sm.processChanges(entitiesWriter);
@@ -267,7 +269,7 @@ public class EntityHashManagerTest {
         long updateInterval = TimeUnit.MINUTES.toMillis(config.lastSeenUpdateIntervalMinutes());
         long updateFuzz = TimeUnit.MINUTES.toMillis(config.lastSeenAdditionalFuzzMinutes());
         try (SnapshotManager sm = entityHashManager.open(0L);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             final Record r = new Record(ENTITY_TABLE);
             sm.setRecordTimes(r);
             sm.processChanges(entitiesWriter);
@@ -275,7 +277,7 @@ public class EntityHashManagerTest {
             assertThat(r.get(LAST_SEEN).getTime(), is(updateInterval + updateFuzz));
         }
         try (SnapshotManager sm = entityHashManager.open(updateInterval / 2);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             final Record r = new Record(ENTITY_TABLE);
             sm.setRecordTimes(r);
             sm.processChanges(entitiesWriter);
@@ -283,7 +285,7 @@ public class EntityHashManagerTest {
             assertThat(r.get(LAST_SEEN).getTime(), is(updateInterval + updateFuzz));
         }
         try (SnapshotManager sm = entityHashManager.open(updateInterval - 1);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             final Record r = new Record(ENTITY_TABLE);
             sm.setRecordTimes(r);
             sm.processChanges(entitiesWriter);
@@ -291,7 +293,7 @@ public class EntityHashManagerTest {
             assertThat(r.get(LAST_SEEN).getTime(), is(updateInterval + updateFuzz));
         }
         try (SnapshotManager sm = entityHashManager.open(updateInterval);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             final Record r = new Record(ENTITY_TABLE);
             sm.setRecordTimes(r);
             sm.processChanges(entitiesWriter);
@@ -330,7 +332,7 @@ public class EntityHashManagerTest {
     public void testCorrectedUpdateRecordsForDroppedHashes() {
         final Long baseOid = baseEntity.get(ENTITY_OID_AS_OID);
         try (SnapshotManager sm = entityHashManager.open(1L);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             sm.updateRecordHash(baseEntity);
             sm.setRecordTimes(baseEntity);
             sm.processChanges(entitiesWriter);
@@ -338,7 +340,7 @@ public class EntityHashManagerTest {
         assertThat(sinkCapture, is(empty()));
         long hash = entityHashManager.getEntityHash(baseOid);
         try (SnapshotManager sm = entityHashManager.open(2L);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             baseEntity.set(ENTITY_OID_AS_OID, baseOid + 1);
             sm.updateRecordHash(baseEntity);
             sm.setRecordTimes(baseEntity);
@@ -361,7 +363,7 @@ public class EntityHashManagerTest {
         final long updateFuzz = TimeUnit.MINUTES.toMillis(config.lastSeenAdditionalFuzzMinutes());
         final long baseOid = baseEntity.get(ENTITY_OID_AS_OID);
         try (SnapshotManager sm = entityHashManager.open(0L);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             sm.updateRecordHash(baseEntity);
             sm.setRecordTimes(baseEntity);
             sm.processChanges(entitiesWriter);
@@ -369,7 +371,7 @@ public class EntityHashManagerTest {
         assertThat(sinkCapture, is(empty()));
         long hash = entityHashManager.getEntityHash(baseOid);
         try (SnapshotManager sm = entityHashManager.open(updatePeriod);
-             TableWriter entitiesWriter = ENTITY_TABLE.open(sink)) {
+             TableWriter entitiesWriter = ENTITY_TABLE.open(sink, "test", logger)) {
             sm.updateRecordHash(baseEntity);
             sm.setRecordTimes(baseEntity);
             sm.processChanges(entitiesWriter);

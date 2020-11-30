@@ -64,7 +64,7 @@ class ReportingActionWriter implements IActionWriter {
     private final Clock clock;
 
     /**
-     * Threadpool for asynchronous writes to the database.
+     * Thread pool for asynchronous writes to the database.
      */
     private final ExecutorService pool;
 
@@ -137,11 +137,14 @@ class ReportingActionWriter implements IActionWriter {
         final Timestamp timestamp = new Timestamp(millis);
         try (DSLContext dsl = dbEndpoint.dslContext();
              TableWriter actionSpecUpserter = ActionModel.ActionSpec.TABLE.open(
-                     getActionSpecUpsertSink(dsl, UPSERT_CONFLICTS, UPSERT_UPDATES));
+                     getActionSpecUpsertSink(dsl, UPSERT_CONFLICTS, UPSERT_UPDATES),
+                     "Action Spec Upsert", logger);
              TableWriter actionSpecUpdater = ActionModel.ActionSpec.TABLE.open(
-                     getActionSpecUpdaterSink(dsl, UPDATE_INCLUDES, UPDATE_MATCHES, UPDATE_UPDATES));
+                     getActionSpecUpdaterSink(dsl, UPDATE_INCLUDES, UPDATE_MATCHES, UPDATE_UPDATES),
+                     "Action Spec Update", logger);
              TableWriter actionInserter = ActionModel.ActionMetric.TABLE.open(
-                     getActionInserterSink(dsl));
+                     getActionInserterSink(dsl),
+                     "Action Insert", logger);
              SnapshotManager snapshotManager = actionHashManager.open(millis)) {
             actionSpecRecords.forEach((specId, record) -> {
                 final Long newHash = snapshotManager.updateRecordHash(record);

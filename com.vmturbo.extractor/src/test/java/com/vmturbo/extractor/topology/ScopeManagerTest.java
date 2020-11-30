@@ -82,6 +82,7 @@ public class ScopeManagerTest {
         final ExecutorService pool = Executors.newSingleThreadExecutor();
         final WriterConfig config = mock(WriterConfig.class);
         doReturn(10).when(config).insertTimeoutSeconds();
+        doReturn(true).when(config).populateScopeTable();
         this.scopeManager = new ScopeManager(entityIdManager, endpoint, config, pool);
         this.dsl = endpoint.dslContext();
     }
@@ -196,7 +197,7 @@ public class ScopeManagerTest {
                 r.setStart(r.getStart().withOffsetSameInstant(zone));
             }
             if (r.getFinish().isEqual(ScopeManager.MAX_TIMESTAMP)) {
-                // anotehr fixed value with UTC
+                // another fixed value with UTC
                 r.setFinish(ScopeManager.MAX_TIMESTAMP);
             } else {
                 r.setFinish(r.getFinish().withOffsetSameInstant(zone));

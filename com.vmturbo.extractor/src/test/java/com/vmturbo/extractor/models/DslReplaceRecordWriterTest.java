@@ -59,6 +59,7 @@ public class DslReplaceRecordWriterTest {
             .insertTimeoutSeconds(60)
             .lastSeenAdditionalFuzzMinutes(10)
             .lastSeenUpdateIntervalMinutes(10)
+            .populateScopeTable(true)
             .build();
 
     private DslReplaceRecordSink replaceRecordSink;

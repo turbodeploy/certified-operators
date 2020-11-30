@@ -2,7 +2,7 @@ package com.vmturbo.extractor.models;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.Statement;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
@@ -47,14 +47,14 @@ public class DslUpsertRecordSink extends DslRecordSink {
     }
 
     @Override
-    protected void preCopyHook(final Connection conn) throws SQLException {
-        final String createSql = String.format("CREATE TEMPORARY TABLE %s (LIKE %s)",
+    protected List<String> getPreCopyHookSql(final Connection transConn) {
+        final String sql = String.format("CREATE TEMPORARY TABLE %s (LIKE %s)",
                 getWriteTableName(), table.getName());
-        conn.createStatement().execute(createSql);
+        return Collections.singletonList(sql);
     }
 
     @Override
-    protected void postCopyHook(final Connection conn) throws SQLException {
+    protected List<String> getPostCopyHookSql(final Connection transConn) throws SQLException {
         final String sets = updateColumns.stream()
                 .map(Column::getName)
                 .map(c -> String.format("%s = EXCLUDED.%s", c, c))
@@ -64,8 +64,6 @@ public class DslUpsertRecordSink extends DslRecordSink {
                 table.getName(), getWriteTableName(),
                 conflictColumns.stream().map(Column::getName).collect(Collectors.joining(", ")),
                 sets);
-        final Statement statement = conn.createStatement();
-        statement.execute(upsertSql);
-        logger.info("Upserted {} records into table {}", statement.getUpdateCount(), table.getName());
+        return Collections.singletonList(upsertSql);
     }
 }

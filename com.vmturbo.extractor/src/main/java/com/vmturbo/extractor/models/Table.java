@@ -8,12 +8,15 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import net.jpountz.xxhash.StreamingXXHash64;
+
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.proactivesupport.DataMetricGauge;
 
@@ -77,11 +80,13 @@ public class Table {
      *
      * <p>This begins the operation of inserting a stream of records into the database.</p>
      *
-     * @param sink the record sink
+     * @param sink   the record sink
+     * @param name   name of this writer, for logging purposes
+     * @param logger logger to use for this writer
      * @return TableWriter with the attached sink
      */
-    public TableWriter open(Consumer<Record> sink) {
-        return new TableWriter(this, sink);
+    public TableWriter open(Consumer<Record> sink, String name, Logger logger) {
+        return new TableWriter(this, sink, name, logger);
     }
 
     /**
@@ -154,18 +159,25 @@ public class Table {
 
         private final Table table;
         private final Consumer<Record> sink;
+        private final Logger logger;
+        private final String name;
         private boolean closed = false;
         private long recordsWritten = 0;
+        private final Map<Class<? extends Exception>, Integer> recordErrorCounts = new ConcurrentHashMap<>();
 
         /**
          * Create a new instance.
          *
-         * @param table table we're writin to
-         * @param sink sink to receive records for the table
+         * @param table  table we're writing to
+         * @param sink   sink to receive records for the table
+         * @param name   name of this writer for use in logging
+         * @param logger logger to use for summary log after close
          */
-        public TableWriter(Table table, Consumer<Record> sink) {
+        public TableWriter(Table table, Consumer<Record> sink, String name, Logger logger) {
             this.table = table;
             this.sink = sink;
+            this.name = name;
+            this.logger = logger;
         }
 
         /**
@@ -196,12 +208,12 @@ public class Table {
          * @return the record
          */
         public Record open(Record partial) {
-            if (!closed) {
-                return new Record(table, sink, partial);
-            } else {
-                throw new IllegalStateException(
-                        String.format("TableWriter for table %s is closed", table.getName()));
-            }
+            // note that we don't check closed here, because if we throw an exception we risk
+            // interfering with writing of records not destined for this writer. This is because
+            // a common pattern is to open multiple table writers in a single try-with-resources
+            // statement. If any such record is after written to the writer, it that throw an
+            // exception that will be handled be counted in the recordErrorCounts map.
+            return new Record(this, partial);
         }
 
         /**
@@ -211,8 +223,21 @@ public class Table {
          */
         public void accept(Record full) {
             if (!closed) {
-                sink.accept(full);
-                recordsWritten++;
+                try {
+                    sink.accept(full);
+                    recordsWritten++;
+                } catch (RuntimeException e) {
+                    // failing on a single record shouldn't cause the entire writer to fail, nor
+                    // should it cause other writers created in the same try-with-resources block
+                    // terminate! We'll produce a summary at close.
+                    final Class<? extends Exception> eClass = e.getClass();
+                    if (recordErrorCounts.put(
+                            eClass, recordErrorCounts.getOrDefault(eClass, 0) + 1) == 1) {
+                        // first time we've seen this error... do a full log with stack trace
+                        logger.error("Failed to write record to record sink for {}",
+                                table.getName(), e);
+                    }
+                }
             } else {
                 throw new IllegalStateException(
                         String.format("TableWriter for table %s is closed", table.getName()));
@@ -229,10 +254,18 @@ public class Table {
             sink.accept(null);
             this.closed = true;
             RECORDS_WRITTEN_GAUGE.labels(table.getName()).setData((double)recordsWritten);
+            recordErrorCounts.forEach((eClass, count) ->
+                    logger.warn("Writer {} failed {} record insertions due to {}",
+                            name, count, eClass.getName()));
+            logger.info("Writer {} wrote {} records", name, recordsWritten);
         }
 
         public boolean isClosed() {
             return closed;
+        }
+
+        public Table getTable() {
+            return table;
         }
     }
 
@@ -249,26 +282,25 @@ public class Table {
     public static class Record implements AutoCloseable {
 
         private final Table table;
-        private final Consumer<Record> sink;
+        private final TableWriter tableWriter;
         private final Map<Column<?>, Object> values;
 
-        private Record(Table table, Consumer<Record> sink, Record partial) {
-            this.table = table;
-            this.sink = sink;
+        private Record(TableWriter tableWriter, Record partial) {
+            this.tableWriter = tableWriter;
             this.values = partial != null ? partial.values : new HashMap<>();
+            this.table = tableWriter.getTable();
         }
 
         /**
-         * Create a new record associated with a given table.
+         * Create a {@link Record} that's not attached a record sink. It can later be attached to a
+         * {@link TableWriter} via {@link TableWriter#open(Record)} and inserted by closing it.
          *
-         * <p>This method may be used with a table that does not currently have any attached
-         * sinks, but it must be reconstituted at the later time, generally by opening it
-         * as a partial record with the {@link TableWriter#open(Record)} method.</p>
-         *
-         * @param table the table
+         * @param table table record will be inserted into
          */
         public Record(Table table) {
-            this(table, null, null);
+            this.table = table;
+            this.tableWriter = null;
+            this.values = new HashMap<>();
         }
 
         /**
@@ -391,7 +423,7 @@ public class Table {
 
         @Override
         public void close() {
-            sink.accept(this);
+            tableWriter.accept(this);
         }
 
         /**

@@ -84,6 +84,7 @@ public class ActionWriterTest {
             .lastSeenUpdateIntervalMinutes(1)
             .lastSeenAdditionalFuzzMinutes(1)
             .insertTimeoutSeconds(10)
+            .populateScopeTable(true)
             .build();
 
     private ExecutorService pool = mock(ExecutorService.class);
@@ -205,8 +206,6 @@ public class ActionWriterTest {
 
     /**
      * Test that an AO exception doesn't get propagated to the caller.
-     *
-     * @throws Exception To satisfy compiler.
      */
     @Test
     public void testAOException() {
