@@ -4,9 +4,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.jooq.DSLContext;
 import org.jooq.impl.TableImpl;
@@ -144,10 +144,11 @@ public class EmptyReservedInstanceBoughtStore implements ReservedInstanceBoughtS
         return  Collections.emptyList();
     }
 
-    @Nullable
+    @Nonnull
     @Override
-    public Long getCreationTime(final long riOid) {
-        return null;
+    public Map<Long, Long> getCreationTime(final Set<Long> riOid) {
+        return Collections.emptyMap();
     }
+
 
 }

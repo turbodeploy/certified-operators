@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.reserved.instance;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -159,6 +160,6 @@ public interface ReservedInstanceBoughtStore extends ReservedInstanceCostStore,
      * @return dicovery timestamp
      * @throws DbException throws DB exception when unable to retrieve data.
      */
-    @Nullable
-    Long getCreationTime(long riOid) throws DbException;
+    @Nonnull
+    Map<Long, Long> getCreationTime(Set<Long> riOid);
 }

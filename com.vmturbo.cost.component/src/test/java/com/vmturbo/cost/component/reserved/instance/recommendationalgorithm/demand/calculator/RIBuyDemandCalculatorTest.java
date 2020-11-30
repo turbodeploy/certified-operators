@@ -72,8 +72,7 @@ public class RIBuyDemandCalculatorTest {
         Map<Long, ReservedInstanceAdjustmentTracker> riAdjustmentsById = new HashMap<>();
         // Test for a newly discovered RI with a past purchase date
         yesterday.add(Calendar.DATE, -1);
-        Mockito.when(riBoughtStore.getCreationTime(riBought.getId())).thenReturn(yesterday.getTimeInMillis());
-        demandCalculator.subtractCouponsFromDemand(demand, riAdjustmentsById, riBought, "UnitTest");
+        demandCalculator.subtractCouponsFromDemand(demand, riAdjustmentsById, riBought, "UnitTest", yesterday.getTimeInMillis());
         //adjustment calculated for RI discovered 0 weeks ago
         double expectedLargeAdjustment =
                 Math.pow(0.4d, 0) * riBought.getReservedInstanceBoughtInfo().getReservedInstanceBoughtCoupons().getNumberOfCoupons();
@@ -87,9 +86,8 @@ public class RIBuyDemandCalculatorTest {
         for (int i = 0; i < demand.length; i++) {
             demand[i] = 12.0f;
         }
-        Mockito.when(riBoughtStore.getCreationTime(riBought.getId())).thenReturn(purchaseDate.getTimeInMillis());
         //adjustment calculated for RI purchased and discovered 52 weeks ago
-        demandCalculator.subtractCouponsFromDemand(demand, riAdjustmentsById, riBought, "UnitTest");
+        demandCalculator.subtractCouponsFromDemand(demand, riAdjustmentsById, riBought, "UnitTest", purchaseDate.getTimeInMillis());
         expectedLargeAdjustment =
                 Math.pow(0.4d, 52) * riBought.getReservedInstanceBoughtInfo().getReservedInstanceBoughtCoupons().getNumberOfCoupons();
         expectedSmallAdjustment =

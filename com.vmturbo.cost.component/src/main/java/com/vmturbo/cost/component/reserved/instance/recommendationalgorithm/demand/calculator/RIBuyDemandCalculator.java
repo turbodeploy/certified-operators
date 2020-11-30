@@ -235,13 +235,18 @@ public class RIBuyDemandCalculator {
                                 regionalContext.regionOid());
                 final Set<ReservedInstanceBought> risInScope = riInventoryMatcher.matchToDemandContext(
                         coverageRule, regionalContext, demandContextEntry.getKey());
+                final Set<Long> riIdsInScope = risInScope.stream().map(ri -> ri.getId())
+                                                .collect(Collectors.toSet());
+                final Map<Long, Long> riIdToDiscoveryTimes = riBoughtStore.getCreationTime(riIdsInScope);
 
                 risInScope.forEach(ri -> {
 
+                    final Long creationTime = riIdToDiscoveryTimes.get(ri.getId());
                     subtractCouponsFromDemand(
                             demandContextEntry.getValue(),
                             riAdjustmentsById,
-                            ri, regionalContext.analysisTag());
+                            ri, regionalContext.analysisTag(),
+                            creationTime);
                 });
             }
         }
@@ -383,33 +388,28 @@ public class RIBuyDemandCalculator {
      * VM instance types you have, rather than ideal, so the effect of bias is less important.
      * So, we choose the opposite trade-off and don't subtract RIs at recording time
      * so we can selectively remove them or not during analysis.
-     *
-     * @param demand the recorded demand, in coupons
+     *  @param demand the recorded demand, in coupons
      * @param riAdjustmentsById A map of RI ID to an adjustment tracker, in order to track RI coverage
      *                          applications across demand clusters.
      * @param riBought The RI to adjust for.
      * @param logTag A tag to use in logging.
+     * @param creationTime the timestamp the RI was first discovered by Turbo
      */
     @VisibleForTesting
     void subtractCouponsFromDemand(
             @Nonnull float[] demand,
             @Nonnull Map<Long, ReservedInstanceAdjustmentTracker> riAdjustmentsById,
             @Nonnull ReservedInstanceBought riBought,
-            String logTag) {
+            String logTag, @Nullable final Long creationTime) {
 
         final ReservedInstanceBoughtInfo riInfo = riBought.getReservedInstanceBoughtInfo();
         final double riCoupons = riInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons();
         final Calendar riPurchaseHour = roundDownToHour(riInfo.getStartTime());
         Calendar riDiscoveryHour = riPurchaseHour;
-        try {
-            Long creationTime = riBoughtStore.getCreationTime(riBought.getId());
-            if (creationTime == null) {
+        if (creationTime == null) {
                 logger.warn("Unable to retrieve discovery time for {}", riBought.getId());
-            } else {
+        } else {
                 riDiscoveryHour = roundDownToHour(creationTime);
-            }
-        } catch (DbException e) {
-            logger.warn("Ignoring the RI discovery hour. {}", e.getMessage());
         }
         Calendar riStartHour = (riPurchaseHour.after(riDiscoveryHour)) ? riPurchaseHour : riDiscoveryHour;
         final int purchaseWeeksAgo = weeksAgo(currentHour, riStartHour);

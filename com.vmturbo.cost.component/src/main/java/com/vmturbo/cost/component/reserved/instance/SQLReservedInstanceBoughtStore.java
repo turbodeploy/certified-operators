@@ -33,7 +33,6 @@ import com.google.common.collect.Sets;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
-import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.Record3;
 import org.jooq.Record4;
@@ -60,7 +59,6 @@ import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
-import com.vmturbo.sql.utils.DbException;
 
 /**
  * This class is used to update reserved instance table by latest reserved instance bought data which
@@ -649,17 +647,26 @@ public class SQLReservedInstanceBoughtStore extends AbstractReservedInstanceStor
                 .collect(toList());
     }
 
-    @Nullable
+    @Nonnull
     @Override
-    public Long getCreationTime(final long riOid) throws DbException {
-        Record1<LocalDateTime> discoveryTime =
-                getDSLContext().select(RESERVED_INSTANCE_BOUGHT.DISCOVERY_TIME)
-                .from(RESERVED_INSTANCE_BOUGHT)
-                .where(RESERVED_INSTANCE_BOUGHT.ID.eq(riOid))
-                .fetchOne();
-        if (discoveryTime == null) {
-            return null;
+    public Map<Long, Long> getCreationTime(final Set<Long> riOids) {
+
+        Result<Record2<Long, LocalDateTime>> discoveryTimes =
+                getDSLContext().select(RESERVED_INSTANCE_BOUGHT.ID,
+                                        RESERVED_INSTANCE_BOUGHT.DISCOVERY_TIME)
+                        .from(RESERVED_INSTANCE_BOUGHT)
+                        .where(RESERVED_INSTANCE_BOUGHT.ID.in(riOids))
+                        .fetch();
+        if (discoveryTimes == null) {
+            return Collections.emptyMap();
         }
-        return discoveryTime.value1().toEpochSecond(ZoneOffset.UTC);
+        Map<Long, Long> result = new HashMap<>();
+        for (Record2<Long, LocalDateTime> record: discoveryTimes) {
+            result.put(record.value1(), record.value2().toEpochSecond(ZoneOffset.UTC) );
+        }
+        return result;
     }
+
+
+
 }
