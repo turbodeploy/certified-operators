@@ -37,19 +37,13 @@ public class LiveTopologyEntitiesListenerTest {
         when(cloudTopology.getEntities()).thenReturn(Collections.emptyMap());
         ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate = mock(ReservedInstanceCoverageUpdate.class);
         TopologyInfoTracker topologyInfoTracker = mock(TopologyInfoTracker.class);
-        CloudCommitmentDemandWriter writer = mock(CloudCommitmentDemandWriter.class);
         LiveTopologyEntitiesListener liveTopologyEntitiesListener =
             new LiveTopologyEntitiesListener(
-                    computeTierDemandStatsWriter,
                     topologyCostCalculatorFactory,
-                    mock(TopologyCostCalculatorFactory.class),
-                    mock(EntityCostStore.class),
                     reservedInstanceCoverageUpdate,
                     mock(BusinessAccountHelper.class),
-                    mock(CostJournalRecorder.class),
-                    mock(ReservedInstanceAnalysisInvoker.class),
                     topologyInfoTracker,
-                    writer);
+                    Collections.emptyList());
         RemoteIterator remoteIterator = mock(RemoteIterator.class);
         when(remoteIterator.hasNext()).thenReturn(false);
         when(topologyCostCalculatorFactory.newCloudTopology(1L, remoteIterator)).thenReturn(cloudTopology);

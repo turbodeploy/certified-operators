@@ -1,6 +1,6 @@
 package com.vmturbo.cost.component.topology;
 
-import javax.annotation.PostConstruct;
+import java.util.Arrays;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -41,6 +41,9 @@ import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
+import com.vmturbo.cost.component.topology.cloud.listener.CCADemandCollector;
+import com.vmturbo.cost.component.topology.cloud.listener.EntityCostWriter;
+import com.vmturbo.cost.component.topology.cloud.listener.RIBuyRunner;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
@@ -131,15 +134,11 @@ public class TopologyListenerConfig {
     public LiveTopologyEntitiesListener liveTopologyEntitiesListener() {
         final LiveTopologyEntitiesListener entitiesListener =
                 new LiveTopologyEntitiesListener(
-                        computeTierDemandStatsConfig.riDemandStatsWriter(),
-                        cloudTopologyFactory(), topologyCostCalculatorFactory(),
-                        entityCostConfig.entityCostStore(),
+                        cloudTopologyFactory(),
                         reservedInstanceConfig.reservedInstanceCoverageUpload(),
                         costConfig.businessAccountHelper(),
-                        costJournalRecorder(),
-                        buyRIAnalysisConfig.reservedInstanceAnalysisInvoker(),
                         topologyProcessorListenerConfig.liveTopologyInfoTracker(),
-                        cloudCommitmentAnalysisStoreConfig.cloudCommitmentDemandWriter());
+                        Arrays.asList(entityCostWriter(), riBuyRunner(), ccaDemandCollector()));
 
         topologyProcessorListenerConfig.topologyProcessor()
                 .addLiveTopologyListener(entitiesListener);
@@ -254,5 +253,37 @@ public class TopologyListenerConfig {
     @Bean
     public CostJournalRecorderController costJournalRecorderController() {
         return new CostJournalRecorderController(costJournalRecorder());
+    }
+
+    /**
+     * Bean for the entity cost writer.
+     *
+     * @return An instance of the entity cost writer.
+     */
+    @Bean
+    public EntityCostWriter entityCostWriter() {
+        return new EntityCostWriter(reservedInstanceConfig.reservedInstanceCoverageUpload(), topologyCostCalculatorFactory(),
+                costJournalRecorder(), entityCostConfig.entityCostStore());
+    }
+
+    /**
+     * Bean for the RI Buy runner.
+     *
+     * @return An instance of the RI Buy runner.
+     */
+    @Bean
+    public RIBuyRunner riBuyRunner() {
+        return new RIBuyRunner(buyRIAnalysisConfig.reservedInstanceAnalysisInvoker(), costConfig.businessAccountHelper(),
+                computeTierDemandStatsConfig.riDemandStatsWriter());
+    }
+
+    /**
+     * Bean for the CCA demand collector.
+     *
+     * @return An instance of the CCA demand collector.
+     */
+    @Bean
+    public CCADemandCollector ccaDemandCollector() {
+        return new CCADemandCollector(cloudCommitmentAnalysisStoreConfig.cloudCommitmentDemandWriter());
     }
 }
