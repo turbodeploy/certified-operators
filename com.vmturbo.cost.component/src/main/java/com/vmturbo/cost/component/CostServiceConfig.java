@@ -30,7 +30,7 @@ public class CostServiceConfig {
     @Autowired
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
 
-    @Value("${riSupportInPartialCloudEnvironment:true}")
+    @Value("${riSupportInPartialCloudEnvironment:false}")
     private boolean riSupportInPartialCloudEnvironment;
 
     @Bean
