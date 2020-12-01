@@ -170,7 +170,9 @@ public class ReservedInstanceSpecMatcherFactory {
                 .tenancy(riSpecInfo.getTenancy())
                 .regionOid(riSpecInfo.getRegionId());
 
-        if (!riSpecInfo.getSizeFlexible()) {
+        // The num coupons check on the compute tier is required if the probe for some reason does not
+        // set the family on the tier in which case we want to treat it as instance size inflexible.
+        if (!riSpecInfo.getSizeFlexible() || computeTierInfo.getNumCoupons() <= 0) {
             riSpecKeyBuilder.computerTierOid(riSpecData.computeTier().getOid());
         }
 
