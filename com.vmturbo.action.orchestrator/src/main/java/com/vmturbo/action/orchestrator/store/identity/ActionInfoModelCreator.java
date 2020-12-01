@@ -212,7 +212,12 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
     @Nonnull
     private static ActionInfoModel getDelete(@Nonnull ActionInfo action) {
         final Delete delete = action.getDelete();
-        return new ActionInfoModel(ActionTypeCase.DELETE, delete.getTarget().getId(), null, null);
+        final DeleteModel model = new DeleteModel(
+                delete.getTarget().getId(),
+                delete.getFilePath());
+
+        return new ActionInfoModel(ActionTypeCase.DELETE, delete.getTarget().getId(),
+                gson.toJson(model), null);
     }
 
     @Nonnull
@@ -344,4 +349,18 @@ public class ActionInfoModelCreator implements Function<ActionInfo, ActionInfoMo
             this.provisionIndex = provisionIndex;
         }
     }
+
+    /**
+     * Model for Delete action details.
+     */
+    private static class DeleteModel {
+        private final long targetEntityId;
+        private final String filePath;
+
+        private DeleteModel(long targetEntityId, String filePath) {
+            this.targetEntityId = targetEntityId;
+            this.filePath = filePath;
+        }
+    }
+
 }
