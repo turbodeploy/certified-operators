@@ -358,7 +358,6 @@ public class VirtualVolumeAspectMapperTest {
     private final int storageAmountCapacityInMB = 2 * 1024;
     private final double hourlyBilledOps = 1234;
     private final String snapshotId = "snap-vv1";
-    private final long now = System.currentTimeMillis();
 
     private final ApiPartialEntity region = ApiPartialEntity.newBuilder().setOid(azureRegionId)
             .setEntityType(EntityType.REGION_VALUE)
@@ -384,10 +383,6 @@ public class VirtualVolumeAspectMapperTest {
                             .setAttachmentState(AttachmentState.ATTACHED)
                             .setEncryption(true)
                             .setHourlyBilledOps(hourlyBilledOps)
-                            .addFiles(VirtualVolumeFileDescriptor.newBuilder()
-                                    .setPath("path")
-                                    .setModificationTimeMs(now)
-                                    .build())
                             .build()))
             .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                     .setCommodityType(CommodityType.newBuilder()
@@ -594,7 +589,6 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(String.valueOf(vmId1), volumeAspect.getAttachedVirtualMachine().getUuid());
 
         assertEquals(hourlyBilledOps, volumeAspect.getHourlyBilledOps(), DELTA);
-        assertEquals(now, volumeAspect.getLastModified());
     }
 
     /**
