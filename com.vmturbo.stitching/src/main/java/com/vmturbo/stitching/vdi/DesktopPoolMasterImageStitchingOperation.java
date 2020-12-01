@@ -6,8 +6,12 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData;
@@ -29,7 +33,11 @@ import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
  * property to entity properties to identify if the UID was a VM.
  */
 public class DesktopPoolMasterImageStitchingOperation implements StitchingOperation<String, String> {
+    private static final String SEPARATOR = "_";
     private final Logger logger = LogManager.getLogger();
+
+    // master image VM id -> associated desktop pools
+    private final Multimap<String, String> masterVMToDesktopPools = HashMultimap.create();
 
     @Nonnull
     @Override
@@ -61,17 +69,33 @@ public class DesktopPoolMasterImageStitchingOperation implements StitchingOperat
                 .getDesktopPoolData().hasMasterImage()) {
             return Collections.emptySet();
         }
-        return Collections.singleton(internalEntity.getEntityBuilder()
-                .getVirtualDatacenterData().getDesktopPoolData().getMasterImage());
+        final Builder entityBuilder = internalEntity.getEntityBuilder();
+        final String entityId = entityBuilder.getId();
+        final String masterImage = entityBuilder
+            .getVirtualDatacenterData().getDesktopPoolData().getMasterImage();
+        // composite signature comprising desktop pool id and master image id, as there may be more
+        // than one desktop pool associated with given master image
+        final String signature = entityId + SEPARATOR + masterImage;
+        // keep track of signatures associated with master image, so that lookup key can be retrieved
+        // later for master image
+        masterVMToDesktopPools.put(masterImage, signature);
+        return Collections.singleton(signature);
     }
 
+    /** {@inheritDoc}
+     * <p></p>
+     * NOTE: this implementation assumes
+     * {@link DesktopPoolMasterImageStitchingOperation#getInternalSignature }
+     * is called first to populate the map that tracks desktop pools associated with master image.
+     */
     @Override
     public Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
         final String entityId = externalEntity.getEntityBuilder().getId();
-        if (entityId == null) {
+        final Collection<String> desktopPoolIds = masterVMToDesktopPools.removeAll(entityId);
+        if (CollectionUtils.isEmpty(desktopPoolIds)) {
             return Collections.emptySet();
         }
-        return Collections.singleton(entityId);
+        return desktopPoolIds;
     }
 
     @Nonnull
