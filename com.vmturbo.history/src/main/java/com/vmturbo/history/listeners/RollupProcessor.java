@@ -6,8 +6,12 @@ import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_HOU
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_LATEST;
+import static com.vmturbo.history.schema.abstraction.Tables.VOLUME_ATTACHMENT_HISTORY;
+import static org.jooq.impl.DSL.currentDate;
+import static org.jooq.impl.DSL.dateDiff;
 import static org.jooq.impl.DSL.exists;
 import static org.jooq.impl.DSL.inline;
+import static org.jooq.impl.DSL.max;
 import static org.jooq.impl.DSL.select;
 import static org.jooq.impl.DSL.selectFrom;
 
@@ -80,6 +84,14 @@ public class RollupProcessor {
     private static final String ENTITY_ROLLUP_PROC = new EntityStatsRollup().getName();
     private static final String CLUSTER_STATS_ROLLUP_PROC = "cluster_stats_rollup";
     private static final String CLUSTER_TABLE_PREFIX = "cluster";
+    /**
+     * If the most recent last_discovered_date column value for a Volume OID is older than
+     * (current date - VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD), then all records related to this
+     * Volume OID will be deleted from the volume_attachment_history table. As this implies that
+     * the Volume has not been discovered for a period defined by
+     * VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD and may have been deleted from the environment.
+     */
+    public static final int VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD = 14;
 
     private final HistorydbIO historydbIO;
     private final ExecutorService executorService;
@@ -210,6 +222,29 @@ public class RollupProcessor {
             Routines.purgeExpiredClusterStats(historydbIO.using(conn).configuration());
         } catch (VmtDbException | SQLException | DataAccessException e) {
             logger.error("Failed to delete expired cluster_stats records", e);
+        } finally {
+            timer.stop();
+        }
+        timer.start("Purge expired volume_attachment_history records");
+        try (Connection conn = historydbIO.connection()) {
+           final int deletedRowsCount =
+                historydbIO.using(conn)
+                    .delete(VOLUME_ATTACHMENT_HISTORY)
+                    .where(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID
+                        .in(HistorydbIO.getJooqBuilder()
+                            .select(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID)
+                            .from(VOLUME_ATTACHMENT_HISTORY)
+                            .groupBy(VOLUME_ATTACHMENT_HISTORY.VOLUME_OID)
+                            .having(dateDiff(currentDate(),
+                                max(VOLUME_ATTACHMENT_HISTORY.LAST_DISCOVERED_DATE))
+                                .gt(VOL_ATTACHMENT_HISTORY_RETENTION_PERIOD))))
+                    .execute();
+            if (deletedRowsCount > 0) {
+                logger.info("Number of rows deleted from Volume Attachment History table: {}",
+                    deletedRowsCount);
+            }
+        } catch (VmtDbException | SQLException | DataAccessException e) {
+            logger.error("Failed to delete expired volume_attachment_history records", e);
         } finally {
             timer.stop();
         }
