@@ -13,6 +13,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 
 public class VirtualVolumeInfoMapperTest {
@@ -23,21 +24,27 @@ public class VirtualVolumeInfoMapperTest {
     @Test
     public void testExtractTypeSpecificInfo() {
         // arrange
+        final double hourlyBilledOps = 123D;
+        final VirtualVolumeFileDescriptor file = VirtualVolumeFileDescriptor.newBuilder()
+                .setPath("path")
+                .build();
         final EntityDTOOrBuilder virtualVolumeEntityDTO = EntityDTO.newBuilder()
                 .setVirtualVolumeData(VirtualVolumeData.newBuilder()
                         .setRedundancyType(REDUNDANCY_TYPE)
                         .setSnapshotId(SNAPSHOT_ID)
                         .setAttachmentState(AttachmentState.ATTACHED)
                         .setEncrypted(true)
-                        .setHourlyBilledOps(123D)
+                        .setHourlyBilledOps(hourlyBilledOps)
+                        .addFile(file)
                         .build());
-        TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
+        final TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
                 .setVirtualVolume(VirtualVolumeInfo.newBuilder()
                         .setRedundancyType(REDUNDANCY_TYPE)
                         .setSnapshotId(SNAPSHOT_ID)
                         .setAttachmentState(AttachmentState.ATTACHED)
                         .setEncryption(true)
-                        .setHourlyBilledOps(123D)
+                        .setHourlyBilledOps(hourlyBilledOps)
+                        .addFiles(file)
                         .build())
                 .build();
         final VirtualVolumeInfoMapper testBuilder = new VirtualVolumeInfoMapper();

@@ -1126,6 +1126,10 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             if (volumeInfo.hasHourlyBilledOps()) {
                 apiDto.setHourlyBilledOps(volumeInfo.getHourlyBilledOps());
             }
+            // Get the most recent date from associated files
+            apiDto.setLastModified(volumeInfo.getFilesList().stream()
+                    .mapToLong(VirtualVolumeFileDescriptor::getModificationTimeMs)
+                    .max().orElse(0));
         }
 
         return apiDto;
