@@ -96,8 +96,7 @@ public class WidgetsetDbStoreTest {
         addDbWidgets(testDbStore);
         List<String> categoriesList = Lists.newArrayList("a", "b");
         // Act
-        Iterator<WidgetsetRecord> result = testDbStore.search(categoriesList, null, USER_OID_1,
-            false);
+        Iterator<WidgetsetRecord> result = testDbStore.search(categoriesList, null, USER_OID_1);
         // Assert
         ArrayList<WidgetsetRecord> resultList = Lists.newArrayList(result);
         assertThat(resultList.size(), equalTo(2));
@@ -113,7 +112,7 @@ public class WidgetsetDbStoreTest {
         addDbWidgets(testDbStore);
         String scopeType = "scope-type";
         // Act
-        Iterator<WidgetsetRecord> result = testDbStore.search(null, scopeType, USER_OID_2, false);
+        Iterator<WidgetsetRecord> result = testDbStore.search(null, scopeType, USER_OID_2);
         // Assert
         ArrayList<WidgetsetRecord> resultList = Lists.newArrayList(result);
         assertThat(resultList.size(), equalTo(1));
@@ -128,27 +127,11 @@ public class WidgetsetDbStoreTest {
         // Arrange
         addDbWidgets(testDbStore);
         // Act
-        Iterator<WidgetsetRecord> result = testDbStore.search(null, null, USER_OID_2, false);
+        Iterator<WidgetsetRecord> result = testDbStore.search(null, null, USER_OID_2);
         // Assert
         ArrayList<WidgetsetRecord> resultList = Lists.newArrayList(result);
         assertThat(resultList.size(), equalTo(2));
         assertThat(resultList, containsInAnyOrder(widgetsetRecord3, widgetsetRecord4));
-    }
-
-    /**
-     * All the widgets should be available by a user with an administrator role
-     */
-    @Test
-    public void testWidgetsVisibleByAdmin() {
-        // Arrange
-        addDbWidgets(testDbStore);
-        // Act
-        Iterator<WidgetsetRecord> result = testDbStore.search(null, null, USER_OID_2, true);
-        // Assert
-        ArrayList<WidgetsetRecord> resultList = Lists.newArrayList(result);
-        assertThat(resultList.size(), equalTo(4));
-        assertThat(resultList, containsInAnyOrder(widgetsetRecord1, widgetsetRecord2,
-            widgetsetRecord3, widgetsetRecord4));
     }
 
     /**

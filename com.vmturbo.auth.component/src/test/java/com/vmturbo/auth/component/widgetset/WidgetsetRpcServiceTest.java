@@ -124,7 +124,7 @@ public class WidgetsetRpcServiceTest {
         List<String> categories = Lists.newArrayList("a", "b");
         String scopeType = "scope-type";
 
-        when(widgetsetStore.search(categories, scopeType, userOid, true))
+        when(widgetsetStore.search(categories, scopeType, userOid))
                 .thenReturn(WIDGETSET_RECORDS.iterator());
         // Act
         Iterator<Widgetset> result = widgetsetRpcClient
