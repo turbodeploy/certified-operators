@@ -366,11 +366,15 @@ public interface AnalysisFactory {
         }
 
         public boolean isEnableSMA() {
-            return marketMode == MarketMode.SMAOnly || marketMode == MarketMode.M2withSMAActions;
+            return marketMode == MarketMode.SMAOnly || marketMode == MarketMode.SMALite || marketMode == MarketMode.M2withSMAActions;
         }
 
         public boolean isSMAOnly() {
-            return marketMode == MarketMode.SMAOnly;
+            return marketMode == MarketMode.SMAOnly || marketMode == MarketMode.SMALite;
+        }
+
+        public boolean isSMALite() {
+            return marketMode == MarketMode.SMALite;
         }
 
         public boolean isM2withSMAActions() {

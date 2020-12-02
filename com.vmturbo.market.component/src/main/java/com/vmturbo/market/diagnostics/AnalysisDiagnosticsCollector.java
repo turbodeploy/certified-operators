@@ -52,6 +52,8 @@ public class AnalysisDiagnosticsCollector {
     @VisibleForTesting
     static final String SMA_CONTEXT_PREFIX = "Context";
     @VisibleForTesting
+    static final String SMA_CONFIG_PREFIX = "Config";
+    @VisibleForTesting
     static final String SMA_TEMPLATE_PREFIX = "Template";
 
 
@@ -162,6 +164,10 @@ public class AnalysisDiagnosticsCollector {
                         SMA_CONTEXT_PREFIX + "_" + contextIndex + "_"
                                 + SMAINPUT_FILE_NAME,
                         "SMA Context" + " contextID: " + contextIndex);
+                writeAnalysisDiagsEntry(diagsWriter, Stream.of(inputContext.getSmaConfig()),
+                        SMA_CONFIG_PREFIX + "_" + contextIndex + "_"
+                                + SMAINPUT_FILE_NAME,
+                        "SMA Config" + " contextID: " + contextIndex);
             }
         } catch (StackOverflowError e) {
             // If any of the objects being converted to JSON have a circular reference, then it

@@ -109,6 +109,7 @@ public class SMAInput {
      * @param marketCloudRateExtractor used to figure out the discounts for business accounts
      * @param consistentScalingHelper used to figure out the consistent scaling information.
      * @param isPlan is true if plan otherwise real time.
+     * @param reduceDependency if true will reduce relinquishing
      */
     public SMAInput(
             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
@@ -116,7 +117,8 @@ public class SMAInput {
             @Nonnull CloudCostData<TopologyEntityDTO> cloudCostData,
             @Nonnull CloudRateExtractor marketCloudRateExtractor,
             @Nonnull ConsistentScalingHelper consistentScalingHelper,
-            boolean isPlan) {
+            boolean isPlan,
+            boolean reduceDependency) {
         // check input parameters are not null
         Objects.requireNonNull(cloudTopology, "source cloud topology is null");
         Objects.requireNonNull(providers, "providers are null");
@@ -249,7 +251,7 @@ public class SMAInput {
          */
         stopWatchDetails.reset();
         stopWatchDetails.start();
-        inputContexts = generateInputContexts(smaContextToVMs, smaContextToRIs, smaContextToTemplates);
+        inputContexts = generateInputContexts(smaContextToVMs, smaContextToRIs, smaContextToTemplates, reduceDependency);
         logger.info("{}ms to generate SMAInputContexts",
             stopWatchDetails.elapsed(TimeUnit.MILLISECONDS));
         logger.info("total {}ms to convert to SMA data structures",
@@ -261,12 +263,14 @@ public class SMAInput {
      * @param smaContextToVMs         Map from context to set of VMs
      * @param smaContextToRIs         Map from context to set of RIs
      * @param smaContextToTemplates   Map from context to set of Templates
+     * @param reduceDependency if true will reduce relinquishing
      * @return list of input contexts
      */
     @Nonnull
     private static List<SMAInputContext> generateInputContexts(Map<SMAContext, Set<SMAVirtualMachine>> smaContextToVMs,
                                                          Map<SMAContext, Set<SMAReservedInstance>> smaContextToRIs,
-                                                         Map<SMAContext, Set<SMATemplate>> smaContextToTemplates) {
+                                                         Map<SMAContext, Set<SMATemplate>> smaContextToTemplates,
+                                                         boolean reduceDependency) {
         List<SMAInputContext> inputContexts = new ArrayList<>();
         Set<SMAContext> smaContexts = smaContextToVMs.keySet();
         logger.info("build input contexts for {} contexts", () -> smaContexts.size());
@@ -289,7 +293,7 @@ public class SMAInput {
             SMAInputContext inputContext = new SMAInputContext(context,
                 Lists.newArrayList(smaVMs),
                 (smaRIs == null ? new ArrayList<>() : Lists.newArrayList(smaRIs)),
-                Lists.newArrayList(smaTemplates));
+                Lists.newArrayList(smaTemplates), new SMAConfig(reduceDependency));
             inputContexts.add(inputContext);
         }
         return inputContexts;

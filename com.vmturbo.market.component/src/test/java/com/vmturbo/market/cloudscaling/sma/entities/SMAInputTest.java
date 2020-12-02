@@ -297,7 +297,7 @@ public class SMAInputTest {
 
         //create SMAInput
         final SMAInput smaInput = new SMAInput(cloudTopology, providers, cloudCostData,
-                marketCloudRateExtractor, consistentScalingHelper, false);
+                marketCloudRateExtractor, consistentScalingHelper, false, false);
         Assert.assertEquals(1, smaInput.getContexts().size());
         final SMAInputContext smaContext = smaInput.getContexts().iterator().next();
         Assert.assertEquals(2, smaContext.getVirtualMachines().size());

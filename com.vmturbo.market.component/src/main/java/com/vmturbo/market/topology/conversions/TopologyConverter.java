@@ -539,6 +539,15 @@ public class TopologyConverter {
 
 
     /**
+     * is the market mode SMA.
+     * @return true if the market mode is SMAOnly or SMALite
+     */
+    private boolean isSMAOnly() {
+        return (marketMode == MarketMode.SMALite
+                || marketMode == MarketMode.SMAOnly);
+    }
+
+    /**
      * get the TopologyEntityDTO OID corresponding to the oid of a On-demand TemplateProvider.
      * return empty if the traderTOOID is a CBTP.
      * @param traderTOOID  oid of a TemplateProvider
@@ -3095,7 +3104,7 @@ public class TopologyConverter {
                 createDCCommodityBoughtForCloudEntity(providerOid, entityForSLOid)
                         .ifPresent(values::add);
             }
-            if (marketMode != MarketMode.SMAOnly || isCloudMigration) {
+            if (!isSMAOnly() || isCloudMigration) {
                 // Create Coupon Comm
                 Optional<CommodityBoughtTO> coupon = createCouponCommodityBoughtForCloudEntity(
                         providerOid, entityForSLOid);
@@ -3193,7 +3202,7 @@ public class TopologyConverter {
                     commBoughtGroupingForSL.getCommodityBoughtList()));
 
         // in SMAOnly mode we are preventing M2 to generate actions for cloud VMs
-        if (addShoppingListToSMA && marketMode == MarketMode.SMAOnly) {
+        if (addShoppingListToSMA && isSMAOnly()) {
             economyShoppingListBuilder.setMovable(false);
         }
 

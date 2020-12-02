@@ -24,6 +24,10 @@ public class SMAInputContext {
      */
     private final SMAContext context;
     /*
+     * The config
+     */
+    private SMAConfig smaConfig = new SMAConfig();
+    /*
      * List of virtual machines
      */
     private final List<SMAVirtualMachine> virtualMachines;
@@ -36,6 +40,27 @@ public class SMAInputContext {
      * List of templates; that is, providers
      */
     private final List<SMATemplate> templates;
+
+    /**
+     * The constructor for SMAInputContext with config.
+     *
+     * @param context the current context
+     * @param virtualMachines the virtual machines in this context
+     * @param reservedInstances the reserved instance in this context
+     * @param templates the templates in this context
+     * @param smaConfig the config
+     */
+    public SMAInputContext(@Nonnull final SMAContext context,
+                           @Nonnull final List<SMAVirtualMachine> virtualMachines,
+                           final List<SMAReservedInstance> reservedInstances,
+                           @Nonnull final List<SMATemplate> templates,
+                           @Nonnull final SMAConfig smaConfig) {
+        this.context = Objects.requireNonNull(context, "context is null!");
+        this.virtualMachines = Objects.requireNonNull(virtualMachines, "virutalMachines is null!");
+        this.reservedInstances = reservedInstances;
+        this.templates = Objects.requireNonNull(templates, "templates is null!");
+        this.smaConfig = smaConfig;
+    }
 
     /**
      * The constructor for SMAInputContext.
@@ -63,6 +88,7 @@ public class SMAInputContext {
     public SMAInputContext(@Nonnull final SMAInputContext inputContext) {
         this.context = inputContext.getContext();
         this.templates = inputContext.getTemplates();
+        this.smaConfig = inputContext.getSmaConfig();
         List<SMAVirtualMachine> newVirtualMachines = new ArrayList<>();
         for (SMAVirtualMachine oldVM : inputContext.getVirtualMachines()) {
             SMAVirtualMachine smaVirtualMachine = new SMAVirtualMachine(oldVM.getOid(),
@@ -100,6 +126,7 @@ public class SMAInputContext {
     public SMAInputContext(@Nonnull final SMAInputContext inputContext,
                            @Nonnull final SMAOutputContext outputContext) {
         this.context = inputContext.getContext();
+        this.smaConfig = inputContext.getSmaConfig();
         this.templates = inputContext.getTemplates();
         List<SMAVirtualMachine> newVirtualMachines = new ArrayList<>();
         for (SMAMatch smaMatch : outputContext.getMatches()) {
@@ -146,6 +173,23 @@ public class SMAInputContext {
     @Nonnull
     public List<SMATemplate> getTemplates() {
         return templates;
+    }
+
+    /**
+     * getter for smaConfig.
+     * @return the smaConfig.
+     */
+    @Nonnull
+    public SMAConfig getSmaConfig() {
+        return smaConfig;
+    }
+
+    /**
+     * setter for smaConfig.
+     * @param smaConfig the new smaConfig
+     */
+    public void setSmaConfig(final SMAConfig smaConfig) {
+        this.smaConfig = smaConfig;
     }
 
     @Override

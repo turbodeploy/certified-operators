@@ -499,9 +499,10 @@ public class Analysis {
                             }
                             boolean isOptimizeCloudPlan = (topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().getPlanType()
                                     .equals(StringConstants.OPTIMIZE_CLOUD_PLAN));
+                            boolean reduceDependency = !isOptimizeCloudPlan && config.isSMALite();
                             SMAInput smaInput = new SMAInput(originalCloudTopology,
                                     cloudVmOidToProvidersOIDsMap,
-                                    topologyCostCalculator.getCloudCostData(), marketCloudRateExtractor, converter.getConsistentScalingHelper(), isOptimizeCloudPlan);
+                                    topologyCostCalculator.getCloudCostData(), marketCloudRateExtractor, converter.getConsistentScalingHelper(), isOptimizeCloudPlan, reduceDependency);
                             saveSMADiags(smaInput);
                             smaConverter.setSmaOutput(StableMarriageAlgorithm.execute(smaInput));
                         }

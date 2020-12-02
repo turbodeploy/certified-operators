@@ -10,6 +10,7 @@ import java.util.List;
 import com.google.gson.Gson;
 
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAMatchTestTrim;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAConfig;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAReservedInstance;
@@ -74,6 +75,9 @@ public class JsonToSMAInputTranslator {
             e.printStackTrace();
         }
         SMAInputContext smaInputContext = new Gson().fromJson(br, SMAInputContext.class);
+        if (smaInputContext.getSmaConfig() == null) {
+            smaInputContext.setSmaConfig(new SMAConfig());
+        }
         smaInputContext.decompress();
         return smaInputContext;
     }

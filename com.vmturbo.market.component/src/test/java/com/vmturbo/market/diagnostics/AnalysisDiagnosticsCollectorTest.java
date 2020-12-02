@@ -37,6 +37,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.market.cloudscaling.sma.analysis.SMAUtils;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
+import com.vmturbo.market.cloudscaling.sma.entities.SMAConfig;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
@@ -99,9 +100,33 @@ public class AnalysisDiagnosticsCollectorTest {
             SMAOutput smaOutput = StableMarriageAlgorithm.execute(smaInput.get());
             logger.info("SMA generated {} outputContexts", smaOutput.getContexts().size());
             assertTrue(getActionCount(smaOutput) > 0);
+            computeSaving(smaOutput);
         } else {
             logger.error("Could not create SMAInput. SMA was not run.");
         }
+    }
+
+    /**
+     * Compute the savings obtained after SMA.
+     *
+     * @param smaOutput the topology of interest.
+     */
+    public void computeSaving(SMAOutput smaOutput) {
+        float saving = 0.0f;
+        for (SMAOutputContext outputContext : smaOutput.getContexts()) {
+            for (SMAMatch smaMatch : outputContext.getMatches()) {
+                SMAVirtualMachine virtualMachine = smaMatch.getVirtualMachine();
+                float currentCost = virtualMachine.getCurrentTemplate().getNetCost(
+                        virtualMachine.getBusinessAccountId(),
+                        virtualMachine.getOsType(), virtualMachine.getCurrentRICoverage());
+                float projectedCost = smaMatch.getTemplate().getNetCost(
+                        virtualMachine.getBusinessAccountId(),
+                        virtualMachine.getOsType(),
+                        smaMatch.getDiscountedCoupons());
+                saving += currentCost - projectedCost;
+            }
+        }
+        logger.info("Savings: {}", saving);
     }
 
     /**
@@ -146,7 +171,7 @@ public class AnalysisDiagnosticsCollectorTest {
                             newReservedInstances.add(newRI);
                         }
                         newInputContexts.add(new SMAInputContext(context, newVirtualMachines,
-                                newReservedInstances, inputContext.getTemplates()));
+                                newReservedInstances, inputContext.getTemplates(), inputContext.getSmaConfig()));
                     }
                 }
             }
@@ -223,6 +248,7 @@ public class AnalysisDiagnosticsCollectorTest {
             Map<Integer, List<SMAReservedInstance>> reservedInstanceList = new HashMap<>();
             Map<Integer, List<SMATemplate>> templateList = new HashMap<>();
             Map<Integer, SMAContext> contextList = new HashMap<>();
+            Map<Integer, SMAConfig> configList = new HashMap<>();
             List<SMAInputContext> smaInputContexts = new ArrayList<>();
             while (paths.hasNext()) {
                 Path path = paths.next();
@@ -245,6 +271,15 @@ public class AnalysisDiagnosticsCollectorTest {
                         }
                         contextList.put(index, context.get());
                         break;
+                    case AnalysisDiagnosticsCollector.SMA_CONFIG_PREFIX:
+                        Optional<SMAConfig> config = extractSingleInstanceOfType(path, SMAConfig.class);
+                        if (!config.isPresent()) {
+                            smaInput = Optional.empty();
+                            logger.error("Could not create SMAInput. config is absent.");
+                            return;
+                        }
+                        configList.put(index, config.get());
+                        break;
                     case AnalysisDiagnosticsCollector.SMA_TEMPLATE_PREFIX:
                         templateList.put(index, extractMultipleInstancesOfType(path, SMATemplate.class));
                         break;
@@ -264,9 +299,16 @@ public class AnalysisDiagnosticsCollectorTest {
                     logger.error("Could not create SMAInput.");
                     return;
                 }
-                smaInputContexts.add(new SMAInputContext(contextList.get(index),
-                        virtualMachineList.get(index),
-                        reservedInstanceList.get(index), templateList.get(index)));
+                if (configList.get(index) == null) {
+                    smaInputContexts.add(new SMAInputContext(contextList.get(index),
+                            virtualMachineList.get(index),
+                            reservedInstanceList.get(index), templateList.get(index)));
+                } else {
+                    smaInputContexts.add(new SMAInputContext(contextList.get(index),
+                            virtualMachineList.get(index),
+                            reservedInstanceList.get(index),
+                            templateList.get(index), configList.get(index)));
+                }
             }
 
             smaInput = Optional.of(new SMAInput(smaInputContexts));

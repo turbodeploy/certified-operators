@@ -199,7 +199,7 @@ public class StableMarriagePerContext {
         createRIToVMsMap(virtualMachines,
                 remainingCoupons, virtualMachineGroupMap,
                 familyNameToTemplates,
-                statistics);
+                statistics, inputContext.getSmaConfig().isReduceDependency());
 
         // map to keep track of the successful engagements so far.
         Map<SMAVirtualMachine, SMAMatch> currentEngagements = new HashMap<>();
@@ -435,13 +435,15 @@ public class StableMarriagePerContext {
      * @param virtualMachineGroupMap map from group name to virtualMachine Group
      * @param familyNameToTemplates  map from family name to list of SMATemplates
      * @param statistics the statistics of the SMA
+     * @param reduceDependency if true will reduce relinquishing
      */
     public static void
     createRIToVMsMap(List<SMAVirtualMachine> virtualMachines,
                      Map<SMAReservedInstance, Float> remainingCoupons,
                      Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
                      Map<String, List<SMATemplate>> familyNameToTemplates,
-                     SMAStatistics statistics) {
+                     SMAStatistics statistics,
+                     boolean reduceDependency) {
 
         final Stopwatch stopWatch = Stopwatch.createStarted();
 
@@ -487,7 +489,7 @@ public class StableMarriagePerContext {
                 }
             }
             // TODO move attribute remaining coupons to SMAReservedInstance
-            sortAndUpdateVMList(virtualMachineList, remainingCoupons.get(ri), ri, virtualMachineGroupMap);
+            sortAndUpdateVMList(virtualMachineList, remainingCoupons.get(ri), ri, virtualMachineGroupMap, reduceDependency);
         }
 
         long timeInMilliseconds = stopWatch.elapsed(TimeUnit.MILLISECONDS);
@@ -504,11 +506,13 @@ public class StableMarriagePerContext {
      * @param riCoupons              remaining coupons for each RI
      * @param ri                     the reserved instance
      * @param virtualMachineGroupMap map from group name to virtualMachine Group
+     * @param reduceDependency if true will reduce relinquishing
      */
     private static void sortAndUpdateVMList(List<SMAVirtualMachine> virtualMachineList,
                                             Float riCoupons, SMAReservedInstance ri,
-                                            Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
-        Collections.sort(virtualMachineList, new RIPreference(riCoupons, ri, virtualMachineGroupMap));
+                                            Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
+                                            boolean reduceDependency) {
+        Collections.sort(virtualMachineList, new RIPreference(riCoupons, ri, virtualMachineGroupMap, reduceDependency));
         for (int i = 0; i < virtualMachineList.size(); i++) {
             SMAVirtualMachine vm = virtualMachineList.get(i);
             ri.addVMToCouponToBestVM(i, vm, false);
@@ -963,18 +967,25 @@ public class StableMarriagePerContext {
         private SMAReservedInstance reservedInstance;
         // map containing ASG information.
         private Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap;
+        /*
+         * what mode the SMA is running.
+         */
+        private boolean reduceDependency;
 
         /**
          * Constuctor for the comparator.
          * @param coupons number of coupons remaining for the reservedInstance
          * @param reservedInstance the reserved instance of interest.
          * @param virtualMachineGroupMap map containing ASG information.
+         * @param reduceDependency if true will reduce relinquishing
          */
         public RIPreference(float coupons, SMAReservedInstance reservedInstance,
-                            Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
+                            Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap,
+                            boolean reduceDependency) {
             this.coupons = coupons;
             this.reservedInstance = reservedInstance;
             this.virtualMachineGroupMap = virtualMachineGroupMap;
+            this.reduceDependency = reduceDependency;
         }
 
         /**
@@ -985,11 +996,22 @@ public class StableMarriagePerContext {
          */
         @Override
         public int compare(SMAVirtualMachine vm1, SMAVirtualMachine vm2) {
+
+            // to reduce dependency do the cost comparison is done after current template comparison.
+            // this will prevent relinquishing.
+            if (reduceDependency) {
+                int currentTemplateComparison = currentTemplateComparison(vm1, vm2, reservedInstance, virtualMachineGroupMap);
+                if (currentTemplateComparison != 0) {
+                    return currentTemplateComparison;
+                }
+            }
+
             int costComparison = reservedInstance
                     .compareCost(vm1, vm2, virtualMachineGroupMap, coupons);
             if (costComparison != 0) {
                 return costComparison;
             }
+
             String riFamily = reservedInstance.getNormalizedTemplate().getFamily();
             // pick VM with higher initial RI coverage.
             float riCoverageVm1 = reservedInstance.getRICoverage(vm1);
@@ -1046,6 +1068,44 @@ public class StableMarriagePerContext {
 
 
     }
+
+    /**
+     * prefer the vm that has the same current template as RI to reduce dependency.
+     * @param vm1 first vm
+     * @param vm2 second vm
+     * @param reservedInstance            reserved instance
+     * @param virtualMachineGroupMap map from group name to virtualMachine Group
+     * @return prefer the vm with lesser moves.
+     */
+    private static int currentTemplateComparison(SMAVirtualMachine vm1, SMAVirtualMachine vm2,
+                                                 SMAReservedInstance reservedInstance,
+                                                 Map<String, SMAVirtualMachineGroup> virtualMachineGroupMap) {
+        String riFamily = reservedInstance.getNormalizedTemplate().getFamily();
+        // pick vm with lesser moves
+        if (!reservedInstance.isIsf()) {
+            int vm1TemplateMoves = templateMoves(vm1, reservedInstance.getNormalizedTemplate(),
+                    virtualMachineGroupMap);
+            int vm2TemplateMoves = templateMoves(vm2, reservedInstance.getNormalizedTemplate(),
+                    virtualMachineGroupMap);
+            if (vm1TemplateMoves < vm2TemplateMoves) {
+                return -1;
+            } else if (vm1TemplateMoves > vm2TemplateMoves) {
+                return 1;
+            }
+        } else {
+            // pick vm in the same family
+            int vm1FamilyMoves = familyMoves(vm1, riFamily, virtualMachineGroupMap);
+            int vm2FamilyMoves = familyMoves(vm2, riFamily, virtualMachineGroupMap);
+            if (vm1FamilyMoves < vm2FamilyMoves) {
+                return -1;
+            } else if (vm1FamilyMoves > vm2FamilyMoves) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+
+
     /**
      * the number of moves required for the vm to change to the new template.
      *
