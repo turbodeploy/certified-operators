@@ -473,7 +473,7 @@ public class InitialPlacementFinder {
                     // roll back the already placed shopping list
                     Trader supplier = sl.getSupplier();
                     if (supplier != null) {
-                        Move.updateQuantities(economy, sl, supplier, UpdatingFunctionFactory.SUB_COMM);
+                        Move.updateQuantities(economy, sl, supplier, UpdatingFunctionFactory.SUB_COMM, false);
                         sl.move(null);
                     }
                     sl.setMovable(false);
