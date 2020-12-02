@@ -25,7 +25,6 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.MaxUtilizationLevel;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -223,7 +222,9 @@ public class SettingOverrides {
     private boolean isSettingSpecForEntityType(SettingSpec settingSpec, Collection<ApiEntityType> entityTypes) {
         EntitySettingScope scope = settingSpec.getEntitySettingSpec().getEntitySettingScope();
         // if scope is "all entity type" then we are true
-        if (scope.hasAllEntityType()) return true;
+        if (scope.hasAllEntityType()) {
+            return true;
+        }
 
         // otherwise scope may be a set of entity types.
         if (scope.hasEntityTypeSet()) {
@@ -237,17 +238,16 @@ public class SettingOverrides {
     }
 
     /**
-     * Override the settings in a {@link EntitySettings.Builder} with the settings
-     * that apply to the entity.
+     * Override the settings with the settings that apply to the entity.
      *
-     * @param entity          The entity that the settings apply to.
-     * @param settingsBuilder The {@link EntitySettings.Builder}. This builder can be modified
-     *                        inside the function. We accept the builder as an
-     *                        argument instead of returning a map so that we're not constructing
-     *                        a lot of unnecessary map objects just to insert them into the DTO.
+     * @param entity The entity that the settings apply to.
+     * @param settings Settings spec name to {@link SettingToPolicyId} map
+     * @return Collections of overrided {@link SettingToPolicyId}.
      */
-    public void overrideSettings(final TopologyEntityDTOOrBuilder entity,
-                                 @Nonnull final EntitySettings.Builder settingsBuilder) {
+    @Nonnull
+    public Collection<SettingToPolicyId> overrideSettings(@Nonnull final TopologyEntityDTOOrBuilder entity,
+                                 @Nonnull final Map<String, SettingToPolicyId> settings) {
+        final Map<String, SettingToPolicyId> result = new HashMap<>(settings);
         // add the overridden settings, in order of priority.
         // Per-entity settings have highest priority, then entity type-based settings, then finally
         // global settings.
@@ -259,15 +259,17 @@ public class SettingOverrides {
             .forEach(setting -> {
                 // add setting overrides that haven't been added yet. They should be handled
                 // in order of priority.
-                if (!settingsAdded.contains(setting.getSettingSpecName())) {
-                    settingsBuilder.addUserSettings(SettingToPolicyId.newBuilder()
-                        // no policy id is associated with global setting or setting overrides.
-                        .setSetting(setting)
-                        .build());
-                    settingsAdded.add(setting.getSettingSpecName());
+                final String settingSpecName = setting.getSettingSpecName();
+                if (!settingsAdded.contains(settingSpecName)) {
+                    result.put(settingSpecName, SettingToPolicyId.newBuilder()
+                               // no policy id is associated with global setting or setting overrides.
+                               .setSetting(setting)
+                               .build());
+                    settingsAdded.add(settingSpecName);
                     logger.trace("Setting overrides adding setting {} value {}",
-                        setting.getSettingSpecName(), setting);
+                        settingSpecName, setting);
                 }
             });
+        return result.values();
     }
 }

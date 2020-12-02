@@ -320,6 +320,11 @@ public class EntitySettingsResolverTest {
         entitySettingsResolver = new EntitySettingsResolver(settingPolicyServiceClient,
             groupServiceClient, settingServiceClient, settingPolicyServiceClientAsync,
             scheduleServiceClient, CHUNK_SIZE);
+        final Collection<SettingToPolicyId> userSettings = createUserSettings(Arrays
+                        .asList(setting2, setting1), Collections.singletonList(6001L));
+        // It just returns settings without overriding.
+        Mockito.when(settingOverrides.overrideSettings(any(), any()))
+                        .thenAnswer(i -> ((Map<?, ?>)i.getArguments()[1]).values());
     }
 
 

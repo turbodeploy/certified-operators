@@ -4,6 +4,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +29,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
@@ -117,7 +119,7 @@ public class SettingOverridesTest {
      */
     @Test
     public void testResolveSettingOverridesForGroupMembers() {
-        Map<Long, GroupDTO.Grouping> groupsById = new HashMap<Long, GroupDTO.Grouping>();
+        Map<Long, GroupDTO.Grouping> groupsById = new HashMap<>();
         groupsById.put(stGroupId, storageGroup);
         ScenarioChange storageAmountUtilizationChange =
             createScenarioChange(EntityType.STORAGE.getValue(),
@@ -290,6 +292,33 @@ public class SettingOverridesTest {
         Assert.assertEquals(recommend, settingOverrides.overridesForEntity.get(container2.getOid())
             .get(ConfigurableActionSettings.Resize.getSettingName())
             .getStringSettingValue().getValue());
+    }
+
+    /**
+     * Tests settings override. User settings should be replaced by plan settings with same setting spec name.
+     */
+    @Test
+    public void testOverrideSettings() {
+        final Setting setting1 = Setting.newBuilder()
+                        .setSettingSpecName(EntitySettingSpecs.CpuOverprovisionedPercentage
+                                        .getSettingSpec().getName())
+                        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(600))
+                        .build();
+        final Map<String, SettingToPolicyId> userSettings = Collections
+                        .singletonMap(setting1.getSettingSpecName(),
+                                        SettingToPolicyId.newBuilder()
+                                        .setSetting(setting1)
+                                        .addSettingPolicyId(1111L)
+                                        .build());
+
+        ScenarioChange change = createScenarioChange(EntityType.PHYSICAL_MACHINE.getValue(),
+            EntitySettingSpecs.CpuOverprovisionedPercentage, 1000, Optional.empty());
+        SettingOverrides settingOverrides = new SettingOverrides(Collections.singletonList(change));
+        final Collection<SettingToPolicyId> settings = settingOverrides
+                        .overrideSettings(entity1, userSettings);
+        SettingToPolicyId settingPolicy = settings.iterator().next();
+        Setting resultSetting = settingPolicy.getSetting();
+        Assert.assertEquals(1000, resultSetting.getNumericSettingValue().getValue(), 0.00001);
     }
 
     private ScenarioChange createScenarioChange(int entityType,

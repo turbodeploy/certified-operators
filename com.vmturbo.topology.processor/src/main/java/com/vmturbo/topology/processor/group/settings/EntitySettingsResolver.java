@@ -449,25 +449,28 @@ public class EntitySettingsResolver {
                 @Nonnull final Map<Integer, SettingPolicy> defaultSettingPoliciesByEntityType,
                 @Nonnull final SettingOverrides settingOverrides,
                 @Nonnull final Multimap<Long, Pair<Long, Boolean>> entityToPolicySettings) {
-
-        final EntitySettings.Builder entitySettingsBuilder =
-                EntitySettings.newBuilder().setEntityOid(entity.getOid());
-
+        final Map<String, SettingToPolicyId> userSettingsMap = new HashMap<>();
         // transform topology processor settings into protobuf settings
         userSettings.forEach(settingRecord -> {
-            List<SettingToPolicyId> collect =
+            Map<String, SettingToPolicyId> collect =
                     TopologyProcessorSettingsConverter.toProtoSettings(settingRecord.getSetting())
                             .stream()
-                            .map(setting -> SettingToPolicyId.newBuilder()
-                                    .setSetting(setting)
-                                    .addAllSettingPolicyId(settingRecord.getSettingPolicyIdList())
-                                    .build())
-                            .collect(Collectors.toList());
-            entitySettingsBuilder.addAllUserSettings(collect);
+                            .collect(Collectors
+                                     .toMap(Setting::getSettingSpecName,
+                                            setting -> SettingToPolicyId.newBuilder()
+                                                            .setSetting(setting)
+                                                            .addAllSettingPolicyId(settingRecord
+                                                                            .getSettingPolicyIdList())
+                                                            .build()));
+            userSettingsMap.putAll(collect);
         });
 
         // Override user settings.
-        settingOverrides.overrideSettings(entity.getTopologyEntityDtoBuilder(), entitySettingsBuilder);
+        final Collection<SettingToPolicyId> overridedUsersettings = settingOverrides
+                        .overrideSettings(entity.getTopologyEntityDtoBuilder(), userSettingsMap);
+
+        final EntitySettings.Builder entitySettingsBuilder =
+                        EntitySettings.newBuilder().setEntityOid(entity.getOid()).addAllUserSettings(overridedUsersettings);
 
         if (defaultSettingPoliciesByEntityType.containsKey(entity.getEntityType())) {
             entitySettingsBuilder.setDefaultSettingPolicyId(
