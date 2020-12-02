@@ -28,6 +28,7 @@ import io.grpc.stub.StreamObserver;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.CollectionUtils;
 
+import com.vmturbo.api.component.external.api.mapper.EntityDetailsMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -35,6 +36,7 @@ import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccountMapper;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
+import com.vmturbo.api.dto.entity.EntityDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.pagination.PaginationUtil;
@@ -377,13 +379,16 @@ public class RepositoryApi {
         private final BatchRPC retriever;
         private final ServiceEntityMapper serviceEntityMapper;
         private final SeverityPopulator severityPopulator;
+        private final EntityDetailsMapper entityDetailsMapper;
 
         private PartialEntityRetriever(@Nonnull final BatchRPC retriever,
                                        @Nonnull final ServiceEntityMapper serviceEntityMapper,
-                                       @Nonnull final SeverityPopulator severityPopulator) {
+                                       @Nonnull final SeverityPopulator severityPopulator,
+                                       @Nonnull final EntityDetailsMapper entityDetailsMapper) {
             this.retriever = retriever;
             this.serviceEntityMapper = serviceEntityMapper;
             this.severityPopulator = severityPopulator;
+            this.entityDetailsMapper = entityDetailsMapper;
         }
 
         private Stream<PartialEntity> entityStream(@Nonnull final Type type) {
@@ -438,6 +443,12 @@ public class RepositoryApi {
                 @Nullable final Collection<String> requestedAspects)
                 throws ConversionException, InterruptedException {
             return new ArrayList<>(getSEMap(contextId, aspectMapper, requestedAspects).values());
+        }
+
+        @Nonnull
+        List<EntityDetailsApiDTO> getEntitiesDetails() {
+            return entityDetailsMapper.toEntitiesDetails(
+                    getFullEntities().collect(Collectors.toList()));
         }
     }
 
@@ -569,13 +580,14 @@ public class RepositoryApi {
             this.params = params;
 
             this.retriever = new PartialEntityRetriever(type ->
-                searchServiceBlockingStub.searchEntitiesStream(SearchEntitiesRequest.newBuilder()
-                    .setSearch(SearchQuery.newBuilder()
-                        .addAllSearchParameters(params))
-                    .setReturnType(type)
-                    .build()),
-                serviceEntityMapper,
-                severityPopulator);
+                    searchServiceBlockingStub.searchEntitiesStream(SearchEntitiesRequest.newBuilder()
+                            .setSearch(SearchQuery.newBuilder()
+                                    .addAllSearchParameters(params))
+                            .setReturnType(type)
+                            .build()),
+                    serviceEntityMapper,
+                    severityPopulator,
+                    new EntityDetailsMapper());
         }
 
         /**
@@ -791,6 +803,18 @@ public class RepositoryApi {
                 throws ConversionException, InterruptedException {
             return retriever.getSEList(getContextId(), aspectMapper, aspects).stream().findFirst();
         }
+
+        /**
+         * Get the {@link EntityDetailsApiDTO}s that matches the OID.
+         * The {@link EntityDetailsApiDTO} will fully populated with the entity OID and a list
+         * of properties.
+         *
+         * @return an optional entity with details.
+         */
+        @Nonnull
+        public Optional<EntityDetailsApiDTO> getEntityDetails() {
+            return retriever.getEntitiesDetails().stream().findFirst();
+        }
     }
 
     /**
@@ -923,7 +947,7 @@ public class RepositoryApi {
                 }
             };
             this.retriever = new PartialEntityRetriever(batchRetriever, serviceEntityMapper,
-                    severityPopulator);
+                    severityPopulator, new EntityDetailsMapper());
         }
 
         @Nonnull
