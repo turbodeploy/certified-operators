@@ -39,7 +39,7 @@ public class IntersightLicenseSyncConfig {
     @Value("${intersightLicenseSyncInitialDelaySeconds:10}")
     private int intersightLicenseSyncInitialDelaySeconds;
 
-    @Value("${intersightLicenseSyncIntervalSeconds:60}")
+    @Value("${intersightLicenseSyncIntervalSeconds:600}")
     private int intersightLicenseSyncIntervalSeconds;
 
     // Once the licenses are known to be "in sync", we may lower the check interval to reduce

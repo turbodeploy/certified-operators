@@ -1,5 +1,6 @@
 package com.vmturbo.integrations.intersight.licensing;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -10,9 +11,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.cisco.intersight.client.ApiClient;
 import com.cisco.intersight.client.ApiException;
@@ -23,7 +26,10 @@ import com.cisco.intersight.client.model.LicenseLicenseInfo.LicenseTypeEnum;
 import com.google.common.collect.Lists;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
+
+import reactor.core.publisher.Flux;
 
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
@@ -202,5 +208,32 @@ public class IntersightLicenseCountUpdaterTest {
         licenseCountUpdater.onLicenseSummaryUpdated(licenseSummary);
         licenseCountUpdater.syncLicenseCounts(false);
         verify(intersightLicenseClient, times(1)).updateLicenseLicenseInfo(any(), any());
+    }
+
+    /**
+     * Test reactor will retry on error.
+     *
+     * @throws InterruptedException interrupted exception
+     */
+    @Ignore("Flux is currently removed")
+    public void testReactorWillRetryOnError() throws InterruptedException {
+        AtomicInteger counter = new AtomicInteger();
+        Flux.interval(Duration.ofMillis(250))
+                .map(input -> {
+                    counter.getAndIncrement();
+                    if (input < 1) {
+                        return "tick " + input;
+                    }
+                    throw new RuntimeException("boom: " + input);
+                })
+                .doOnError(err -> System.out.println(
+                        "Error encountered while subscribing license summary update events: "
+                                + err.getMessage()))
+                .retry()
+                .elapsed()
+                .subscribe(System.out::println);
+
+        Thread.sleep(2100);
+        assertEquals(4, counter.get());
     }
 }

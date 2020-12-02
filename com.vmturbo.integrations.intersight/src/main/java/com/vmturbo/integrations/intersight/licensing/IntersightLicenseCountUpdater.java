@@ -104,8 +104,13 @@ public class IntersightLicenseCountUpdater {
             // check the latest available license summary
             onLicenseSummaryUpdated(licenseCheckClient.geCurrentLicenseSummary());
         }
+        // Uncomment following to get update by Reactor, and remove onLicenseSummaryUpdated method
+        // from syncLicenseCounts method.
         // start listening for workload count updates.
-        licenseCheckClient.getUpdateEventStream().subscribe(this::onLicenseSummaryUpdated);
+        //        licenseCheckClient.getUpdateEventStream()
+        //                .doOnError(err -> logger.error("Error encountered while subscribing license summary update events: ", err))
+        //                .retry()
+        //                .subscribe(this::onLicenseSummaryUpdated);
         initLastPublishedWorkloadCountInfo();
 
         // start the background publication thread. This is separated from the license summary processing
@@ -154,7 +159,7 @@ public class IntersightLicenseCountUpdater {
      * @param licenseSummary the license summary to evaluate.
      */
     protected synchronized void onLicenseSummaryUpdated(LicenseSummary licenseSummary) {
-        logger.info("New license summary ({} workloads) generated at {}", licenseSummary.getNumInUseEntities(),
+        logger.info("License summary ({} workloads) generated at {}", licenseSummary.getNumInUseEntities(),
                 licenseSummary.getGenerationDate());
         // when a new license summary comes in, make sure it has both a workload count and generation
         // date. There's no sense mining it for workload count if either are not available. A usable
@@ -205,6 +210,10 @@ public class IntersightLicenseCountUpdater {
         // we're just going to loop forever
         do {
             try {
+                if (licenseCheckClient.isReady()) {
+                    // check the latest available license summary
+                    onLicenseSummaryUpdated(licenseCheckClient.geCurrentLicenseSummary());
+                }
                 List<LicenseLicenseInfo> targetLicenses = licenseSyncService.getAvailableIntersightLicenses();
                 WorkloadCountInfo workloadCountInfo = latestWorkloadCountInfo;
                 if (shouldUpdateWorkloadCounts(workloadCountInfo, targetLicenses)) {
