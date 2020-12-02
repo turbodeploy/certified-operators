@@ -374,7 +374,7 @@ public class ActionClassifier {
             // trader and shopping list in the simulation economy, we just update the sold
             // quantity on the supplierCopy.
             Move.updateQuantities(simulationEconomy_, shoppingList, supplierCopy,
-                    UpdatingFunctionFactory.ADD_COMM);
+                    UpdatingFunctionFactory.ADD_COMM, true);
             if (logger.isTraceEnabled()) {
                 logger.info("Provisioned trader [{} modelled after {}]'s shopping list {}"
                                 + " can be placed on supplier {}.",

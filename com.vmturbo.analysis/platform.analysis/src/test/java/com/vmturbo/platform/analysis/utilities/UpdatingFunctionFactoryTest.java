@@ -6,6 +6,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -50,7 +51,7 @@ public class UpdatingFunctionFactoryTest {
     @Test
     public void testAddComm() {
         double[] res = UpdatingFunctionFactory.ADD_COMM.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), null, null, false, 0, null);
+                        pm.getCommoditySold(TestUtils.CPU), null, null, false, null, true);
         Assert.assertEquals(80, res[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(150, res[1], TestUtils.FLOATING_POINT_DELTA);
     }
@@ -63,7 +64,7 @@ public class UpdatingFunctionFactoryTest {
     @Test
     public void testSubComm() {
         double[] res = UpdatingFunctionFactory.SUB_COMM.operate(sl1, 0,
-                        pm.getCommoditySold(TestUtils.CPU), null, null, false, 0, null);
+                        pm.getCommoditySold(TestUtils.CPU), null, null, false, null, false);
         Assert.assertEquals(0, res[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(0, res[1], TestUtils.FLOATING_POINT_DELTA);
     }
@@ -78,55 +79,104 @@ public class UpdatingFunctionFactoryTest {
     @Test
     public void testIgnoreConsumption() {
         double[] res1 = UpdatingFunctionFactory.IGNORE_CONSUMPTION.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), null, null, true, 0, null);
+                        pm.getCommoditySold(TestUtils.CPU), null, null, true, null, true);
         Assert.assertEquals(50, res1[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(90, res1[1], TestUtils.FLOATING_POINT_DELTA);
 
         double[] res2 = UpdatingFunctionFactory.IGNORE_CONSUMPTION.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), null, null, false, 0, null);
+                        pm.getCommoditySold(TestUtils.CPU), null, null, false, null, true);
         Assert.assertEquals(0, res2[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(0, res2[1], TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
      * Unit test for AVG_COMMS().
-     * res1[0] = (60 * 2 + 30)/(2 + 0) = 75.
-     * res1[1] = (90 * 2 + 60)/(2 + 0) = 120.
-     * res2[0] = (60 * 2 + 30)/(2 + 1) = 50. Take Max(60, 50).
-     * res2[1] = (90 * 2 + 60)/(2 + 1) = 80. Take Max(90, 80).
-     * Provider usage should not decrease when a VM is moving into it.
+     * There are 2 Shopping lists on PM.
+     * SL1 (already on PM)      = 50 used and 90 peak.
+     * SL  (already on PM)      = 10 used and 30 peak.
+     * PM has 60 used and 90 peak. This is treated as current average.
+     *
+     * <p>Scenario 1:
+     * SL2 (moving into the PM) = 90 used and 120 peak.
+     * res1[0] = (60 * 2 + 90)/(2 + 1) = 70. Result = Max(70, 60 (current avg)) = 70.
+     * res1[1] = (90 * 2 + 120)/(2 + 1) = 100. Result = Max(100, 90 (current avg)) = 100.
+     *
+     * Scenario 2:
+     * SL2 (moving out of the PM) = 90 used and 120 peak.
+     * res1[0] = (70 * 3 - 90)/(3 - 1) = 60. Result = Min(60, 70 (current avg)) = 60.
+     * res1[1] = (100 * 3 - 120)/(3 - 1) = 90. Result = Min(90, 100 (current avg)) = 90.
+     *
+     * Scenario 3:
+     * SL2 (asking for quote from PM) = 90 used and 120 peak.
+     * res1[0] = (60 * 2 + 90)/(2 + 1) = 70. Result = Max(70, 60 (current avg)) = 70.
+     * res1[1] = (90 * 2 + 120)/(2 + 1) = 100. Result = Max(100, 90 (current avg)) = 100.
+     * </p>
      */
     @Test
     public void testAvgComms() {
         // Add one more shopping list.
         TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU), vm,
-                        new double[] {10}, new double[] {10}, pm);
+                        new double[] {10}, new double[] {30}, pm);
         Assert.assertEquals(2, pm.getCustomers().size());
         // populate numConsumers on the commSold by the pm
         pm.getCommoditiesSold().forEach(cs -> cs.setNumConsumers(2));
+        CommoditySold commoditySold = pm.getCommoditySold(TestUtils.CPU);
 
+        sl2 = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU), vm,
+            new double[] {90}, new double[] {120}, null);
+
+        // Moving into PM
         double[] res1 = UpdatingFunctionFactory.AVG_COMMS.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), pm, null, true, 0, null);
-        Assert.assertEquals(75, res1[0], TestUtils.FLOATING_POINT_DELTA);
-        Assert.assertEquals(120, res1[1], TestUtils.FLOATING_POINT_DELTA);
+            commoditySold, pm, null, true, null, true);
+        Assert.assertEquals(70, res1[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(100, res1[1], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(3, commoditySold.getNumConsumers());
 
+        commoditySold.setQuantity(res1[0]).setPeakQuantity(res1[1]);
+
+        // Moving out of PM
         double[] res2 = UpdatingFunctionFactory.AVG_COMMS.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), pm, null, false, 0, null);
+            commoditySold, pm, null, true, null, false);
         Assert.assertEquals(60, res2[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(90, res2[1], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(2, commoditySold.getNumConsumers());
+        commoditySold.setQuantity(res2[0]).setPeakQuantity(res2[1]);
+
+        // Asking for a quote from PM
+        double[] res3 = UpdatingFunctionFactory.AVG_COMMS.operate(sl2, 0,
+            commoditySold, pm, null, false, null, true);
+        Assert.assertEquals(70, res3[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(100, res3[1], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(2, commoditySold.getNumConsumers());
     }
 
     /**
      * Unit test for MAX_COMM().
-     * res[0] = max(30, 50) = 50.
-     * res[1] = max(60, 90) = 90.
+     * SL1 (used = 50, peak = 90) and SL3 (used = 60, peak = 80) are on the PM.
+     * Set the PM quantity as 60 and peakQuantity as 90.
+     * SL 2 is incoming and has 100 used and 100 peak.
+     * When SL2 is moving in, Max updating function should return 100, 100.
+     * When SL2 is moving out, Max updating function should return the max out of its other
+     * customers - 60 and 90.
      */
     @Test
     public void testMaxComm() {
+        ShoppingList sl3 = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU), vm,
+            new double[] {60}, new double[] {80}, pm);
+        sl2 = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU), vm,
+            new double[] {100}, new double[] {100}, null);
+        sl2.move(pm);
+        pm.getCommoditySold(TestUtils.CPU).setQuantity(60).setPeakQuantity(90);
         double[] res = UpdatingFunctionFactory.MAX_COMM.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), null, null, false, 0, null);
-        Assert.assertEquals(50, res[0], TestUtils.FLOATING_POINT_DELTA);
-        Assert.assertEquals(90, res[1], TestUtils.FLOATING_POINT_DELTA);
+                        pm.getCommoditySold(TestUtils.CPU), pm, null, true, null, true);
+        Assert.assertEquals(100, res[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(100, res[1], TestUtils.FLOATING_POINT_DELTA);
+
+        pm.getCommoditySold(TestUtils.CPU).setQuantity(res[0]).setPeakQuantity(res[1]);
+        double[] res2 = UpdatingFunctionFactory.MAX_COMM.operate(sl2, 0,
+            pm.getCommoditySold(TestUtils.CPU), pm, null, true, null, false);
+        Assert.assertEquals(60, res2[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(90, res2[1], TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -136,10 +186,19 @@ public class UpdatingFunctionFactoryTest {
      */
     @Test
     public void testMinComm() {
+        ShoppingList sl3 = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU), vm,
+            new double[] {60}, new double[] {80}, pm);
+        pm.getCommoditySold(TestUtils.CPU).setQuantity(50).setPeakQuantity(80);
+        sl2.move(pm);
         double[] res = UpdatingFunctionFactory.MIN_COMM.operate(sl2, 0,
-                        pm.getCommoditySold(TestUtils.CPU), null, null, false, 0, null);
+                        pm.getCommoditySold(TestUtils.CPU), pm, null, true, null, true);
         Assert.assertEquals(30, res[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(60, res[1], TestUtils.FLOATING_POINT_DELTA);
+        pm.getCommoditySold(TestUtils.CPU).setQuantity(res[0]).setPeakQuantity(res[1]);
+        double[] res2 = UpdatingFunctionFactory.MIN_COMM.operate(sl2, 0,
+            pm.getCommoditySold(TestUtils.CPU), pm, null, true, null, false);
+        Assert.assertEquals(50, res2[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(80, res2[1], TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -150,7 +209,7 @@ public class UpdatingFunctionFactoryTest {
     @Test
     public void testReturnBoughtComm() {
         double[] res = UpdatingFunctionFactory.RETURN_BOUGHT_COMM.operate(sl2, 0, null, null, null,
-                        false, 0, null);
+                        false, null, true);
         Assert.assertEquals(30, res[0], TestUtils.FLOATING_POINT_DELTA);
         Assert.assertEquals(60, res[1], TestUtils.FLOATING_POINT_DELTA);
     }

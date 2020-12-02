@@ -162,11 +162,11 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             // unplacing the sl
             shoppingList.move(null);
             updateQuantities(getEconomy(), shoppingList, getSource(),
-                    UpdatingFunctionFactory.SUB_COMM);
+                    UpdatingFunctionFactory.SUB_COMM, false);
             // moving sl to destination
             shoppingList.move(destination_);
             updateQuantities(getEconomy(), shoppingList, getDestination(),
-                    UpdatingFunctionFactory.ADD_COMM);
+                    UpdatingFunctionFactory.ADD_COMM, true);
             shoppingList.setContext(getContext().orElse(null));
         }
         Optional.ofNullable(commodityContexts_)
@@ -260,8 +260,8 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         super.rollback();
         if (getSource() != getDestination()) {
             getTarget().move(getSource());
-            updateQuantities(getEconomy(), getTarget(), getDestination(), UpdatingFunctionFactory.SUB_COMM);
-            updateQuantities(getEconomy(), getTarget(), getSource(), UpdatingFunctionFactory.ADD_COMM);
+            updateQuantities(getEconomy(), getTarget(), getDestination(), UpdatingFunctionFactory.SUB_COMM, false);
+            updateQuantities(getEconomy(), getTarget(), getSource(), UpdatingFunctionFactory.ADD_COMM, true);
         }
     }
 
@@ -382,12 +382,15 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * @param shoppingList      The shopping list that will be moved.
      * @param traderToUpdate    The seller whose commodities sold will be updated.
      * @param defaultCombinator Default update function when it is not set for a commodity.
+     * @param isIncoming        Is the shoppingList moving into the traderToUdpate? True if it is
+     *                          moving in, false if it is moving out.
      */
     public static void updateQuantities(@NonNull UnmodifiableEconomy economy,
                                         @NonNull ShoppingList shoppingList,
                                         @Nullable Trader traderToUpdate,
-                                        @NonNull UpdatingFunction defaultCombinator) {
-        updateQuantities(economy, shoppingList, traderToUpdate, defaultCombinator, null);
+                                        @NonNull UpdatingFunction defaultCombinator,
+                                        boolean isIncoming) {
+        updateQuantities(economy, shoppingList, traderToUpdate, defaultCombinator, null, isIncoming);
     }
 
     /**
@@ -410,13 +413,16 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * @param defaultCombinator Default update function when it is not set for a commodity.
      * @param currentSLs        A set of shopping list that belongs to the same guaranteed buyer.
      *                          Only set during horizontal scale.
+     * @param isIncoming        Is the shoppingList moving into the traderToUdpate? True if it is
+     *                          moving in, false if it is moving out.
      */
     // TODO: should we cover moves of inactive traders?
     public static void updateQuantities(@NonNull UnmodifiableEconomy economy,
                                         @NonNull ShoppingList shoppingList,
                                         @Nullable Trader traderToUpdate,
                                         @NonNull UpdatingFunction defaultCombinator,
-                                        @Nullable final Set<ShoppingList> currentSLs) {
+                                        @Nullable final Set<ShoppingList> currentSLs,
+                                        boolean isIncoming) {
         if (traderToUpdate == null) {
             return;
         }
@@ -434,7 +440,8 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             } else {
                 final @NonNull CommoditySold commodity = traderToUpdate.getCommoditiesSold().get(soldIndex);
                 final double[] quantities = updatedQuantities(economy, defaultCombinator,
-                        shoppingList, boughtIndex, traderToUpdate, soldIndex, false, true, currentSLs);
+                    shoppingList, boughtIndex, traderToUpdate, soldIndex, true,
+                    currentSLs, isIncoming);
                 commodity.setQuantity(quantities[0]);
                 commodity.setPeakQuantity(quantities[1]);
                 ++soldIndex;
@@ -459,124 +466,31 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * @param defaultCombinator Default update function when it is not set for a commodity.
      * @param traderToUpdate    The seller whose commodities sold will be updated.
      * @param soldIndex         The index of the soldCommodity.
-     * @param incoming          A boolean flag that specifies if the trader is moving in (TRUE)
-     *                          or moving out.
      * @param take              True when the action is being taken, FALSE when we simulate the
      *                          move while getting the quote.
      * @param currentSLs        A set of shopping list that belongs to the same guaranteed buyer.
      *                          Only set during horizontal scale.
-     *
+     * @param isIncoming        Is the shoppingList moving into the traderToUdpate? True if it is
+     *                          moving in, false if it is moving out.
      */
     @Pure // The contents of the array are deterministic but the address of the array isn't...
     public static double[] updatedQuantities(@NonNull UnmodifiableEconomy economy,
                                              @NonNull UpdatingFunction defaultCombinator,
                                              ShoppingList sl, int boughtIndex,
                                              @NonNull Trader traderToUpdate, int soldIndex,
-                                             boolean incoming, boolean take,
-                                             @Nullable final Set<ShoppingList> currentSLs) {
-        final CommoditySpecification specificationSold = traderToUpdate.getBasketSold().get(soldIndex);
+                                             boolean take, @Nullable final Set<ShoppingList> currentSLs,
+                                             final boolean isIncoming) {
         final CommoditySold commoditySold = traderToUpdate.getCommoditiesSold().get(soldIndex);
 
         UpdatingFunction explicitCombinator = commoditySold.getSettings().getUpdatingFunction();
         if (explicitCombinator == null) {
             // if there is no explicit combinator, use default one.
             return defaultCombinator.operate(sl, boughtIndex, commoditySold, traderToUpdate,
-                    economy, take, 0, currentSLs);
+                    economy, take, currentSLs, isIncoming);
         }
-        if (UpdatingFunctionFactory.isValidDistributionFunction(explicitCombinator)) {
-            // If this is a valid distribution function
-            return explicitCombinator.operate(sl, boughtIndex, commoditySold, traderToUpdate,
-                    economy, false, 0, currentSLs);
-        }
-        if (incoming || !UpdatingFunctionFactory.getExplicitCombinatorsSet().contains(explicitCombinator)) {
-            // we want to avoid going into the else case for explicit operators like coupon, external to avoid expensive
-            // redundant computation. Also, include quantityBought to the current used of the corresponding commodity.
-            return explicitCombinator.operate(sl, boughtIndex, commoditySold, traderToUpdate,
-                    economy, take, 0, currentSLs);
-        }
-        // this loop is used when we use a combinator that is "max" for example, when we move out of this trader, we wouldnt know the initial value
-        // that was replaced by the current quantity. For example, max(5,12), we wont know what 12 replaced.
-        // Find the quantities bought by all shopping lists and calculate the quantity sold.
-
-        // TODO: change the definition of updateQuantities to prevent re-computation overhead several times
-        // while moving in
-
-        // incomingSl is TRUE when the VM is moving in and false when moving out
-        boolean incomingSl = traderToUpdate.getCustomers().contains(sl);
-        double overhead = commoditySold.getQuantity();
-        for (ShoppingList customer : traderToUpdate.getCustomers()) {
-            int commIndex = customer.getBasket().indexOf(specificationSold);
-            TraderSettings ts = sl.getBuyer().getSettings();
-            if ((customer != sl && commIndex != -1) ||
-                    // if a consumer hasContext, consider for overhead subtraction
-                    // hasContext true means VM on CBTP
-                    (ts != null && ts.getContext().isPresent()
-                            && ts.getContext().get().hasValidContext())) {
-                // subtract the used value of comm in question of all the customers but the
-                // incoming shoppingList from the current used value of the sold commodity
-                overhead -= customer.getQuantity(commIndex);
-            }
-        }
-        // when a sl is moving out, it will not be part of the seller's customers. In that case,
-        // we get the used value of the comm in question bought by the sl and remove from overhead
-        if (!incomingSl) {
-            int commIndex = sl.getBasket().indexOf(specificationSold);
-            if (commIndex != -1) {
-                // subtract the used value of comm in question of all the customers but the
-                // incoming shoppingList from the current used value of the sold commodity
-                overhead -= sl.getQuantity(commIndex);
-            }
-        }
-
-        // set used and peakUsed to 0 when starting for the seller
-        double sellerOrigUsed = commoditySold.getQuantity();
-        double sellerOrigPeak = commoditySold.getPeakQuantity();
-        commoditySold.setQuantity(0).setPeakQuantity(0);
-        // updating the numConsumers of a commodity when the move action is being taken
-        int numConsumers = commoditySold.getNumConsumers();
-        if (take) {
-            if (incomingSl) {
-                commoditySold.setNumConsumers(numConsumers + 1);
-                // check if numConsumers is greater than 0. It can be 0 for bicliques
-            } else if (numConsumers > 0) {
-                commoditySold.setNumConsumers(numConsumers - 1);
-            }
-        }
-
-        // TODO: Currently, whenever there is an explicit combinator, we neglect overhead
-        // because of the used recomputation we could have explicitCombinators for which we
-        // don't want to neglect overhead. We need to handle these cases.
-        for (ShoppingList customer : traderToUpdate.getCustomers()) {
-            // TODO: this needs to be changed to something that takes matching but unequal
-            // commodities into account.
-            int specIndex = customer.getBasket().indexOf(specificationSold);
-            if (specIndex >= 0) {
-                double[] tempUpdatedQnty = explicitCombinator.operate(customer, specIndex,
-                        commoditySold, traderToUpdate, economy, take, overhead, currentSLs);
-                commoditySold.setQuantity(tempUpdatedQnty[0]).setPeakQuantity(tempUpdatedQnty[1]);
-            }
-        }
-        double[] combinedQuantity = new double[]{
-            // OM-40472 - handle the case where we are rolling back from one to zero
-            // customers. In this case, the explicitCombinator will not be called to
-            // update the commoditySold. Therefore, if there are no customers when
-            // we reach this point, we should return the overhead. We limit it to >= 0
-            // to maintain the previous behavior of returning commoditySold.getQuantity
-            // after being reset above to 0
-            traderToUpdate.getCustomers().isEmpty() ?
-                Math.max(overhead, 0) : commoditySold.getQuantity(),
-            commoditySold.getPeakQuantity()
-        };
-        if (explicitCombinator == UpdatingFunctionFactory.AVG_COMMS) {
-            if (incomingSl) {
-                combinedQuantity[0] = Math.max(combinedQuantity[0], sellerOrigUsed);
-                combinedQuantity[1] = Math.max(combinedQuantity[1], sellerOrigPeak);
-            } else {
-                combinedQuantity[0] = Math.min(combinedQuantity[0], sellerOrigUsed);
-                combinedQuantity[1] = Math.min(combinedQuantity[1], sellerOrigPeak);
-            }
-        }
-        return new double[]{combinedQuantity[0], combinedQuantity[1]};
+        take = UpdatingFunctionFactory.isValidDistributionFunction(explicitCombinator) ? false : take;
+        return explicitCombinator.operate(sl, boughtIndex, commoditySold, traderToUpdate,
+            economy, take, currentSLs, isIncoming);
     }
 
     @Override
@@ -652,7 +566,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                                                        @NonNull ShoppingList target) {
         if (source != destination) {
             target.move(destination);
-            updateQuantities(economy, target, destination, UpdatingFunctionFactory.ADD_COMM);
+            updateQuantities(economy, target, destination, UpdatingFunctionFactory.ADD_COMM, true);
         }
         return this;
     }

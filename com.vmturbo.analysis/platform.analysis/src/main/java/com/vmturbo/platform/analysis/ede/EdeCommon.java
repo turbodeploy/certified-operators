@@ -78,7 +78,7 @@ public final class EdeCommon {
         if (!isCurrentSupplier) {
             // add quantities bought by buyer, to quantities already used at seller
             final double[] newQuantities = Move.updatedQuantities(economy, addition, shoppingList,
-                    boughtIndex, seller, soldIndex, true, false, null);
+                    boughtIndex, seller, soldIndex, false, null, true);
             newQuantity = newQuantities[0];
             newPeakQuantity = newQuantities[1];
         }

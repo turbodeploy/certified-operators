@@ -27,15 +27,16 @@ public interface UpdatingFunction extends Serializable {
      *                    cloned. For suspension, this is the seller being suspended.
      * @param economy     the economy the seller participates in
      * @param take        if the action will be taken
-     * @param overhead    the overhead of the commodity
      * @param currentSLs  the current set of shopping lists that belong to the same guaranteed
      *                    buyer. This is only set during provision and suspension
+     * @param isIncoming  true if the SL is incoming into the seller. false if it is moving out.
      * @return an array of containing the updated quantity and peak quantity
      */
     double[] operate(ShoppingList buyer, int boughtIndex,
                      @Nonnull CommoditySold commSold,
                      @Nonnull Trader seller,
                      @Nonnull UnmodifiableEconomy economy,
-                     boolean take, double overhead,
-                     @Nullable Set<ShoppingList> currentSLs);
+                     boolean take,
+                     @Nullable Set<ShoppingList> currentSLs,
+                     boolean isIncoming);
 }

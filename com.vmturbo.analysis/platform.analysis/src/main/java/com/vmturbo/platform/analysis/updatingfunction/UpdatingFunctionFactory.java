@@ -99,7 +99,7 @@ public final class UpdatingFunctionFactory {
      * @return UpdatingFunction
      */
     public static UpdatingFunction createCouponUpdatingFunction(CostDTO costDTO) {
-        return (buyer, boughtIndex, commSold, seller, economy, take, overhead, currentSLs)
+        return (buyer, boughtIndex, commSold, seller, economy, take, currentSLs, isIncoming)
                         -> {
             Optional<Context> optionalContext = buyer.getBuyer().getSettings().getContext();
             long oid = seller.getOid();
@@ -150,7 +150,6 @@ public final class UpdatingFunctionFactory {
                         .collect(Collectors.toList()));
                 requestedCoupons = 0;
             }
-
 
             Map<Long, Double> totalCouponsToRelinquish = new HashMap<>();
             // if gf > 1 (its a group leader), reset coverage of the CSG and relinquish coupons to the CBTP
@@ -276,13 +275,13 @@ public final class UpdatingFunctionFactory {
     /**
      * Add commodity updating function.
      */
-    public static final UpdatingFunction ADD_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead, currentSLs)
+    public static final UpdatingFunction ADD_COMM = (buyer, boughtIndex, commSold, seller, economy, take, currentSLs, isIncoming)
                     -> new double[]{buyer.getQuantities()[boughtIndex] + commSold.getQuantity(),
                                     buyer.getPeakQuantities()[boughtIndex] + commSold.getPeakQuantity()};
     /**
      * Subtract commodity updating function.
      */
-    public static final UpdatingFunction SUB_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead, currentSLs)
+    public static final UpdatingFunction SUB_COMM = (buyer, boughtIndex, commSold, seller, economy, take, currentSLs, isIncoming)
                     -> new double[]{Math.max(0, commSold.getQuantity() - buyer.getQuantities()[boughtIndex]),
                                     Math.max(0, commSold.getPeakQuantity() - buyer.getPeakQuantities()[boughtIndex])};
 
@@ -292,7 +291,7 @@ public final class UpdatingFunctionFactory {
      * taking the action, return 0 if the buyer fits or INFINITY otherwise.
      */
     public static final UpdatingFunction IGNORE_CONSUMPTION = (buyer, boughtIndex, commSold, seller,
-                                                               economy, take, overhead, currentSLs)
+                                                               economy, take, currentSLs, isIncoming)
                     -> {
                         if (take) {
                             return new double[]{commSold.getQuantity(), commSold.getPeakQuantity()};
@@ -308,20 +307,44 @@ public final class UpdatingFunctionFactory {
      * Average commodity updating function.
      */
     public static final UpdatingFunction AVG_COMMS = (buyer, boughtIndex, commSold, seller, economy,
-                                                      take, overhead, currentSLs)
+                                                      take, currentSLs, isIncoming)
                     -> {
-                        // consider just the buyers that consume the commodity as customers
-                        double numCustomers = commSold.getNumConsumers();
-                        // if we take the move, we have already moved and we dont need to assume a new
-                        // customer. If we are not taking the move, we want to update the used considering
-                        // an incoming customer. In which case, we need to increase the custoemrCount by 1
+                        // updating the numConsumers of a commodity when the move action is being taken
+                        int numConsumers = commSold.getNumConsumers();
                         if (take) {
-                            return new double[]{
-                                    (commSold.getQuantity() * numCustomers
-                                            + buyer.getQuantities()[boughtIndex]) / numCustomers,
-                                    (commSold.getPeakQuantity() * numCustomers
-                                            + buyer.getPeakQuantities()[boughtIndex]) / numCustomers};
+                            if (isIncoming) {
+                                int newNumConsumers = numConsumers + 1;
+                                commSold.setNumConsumers(newNumConsumers);
+                                return new double[] {
+                                    Math.max(commSold.getQuantity(), ((commSold.getQuantity() * numConsumers
+                                        + buyer.getQuantities()[boughtIndex]) / newNumConsumers)),
+                                    Math.max(commSold.getPeakQuantity(), ((commSold.getPeakQuantity() * numConsumers
+                                        + buyer.getPeakQuantities()[boughtIndex]) / newNumConsumers))};
+                            } else {
+                                // If there was only one customer which has moved out, then
+                                // there are no consumers. So return 0.
+                                // If there were 0 customers, then ideally we should not come here
+                                // since there is nothing to move out. We return 0 in that case as well.
+                                if (numConsumers <= 1) {
+                                    commSold.setNumConsumers(0);
+                                    return new double[] {0, 0};
+                                } else {
+                                    // The else statement is redundant here. But it is written for clarity
+                                    int newNumConsumers = numConsumers - 1;
+                                    commSold.setNumConsumers(newNumConsumers);
+                                    double avgQuantity = Math.max(0, (commSold.getQuantity() * numConsumers
+                                            - buyer.getQuantities()[boughtIndex])) / newNumConsumers;
+                                    double avgPeakQuantity = Math.max(0, (commSold.getPeakQuantity() * numConsumers
+                                            - buyer.getPeakQuantities()[boughtIndex])) / newNumConsumers;
+                                    return new double[]{
+                                        Math.min(commSold.getQuantity(), avgQuantity),
+                                        Math.min(commSold.getPeakQuantity(), avgPeakQuantity)
+                                    };
+                                }
+                            }
                         } else {
+                            // The else statement is redundant here, but it is written for clarity.
+
                             // This is done to prevent ping-pong occurring due to ""AVG_COMMS".
                             // Consider a commodity with quantity "1" on supplier1 and two consumers with
                             // quantity 12 and 10 on supplier2 (with avg 11).
@@ -334,37 +357,98 @@ public final class UpdatingFunctionFactory {
                             // Now in future placement iterations reverse will occur. To prevent this,
                             // when last consumer is there on current provider we return 0 (to provide
                             // best possible quote) so we don't recommend a move due to limitation of AVG_COMMS.
-                            if (buyer.getSupplier() == seller && numCustomers == 1) {
+                            if (buyer.getSupplier() == seller && numConsumers == 1) {
                                 return new double[]{0, 0};
                             }
+                            // isIncoming will be true here
                             return new double[]{Math.max(commSold.getQuantity(),
-                                        (commSold.getQuantity() * numCustomers
-                                        + buyer.getQuantities()[boughtIndex]) / (numCustomers + 1)),
+                                        (commSold.getQuantity() * numConsumers
+                                        + buyer.getQuantities()[boughtIndex]) / (numConsumers + 1)),
                                         Math.max(commSold.getPeakQuantity(),
-                                        (commSold.getPeakQuantity() * numCustomers
-                                        + buyer.getPeakQuantities()[boughtIndex]) / (numCustomers + 1))};
+                                        (commSold.getPeakQuantity() * numConsumers
+                                        + buyer.getPeakQuantities()[boughtIndex]) / (numConsumers + 1))};
                         }
                     };
 
     /**
      * Max commodity updating function.
      */
-    public static final UpdatingFunction MAX_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead, currentSLs)
-                    -> new double[]{Math.max(buyer.getQuantities()[boughtIndex], commSold.getQuantity()),
-                                    Math.max(buyer.getPeakQuantities()[boughtIndex], commSold.getPeakQuantity())};
+    public static final UpdatingFunction MAX_COMM = (buyer, boughtIndex, commSold, seller, economy, take, currentSLs, isIncoming)
+                    -> {
+        if (isIncoming) {
+            // When the shopping list is incoming, we just need to take the max between the
+            // incoming SL's bought quantity and the commSold quantity
+            return new double[]{Math.max(buyer.getQuantities()[boughtIndex], commSold.getQuantity()),
+                Math.max(buyer.getPeakQuantities()[boughtIndex], commSold.getPeakQuantity())};
+        } else {
+            CommoditySpecification specification = buyer.getBasket().get(boughtIndex);
+            double maxQuantity = 0;
+            double maxPeakQuantity = 0;
+            for (ShoppingList customerSl : seller.getCustomers()) {
+                if (customerSl == buyer) {
+                    // Customer has not yet moved out. But do not consider it for max.
+                    continue;
+                }
+                int customerBoughtIndex = customerSl.getBasket().indexOf(specification);
+                if (customerBoughtIndex != -1) {
+                    double customerQuantity = customerSl.getQuantities()[customerBoughtIndex];
+                    double customerPeakQuantity = customerSl.getPeakQuantities()[customerBoughtIndex];
+                    if (customerQuantity > maxQuantity) {
+                        maxQuantity = customerQuantity;
+                    }
+                    if (customerPeakQuantity > maxPeakQuantity) {
+                        maxPeakQuantity = customerPeakQuantity;
+                    }
+                }
+            }
+            return new double[] {maxQuantity, maxPeakQuantity};
+        }
+    };
 
     /**
      * Min commodity updating function.
      */
-    public static final UpdatingFunction MIN_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead, currentSLs)
-                    -> new double[]{Math.min(buyer.getQuantities()[boughtIndex], commSold.getQuantity()),
-                                    Math.min(buyer.getPeakQuantities()[boughtIndex], commSold.getPeakQuantity())};
+    public static final UpdatingFunction MIN_COMM = (buyer, boughtIndex, commSold, seller, economy, take, currentSLs, isIncoming)
+                    -> {
+        if (isIncoming) {
+            // When the shopping list is incoming, we just need to take the min between the
+            // incoming SL's bought quantity and the commSold quantity
+            return new double[]{Math.min(buyer.getQuantities()[boughtIndex], commSold.getQuantity()),
+                Math.min(buyer.getPeakQuantities()[boughtIndex], commSold.getPeakQuantity())};
+        } else {
+            if (seller.getCustomers().isEmpty() || (seller.getCustomers().size() == 1
+                && seller.getCustomers().get(0) == buyer)) {
+                return new double[] {0, 0};
+            }
+            CommoditySpecification specification = buyer.getBasket().get(boughtIndex);
+            double minQuantity = Double.MAX_VALUE;
+            double minPeakQuantity = Double.MAX_VALUE;
+            for (ShoppingList customerSl : seller.getCustomers()) {
+                if (customerSl == buyer) {
+                    // Customer has not yet moved out. But do not consider it for min.
+                    continue;
+                }
+                int customerBoughtIndex = customerSl.getBasket().indexOf(specification);
+                if (customerBoughtIndex != -1) {
+                    double customerQuantity = customerSl.getQuantities()[customerBoughtIndex];
+                    double customerPeakQuantity = customerSl.getPeakQuantities()[customerBoughtIndex];
+                    if (customerQuantity < minQuantity) {
+                        minQuantity = customerQuantity;
+                    }
+                    if (customerPeakQuantity < minPeakQuantity) {
+                        minPeakQuantity = customerPeakQuantity;
+                    }
+                }
+            }
+            return new double[] {minQuantity, minPeakQuantity};
+        }
+    };
 
     /**
      * Return bought commodity updating function.
      */
     public static final UpdatingFunction RETURN_BOUGHT_COMM = (buyer, boughtIndex, commSold, seller,
-                                                               economy, take, overhead, currentSLs)
+                                                               economy, take, currentSLs, isIncoming)
                     -> new double[]{buyer.getQuantities()[boughtIndex],
                                     buyer.getPeakQuantities()[boughtIndex]};
 
@@ -372,7 +456,7 @@ public final class UpdatingFunctionFactory {
      * External updating function.
      */
     public static final UpdatingFunction EXTERNAL_UPDATING_FUNCTION =
-            (buyer, boughtIndex, commSold, seller, economy, take, overhead, currentSLs) -> {
+            (buyer, boughtIndex, commSold, seller, economy, take, currentSLs, isIncoming) -> {
                         // If we are moving, external function needs to call place on matrix
                         // interface, else do nothing
                         if (take) {
@@ -403,7 +487,7 @@ public final class UpdatingFunctionFactory {
      * Suspension: projected = current x N/(N-1)
      */
     public static final UpdatingFunction STANDARD_DISTRIBUTION =
-            (clonedSL, index, commSold, seller, economy, take, overhead, currentSLs) -> {
+            (clonedSL, index, commSold, seller, economy, take, currentSLs, isIncoming) -> {
                     if (currentSLs == null) {
                         return new double[]{commSold.getQuantity(), commSold.getPeakQuantity()};
                     }
@@ -466,14 +550,6 @@ public final class UpdatingFunctionFactory {
                 k -> new MM1Distribution()
                         .setDependentCommodities(dependentCommodities)
                         .setMinDecreasePct(minDecreasePct));
-    }
-
-    // when a user by mistake sets addComm as the updatingFn, we iterate over all the consumers and sum up the
-    // usage for the comm across customers and set that as the usage on the soldComm. This is when consumers move in or out
-    private static Set<UpdatingFunction> explicitCombinators = ImmutableSet.of(AVG_COMMS, MAX_COMM, MIN_COMM, ADD_COMM);
-
-    public static Set<UpdatingFunction> getExplicitCombinatorsSet() {
-        return explicitCombinators;
     }
 
     /**

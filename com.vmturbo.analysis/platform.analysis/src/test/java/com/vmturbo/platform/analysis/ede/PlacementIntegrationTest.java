@@ -6,15 +6,19 @@ import static org.junit.Assert.assertTrue;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.Sets;
 
 import org.junit.Test;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
@@ -43,6 +47,7 @@ import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class PlacementIntegrationTest {
 
@@ -107,18 +112,18 @@ public class PlacementIntegrationTest {
         CommoditySoldTO cpuSoldByPM1 = CommoditySoldTO.newBuilder().setSpecification(cpuSpecTO)
                         .setQuantity(1000).setPeakQuantity(1000)
                         .setMaxQuantity(1000).setCapacity(2000)
-                        .setSettings(standardSettingTO).build();
+                        .setSettings(standardSettingTO.toBuilder().clearUpdateFunction().build()).build();
         CommoditySoldTO cpuSoldByPM2 = CommoditySoldTO.newBuilder().setSpecification(cpuSpecTO)
                         .setQuantity(100).setPeakQuantity(100).setMaxQuantity(100).setCapacity(2000)
-                        .setSettings(standardSettingTO).build();
+                        .setSettings(standardSettingTO.toBuilder().clearUpdateFunction().build()).build();
         CommoditySoldTO storageSoldByST1 = CommoditySoldTO.newBuilder()
                         .setSpecification(storageProvisionSpecTO).setQuantity(1000)
                         .setPeakQuantity(1000).setMaxQuantity(1000).setCapacity(2000)
-                        .setSettings(standardSettingTO).build();
+                        .setSettings(standardSettingTO.toBuilder().clearUpdateFunction().build()).build();
         CommoditySoldTO storageSoldByST2 =
                         CommoditySoldTO.newBuilder().setSpecification(storageProvisionSpecTO)
                         .setQuantity(100).setPeakQuantity(100).setMaxQuantity(100)
-                        .setCapacity(2000).setSettings(standardSettingTO).build();
+                        .setCapacity(2000).setSettings(standardSettingTO.toBuilder().clearUpdateFunction().build()).build();
         CommoditySoldTO bicliqueSoldTO = CommoditySoldTO.newBuilder()
                         .setSpecification(bicliqueSpecTO)
                         .setSettings(constantSettingTO).build();
@@ -127,6 +132,7 @@ public class PlacementIntegrationTest {
         TraderTO shopTogetherVMTO = TraderTO.newBuilder().setOid(12345)
                         .setType(55555).setState(TraderStateTO.ACTIVE)
                         .setSettings(shoptogetherTrueTO)
+                        .setDebugInfoNeverUseInCode("shopTogetherVM")
                         .addShoppingLists(ShoppingListTO.newBuilder()
                                         .setOid(11112).setMovable(true).setSupplier(34567)
                                         .addCommoditiesBought(cpuBoughtTO).build())
@@ -138,6 +144,7 @@ public class PlacementIntegrationTest {
         TraderTO shopAloneVMTO = TraderTO.newBuilder().setOid(23456).setType(55555)
                         .setState(TraderStateTO.ACTIVE)
                         .setSettings(shoptogetherFalseTO)
+                        .setDebugInfoNeverUseInCode("shopAloneVM")
                         .addShoppingLists(ShoppingListTO.newBuilder()
                                         .setOid(11113).setMovable(true).setSupplier(34567)
                                         .addCommoditiesBought(cpuBoughtTO)
@@ -151,38 +158,60 @@ public class PlacementIntegrationTest {
                         .setState(TraderStateTO.ACTIVE)
                         .setSettings(shoptogetherFalseTO)
                         .addCommoditiesSold(cpuSoldByPM1).addCommoditiesSold(bicliqueSoldTO)
+                        .setType(EntityType.PHYSICAL_MACHINE_VALUE)
                         .addCliques(0).build();
         TraderTO pm2TO = TraderTO.newBuilder().setOid(45678).setType(66666)
                         .setState(TraderStateTO.ACTIVE)
                         .setSettings(shoptogetherFalseTO)
                         .addCommoditiesSold(cpuSoldByPM2).addCommoditiesSold(bicliqueSoldTO)
+                        .setType(EntityType.PHYSICAL_MACHINE_VALUE)
                         .addCliques(0).build();
         TraderTO st1TO = TraderTO.newBuilder().setOid(56789).setType(77777)
                         .setState(TraderStateTO.ACTIVE)
                         .setSettings(shoptogetherFalseTO)
                         .addCommoditiesSold(storageSoldByST1).addCommoditiesSold(bicliqueSoldTO)
+                        .setType(EntityType.STORAGE_VALUE)
                         .addCliques(0).build();
         TraderTO st2TO = TraderTO.newBuilder().setOid(67890).setType(77777)
                         .setState(TraderStateTO.ACTIVE)
                         .setSettings(shoptogetherFalseTO)
                         .addCommoditiesSold(storageSoldByST2).addCommoditiesSold(bicliqueSoldTO)
                         .addCliques(0)
+                        .setType(EntityType.STORAGE_VALUE)
                         .build();
 
         Topology topology = new Topology();
         Trader shopAloneVM = ProtobufToAnalysis.addTrader(topology, shopAloneVMTO);
         Trader shopTogetherVM = ProtobufToAnalysis.addTrader(topology, shopTogetherVMTO);
-        ProtobufToAnalysis.addTrader(topology, pm1TO).getSettings().setCanAcceptNewCustomers(true);
-        ProtobufToAnalysis.addTrader(topology, pm2TO).getSettings().setCanAcceptNewCustomers(true);
-        ProtobufToAnalysis.addTrader(topology, st1TO).getSettings().setCanAcceptNewCustomers(true);
-        ProtobufToAnalysis.addTrader(topology, st2TO).getSettings().setCanAcceptNewCustomers(true);
+        Trader pm1Trader = ProtobufToAnalysis.addTrader(topology, pm1TO);
+        pm1Trader.getSettings().setCanAcceptNewCustomers(true);
+        Trader pm2Trader = ProtobufToAnalysis.addTrader(topology, pm2TO);
+        pm2Trader.getSettings().setCanAcceptNewCustomers(true);
+        Trader st1Trader = ProtobufToAnalysis.addTrader(topology, st1TO);
+        st1Trader.getSettings().setCanAcceptNewCustomers(true);
+        Trader st2Trader = ProtobufToAnalysis.addTrader(topology, st2TO);
+        st2Trader.getSettings().setCanAcceptNewCustomers(true);
         topology.populateMarketsWithSellersAndMergeConsumerCoverage();
         Economy economy = (Economy)topology.getEconomy();
         economy.composeMarketSubsetForPlacement();
         List<Action> actions = Placement.placementDecisions(economy).getActions();
-        assertTrue(actions.size()==2);
-        assertTrue(actions.get(0) instanceof Move);
-        assertEquals(shopAloneVM, actions.get(0).getActionTarget());
+        // Assert that both VMs move from PM1/ST1 to PM2/ST2
+        assertEquals(4, actions.size());
+        Set<ShoppingList> shopAloneSls = economy.getMarketsAsBuyer(shopAloneVM).keySet();
+        ShoppingList shopAloneComputeSl = shopAloneSls.stream().filter(
+            sl -> sl.getSupplier().getType() == EntityType.PHYSICAL_MACHINE_VALUE).findFirst().get();
+        ShoppingList shopAloneStorageSl = shopAloneSls.stream().filter(
+            sl -> sl.getSupplier().getType() == EntityType.STORAGE_VALUE).findFirst().get();
+        Set<ShoppingList> shopTogetherSls = economy.getMarketsAsBuyer(shopTogetherVM).keySet();
+        ShoppingList shopTogetherComputeSl = shopTogetherSls.stream().filter(
+            sl -> sl.getSupplier().getType() == EntityType.PHYSICAL_MACHINE_VALUE).findFirst().get();
+        ShoppingList shopTogetherStorageSl = shopTogetherSls.stream().filter(
+            sl -> sl.getSupplier().getType() == EntityType.STORAGE_VALUE).findFirst().get();
+        Set<Action> expectedActions = Sets.newHashSet(new Move(economy, shopAloneComputeSl, pm1Trader, pm2Trader),
+            new Move(economy, shopAloneStorageSl, st1Trader, st2Trader),
+            new Move(economy, shopTogetherComputeSl, pm1Trader, pm2Trader),
+            new Move(economy, shopTogetherStorageSl, st1Trader, st2Trader));
+        assertEquals(Sets.newHashSet(actions), expectedActions);
     }
 
     private static final long VM_BUYER_OID = 123L;

@@ -161,7 +161,7 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
                 Trader clonedMandatorySupplier = provisionedSupplier.getProvisionedSeller();
                 provisionedSellerSl.move(clonedMandatorySupplier);
                 Move.updateQuantities(getEconomy(), provisionedSellerSl,
-                        provisionedSellerSl.getSupplier(), UpdatingFunctionFactory.ADD_COMM);
+                        provisionedSellerSl.getSupplier(), UpdatingFunctionFactory.ADD_COMM, true);
                 unPlacedClones.add(clonedMandatorySupplier);
             } else {
                 // If the new clone does not need its provider to clone and it is movable,

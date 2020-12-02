@@ -89,7 +89,7 @@ public final class GuaranteedBuyerHelper {
                 // will be updated using ADD_COMM update function, effectively setting the sold quantity
                 // to the same as that of the model trader.
                 Move.updateQuantities(economy, newSl, newSupplier, UpdatingFunctionFactory.ADD_COMM,
-                        slsNeedsUpdate);
+                        slsNeedsUpdate, true);
             } else {
                 // Copy over the same quantity as existing SL to new SL and set it as the sold
                 // for the RTS provider and the RTS consumes the full capacity.
@@ -142,7 +142,7 @@ public final class GuaranteedBuyerHelper {
                 // guaranteed buyer. This only applies to response time and transaction commodities
                 // today. For other commodities, the SUB_COMM update function is used.
                 Move.updateQuantities(economy, shoppingList, traderToSuspend,
-                        UpdatingFunctionFactory.SUB_COMM, slsNeedsUpdate);
+                        UpdatingFunctionFactory.SUB_COMM, slsNeedsUpdate, false);
             }
             economy.removeBasketBought(shoppingList);
             removedShoppingLists.add(shoppingList);

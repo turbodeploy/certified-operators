@@ -92,7 +92,6 @@ public class MM1Distribution implements UpdatingFunction {
      *                   suspension
      * @param economy    not used
      * @param take       not used
-     * @param overhead   not used
      * @param currentSLs the current set of {@link ShoppingList} that belong to the same guaranteed
      *                   buyer
      * @return an array containing the updated quantity and peak quantity on the seller
@@ -104,8 +103,8 @@ public class MM1Distribution implements UpdatingFunction {
                             @Nonnull Trader seller,
                             @Nonnull UnmodifiableEconomy economy,
                             boolean take,
-                            double overhead,
-                            @Nullable Set<ShoppingList> currentSLs) {
+                            @Nullable Set<ShoppingList> currentSLs,
+                            boolean isIncoming) {
         if (currentSLs == null) {
             // There is nothing to distribute
             return new double[]{commSold.getQuantity(), commSold.getPeakQuantity()};
