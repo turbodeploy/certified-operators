@@ -13,6 +13,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.StorageCompatibilityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 
@@ -35,6 +36,7 @@ public class VirtualVolumeInfoMapperTest {
                         .setAttachmentState(AttachmentState.ATTACHED)
                         .setEncrypted(true)
                         .setHourlyBilledOps(hourlyBilledOps)
+                        .setStorageCompatibilityForConsumer(StorageCompatibilityType.PREMIUM)
                         .addFile(file)
                         .build());
         final TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
@@ -44,6 +46,7 @@ public class VirtualVolumeInfoMapperTest {
                         .setAttachmentState(AttachmentState.ATTACHED)
                         .setEncryption(true)
                         .setHourlyBilledOps(hourlyBilledOps)
+                        .setStorageCompatibilityForConsumer(StorageCompatibilityType.PREMIUM)
                         .addFiles(file)
                         .build())
                 .build();

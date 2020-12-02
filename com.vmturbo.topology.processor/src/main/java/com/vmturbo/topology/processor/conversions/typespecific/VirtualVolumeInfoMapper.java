@@ -42,6 +42,9 @@ public class VirtualVolumeInfoMapper extends TypeSpecificInfoMapper {
         if (vvData.hasHourlyBilledOps()) {
             vvInfo.setHourlyBilledOps(vvData.getHourlyBilledOps());
         }
+        if (vvData.hasStorageCompatibilityForConsumer()) {
+            vvInfo.setStorageCompatibilityForConsumer(vvData.getStorageCompatibilityForConsumer());
+        }
         vvInfo.addAllFiles(vvData.getFileList());
         retBuilder.setVirtualVolume(vvInfo.build());
         return retBuilder.build();

@@ -285,6 +285,12 @@ message TypeSpecificInfo {
         // Average number of billed operations (e.g. reads, writes) per hour. The field is used in
         // cost calculation for AWS Magnetic (Standard) volumes.
         optional double hourly_billed_ops = 12;
+
+        // Storage compatibility type for volume's consumer(VM that consumes the volume).
+        // Consumer's compatibility type will affect volume's analysis. If consumer is
+        // Premium compatible, the volume can be Premium/Standard storage type. However,
+        // if consumer is Standard only compatible, the volume can only stay on Standard type.
+        optional .common_dto.EntityDTO.VirtualVolumeData.StorageCompatibilityType storage_compatibility_for_consumer = 13;
     }
 
     // specific data for a Storage entity

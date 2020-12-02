@@ -46,6 +46,7 @@ import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.StorageCompatibility;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.common.api.mappers.EnvironmentTypeMapper;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
@@ -81,6 +82,7 @@ import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.StorageCompatibilityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 
 /**
@@ -1179,6 +1181,14 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             apiDto.setLastModified(volumeInfo.getFilesList().stream()
                     .mapToLong(VirtualVolumeFileDescriptor::getModificationTimeMs)
                     .max().orElse(0));
+            if (volumeInfo.hasStorageCompatibilityForConsumer()) {
+                final StorageCompatibilityType storageCompatibility = volumeInfo.getStorageCompatibilityForConsumer();
+                if (storageCompatibility == StorageCompatibilityType.PREMIUM) {
+                    apiDto.setAttachedVMStorageCompatibility(StorageCompatibility.PREMIUM);
+                } else if (storageCompatibility == StorageCompatibilityType.STANDARD) {
+                    apiDto.setAttachedVMStorageCompatibility(StorageCompatibility.STANDARD);
+                }
+            }
         }
 
         return apiDto;
