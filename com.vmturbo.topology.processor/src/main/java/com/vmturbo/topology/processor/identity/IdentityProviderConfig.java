@@ -43,11 +43,14 @@ public class IdentityProviderConfig {
     @Value("${assignedIdReloadReattemptIntervalSeconds:10}")
     private long assignedIdReloadReattemptIntervalSeconds;
 
+    @Value("${identityStoreinitializationTimeoutMin:20}")
+    private int identityStoreinitializationTimeoutMin;
+
 
     @Bean
     public IdentityServiceUnderlyingStore underlyingStore() {
         return new IdentityServiceInMemoryUnderlyingStore(identityDatabaseStore(),
-                assignedIdReloadReattemptIntervalSeconds, TimeUnit.SECONDS);
+                assignedIdReloadReattemptIntervalSeconds, TimeUnit.SECONDS, identityStoreinitializationTimeoutMin);
     }
 
     @Bean

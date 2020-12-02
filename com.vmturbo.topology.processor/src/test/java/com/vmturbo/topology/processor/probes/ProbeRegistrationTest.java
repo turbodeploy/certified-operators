@@ -65,7 +65,7 @@ public class ProbeRegistrationTest {
         identityProvider = new IdentityProviderImpl(
                 new IdentityService(
                         new IdentityServiceInMemoryUnderlyingStore(
-                                mock(IdentityDatabaseStore.class)),
+                                mock(IdentityDatabaseStore.class), 10),
                         new HeuristicsMatcher()),
                 new MapKeyValueStore(), new ProbeInfoCompatibilityChecker(), 0L);
         ProbeStore probeStore = new RemoteProbeStore(keyValueStore,

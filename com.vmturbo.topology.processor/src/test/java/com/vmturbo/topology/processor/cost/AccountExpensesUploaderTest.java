@@ -115,7 +115,7 @@ public class AccountExpensesUploaderTest {
 
     private IdentityProvider identityProvider = new IdentityProviderImpl(
         new IdentityService(new IdentityServiceInMemoryUnderlyingStore(
-            Mockito.mock(IdentityDatabaseStore.class)),
+            Mockito.mock(IdentityDatabaseStore.class), 10),
             new HeuristicsMatcher()), keyValueStore, new ProbeInfoCompatibilityChecker(), 0L);
 
     private final Discovery discoveryTopology =

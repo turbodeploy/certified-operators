@@ -130,7 +130,7 @@ public class OperationControllerTest {
             return new IdentityProviderImpl(
                     new IdentityService(
                         new IdentityServiceInMemoryUnderlyingStore(
-                                Mockito.mock(IdentityDatabaseStore.class)),
+                                Mockito.mock(IdentityDatabaseStore.class), 10),
                         new HeuristicsMatcher()),
                     new MapKeyValueStore(), new ProbeInfoCompatibilityChecker(), 0L);
         }

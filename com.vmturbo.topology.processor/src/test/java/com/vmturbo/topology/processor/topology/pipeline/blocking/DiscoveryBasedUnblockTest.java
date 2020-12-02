@@ -31,6 +31,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.Mockito;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.MutableFixedClock;
@@ -88,6 +89,8 @@ public class DiscoveryBasedUnblockTest {
 
     private DiscoveryBasedUnblock unblock;
 
+    private BinaryDiscoveryDumper binaryDiscoveryDumper;
+
     private TargetShortCircuitSpec targetShortCircuitSpec = TargetShortCircuitSpec.newBuilder()
             .setFastRediscoveryThreshold(2)
             .setFastSlowBoundary(fastSlowBoundaryMs, TimeUnit.MILLISECONDS)
@@ -102,16 +105,18 @@ public class DiscoveryBasedUnblockTest {
 
     /**
      * Common setup code before every test.
+     *
+     * @throws InterruptedException if the operation is interrupted
      * @throws IOException id the dumpDir can't be created
      */
     @Before
-    public void setup() throws IOException {
+    public void setup() throws IOException, InterruptedException {
         dumpDir = new File(tmpFolder.newFolder("cached-responses-root"), "");
-        final BinaryDiscoveryDumper discoveryDumper = new BinaryDiscoveryDumper(dumpDir);
+        binaryDiscoveryDumper = spy(new BinaryDiscoveryDumper(dumpDir));
         unblock = spy(new DiscoveryBasedUnblock(pipelineExecutorService,
                     targetStore, probeStore, scheduler, operationManager,
                     targetShortCircuitSpec, maxDiscoveryWaitMs, maxProbeRegistrationWaitMs, TimeUnit.MILLISECONDS,
-                    clock, identityProvider, discoveryDumper, true));
+                    clock, identityProvider, binaryDiscoveryDumper, true));
         IdentityGenerator.initPrefix(1L);
         when(identityProvider.generateOperationId()).thenAnswer(invocation -> IdentityGenerator.next());
         when(operationManager.notifyDiscoveryResult(any(), any())).thenReturn(mock(Future.class));
@@ -494,6 +499,33 @@ public class DiscoveryBasedUnblockTest {
 
         // Before loading the responses
         assertFalse(unblock.runIteration());
+
+        unblock.run();
+
+        // After loading the responses
+        assertTrue(unblock.runIteration());
+
+        verify(pipelineExecutorService).unblockBroadcasts();
+    }
+
+    /**
+     * Test that loading cached responses at startup unlock the broadcast.
+     * @throws InterruptedException if the thread is interrupted
+     */
+    @Test
+    public void testWaitForIdentityStore() throws InterruptedException {
+        final long targetId = 1;
+        writeDiscoveryResponse(targetId);
+        Target mockTarget = setupTarget(targetId);
+        newLastDiscovery(mockTarget.getId());
+        when(targetStore.getAll()).thenReturn(Arrays.asList(mockTarget));
+        when(targetStore.getTarget(targetId)).thenReturn(Optional.of(mockTarget));
+        when(mockTarget.getProbeId()).thenReturn(1L);
+        Mockito.doAnswer(invocation -> {
+            Thread.sleep(1000);
+            Mockito.verify(binaryDiscoveryDumper, Mockito.never()).restoreDiscoveryResponses(any());
+            return null;
+        }).when(identityProvider).waitForInitializedStore();
 
         unblock.run();
 

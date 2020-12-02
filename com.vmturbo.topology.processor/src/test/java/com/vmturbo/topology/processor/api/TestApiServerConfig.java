@@ -179,7 +179,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     @Bean
     protected IdentityService identityService() {
         return new IdentityService(new IdentityServiceInMemoryUnderlyingStore(
-                mock(IdentityDatabaseStore.class)),
+                mock(IdentityDatabaseStore.class), 10),
                         new HeuristicsMatcher());
     }
 
