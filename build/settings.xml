@@ -46,13 +46,13 @@
                     </snapshots>
                 </repository>
                 <!-- https://github.com/Swagger2Markup/swagger2markup/issues/300 -->
-                <repository>
+                <!--repository>
                     <id>spring-libs-milestone</id>
                     <url>https://repo.spring.io/milestone</url>
                     <snapshots>
                         <enabled>false</enabled>
                     </snapshots>
-                </repository>
+                </repository -->
             </repositories>
             <pluginRepositories>
                 <pluginRepository>
@@ -79,13 +79,13 @@
                     <url>http://build.vmturbo.com:8081/nexus/content/repositories/thirdparty</url>
                 </pluginRepository>
                 <!-- https://github.com/Swagger2Markup/swagger2markup/issues/300 -->
-                <pluginRepository>
+                <!--pluginRepository>
                     <id>spring-plugins-release</id>
                     <url>https://repo.spring.io/plugins-release</url>
                     <snapshots>
                         <enabled>false</enabled>
                     </snapshots>
-                </pluginRepository>
+                </pluginRepository -->
             </pluginRepositories>
         </profile>
     </profiles>
