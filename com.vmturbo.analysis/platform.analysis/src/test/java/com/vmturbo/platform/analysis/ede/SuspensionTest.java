@@ -596,7 +596,6 @@ public class SuspensionTest {
         Economy economy = createDaemonScenario(false, 2);
         Assert.assertNotNull(economy);
         Ledger ledger = new Ledger(economy);
-        Ede ede = new Ede();
         Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
         List<Action> actions = suspension.suspensionDecisions(economy, ledger);
 
@@ -647,27 +646,34 @@ public class SuspensionTest {
         // Add a VM
         Trader vm = economy.addTrader(TestUtils.VM_TYPE, TraderState.ACTIVE, VM_BASKET);
         vm.setDebugInfoNeverUseInCode("VM").getSettings().setSuspendable(true);
+        vm.getSettings().setDaemon(true);
         // Add a guaranteed buyer if requested
         Trader gb = addGuaranteedBuyer
                         ? economy.addTrader(TestUtils.VAPP_TYPE, TraderState.ACTIVE, EMPTY,
                                             APPLICATION_BASKET)
                             .setDebugInfoNeverUseInCode("GuaranteedBuyer")
                         : null;
+        if (gb != null) {
+            gb.getSettings().setDaemon(true);
+        }
         // Add applications with their respective containers and pods
         for (int i = 0, type = 0; i < numApplications; i++, type += 100) {
             Trader pod = economy.addTrader(TestUtils.VM_TYPE, TraderState.ACTIVE, POD_BASKET,
                                            VM_BASKET);
+            pod.getSettings().setDaemon(true);
             pod.setDebugInfoNeverUseInCode("POD-" + i).getSettings().setDaemon(true);
             // Move the pod onto the VM
             economy.getMarketsAsBuyer(pod).keySet().forEach(sl -> sl.move(vm));
 
             Trader container = economy.addTrader(TestUtils.VM_TYPE, TraderState.ACTIVE,
                                                  CONTAINER_BASKET, POD_BASKET);
+            container.getSettings().setDaemon(true);
             container.setDebugInfoNeverUseInCode("CONTAINER-" + i);
             // Move the container onto the pod
             economy.getMarketsAsBuyer(container).keySet().forEach(sl -> sl.move(pod));
             Trader app = economy.addTrader(TestUtils.VM_TYPE, TraderState.ACTIVE,
                                            APPLICATION_BASKET, CONTAINER_BASKET);
+            app.getSettings().setDaemon(true);
             app.setDebugInfoNeverUseInCode("APP-" + i);
             // Move the app onto the container
             economy.getMarketsAsBuyer(app).keySet().forEach(sl -> sl.move(container));

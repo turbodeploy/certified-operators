@@ -384,7 +384,7 @@ public class Suspension {
     }
 
     /**
-     * Suspend all customers on this Trader as well as the customers of those customers.  If one of
+     * Suspend all daemon customers on this Trader as well as the customers of those customers.  If one of
      * the customers is a guaranteed buyer and the guaranteed buyer no longer has any shopping
      * lists, suspend the guaranteed buyer as well.
      * @param economy economy.
@@ -392,7 +392,7 @@ public class Suspension {
      * @return list of new Deactivates that were generated.  These actions are also added to the
      *          driving Deactivate action's subsequent actions list.
      */
-    public List<Action> suspendOrphanedCustomers(final Economy economy,
+    List<Action> suspendOrphanedCustomers(final Economy economy,
                                                   final Deactivate drivingDeactivate) {
         List<Action> actions = new ArrayList<>();
         suspendOrphanedCustomersHelper(economy, drivingDeactivate.getActionTarget(), actions);
@@ -405,6 +405,10 @@ public class Suspension {
                                                 final List<Action> actions) {
         for (ShoppingList sl : trader.getCustomers()) {
             Trader customer = sl.getBuyer();
+            // Double check if the customer is daemon. We should only suspend daemon in this method.
+            if (!customer.getSettings().isDaemon()) {
+                continue;
+            }
             if (customer.getSettings().isGuaranteedBuyer()) {
                 // If this guaranteed buyer is a buyer in a single market, then by definition the
                 // current trader is the sole supplier.  Since the current trader is suspending and

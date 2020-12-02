@@ -1,7 +1,9 @@
 package com.vmturbo.platform.analysis.ede;
 
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
@@ -21,6 +23,7 @@ import org.junit.Test;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.Deactivate;
+import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -166,5 +169,44 @@ public class EdeIntegrationTest {
         Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
         List<Action> suspendActions = suspension.suspensionDecisions(first, ledger);
         assertTrue(suspendActions.isEmpty());
+    }
+
+    /**
+     * When replaying host suspend action and host is controllable true,
+     * a deactivate host action and a move VM action should be generated.
+     */
+    @Test
+    public void testReplayDeactivateWhenProviderControllableTrue() {
+        pm1.getSettings().setControllable(true);
+        Deactivate deactivate = new Deactivate(first, pm1, shoppingListOfVm1.getBasket());
+        ReplayActions replayActions = new ReplayActions(ImmutableList.of(),
+            ImmutableList.of(deactivate), firstTopology);
+        Ledger ledger = new Ledger(first);
+        List<Action> actions = replayActions.tryReplayDeactivateActions(first, ledger,
+            SuspensionsThrottlingConfig.DEFAULT);
+        assertThat(actions.size(), is(2));
+        assertTrue(actions.get(0) instanceof Deactivate);
+        assertThat(((Deactivate)actions.get(0)).getTarget(), is(pm1));
+        assertTrue(actions.get(1) instanceof Move);
+        assertThat(((Move)actions.get(1)).getTarget(), is(shoppingListOfVm1));
+    }
+
+    /**
+     * When replaying host suspend action and host is controllable false and the VM on it is not daemon,
+     * only a deactivate host action should be generated.
+     */
+    @Test
+    public void testReplayDeactivateWhenProviderControllableFalse() {
+        pm1.getSettings().setControllable(false);
+        vm1.getSettings().setDaemon(false);
+        Deactivate deactivate = new Deactivate(first, pm1, shoppingListOfVm1.getBasket());
+        ReplayActions replayActions = new ReplayActions(ImmutableList.of(),
+            ImmutableList.of(deactivate), firstTopology);
+        Ledger ledger = new Ledger(first);
+        List<Action> actions = replayActions.tryReplayDeactivateActions(first, ledger,
+            SuspensionsThrottlingConfig.DEFAULT);
+        assertThat(actions.size(), is(1));
+        assertTrue(actions.get(0) instanceof Deactivate);
+        assertThat(((Deactivate)actions.get(0)).getTarget(), is(pm1));
     }
 }
