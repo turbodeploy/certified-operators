@@ -32,6 +32,9 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -44,6 +47,9 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
@@ -66,6 +72,12 @@ public class ScenarioScopeAccessCheckerTest {
     private SearchServiceBlockingStub searchServiceClient;
 
     private GrpcTestServer searchGrpcServer;
+
+    private RepositoryServiceBlockingStub repositoryServiceClient;
+
+    private RepositoryServiceMole repositoryServiceMole = spy(RepositoryServiceMole.class);
+
+    private GrpcTestServer repositoryGrpcServer;
 
     private SupplyChainProtoMoles.SupplyChainServiceMole supplyChainMole =
             spy(new SupplyChainProtoMoles.SupplyChainServiceMole());
@@ -90,12 +102,16 @@ public class ScenarioScopeAccessCheckerTest {
         searchGrpcServer.start();
         searchServiceClient = SearchServiceGrpc.newBlockingStub(searchGrpcServer.getChannel());
 
+        repositoryGrpcServer = GrpcTestServer.newServer(repositoryServiceMole);
+        repositoryGrpcServer.start();
+        repositoryServiceClient = RepositoryServiceGrpc.newBlockingStub(repositoryGrpcServer.getChannel());
+
         supplyChainGrpcServer = GrpcTestServer.newServer(supplyChainMole);
         supplyChainGrpcServer.start();
         supplyChainServiceClient = SupplyChainServiceGrpc.newBlockingStub(supplyChainGrpcServer.getChannel());
 
         scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,
-                groupServiceClient, searchServiceClient, supplyChainServiceClient);
+                groupServiceClient, searchServiceClient, supplyChainServiceClient, repositoryServiceClient);
     }
 
     @Test
@@ -289,6 +305,10 @@ public class ScenarioScopeAccessCheckerTest {
                         .setSupplyChain(SupplyChain.newBuilder()
                                 .addSupplyChainNodes(virtualMachineNode))
                         .build());
+        when(repositoryServiceMole.retrieveTopologyEntities(any()))
+                .thenReturn(Collections.singletonList(PartialEntityBatch.newBuilder().addEntities(
+                        PartialEntity.newBuilder().setMinimal(
+                                MinimalEntity.newBuilder().setOid(vmOid).build())).build()));
 
         // Act
         ScenarioInfo info = scenarioScopeAccessChecker.checkScenarioAccessAndValidateScopes(scenarioInfo);
@@ -389,6 +409,11 @@ public class ScenarioScopeAccessCheckerTest {
                         .setSupplyChain(SupplyChain.newBuilder()
                                 .addSupplyChainNodes(virtualMachineNode))
                         .build());
+        when(repositoryServiceMole.retrieveTopologyEntities(any()))
+                .thenReturn(Collections.singletonList(PartialEntityBatch.newBuilder().addEntities(
+                        PartialEntity.newBuilder().setMinimal(
+                                MinimalEntity.newBuilder().setOid(vmOid).build())).build()));
+
 
         // Act
         ScenarioInfo info = scenarioScopeAccessChecker.checkScenarioAccessAndValidateScopes(scenarioInfo);
@@ -397,4 +422,163 @@ public class ScenarioScopeAccessCheckerTest {
         assertEquals(1, info.getScope().getScopeEntriesList().size());
         assertEquals(vmOid, info.getScope().getScopeEntriesList().get(0).getScopeObjectOid());
     }
+
+    /**
+     * If user has access to all workloads in the scenario scope, there is no need to
+     * rewrite the scenario scope. Verify that the scope entity list is not changed.
+     *
+     * @throws ScenarioScopeNotFoundException exception thrown if scenario scope can not be found
+     */
+    @Test
+    public void testScenarioInfoScopeAccessWithGroupSupplyChainNoScopeRewrite()
+            throws ScenarioScopeNotFoundException {
+        long groupOid = 1L;
+        long vmOid1 = 100L;
+        long vmOid2 = 101L;
+
+        // Setup the scenario scope
+        ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
+                .setScope(PlanScope.newBuilder()
+                        .addScopeEntries(PlanScopeEntry.newBuilder()
+                                .setClassName(StringConstants.GROUP)
+                                .setScopeObjectOid(groupOid)))
+                .build();
+        // Setup the User scope with 1 VM
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        EntityAccessScope accessScope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(vmOid1, vmOid2)), null);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        // Setup the request for the Group members
+        when(groupServiceMole.getMembers(any())).thenReturn(ImmutableList.of(
+                GetMembersResponse.newBuilder().setGroupId(groupOid)
+                        .addMemberId(vmOid1)
+                        .build(),
+                GetMembersResponse.newBuilder().setGroupId(groupOid)
+                        .addMemberId(vmOid2)
+                        .build()));
+        // Setup the supply chain to return the VMs
+        final SupplyChainNode virtualMachineNode = SupplyChainNode.newBuilder()
+                .setEntityType(VM.typeNumber())
+                .putMembersByState(TopologyDTO.EntityState.POWERED_ON_VALUE,
+                        SupplyChainNode.MemberList.newBuilder()
+                                .addAllMemberOids(ImmutableList.of(vmOid1, vmOid2))
+                                .build())
+                .build();
+        when(supplyChainMole.getSupplyChain(any()))
+                .thenReturn(GetSupplyChainResponse.newBuilder()
+                        .setSupplyChain(SupplyChain.newBuilder()
+                                .addSupplyChainNodes(virtualMachineNode))
+                        .build());
+
+        // Act
+        ScenarioInfo info = scenarioScopeAccessChecker.checkScenarioAccessAndValidateScopes(scenarioInfo);
+
+        // Assert: Scope entity list should not be changed.
+        assertEquals(1, info.getScope().getScopeEntriesList().size());
+        assertEquals(groupOid, info.getScope().getScopeEntriesList().get(0).getScopeObjectOid());
+    }
+
+    /**
+     * If user does not have access to any workloads of the plan scope, expect an exception thrown
+     * by checkScenarioAccessAndValidateScopes.
+     *
+     * @throws ScenarioScopeNotFoundException exception thrown if scenario scope can not be found
+     */
+    @Test(expected = UserAccessScopeException.class)
+    public void testScenarioInfoScopeAccessWithGroupSupplyChainNoAccess()
+            throws ScenarioScopeNotFoundException {
+        long groupOid = 1L;
+        long vmOid1 = 100L;
+        long vmOid2 = 101L;
+        long vmOid3 = 102L;
+
+        // Setup the scenario scope
+        ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
+                .setScope(PlanScope.newBuilder()
+                        .addScopeEntries(PlanScopeEntry.newBuilder()
+                                .setClassName(StringConstants.GROUP)
+                                .setScopeObjectOid(groupOid)))
+                .build();
+        // Setup the User scope with 1 VM
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        EntityAccessScope accessScope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(vmOid3)), null);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        // Setup the request for the Group members
+        when(groupServiceMole.getMembers(any())).thenReturn(ImmutableList.of(
+                GetMembersResponse.newBuilder().setGroupId(groupOid)
+                        .addMemberId(vmOid1)
+                        .addMemberId(vmOid2)
+                        .build()));
+        // Setup the supply chain to return the VMs
+        final SupplyChainNode virtualMachineNode = SupplyChainNode.newBuilder()
+                .setEntityType(VM.typeNumber())
+                .putMembersByState(TopologyDTO.EntityState.POWERED_ON_VALUE,
+                        SupplyChainNode.MemberList.newBuilder()
+                                .addMemberOids(vmOid1)
+                                .addMemberOids(vmOid2)
+                                .build())
+                .build();
+        when(supplyChainMole.getSupplyChain(any()))
+                .thenReturn(GetSupplyChainResponse.newBuilder()
+                        .setSupplyChain(SupplyChain.newBuilder()
+                                .addSupplyChainNodes(virtualMachineNode))
+                        .build());
+
+        // Act
+        ScenarioInfo info = scenarioScopeAccessChecker.checkScenarioAccessAndValidateScopes(scenarioInfo);
+    }
+
+    /**
+     * If scenario is for OCP, throw exception if user does not have access to all workloads of the
+     * plan scope.
+     *
+     * @throws ScenarioScopeNotFoundException exception thrown if scenario scope can not be found
+     */
+    @Test(expected = UserAccessScopeException.class)
+    public void testScenarioInfoScopeAccessWithGroupSupplyChainOCP()
+            throws ScenarioScopeNotFoundException {
+        long groupOid = 1L;
+        long vmOid = 100L;
+        long vmOutOfScopeOid = 101L;
+
+        // Setup the scenario scope
+        ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
+                .setType(StringConstants.OPTIMIZE_CLOUD_PLAN)
+                .setScope(PlanScope.newBuilder()
+                        .addScopeEntries(PlanScopeEntry.newBuilder()
+                                .setClassName(StringConstants.GROUP)
+                                .setScopeObjectOid(groupOid)))
+                .build();
+        // Setup the User scope with 1 VM
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        EntityAccessScope accessScope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(vmOid)), null);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        // Setup the request for the Group members
+        when(groupServiceMole.getMembers(any())).thenReturn(ImmutableList.of(
+                GetMembersResponse.newBuilder().setGroupId(groupOid)
+                        .addMemberId(vmOid)
+                        .addMemberId(vmOutOfScopeOid)
+                        .build()));
+        // Setup the supply chain to return the VMs
+        final SupplyChainNode virtualMachineNode = SupplyChainNode.newBuilder()
+                .setEntityType(VM.typeNumber())
+                .putMembersByState(TopologyDTO.EntityState.POWERED_ON_VALUE,
+                        SupplyChainNode.MemberList.newBuilder()
+                                .addMemberOids(vmOid)
+                                .addMemberOids(vmOutOfScopeOid)
+                                .build())
+                .build();
+        when(supplyChainMole.getSupplyChain(any()))
+                .thenReturn(GetSupplyChainResponse.newBuilder()
+                        .setSupplyChain(SupplyChain.newBuilder()
+                                .addSupplyChainNodes(virtualMachineNode))
+                        .build());
+
+        // Act
+        ScenarioInfo info = scenarioScopeAccessChecker.checkScenarioAccessAndValidateScopes(scenarioInfo);
+    }
+
+
 }

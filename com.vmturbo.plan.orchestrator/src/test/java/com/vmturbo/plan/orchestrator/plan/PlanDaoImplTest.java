@@ -56,6 +56,9 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
@@ -109,6 +112,10 @@ public class PlanDaoImplTest {
     private SearchServiceMole searchBackend = spy(SearchServiceMole.class);
     private ScheduledExecutorService planCleanupExecutor = mock(ScheduledExecutorService.class);
 
+    private RepositoryServiceBlockingStub repositoryServiceClient;
+    private RepositoryServiceMole repositoryServiceMole = spy(RepositoryServiceMole.class);
+    private GrpcTestServer repositoryGrpcServer;
+
     /**
      * gRPC server to mock out gRPC dependencies.
      */
@@ -123,12 +130,15 @@ public class PlanDaoImplTest {
                 .setResponseCode(RepositoryOperationResponseCode.OK)
                 .build());
 
+        repositoryGrpcServer = GrpcTestServer.newServer(repositoryServiceMole);
+        repositoryGrpcServer.start();
+        repositoryServiceClient = RepositoryServiceGrpc.newBlockingStub(repositoryGrpcServer.getChannel());
+
         planDao = new PlanDaoImpl(dsl,
-            grpcServer.getChannel(),
-            userSessionContext, SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            grpcServer.getChannel(), SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 null,
             clock, planCleanupExecutor,
-            1, TimeUnit.HOURS, 1, TimeUnit.HOURS);
+            1, TimeUnit.HOURS, 1, TimeUnit.HOURS, repositoryServiceClient);
     }
 
     @After

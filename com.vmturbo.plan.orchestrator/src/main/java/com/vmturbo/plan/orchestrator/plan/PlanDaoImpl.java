@@ -42,8 +42,6 @@ import org.jooq.impl.DSL;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserContextUtils;
-import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
@@ -51,6 +49,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
@@ -68,7 +67,6 @@ import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanInstance;
 import com.vmturbo.plan.orchestrator.db.tables.records.PlanInstanceRecord;
 import com.vmturbo.plan.orchestrator.plan.PlanStatusListener.PlanStatusListenerException;
-import com.vmturbo.plan.orchestrator.scenario.ScenarioScopeAccessChecker;
 
 /**
  * DAO backed by RDBMS to hold plan instances.
@@ -114,10 +112,6 @@ public class PlanDaoImpl implements PlanDao {
 
     private final Clock clock;
 
-    private final UserSessionContext userSessionContext;
-
-    private final ScenarioScopeAccessChecker scenarioScopeAccessChecker;
-
     @GuardedBy("listenerLock")
     private final List<PlanStatusListener> planStatusListeners = new LinkedList<>();
 
@@ -127,7 +121,6 @@ public class PlanDaoImpl implements PlanDao {
 
     PlanDaoImpl(@Nonnull final DSLContext dsl,
                 @Nonnull final Channel groupChannel,
-                @Nonnull final UserSessionContext userSessionContext,
                 @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
                 @Nonnull final SupplyChainServiceBlockingStub supplyChainServiceServiceBlockingStub,
                 @Nonnull final Clock clock,
@@ -135,15 +128,12 @@ public class PlanDaoImpl implements PlanDao {
                 final long planTimeout,
                 @Nonnull final TimeUnit planTimeoutUnit,
                 final long cleanupInterval,
-                @Nonnull final TimeUnit cleanupIntervalUnit) {
+                @Nonnull final TimeUnit cleanupIntervalUnit,
+                @Nonnull final RepositoryServiceBlockingStub repositoryServiceBlockingStub) {
         this.dsl = Objects.requireNonNull(dsl);
         this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
         this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
-        this.userSessionContext = userSessionContext;
         this.clock = clock;
-        this.scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,
-                GroupServiceGrpc.newBlockingStub(groupChannel), searchServiceBlockingStub,
-                supplyChainServiceServiceBlockingStub);
         this.cleanupExecutor = cleanupExecutor;
         this.oldPlanCleanup = new OldPlanCleanup(clock, this, planTimeout, planTimeoutUnit);
         this.cleanupExecutor.scheduleAtFixedRate(this.oldPlanCleanup, cleanupInterval, cleanupInterval, cleanupIntervalUnit);

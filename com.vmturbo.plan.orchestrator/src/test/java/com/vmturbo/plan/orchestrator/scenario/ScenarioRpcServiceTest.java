@@ -42,6 +42,9 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioRequest
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioResponse;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
@@ -81,6 +84,12 @@ public class ScenarioRpcServiceTest {
 
     private SearchServiceBlockingStub searchServiceClient;
 
+    private RepositoryServiceBlockingStub repositoryServiceClient;
+
+    private RepositoryServiceMole repositoryServiceMole = spy(RepositoryServiceMole.class);
+
+    private GrpcTestServer repositoryGrpcServer;
+
     /**
      * gRPC test server.
      */
@@ -105,8 +114,14 @@ public class ScenarioRpcServiceTest {
 
     private void prepareGrpc() throws Exception {
         scenarioDao = new ScenarioDao(dbConfig.getDslContext());
+
+        repositoryGrpcServer = GrpcTestServer.newServer(repositoryServiceMole);
+        repositoryGrpcServer.start();
+        repositoryServiceClient = RepositoryServiceGrpc.newBlockingStub(repositoryGrpcServer.getChannel());
+
         scenarioRpcService = new ScenarioRpcService(scenarioDao, new IdentityInitializer(0),
-                userSessionContext, groupServiceClient, searchServiceClient, null);
+                userSessionContext, groupServiceClient, searchServiceClient, null,
+                repositoryServiceClient);
         grpcServer = GrpcTestServer.newServer(scenarioRpcService);
         grpcServer.start();
         scenarioServiceClient = ScenarioServiceGrpc.newBlockingStub(grpcServer.getChannel());

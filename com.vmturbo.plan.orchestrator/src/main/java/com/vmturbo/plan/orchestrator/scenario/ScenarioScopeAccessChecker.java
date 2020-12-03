@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -15,11 +16,15 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
@@ -27,6 +32,8 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChain
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
@@ -45,15 +52,18 @@ public class ScenarioScopeAccessChecker {
     private final GroupServiceBlockingStub groupServiceClient;
     private final SearchServiceBlockingStub searchServiceClient;
     private final SupplyChainServiceBlockingStub supplyChainServiceClient;
+    private final RepositoryServiceBlockingStub repositoryServiceBlockingStub;
 
     public ScenarioScopeAccessChecker(UserSessionContext userSessionContext,
                                       GroupServiceBlockingStub groupServiceClient,
                                       SearchServiceBlockingStub searchServiceClient,
-                                      SupplyChainServiceBlockingStub supplyChainServiceClient) {
+                                      SupplyChainServiceBlockingStub supplyChainServiceClient,
+                                      RepositoryServiceBlockingStub repositoryServiceBlockingStub) {
         this.userSessionContext = userSessionContext;
         this.groupServiceClient = groupServiceClient;
         this.searchServiceClient = searchServiceClient;
         this.supplyChainServiceClient = supplyChainServiceClient;
+        this.repositoryServiceBlockingStub = repositoryServiceBlockingStub;
     }
 
     /**
@@ -80,8 +90,6 @@ public class ScenarioScopeAccessChecker {
         final EntityAccessScope accessScope = userSessionContext.getUserAccessScope();
         final Set<Long> scopeGroupIds = new HashSet<>();
         final Set<Long> scopeEntityIds = new HashSet<>();
-
-        final List<PlanScopeEntry> scopeEntriesToAdd = Lists.newArrayList();
 
         for (PlanScopeEntry scopeEntry : scenarioInfo.getScope().getScopeEntriesList()) {
             if (GROUP_SCOPE_ENTRY_TYPES.contains(scopeEntry.getClassName())) {
@@ -141,33 +149,68 @@ public class ScenarioScopeAccessChecker {
             final SupplyChain response = supplyChainServiceClient.getSupplyChain(supplyChainRequest)
                     .getSupplyChain();
 
-            // We compare only VMs, DBs and DBSs entity types because they are the main focus for Plan results
-            response.getSupplyChainNodesList().stream()
-                    .filter(node -> node.getEntityType() == ApiEntityType.VIRTUAL_MACHINE.typeNumber()
-                            || node.getEntityType() == ApiEntityType.DATABASE.typeNumber()
-                            || node.getEntityType() == ApiEntityType.DATABASE_SERVER.typeNumber())
-                    .forEach(node -> {
-                        node.getMembersByStateMap().values()
-                            .forEach(memberList -> memberList.getMemberOidsList().stream()
-                                .filter(accessScope::contains)
-                                .forEach(memberOid -> {
-                                    scopeEntriesToAdd.add(PlanScopeEntry.newBuilder()
-                                        .setScopeObjectOid(memberOid)
-                                        .setClassName(ApiEntityType.fromType(node.getEntityType()).apiStr())
-                                        .build());
-                                }));
-                    });
+            if (scenarioInfo.getType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN)) {
+                // For OCP, we need to make sure user has access to all workloads in the plan scope.
+                // Get the set of all workloads in the plan scope
+                final Set<Long> planScope = response.getSupplyChainNodesList().stream()
+                        .filter(node -> node.getEntityType() == ApiEntityType.VIRTUAL_MACHINE.typeNumber()
+                                || node.getEntityType() == ApiEntityType.DATABASE.typeNumber()
+                                || node.getEntityType() == ApiEntityType.DATABASE_SERVER.typeNumber())
+                        .flatMap(node -> node.getMembersByStateMap().values().stream())
+                        .flatMap(memberList -> memberList.getMemberOidsList().stream())
+                        .collect(Collectors.toSet());
 
-            // Update the Plan scope to allow only what the User can access to
-            if (scopeEntriesToAdd.isEmpty()) {
-                throw new UserAccessScopeException("User doesn't have access to all entities in scenario.");
+                // Check if user has access to all workloads in the plan scope.
+                final boolean planScopeSubsetOfUserScope = accessScope.contains(planScope);
+                if (!planScopeSubsetOfUserScope) {
+                    // Don't allow user to run the plan if some of the workloads are not accessible.
+                    // RI analysis and RI related APIs only support certain entity type as scopes.
+                    // We can't do RI analysis on an arbitrary set of entities.
+                    throw new UserAccessScopeException("User doesn't have access to some entities in plan scope.");
+                }
             } else {
-                PlanScope.Builder scopeBuilder = scenarioInfo.getScope().toBuilder();
-                scopeBuilder.clearScopeEntries();
-                scopeBuilder.addAllScopeEntries(scopeEntriesToAdd);
-                scenarioInfo = scenarioInfo.toBuilder()
-                        .setScope(scopeBuilder.build())
-                        .build();
+                final Set<Long> workloadOidsInPlanScope = response.getSupplyChainNodesList().stream()
+                        .filter(node -> node.getEntityType() == ApiEntityType.VIRTUAL_MACHINE.typeNumber()
+                                || node.getEntityType() == ApiEntityType.DATABASE.typeNumber()
+                                || node.getEntityType() == ApiEntityType.DATABASE_SERVER.typeNumber())
+                        .flatMap(node -> node.getMembersByStateMap().values().stream())
+                        .flatMap(memberList -> memberList.getMemberOidsList().stream())
+                        .collect(Collectors.toSet());
+
+                final long numWorkloadsInPlanScope = workloadOidsInPlanScope.size();
+
+                final Set<Long> accessibleWorkloadOidsInPlanScope = workloadOidsInPlanScope.stream()
+                        .filter(accessScope::contains)
+                        .collect(Collectors.toSet());
+
+                // Update the Plan scope to allow only what the User can access to
+                if (accessibleWorkloadOidsInPlanScope.size() == 0) {
+                    throw new UserAccessScopeException("User doesn't have access to any entities in scenario.");
+                } else if (accessibleWorkloadOidsInPlanScope.size() != numWorkloadsInPlanScope) {
+                    // If user has access to a subset of the plan scope, rewrite the scope to the
+                    // list of entities he has access to.
+                    RetrieveTopologyEntitiesRequest.Builder requestBuilder = RetrieveTopologyEntitiesRequest.newBuilder()
+                            .addAllEntityOids(accessibleWorkloadOidsInPlanScope)
+                            .setTopologyType(TopologyType.SOURCE);
+                    Set<PlanScopeEntry> accessibleEntitiesInPlanScope = RepositoryDTOUtil.topologyEntityStream(
+                            repositoryServiceBlockingStub.retrieveTopologyEntities(requestBuilder.setReturnType(Type.MINIMAL).build()))
+                            .map(PartialEntity::getMinimal)
+                            .map(minimalEntity -> PlanScopeEntry.newBuilder()
+                                    .setScopeObjectOid(minimalEntity.getOid())
+                                    .setClassName(ApiEntityType.fromType(minimalEntity.getEntityType()).apiStr())
+                                    .setDisplayName(minimalEntity.getDisplayName())
+                                    .build())
+                            .collect(Collectors.toSet());
+
+                    PlanScope.Builder scopeBuilder = scenarioInfo.getScope().toBuilder();
+                    scopeBuilder.clearScopeEntries();
+                    scopeBuilder.addAllScopeEntries(accessibleEntitiesInPlanScope);
+                    scenarioInfo = scenarioInfo.toBuilder()
+                            .setScope(scopeBuilder.build())
+                            .build();
+                }
+                // If user has access to all entities in the plan scope, there is no need to change
+                // the scenarioInfo.
             }
         }
 

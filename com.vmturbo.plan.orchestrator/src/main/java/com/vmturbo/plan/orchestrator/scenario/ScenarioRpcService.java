@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioRequest;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioResponse;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceImplBase;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -49,13 +50,15 @@ public class ScenarioRpcService extends ScenarioServiceImplBase {
                               @Nonnull final UserSessionContext userSessionContext,
                               @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
                               @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
-                              @Nonnull final SupplyChainServiceBlockingStub supplyChainServiceClient) {
+                              @Nonnull final SupplyChainServiceBlockingStub supplyChainServiceClient,
+                              @Nonnull final RepositoryServiceBlockingStub repositoryServiceBlockingStub) {
         this.scenarioDao = scenarioDao;
         Objects.requireNonNull(identityInitializer); // Ensure identity generator is initialized
         this.userSessionContext = userSessionContext;
         this.groupServiceStub = groupServiceBlockingStub;
         this.scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,
-                groupServiceStub, searchServiceBlockingStub, supplyChainServiceClient);
+                groupServiceStub, searchServiceBlockingStub, supplyChainServiceClient,
+                repositoryServiceBlockingStub);
     }
 
     @Override

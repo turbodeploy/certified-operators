@@ -115,14 +115,14 @@ public class PlanConfig {
     public PlanDao planDao() {
         return new PlanDaoImpl(dbConfig.dsl(),
                 groupClientConfig.groupChannel(),
-                userSessionConfig.userSessionContext(),
                 repositoryClientConfig.searchServiceClient(),
                 supplyChainRpcService(),
                 globalConfig.clock(),
                 planCleanupExecutor(), planTimeoutMin,
                 TimeUnit.MINUTES,
                 planCleanupIntervalMin,
-                TimeUnit.MINUTES);
+                TimeUnit.MINUTES,
+                repositoryServiceBlockingStub());
     }
 
     /**

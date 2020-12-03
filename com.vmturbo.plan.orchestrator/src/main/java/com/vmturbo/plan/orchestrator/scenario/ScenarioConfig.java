@@ -10,6 +10,8 @@ import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioREST.ScenarioServiceController;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -45,7 +47,8 @@ public class ScenarioConfig {
     public ScenarioRpcService scenarioService() {
         return new ScenarioRpcService(scenarioDao(), globalConfig.identityInitializer(),
             userSessionConfig.userSessionContext(), groupServiceBlockingStub(),
-                repositoryClientConfig.searchServiceClient(), supplyChainRpcService());
+                repositoryClientConfig.searchServiceClient(), supplyChainRpcService(),
+                repositoryServiceBlockingStub());
     }
 
     @Bean
@@ -53,6 +56,21 @@ public class ScenarioConfig {
         return new ScenarioServiceController(scenarioService());
     }
 
+    /**
+     * Create repositoryServiceBlockingStub instance.
+     *
+     * @return repositoryServiceBlockingStub
+     */
+    @Bean
+    public RepositoryServiceBlockingStub repositoryServiceBlockingStub() {
+        return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+    }
+
+    /**
+     * Create JwtClientInterceptor instance.
+     *
+     * @return JwtClientInterceptor
+     */
     @Bean
     public JwtClientInterceptor jwtClientInterceptor() {
         return new JwtClientInterceptor();
