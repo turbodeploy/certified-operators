@@ -187,8 +187,11 @@ public class MarketsServiceTest {
     private static final String MARKET_UUID = "Market";
     private static final long T3_NANO_OID = 1L;
     private static final String T3_NANO_NAME = "t3.nano";
-    private static final long PHYSICAL_MACHINE_OID = 2;
+    private static final long VOLUME_OID = 2L;
+    private static final String VOLUME_NAME = "myDisk";
+    private static final long PHYSICAL_MACHINE_OID = 3L;
     private static final String PHYSICAL_MACHINE_NAME = "AnyOldPhysicalMachine";
+    private static final long VM_OID = 4L;
     private static final long STORAGE_OID = 999;
 
     // Allowable difference when comparing doubles
@@ -850,6 +853,12 @@ public class MarketsServiceTest {
             .setDisplayName(T3_NANO_NAME)
             .build();
 
+        TopologyEntityDTO volume = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setOid(VOLUME_OID)
+            .setDisplayName(VOLUME_NAME)
+            .build();
+
         TopologyEntityDTO physicalMachine = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
             .setOid(PHYSICAL_MACHINE_OID)
@@ -857,12 +866,12 @@ public class MarketsServiceTest {
             .build();
 
         final MultiEntityRequest multiEntityRequest =
-            ApiTestUtils.mockMultiFullEntityReq(Arrays.asList(t3nano, physicalMachine));
+            ApiTestUtils.mockMultiFullEntityReq(Arrays.asList(t3nano, volume, physicalMachine));
 
         // First we'll request all providers
         Mockito.when(repositoryApi
             .entitiesRequest(new HashSet<>(Arrays.asList(
-                T3_NANO_OID, PHYSICAL_MACHINE_OID, STORAGE_OID))))
+                T3_NANO_OID, VOLUME_OID, PHYSICAL_MACHINE_OID, STORAGE_OID))))
             .thenReturn(multiEntityRequest);
 
         // Since the storage isn't returned, it will be requested from the
@@ -895,7 +904,8 @@ public class MarketsServiceTest {
             .setClosestSeller(t3nano.getOid())
             .build();
 
-        // A reason with only one failed resource and no closest seller or placement problem
+        // A reason with only one failed resource and no closest seller or placement problem,
+        // but with a resource owner (a volume)
         UnplacementReason storageReason = UnplacementReason.newBuilder()
             .addFailedResources(FailedResources.newBuilder()
                 .setCommType(CommodityType.newBuilder()
@@ -905,6 +915,7 @@ public class MarketsServiceTest {
                 .setMaxAvailable(50)
                 .build())
             .setProviderType(EntityType.STORAGE_TIER_VALUE)
+            .setResourceOwnerOid(volume.getOid())
             .build();
 
         // A reason that is just a placement problem
@@ -914,7 +925,7 @@ public class MarketsServiceTest {
 
         TopologyEntityDTO unplacedVm = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .setOid(3L)
+            .setOid(VM_OID)
             .addUnplacedReason(computeReason)
             .addUnplacedReason(storageReason)
             .addUnplacedReason(problemReason)
@@ -1004,7 +1015,7 @@ public class MarketsServiceTest {
         assertEquals(com.vmturbo.api.enums.PlacementProblem.COSTS_NOT_FOUND,
             reasons.get(0).getPlacementProblem());
 
-        // A reason with only one failed resource and no closest seller or placement problem
+        // A reason with only one failed resource and no closest seller but with a resource owner
 
         List<FailedResourceApiDTO> failedResourcesForSecondReason = reasons.get(1).getFailedResources();
         assertNotNull(failedResourcesForSecondReason);
@@ -1019,6 +1030,9 @@ public class MarketsServiceTest {
         assertNull(reasons.get(1).getClosestSeller());
         assertEquals(com.vmturbo.api.enums.PlacementProblem.UNSATISFIED_COMMODITIES,
             reasons.get(1).getPlacementProblem());
+        BaseApiDTO resourceOwner = reasons.get(1).getResourceOwner();
+        assertNotNull(resourceOwner);
+        assertEquals(VOLUME_NAME, resourceOwner.getDisplayName());
 
         // A reason that is just a placement problem
 
@@ -1040,8 +1054,8 @@ public class MarketsServiceTest {
             + "requested amount of 1000.0 but the max available was 500.0, needed resource Mem "
             + "with a requested amount of 1024.0 but the max available was 512.0, costs were not "
             + "found; the closest match was t3.nano. When looking for supplier of type "
-            + "StorageTier: needed resource StorageAccess with a requested amount of 100.0 but "
-            + "the max available was 50.0. entity is not controllable.",
+            + "StorageTier for VirtualVolume myDisk: needed resource StorageAccess with a "
+            + "requested amount of 100.0 but the max available was 50.0. entity is not controllable.",
             unplaced.getUnplacedExplanation());
     }
 

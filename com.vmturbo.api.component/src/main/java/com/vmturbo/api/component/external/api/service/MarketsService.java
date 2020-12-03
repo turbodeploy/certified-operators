@@ -1234,8 +1234,20 @@ public class MarketsService implements IMarketsService {
         providerOids.addAll(entityDTOs.stream()
             .flatMap(entity -> entity.getUnplacedReasonList().stream())
             .filter(UnplacementReason::hasClosestSeller)
-            .map(reason -> reason.getClosestSeller())
+            .map(UnplacementReason::getClosestSeller)
             .collect(Collectors.toSet()));
+
+        // An entity can be unplaced because it depends on another entity, for example a VM
+        // due to one of its volumes being unplaced in a migration. In this case the
+        // FailedResources in the UnplacementReason are those of the "resource owner" (eg volume),
+        // not the VM. Add in these resource owners.
+        providerOids.addAll(entityDTOs.stream()
+            .flatMap(entity -> entity.getUnplacedReasonList().stream())
+            .filter(UnplacementReason::hasResourceOwnerOid)
+            .map(UnplacementReason::getResourceOwnerOid)
+            .collect(Collectors.toSet()));
+
+        // Eg, if a VM was unplaced because of one of its volumes count be placed, add the volume.
 
         final Map<Long, TopologyEntityDTO> providers = new HashMap<>(providerOids.size());
         entityDTOs.forEach(entity -> {
@@ -1355,8 +1367,19 @@ public class MarketsService implements IMarketsService {
 
         if (reason.hasProviderType()) {
             sb.append("When looking for supplier of type ")
-                .append(ApiEntityType.fromType(reason.getProviderType()).apiStr())
-                .append(": ");
+                .append(ApiEntityType.fromType(reason.getProviderType()).apiStr());
+
+            if (reason.hasResourceOwnerOid()) {
+                TopologyEntityDTO resourceOwner = providers.get(reason.getResourceOwnerOid());
+                if (resourceOwner != null) {
+                    sb.append(" for ")
+                        .append(ApiEntityType.fromType(resourceOwner.getEntityType()).apiStr())
+                        .append(" ")
+                        .append(resourceOwner.getDisplayName());
+                }
+            }
+
+            sb.append(": ");
         }
 
         List<String> parts = new ArrayList<>();
@@ -1426,6 +1449,14 @@ public class MarketsService implements IMarketsService {
             if (closestSeller != null) {
                 reasonApiDTO.setClosestSeller(
                     ServiceEntityMapper.toBaseServiceEntityApiDTO(closestSeller));
+            }
+        }
+
+        if (reasonDTO.hasResourceOwnerOid()) {
+            TopologyEntityDTO resourceOwner = providers.get(reasonDTO.getResourceOwnerOid());
+            if (resourceOwner != null) {
+                reasonApiDTO.setResourceOwner(
+                    ServiceEntityMapper.toBaseServiceEntityApiDTO(resourceOwner));
             }
         }
 
