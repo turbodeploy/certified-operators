@@ -350,7 +350,7 @@ public class SupplementalRICoverageAnalysis {
         final Map<Long, EntityRICoverageUpload> coverageUploadsByEntityOid = entityRICoverageUploads.stream()
                 .collect(Collectors.toMap(
                         EntityRICoverageUpload::getEntityId,
-                        Function.identity()));
+                        Function.identity(), (a1, a2) -> a1));
 
         coverageAllocation.allocatorCoverageTable()
                 // Iterate over each entity -> RI coverage map, reducing the number of times the
