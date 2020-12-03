@@ -2,8 +2,10 @@ package com.vmturbo.repository.listener;
 
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.contains;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -11,16 +13,17 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 
+import com.arangodb.ArangoDBException;
+import com.google.common.collect.Sets;
+
+import io.opentracing.SpanContext;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
-
-import com.google.common.collect.Sets;
-
-import io.opentracing.SpanContext;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -112,6 +115,34 @@ public class TopologyEntitiesListenerExceptionTest {
         verify(topologyCreator, times(1)).addEntities(any(), any());
         verify(notificationSender, never()).onSourceTopologyAvailable(anyLong(), anyLong());
         verify(notificationSender).onSourceTopologyFailure(anyLong(), anyLong(), anyString());
+    }
+
+    private static final long topologyContextId = 11L;
+    private static final long srcTopologyId = 11111L;
+    private static final long projectedTopologyId = 33333L;
+    private static final long creationTime = 44444L;
+
+    /**
+     * Verify correct handling of {@link Exception}.
+     * @throws Exception when something goes wrong
+     */
+    @Test
+    public void testOnPlanAnalysisTopologyArangoException() throws Exception {
+        TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+            .setTopologyId(srcTopologyId)
+            .setTopologyContextId(topologyContextId)
+            .setCreationTime(creationTime)
+            .build();
+        String exceptionMsg = "ArangoDB failed!";
+        when(topologyManager.newSourceTopologyCreator(any(), any()))
+            .thenThrow(new ArangoDBException(exceptionMsg));
+
+        topologyEntitiesListener.onTopologyNotification(
+            topologyInfo,
+            mock(RemoteIterator.class), mock(SpanContext.class));
+
+        verify(notificationSender).onSourceTopologyFailure(
+            eq(srcTopologyId), eq(topologyContextId), contains(exceptionMsg));
     }
 
 }

@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.chunking.OversizedElementException;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
@@ -30,6 +31,7 @@ import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.history.component.api.impl.HistoryComponentNotificationReceiver;
 import com.vmturbo.history.component.api.impl.HistoryMessageReceiver;
+import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 
 /**
  * Performance tests for the history component.
@@ -115,9 +117,12 @@ public class HistoryPlanPerformanceTest extends HistoryPerformanceTest {
     @Nonnull
     @Override
     protected void broadcastSourceTopology(TopologyInfo topologyInfo, Collection<TopologyEntityDTO> topoDTOs)
-            throws CommunicationException, InterruptedException {
+        throws CommunicationException, InterruptedException, OversizedElementException {
 
-        marketSender.notifyPlanAnalysisTopology(topologyInfo, topoDTOs);
+        TopologyBroadcast broadcast = tpSender.broadcastUserPlanTopology(topologyInfo);
+        for (TopologyEntityDTO e : topoDTOs) {
+            broadcast.append(e);
+        }
     }
 
     @Override

@@ -27,7 +27,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCove
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
@@ -125,17 +124,6 @@ public class MarketClientConfig {
     }
 
     @Bean
-    protected IMessageReceiver<Topology> planAnalysisTopologyReceiver(final Optional<StartFrom> startFromOverride) {
-        return startFromOverride
-            .map(startFrom -> baseKafkaConfig.kafkaConsumer().messageReceiverWithSettings(
-                new TopicSettings(MarketComponentNotificationReceiver.PLAN_ANALYSIS_TOPOLOGIES_TOPIC, startFrom),
-                Topology::parseFrom))
-            .orElseGet(() -> baseKafkaConfig.kafkaConsumer().messageReceiver(
-                MarketComponentNotificationReceiver.PLAN_ANALYSIS_TOPOLOGIES_TOPIC,
-                Topology::parseFrom));
-    }
-
-    @Bean
     protected IMessageReceiver<AnalysisStatusNotification> analysisStatusReceiver(final Optional<StartFrom> startFromOverride) {
         return startFromOverride
         .map(startFrom -> baseKafkaConfig.kafkaConsumer().messageReceiverWithSettings(
@@ -171,9 +159,6 @@ public class MarketClientConfig {
         final IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver =
             topicsAndOverrides.containsKey(Topic.ProjectedEntityRiCoverage) ?
                 projectedEntityRiCoverageReceiver(topicsAndOverrides.get(Topic.ProjectedEntityRiCoverage)) : null;
-        final IMessageReceiver<Topology> planAnalysisTopologyReceiver =
-            topicsAndOverrides.containsKey(Topic.PlanAnalysisTopologies) ?
-                    planAnalysisTopologyReceiver(topicsAndOverrides.get(Topic.PlanAnalysisTopologies)) : null;
         final IMessageReceiver<AnalysisSummary> analysisSummaryReceiver =
             topicsAndOverrides.containsKey(Topic.AnalysisSummary) ?
                 analysisSummaryReceiver(topicsAndOverrides.get(Topic.AnalysisSummary)) : null;
@@ -182,7 +167,7 @@ public class MarketClientConfig {
                 analysisStatusReceiver(topicsAndOverrides.get(Topic.AnalysisStatusNotification)) : null;
         return new MarketComponentNotificationReceiver(projectedTopologyReceiver,
                 projectedEntityCostReceiver, projectedEntityRiCoverageReceiver, actionPlansReceiver,
-                planAnalysisTopologyReceiver, analysisSummaryReceiver, analysisStatusReceiver, marketClientThreadPool(),
+                analysisSummaryReceiver, analysisStatusReceiver, marketClientThreadPool(),
                 kafkaReceiverTimeoutSeconds);
     }
 }

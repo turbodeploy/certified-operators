@@ -12,15 +12,15 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import io.grpc.stub.StreamObserver;
+import io.opentracing.SpanContext;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-
-import io.grpc.stub.StreamObserver;
-import io.opentracing.SpanContext;
 
 import tec.units.ri.unit.MetricPrefix;
 
@@ -115,7 +115,7 @@ public class MarketPerformanceTest {
                            AnalysisStatusNotification::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(projectedTopologyReceiver,
                 projectedEntityCostReceiver, projectedEntityRiCoverageReceiver, actionsReceiver,
-            null, analysisSummaryReceiver, analysisStatusReceiver, threadPool, 0);
+            analysisSummaryReceiver, analysisStatusReceiver, threadPool, 0);
         kafkaMessageConsumer.start();
     }
 

@@ -362,10 +362,13 @@ public class RepositoryComponent extends BaseVmtComponent {
             TopologyProcessorSubscription.forTopicWithStartFrom(
                 TopologyProcessorSubscription.Topic.LiveTopologies, StartFrom.BEGINNING),
             TopologyProcessorSubscription.forTopicWithStartFrom(
+                    TopologyProcessorSubscription.Topic.PlanTopologies, StartFrom.BEGINNING),
+            TopologyProcessorSubscription.forTopicWithStartFrom(
                 TopologyProcessorSubscription.Topic.TopologySummaries, StartFrom.BEGINNING),
             TopologyProcessorSubscription.forTopicWithStartFrom(
                 Topic.EntitiesWithNewState, StartFrom.BEGINNING));
         topologyProcessor.addLiveTopologyListener(topologyEntitiesListener());
+        topologyProcessor.addPlanTopologyListener(topologyEntitiesListener());
         topologyProcessor.addTopologySummaryListener(topologyEntitiesListener());
         topologyProcessor.addEntitiesWithNewStatesListener(topologyEntitiesListener());
 
@@ -379,13 +382,9 @@ public class RepositoryComponent extends BaseVmtComponent {
             // on restart to avoid writing stale plan data to ArangoDB.
             MarketSubscription.forTopic(MarketSubscription.Topic.ProjectedTopologies),
             MarketSubscription.forTopicWithStartFrom(
-                MarketSubscription.Topic.AnalysisSummary, StartFrom.BEGINNING),
-            // Plan analysis (source) topologies are always persisted, so there is no need to
-            // read this topic from the beginning.
-            MarketSubscription.forTopic(MarketSubscription.Topic.PlanAnalysisTopologies));
+                MarketSubscription.Topic.AnalysisSummary, StartFrom.BEGINNING));
         market.addProjectedTopologyListener(marketTopologyListener());
         market.addAnalysisSummaryListener(marketTopologyListener());
-        market.addPlanAnalysisTopologyListener(marketTopologyListener());
         return market;
     }
 

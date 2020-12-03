@@ -37,13 +37,6 @@ public interface MarketComponent {
     void addProjectedEntityRiCoverageListener(@Nonnull final ProjectedReservedInstanceCoverageListener listener);
 
     /**
-     * Register a listener for handling plan analysis topologies.
-     *
-     * @param listener the listener for plan analysis topologies
-     */
-    void addPlanAnalysisTopologyListener(@Nonnull final PlanAnalysisTopologyListener listener);
-
-    /**
      * Register a listener for handling analysis summaries
      *
      * @param listener the listener for analysis summaries

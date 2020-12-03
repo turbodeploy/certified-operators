@@ -166,29 +166,6 @@ public class MarketTopologyListenerExceptionTest {
                 eq(projectedTopologyId), eq(topologyContextId), any(String.class));
     }
 
-    /**
-     * Verify correct handling of {@link Exception}.
-     * @throws Exception when something goes wrong
-     */
-    @Test
-    public void testOnPlanAnalysisTopologyArangoException() throws Exception {
-        TopologyInfo topologyInfo = TopologyInfo.newBuilder()
-                .setTopologyId(srcTopologyId)
-                .setTopologyContextId(topologyContextId)
-                .setCreationTime(creationTime)
-                .build();
-        String exceptionMsg = "ArangoDB failed!";
-        when(topologyManager.newSourceTopologyCreator(any(), any()))
-                .thenThrow(new ArangoDBException(exceptionMsg));
-
-        marketTopologyListener.onPlanAnalysisTopology(
-                    topologyInfo,
-                    mock(RemoteIterator.class));
-
-        verify(apiBackend).onSourceTopologyFailure(
-                eq(srcTopologyId), eq(topologyContextId), contains(exceptionMsg));
-    }
-
     private void verifyMocks() throws Exception {
         verify(topologyManager).newProjectedTopologyCreator(tid, originalInfo);
         verify(topologyCreator, never()).complete();

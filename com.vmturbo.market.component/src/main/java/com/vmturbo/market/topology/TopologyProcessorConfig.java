@@ -22,6 +22,7 @@ public class TopologyProcessorConfig {
 
     @Autowired
     private TopologyProcessorClientConfig tpConfig;
+
     @Bean
     public TopologyProcessor topologyProcessor() {
         return tpConfig.topologyProcessor(

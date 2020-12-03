@@ -91,7 +91,7 @@ public class MarketDebugRpcService extends MarketDebugServiceImplBase {
             final AnalysisConfig analysisConfig = analysis.getConfig();
             final AnalysisInput.Builder analysisInputBuilder = AnalysisInput.newBuilder()
                     .setTopologyInfo(analysis.getTopologyInfo())
-                    .addAllEntities(analysis.getOriginalInputTopology().values())
+                    .addAllEntities(analysis.getTopology().values())
                     .setIncludeVdc(analysisConfig.getIncludeVdc())
                     .setUseQuoteCacheDuringSnm(analysisConfig.getUseQuoteCacheDuringSNM())
                     .setReplayProvisionsForRealTime(analysisConfig.getReplayProvisionsForRealTime())

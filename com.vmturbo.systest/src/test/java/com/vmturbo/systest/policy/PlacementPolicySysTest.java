@@ -310,7 +310,7 @@ public class PlacementPolicySysTest {
                               AnalysisStatusNotification::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(
                 projectedTopologyReceiver, projectedEntityCostReceiver, projectedEntityRiCoverageReceiver,
-                actionsReceiver, tpTopologyReceiver, analysisSummaryReceiver, analysisStatusReceiver,
+                actionsReceiver, analysisSummaryReceiver, analysisStatusReceiver,
                 threadPool, 0);
         kafkaMessageConsumer.start();
     }

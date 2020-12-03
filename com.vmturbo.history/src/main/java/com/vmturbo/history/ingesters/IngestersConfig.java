@@ -56,6 +56,7 @@ import com.vmturbo.market.component.api.impl.MarketSubscription;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
 
 /**
  * Spring configuration for topology ingestion components.
@@ -160,11 +161,11 @@ public class IngestersConfig {
     @Bean
     TopologyProcessor liveTopologyProcessor() {
         final TopologyProcessor topologyProcessor = topologyClientConfig.topologyProcessor(
-                TopologyProcessorSubscription
-                        .forTopic(TopologyProcessorSubscription.Topic.LiveTopologies),
-                TopologyProcessorSubscription
-                        .forTopic(TopologyProcessorSubscription.Topic.TopologySummaries));
+                TopologyProcessorSubscription.forTopic(Topic.LiveTopologies),
+                TopologyProcessorSubscription.forTopic(Topic.PlanTopologies),
+                TopologyProcessorSubscription.forTopic(Topic.TopologySummaries));
         topologyProcessor.addLiveTopologyListener(topologyCoordinator());
+        topologyProcessor.addPlanTopologyListener(topologyCoordinator());
         topologyProcessor.addTopologySummaryListener(topologyCoordinator());
         return topologyProcessor;
     }
@@ -180,7 +181,6 @@ public class IngestersConfig {
                 MarketSubscription.forTopic(MarketSubscription.Topic.ProjectedTopologies),
                 MarketSubscription.forTopic(MarketSubscription.Topic.PlanAnalysisTopologies),
                 MarketSubscription.forTopic(MarketSubscription.Topic.AnalysisSummary));
-        market.addPlanAnalysisTopologyListener(topologyCoordinator());
         market.addProjectedTopologyListener(topologyCoordinator());
         market.addAnalysisSummaryListener(topologyCoordinator());
         return market;

@@ -57,7 +57,6 @@ import com.vmturbo.history.ingesters.plan.ProjectedPlanTopologyIngester;
 import com.vmturbo.history.ingesters.plan.SourcePlanTopologyIngester;
 import com.vmturbo.history.listeners.IngestionStatus.IngestionState;
 import com.vmturbo.market.component.api.AnalysisSummaryListener;
-import com.vmturbo.market.component.api.PlanAnalysisTopologyListener;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.api.EntitiesListener;
@@ -86,9 +85,8 @@ import com.vmturbo.topology.processor.api.TopologySummaryListener;
  * performance. The lock permits multiple ingestions to proceed concurrently, or a single
  * rollup/repartitioning operation to run, but never both at once.</p>
  */
-public class TopologyCoordinator extends TopologyListenerBase
-        implements EntitiesListener, PlanAnalysisTopologyListener, ProjectedTopologyListener,
-        TopologySummaryListener, AnalysisSummaryListener {
+public class TopologyCoordinator extends TopologyListenerBase implements EntitiesListener,
+        ProjectedTopologyListener, TopologySummaryListener, AnalysisSummaryListener {
     private final Logger logger = LogManager.getLogger();
 
     private final SourceRealtimeTopologyIngester sourceRealtimeTopologyIngester;
@@ -199,45 +197,42 @@ public class TopologyCoordinator extends TopologyListenerBase
                                        @Nonnull final SpanContext tracingContext) {
         awaitStartup();
         try (TracingScope tracingScope = Tracing.trace("history_on_topology_notification", tracingContext)) {
-            String topologyLabel = TopologyDTOUtil.getSourceTopologyLabel(info);
-            int count = handleTopology(info, topologyLabel, topology, sourceRealtimeTopologyIngester, Live);
-            SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
-                .labels(SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL,
-                    SharedMetrics.LIVE_CONTEXT_TYPE_LABEL)
-                .observe((double)count);
-        }
-    }
-
-    @Override
-    public void onPlanAnalysisTopology(TopologyInfo info,
-                                       @Nonnull RemoteIterator<Topology.DataSegment> topology) {
-        // these have no impact on rollups, so we can just perform ingestion as they arrive (in the listener
-        // thread for plan topologies topic)
-        awaitStartup();
-        try {
-            if (PlanDTOUtil.isTransientPlan(info)) {
-                // For the reservation plan we don't save stats, because we only care about the
-                // projected topology, as parsed by the ReservationManager in the plan orchestrator.
-                logger.info("Ignoring plan source topology for reservation plan {}",
-                    info.getTopologyContextId());
-            } else {
-                final Pair<Integer, BulkInserterFactoryStats> result
-                    = sourcePlanTopologyIngester.processBroadcast(info, topology);
+            if (info.getTopologyType() == TopologyType.REALTIME) {
+                String topologyLabel = TopologyDTOUtil.getSourceTopologyLabel(info);
+                int count = handleTopology(info, topologyLabel, topology, sourceRealtimeTopologyIngester, Live);
                 SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
                     .labels(SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL,
-                        SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
-                    .observe((double)result.getLeft());
+                        SharedMetrics.LIVE_CONTEXT_TYPE_LABEL)
+                    .observe((double)count);
+            } else if (info.getTopologyType() == TopologyType.PLAN) {
+                // these have no impact on rollups, so we can just perform ingestion as they arrive (in the listener
+                // thread for plan topologies topic)
+                try {
+                    if (PlanDTOUtil.isTransientPlan(info)) {
+                        // For the reservation plan we don't save stats, because we only care about the
+                        // projected topology, as parsed by the ReservationManager in the plan orchestrator.
+                        logger.info("Ignoring plan source topology for reservation plan {}",
+                            info.getTopologyContextId());
+                    } else {
+                        final Pair<Integer, BulkInserterFactoryStats> result
+                            = sourcePlanTopologyIngester.processBroadcast(info, topology);
+                        SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
+                            .labels(SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL,
+                                SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
+                            .observe((double)result.getLeft());
+                    }
+                } catch (Exception e) {
+                    logger.error("Plan topology ingestion failed", e);
+                } finally {
+                    RemoteIteratorDrain.drainIterator(topology, TopologyDTOUtil.getSourceTopologyLabel(info), true);
+                }
+                try {
+                    availabilityTracker.topologyAvailable(
+                        info.getTopologyContextId(), TopologyContextType.PLAN, true);
+                } catch (InterruptedException | CommunicationException e) {
+                    logger.warn("Failed to notify of  plan topology ingestion", e);
+                }
             }
-        } catch (Exception e) {
-            logger.error("Plan topology ingestion failed", e);
-        } finally {
-            RemoteIteratorDrain.drainIterator(topology, TopologyDTOUtil.getSourceTopologyLabel(info), true);
-        }
-        try {
-            availabilityTracker.topologyAvailable(
-                info.getTopologyContextId(), TopologyContextType.PLAN, true);
-        } catch (InterruptedException | CommunicationException e) {
-            logger.warn("Failed to notify of  plan topology ingestion", e);
         }
     }
 

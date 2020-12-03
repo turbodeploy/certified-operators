@@ -274,10 +274,7 @@ public class MarketRunner {
 
                 if (analysis.getState() == AnalysisState.SUCCEEDED) {
                     // if this was a plan topology, broadcast the plan analysis topology
-                    if (isPlan) {
-                        serverApi.notifyPlanAnalysisTopology(analysis.getTopologyInfo(),
-                                                             analysis.getTopology().values());
-                    } else {
+                    if (!isPlan) {
                         // Update replay actions to contain actions from most recent analysis.
                         realtimeReplayActions = analysis.getReplayActions();
                     }

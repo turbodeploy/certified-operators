@@ -40,7 +40,6 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
     private final IMessageSender<ProjectedTopology> projectedTopologySender;
     private final IMessageSender<ProjectedEntityCosts> projectedEntityCostsSender;
     private final IMessageSender<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageSender;
-    private final IMessageSender<Topology> planAnalysisTopologySender;
     private final IMessageSender<ActionPlan> actionPlanSender;
     private final IMessageSender<AnalysisStatusNotification> analysisStatusSender;
 
@@ -48,14 +47,12 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
             @Nonnull IMessageSender<ProjectedTopology> projectedTopologySender,
             @Nonnull IMessageSender<ProjectedEntityCosts> projectedEntityCostsSender,
             @Nonnull IMessageSender<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageSender,
-            @Nonnull IMessageSender<Topology> planAnalysisTopologySender,
             @Nonnull IMessageSender<ActionPlan> actionPlanSender,
             @Nonnull IMessageSender<AnalysisSummary> analysisSummarySender,
             @Nonnull IMessageSender<AnalysisStatusNotification>  analysisStatusSender) {
         this.projectedTopologySender = Objects.requireNonNull(projectedTopologySender);
         this.projectedEntityCostsSender = Objects.requireNonNull(projectedEntityCostsSender);
         this.projectedEntityRiCoverageSender = Objects.requireNonNull(projectedEntityRiCoverageSender);
-        this.planAnalysisTopologySender = Objects.requireNonNull(planAnalysisTopologySender);
         this.actionPlanSender = Objects.requireNonNull(actionPlanSender);
         this.analysisSummarySender = Objects.requireNonNull(analysisSummarySender);
         this.analysisStatusSender = Objects.requireNonNull(analysisStatusSender);
@@ -73,71 +70,12 @@ public class MarketNotificationSender extends ComponentNotificationSender<Action
         sendMessage(actionPlanSender, actionPlan);
     }
 
-    /**
-     * Send a plan analysis topology to any interested consumers.
-     *
-     * @param sourceTopologyInfo The topology info from the plan source topology
-     * @param topologyDTOs The entities that are being analyzed in the Plan
-     * @throws CommunicationException if persistent communication error occurred
-     * @throws InterruptedException if thread has been interrupted
-     */
-    public void notifyPlanAnalysisTopology(@Nonnull final TopologyInfo sourceTopologyInfo,
-                                           @Nonnull final Collection<TopologyEntityDTO> topologyDTOs)
-            throws CommunicationException, InterruptedException {
-        sendPlanAnalysisTopologySegment(Topology.newBuilder()
-                .setStart(Topology.Start.newBuilder()
-                        .setTopologyInfo(sourceTopologyInfo)
-                        .build())
-                .setTopologyId(sourceTopologyInfo.getTopologyId())
-                .build());
-
-        long totalCount = 0;
-        try (KafkaTracingReenabler ignored = withKafkaTracingDisabled()) {
-            final ProtobufChunkIterator<TopologyEntityDTO> iterator = ProtobufChunkIterator.partition(topologyDTOs,
-                planAnalysisTopologySender.getRecommendedRequestSizeBytes(),
-                planAnalysisTopologySender.getMaxRequestSizeBytes());
-
-            while (iterator.hasNext()) {
-                final Collection<TopologyEntityDTO> nextChunk;
-                try {
-                    nextChunk = iterator.next();
-                } catch (OversizedElementException e) {
-                    // This MAY happen in some very unusual customer topologies. A single entity would have
-                    // to be larger than the 64MB limit, which is highly unlikely. We keep sending what
-                    // we can.
-                    logOversizedElement("plan analysis topology", e, sourceTopologyInfo);
-                    continue;
-                }
-                totalCount += nextChunk.size();
-                final Topology.Builder topologyBldr = Topology.newBuilder()
-                    .setTopologyId(sourceTopologyInfo.getTopologyId());
-                for (TopologyEntityDTO entity : nextChunk) {
-                    topologyBldr.getDataBuilder().addEntities(DataSegment.newBuilder()
-                        .setEntity(entity));
-                }
-                sendPlanAnalysisTopologySegment(topologyBldr.build());
-            }
-        }
-
-        sendPlanAnalysisTopologySegment(Topology.newBuilder()
-                .setTopologyId(sourceTopologyInfo.getTopologyId())
-                .setEnd(Topology.End.newBuilder().setTotalCount(totalCount).build())
-                .build());
-    }
-
     private void logOversizedElement(@Nonnull final String elementType,
                                      @Nonnull final OversizedElementException e,
                                      @Nonnull final TopologyInfo topologyInfo) {
         getLogger().error("A chunk of the {} failed to be sent because an element is too " +
             "large (topology {}, context {}). Message: {}", elementType,
             topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId(), e.getMessage());
-    }
-
-    private void sendPlanAnalysisTopologySegment(@Nonnull final Topology segment)
-            throws CommunicationException, InterruptedException {
-        getLogger().debug("Sending plan analysis topology {} segment {}", segment::getTopologyId,
-                segment::getSegmentCase);
-        planAnalysisTopologySender.sendMessage(segment);
     }
 
     /**

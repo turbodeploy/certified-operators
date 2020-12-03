@@ -13,6 +13,8 @@ import io.opentracing.SpanContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.vmturbo.common.protobuf.PlanDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -20,8 +22,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary.ResultCase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.api.client.RemoteIteratorDrain;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -103,7 +107,6 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
      */
     private boolean shouldProcessTopology(@Nonnull final TopologyInfo incomingTopologyInfo) {
         // always process non-realtime topologies.
-        // TODO: Does a plan topology ever come in here?
         if (incomingTopologyInfo.getTopologyType() != TopologyType.REALTIME) {
             return true;
         }
@@ -124,12 +127,17 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
     public void onTopologyNotification(@Nonnull TopologyInfo topologyInfo,
                                        @Nonnull RemoteIterator<DataSegment> entityIterator,
                                        @Nonnull final SpanContext tracingContext) {
+        String topologyLabel = TopologyDTOUtil.getSourceTopologyLabel(topologyInfo);
         try {
-            onTopologyNotificationInternal(topologyInfo, entityIterator, tracingContext);
+            if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
+                onTopologyNotificationInternal(topologyInfo, entityIterator, tracingContext);
+            } else if (topologyInfo.getTopologyType() == TopologyType.PLAN) {
+                onPlanAnalysisTopologyReceivedInternal(topologyInfo, entityIterator, tracingContext);
+            }
         } catch (CommunicationException | InterruptedException | ArangoDBException e) {
-            logger.error("Error processing realtime topology."
-                + " Topology Id: " + topologyInfo.getTopologyId()
-                + " Context Id: " + topologyInfo.getTopologyContextId(), e);
+            logger.error("Error processing topology {}", topologyLabel, e);
+        } finally {
+            RemoteIteratorDrain.drainIterator(entityIterator, topologyLabel, true);
         }
     }
 
@@ -145,7 +153,7 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
         // check if we should skip this one
         if (!shouldProcessTopology(topologyInfo)) {
             logger.info("Skipping processing of topology {}, since it appears to be older than"
-                    +" latest known realtime topology.", topologyId);
+                    + " latest known realtime topology.", topologyId);
             TopologyEntitiesUtil.drainIterator(entityIterator, topologyId);
             return;
         }
@@ -186,4 +194,43 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
     public void onEntitiesWithNewState(@Nonnull final EntitiesWithNewState entitiesWithNewState) {
         liveTopologyStore.setEntityWithUpdatedState(entitiesWithNewState);
     }
+
+    private void onPlanAnalysisTopologyReceivedInternal(TopologyInfo topologyInfo,
+                @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator,
+                @Nonnull final SpanContext tracingContext)
+        throws CommunicationException, InterruptedException {
+
+        try (TracingScope tracingScope = Tracing.trace("repository_handle_src_plan_topology", tracingContext)) {
+            if (PlanDTOUtil.isTransientPlan(topologyInfo)) {
+                // For transient plans we don't store the topology, but we still send a notification
+                // that the topology is "available" so that plan completion detection works normally.
+                logger.info("Skipping plan source topology persistence for transient plan: {}",
+                    topologyInfo.getTopologyContextId());
+                notificationSender.onSourceTopologyAvailable(topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId());
+                RemoteIteratorDrain.drainIterator(entityIterator,
+                    TopologyDTOUtil.getSourceTopologyLabel(topologyInfo), false);
+            } else {
+                final long topologyId = topologyInfo.getTopologyId();
+                final long topologyContextId = topologyInfo.getTopologyContextId();
+                logger.info("Received SOURCE topology {} for context {} topology DTOs from Market component",
+                    topologyId, topologyContextId);
+
+                final DataMetricTimer timer = SharedMetrics.TOPOLOGY_DURATION_SUMMARY
+                    .labels(SharedMetrics.SOURCE_LABEL)
+                    .startTimer();
+                final TopologyID tid = new TopologyID(topologyContextId, topologyId, TopologyID.TopologyType.SOURCE);
+                final TopologyCreator<TopologyEntityDTO> topologyCreator = topologyManager.newSourceTopologyCreator(tid, topologyInfo);
+
+                TopologyEntitiesUtil.createTopology(entityIterator, topologyId, topologyContextId, timer,
+                    tid, topologyCreator, notificationSender);
+            }
+        } catch (Exception e) {
+            SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.SOURCE_LABEL, SharedMetrics.FAILED_LABEL).increment();
+            notificationSender.onSourceTopologyFailure(topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId(),
+                "Error receiving plan analysis for topology id " + topologyInfo.getTopologyId()
+                    + " and plan id " + topologyInfo.getTopologyContextId()  + " : " + e.getMessage());
+            throw e;
+        }
+    }
+
 }

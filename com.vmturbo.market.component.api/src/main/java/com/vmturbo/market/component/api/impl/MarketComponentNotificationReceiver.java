@@ -4,7 +4,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -22,12 +21,10 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.ChunkingReceiver;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -39,7 +36,6 @@ import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.AnalysisStatusNotificationListener;
 import com.vmturbo.market.component.api.AnalysisSummaryListener;
 import com.vmturbo.market.component.api.MarketComponent;
-import com.vmturbo.market.component.api.PlanAnalysisTopologyListener;
 import com.vmturbo.market.component.api.ProjectedEntityCostsListener;
 import com.vmturbo.market.component.api.ProjectedReservedInstanceCoverageListener;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
@@ -66,11 +62,6 @@ public class MarketComponentNotificationReceiver extends
     public static final String PROJECTED_ENTITY_RI_COVERAGE_TOPIC = "projected-entity-ri-coverage";
 
     /**
-     * Projected topologies topic. Should be synchronized with kafka-config.yml
-     */
-    public static final String PLAN_ANALYSIS_TOPOLOGIES_TOPIC = "plan-analysis-topologies";
-
-    /**
      * Action plans topic. Should be synchronized with kafka-config.yml
      */
     public static final String ACTION_PLANS_TOPIC = "action-plans";
@@ -90,8 +81,6 @@ public class MarketComponentNotificationReceiver extends
     private final Set<ProjectedTopologyListener> projectedTopologyListenersSet;
     private final Set<ProjectedEntityCostsListener> projectedEntityCostsListenersSet;
     private final Set<ProjectedReservedInstanceCoverageListener> projectedEntityRiCoverageListenersSet;
-    private final Set<PlanAnalysisTopologyListener> planAnalysisTopologyListenersSet;
-    private final ChunkingReceiver<TopologyDTO.Topology.DataSegment> planAnalysisTopologyChunkReceiver;
     private final ChunkingReceiver<ProjectedTopologyEntity> projectedTopologyChunkReceiver;
     private final ChunkingReceiver<EntityCost> projectedEntityCostChunkReceiver;
     private final ChunkingReceiver<EntityReservedInstanceCoverage> projectedEntityRiCoverageChunkReceiver;
@@ -103,7 +92,6 @@ public class MarketComponentNotificationReceiver extends
             @Nullable final IMessageReceiver<ProjectedEntityCosts> projectedEntityCostsReceiver,
             @Nullable final IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver,
             @Nullable final IMessageReceiver<ActionPlan> actionPlanReceiver,
-            @Nullable final IMessageReceiver<Topology> planAnalysisTopologyReceiver,
             @Nullable final IMessageReceiver<AnalysisSummary> analysisSummaryReceiver,
             @Nullable final IMessageReceiver<AnalysisStatusNotification> analysisStatusReceiver,
             @Nonnull final ExecutorService executorService,
@@ -136,17 +124,10 @@ public class MarketComponentNotificationReceiver extends
             actionsListenersSet = Collections.emptySet();
         }
 
-        planAnalysisTopologyChunkReceiver = new ChunkingReceiver<>(executorService);
         projectedTopologyChunkReceiver = new ChunkingReceiver<>(executorService);
         projectedEntityCostChunkReceiver = new ChunkingReceiver<>(executorService);
         projectedEntityRiCoverageChunkReceiver = new ChunkingReceiver<>(executorService);
 
-        if (planAnalysisTopologyReceiver != null) {
-            planAnalysisTopologyListenersSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
-            planAnalysisTopologyReceiver.addListener(this::processPlanAnalysisTopology);
-        } else {
-            planAnalysisTopologyListenersSet = Collections.emptySet();
-        }
         if (analysisSummaryReceiver == null) {
             analysisSummaryHandler = null;
         } else {
@@ -181,11 +162,6 @@ public class MarketComponentNotificationReceiver extends
     public void addProjectedEntityRiCoverageListener(
                     @Nonnull final ProjectedReservedInstanceCoverageListener listener) {
         projectedEntityRiCoverageListenersSet.add(Objects.requireNonNull(listener));
-    }
-
-    @Override
-    public void addPlanAnalysisTopologyListener(@Nonnull final PlanAnalysisTopologyListener listener) {
-        planAnalysisTopologyListenersSet.add(Objects.requireNonNull(listener));
     }
 
     @Override
@@ -317,42 +293,6 @@ public class MarketComponentNotificationReceiver extends
         }
     }
 
-    /**
-     * Process a chunk of a plan analysis topology.
-     *
-     * @param topology the chunk of plan analysis topology to process
-     * @param commitCommand a Runnable command to be processed when the whole stream has been processed
-     * @param tracingContext Distributed tracing context
-     */
-    private void processPlanAnalysisTopology(@Nonnull final Topology topology,
-                                             @Nonnull Runnable commitCommand,
-                                             @Nonnull final SpanContext tracingContext) {
-        getLogger().debug("Processing plan analysis topology {}, segment {}",
-            topology::getTopologyId, topology::getSegmentCase);
-        final long topologyId = topology.getTopologyId();
-        switch (topology.getSegmentCase()) {
-            case START:
-                getLogger().info("Processing plan analysis topology {}", topology::getTopologyId);
-                final Topology.Start start = topology.getStart();
-                planAnalysisTopologyChunkReceiver.startTopologyBroadcast(topologyId,
-                        createPlanAnalysisTopologyChunkConsumers(start.getTopologyInfo()));
-                break;
-            case DATA:
-                planAnalysisTopologyChunkReceiver.processData(topologyId,
-                        topology.getData().getEntitiesList());
-                break;
-            case END:
-                planAnalysisTopologyChunkReceiver.finishTopologyBroadcast(topologyId,
-                        topology.getEnd().getTotalCount());
-                getLogger().info("Done processing plan analysis topology {}", topology::getTopologyId);
-                commitCommand.run();
-                break;
-            default:
-                getLogger().warn("Unknown broadcast data segment received: {}",
-                        topology.getSegmentCase());
-        }
-    }
-
     private Collection<Consumer<RemoteIterator<ProjectedTopologyEntity>>> createProjectedTopologyChunkConsumers(
             final long topologyId, final TopologyInfo topologyInfo, final SpanContext tracingContext) {
         return projectedTopologyListenersSet.stream().map(listener -> {
@@ -379,16 +319,6 @@ public class MarketComponentNotificationReceiver extends
             final Consumer<RemoteIterator<EntityReservedInstanceCoverage>> consumer =
                             iterator -> listener.onProjectedEntityRiCoverageReceived(topologyId,
                                             topologyInfo, iterator);
-            return consumer;
-        }).collect(Collectors.toList());
-    }
-
-    private Collection<Consumer<RemoteIterator<TopologyDTO.Topology.DataSegment>>> createPlanAnalysisTopologyChunkConsumers(
-            final TopologyInfo topologyInfo) {
-        return planAnalysisTopologyListenersSet.stream().map(listener -> {
-            final Consumer<RemoteIterator<TopologyDTO.Topology.DataSegment>> consumer =
-                    iterator -> listener.onPlanAnalysisTopology(
-                            topologyInfo, iterator);
             return consumer;
         }).collect(Collectors.toList());
     }

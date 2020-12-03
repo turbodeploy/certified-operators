@@ -7,7 +7,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCove
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.components.api.server.IMessageSenderFactory;
-import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.component.api.impl.MarketComponentNotificationReceiver;
 
@@ -36,9 +35,6 @@ public class MarketKafkaSender {
                 kafkaMessageProducer.messageSender(
                         MarketComponentNotificationReceiver.PROJECTED_ENTITY_RI_COVERAGE_TOPIC,
                         MarketKafkaSender::generateRICoverageMessageKey),
-                kafkaMessageProducer.messageSender(
-                        MarketComponentNotificationReceiver.PLAN_ANALYSIS_TOPOLOGIES_TOPIC,
-                        MarketKafkaSender::generateTopologyMessageKey),
                 kafkaMessageProducer.messageSender(
                         MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC),
                 kafkaMessageProducer.messageSender(

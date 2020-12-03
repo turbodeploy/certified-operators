@@ -15,10 +15,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.PlanDTOUtil;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -28,7 +26,6 @@ import com.vmturbo.components.api.client.RemoteIteratorDrain;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.TracingScope;
 import com.vmturbo.market.component.api.AnalysisSummaryListener;
-import com.vmturbo.market.component.api.PlanAnalysisTopologyListener;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.RepositoryNotificationSender;
@@ -45,7 +42,6 @@ import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyEntities
  */
 public class MarketTopologyListener implements
         ProjectedTopologyListener,
-        PlanAnalysisTopologyListener,
         AnalysisSummaryListener {
 
     private static final Logger logger = LogManager.getLogger();
@@ -214,72 +210,4 @@ public class MarketTopologyListener implements
                 TopologyDTOUtil.getProjectedTopologyLabel(originalTopologyInfo), true);
         }
     }
-
-    @Override
-    public void onPlanAnalysisTopology(final TopologyInfo topologyInfo,
-                                       @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs) {
-        try {
-            onPlanAnalysisTopologyReceivedInternal(topologyInfo, topologyDTOs);
-        } catch (CommunicationException | InterruptedException e) {
-            logger.error(
-                "Failed to send notification about received plan id {} with" +
-                    "Topology ID: {} and Topology Type: {}",
-                topologyInfo.getTopologyContextId(),
-                topologyInfo.getTopologyId(), topologyInfo.getTopologyType(), e);
-        } catch (Exception e) {
-            logger.error("Failure in processing of plan analysis topology plan ID : " +
-                    topologyInfo.getTopologyContextId() + " topology ID : " +
-                    topologyInfo.getTopologyId(), e);
-        } finally {
-            RemoteIteratorDrain.drainIterator(topologyDTOs,
-                TopologyDTOUtil.getSourceTopologyLabel(topologyInfo), true);
-        }
-    }
-
-    /**
-     * A plan analysis topology has been broadcasted -- onPlanAnalysisTopology is your chance to
-     * process it.
-     *
-     * @param topologyInfo TopologyInfo describing the topology
-     * @param entityIterator A remote iterator for receiving the plan analysis topology entities.
-     * @throws CommunicationException Throws CommunicationException
-     * @throws InterruptedException  Throws InterruptedException
-     */
-    private void onPlanAnalysisTopologyReceivedInternal(TopologyInfo topologyInfo,
-                                                @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator)
-            throws CommunicationException, InterruptedException {
-
-        try {
-            if (PlanDTOUtil.isTransientPlan(topologyInfo)) {
-                // For transient plans we don't store the topology, but we still send a notification
-                // that the topology is "available" so that plan completion detection works normally.
-                logger.info("Skipping plan source topology persistence for transient plan: {}",
-                    topologyInfo.getTopologyContextId());
-                notificationSender.onSourceTopologyAvailable(topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId());
-                RemoteIteratorDrain.drainIterator(entityIterator,
-                    TopologyDTOUtil.getSourceTopologyLabel(topologyInfo), false);
-            } else {
-                final long topologyId = topologyInfo.getTopologyId();
-                final long topologyContextId = topologyInfo.getTopologyContextId();
-                logger.info("Received SOURCE topology {} for context {} topology DTOs from Market component",
-                    topologyId, topologyContextId);
-
-                final DataMetricTimer timer = SharedMetrics.TOPOLOGY_DURATION_SUMMARY
-                    .labels(SharedMetrics.SOURCE_LABEL)
-                    .startTimer();
-                final TopologyID tid = new TopologyID(topologyContextId, topologyId, TopologyID.TopologyType.SOURCE);
-                final TopologyCreator<TopologyEntityDTO> topologyCreator = topologyManager.newSourceTopologyCreator(tid, topologyInfo);
-
-                TopologyEntitiesUtil.createTopology(entityIterator, topologyId, topologyContextId, timer,
-                    tid, topologyCreator, notificationSender);
-            }
-        } catch (Exception e) {
-            SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.SOURCE_LABEL, SharedMetrics.FAILED_LABEL).increment();
-            notificationSender.onSourceTopologyFailure(topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId(),
-                    "Error receiving plan analysis for topology id " + topologyInfo.getTopologyId() +
-                            " and plan id " + topologyInfo.getTopologyContextId()  + " : " + e.getMessage());
-            throw e;
-        }
-    }
-
 }

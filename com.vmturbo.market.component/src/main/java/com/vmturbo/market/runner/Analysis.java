@@ -13,7 +13,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -24,7 +23,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 
 import io.grpc.StatusRuntimeException;
@@ -116,7 +114,6 @@ import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrot
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.topology.Topology;
-import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.InfiniteQuoteExplanation;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -1505,18 +1502,6 @@ public class Analysis {
     }
 
     /**
-     * An unmodifiable view of the set of topology entity DTOs that this analysis run is executed on.
-     *
-     * If the analysis was scoped, this will return only the entities in the scope, because those
-     * were the entities that the market analysis actually ran on.
-     *
-     * @return an unmodifiable view of the map of topology entity DTOs that this analysis run is executed on
-     */
-    public Map<Long, TopologyEntityDTO> getTopology() {
-        return Collections.unmodifiableMap(topologyDTOs);
-    }
-
-    /**
      * An unmodifiable view of the original topology input into the market. Whether or not the
      * analysis was scoped, this will return all the input entities (i.e. the whole topology).
      *
@@ -1524,7 +1509,7 @@ public class Analysis {
      *         prior to scoping.
      */
     @Nonnull
-    public Map<Long, TopologyEntityDTO> getOriginalInputTopology() {
+    public Map<Long, TopologyEntityDTO> getTopology() {
         return Collections.unmodifiableMap(topologyDTOs);
     }
 
@@ -1586,157 +1571,6 @@ public class Analysis {
     @Nonnull
     public TopologyInfo getTopologyInfo() {
         return topologyInfo;
-    }
-
-    /**
-     * Create a subset of the original topology representing the "scoped topology" given a topology
-     * and a "seed scope" set of SE's.
-     *
-     * <p>Any unplaced service entities are automatically included in the "scoped topology"
-     *
-     * <p>Starting with the "seed", follow the "buys-from" relationships "going up" and elements to
-     * the "scoped topology". Along the way construct a set of traders at the "top", i.e. that do
-     * not buy from any other trader. Then, from the "top" elements, follow relationships "going down"
-     * and add Traders that "may sell" to the given "top" elements based on the commodities each is
-     * shopping for. Recursively follow the "may sell" relationships down to the bottom, adding those
-     * elements to the "scoped topology" as well.
-     *
-     * <p>Setting up the initial market, specifically the populateMarketsWthSellers() call on T traders
-     * with M markets runs worst case O(M*T) - see the comments on that method for further details.
-     *
-     * <p>Once the market is set up, lookups for traders and markets are each in constant time,
-     * and each trader is examined at most once, adding at worst O(T).
-     *
-     * @param traderTOs the topology to be scoped
-     * @param seedOids the OIDs of the ServiceEntities that constitute the scope 'seed'
-     * @return Set of {@link TraderTO} objects
-     **/
-    @VisibleForTesting
-    Set<TraderTO> scopeTopology(@Nonnull Set<TraderTO> traderTOs, @Nonnull Set<Long> seedOids) {
-        // the resulting scoped topology - contains at least the seed OIDs
-        final Set<Long> scopedTopologyOIDs = Sets.newHashSet(seedOids);
-
-        // holder for the scoped topology
-        final Set<TraderTO> traderTOsInScopedTopology = Sets.newHashSet();
-
-        // create a Topology and associated Economy representing the source topology
-        final Topology topology = new Topology();
-        for (final TraderTO traderTO : traderTOs) {
-            // include all "uplaced" traders in the final scoped topology
-            if (traderIsUnplaced(traderTO)) {
-                traderTOsInScopedTopology.add(traderTO);
-            } else {
-                // include all "placed" traders in the market for calculating the scope
-                ProtobufToAnalysis.addTrader(topology, traderTO);
-            }
-        }
-
-        // this call 'finalizes' the topology, calculating the inverted maps in the 'economy'
-        // and makes the following code run more efficiently
-        topology.populateMarketsWithSellersAndMergeConsumerCoverage();
-
-        // a "work queue" of entities to expand; any given OID is only ever added once -
-        // if already in 'scopedTopologyOIDs' it has been considered and won't be re-expanded
-        Queue<Long> suppliersToExpand = Lists.newLinkedList(seedOids);
-
-        // the queue of entities to expand "downwards"
-        Queue<Long> buyersToSatisfy = Lists.newLinkedList();
-        Set<Long> visited = new HashSet<>();
-
-        // starting with the seed, expand "up"
-        while (!suppliersToExpand.isEmpty()) {
-            long traderOid = suppliersToExpand.remove();
-
-            if (!topology.getTradersByOid().containsValue(traderOid)) {
-                // not all entities are guaranteed to be in the traders set -- the
-                // market will exclude entities based on factors such as entitystate, for example.
-                // If we encounter an entity that is not in the market, don't expand it any further.
-                logger.debug("Skipping OID {}, as it is not in the market.", traderOid);
-                continue;
-            }
-
-            if (logger.isTraceEnabled()) {
-                logger.trace("expand OID {}: {}", traderOid, topology.getTradersByOid()
-                        .get(traderOid).getDebugInfoNeverUseInCode());
-            }
-            Trader thisTrader = topology.getTradersByOid().get(traderOid);
-            // remember the trader for this OID in the scoped topology & continue expanding "up"
-            scopedTopologyOIDs.add(traderOid);
-            // add OIDs of traders THAT buy from this entity which we have not already added
-            final List<Long> customerOids = thisTrader.getUniqueCustomers().stream()
-                    .map(Trader::getOid)
-                    .filter(customerOid -> !scopedTopologyOIDs.contains(customerOid) &&
-                        !suppliersToExpand.contains(customerOid))
-                    .collect(Collectors.toList());
-            if (customerOids.size() == 0) {
-                // if no customers, then "start downwards" from here
-                if (!visited.contains(traderOid) &&
-                        // skip BusinessApplications if it is not a seed
-                        (seedOids.contains(traderOid) || !entityTypesToSkip.contains(thisTrader.getType()))) {
-                    buyersToSatisfy.add(traderOid);
-                    visited.add(traderOid);
-                }
-            } else {
-                // otherwise keep expanding upwards
-                suppliersToExpand.addAll(customerOids);
-                if (logger.isTraceEnabled()) {
-                    logger.trace("add supplier oids ");
-                    customerOids.forEach(oid -> logger.trace("{}: {}", oid, topology.getTradersByOid()
-                            .get(oid).getDebugInfoNeverUseInCode()));
-                }
-            }
-        }
-        logger.trace("top OIDs: {}", buyersToSatisfy);
-        // record the 'providers' we've expanded on the way down so we don't re-expand unnecessarily
-        Set<Long> providersExpanded = new HashSet<>();
-        // starting with buyersToSatisfy, expand "downwards"
-        while (!buyersToSatisfy.isEmpty()) {
-            long traderOid = buyersToSatisfy.remove();
-            providersExpanded.add(traderOid);
-            Trader thisTrader = topology.getTradersByOid().get(traderOid);
-            // build list of sellers of markets this Trader buys from; omit Traders already expanded
-            Set<Trader> potentialSellers = topology.getEconomy().getPotentialSellers(thisTrader);
-            List<Long> sellersOids = potentialSellers.stream()
-                            .map(Trader::getOid)
-                            .filter(buyerOid -> !providersExpanded.contains(buyerOid))
-                            .collect(Collectors.toList());
-            scopedTopologyOIDs.addAll(sellersOids);
-            for (Long buyerOid : sellersOids) {
-                if (visited.contains(buyerOid)) {
-                    continue;
-                }
-                visited.add(buyerOid);
-                buyersToSatisfy.add(buyerOid);
-            }
-
-            if (logger.isTraceEnabled()) {
-                if (sellersOids.size() > 0) {
-                    logger.trace("add buyer oids: ");
-                    sellersOids.forEach(oid -> logger.trace("{}: {}", oid, topology.getTradersByOid()
-                            .get(oid).getDebugInfoNeverUseInCode()));
-                }
-            }
-        }
-        // return the subset of the original TraderTOs that correspond to the scoped topology
-        // TODO: improve the speed of this operation by iterating over the scopedTopologyIds instead
-        // of the full topology - OM-27745
-        traderTOs.stream()
-                .filter(traderTO -> scopedTopologyOIDs.contains(traderTO.getOid()))
-                .forEach(traderTOsInScopedTopology::add);
-        return traderTOsInScopedTopology;
-    }
-
-    /**
-     * Determine if a TraderTO is unplaced. It is considered unplaced if any of the commodities
-     * bought do not have a supplier.
-     *
-     * @param traderTO the TraderTO to test for suppliers
-     * @return true iff any of the commodities bought have no supplier
-     */
-    private boolean traderIsUnplaced(@Nonnull final TraderTO traderTO) {
-        return traderTO.getShoppingListsList().stream()
-                .anyMatch(shoppingListTO -> !shoppingListTO.hasSupplier() ||
-                        shoppingListTO.getSupplier() <= 0);
     }
 
     /**

@@ -10,7 +10,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCove
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.test.SenderReceiverPair;
@@ -31,17 +30,12 @@ public class TestApiServerConfig {
     @Bean
     public MarketNotificationSender marketNotificationSender() {
         return new MarketNotificationSender(projectedTopologySender(), projectedEntityCostSender(),
-                        projectedEntityRiCoverageSender(), planAnalysisTopologySender(),
+                        projectedEntityRiCoverageSender(),
                         actionPlanSender(), analysisSummarySender(), analysisStatusSender());
     }
 
     @Bean
     public IMessageSender<ActionPlan> actionPlanSender() {
-        return new SenderReceiverPair<>();
-    }
-
-    @Bean
-    public IMessageSender<Topology> planAnalysisTopologySender() {
         return new SenderReceiverPair<>();
     }
 
