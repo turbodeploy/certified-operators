@@ -135,8 +135,9 @@ public class ActionContextRIBuyStore {
                 for (float f : weeklyDemand) {
                     weeklyDemandList.add(f);
                 }
-                // Rotates the weekly demand to align with the recommended time.
-                Collections.rotate(weeklyDemandList, NUM_HOURS_IN_A_WEEK - actionHour);
+                // Rotates the weekly demand to align with the recommended time for displaying the
+                // demand on the UI.
+                Collections.rotate(weeklyDemandList, NUM_HOURS_IN_A_WEEK - actionHour - 1);
                 final String demand = weeklyDemandList.toString()
                         .substring(1, weeklyDemandList.toString().length() - 1);
                 actionContextRiBuyRecord.setData(demand.getBytes());
