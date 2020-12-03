@@ -27,7 +27,6 @@ import com.google.common.collect.Sets;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
-import org.apache.commons.lang.ObjectUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -1256,6 +1255,15 @@ public class MarketsService implements IMarketsService {
                 .forEach(dto -> providers.put(dto.getOid(), dto));
         }
 
+        // If there are still providers missing, look for them in the source topology
+        if (providers.size() < providerOids.size()) {
+            final Set<Long> missingProviders = Sets.difference(providerOids, providers.keySet());
+            repositoryApi.entitiesRequest(missingProviders)
+                .contextId(plan.getPlanId())
+                .getFullEntities()
+                .forEach(dto -> providers.put(dto.getOid(), dto));
+        }
+
         // convert to ServiceEntityApiDTOs, filling in the blanks of the placed on / not placed on fields
         return createServiceEntityApiDTOs(entityDTOs, providers);
     }
@@ -1301,10 +1309,23 @@ public class MarketsService implements IMarketsService {
                 // if no commodity provider DTO was retrieved for this provider id, fall back to
                 // displaying the id instead of the name
                 TopologyEntityDTO provider = providers.get(comm.getProviderId());
-                placedProviders.add(serviceEntityMapper.toBaseServiceEntityApiDTO(provider));
+                if (provider != null) {
+                    placedProviders.add(serviceEntityMapper.toBaseServiceEntityApiDTO(provider));
+                } else {
+                    logger.warn("Entity with oid {} found in neither projected nor source topology",
+                        comm.getProviderId());
+                    BaseApiDTO providerDto = new BaseApiDTO();
+                    providerDto.setUuid(String.valueOf(comm.getProviderId()));
+                    placedProviders.add(providerDto);
+                }
                 placedOnJoiner.add((provider != null)
                         ? provider.getDisplayName()
                         : String.valueOf(comm.getProviderId()));
+            } else {
+                // 'not placed on' list contains the list of provider entity types that were not found
+                // during analysis. These entity types could have provided the commodities needed by
+                // this unplaced entity
+                notPlacedOnJoiner.add(EntityType.forNumber(comm.getProviderEntityType()).name());
             }
         }
 
@@ -1322,13 +1343,7 @@ public class MarketsService implements IMarketsService {
             .collect(Collectors.joining(" ")));
 
         seEntity.setPlacedOn(placedOnJoiner.toString());
-        seEntity.setNotPlacedOn(entity.getUnplacedReasonList().stream()
-            .filter(UnplacementReason::hasProviderType)
-            .map(UnplacementReason::getProviderType)
-            .map(EntityType::forNumber)
-            .map(entityType -> (EntityType)ObjectUtils.defaultIfNull(entityType, EntityType.UNKNOWN))
-            .map(EntityType::name)
-            .collect(Collectors.joining(",")));
+        seEntity.setNotPlacedOn(notPlacedOnJoiner.toString());
 
         return seEntity;
     }

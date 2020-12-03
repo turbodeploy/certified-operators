@@ -33,6 +33,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -188,6 +189,7 @@ public class MarketsServiceTest {
     private static final String T3_NANO_NAME = "t3.nano";
     private static final long PHYSICAL_MACHINE_OID = 2;
     private static final String PHYSICAL_MACHINE_NAME = "AnyOldPhysicalMachine";
+    private static final long STORAGE_OID = 999;
 
     // Allowable difference when comparing doubles
     private static final double EPSILON = 0.0001;
@@ -857,8 +859,18 @@ public class MarketsServiceTest {
         final MultiEntityRequest multiEntityRequest =
             ApiTestUtils.mockMultiFullEntityReq(Arrays.asList(t3nano, physicalMachine));
 
+        // First we'll request all providers
         Mockito.when(repositoryApi
-            .entitiesRequest(new HashSet<>(Arrays.asList(T3_NANO_OID, PHYSICAL_MACHINE_OID))))
+            .entitiesRequest(new HashSet<>(Arrays.asList(
+                T3_NANO_OID, PHYSICAL_MACHINE_OID, STORAGE_OID))))
+            .thenReturn(multiEntityRequest);
+
+        // Since the storage isn't returned, it will be requested from the
+        // source topology, but still not be returned. This is to simulate
+        // an error condition where the provider appears in neither the
+        // projected nor source topology, and ensure we are resilient in that case.
+        Mockito.when(repositoryApi
+            .entitiesRequest(new HashSet<>(Arrays.asList(STORAGE_OID))))
             .thenReturn(multiEntityRequest);
 
         // A reason with more than one failed resource, a placement problem value,
@@ -906,15 +918,28 @@ public class MarketsServiceTest {
             .addUnplacedReason(computeReason)
             .addUnplacedReason(storageReason)
             .addUnplacedReason(problemReason)
+            // The VM should remain placedOn this PHYSICAL_MACHINE
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                 .setProviderId(PHYSICAL_MACHINE_OID)
-                .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                    .setCommodityType(CommodityType.newBuilder()
-                        .setType(CommonDTO.CommodityDTO.CommodityType.SEGMENTATION_VALUE)
-                        .setKey("TheKey")
-                        .build())
-                    .build())
+                .addCommodityBought(makeSegmentationCommodity())
+                .build())
+            // This has an oid, but the entity it is not returned from the
+            // repository mock. The conversion should not fail because of this.
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.STORAGE_VALUE)
+                .setProviderId(STORAGE_OID)
+                .addCommodityBought(makeSegmentationCommodity())
+                .build())
+            // These next two have no provider so their entity types will show up
+            // in notPlacedOn.
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                .addCommodityBought(makeSegmentationCommodity())
+                .build())
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .addCommodityBought(makeSegmentationCommodity())
                 .build())
             .build();
 
@@ -937,8 +962,15 @@ public class MarketsServiceTest {
 
         List<BaseApiDTO> placedOn = details.getPlacedOn();
         assertNotNull(placedOn);
-        assertEquals(1, placedOn.size());
+        assertEquals(2, placedOn.size());
+
+        // For the PM, we are able to get the name since it was returned from the repo
         assertEquals(PHYSICAL_MACHINE_NAME, placedOn.get(0).getDisplayName());
+        assertEquals(String.valueOf(PHYSICAL_MACHINE_OID), placedOn.get(0).getUuid());
+
+        // For the storage, we just have an oid, since it didn't appear in either
+        // topology.
+        assertEquals(String.valueOf(STORAGE_OID), placedOn.get(1).getUuid());
 
         // Expect 3 reasons for the placement failure
 
@@ -997,8 +1029,11 @@ public class MarketsServiceTest {
             reasons.get(2).getPlacementProblem());
 
         // Check that the deprecated fields are still generated correctly
+        // For the PM we have the name, for the storage since it was missing
+        // we should have fallen back to the oid.
 
-        assertEquals(PHYSICAL_MACHINE_NAME, unplaced.getPlacedOn());
+        assertEquals(PHYSICAL_MACHINE_NAME + "," + String.valueOf(STORAGE_OID),
+            unplaced.getPlacedOn());
         assertEquals("COMPUTE_TIER,STORAGE_TIER", unplaced.getNotPlacedOn());
 
         assertEquals("When looking for supplier of type ComputeTier: needed resource CPU with a "
@@ -1008,6 +1043,16 @@ public class MarketsServiceTest {
             + "StorageTier: needed resource StorageAccess with a requested amount of 100.0 but "
             + "the max available was 50.0. entity is not controllable.",
             unplaced.getUnplacedExplanation());
+    }
+
+    @NotNull
+    private CommodityBoughtDTO makeSegmentationCommodity() {
+        return CommodityBoughtDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(CommonDTO.CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+                .setKey("TheKey")
+                .build())
+            .build();
     }
 
     /**
