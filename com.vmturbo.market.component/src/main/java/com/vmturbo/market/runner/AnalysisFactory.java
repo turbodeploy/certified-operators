@@ -1,6 +1,7 @@
 package com.vmturbo.market.runner;
 
 import java.time.Clock;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -57,7 +58,7 @@ public interface AnalysisFactory {
      */
     @Nonnull
     Analysis newAnalysis(@Nonnull final TopologyInfo topologyInfo,
-                         @Nonnull final Set<TopologyEntityDTO> topologyEntities,
+                         @Nonnull final Collection<TopologyEntityDTO> topologyEntities,
                          @Nonnull AnalysisConfigCustomizer configCustomizer,
                          @Nonnull InitialPlacementFinder initialPlacementFinder);
 
@@ -177,7 +178,7 @@ public interface AnalysisFactory {
         @Override
         @Nonnull
         public Analysis newAnalysis(@Nonnull final TopologyInfo topologyInfo,
-                                    @Nonnull final Set<TopologyEntityDTO> topologyEntities,
+                                    @Nonnull final Collection<TopologyEntityDTO> topologyEntities,
                                     @Nonnull final AnalysisConfigCustomizer configCustomizer,
                                     @Nonnull final InitialPlacementFinder initialPlacementFinder) {
             final Map<String, Setting> globalSettings = retrieveSettings();

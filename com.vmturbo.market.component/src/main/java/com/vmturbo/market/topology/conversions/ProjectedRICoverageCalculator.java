@@ -14,6 +14,8 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Table;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -31,7 +33,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
  */
 public class ProjectedRICoverageCalculator {
     private static final Logger logger = LogManager.getLogger();
-    private final Map<Long, TraderTO> oidToOriginalTraderTOMap;
+    private final Long2ObjectMap<MinimalOriginalTrader> oidToOriginalTraderTOMap;
     private final CloudTopologyConverter cloudTc;
     private final CommodityConverter commodityConverter;
     // A map of the topology entity dto id to its reserved instance coverage
@@ -44,7 +46,7 @@ public class ProjectedRICoverageCalculator {
      * @param cloudTc cloud topology converter
      * @param commodityConverter commodity converter
      */
-    public ProjectedRICoverageCalculator(@Nonnull Map<Long, TraderTO> oidToOriginalTraderTOMap,
+    public ProjectedRICoverageCalculator(@Nonnull Long2ObjectMap<MinimalOriginalTrader> oidToOriginalTraderTOMap,
                                          @Nonnull CloudTopologyConverter cloudTc,
                                          @Nonnull CommodityConverter commodityConverter) {
         this.oidToOriginalTraderTOMap = oidToOriginalTraderTOMap;
@@ -60,7 +62,7 @@ public class ProjectedRICoverageCalculator {
      */
     public void calculateProjectedRiCoverage(@Nonnull TraderTO projectedTrader) {
         // Calculate projected RI Coverage
-        final TraderTO originalTraderTO = oidToOriginalTraderTOMap.get(projectedTrader.getOid());
+        final MinimalOriginalTrader originalTraderTO = oidToOriginalTraderTOMap.get(projectedTrader.getOid());
         // original trader can be null in case of provisioned entity
         if (originalTraderTO != null) {
             final Optional<EntityReservedInstanceCoverage> originalRiCoverage =
@@ -92,7 +94,7 @@ public class ProjectedRICoverageCalculator {
      * @param projectedTraderTO the projected trader for which RI Coverage is to be created
      * @param originalRiCoverage the original trader's original RI Coverage (before going into market)
      */
-    private void calculateProjectedRiCoverage(@Nonnull TraderTO originalTraderTO,
+    private void calculateProjectedRiCoverage(@Nonnull MinimalOriginalTrader originalTraderTO,
                                               @Nonnull TraderTO projectedTraderTO,
                                               @Nonnull Optional<EntityReservedInstanceCoverage> originalRiCoverage) {
         final long entityId = projectedTraderTO.getOid();
@@ -122,14 +124,7 @@ public class ProjectedRICoverageCalculator {
                             projectedRiTierDestination != null ? projectedRiTierDestination.getDisplayName() : "");
                         return;
                     }
-                    final Optional<MarketTier> originalRiTierDestination =
-                        originalTraderTO.getShoppingListsList()
-                            .stream()
-                            .map(sl -> sl.getSupplier())
-                            .map(traderId -> cloudTc.getMarketTier(traderId))
-                            .filter(Objects::nonNull)
-                            .filter(mt -> mt.hasRIDiscount())
-                            .findFirst();
+                    final Optional<MarketTier> originalRiTierDestination = originalTraderTO.getRiDiscountTier(cloudTc);
 
                     if (!originalRiTierDestination.isPresent() ||
                         !originalRiTierDestination.get().equals(projectedRiTierDestination)) {
@@ -148,7 +143,7 @@ public class ProjectedRICoverageCalculator {
                     } else {
                         // Entity stayed on the same RI Tier. Check if the coverage changed.
                         if (!originalRiCoverage.isPresent()) {
-                            logger.error("{} does not have original RI coverage", originalTraderTO.getDebugInfoNeverUseInCode());
+                            logger.error("{} does not have original RI coverage", projectedTraderTO.getDebugInfoNeverUseInCode());
                             return;
                         }
 
@@ -210,22 +205,20 @@ public class ProjectedRICoverageCalculator {
      */
     public void relinquishCoupons(@Nonnull final List<TraderTO> projectedTraders) {
         for (TraderTO projectedTrader : projectedTraders) {
-            TraderTO originalTrader = oidToOriginalTraderTOMap.get(projectedTrader.getOid());
+            MinimalOriginalTrader originalTrader = oidToOriginalTraderTOMap.get(projectedTrader.getOid());
             // Original trader might be null in case of a provisioned trader
             if (originalTrader != null && isValidProjectedTraderForCoverageCalculation(projectedTrader)) {
                 // If the VM was using an RI before going into market, then original trader will
                 // have a shopping list supplied by RIDiscountedMarketTier because in this case
                 // while constructing shopping lists of original trader, we make the supplier of
                 // the compute shopping list as the trader representing RIDiscountedMarketTier
-                Optional<ShoppingListTO> originalRiTierSl = getShoppingListSuppliedByRiTier(originalTrader, false);
-                if (originalRiTierSl.isPresent()) {
+                Optional<MarketTier> originalDiscountTier = originalTrader.getRiDiscountTier(cloudTc);
+                if (originalDiscountTier.isPresent()) {
                     // Originally trader was placed on RI
-                    RiDiscountedMarketTier originalRiTier = (RiDiscountedMarketTier)
-                        cloudTc.getMarketTier(originalRiTierSl.get().getSupplier());
                     Optional<EntityReservedInstanceCoverage> originalRiCoverage =
                         cloudTc.getRiCoverageForEntity(originalTrader.getOid());
                     if (!originalRiCoverage.isPresent()) {
-                        logger.error("{} does not have original RI coverage", originalTrader.getDebugInfoNeverUseInCode());
+                        logger.error("{} does not have original RI coverage", projectedTrader.getDebugInfoNeverUseInCode());
                         return;
                     }
                     final Set<Long> originalRiIds = originalRiCoverage.get()
@@ -242,13 +235,13 @@ public class ProjectedRICoverageCalculator {
                         .map(RiDiscountedMarketTier.class::cast)
                         .collect(Collectors.toSet());
                     logger.debug("Original RIDiscountedMarketTiers for projected trader {} are {}",
-                        originalTrader::getDebugInfoNeverUseInCode,
+                        projectedTrader::getDebugInfoNeverUseInCode,
                         () -> originalRiTiers.stream()
                             .map(tier -> tier.getRiAggregate().getDisplayName())
                             .collect(Collectors.toList()));
                     Optional<ShoppingListTO> projectedRiTierSl = getShoppingListSuppliedByRiTier(projectedTrader, true);
-                    if (projectedRiTierSl.isPresent() && originalRiTier != null) {
-                        if (projectedRiTierSl.get().getCouponId() != originalRiTierSl.get().getSupplier()) {
+                    if (projectedRiTierSl.isPresent()) {
+                        if (projectedRiTierSl.get().getCouponId() != originalDiscountTier.get().getTier().getOid()) {
                             // Entity moved from one RI to another.
                             originalRiTiers.forEach(ri ->
                                 ri.relinquishCoupons(originalRiCoverage.get()));
@@ -257,7 +250,7 @@ public class ProjectedRICoverageCalculator {
                             Optional<CommodityBoughtTO> projectedCouponCommBought = getCouponCommBought(projectedRiTierSl.get());
                             if (!projectedCouponCommBought.isPresent()) {
                                 // We use the original trader in this error message here because the projected trader does not have debug info
-                                logger.error("{} does not have projected coupon commodity bought.", originalTrader.getDebugInfoNeverUseInCode());
+                                logger.error("{} does not have projected coupon commodity bought.", projectedTrader.getDebugInfoNeverUseInCode());
                                 return;
                             }
                             float originalNumberOfCouponsBought = TopologyConversionUtils.getTotalNumberOfCouponsCovered(originalRiCoverage.get());

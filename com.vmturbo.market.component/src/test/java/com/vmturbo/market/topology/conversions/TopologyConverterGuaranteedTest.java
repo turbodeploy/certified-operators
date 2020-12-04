@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -133,7 +134,7 @@ public class TopologyConverterGuaranteedTest {
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, marketCloudRateExtractor, ccd,
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
                     reversibilitySettingFetcher);
-        Set<TraderTO> traders = converter.convertToMarket(entities);
+        Collection<TraderTO> traders = converter.convertToMarket(entities);
         // VDCs are skipped, VMs in maintenance and unknown state are not skipped for trader creation
         assertEquals(3, traders.size());
         List<Long> traderOids = traders.stream().map(TraderTO::getOid).collect(Collectors.toList());
@@ -156,7 +157,7 @@ public class TopologyConverterGuaranteedTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
-        Set<TraderTO> traders = converter.convertToMarket(entities);
+        Collection<TraderTO> traders = converter.convertToMarket(entities);
         assertEquals(6, traders.size());
         List<Long> guaranteedBuyers = traders.stream()
             .filter(trader ->  trader.getSettings().getGuaranteedBuyer())

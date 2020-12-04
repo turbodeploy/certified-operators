@@ -400,7 +400,7 @@ public class CloudTopologyConverter {
      *                    will be found.
      * @return {@link MarketTier} which corresponds to the traderTO oid.
      */
-    @Nullable
+    @Nonnull
     Optional<MarketTier> getRiDiscountedMarketTier(long traderToOid) {
         MarketTier mt = getMarketTier(traderToOid);
         if (mt != null && mt.hasRIDiscount()) {

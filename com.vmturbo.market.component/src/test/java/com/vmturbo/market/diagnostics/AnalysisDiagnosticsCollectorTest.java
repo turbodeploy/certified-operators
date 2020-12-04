@@ -222,7 +222,7 @@ public class AnalysisDiagnosticsCollectorTest {
         Analysis analysis = createAnalysis(topology);
         Ede ede = new Ede();
         AnalysisResults results = TopologyEntitiesHandler.performAnalysis(
-            traderTOs, topologyInfo.get(), analysisConfig.get(), analysis, topology, ede);
+            topologyInfo.get(), analysisConfig.get(), analysis, topology, ede);
         logger.info("Analysis generated {} actions", results.getActionsList().size());
 
         assertTrue(results.getActionsList().size() > 0);

@@ -25,7 +25,6 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
-import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -179,6 +178,7 @@ public class SMAConverter {
      */
     private void updateActionsWithSMA() {
         smaActions = new ArrayList<>();
+        Map<Long, MinimalOriginalTrader> originalTraderTOMap = converter.getUnmodifiableOidToOriginalTraderTOMap();
         for (SMAOutputContext outputContext : getSmaOutput().getContexts()) {
             for (SMAMatch smaMatch : outputContext.getMatches()) {
                 long vmOid = smaMatch.getVirtualMachine().getOid();
@@ -210,8 +210,7 @@ public class SMAConverter {
                 ShoppingListTO sl =
                         projectedVmTraderTO.getShoppingListsList()
                                 .get(indexOfComputeShoppingList);
-                TraderTO sourceTraderTO = converter.getUnmodifiableOidToOriginalTraderTOMap()
-                        .get(sourceOnDemandMarketTierOid);
+                MinimalOriginalTrader sourceTraderTO = originalTraderTOMap.get(sourceOnDemandMarketTierOid);
 
                 // Compare the comm sold by the current supplier and comm bought by the VM and
                 // find the missing commodities.
@@ -219,9 +218,8 @@ public class SMAConverter {
                 for (int i = 0; i < sl.getCommoditiesBoughtList().size(); i++) {
                     CommodityBoughtTO commBought = sl.getCommoditiesBoughtList().get(i);
                     boolean commditySatisfied = false;
-                    for (CommoditySoldTO commSold : sourceTraderTO.getCommoditiesSoldList()) {
-                        if (commBought.getSpecification().getType() ==
-                                commSold.getSpecification().getType()) {
+                    for (int commSoldType : sourceTraderTO.getSoldCommTypes()) {
+                        if (commBought.getSpecification().getType() == commSoldType) {
                             commditySatisfied = true;
                             break;
                         }

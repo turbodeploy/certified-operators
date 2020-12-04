@@ -41,6 +41,9 @@ import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 import com.google.gson.Gson;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+
 import org.apache.commons.lang3.mutable.MutableDouble;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -260,7 +263,7 @@ public class TopologyConverter {
     /**
      * Map from entity OID to original topology entity DTO.
      */
-    private final Map<Long, com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO>
+    private final Map<Long, TopologyEntityDTO>
             entityOidToDto = Maps.newHashMap();
 
     private final Map<Long, TopologyEntityDTO> unmodifiableEntityOidToDtoMap
@@ -270,10 +273,7 @@ public class TopologyConverter {
     private final Map<Long, EconomyDTOs.TraderTO> oidToProjectedTraderTOMap = Maps.newHashMap();
 
     // a map to keep the oid to original traderTO mapping
-    private final Map<Long, TraderTO> oidToOriginalTraderTOMap = new HashMap<>();
-
-    private final Map<Long, TraderTO> unmodifiableOidToOriginalTraderTOMap
-            = Collections.unmodifiableMap(oidToOriginalTraderTOMap);
+    private final Long2ObjectOpenHashMap<MinimalOriginalTrader> oidToOriginalTraderTOMap = new Long2ObjectOpenHashMap<>();
 
     // Bicliquer created based on datastore
     private final BiCliquer dsBasedBicliquer = new BiCliquer();
@@ -574,8 +574,8 @@ public class TopologyConverter {
         return unmodifiableEntityOidToDtoMap;
     }
 
-    public Map<Long, TraderTO> getUnmodifiableOidToOriginalTraderTOMap() {
-        return unmodifiableOidToOriginalTraderTOMap;
+    public Map<Long, MinimalOriginalTrader> getUnmodifiableOidToOriginalTraderTOMap() {
+        return Collections.unmodifiableMap(oidToOriginalTraderTOMap);
     }
 
     @VisibleForTesting
@@ -619,7 +619,7 @@ public class TopologyConverter {
      * @return set of economy DTOs
      */
     @Nonnull
-    public Set<EconomyDTOs.TraderTO> convertToMarket(
+    public Collection<EconomyDTOs.TraderTO> convertToMarket(
                 @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> topology) {
         return convertToMarket(topology, Collections.emptySet());
     }
@@ -631,7 +631,7 @@ public class TopologyConverter {
      * @return set of economy DTOs
      */
     @Nonnull
-    public Set<EconomyDTOs.TraderTO> convertToMarket(
+    public Collection<EconomyDTOs.TraderTO> convertToMarket(
                 @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> topology,
                 @Nonnull final Set<Long> oidsToRemove) {
         // Initialize the consistent resizer
@@ -713,7 +713,10 @@ public class TopologyConverter {
             commodityConverter.setProviderUsedSubtractionMap(
                 createProviderUsedSubtractionMap(entityOidToDto, oidsToRemove));
 
-            return convertToMarket();
+            Collection<TraderTO> convertedTraders = convertToMarket();
+            convertedTraders.forEach(t -> oidToOriginalTraderTOMap.put(t.getOid(), new MinimalOriginalTrader(t)));
+            oidToOriginalTraderTOMap.trim();
+            return convertedTraders;
         } catch (Exception e) {
             logger.error(EconomyConstants.EXCEPTION_MESSAGE,
                 "convertToMarket", e.getMessage(), e);
@@ -732,7 +735,8 @@ public class TopologyConverter {
      * @return set of economy DTOs
      */
     @Nonnull
-    private Set<EconomyDTOs.TraderTO> convertToMarket() {
+    private Collection<EconomyDTOs.TraderTO> convertToMarket() {
+        final Collection<EconomyDTOs.TraderTO> retSet = new ArrayList<>(entityOidToDto.size());
         try {
             logger.info("Converting topologyEntityDTOs to traderTOs");
             logger.debug("Start creating bicliques");
@@ -762,7 +766,7 @@ public class TopologyConverter {
                             t.addAllCommoditiesSold(
                                 commodityConverter.bcCommoditiesSold(t.getOid()));
                         }
-                        oidToOriginalTraderTOMap.put(t.getOid(), t.build());
+                        retSet.add(t.build());
                     });
             // Iterate over all scaling groups and compute top usage
             calculateScalingGroupUsageData(entityOidToDto);
@@ -770,16 +774,16 @@ public class TopologyConverter {
                     .filter(t -> TopologyConversionUtils.shouldConvertToTrader(t.getEntityType()))
                     .map(this::topologyDTOtoTraderTO)
                     .filter(Objects::nonNull)
-                    .forEach(t -> oidToOriginalTraderTOMap.put(t.getOid(), t));
+                    .forEach(retSet::add);
 
             commodityConverter.clearProviderUsedSubtractionMap();
 
             logger.info("Converted topologyEntityDTOs to traderTOs");
-            return new HashSet<>(oidToOriginalTraderTOMap.values());
+            return retSet;
         } catch (Exception e) {
             logger.error(EconomyConstants.EXCEPTION_MESSAGE,
                 "convertToMarket", e.getMessage(), e);
-            return new HashSet<>(oidToOriginalTraderTOMap.values());
+            return retSet;
         }
     }
 
@@ -4018,13 +4022,13 @@ public class TopologyConverter {
         // A VM may be cloned from another VM.
         long originalTraderOid = oidToProjectedTraderTOMap.get(traderOid).hasCloneOf() ?
             oidToProjectedTraderTOMap.get(traderOid).getCloneOf() : traderOid;
-        CommoditySoldTO originalCommSoldTO = oidToOriginalTraderTOMap.get(originalTraderOid)
-            .getCommoditiesSoldList().stream().filter(commoditySoldTO ->
-                commoditySoldTO.getSpecification().getBaseType() == CommodityDTO.CommodityType.VCPU_VALUE)
-            .findFirst().get();
+        final float originalVcpuCapacity = oidToOriginalTraderTOMap.get(originalTraderOid).getVcpuCapacity();
+        if (originalVcpuCapacity < 0) {
+            return capacity;
+        }
         // Check if VCPU is resized.
-        int isVCPUresized = Float.compare(capacity, originalCommSoldTO.getCapacity());
-        if (isVCPUresized == 0) {
+        boolean isVCPUresized = Math.abs(capacity - originalVcpuCapacity) < 0.001f;
+        if (!isVCPUresized) {
             return capacity;
         }
         // Get the id of the current PM provider of the current trader.
@@ -4107,13 +4111,12 @@ public class TopologyConverter {
      * Given TraderTOs to be sent to market remove skipped entities from this set.
      * @param traderTOs set of TraderTOs sent to market.
      */
-    public void removeSkippedEntitiesFromTraderTOs(Set<TraderTO> traderTOs) {
+    public void removeSkippedEntitiesFromTraderTOs(Long2ObjectMap<TraderTO> traderTOs) {
         // Remove all skipped traders as we don't want to send them to market
         // and only needed them for scoping.
         for (long skippedEntityOid : skippedEntities.keySet()) {
-            final TraderTO traderTO = oidToOriginalTraderTOMap.get(skippedEntityOid);
+            TraderTO traderTO = traderTOs.remove(skippedEntityOid);
             if (traderTO != null) {
-                traderTOs.remove(traderTO);
                 final Set<Long> shoppingListsOids = traderTO.getShoppingListsList().stream().map(ShoppingListTO::getOid)
                         .collect(Collectors.toSet());
                 logger.debug("Remove following ShoppingListTOs {} from cloudVmComputeShoppingListIDs, because traderTO {} is skipped",

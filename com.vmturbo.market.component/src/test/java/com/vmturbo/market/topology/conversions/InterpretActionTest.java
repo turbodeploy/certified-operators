@@ -19,6 +19,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -259,7 +260,7 @@ public class InterpretActionTest {
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
 
-        final Set<TraderTO> traderTOs =
+        final Collection<TraderTO> traderTOs =
             converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto));
         final TraderTO vmTraderTO = TopologyConverterToMarketTest.getVmTrader(traderTOs);
         // We sort the shopping list based on provider entity type, and then based on volume id.
@@ -449,7 +450,7 @@ public class InterpretActionTest {
                 marketCloudRateExtractor,
                 ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
-        Set<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
+        Collection<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
         final TraderTO vmTraderTO = TopologyConverterToMarketTest.getVmTrader(traderTOs);
         assertNotNull(vmTraderTO);
         // Get the shoppingList within the VM trader which represents cloud volume.
@@ -596,7 +597,7 @@ public class InterpretActionTest {
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
 
-        final Set<TraderTO> traderTOs =
+        final Collection<TraderTO> traderTOs =
                 converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto));
         final TraderTO vmTraderTO = TopologyConverterToMarketTest.getVmTrader(traderTOs);
         ShoppingListTO shoppingList = vmTraderTO.getShoppingListsList().get(0);
@@ -632,7 +633,7 @@ public class InterpretActionTest {
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
 
-        final Set<TraderTO> traderTOs =
+        final Collection<TraderTO> traderTOs =
                 converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto));
         final TraderTO vmTraderTO = TopologyConverterToMarketTest.getVmTrader(traderTOs);
         ShoppingListTO shoppingList = vmTraderTO.getShoppingListsList().get(0);

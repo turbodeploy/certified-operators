@@ -120,7 +120,7 @@ public class MarketRunner {
      */
     @Nonnull
     public Analysis scheduleAnalysis(@Nonnull final TopologyDTO.TopologyInfo topologyInfo,
-                                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
+                                     @Nonnull final Collection<TopologyEntityDTO> topologyDTOs,
                                      @Nonnull final SpanContext tracingContext,
                                      final boolean includeVDC,
                                      @Nonnull final Optional<Integer> maxPlacementsOverride,

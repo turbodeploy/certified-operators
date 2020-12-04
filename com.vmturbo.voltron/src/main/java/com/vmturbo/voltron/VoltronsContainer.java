@@ -3,6 +3,7 @@ package com.vmturbo.voltron;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
@@ -11,6 +12,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -27,6 +30,7 @@ import com.google.protobuf.AbstractMessage;
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.input.CloseShieldInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,9 +41,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.context.ConfigurableWebApplicationContext;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastRequest;
 import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc.TopologyServiceBlockingStub;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 import com.vmturbo.components.api.SetOnce;
@@ -56,6 +62,7 @@ import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.securekvstore.VaultKeyValueStore;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 import com.vmturbo.voltron.Voltron.VoltronContext;
 
 /**
@@ -359,6 +366,117 @@ public class VoltronsContainer {
         } else {
             logger.error("Invalid diags file {}", path);
 
+        }
+    }
+
+    /**
+     * Use this to broadcast a topology saved by {@link VoltronsContainer#saveTopologyToFile(String)}
+     * back on the bus.
+     *
+     * @param path The path to the saved topology binary file.
+     *
+     * @throws IOException If there is an error reading.
+     * @throws CommunicationException If there is an error sending.
+     * @throws InterruptedException If there is an interrupt while waiting.
+     */
+    public void broadcastTopologyFromFile(@Nonnull final String path)
+            throws IOException, CommunicationException, InterruptedException {
+        File file = new File(path);
+        int lineCnt = 0;
+        IMessageSender<Topology> receiver = getMessageSender(TopologyProcessorClient.TOPOLOGY_LIVE);
+        try (InputStream is = FileUtils.openInputStream(file)) {
+            try {
+                while (true) {
+                    Topology e = Topology.parseDelimitedFrom(is);
+                    if (e == null) {
+                        break;
+                    }
+                    lineCnt++;
+                    receiver.sendMessage(e);
+                    if (lineCnt % 10000 == 0) {
+                        logger.info("Processed {}", lineCnt);
+                    }
+                }
+            } catch (IOException e) {
+                // Noop.
+                logger.error(e);
+            }
+        }
+    }
+
+    /**
+     * Trigger a broadcast, and save the next broadcast topology into a file.
+     * The file will be saved in binary format, with a series of delimited {@link Topology} objects.
+     *
+     * @param path The path to save to. Must be a file (not a directory). If a file exists on this
+     * path, the file will be overwritten.
+     *
+     * @throws InterruptedException If interrupted waiting for broadcast.
+     * @throws TimeoutException If timed out waiting for successful broadcast.
+     * @throws RetriableOperationFailedException If we fail to broadcast the topology (e.g.
+     *                                           server is unavailable).
+     * @throws IOException If there is an error writing the topology to file.
+     */
+    public void saveTopologyToFile(String path)
+            throws InterruptedException, TimeoutException,
+            RetriableOperationFailedException, IOException {
+        File file = Paths.get(path).toFile();
+        if (file.isDirectory()) {
+            throw new IllegalArgumentException("Must be a file.");
+        }
+        file.getParentFile().mkdirs();
+        file.delete();
+        final TopologySaveState saveState;
+        try {
+            saveState = new TopologySaveState(new FileOutputStream(path));
+        } catch (FileNotFoundException e) {
+            // Shouldn't happen because we made sure it's not a directory above.
+            throw new IllegalStateException(e);
+        }
+        IMessageReceiver<Topology> receiver = getMessageReceiver(TopologyProcessorClient.TOPOLOGY_LIVE);
+        receiver.addListener(((topology, runnable, spanContext) -> {
+            if (topology.hasStart() && saveState.topologyId == 0) {
+                saveState.topologyId = topology.getTopologyId();
+            }
+            if (saveState.topologyId == topology.getTopologyId()) {
+                try {
+                    topology.writeDelimitedTo(saveState.fos);
+                    if (topology.hasEnd()) {
+                        saveState.fos.flush();
+                        saveState.fos.close();
+                        saveState.future.complete(null);
+                    }
+                } catch (IOException e) {
+                    saveState.future.completeExceptionally(e);
+                }
+            }
+        }));
+        broadcastTopology();
+        try {
+            saveState.future.get();
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof IOException) {
+                throw (IOException)e.getCause();
+            } else {
+                // Shouldn't happen.
+                throw new IllegalStateException(e);
+            }
+        }
+    }
+
+    /**
+     * Utility class to capture information about the topology we are saving to a file
+     * via {@link VoltronsContainer#saveTopologyToFile(String)}.
+     */
+    private static class TopologySaveState {
+        private final FileOutputStream fos;
+
+        private long topologyId = 0;
+
+        private final CompletableFuture<Void> future = new CompletableFuture<>();
+
+        private TopologySaveState(FileOutputStream fos) {
+            this.fos = fos;
         }
     }
 }

@@ -19,6 +19,7 @@ import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -417,7 +418,7 @@ public class TopologyEntitiesHandlerTest {
                         MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                         consistentScalingHelperFactory, reversibilitySettingFetcher);
-        Set<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
+        Collection<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)
                         .setTopologyType(TopologyType.REALTIME).setTopologyId(1L).build();
 
@@ -438,7 +439,7 @@ public class TopologyEntitiesHandlerTest {
                 .build();
         final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo, Collections.emptyList());
         Ede ede = new Ede();
-        AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,
+        AnalysisResults results = TopologyEntitiesHandler.performAnalysis(topologyInfo,
                         analysisConfig, analysis, topology, ede);
 
         // All deactivate actions should be set in analysis' replay actions.
@@ -497,7 +498,7 @@ public class TopologyEntitiesHandlerTest {
                         marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                         consistentScalingHelperFactory, reversibilitySettingFetcher);
 
-        Set<TraderTO> traderDTOs = topoConverter.convertToMarket(topoDTOs.stream()
+        Collection<TraderTO> traderDTOs = topoConverter.convertToMarket(topoDTOs.stream()
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
         Set<String> debugInfos = traderDTOs.stream().map(TraderTO::getCommoditiesSoldList)
                         .flatMap(List::stream).map(CommoditySoldTO::getSpecification)
@@ -531,7 +532,7 @@ public class TopologyEntitiesHandlerTest {
         List<TopologyEntityDTO> topoDTOs = messagesFromJsonFile(
                         "protobuf/messages/entities.json", TopologyEntityDTO::newBuilder);
 
-        Set<TraderTO> traderDTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
+        Collection<TraderTO> traderDTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
             marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher).convertToMarket(
                 topoDTOs.stream()
@@ -580,7 +581,7 @@ public class TopologyEntitiesHandlerTest {
         TopologyConverter togetherConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                         marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher);
-        final Set<TraderTO> traderDTOs = togetherConverter.convertToMarket(nonShopTogetherTopoDTOs);
+        final Collection<TraderTO> traderDTOs = togetherConverter.convertToMarket(nonShopTogetherTopoDTOs);
 
         // No DSPMAccess and Datastore commodities sold
         final long nspDdSoldShopTogether =
@@ -613,7 +614,7 @@ public class TopologyEntitiesHandlerTest {
         TopologyConverter shopTogetherConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                         marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
             consistentScalingHelperFactory, reversibilitySettingFetcher);
-        final Set<TraderTO> shopTogetherTraderDTOs =
+        final Collection<TraderTO> shopTogetherTraderDTOs =
                         shopTogetherConverter.convertToMarket(shopTogetherTopoDTOs);
 
         // No DSPMAccess and Datastore commodities sold
@@ -748,7 +749,7 @@ public class TopologyEntitiesHandlerTest {
         Field field = TopologyConverter.class.getDeclaredField("costNotificationStatus");
         field.setAccessible(true);
         field.set(converter, Status.SUCCESS);
-        final Set<EconomyDTOs.TraderTO> traderTOs = converter.convertToMarket(dtosToProcess.stream()
+        final Collection<EconomyDTOs.TraderTO> traderTOs = converter.convertToMarket(dtosToProcess.stream()
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
         // Get handle to the traders which will be used in asserting
         TraderTO m1MediumTrader = null;
@@ -798,7 +799,7 @@ public class TopologyEntitiesHandlerTest {
         final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, REALTIME_TOPOLOGY_INFO,
             Collections.emptyList());
         Ede ede = new Ede();
-        AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
+        AnalysisResults results = TopologyEntitiesHandler.performAnalysis(
                         REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology, ede);
         logger.info(results.getActionsList());
 
@@ -873,7 +874,7 @@ public class TopologyEntitiesHandlerTest {
             Field field = TopologyConverter.class.getDeclaredField("costNotificationStatus");
             field.setAccessible(true);
             field.set(converter, Status.SUCCESS);
-            final Set<EconomyDTOs.TraderTO> traderTOs = converter
+            final Collection<EconomyDTOs.TraderTO> traderTOs = converter
                             .convertToMarket(dtosToProcess.stream().collect(Collectors.toMap(
                                             TopologyEntityDTO::getOid, Function.identity())));
             // Get handle to the traders which will be used in asserting
@@ -914,7 +915,7 @@ public class TopologyEntitiesHandlerTest {
             final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs, REALTIME_TOPOLOGY_INFO,
                 Collections.emptyList());
             Ede ede = new Ede();
-            AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
+            AnalysisResults results = TopologyEntitiesHandler.performAnalysis(
                             REALTIME_TOPOLOGY_INFO, analysisConfig, analysis, topology, ede);
             logger.info(results.getActionsList());
 
@@ -1022,7 +1023,7 @@ public class TopologyEntitiesHandlerTest {
                 MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
-        Set<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
+        Collection<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
         return generateEnd2EndActions(analysis, economyDTOs, converter);
     }
 
@@ -1034,7 +1035,7 @@ public class TopologyEntitiesHandlerTest {
         return generateEnd2EndActions(analysis, economyDTOs, converter);
     }
 
-    private AnalysisResults generateEnd2EndActions(Analysis analysis, Set<TraderTO> economyDTOs,
+    private AnalysisResults generateEnd2EndActions(Analysis analysis, Collection<TraderTO> economyDTOs,
             TopologyConverter converter) {
         mockCommsToAdjustForOverhead(analysis, converter);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)
@@ -1053,7 +1054,7 @@ public class TopologyEntitiesHandlerTest {
         final Topology topology = TopologyEntitiesHandler.createTopology(economyDTOs, topologyInfo,
             Collections.emptyList());
         Ede ede = new Ede();
-        AnalysisResults results = TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo,
+        AnalysisResults results = TopologyEntitiesHandler.performAnalysis(topologyInfo,
                 analysisConfig, analysis, topology, ede);
         return results;
     }
@@ -1148,14 +1149,14 @@ public class TopologyEntitiesHandlerTest {
                         .setDesiredUtilizationRange(desiredUtilizationRange);
     }
 
-    private long countSoldCommodities(Set<TraderTO> traderDTOs, String pattern) {
+    private long countSoldCommodities(Collection<TraderTO> traderDTOs, String pattern) {
         return traderDTOs.stream().map(TraderTO::getCommoditiesSoldList).flatMap(List::stream)
                         .map(CommoditySoldTO::getSpecification)
                         .map(CommoditySpecificationTO::getDebugInfoNeverUseInCode)
                         .filter(key -> key.matches(pattern)).count();
     }
 
-    private long countBoughtCommodities(Set<TraderTO> traderDTOs, String pattern) {
+    private long countBoughtCommodities(Collection<TraderTO> traderDTOs, String pattern) {
         return traderDTOs.stream().map(TraderTO::getShoppingListsList).flatMap(List::stream)
                         .map(ShoppingListTO::getCommoditiesBoughtList).flatMap(List::stream)
                         .map(CommodityBoughtTO::getSpecification)
@@ -1237,7 +1238,7 @@ public class TopologyEntitiesHandlerTest {
      * @param traderDTOs {@link TraderTO} to check
      * @param shopTogether true if shoptogether enabled
      */
-    private void checkBicliques(final Set<TraderTO> traderDTOs, boolean shopTogether) {
+    private void checkBicliques(final Collection<TraderTO> traderDTOs, boolean shopTogether) {
         // Each storage is member of exactly one biclique (check using the 'cliques' property)
         final Set<Integer> stCliqueCounts = traderDTOs.stream()
                         .filter(trader -> trader.getDebugInfoNeverUseInCode().startsWith("STORAGE"))
@@ -1397,7 +1398,7 @@ public class TopologyEntitiesHandlerTest {
         Field field = TopologyConverter.class.getDeclaredField("costNotificationStatus");
         field.setAccessible(true);
         field.set(converter, Status.FAIL);
-        final Set<EconomyDTOs.TraderTO> traderTOs = converter.convertToMarket(dtosToProcess.stream()
+        final Collection<EconomyDTOs.TraderTO> traderTOs = converter.convertToMarket(dtosToProcess.stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
         for (TraderTO traderTO: traderTOs) {
             if (traderTO.getShoppingListsList().size() != 0) {

@@ -204,7 +204,6 @@ public class TopologyEntitiesHandler {
     /**
      * Create an {@link Economy} from a set of {@link TraderTO}s
      * and return the list of {@link Action}s for those TOs.
-     * @param traderTOs A set of trader TOs.
      * @param topologyInfo Information about the topology, including parameters for the analysis.
      * @param analysisConfig has information about this round of analysis
      * @param analysis containing reference for replay actions.
@@ -212,12 +211,12 @@ public class TopologyEntitiesHandler {
      * @param ede the economy engine
      * @return The list of actions for the TOs.
      */
-    public static AnalysisResults performAnalysis(Collection<TraderTO> traderTOs,
-                                                  @Nonnull final TopologyDTO.TopologyInfo topologyInfo,
+    public static AnalysisResults performAnalysis(@Nonnull final TopologyDTO.TopologyInfo topologyInfo,
                                                   final AnalysisConfig analysisConfig,
                                                   final Analysis analysis,
                                                   final Topology topology,
                                                   @Nonnull final Ede ede) {
+        final int topologySize = topology.getTradersByOid().size();
         try (TracingScope scope = Tracing.trace("perform_analysis")) {
             final long start = System.nanoTime();
             final DataMetricTimer buildTimer = ECONOMY_BUILD.startTimer();
@@ -391,7 +390,7 @@ public class TopologyEntitiesHandler {
             final String contextType = topologyInfo.hasPlanInfo() ? PLAN_CONTEXT_TYPE_LABEL : LIVE_CONTEXT_TYPE_LABEL;
             ANALYSIS_ECONOMY_SIZE
                 .labels(scopeType, contextType)
-                .observe((double)traderTOs.size());
+                .observe((double)topologySize);
 
             logger.info("Completed analysis, with {} actions, and a projected topology of {} traders",
                 results.getActionsCount(), results.getProjectedTopoEntityTOCount());

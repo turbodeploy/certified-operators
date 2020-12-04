@@ -27,6 +27,11 @@ import com.google.common.collect.Table;
 
 import io.grpc.StatusRuntimeException;
 
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -263,7 +268,7 @@ public class Analysis {
      * @param migratedWorkloadCloudCommitmentAnalysisService cloud migration analysis
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
-                    @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
+                    @Nonnull final Collection<TopologyEntityDTO> topologyDTOs,
                     @Nonnull final GroupMemberRetriever groupMemberRetriever,
                     @Nonnull final Clock clock,
                     @Nonnull final AnalysisConfig analysisConfig,
@@ -317,11 +322,135 @@ public class Analysis {
             .register();
 
     /**
-     * Execute the analysis run. Generate the action plan, projected topology and price index message.
-     * Only the first invocation of this method will actually run the analysis. Subsequent calls will
-     * log an error message and immediately return {@code false}.
+     * A wrapper class around a {@link Topology} created from the {@link TopologyEntityDTO}s
+     * associated with this analysis.
+     */
+    private static class ConvertedTopology {
+
+        static final ConvertedTopology EMPTY = new ConvertedTopology(new Topology(),
+                Collections.emptySet(), Collections.emptyMap());
+
+        private final Topology topology;
+        private final Set<Long> oidsToRemove;
+        private final Map<Long, TopologyEntityDTO> fakeEntityDTOs;
+
+        private ConvertedTopology(Topology topology,
+                Set<Long> oidsToRemove,
+                Map<Long, TopologyEntityDTO> fakeEntityDTOs) {
+            this.topology = topology;
+            this.oidsToRemove = oidsToRemove;
+            this.fakeEntityDTOs = fakeEntityDTOs;
+        }
+    }
+
+    /**
+     * Creates a {@link ConvertedTopology} containing a {@link Topology} from the
+     * {@link TopologyEntityDTO}s provided to the analysis constructor.
      *
-     * @return true if this is the first invocation of this method, false otherwise.
+     * @param enableThrottling If throttling should be enabled.
+     * @return The {@link ConvertedTopology} containing the {@link Topology}, as well as some
+     *         metadata.
+     */
+    @Nonnull
+    private ConvertedTopology createM2Topology(final boolean enableThrottling) {
+        final DataMetricTimer conversionTimer = TOPOLOGY_CONVERT_TO_TRADER_SUMMARY.startTimer();
+        // remove any (scoped) traders that may have been flagged for removal
+        // We are doing this after the convertToMarket() function because we need the original
+        // traders available in the "old providers maps" so the biclique calculation can
+        // preserve the original topology structure. We may refactor this in a way that lets us
+        // remove the old provider map though -- see OM-26631.
+        //
+        // Note that although we do NOT attempt to unplace buyers of the entities being removed
+        // here, the effect on the analysis is exactly equivalent if we had unplaced them
+        // (as of 4/6/2016) because attempting to buy from a non-existing trader results in
+        // an infinite quote which is exactly the same as not having a provider.
+        final Set<Long> oidsToRemove = new HashSet<>();
+        LongSet reservationEntityOids = new LongOpenHashSet();
+        final Long2ObjectMap<TopologyEntityDTO> fakeEntityDTOs = new Long2ObjectOpenHashMap<>();
+        for (TopologyEntityDTO dto : topologyDTOs.values()) {
+            if (dto.hasEdit()) {
+                if (dto.getEdit().hasRemoved() || dto.getEdit().hasReplaced()) {
+                    oidsToRemove.add(dto.getOid());
+                }
+            }
+            if (dto.hasOrigin() && dto.getOrigin().hasReservationOrigin()) {
+                reservationEntityOids.add(dto.getOid());
+            }
+        }
+        final Long2ObjectMap<TraderTO> traderTOs = new Long2ObjectOpenHashMap<>();
+        final Set<TraderTO> fakeTraderTOs = new HashSet<>();
+        try (TracingScope scope = Tracing.trace("convert_to_market")) {
+
+            // construct fake entities which can be used to form markets based on cluster/storage cluster
+            if (enableThrottling) {
+                createFakeTopologyEntityDTOsForSuspensionThrottling().forEach((id, e) -> {
+                    fakeEntityDTOs.put(e.getOid(), e);
+                    topologyDTOs.put(id, e);
+                });
+            }
+
+            if (!stopAnalysis) {
+                converter.convertToMarket(topologyDTOs, oidsToRemove).forEach(t -> {
+                    // cache the traderTOs converted from fake TopologyEntityDTOs
+                    if (enableThrottling && fakeEntityDTOs.containsKey(t.getOid())) {
+                        fakeTraderTOs.add(t);
+                    }
+                    traderTOs.put(t.getOid(), t);
+                });
+            }
+        }
+        conversionTimer.observe();
+
+        // add back fake traderTOs for suspension throttling as it may be removed due
+        // to scoping
+        fakeTraderTOs.forEach(t -> traderTOs.put(t.getOid(), t));
+
+        // remove skipped entities we don't want to send to market
+        converter.removeSkippedEntitiesFromTraderTOs(traderTOs);
+
+        if (oidsToRemove.size() > 0) {
+            logger.debug("Removing {} traders before analysis: ", oidsToRemove.size());
+            oidsToRemove.forEach(traderTOs::remove);
+        }
+
+        logger.debug("{} Economy DTOs", traderTOs.size());
+        if (logger.isTraceEnabled()) {
+            traderTOs.values().stream().map(dto -> "Economy DTO: " + dto).forEach(logger::trace);
+        }
+
+        if (!stopAnalysis) {
+            List<CommoditySpecification> commsToAdjustOverheadInClone =
+                    createCommsToAdjustOverheadInClone();
+            saveAnalysisDiags(traderTOs.values(), commsToAdjustOverheadInClone);
+            Topology topology = TopologyEntitiesHandler.createTopology(traderTOs.values(),
+                    topologyInfo, commsToAdjustOverheadInClone);
+            if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
+                // whenever market receives entities from realtime broadcast, we update
+                // cachedEconomy and also pass the commodity type to specification map associated
+                // with that economy to initialPlacementFinder.
+                if (converter.getCommodityConverter() != null
+                        && converter.getCommodityConverter().getCommTypeAllocator() != null) {
+                    Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap =
+                            converter.getCommodityConverter().getCommTypeAllocator().getReservationCommTypeToSpecMapping();
+                    initialPlacementFinder.updateCachedEconomy(topology.getEconomy(), commTypeToSpecMap,
+                            reservationEntityOids.stream()
+                                    .map(traderTOs::get)
+                                    .filter(Objects::nonNull)
+                                    .collect(Collectors.toSet()));
+                }
+            }
+            return new ConvertedTopology(topology, oidsToRemove, fakeEntityDTOs);
+        } else {
+            return ConvertedTopology.EMPTY;
+        }
+    }
+
+    /**
+     * Execute the analysis run. Generate the action plan, projected topology and price index message.
+         * Only the first invocation of this method will actually run the analysis. Subsequent calls will
+         * log an error message and immediately return {@code false}.
+         *
+         * @return true if this is the first invocation of this method, false otherwise.
      */
     public boolean execute() {
 
@@ -336,6 +465,8 @@ public class Analysis {
         final boolean isM2AnalysisEnabled = analysisTypeList.contains(AnalysisType.MARKET_ANALYSIS);
         //SMA is not supported for Migrate to Cloud plan
         final boolean isSMAEnabled = config.isEnableSMA() && !isMigrateToCloud;
+        final boolean enableThrottling = topologyInfo.getTopologyType() == TopologyType.REALTIME
+                && (config.getSuspensionsThrottlingConfig() == SuspensionsThrottlingConfig.CLUSTER);
         final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory
                 .newCalculator(topologyInfo, originalCloudTopology);
         // Use the cloud cost data we use for cost calculations for the price table.
@@ -348,17 +479,14 @@ public class Analysis {
                 CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
                 originalCloudTopology, reversibilitySettingFetcher, config);
         this.smaConverter = new SMAConverter(converter);
-        final boolean enableThrottling = topologyInfo.getTopologyType() == TopologyType.REALTIME
-                && (config.getSuspensionsThrottlingConfig() == SuspensionsThrottlingConfig.CLUSTER);
         DataMetricTimer processResultTime = null;
-        Map<Long, TopologyEntityDTO> fakeEntityDTOs = Collections.emptyMap();
         AnalysisResults results = null;
         Map<Long, List<UnplacementReason.Builder>> unplacedReasonMap = new HashMap<>();
-        final Set<Long> oidsToRemove = new HashSet<>();
 
         // Don't generate actions associated with entities with these oids
         final Set<Long> suppressActionsForOids = new HashSet<>();
 
+        ConvertedTopology convertedTopology = ConvertedTopology.EMPTY;
         if (isM2AnalysisEnabled) {
             if (topologyInfo.getTopologyType() == TopologyType.REALTIME
                     && !originalCloudTopology.getEntities().isEmpty()) {
@@ -378,101 +506,19 @@ public class Analysis {
             startTime = clock.instant();
             logger.info("{} Started", logPrefix);
 
-            // remove any (scoped) traders that may have been flagged for removal
-            // We are doing this after the convertToMarket() function because we need the original
-            // traders available in the "old providers maps" so the biclique calculation can
-            // preserve the original topology structure. We may refactor this in a way that lets us
-            // remove the old provider map though -- see OM-26631.
-            //
-            // Note that although we do NOT attempt to unplace buyers of the entities being removed
-            // here, the effect on the analysis is exactly equivalent if we had unplaced them
-            // (as of 4/6/2016) because attempting to buy from a non-existing trader results in
-            // an infinite quote which is exactly the same as not having a provider.
-            Set<Long> reservationEntityOids = new HashSet<>();
-            for (TopologyEntityDTO dto : topologyDTOs.values()) {
-                if (dto.hasEdit()) {
-                    if (dto.getEdit().hasRemoved() || dto.getEdit().hasReplaced()) {
-                        oidsToRemove.add(dto.getOid());
-                    }
-                }
-                if (dto.hasOrigin() && dto.getOrigin().hasReservationOrigin()) {
-                    reservationEntityOids.add(dto.getOid());
-                }
-            }
-
             try {
-                final DataMetricTimer conversionTimer = TOPOLOGY_CONVERT_TO_TRADER_SUMMARY.startTimer();
-                Set<TraderTO> traderTOs = new HashSet<>();
-                final Set<TraderTO> fakeTraderTOs = new HashSet<>();
-                try (TracingScope scope = Tracing.trace("convert_to_market")) {
+                convertedTopology = createM2Topology(enableThrottling);
 
-                    // construct fake entities which can be used to form markets based on cluster/storage cluster
-                    if (enableThrottling) {
-                        fakeEntityDTOs = createFakeTopologyEntityDTOsForSuspensionThrottling();
-                        fakeEntityDTOs.forEach(topologyDTOs::put);
-                    } else {
-                        fakeEntityDTOs = Collections.emptyMap();
-                    }
-
-                    if (!stopAnalysis) {
-                        traderTOs.addAll(converter.convertToMarket(topologyDTOs, oidsToRemove));
-                    }
-                    // cache the traderTOs converted from fake TopologyEntityDTOs
-                    if (enableThrottling) {
-                        for (TraderTO dto : traderTOs) {
-                            if (fakeEntityDTOs.containsKey(dto.getOid())) {
-                                fakeTraderTOs.add(dto);
-                            }
-                        }
-                    }
-                }
-                conversionTimer.observe();
-
-                // add back fake traderTOs for suspension throttling as it may be removed due
-                // to scoping
-                traderTOs.addAll(fakeTraderTOs);
-
-                // remove skipped entities we don't want to send to market
-                converter.removeSkippedEntitiesFromTraderTOs(traderTOs);
-
-                if (oidsToRemove.size() > 0) {
-                    logger.debug("Removing {} traders before analysis: ", oidsToRemove.size());
-                    traderTOs = traderTOs.stream()
-                            .filter(traderTO -> !(oidsToRemove.contains(traderTO.getOid())))
-                            .collect(Collectors.toSet());
-                }
-
-                if (logger.isDebugEnabled()) {
-                    logger.debug(traderTOs.size() + " Economy DTOs");
-                }
-                if (logger.isTraceEnabled()) {
-                    traderTOs.stream().map(dto -> "Economy DTO: " + dto).forEach(logger::trace);
-                }
                 processResultTime = RESULT_PROCESSING.startTimer();
+
                 if (!stopAnalysis) {
-                    List<CommoditySpecification> commsToAdjustOverheadInClone = createCommsToAdjustOverheadInClone();
-                    saveAnalysisDiags(traderTOs, commsToAdjustOverheadInClone);
-                    final Topology topology = TopologyEntitiesHandler.createTopology(traderTOs,
-                            topologyInfo, commsToAdjustOverheadInClone);
-                    if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
-                        // whenever market receives entities from realtime broadcast, we update
-                        // cachedEconomy and also pass the commodity type to specification map associated
-                        // with that economy to initialPlacementFinder.
-                        if (converter.getCommodityConverter() != null
-                                && converter.getCommodityConverter().getCommTypeAllocator() != null) {
-                            Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap =
-                                    converter.getCommodityConverter().getCommTypeAllocator().getReservationCommTypeToSpecMapping();
-                            initialPlacementFinder.updateCachedEconomy(topology.getEconomy(), commTypeToSpecMap, traderTOs.stream()
-                                    .filter(t -> reservationEntityOids.contains(t.getOid())).collect(Collectors.toSet()));
-                        }
-                    }
                     Ede ede = new Ede();
-                    results = TopologyEntitiesHandler.performAnalysis(traderTOs,
-                            topologyInfo, config, this, topology, ede);
+                    results = TopologyEntitiesHandler.performAnalysis(topologyInfo,
+                            config, this, convertedTopology.topology, ede);
                     try {
                         Map<Trader, List<InfiniteQuoteExplanation>> infiniteQuoteTraderMap = ede
                                 .getPlacementResults().getExplanations();
-                        unplacedReasonMap = generateUnplacedReason(infiniteQuoteTraderMap, converter, topology);
+                        unplacedReasonMap = generateUnplacedReason(infiniteQuoteTraderMap, converter, convertedTopology.topology);
                         if (isSMAEnabled) {
                             // Cloud VM OID to a set of provider OIDs: i.e. compute tier OIDs that the VM can fit in.
                             Map<Long, Set<Long>> cloudVmOidToProvidersOIDsMap = new HashMap<>();
@@ -480,7 +526,7 @@ public class Analysis {
                             Map<Long, Set<Long>> cloudVmOidToTraderTOs =
                                     TopologyEntitiesHandler
                                             .getProviderLists(converter.getCloudVmComputeShoppingListIDs(),
-                                                    topology, getCommSpecForCommodity(TopologyDTO
+                                                    convertedTopology.topology, getCommSpecForCommodity(TopologyDTO
                                                             .CommodityType.newBuilder()
                                                             .setType(CommodityDTO.CommodityType
                                                                     .COUPON_VALUE).build()).getBaseType());
@@ -488,9 +534,7 @@ public class Analysis {
                                 Set<Long> providerOIDList = new HashSet<>();
                                 for (Long traderTO : entry.getValue()) {
                                     Optional<Long> computeTierID = converter.getTopologyEntityOIDForOnDemandMarketTier(traderTO);
-                                    if (computeTierID.isPresent()) {
-                                        providerOIDList.add(computeTierID.get());
-                                    }
+                                    computeTierID.ifPresent(providerOIDList::add);
                                 }
                                 cloudVmOidToProvidersOIDsMap.put(entry.getKey(), providerOIDList);
                             }
@@ -512,7 +556,6 @@ public class Analysis {
                     }
                 } else {
                     logger.info(logPrefix + " Analysis Stopped");
-                    processResultTime.observe();
                     state = AnalysisState.FAILED;
                 }
             } catch (RuntimeException e) {
@@ -561,13 +604,13 @@ public class Analysis {
                                     // we need to remove it both from the projected topology and the source topology
 
                                     // source, non scoped topology
-                                    for (long fakeEntityOid : fakeEntityDTOs.keySet()) {
+                                    for (long fakeEntityOid : convertedTopology.fakeEntityDTOs.keySet()) {
                                         topologyDTOs.remove(fakeEntityOid);
                                     }
 
                                     // projected topology
                                     for (TraderTO projectedDTO : results.getProjectedTopoEntityTOList()) {
-                                        if (!fakeEntityDTOs.containsKey(projectedDTO.getOid())) {
+                                        if (!convertedTopology.fakeEntityDTOs.containsKey(projectedDTO.getOid())) {
                                             projectedTraderDTO.add(projectedDTO);
                                         }
                                     }
@@ -630,7 +673,7 @@ public class Analysis {
 
                                 copySkippedEntitiesToProjectedTopology(
                                         wastedStorageActionsVolumeIds,
-                                        oidsToRemove,
+                                        convertedTopology.oidsToRemove,
                                         projectedTraderDTO,
                                         topologyDTOs,
                                         isMigrateToCloud);

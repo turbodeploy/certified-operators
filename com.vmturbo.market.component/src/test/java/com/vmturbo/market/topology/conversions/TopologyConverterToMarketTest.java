@@ -19,6 +19,7 @@ import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -238,7 +239,7 @@ public class TopologyConverterToMarketTest {
         TopologyEntityDTO vdcTopologyDTO =
                 messageFromJsonFile("protobuf/messages/vdc-1.dto.json");
         Set<TopologyEntityDTO> topologyDTOs = Sets.newHashSet(vdcTopologyDTO);
-        Set<TraderTO> traderTOs = convertToMarketTO(topologyDTOs, REALTIME_TOPOLOGY_INFO);
+        Collection<TraderTO> traderTOs = convertToMarketTO(topologyDTOs, REALTIME_TOPOLOGY_INFO);
         TraderTO vdcTraderTO = traderTOs.iterator().next();
         assertEquals(100, vdcTraderTO.getOid());
         assertEquals(EntityType.VIRTUAL_DATACENTER_VALUE, vdcTraderTO.getType());
@@ -268,7 +269,7 @@ public class TopologyConverterToMarketTest {
         assertTrue(vdcSettings.getCanAcceptNewCustomers());
     }
 
-    static TraderTO getVmTrader(Set<TraderTO> traders) {
+    static TraderTO getVmTrader(Collection<TraderTO> traders) {
         return traders.stream()
             .filter(tto -> tto.getType() == EntityType.VIRTUAL_MACHINE_VALUE)
             .findFirst()
@@ -299,7 +300,7 @@ public class TopologyConverterToMarketTest {
      */
     @Test
     public void testConvertDTOs() {
-        Set<TraderTO> traderTOs = convertToMarketTO(TOPOLOGY_DTOS, REALTIME_TOPOLOGY_INFO);
+        Collection<TraderTO> traderTOs = convertToMarketTO(TOPOLOGY_DTOS, REALTIME_TOPOLOGY_INFO);
         assertEquals(TOPOLOGY_DTOS.size(), traderTOs.size());
 
         final TraderTO vmTraderTO = getVmTrader(traderTOs);
@@ -338,7 +339,7 @@ public class TopologyConverterToMarketTest {
      */
     @Test
     public void testZeroMoveCostInPlan() {
-        Set<TraderTO> traderTOs = convertToMarketTO(TOPOLOGY_DTOS, PLAN_TOPOLOGY_INFO);
+        Collection<TraderTO> traderTOs = convertToMarketTO(TOPOLOGY_DTOS, PLAN_TOPOLOGY_INFO);
         final TraderTO vmTraderTO = getVmTrader(traderTOs);
         List<ShoppingListTO> shoppingLists = vmTraderTO.getShoppingListsList();
         // Get the shopping list that buys from DS
@@ -484,7 +485,7 @@ public class TopologyConverterToMarketTest {
                 tierExcluderFactory,
                 consistentScalingHelperFactory,
                 reversibilitySettingFetcher);
-        Set<TraderTO> vmTrader = converter.convertToMarket(ImmutableMap.of(entityDTO.getOid(), entityDTO));
+        Collection<TraderTO> vmTrader = converter.convertToMarket(ImmutableMap.of(entityDTO.getOid(), entityDTO));
 
         TraderTO vm = vmTrader.iterator().next();
         ShoppingListInfo volume1slInfo = converter.getShoppingListOidToInfos().get(
@@ -512,7 +513,7 @@ public class TopologyConverterToMarketTest {
     }
 
     @Nonnull
-    private Set<TraderTO> convertToMarketTO(@Nonnull final Set<TopologyDTO.TopologyEntityDTO> topology,
+    private Collection<TraderTO> convertToMarketTO(@Nonnull final Set<TopologyDTO.TopologyEntityDTO> topology,
                                          @Nonnull final TopologyInfo topologyInfo) {
         return new TopologyConverter(topologyInfo, true, MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
@@ -535,7 +536,7 @@ public class TopologyConverterToMarketTest {
                 messageFromJsonFile("protobuf/messages/pm-2.dto.json"),
                 messageFromJsonFile("protobuf/messages/vm-2.dto.json"))
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-        Set<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
+        Collection<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
             MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketCloudRateExtractor,
@@ -962,7 +963,7 @@ public class TopologyConverterToMarketTest {
         Map<Long, TopologyEntityDTO> topology = new HashMap<>();
         topology.put(pmEntityDTO.getOid(), pmEntityDTO);
         topology.put(vmEntityDTO.getOid(), vmEntityDTO);
-        Set<TraderTO> traders = converter.convertToMarket(topology);
+        Collection<TraderTO> traders = converter.convertToMarket(topology);
         for (TraderTO t : traders) {
             if (t.getType() == vmEntityDTO.getEntityType()) {
                 assertFalse(t.getShoppingLists(0).getMovable());
@@ -1452,7 +1453,7 @@ public class TopologyConverterToMarketTest {
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
 
-        final Set<TraderTO> traders =
+        final Collection<TraderTO> traders =
                 converter.convertToMarket(ImmutableList.of(region, vm, ba).stream()
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
 
@@ -1495,7 +1496,7 @@ public class TopologyConverterToMarketTest {
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
 
-        final Set<TraderTO> traders =
+        final Collection<TraderTO> traders =
                 converter.convertToMarket(ImmutableList.of(zone, region, vm, ba).stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
 
@@ -1534,7 +1535,7 @@ public class TopologyConverterToMarketTest {
                 marketCloudRateExtractor, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory, reversibilitySettingFetcher);
 
-        final Set<TraderTO> traders =
+        final Collection<TraderTO> traders =
                 converter.convertToMarket(ImmutableList.of(region, vm, ba).stream()
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
 
@@ -1818,7 +1819,7 @@ public class TopologyConverterToMarketTest {
         dtos.add(storage);
         dtos.addAll(pms);
         dtos.addAll(vms);
-        Set<TraderTO> traderTOs = convertToMarketTO(dtos, REALTIME_TOPOLOGY_INFO);
+        Collection<TraderTO> traderTOs = convertToMarketTO(dtos, REALTIME_TOPOLOGY_INFO);
 
         TraderTO trader = traderTOs.stream().filter(traderTO -> traderTO.getOid() == 100L).findFirst().get();
         assertEquals(1, trader.getCommoditiesSoldCount());
@@ -1937,7 +1938,7 @@ public class TopologyConverterToMarketTest {
             messageFromJsonFile("protobuf/messages/container-2.dto.json"),
             messageFromJsonFile("protobuf/messages/vm-4.dto.json"))
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-        Set<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
+        Collection<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
             MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketCloudRateExtractor,
@@ -2040,7 +2041,7 @@ public class TopologyConverterToMarketTest {
         final MarketTier marketTier = mock(MarketTier.class);
         Mockito.when(marketTier.getTier()).thenReturn(computeTier);
 
-        Set<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
+        Collection<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
             MarketAnalysisUtils.QUOTE_FACTOR,
             MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketCloudRateExtractor,
@@ -2161,7 +2162,7 @@ public class TopologyConverterToMarketTest {
             .setEntityType(EntityType.COMPUTE_TIER_VALUE)
             .build();
         topologyDTOs.put(computeTierOid, computeTier);
-        Set<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
+        Collection<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
         assertEquals(4, traderTOs.size());
         // One of the trader is for StorageTier.
         Optional<TraderTO> storageTierTraderTO = traderTOs.stream()
@@ -2245,7 +2246,7 @@ public class TopologyConverterToMarketTest {
                 consistentScalingHelperFactory,
                 settingFetcher);
 
-        final Set<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
+        final Collection<TraderTO> traderTOs = topologyConverter.convertToMarket(topologyDTOs);
 
         // Find VirtualMachine trader.
         final TraderTO vmTrader = traderTOs.stream()

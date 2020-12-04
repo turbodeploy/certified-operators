@@ -16,12 +16,10 @@ import java.util.Optional;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.cloudscaling.sma.analysis.StableMarriageAlgorithm;
-import com.vmturbo.market.cloudscaling.sma.entities.SMAInput;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAInputContext;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAMatch;
 import com.vmturbo.market.cloudscaling.sma.entities.SMAOutput;
@@ -50,7 +48,7 @@ public class SMAConverterTest {
     private TopologyEntityDTO vm2DTO;
     private TopologyEntityDTO region;
     private Map<Long, TopologyEntityDTO> unmodifiableEntityOidToDtoMap = new HashMap<>();
-    private Map<Long, TraderTO> oidToOriginalTraderTOMap = new HashMap<>();
+    private Map<Long, MinimalOriginalTrader> oidToOriginalTraderTOMap = new HashMap<>();
     CloudTopologyConverter cloudTC = mock(CloudTopologyConverter.class);
 
     /**
@@ -95,8 +93,8 @@ public class SMAConverterTest {
                 CommoditySoldTO.newBuilder().setSpecification(
                         CommoditySpecificationTO.newBuilder()
                                 .setBaseType(1).setType(1))).build();
-        oidToOriginalTraderTOMap.put(14100001L, tp1);
-        oidToOriginalTraderTOMap.put(14100002L, tp2);
+        oidToOriginalTraderTOMap.put(14100001L, new MinimalOriginalTrader(tp1));
+        oidToOriginalTraderTOMap.put(14100002L, new MinimalOriginalTrader(tp2));
         ReservedInstanceData riData = mock(ReservedInstanceData.class);
         Optional<CommodityBoughtTO> coupon =
                 Optional.of(CommodityBoughtTO.newBuilder()

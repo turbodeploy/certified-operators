@@ -1166,7 +1166,7 @@ public class TopologyConverterFromMarketTest {
         when(mockCommodityConverter.createCommoditySoldTO(Mockito.anyObject(), Mockito.anyFloat(),
                 Mockito.anyFloat(), Mockito.anyObject())).thenReturn(x);
 
-        Set<TraderTO> traderTOs = converter.convertToMarket(ImmutableMap.of(1000L, bAppDTO,
+        Collection<TraderTO> traderTOs = converter.convertToMarket(ImmutableMap.of(1000L, bAppDTO,
                 1001L, bTxDTO),
                 Collections.EMPTY_SET);
         assertTrue(traderTOs.size() == 0);
@@ -2104,7 +2104,7 @@ public class TopologyConverterFromMarketTest {
         Mockito.doReturn(commodityType).when(mockCommodityConverter)
             .commodityIdToCommodityType(anyInt());
 
-        final Set<TraderTO> traders = converter.convertToMarket(originalTopology);
+        final Collection<TraderTO> traders = converter.convertToMarket(originalTopology);
 
         final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
                 new ArrayList<>(traders), originalTopology, PriceIndexMessage.getDefaultInstance(),
@@ -2208,7 +2208,7 @@ public class TopologyConverterFromMarketTest {
             .commodityIdToCommodityType(anyInt());
 
         // Test code
-        final Set<TraderTO> traders = converter.convertToMarket(originalTopology);
+        final Collection<TraderTO> traders = converter.convertToMarket(originalTopology);
         final Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
                 new ArrayList<>(traders), originalTopology, PriceIndexMessage.getDefaultInstance(),
                 reservedCapacityAnalysis, setUpWastedFileAnalysis());

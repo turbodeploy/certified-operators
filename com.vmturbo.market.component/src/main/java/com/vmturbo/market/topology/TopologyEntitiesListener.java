@@ -6,16 +6,17 @@ import static com.vmturbo.matrix.component.external.MatrixInterface.Component.UN
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import io.opentracing.SpanContext;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -107,18 +108,14 @@ public class TopologyEntitiesListener implements EntitiesListener {
             logger.error("You are running a developer freemium edition. Analysis is disabled.");
             return;
         }
-        // TODO: karthikt : Do we really need a Set here. Duplicated entities
-        // can be easily detected by just checking the Ids.Computing the hash
-        // for the entire EntityDTO object would be expensive as it would need
-        // to look at all the fields.
-        final Set<TopologyEntityDTO> entities = new HashSet<>();
+        final Long2ObjectMap<TopologyEntityDTO> entities = new Long2ObjectOpenHashMap<>();
 
         Collection<TopologyDTO.TopologyExtension> exts = new ArrayList<>();
         try (TracingScope scope = Tracing.trace("receive_topology", tracingContext)) {
             while (entityIterator.hasNext()) {
                 for (DataSegment ds : entityIterator.nextChunk()) {
                     if (ds.hasEntity()) {
-                        entities.add(flyweights.tryDeduplicate(ds.getEntity()));
+                        entities.put(ds.getEntity().getOid(), flyweights.tryDeduplicate(ds.getEntity()));
                     } else if (ds.hasExtension()) {
                         exts.add(ds.getExtension());
                     }
@@ -138,7 +135,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
         }
 
         logger.info("Topology {} {} deduplication results: {}", topologyId, topologyContextId, flyweights);
-        marketRunner.scheduleAnalysis(topologyInfo, entities, tracingContext, false, maxPlacementsOverride,
+        marketRunner.scheduleAnalysis(topologyInfo, entities.values(), tracingContext, false, maxPlacementsOverride,
             useQuoteCacheDuringSNM, replayProvisionsForRealTime, rightsizeLowerWatermark,
             rightsizeUpperWatermark, discountedComputeCostFactor);
     }
