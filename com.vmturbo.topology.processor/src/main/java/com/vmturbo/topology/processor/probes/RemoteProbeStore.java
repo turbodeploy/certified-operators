@@ -135,6 +135,13 @@ public class RemoteProbeStore implements ProbeStore {
             });
     }
 
+    @Override
+    public int priority() {
+        // Initialize before the identity store, so that the identity store can access the
+        // probes metadata
+        return identityProvider_.priority() + 1;
+    }
+
     /**
      * {@inheritDoc}
      */

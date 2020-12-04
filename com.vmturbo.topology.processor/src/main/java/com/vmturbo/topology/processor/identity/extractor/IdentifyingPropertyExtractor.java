@@ -38,7 +38,7 @@ public class IdentifyingPropertyExtractor {
     public static EntityDescriptor extractEntityDescriptor(
             @Nonnull EntityDTO entityDTO,
             @Nonnull ServiceEntityIdentityMetadata identityMetadata) {
-        List<PropertyDescriptor> identifyingProperties =
+        List<PropertyDescriptor> nonVolatileProperties =
                 extractProperties(identityMetadata.getNonVolatileProperties(), entityDTO);
         List<PropertyDescriptor> volatileProperties =
                 extractProperties(identityMetadata.getVolatileProperties(), entityDTO);
@@ -46,9 +46,8 @@ public class IdentifyingPropertyExtractor {
                 extractProperties(identityMetadata.getHeuristicProperties(), entityDTO);
 
 
-        // Identifying properties are composed of [nonVolatile + volatile]
-        identifyingProperties.addAll(volatileProperties);
-        return new EntityDescriptorImpl(identifyingProperties, volatileProperties, heuristicProperties);
+        return new EntityDescriptorImpl(nonVolatileProperties, volatileProperties,
+            heuristicProperties);
     }
 
     /**

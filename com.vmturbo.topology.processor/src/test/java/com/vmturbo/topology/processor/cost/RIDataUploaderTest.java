@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.cost;
 
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 import java.io.IOException;
@@ -59,10 +60,7 @@ import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCos
 import com.vmturbo.topology.processor.cost.RICostDataUploader.RICostComponentData;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
-import com.vmturbo.topology.processor.identity.IdentityService;
-import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
-import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
@@ -90,11 +88,9 @@ public class RIDataUploaderTest {
     }
 
     private IdentityProvider identityProvider = new IdentityProviderImpl(
-            new IdentityService(new IdentityServiceInMemoryUnderlyingStore(
-                    Mockito.mock(IdentityDatabaseStore.class), 10),
-                    new HeuristicsMatcher()),
             keyValueStore,
-            new ProbeInfoCompatibilityChecker(), 0L);
+            new ProbeInfoCompatibilityChecker(), 0L, mock(IdentityDatabaseStore.class), 10,  0,
+        false);
 
     private StitchingContext mockStitchingContext = Mockito.mock(StitchingContext.class);
 

@@ -46,7 +46,6 @@ public class MigrationsLibrary {
     public MigrationsLibrary(@Nonnull DSLContext dslContext,
                              @Nonnull ProbeStore probeStore,
                              @Nonnull StatsHistoryServiceBlockingStub statsHistoryClient,
-                             @Nonnull IdentityServiceUnderlyingStore identityServiceUnderlyingStore,
                              @Nonnull IdentityProvider identityProvider,
                              @Nonnull KeyValueStore keyValueStore,
                              @Nonnull TargetStore targetStore,
@@ -57,7 +56,7 @@ public class MigrationsLibrary {
         this.dslContext = Objects.requireNonNull(dslContext);
         this.probeStore = Objects.requireNonNull(probeStore);
         this.statsHistoryClient = Objects.requireNonNull(statsHistoryClient);
-        this.identityServiceUnderlyingStore = Objects.requireNonNull(identityServiceUnderlyingStore);
+        this.identityServiceUnderlyingStore = Objects.requireNonNull(identityProvider.getStore());
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.keyValueStore = keyValueStore;
         this.targetStore = Objects.requireNonNull(targetStore);

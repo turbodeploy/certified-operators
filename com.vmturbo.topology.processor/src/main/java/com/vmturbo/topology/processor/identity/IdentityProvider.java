@@ -6,11 +6,13 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
+import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
 
 /**
  * The Identity Provider is responsible for management of OID's for all
@@ -25,7 +27,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
  * <p>ID assignment for targets, probes, discoveries, actions etc. also
  * happens here.
  */
-public interface IdentityProvider extends DiagsRestorable<Void> {
+public interface IdentityProvider extends DiagsRestorable<Void>, RequiresDataInitialization {
 
     /**
      * Get the target ID for the target described by a given spec.
@@ -96,4 +98,11 @@ public interface IdentityProvider extends DiagsRestorable<Void> {
      * or while the current thread was waiting for a notification.
      */
      void waitForInitializedStore() throws InterruptedException;
+
+    /**
+     * Returns the underlying store of the service.
+     * @return the underlying store
+     */
+    IdentityServiceUnderlyingStore getStore();
+
 }
