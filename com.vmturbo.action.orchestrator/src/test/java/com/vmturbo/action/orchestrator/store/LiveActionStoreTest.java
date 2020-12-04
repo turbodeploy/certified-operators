@@ -117,6 +117,7 @@ public class LiveActionStoreTest {
     private final long vm1 = 1;
     private final long vm2 = 2;
     private final long vm3 = 3;
+    private final long vm4 = 4;
 
     private final long container1 = 11;
     private final long container2 = 12;
@@ -277,6 +278,9 @@ public class LiveActionStoreTest {
         when(snapshot.getEntityFromOid(eq(vm3)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(vm3,
                 EntityType.VIRTUAL_MACHINE.getNumber()));
+        when(snapshot.getEntityFromOid(eq(vm4)))
+                .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(vm4,
+                        EntityType.VIRTUAL_MACHINE.getNumber()));
         when(snapshot.getEntityFromOid(eq(hostA)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(hostA,
                 EntityType.PHYSICAL_MACHINE.getNumber()));
@@ -491,14 +495,6 @@ public class LiveActionStoreTest {
                 .addAction(firstMove)
                 .build();
 
-        ActionPlan secondPlan = ActionPlan.newBuilder()
-                .setInfo(ActionPlanInfo.newBuilder()
-                        .setMarket(MarketActionPlanInfo.newBuilder()
-                                .setSourceTopologyInfo(TopologyInfo.newBuilder()
-                                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-                                        .setTopologyId(topologyId))))
-                .setId(secondPlanId)
-                .build();
         final EntitiesAndSettingsSnapshot snapshot =
                 entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
                         Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
@@ -510,22 +506,27 @@ public class LiveActionStoreTest {
         Assert.assertEquals(ActionState.READY, ((Action)((ArrayList)actions).get(0)).getState());
     }
 
+    /**
+     * Test that we don't remove actions with following states (QUEUED, PRE_IN_PROGRESS,
+     * IN_PROGRESS, POST_IN_PROGRESS) from action store.
+     *
+     * @throws Exception if something goes wrong
+     */
     @Test
     public void testPopulateInProgressAreNotCleared() throws Exception {
-        ActionDTO.Action.Builder queuedMove =
-            move(vm1, hostA, vmType, hostB, vmType);
-        ActionDTO.Action.Builder inProgressMove =
-            move(vm2, hostA, vmType, hostB, vmType);
+        final ActionDTO.Action queuedMove = move(vm1, hostA, vmType, hostB, vmType).build();
+        final ActionDTO.Action inProgressMove = move(vm2, hostA, vmType, hostB, vmType).build();
+        final ActionDTO.Action preInProgressMove = move(vm3, hostA, vmType, hostB, vmType).build();
+        final ActionDTO.Action postInProgressMove = move(vm4, hostA, vmType, hostB, vmType).build();
 
-        ActionPlan firstPlan = ActionPlan.newBuilder()
+        final ActionPlan firstPlan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
                 .setMarket(MarketActionPlanInfo.newBuilder()
                     .setSourceTopologyInfo(TopologyInfo.newBuilder()
                         .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                         .setTopologyId(topologyId))))
             .setId(firstPlanId)
-            .addAction(queuedMove)
-            .addAction(inProgressMove)
+            .addAllAction(Arrays.asList(queuedMove, inProgressMove, preInProgressMove, postInProgressMove))
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
@@ -535,8 +536,10 @@ public class LiveActionStoreTest {
         actionStore.populateRecommendedActions(firstPlan);
         when(actionStore.getAction(queuedMove.getId()).get().getState()).thenReturn(ActionState.QUEUED);
         when(actionStore.getAction(inProgressMove.getId()).get().getState()).thenReturn(ActionState.IN_PROGRESS);
+        when(actionStore.getAction(preInProgressMove.getId()).get().getState()).thenReturn(ActionState.PRE_IN_PROGRESS);
+        when(actionStore.getAction(postInProgressMove.getId()).get().getState()).thenReturn(ActionState.POST_IN_PROGRESS);
 
-        ActionPlan secondPlan = ActionPlan.newBuilder()
+        final ActionPlan secondPlan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
                 .setMarket(MarketActionPlanInfo.newBuilder()
                     .setSourceTopologyInfo(TopologyInfo.newBuilder()
@@ -546,25 +549,31 @@ public class LiveActionStoreTest {
             .build();
         actionStore.populateRecommendedActions(secondPlan);
 
-        assertEquals(2, actionStore.size());
+        assertEquals(4, actionStore.size());
     }
 
+    /**
+     * Test that we don't duplicate actions with following states (QUEUED, PRE_IN_PROGRESS,
+     * IN_PROGRESS, POST_IN_PROGRESS) in action store.
+     *
+     * @throws Exception if something goes wrong
+     */
     @Test
     public void testPopulateInProgressNotDuplicated() throws Exception {
-        ActionDTO.Action.Builder queuedMove =
-            move(vm1, hostA, vmType, hostB, vmType);
-        ActionDTO.Action.Builder inProgressMove =
-            move(vm2, hostA, vmType, hostB, vmType);
+        final ActionDTO.Action queuedMove = move(vm1, hostA, vmType, hostB, vmType).build();
+        final ActionDTO.Action inProgressMove = move(vm2, hostA, vmType, hostB, vmType).build();
+        final ActionDTO.Action preInProgressMove = move(vm3, hostA, vmType, hostB, vmType).build();
+        final ActionDTO.Action postInProgressMove = move(vm4, hostA, vmType, hostB, vmType).build();
 
-        ActionPlan firstPlan = ActionPlan.newBuilder()
+        final ActionPlan firstPlan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
                 .setMarket(MarketActionPlanInfo.newBuilder()
                     .setSourceTopologyInfo(TopologyInfo.newBuilder()
                         .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                         .setTopologyId(topologyId))))
             .setId(firstPlanId)
-            .addAction(queuedMove)
-            .addAction(inProgressMove)
+            .addAllAction(Arrays.asList(queuedMove, preInProgressMove, inProgressMove,
+                    postInProgressMove))
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
@@ -574,26 +583,26 @@ public class LiveActionStoreTest {
         actionStore.populateRecommendedActions(firstPlan);
         when(actionStore.getAction(queuedMove.getId()).get().getState()).thenReturn(ActionState.QUEUED);
         when(actionStore.getAction(inProgressMove.getId()).get().getState()).thenReturn(ActionState.IN_PROGRESS);
+        when(actionStore.getAction(preInProgressMove.getId()).get().getState()).thenReturn(ActionState.PRE_IN_PROGRESS);
+        when(actionStore.getAction(postInProgressMove.getId()).get().getState()).thenReturn(ActionState.POST_IN_PROGRESS);
 
-        ActionDTO.Action.Builder reRecommendQueued =
-            move(vm1, hostA, vmType, hostB, vmType);
-        ActionDTO.Action.Builder reRecommendInProgress =
-            move(vm2, hostA, vmType, hostB, vmType);
-
-        ActionPlan secondPlan = ActionPlan.newBuilder()
+        final ActionPlan secondPlan = ActionPlan.newBuilder()
             .setInfo(ActionPlanInfo.newBuilder()
                 .setMarket(MarketActionPlanInfo.newBuilder()
                     .setSourceTopologyInfo(TopologyInfo.newBuilder()
                         .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
                         .setTopologyId(topologyId))))
             .setId(secondPlanId)
-            .addAction(reRecommendInProgress)
-            .addAction(reRecommendQueued)
+            .addAllAction(Arrays.asList(queuedMove, preInProgressMove, inProgressMove,
+                    postInProgressMove))
             .build();
         actionStore.populateRecommendedActions(secondPlan);
 
-        assertEquals(2, actionStore.size());
+        assertEquals(4, actionStore.size());
+        assertThat(actionStore.getActionView(queuedMove.getId()).isPresent(), is(true));
+        assertThat(actionStore.getActionView(preInProgressMove.getId()).isPresent(), is(true));
         assertThat(actionStore.getActionView(inProgressMove.getId()).isPresent(), is(true));
+        assertThat(actionStore.getActionView(postInProgressMove.getId()).isPresent(), is(true));
     }
 
     @Test

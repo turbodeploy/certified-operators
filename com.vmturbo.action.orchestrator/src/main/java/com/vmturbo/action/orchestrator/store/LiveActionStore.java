@@ -374,10 +374,12 @@ public class LiveActionStore implements ActionStore {
             final Set<Long> existingActionIds = Sets.newHashSet();
 
             actions.doForEachMarketAction(action -> {
-                // Only retain IN-PROGRESS, QUEUED, ACCEPTED, REJECTED and READY actions which are
-                // re-recommended.
+                // Retain QUEUED, PRE_IN_PROGRESS, IN-PROGRESS, POST_IN_PROGRESS, ACCEPTED,
+                // REJECTED and READY actions which are re-recommended.
                 switch (action.getState()) {
+                    case PRE_IN_PROGRESS:
                     case IN_PROGRESS:
+                    case POST_IN_PROGRESS:
                     case QUEUED:
                         recommendations.add(action);
                         break;
@@ -824,10 +826,12 @@ public class LiveActionStore implements ActionStore {
         final List<Action> atomicActionsToRemove = new ArrayList<>();
 
         actions.doForEachAtomicAction(action -> {
-            // Only retain IN-PROGRESS, QUEUED, ACCEPTED, REJECTED and READY actions which are
-            // re-created.
+            // Only retain QUEUED, PRE_IN_PROGRESS, IN-PROGRESS, POST_IN_PROGRESS, ACCEPTED,
+            // REJECTED and READY actions which are re-created.
             switch (action.getState()) {
+                case PRE_IN_PROGRESS:
                 case IN_PROGRESS:
+                case POST_IN_PROGRESS:
                 case QUEUED:
                     atomicRecommendations.add(action);
                     break;
