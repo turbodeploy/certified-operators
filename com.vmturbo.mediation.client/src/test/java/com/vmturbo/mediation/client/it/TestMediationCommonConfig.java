@@ -3,6 +3,7 @@ package com.vmturbo.mediation.client.it;
 import static com.vmturbo.topology.processor.communication.SdkServerConfig.REMOTE_MEDIATION_PATH;
 
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -76,7 +77,8 @@ public class TestMediationCommonConfig {
         return new IdentityProviderImpl(
                 new IdentityService(
                         new IdentityServiceInMemoryUnderlyingStore(
-                            Mockito.mock(IdentityDatabaseStore.class), 1), new HeuristicsMatcher()),
+                            Mockito.mock(IdentityDatabaseStore.class), 1, new ConcurrentHashMap<>()),
+                    new HeuristicsMatcher()),
                 keyValueStore(), compatibilityChecker(), 0L);
     }
 

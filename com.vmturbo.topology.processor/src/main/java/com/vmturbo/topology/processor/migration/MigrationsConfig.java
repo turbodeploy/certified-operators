@@ -43,7 +43,6 @@ public class MigrationsConfig {
     public MigrationsLibrary migrationsList() {
         return new MigrationsLibrary(topologyProcessorDBConfig.dsl(),
                 probeConfig.probeStore(), stitchingConfig.historyClient(),
-                identityProviderConfig.underlyingStore(),
                 identityProviderConfig.identityProvider(),
                 kvConfig.keyValueStore(), targetConfig.targetStore(), targetConfig.targetDao(),
                 targetConfig.identityStore(), targetConfig.groupScopeResolver());

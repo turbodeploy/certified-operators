@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.cost;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -16,6 +17,8 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 
+import io.grpc.stub.StreamObserver;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
@@ -23,8 +26,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
@@ -52,10 +53,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
-import com.vmturbo.topology.processor.identity.IdentityService;
-import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
-import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
@@ -113,10 +111,8 @@ public class AccountExpensesUploaderTest {
         keyValueStore.put("id/probes/Azure", "21");
     }
 
-    private IdentityProvider identityProvider = new IdentityProviderImpl(
-        new IdentityService(new IdentityServiceInMemoryUnderlyingStore(
-            Mockito.mock(IdentityDatabaseStore.class), 10),
-            new HeuristicsMatcher()), keyValueStore, new ProbeInfoCompatibilityChecker(), 0L);
+    private IdentityProvider identityProvider = new IdentityProviderImpl(keyValueStore,
+        new ProbeInfoCompatibilityChecker(), 0L, mock(IdentityDatabaseStore.class), 10, 0, false);
 
     private final Discovery discoveryTopology =
             new Discovery(PROBE_ID_AWS_DISCOVERY, TARGET_ID_AWS_DISCOVERY_1, identityProvider);

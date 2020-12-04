@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -184,7 +185,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     @Bean
     protected IdentityService identityService() {
         return new IdentityService(new IdentityServiceInMemoryUnderlyingStore(
-                mock(IdentityDatabaseStore.class), 10),
+                mock(IdentityDatabaseStore.class), 10, new ConcurrentHashMap<>()),
                         new HeuristicsMatcher());
     }
 
@@ -200,7 +201,8 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public IdentityProvider identityProvider() {
-            return Mockito.spy(new IdentityProviderImpl(identityService(), keyValueStore(), compatibilityChecker(), 0L));
+            return Mockito.spy(new IdentityProviderImpl(keyValueStore(), compatibilityChecker(),
+                0L, mock(IdentityDatabaseStore.class), 10, 0, false));
     }
 
     @Bean
