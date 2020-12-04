@@ -1,6 +1,8 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 import java.util.Collection;
 import java.util.List;
@@ -50,9 +52,9 @@ public class PaginationTestUtil {
                                                           EntityDetailType entityDetailType) throws Exception {
         final ArgumentCaptor<List<BaseApiDTO>> resultCaptor = ArgumentCaptor.forClass((Class)List.class);
 
-        final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
+        final SearchPaginationRequest paginationRequest = spy(new SearchPaginationRequest(null, null, true, null));
 
-        Mockito.when(paginationRequest.allResultsResponse(any())).thenReturn(Mockito.mock(SearchPaginationResponse.class));
+        doReturn(Mockito.mock(SearchPaginationResponse.class)).when(paginationRequest).allResultsResponse(any());
 
         searchService.getSearchResults(
                 query,
