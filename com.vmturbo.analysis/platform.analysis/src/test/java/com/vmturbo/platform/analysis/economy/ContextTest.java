@@ -45,26 +45,4 @@ public class ContextTest {
         Assert.assertTrue(ba3.equals(ba4));
         Assert.assertFalse(ba3.equals(ba5));
     }
-
-    /**
-     * Test comparison of BalanceAccount instances while ignoring the parentId.
-     */
-    @Test
-    public void testBalanceAccountComparison() {
-        BalanceAccount ba1 = new BalanceAccount(100, 200, 2, 3, 2116L);
-        // Same as BalanceAccount 1, but with no parentId
-        BalanceAccount ba2 = new BalanceAccount(100, 200, 2, 3);
-        // Lower spent amount
-        BalanceAccount ba3 = new BalanceAccount(99, 200, 2, 3);
-
-        /*
-         * ba1 and ba2 are equivalent, because the parentId is ignored in the comparison.
-         * However, the normal equals should show that ba1 and ba2 are not equal.
-         * ba3 should compare less than ba1 and ba2
-         */
-        Assert.assertTrue(ba1.compareWithoutParentId(ba2) == 0);
-        Assert.assertFalse(ba1.equals(ba2));
-        Assert.assertTrue(ba3.compareWithoutParentId(ba1) < 0);
-        Assert.assertTrue(ba3.compareWithoutParentId(ba2) < 0);
-    }
 }

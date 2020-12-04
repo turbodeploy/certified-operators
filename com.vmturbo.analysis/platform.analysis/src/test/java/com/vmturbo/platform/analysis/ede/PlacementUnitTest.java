@@ -12,12 +12,14 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -377,5 +379,41 @@ public class PlacementUnitTest {
         final Long resultParentId = resultContext.getBalanceAccount().getParentId();
         assertNotNull(resultParentId);
         assertEquals(parentId, resultParentId.longValue());
+    }
+
+    /**
+     * Create 2 sets of contexts.
+     * S1 - context1WithNullParent, context2, context4
+     * S2 - context1WithNullParent, context1, context1WithParentId2, context3, context4
+     * Context2 gets eliminated because it is only present in S1, but not in S2.
+     * Context3 gets eliminated because it is only present in S2, but not in S1.
+     * Context 1 remains.
+     * Context1WithNullParent gets eliminated because we choose Context1 over the version without parent.
+     * Context4 remains because it is present in both. It should not get eliinated even though it has null parent.
+     * Context1WithParentId2 also remains.
+     */
+    @Test
+    public void testMergingContexts() {
+        final Long regionId = 1L;
+        final Long zoneId = 2L;
+        final Long parentId1 = 789000L;
+        final Long parentId2 = 789001L;
+        final Long accountId1 = 123L;
+        final Long accountId2 = 345L;
+        final Long accountId3 = 678L;
+        final Long accountId4 = 987L;
+        Context context1 = new Context(regionId, zoneId, new BalanceAccount(0, 0, accountId1, accountId1, parentId1));
+        Context context1WithParentId2 = new Context(regionId, zoneId, new BalanceAccount(0, 0, accountId1, accountId1, parentId2));
+        Context context1WithNullParent = new Context(regionId, zoneId, new BalanceAccount(0, 0, accountId1, accountId1, null));
+        Context context2 = new Context(regionId, zoneId, new BalanceAccount(0, 0, accountId2, accountId2, parentId1));
+        Context context3 = new Context(regionId, zoneId, new BalanceAccount(0, 0, accountId3, accountId3, parentId1));
+        Context context4 = new Context(regionId, zoneId, new BalanceAccount(0, 0, accountId4, accountId4, null));
+
+        Set<Context> s1 = Sets.newHashSet(context1WithNullParent, context2, context4);
+        Set<Context> s2 = Sets.newHashSet(context1WithNullParent, context1, context1WithParentId2, context3, context4);
+
+        Optional<Set<Context>> result = Stream.of(s1, s2).reduce(Placement.mergeContextSets);
+        assertTrue(result.isPresent());
+        assertEquals(ImmutableSet.of(context1, context4, context1WithParentId2), result.get());
     }
 }

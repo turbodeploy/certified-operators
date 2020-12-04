@@ -33,7 +33,6 @@ import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
-import com.vmturbo.platform.analysis.economy.Context.ContextComparator;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -74,13 +73,13 @@ public class Placement {
 
         // Part 1: Note the parentIds for each context. Overwrite entries that are
         // duplicates and have a null parentId.
-        Map<Context, Optional<Long>> collapsedS1 = getUniqueContexts(s1);
-        Map<Context, Optional<Long>> collapsedS2 = getUniqueContexts(s2);
+        Map<Context, Set<Long>> collapsedS1 = getUniqueContexts(s1);
+        Map<Context, Set<Long>> collapsedS2 = getUniqueContexts(s2);
 
         // Part 2: Check for intersecting Contexts while noting parent IDs
         for (Context context : collapsedS2.keySet()) {
-            Optional<Long> parentIdFromS1 = collapsedS1.get(context);
-            if (parentIdFromS1 != null) {
+            Set<Long> parentIdsFromS1 = collapsedS1.get(context);
+            if (parentIdsFromS1 != null) {
                 // We have a Context in both sets
                 // make clones of commonContext which derived from active sellers and later pass
                 // them to buying trader. The buying trader can not use the same context as the
@@ -88,28 +87,38 @@ public class Placement {
                 // The above intersection on context will exclude the cbtp seller context, but it
                 // is needed for later cost calculation.
                 // In the event that we have two different parentIds, prefer a non-null one.
-                Long parentId = parentIdFromS1.orElseGet(() -> collapsedS2.get(context).orElse(null));
-                BalanceAccount ba = new BalanceAccount(context.getBalanceAccount().getId());
-                ba.setParentId(parentId);
-                buyerContexts.add(new Context(context.getRegionId(), context.getZoneId(), ba));
+                // In the event that we have two different non-null parentIds, keep both.
+                Set<Long> combinedParentIds = Sets.newHashSet(parentIdsFromS1);
+                combinedParentIds.addAll(collapsedS2.get(context));
+                if (combinedParentIds.size() == 1 && combinedParentIds.iterator().next() == null) {
+                    buyerContexts.add(context);
+                } else {
+                    for (Long parentId : combinedParentIds) {
+                        if (parentId == null) {
+                            continue;
+                        }
+                        BalanceAccount ba = new BalanceAccount(context.getBalanceAccount().getId());
+                        ba.setParentId(parentId);
+                        buyerContexts.add(new Context(context.getRegionId(), context.getZoneId(), ba));
+                    }
+                }
             }
         }
         return buyerContexts;
     };
 
     /**
-     * Gets the mapping between each context and its parentId. Overwrite entries that are duplicates
-     * and have a null parentId.
+     * Gets the mapping between each context and its parentIds.
      * @param contexts the contexts to collapse
      * @return A Map of context to parent id
      */
-    private static Map<Context, Optional<Long>> getUniqueContexts(Set<Context> contexts) {
-        TreeMap<Context, Optional<Long>> uniqueContexts = new TreeMap<>(new ContextComparator());
+    private static Map<Context, Set<Long>> getUniqueContexts(Set<Context> contexts) {
+        Map<Context, Set<Long>> uniqueContexts = new HashMap<>();
         for (Context context : contexts) {
-            Optional<Long> existingParentId = uniqueContexts.get(context);
-            if (existingParentId == null || !existingParentId.isPresent()) {
-                uniqueContexts.put(context, Optional.ofNullable(context.getBalanceAccount().getParentId()));
-            }
+            Long parentId = context.getBalanceAccount().getParentId();
+            BalanceAccount ba = new BalanceAccount(context.getBalanceAccount().getId());
+            Context contextWithoutParentId = new Context(context.getRegionId(), context.getZoneId(), ba);
+            uniqueContexts.computeIfAbsent(contextWithoutParentId, c -> new HashSet<>()).add(parentId);
         }
         return uniqueContexts;
     }

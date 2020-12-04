@@ -330,38 +330,6 @@ public class Context {
                     && this.getPriceId() == balanceAccountDto.getPriceId()
                     && Objects.equals(this.getParentId(), balanceAccountDto.getParentId());
         }
-
-        /**
-         * Compare this instance with another BalanceAccount, ignoring the parentId.
-         * @param other other BalanceAccount to compare against
-         * @return 0 if equal to other, &lt; 0 if this is less than other, else &gt; 0
-         */
-        public int compareWithoutParentId(BalanceAccount other) {
-            if (this == other) {
-                return 0;
-            }
-            if (!(other instanceof BalanceAccount)) {
-                // If other is null, this is greater than it
-                return 1;
-            }
-            long delta = id_ - other.getId();
-            if (delta != 0) {
-                return delta < 0L ? -1 : 1;
-            }
-            delta = priceId_ - other.getPriceId();
-            if (delta != 0) {
-                return delta < 0L ? -1 : 1;
-            }
-            double deltad = budget_ - other.getBudget();
-            if (deltad != 0.0) {
-                return deltad < 0.0 ? -1 : 1;
-            }
-            deltad = spent_ - other.getSpent();
-            if (deltad != 0.0) {
-                return deltad < 0.0 ? -1 : 1;
-            }
-            return 0;
-        }
     }
 
     @Override
@@ -451,37 +419,6 @@ public class Context {
         public CoverageEntry addTotalRequestedCoupons(double amount) {
             totalRequestedCoupons_ += amount;
             return this;
-        }
-    }
-
-    /**
-     * Comparator that compares Contexts while ignoring the parentId in the associated
-     * BalanceAccount.  This is used for merging Contexts.
-     *
-     * <p>WARNING: Using this comparator in a TreeMap will render it non-compliant with the
-     * Map interface.  This is because c1.equals(c2) does not always yield the same result as
-     * c1.compareTo(c2) == 0.  This comparator exists specifically to implement the TreeMap
-     * in Placement.mergeContextSets.</p>
-     */
-    public static class ContextComparator implements Comparator<Context> {
-        @Override
-        public int compare(Context c1, Context c2) {
-            if (c1 == null && c2 == null) {
-                return 0;
-            }
-            if (c1 == null || c2 == null) {
-                // Only one of the Contexts is null, so not equal.
-                return c1 == null ? -1 : 1;
-            }
-            long diff = c1.regionId_ - c2.regionId_;
-            if (diff != 0) {
-                return diff < 0 ? -1 : 1;
-            }
-            diff = c1.zoneId_ - c2.zoneId_;
-            if (diff != 0) {
-                return diff < 0 ? -1 : 1;
-            }
-            return c1.getBalanceAccount().compareWithoutParentId(c2.getBalanceAccount());
         }
     }
 }
