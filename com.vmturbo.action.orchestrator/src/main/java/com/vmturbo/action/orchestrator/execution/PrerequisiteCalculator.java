@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity.ActionEntityTypeSpecificInfo.ActionVirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -68,6 +69,10 @@ class PrerequisiteCalculator {
             @Nonnull final EntitiesAndSettingsSnapshot snapshot,
             @Nonnull final ProbeCategory probeCategory,
             @Nonnull final ActionConstraintStoreFactory actionConstraintStoreFactory) {
+        // There is no need to generate prerequisites for migration actions.
+        if (TopologyDTOUtil.isMigrationAction(action)) {
+            return Collections.emptySet();
+        }
         final Set<Prerequisite> generalPrerequisites = calculateGeneralPrerequisites(
             action, target, snapshot, probeCategory);
         final Set<Prerequisite> coreQuotaPrerequisites = calculateQuotaPrerequisite(

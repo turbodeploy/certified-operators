@@ -543,8 +543,8 @@ public class ActionTargetSelectorTest {
 
     @Test
     public void testTargetInfoScaleSetPrerequisite() throws UnsupportedActionException {
-        final ActionDTO.Action action = testActionBuilder.buildMoveAction(1, 2L, 1,
-                3L, 1, "ScaleGroupId");
+        final ActionDTO.Action action = testActionBuilder.buildMoveAction(1, 2L, EntityType.COMPUTE_TIER_VALUE,
+                3L, EntityType.COMPUTE_TIER_VALUE, "ScaleGroupId");
         final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
         final long target1Id = 1;
         final long probe1Id = 11;
