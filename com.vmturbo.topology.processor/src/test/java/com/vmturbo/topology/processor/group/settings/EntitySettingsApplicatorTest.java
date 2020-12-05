@@ -1968,6 +1968,8 @@ public class EntitySettingsApplicatorTest {
     @Test
     public void testScalingPolicyProvisionForAppComponent() {
         final TopologyEntityDTO.Builder builder = createAppWithTwoCommodities();
+        builder.getAnalysisSettingsBuilder().setCloneable(false);
+        final TopologyEntityDTO.Builder originalBuilder = builder.clone();
 
         SCALING_POLICY_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
                 .setValue(ScalingPolicyEnum.PROVISION.name()));
@@ -1982,7 +1984,9 @@ public class EntitySettingsApplicatorTest {
         assertTrue(builder.getCommoditySoldListList().stream()
                 .noneMatch(TopologyDTO.CommoditySoldDTO::getIsResizeable));
 
-        assertTrue(builder.getAnalysisSettings().getCloneable());
+        // With PROVISION policy, the cloneable/suspendable setting should not change
+        assertEquals(originalBuilder.getAnalysisSettings().getCloneable(),
+                builder.getAnalysisSettings().getCloneable());
     }
 
     /**

@@ -1423,9 +1423,13 @@ public class EntitySettingsApplicator {
                             entity.getDisplayName(), settingValue);
                     return;
                 }
-
-                entity.getAnalysisSettingsBuilder().setCloneable(provisionScaling);
-                entity.getAnalysisSettingsBuilder().setSuspendable(provisionScaling);
+                // Explicitly disable provision and suspension only when the scaling policy is Resize
+                // Otherwise (i.e., the scaling policy is Provision), leave the provision and suspension
+                // setting the way they were set by the probe.
+                if (!provisionScaling) {
+                    entity.getAnalysisSettingsBuilder().setCloneable(false);
+                    entity.getAnalysisSettingsBuilder().setSuspendable(false);
+                }
                 // If resize scaling then leave isResizeable the way it was set by the probe,
                 // otherwise set to false (no resize).
                 if (!resizeScaling) {
