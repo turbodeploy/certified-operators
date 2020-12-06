@@ -660,6 +660,44 @@ public class TopologyConverterToMarketTest {
     }
 
     /**
+     * Test adding virtual volume to skippedEntities map if it's containerPod provider.
+     */
+    @Test
+    public void testSkipEntitiesOfContainerPodProviders() {
+        final TopologyDTO.TopologyEntityDTO vm = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(1001L).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build();
+        final TopologyDTO.TopologyEntityDTO volume = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(1002L).setEntityType(EntityType.VIRTUAL_VOLUME_VALUE).build();
+        final TopologyDTO.TopologyEntityDTO containerPod =
+            TopologyEntityDTO.newBuilder()
+                .setOid(1003L)
+                .setEntityType(EntityType.CONTAINER_POD_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(vm.getOid()))
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(volume.getOid()))
+                .build();
+        final TopologyDTO.TopologyEntityDTO container =
+            TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setOid(1004L)
+                .setEntityType(EntityType.CONTAINER_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(containerPod.getOid()))
+                .build();
+        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
+            marketCloudRateExtractor,
+            ccd, CommodityIndex.newFactory(), tierExcluderFactory, consistentScalingHelperFactory,
+            reversibilitySettingFetcher);
+        Collection<TraderTO> traderTOs = converter.convertToMarket(
+            Stream.of(vm, volume, containerPod, container)
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
+        assertEquals(3, traderTOs.size());
+        // VirtualVolume as pod provider is added to the skippedEntities map.
+        assertTrue(converter.getSkippedEntities().containsKey(volume.getOid()));
+        assertEquals(volume, converter.getSkippedEntities().get(volume.getOid()));
+    }
+
+    /**
      * Shopping lists with UNKNOWN providers are movable false.
      */
     @Test

@@ -667,12 +667,25 @@ public class TopologyConverter {
                         }
                         entityOidToDto.put(entity.getOid(), entity);
                         if (CONTAINER_TYPES.contains(entityType)) {
-                            // VMs and ContainerPods
-                            providersOfContainers.addAll(entity.getCommoditiesBoughtFromProvidersList()
+                            // ContainerPods, VMs or VirtualVolumes.
+                            Set<Long> containerProviderSet = entity.getCommoditiesBoughtFromProvidersList()
                                 .stream()
                                 .filter(CommoditiesBoughtFromProvider::hasProviderId)
                                 .map(CommoditiesBoughtFromProvider::getProviderId)
-                                .collect(Collectors.toSet()));
+                                .collect(Collectors.toSet());
+                            providersOfContainers.addAll(containerProviderSet);
+                            // Add VirtualVolume to skippedEntities if it's provider of a containerPod.
+                            // ContainerPods are not allowed to move across volumes.
+                            // This is to make sure corresponding containerPods are still placed on
+                            // their original volumes after the analysis to avoid incorrect unplacement
+                            // results.
+                            if (entityType == EntityType.CONTAINER_POD_VALUE) {
+                                containerProviderSet.stream()
+                                    .map(topology::get)
+                                    .filter(providerEntity -> providerEntity != null
+                                        && providerEntity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                                    .forEach(providerEntity -> skippedEntities.put(providerEntity.getOid(), providerEntity));
+                            }
                         }
                         if (entityType == EntityType.REGION_VALUE) {
                             List<TopologyEntityDTO> AZs = TopologyDTOUtil.getConnectedEntitiesOfType(
