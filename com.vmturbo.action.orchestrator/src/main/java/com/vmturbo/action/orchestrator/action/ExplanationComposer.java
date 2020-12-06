@@ -119,7 +119,7 @@ public class ExplanationComposer {
     private static final String ALLOCATE_CATEGORY = "Virtual Machine RI Coverage";
     private static final String ACTION_ERROR_CATEGORY = "";
 
-    private static final String STORAGE_ACCESS_TO_IOPS = "IOPs";
+    private static final String STORAGE_ACCESS_TO_IOPS = "IOPS";
     private static final Function<String, String> convertStorageAccessToIops = (commodity) ->
         commodity.equals("Storage Access") ? STORAGE_ACCESS_TO_IOPS : commodity;
 

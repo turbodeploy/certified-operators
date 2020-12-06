@@ -168,9 +168,9 @@ public class ExplanationComposerTest {
         // commodity with no time slots
         Explanation explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, CPU, IOPS));
         ActionDTO.Action action = createAction(actionInfo, explanation);
-        assertEquals("(^_^)~Mem, CPU, IOPs Congestion",
+        assertEquals("(^_^)~Mem, CPU, IOPS Congestion",
             ExplanationComposer.composeExplanation(action));
-        assertEquals(ImmutableSet.of("Mem Congestion", "CPU Congestion", "IOPs Congestion"),
+        assertEquals(ImmutableSet.of("Mem Congestion", "CPU Congestion", "IOPS Congestion"),
             ExplanationComposer.composeRelatedRisks(action));
 
         final ReasonCommodity tsCommoditySlot0Total6 = createReasonCommodity(CommodityDTO.CommodityType.POOL_CPU_VALUE,
