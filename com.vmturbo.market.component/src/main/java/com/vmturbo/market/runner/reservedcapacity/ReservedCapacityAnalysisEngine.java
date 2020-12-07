@@ -1,12 +1,10 @@
-package com.vmturbo.market.runner;
+package com.vmturbo.market.runner.reservedcapacity;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -24,7 +22,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanatio
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -37,7 +34,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 /**
  * Class to manage generation of reservations.
  */
-public class ReservedCapacityAnalysis {
+public class ReservedCapacityAnalysisEngine {
 
     // This set contains all EntityTypes that may have reservation.
     private static final Set<Integer> reservedEntityType =
@@ -55,47 +52,59 @@ public class ReservedCapacityAnalysis {
         CommodityDTO.CommodityType.VCPU_VALUE, CommodityDTO.CommodityType.VCPU_VALUE,
         CommodityDTO.CommodityType.VMEM_VALUE, CommodityDTO.CommodityType.VMEM_VALUE);
 
-    // Map from entityOid to TopologyEntityDTO.
-    private final Map<Long, TopologyEntityDTO> oidToDto;
-
-    // Map from a key consists of entityOid and commodityType to new reserved capacity.
-    private final Map<String, Float> oidCommTypeToReserved;
-
-    // A list contains all reservation resize actions.
-    private final List<Action> actions;
-
-    // Tracks groups of reservations for scaling group members
-    private Map<String, ReservationGroup> reservationGroups_;
-
     /**
-     * Constructor.
-     * @param topologyEntityDTOMap OID to {#link TopologyEntityDTO} map.
+     * Helper class to capture objects required during analysis. Used to avoid super long
+     * helper method signatures.
      */
-    public ReservedCapacityAnalysis(@Nonnull final Map<Long, TopologyEntityDTO> topologyEntityDTOMap) {
-        this.oidToDto = Objects.requireNonNull(topologyEntityDTOMap);
-        oidCommTypeToReserved = new HashMap<>();
-        actions = new ArrayList<>();
-        reservationGroups_ = new HashMap<>();
+    private static class AnalysisContext {
+
+        private final Map<Long, TopologyEntityDTO> oidToDto;
+
+        private final ConsistentScalingHelper consistentScalingHelper;
+
+        private final Map<String, ReservationGroup> reservationGroups = new HashMap<>();
+
+        /**
+         * In-progress results. We add actions to this results object as we do the analysis.
+         */
+        private final ReservedCapacityResults results = new ReservedCapacityResults();
+
+        private AnalysisContext(Map<Long, TopologyEntityDTO> oidToDto,
+                ConsistentScalingHelper consistentScalingHelper) {
+            this.oidToDto = oidToDto;
+            this.consistentScalingHelper = consistentScalingHelper;
+        }
+
+        Optional<String> getScalingGroupId(long oid) {
+            return Optional.ofNullable(consistentScalingHelper)
+                    .flatMap(scalingHelper -> scalingHelper.getScalingGroupId(oid));
+        }
     }
 
     /**
      * This method is used to check if a reserved commodity needs to be resized.
      * If so, we will generate a resize action.
+     *
+     * @param oidToDto The topology to analyze.
      * @param consistentScalingHelper consistent scaling helper, used to identify scaling groups.
+     * @return The {@link ReservedCapacityResults}.
      */
-    public void execute(ConsistentScalingHelper consistentScalingHelper) {
+    @Nonnull
+    public ReservedCapacityResults execute(@Nonnull final Map<Long, TopologyEntityDTO> oidToDto,
+                                           @Nonnull final ConsistentScalingHelper consistentScalingHelper) {
+        // Tracks groups of reservations for scaling group members
+        AnalysisContext context = new AnalysisContext(oidToDto, consistentScalingHelper);
         for (Entry<Long, TopologyEntityDTO> entry : oidToDto.entrySet()) {
             long oid = entry.getKey();
             TopologyEntityDTO entity = entry.getValue();
-            if (!reservedEntityType.contains(entity.getEntityType()) ||
-                !entity.getAnalysisSettings().getControllable() ||
-                entity.getEntityState() != EntityState.POWERED_ON) {
+            if (!reservedEntityType.contains(entity.getEntityType())
+                    || !entity.getAnalysisSettings().getControllable()
+                    || entity.getEntityState() != EntityState.POWERED_ON) {
                 continue;
             }
-            for (CommoditiesBoughtFromProvider commBoughtGrouping :
-                entity.getCommoditiesBoughtFromProvidersList()) {
-                if (!commBoughtGrouping.hasProviderId() ||
-                    // No need to consider VMs added by Add Workload plan.
+            for (CommoditiesBoughtFromProvider commBoughtGrouping : entity.getCommoditiesBoughtFromProvidersList()) {
+                if (!commBoughtGrouping.hasProviderId()
+                        || // No need to consider VMs added by Add Workload plan.
                     !oidToDto.containsKey(commBoughtGrouping.getProviderId()) || !oidToDto
                     .get(commBoughtGrouping.getProviderId()).getAnalysisSettings().getControllable()) {
                     continue;
@@ -108,8 +117,8 @@ public class ReservedCapacityAnalysis {
                     // Find the corresponding commSold given a commBought.
                     CommoditySoldDTO commSold = null;
                     for (CommoditySoldDTO c : entity.getCommoditySoldListList()) {
-                        if (c.getCommodityType().getType() ==
-                            commBoughtTypeToCommSoldType.get(commBought.getCommodityType().getType())) {
+                        if (c.getCommodityType().getType()
+                                == commBoughtTypeToCommSoldType.get(commBought.getCommodityType().getType())) {
                             commSold = c;
                             break;
                         }
@@ -128,12 +137,13 @@ public class ReservedCapacityAnalysis {
                                     >= -MarketAnalysisUtils.EPSILON))) {
                         continue;
                     }
-                    calculateReservedCapacity(oid, commBought, commSold, consistentScalingHelper);
+                    calculateReservedCapacity(oid, commBought, commSold, context);
                 }
             }
         }
         // Generate reservations for scaling groups.
-        reservationGroups_.values().forEach(ReservationGroup::generateReservations);
+        context.reservationGroups.values().forEach(rg -> rg.addReservationsToResults(context));
+        return context.results;
     }
 
     /**
@@ -142,15 +152,15 @@ public class ReservedCapacityAnalysis {
      * @param oid oid of the entity
      * @param commBought the commBought of the entity that may need to be resized
      * @param commSold the commSold of the entity corresponding to the commBought
-     * @param consistentScalingHelper consistent scaling helper
+     * @param analysisContext Context holding relevant state objects for the analysis.
      */
     private void calculateReservedCapacity(final long oid, final CommodityBoughtDTO commBought,
                                            final CommoditySoldDTO commSold,
-                                           final ConsistentScalingHelper consistentScalingHelper) {
-        double avgValue = commSold.hasHistoricalUsed() ?
-            commSold.getHistoricalUsed().getMaxQuantity() : 0;
-        double peakValue = commSold.hasHistoricalPeak() ?
-            commSold.getHistoricalPeak().getMaxQuantity() : 0;
+                                           AnalysisContext analysisContext) {
+        double avgValue = commSold.hasHistoricalUsed()
+                ? commSold.getHistoricalUsed().getMaxQuantity() : 0;
+        double peakValue = commSold.hasHistoricalPeak()
+                ? commSold.getHistoricalPeak().getMaxQuantity() : 0;
         double currentUsed = commSold.getUsed();
         double currentPeak = commSold.getPeak();
         avgValue = Math.max(currentUsed, avgValue);
@@ -163,9 +173,7 @@ public class ReservedCapacityAnalysis {
         // Only consider resize down. Always process scaling group members. Scaling group members
         // that are idle or powered off are not processed, because they are ommited from the
         // scaling group.
-        Optional<String> scalingGroupId = consistentScalingHelper != null
-            ? consistentScalingHelper.getScalingGroupId(oid)
-            : Optional.empty();
+        Optional<String> scalingGroupId = analysisContext.getScalingGroupId(oid);
         if (peakValue < oldReservedCapacity || scalingGroupId.isPresent()) {
             // Set new reservation value to peak if peak is not 0.
             newReservedCapacity = (peakValue == 0) ? oldReservedCapacity / 2 : peakValue;
@@ -176,16 +184,13 @@ public class ReservedCapacityAnalysis {
             result = Math.min(result, oldReservedCapacity);
             if (scalingGroupId.isPresent()) {
                 String key = scalingGroupId.get() + ":" + commBought.getCommodityType().getType();
-                ReservationGroup rg = reservationGroups_.get(key);
-                if (rg == null) {
-                    rg = new ReservationGroup(scalingGroupId, usedIncrement);
-                    reservationGroups_.put(key, rg);
-                }
+                ReservationGroup rg = analysisContext.reservationGroups.computeIfAbsent(key,
+                        k -> new ReservationGroup(scalingGroupId, usedIncrement));
                 rg.addReservation(oid, commBought, (float)newReservedCapacity);
             } else if (result > 0 && result != oldReservedCapacity) {
                 newReservedCapacity = oldReservedCapacity - result;
-                generateResizeReservationAction(scalingGroupId, oid, commBought,
-                    (float)newReservedCapacity);
+                addResizeReservationActionToResults(scalingGroupId, oid, commBought,
+                    (float)newReservedCapacity, analysisContext);
             }
         }
     }
@@ -197,12 +202,13 @@ public class ReservedCapacityAnalysis {
      * @param scalingGroupId scaling group ID, if the OID is a member of a scaling group
      * @param commBought the commBought of the entity that needs to be resized
      * @param newReservedCapacity the value that the commodity needs to be resized to
+     * @param analysisContext Analysis context. Modified inside this method (since the generated
+     *                        action gets added to the results).
      */
-    private void generateResizeReservationAction(final Optional<String> scalingGroupId,
+    private void addResizeReservationActionToResults(final Optional<String> scalingGroupId,
                                                  final long oid, CommodityBoughtDTO commBought,
-                                                 final float newReservedCapacity) {
-        oidCommTypeToReserved.put(composeKey(oid, commBought.getCommodityType()),
-            newReservedCapacity);
+                                                 final float newReservedCapacity,
+                                                 final AnalysisContext analysisContext) {
         final Explanation.Builder expBuilder = Explanation.newBuilder();
         // We use utilization only for deciding resize up or resize down.
         // Here we just use reservedCapacity as utilization.
@@ -224,8 +230,8 @@ public class ReservedCapacityAnalysis {
         ActionDTO.Resize.Builder resizeBuilder = ActionDTO.Resize.newBuilder()
             .setTarget(ActionEntity.newBuilder()
                            .setId(oid)
-                           .setType(oidToDto.get(oid).getEntityType())
-                           .setEnvironmentType(oidToDto.get(oid).getEnvironmentType())
+                           .setType(analysisContext.oidToDto.get(oid).getEntityType())
+                           .setEnvironmentType(analysisContext.oidToDto.get(oid).getEnvironmentType())
                            .build())
             .setNewCapacity(newReservedCapacity)
             .setOldCapacity((float)commBought.getReservedCapacity())
@@ -237,38 +243,9 @@ public class ReservedCapacityAnalysis {
         infoBuilder.setResize(resizeBuilder.build());
 
         action.setInfo(infoBuilder);
-        actions.add(action.build());
-    }
 
-    /**
-     * Get the value that the commodity needs to be resized to by oid and commodityType.
-     *
-     * @param oid oid of the entity
-     * @param commodityType commodity type
-     * @return the value that the commodity needs to be resized to
-     */
-    public float getReservedCapacity(final long oid, final CommodityType commodityType) {
-        return oidCommTypeToReserved.getOrDefault(composeKey(oid, commodityType), 0.0f);
-    }
-
-    /**
-     * Generate a unique key by entity oid and commodityType.
-     *
-     * @param oid oid of the entity
-     * @param commodityType commodity type
-     * @return the key of {@link ReservedCapacityAnalysis#oidCommTypeToReserved}
-     */
-    private String composeKey(final long oid, final CommodityType commodityType) {
-        return oid + "-" + commodityType.getType();
-    }
-
-    /**
-     * Get all reservation resize actions.
-     *
-     * @return A Collection contains all reservation resize actions.
-     */
-    public Collection<Action> getActions() {
-        return actions;
+        analysisContext.results.putReservedCapacity(oid, commBought.getCommodityType(), newReservedCapacity);
+        analysisContext.results.addAction(action.build());
     }
 
     /**
@@ -307,16 +284,19 @@ public class ReservedCapacityAnalysis {
          * down events are generated.  If the scaling group started with mismatched reservations
          * for this commodity, we will refuse to consistently scale them if that means generating
          * a resize up action.
+         *
+         * @param context The analysis context. The results builder inside the context is modified
+         *                as part of running this method.
          */
-        public void generateReservations() {
+        public void addReservationsToResults(@Nonnull final AnalysisContext context) {
             if (maxReservation_ > 0) {
                 float actionThreshold = maxReservation_ + usedIncrement_;
                 reservations_.stream()
                     // Do not generate a reservation if the change is less than the used increment
                     // or if it's a resize up.
                     .filter(tr -> actionThreshold <= tr.commBought_.getReservedCapacity())
-                    .forEach(tr -> generateResizeReservationAction(scalingGroupId_, tr.oid_,
-                            tr.commBought_, maxReservation_));
+                    .forEach(tr -> addResizeReservationActionToResults(scalingGroupId_, tr.oid_,
+                            tr.commBought_, maxReservation_, context));
             }
         }
 
