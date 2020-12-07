@@ -35,7 +35,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.db.GroupComponent;
-import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.schedule.ScheduleStore;
 import com.vmturbo.group.schedule.ScheduleValidator;
@@ -104,7 +103,7 @@ public class DefaultSettingPolicyCreatorDbTest {
             mock(ScheduleValidator.class), identityProvider);
 
         final TransactionProvider transactionProvider = new TransactionProviderImpl(settingStore,
-            dbConfig.getDslContext(), identityProvider, new GroupPaginationParams(100, 500));
+            dbConfig.getDslContext(), identityProvider);
 
         // ACT
 

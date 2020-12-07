@@ -63,7 +63,6 @@ import org.springframework.jdbc.BadSqlGrammarException;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
-import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
@@ -76,7 +75,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
@@ -294,42 +292,6 @@ public class GroupRpcServiceTest {
         Assert.assertEquals(Sets.newHashSet(resultGroup1, resultGroup2, resultGroup3),
                 new HashSet<>(captor.getAllValues()));
         Mockito.verify(groupStoreDAO, Mockito.times(2)).getGroupsById(Mockito.any());
-    }
-
-    /**
-     * Tests that {@link GroupRpcService#getPaginatedGroups(GetPaginatedGroupsRequest, StreamObserver)}
-     * returns a paginated response
-     */
-    @Test
-    public void testGetPaginatedGroups() {
-        // GIVEN
-        final long groupId1 = 1234L;
-        final Grouping resultGroup1 = Grouping.newBuilder().setId(groupId1).build();
-        groupStoreDAO.addGroup(resultGroup1);
-        final long groupId2 = 1235L;
-        final Grouping resultGroup2 = Grouping.newBuilder().setId(groupId2).build();
-        groupStoreDAO.addGroup(resultGroup2);
-        final GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
-                .setGroupFilter(GroupFilter.getDefaultInstance())
-                .setPaginationParameters(PaginationParameters.newBuilder()
-                        .setAscending(true)
-                        .setLimit(1)
-                        .build())
-                .build();
-        final StreamObserver<GroupDTO.GetPaginatedGroupsResponse> mockPaginatedResponseObserver =
-                Mockito.mock(StreamObserver.class);
-        // WHEN
-        groupRpcService.getPaginatedGroups(request, mockPaginatedResponseObserver);
-        // THEN
-        Mockito.verify(groupStoreDAO, Mockito.times(1)).getPaginatedGroups(request);
-        final ArgumentCaptor<GroupDTO.GetPaginatedGroupsResponse> captor =
-                ArgumentCaptor.forClass(GroupDTO.GetPaginatedGroupsResponse.class);
-        Mockito.verify(mockPaginatedResponseObserver, Mockito.times(1)).onNext(captor.capture());
-        Mockito.verify(mockPaginatedResponseObserver).onCompleted();
-        Assert.assertEquals(1, captor.getValue().getGroupsCount());
-        Assert.assertNotNull(captor.getValue().getPaginationResponse());
-        Assert.assertEquals("1", captor.getValue().getPaginationResponse().getNextCursor());
-        Assert.assertEquals(2, captor.getValue().getPaginationResponse().getTotalRecordCount());
     }
 
     /**

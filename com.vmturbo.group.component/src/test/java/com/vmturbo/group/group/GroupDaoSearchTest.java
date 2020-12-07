@@ -40,7 +40,6 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.db.GroupComponent;
-import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
@@ -90,7 +89,7 @@ public class GroupDaoSearchTest {
     @Before
     public void setup() throws Exception {
         final DSLContext dslContext = dbConfig.getDslContext();
-        groupStore = new GroupDAO(dslContext, new GroupPaginationParams(100, 500));
+        groupStore = new GroupDAO(dslContext);
 
         final Origin userOrigin = createUserOrigin();
         final Origin systemOrigin = createSystemOrigin();
