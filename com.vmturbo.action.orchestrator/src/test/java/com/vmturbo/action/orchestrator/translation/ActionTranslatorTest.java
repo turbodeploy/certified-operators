@@ -183,6 +183,7 @@ public class ActionTranslatorTest {
         when(mockSnapshot.getEntityFromOid(VM_TARGET_ID)).thenReturn(Optional.of(
             ActionPartialEntity.newBuilder()
                 .setOid(VM_TARGET_ID)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setPrimaryProviderId(HOST_ID).build()));
         when(mockSnapshot.getTopologyContextId()).thenReturn(actionPlanId);
         translator.translate(Stream.of(resize), mockSnapshot);

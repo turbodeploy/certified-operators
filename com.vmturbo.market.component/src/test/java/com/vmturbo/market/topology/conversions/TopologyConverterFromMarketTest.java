@@ -31,7 +31,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -42,6 +44,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.protobuf.util.JsonFormat;
+
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -75,6 +79,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -2639,5 +2644,110 @@ public class TopologyConverterFromMarketTest {
                         .setQuantity(diskSize)
                         .build())
                 .build();
+    }
+
+    /**
+     * Test converting VM TraderTO from market to ProjectedTopologyEntity with VCPU commodity sold
+     * and without actions. The capacity of projected entity should be "VCPU capacity / scalingFactor"
+     * and will NOT be updated based on host cpuCoreMHz when calling {@link TopologyConverter#calculateVCPUResizeCapacityForVM}.
+     *
+     * @throws Exception On exception occurred.
+     */
+    @Test
+    public void testVMTraderToEntityWithNoVCPUCapacityChanges() throws Exception {
+        final float vCPUCapacity = 1500f;
+
+        // Create VCPU CommoditySoldDTO with scalingFactor and corresponding TopologyEntityDTO which
+        // sells this CommoditySoldDTO.
+        final TopologyDTO.CommoditySoldDTO topologyVCPUSoldDTO = TopologyDTO.CommoditySoldDTO
+            .newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.VCPU_VALUE))
+            .setUsed(1).setCapacity(vCPUCapacity)
+            .setScalingFactor(SCALING_FACTOR)
+            .build();
+        final TopologyDTO.TopologyEntityDTO vmEntityDTO = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(VM_OID)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .addCommoditySoldList(topologyVCPUSoldDTO)
+            .build();
+
+        final TopologyDTO.TopologyEntityDTO pmEntityDTO = TopologyEntityDTO.newBuilder()
+            .setOid(PM_OID)
+            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setPhysicalMachine(PhysicalMachineInfo.newBuilder()
+                    .setCpuCoreMhz(3)))
+            .build();
+
+        // Mock commodityIndex.
+        final CommodityIndex commodityIndex = CommodityIndex.newFactory().newIndex();
+        final CommodityIndexFactory indexFactory = mock(CommodityIndexFactory.class);
+        when(indexFactory.newIndex()).thenReturn(commodityIndex);
+        commodityIndex.addEntity(vmEntityDTO);
+        commodityIndex.addEntity(pmEntityDTO);
+
+        // Create VCPU CommoditySoldTO and corresponding VM TraderTO which sells this CommoditySoldTO.
+        final CommodityDTOs.CommoditySoldTO commoditySoldTO = CommoditySoldTO.newBuilder()
+            .setCapacity(vCPUCapacity)
+            .setSpecification(CommoditySpecificationTO.newBuilder()
+                .setBaseType(CommodityDTO.CommodityType.VCPU_VALUE)
+                .setType(0))
+            .build();
+        final EconomyDTOs.TraderTO vmTrader = TraderTO.newBuilder()
+            .setOid(VM_OID)
+            .addCommoditiesSold(commoditySoldTO)
+            .addShoppingLists(ShoppingListTO.newBuilder()
+                .setOid(VM_OID)
+                .setSupplier(PM_OID))
+            .setState(TraderStateTO.ACTIVE)
+            .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .build();
+
+        final EconomyDTOs.TraderTO pmTrader = TraderTO.newBuilder()
+            .setOid(PM_OID)
+            .setState(TraderStateTO.ACTIVE)
+            .setType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .build();
+
+        Mockito.doReturn(Optional.of(topologyVCPUSoldDTO.getCommodityType()))
+            .when(mockCommodityConverter)
+            .marketToTopologyCommodity(Mockito.eq(commoditySoldTO.getSpecification()));
+
+        // Mock a TopologyConverter.
+        final TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO,
+            false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+            marketCloudRateExtractor, mockCommodityConverter, indexFactory, tierExcluderFactory,
+            consistentScalingHelperFactory, reversibilitySettingFetcher));
+
+        // Mock entityOidToDto field of TopologyConverter.
+        final Map<Long, TopologyEntityDTO> entityOidToDtoMap =
+            ImmutableMap.of(vmEntityDTO.getOid(), vmEntityDTO, pmEntityDTO.getOid(), pmEntityDTO);
+        final Field entityOidToDtoField = TopologyConverter.class.getDeclaredField("entityOidToDto");
+        entityOidToDtoField.setAccessible(true);
+        entityOidToDtoField.set(converter, entityOidToDtoMap);
+
+        // Mock oidToOriginalTraderTOMap field of TopologyConverter.
+        final Long2ObjectOpenHashMap<MinimalOriginalTrader> oidToOriginalTraderTOMap =
+            new Long2ObjectOpenHashMap<>(Stream.of(new MinimalOriginalTrader(vmTrader),
+                new MinimalOriginalTrader(pmTrader)).collect(Collectors.toMap(MinimalOriginalTrader::getOid, Function.identity())));
+        Field oidToOriginalTraderTOMapField =
+            TopologyConverter.class.getDeclaredField("oidToOriginalTraderTOMap");
+        oidToOriginalTraderTOMapField.setAccessible(true);
+        oidToOriginalTraderTOMapField.set(converter, oidToOriginalTraderTOMap);
+
+        Map<Long, TopologyDTO.ProjectedTopologyEntity> projectedEntity = converter.convertFromMarket(
+            Lists.newArrayList(vmTrader, pmTrader),
+            ImmutableMap.of(vmEntityDTO.getOid(), vmEntityDTO, pmEntityDTO.getOid(), pmEntityDTO),
+            PriceIndexMessage.getDefaultInstance(), reservedCapacityAnalysis,
+            setUpWastedFileAnalysis());
+
+        assertEquals(2L, projectedEntity.size());
+        // No actions are generated on the given trader, so the expected VCPU capacity is
+        // vCPUCapacity / SCALING_FACTOR.
+        double expectedCapacity = vCPUCapacity / SCALING_FACTOR;
+        CommoditySoldDTO projectedVCPUComm = projectedEntity.get(VM_OID).getEntity().getCommoditySoldList(0);
+        assertEquals(expectedCapacity, projectedVCPUComm.getCapacity(), TopologyConverter.EPSILON);
     }
 }

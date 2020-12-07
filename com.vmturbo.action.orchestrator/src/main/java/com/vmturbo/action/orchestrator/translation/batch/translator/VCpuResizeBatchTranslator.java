@@ -144,13 +144,16 @@ public class VCpuResizeBatchTranslator implements BatchTranslator {
             });
         }
 
-        final Map<Long, Double> hostCPUCoreMhzMap = topologyGraph.isPresent()
-            ? getHostCPUCoreMhzMapFromTopology(topologyGraph.get(), hostsToRetrieve)
-            : getHostCPUCoreMhzMapFromRepo(snapshot, hostsToRetrieve);
-        final Map<Long, Double> vmToCPUMillicoreMhzMap = containerNodeCpuSpeedFetcher.fetchVmCpuSpeeds();
-
         final Map<Long, Double> entityToCPUSpeedMap = Maps.newHashMap();
-        entityToCPUSpeedMap.putAll(hostCPUCoreMhzMap);
+
+        if (!hostsToRetrieve.isEmpty()) {
+            final Map<Long, Double> hostCPUCoreMhzMap = topologyGraph.isPresent()
+                ? getHostCPUCoreMhzMapFromTopology(topologyGraph.get(), hostsToRetrieve)
+                : getHostCPUCoreMhzMapFromRepo(snapshot, hostsToRetrieve);
+            entityToCPUSpeedMap.putAll(hostCPUCoreMhzMap);
+        }
+
+        final Map<Long, Double> vmToCPUMillicoreMhzMap = containerNodeCpuSpeedFetcher.fetchVmCpuSpeeds();
         entityToCPUSpeedMap.putAll(vmToCPUMillicoreMhzMap);
 
         return resizeActionsByEntityTargetId.entrySet().stream().flatMap(
