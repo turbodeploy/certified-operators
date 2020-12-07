@@ -10,6 +10,9 @@ import javax.annotation.Nonnull;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.market.diagnostics.MarketComponentDiagnosticsHandler;
+import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
+import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -40,16 +43,13 @@ import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.api.MarketApiConfig;
-import com.vmturbo.market.diagnostics.MarketComponentDiagnosticsHandler;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisConfig;
 import com.vmturbo.market.rpc.MarketRpcConfig;
 import com.vmturbo.market.runner.AnalysisFactory.DefaultAnalysisFactory;
+import com.vmturbo.market.runner.WastedFilesAnalysisFactory.DefaultWastedFilesAnalysisFactory;
 import com.vmturbo.market.runner.cost.MarketCloudCostDataProvider;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory.DefaultMarketPriceTableFactory;
-import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
-import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisServiceImpl;
-import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.TopologyProcessorConfig;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
@@ -224,8 +224,8 @@ public class MarketRunnerConfig {
     }
 
     @Bean
-    public WastedFilesAnalysisEngine wastedFilesAnalysisFactory() {
-        return new WastedFilesAnalysisEngine();
+    public WastedFilesAnalysisFactory wastedFilesAnalysisFactory() {
+        return new DefaultWastedFilesAnalysisFactory();
     }
 
     /**

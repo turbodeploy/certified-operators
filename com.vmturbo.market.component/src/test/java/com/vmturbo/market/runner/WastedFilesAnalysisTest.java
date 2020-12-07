@@ -1,13 +1,15 @@
-package com.vmturbo.market.runner.wastedfiles;
+package com.vmturbo.market.runner;
 
 import static com.vmturbo.trax.Trax.trax;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
@@ -30,6 +32,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -40,15 +43,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
-import com.vmturbo.commons.Units;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
-import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
-import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
@@ -70,11 +70,14 @@ public class WastedFilesAnalysisTest {
     private static final Instant START_INSTANT = Instant.EPOCH.plus(90, ChronoUnit.MINUTES);
     private static final Instant END_INSTANT = Instant.EPOCH.plus(100, ChronoUnit.MINUTES);
 
-    private WastedFilesAnalysisEngine wastedFilesAnalysisEngine = new WastedFilesAnalysisEngine();
+    private final Clock mockClock = mock(Clock.class);
 
     @Before
     public void before() {
         IdentityGenerator.initPrefix(0L);
+        when(mockClock.instant())
+            .thenReturn(START_INSTANT)
+            .thenReturn(END_INSTANT);
     }
 
     private static TopologyEntityDTO.Builder createOnPremEntity(long oid, EntityType entityType) {
@@ -229,8 +232,12 @@ public class WastedFilesAnalysisTest {
         final CloudTopology<TopologyEntityDTO> originalCloudTopology = mock(CloudTopology.class);
         when(cloudCostCalculatorFactory.newCalculator(topologyInfo, originalCloudTopology)).thenReturn(cloudCostCalculator);
 
-        final WastedFilesResults analysis = wastedFilesAnalysisEngine.analyzeWastedFiles(topologyInfo,
-            createTestOnPremTopology(), cloudCostCalculator, originalCloudTopology);
+        final WastedFilesAnalysis analysis = new WastedFilesAnalysis(topologyInfo,
+            createTestOnPremTopology(), mockClock, cloudCostCalculator, originalCloudTopology);
+
+        assertTrue(analysis.execute());
+        assertFalse(analysis.execute());
+        assertEquals(AnalysisState.SUCCEEDED, analysis.getState());
 
         // expect 2 actions since one file is too small to get an action
         assertEquals(2, analysis.getActions().size());
@@ -257,9 +264,9 @@ public class WastedFilesAnalysisTest {
         });
 
         // Verify total storage amount released for this oid
-        assertTrue(analysis.getMbReleasedOnProvider(2L).isPresent());
-        assertEquals((2400000L + 1100L) / Units.NUM_OF_KB_IN_MB,
-            analysis.getMbReleasedOnProvider(2L).getAsLong());
+        assertTrue(analysis.getStorageAmountReleasedForOid(2L).isPresent());
+        assertEquals(2400000L + 1100L,
+            analysis.getStorageAmountReleasedForOid(2L).get().longValue());
     }
 
     /**
@@ -274,17 +281,20 @@ public class WastedFilesAnalysisTest {
         when(cloudCostCalculatorFactory.newCalculator(topologyInfo, originalCloudTopology)).thenReturn(cloudCostCalculator);
 
         Map<Long, TopologyEntityDTO> cloudTopology = createTestCloudTopology(false);
+        final WastedFilesAnalysis analysis = new WastedFilesAnalysis(topologyInfo,
+            cloudTopology, mockClock, cloudCostCalculator, originalCloudTopology);
+
 
         cloudTopology.values().stream().filter(dto -> dto.getEntityType() == EntityType.VIRTUAL_VOLUME.getNumber())
-                .forEach(dto -> {
-                    CostJournal<TopologyEntityDTO> costJournal = mock(CostJournal.class);
-                    when(costJournal.getTotalHourlyCost()).thenReturn(trax(10d * dto.getOid()));
-                    when(cloudCostCalculator.calculateCostForEntity(any(), eq(dto))).thenReturn(Optional.of(costJournal));
-                });
+            .forEach(dto -> {
+                CostJournal<TopologyEntityDTO> costJournal = mock(CostJournal.class);
+                when(costJournal.getTotalHourlyCost()).thenReturn(trax(10d * dto.getOid()));
+                when(cloudCostCalculator.calculateCostForEntity(any(), eq(dto))).thenReturn(Optional.of(costJournal));
+            });
 
-        final WastedFilesResults analysis = wastedFilesAnalysisEngine.analyzeWastedFiles(topologyInfo,
-            cloudTopology, cloudCostCalculator, originalCloudTopology);
-
+        assertTrue(analysis.execute());
+        assertFalse(analysis.execute());
+        assertEquals(AnalysisState.SUCCEEDED, analysis.getState());
 
         assertEquals("There should be two actions for cloud wasted storage", 2, analysis.getActions().size());
 
@@ -352,17 +362,20 @@ public class WastedFilesAnalysisTest {
         when(cloudCostCalculatorFactory.newCalculator(topologyInfo, originalCloudTopology)).thenReturn(cloudCostCalculator);
 
         Map<Long, TopologyEntityDTO> cloudTopology = createTestCloudTopology(true);
+        final WastedFilesAnalysis analysis = new WastedFilesAnalysis(topologyInfo,
+            cloudTopology, mockClock, cloudCostCalculator, originalCloudTopology);
+
 
         cloudTopology.values().stream().filter(dto -> dto.getEntityType() == EntityType.VIRTUAL_VOLUME.getNumber())
-                .forEach(dto -> {
-                    CostJournal<TopologyEntityDTO> costJournal = mock(CostJournal.class);
-                    when(costJournal.getTotalHourlyCost()).thenReturn(trax(10d * dto.getOid()));
-                    when(cloudCostCalculator.calculateCostForEntity(any(), eq(dto))).thenReturn(Optional.of(costJournal));
-                });
+            .forEach(dto -> {
+                CostJournal<TopologyEntityDTO> costJournal = mock(CostJournal.class);
+                when(costJournal.getTotalHourlyCost()).thenReturn(trax(10d * dto.getOid()));
+                when(cloudCostCalculator.calculateCostForEntity(any(), eq(dto))).thenReturn(Optional.of(costJournal));
+            });
 
-        final WastedFilesResults analysis = wastedFilesAnalysisEngine.analyzeWastedFiles(topologyInfo,
-            cloudTopology, cloudCostCalculator, originalCloudTopology);
-
+        assertTrue(analysis.execute());
+        assertFalse(analysis.execute());
+        assertEquals(AnalysisState.SUCCEEDED, analysis.getState());
 
         assertEquals("There should be one actions for cloud wasted storage", 1, analysis.getActions().size());
 

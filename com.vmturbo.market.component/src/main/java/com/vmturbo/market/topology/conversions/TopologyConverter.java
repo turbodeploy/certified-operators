@@ -99,8 +99,8 @@ import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.MarketMode;
-import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityResults;
-import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
+import com.vmturbo.market.runner.ReservedCapacityAnalysis;
+import com.vmturbo.market.runner.WastedFilesAnalysis;
 import com.vmturbo.market.settings.EntitySettings;
 import com.vmturbo.market.settings.MarketSettings;
 import com.vmturbo.market.topology.MarketTier;
@@ -857,8 +857,8 @@ public class TopologyConverter {
      * {@link TopologyDTO.TopologyEntityDTO}s
      * @param originalTopology the original set of {@link TopologyDTO.TopologyEntityDTO}s by OID.
      * @param priceIndexMessage the price index message
-     * @param reservedCapacityResults the reserved capacity results
-     * @param wastedFileAnalysis wasted file analysis results
+     * @param reservedCapacityAnalysis the reserved capacity information
+     * @param wastedFileAnalysis wasted file analysis handler
      * @return list of {@link TopologyDTO.ProjectedTopologyEntity}s
      */
     @Nonnull
@@ -866,8 +866,8 @@ public class TopologyConverter {
                 @Nonnull final List<EconomyDTOs.TraderTO> projectedTraders,
                 @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> originalTopology,
                 @Nonnull final PriceIndexMessage priceIndexMessage,
-                @Nonnull final ReservedCapacityResults reservedCapacityResults,
-                @Nonnull final WastedFilesResults wastedFileAnalysis) {
+                @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis,
+                @Nonnull final WastedFilesAnalysis wastedFileAnalysis) {
 
         conversionErrorCounts.startPhase(Phase.CONVERT_FROM_MARKET);
         try {
@@ -884,7 +884,7 @@ public class TopologyConverter {
             for (TraderTO projectedTrader : projectedTraders) {
                 try {
                     final Set<TopologyEntityDTO> projectedEntities = traderTOtoTopologyDTO(
-                            projectedTrader, originalTopology, reservedCapacityResults,
+                            projectedTrader, originalTopology, reservedCapacityAnalysis,
                             projTraders, wastedFileAnalysis);
                     for (TopologyEntityDTO projectedEntity : projectedEntities) {
                         final ProjectedTopologyEntity.Builder projectedEntityBuilder =
@@ -1122,17 +1122,17 @@ public class TopologyConverter {
      * @param traderTO {@link EconomyDTOs.TraderTO} that is to be converted to a {@link TopologyDTO.TopologyEntityDTO}
      * @param traderOidToEntityDTO whose key is the traderOid and the value is the original
      * traderTO
-     * @param reservedCapacityResults the reserved capacity results
+     * @param reservedCapacityAnalysis the reserved capacity information
      * @param projTraders projected traders
-     * @param wastedFileResults wasted file analysis results.
+     * @param wastedFileAnalysis handler for wasted file analysis
      * @return set of {@link TopologyDTO.TopologyEntityDTO}s
      */
     @VisibleForTesting
     Set<TopologyDTO.TopologyEntityDTO> traderTOtoTopologyDTO(EconomyDTOs.TraderTO traderTO,
                     @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> traderOidToEntityDTO,
-                    @Nonnull final ReservedCapacityResults reservedCapacityResults,
+                    @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis,
                     @Nonnull final Map<Long, EconomyDTOs.TraderTO> projTraders,
-                    @Nonnull final WastedFilesResults wastedFileResults) {
+                    @Nonnull final WastedFilesAnalysis wastedFileAnalysis) {
         Set<TopologyDTO.TopologyEntityDTO> topologyEntityDTOs = Sets.newHashSet();
         try {
             if (cloudTc.isMarketTier(traderTO.getOid())) {
@@ -1198,7 +1198,7 @@ public class TopologyConverter {
                     } else {
                         //If the traderTO has cloneOf, it is a provisioned SE.
                         commBoughtTOtoCommBoughtDTO(traderTO.getOid(), sl.getSupplier(), sl.getOid(),
-                            commBought, reservedCapacityResults, originalEntity, timeSlotsByCommType,
+                            commBought, reservedCapacityAnalysis, originalEntity, timeSlotsByCommType,
                                 traderTO.hasCloneOf()).ifPresent(commList::add);
                     }
                 }
@@ -1307,8 +1307,9 @@ public class TopologyConverter {
                     .collect(Collectors.toSet()));
 
             // handle 'delete wasted file analysis' to update entity from market
-            wastedFileResults.getMbReleasedOnProvider(traderTO.getOid())
-                .ifPresent(stAmtToReleaseInMB -> {
+            wastedFileAnalysis.getStorageAmountReleasedForOid(traderTO.getOid())
+                .ifPresent(stAmt -> {
+                    final long stAmtToReleaseInMB = stAmt / Units.NUM_OF_KB_IN_MB;
                     entityDTOBuilder.getCommoditySoldListBuilderList().stream()
                         .filter(commSold -> commSold.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE)
                         .findFirst()
@@ -1326,7 +1327,7 @@ public class TopologyConverter {
             topologyEntityDTOs.addAll(createResources(entityDTO, volumeIdToShoppingListTOMap));
             // when source volume is cloud volume with collapsedBuyerId
             topologyEntityDTOs.addAll(createCollapsedTopologyEntityDTOs(entityDTO, collapsedShoppingLists,
-                    reservedCapacityResults));
+                    reservedCapacityAnalysis));
         } catch (Exception e) {
             logger.error(EconomyConstants.EXCEPTION_MESSAGE,
                 traderTO.getDebugInfoNeverUseInCode(), e.getMessage(), e);
@@ -1337,7 +1338,7 @@ public class TopologyConverter {
     private List<TopologyEntityDTO> createCollapsedTopologyEntityDTOs(
             final TopologyEntityDTO projectedEntityForConsumerOfCollapsedEntity,
             final List<ShoppingListTO> collapsedShoppingList,
-            final ReservedCapacityResults reservedCapacityResults) {
+            final ReservedCapacityAnalysis reservedCapacityAnalysis) {
         final List<TopologyEntityDTO> result = new ArrayList<>();
         for (final ShoppingListTO shoppingListTO : collapsedShoppingList) {
             final Optional<Long> collapsedEntityId = Optional.ofNullable(shoppingListOidToInfos
@@ -1355,7 +1356,7 @@ public class TopologyConverter {
                     .getCommoditiesBoughtList().stream()
                     .map(commodityBoughtTO -> commBoughtTOtoCommBoughtDTO(
                         collapsedEntityDTO.getOid(), shoppingListTO.getSupplier(),
-                        shoppingListTO.getOid(), commodityBoughtTO, reservedCapacityResults,
+                        shoppingListTO.getOid(), commodityBoughtTO, reservedCapacityAnalysis,
                         collapsedEntityDTO, new HashMap<>(), false))
                     .filter(Optional::isPresent)
                     .map(Optional::get)
@@ -2420,7 +2421,7 @@ public class TopologyConverter {
      *
      * @param commBoughtTO {@link CommodityBoughtTO} that is to be converted to
      * {@link CommodityBoughtDTO}
-     * @param reservedCapacityResults the reserved capacity information
+     * @param reservedCapacityAnalysis the reserved capacity information
      * @param originalEntity the original entity DTO
      * @param timeSlotsByCommType Timeslot values arranged by {@link CommodityBoughtTO}
      * @param isProvisioned Whether this trader is a provisioned trader which doesn't have shoppinglist.
@@ -2430,8 +2431,8 @@ public class TopologyConverter {
     private Optional<TopologyDTO.CommodityBoughtDTO> commBoughtTOtoCommBoughtDTO(
             final long traderOid, final long supplierOid, final long slOid,
             @Nonnull final CommodityBoughtTO commBoughtTO,
-            @Nonnull final ReservedCapacityResults reservedCapacityResults,
-            final TopologyEntityDTO originalEntity,
+            @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis,
+            @Nullable final TopologyEntityDTO originalEntity,
             @Nonnull Map<CommodityType, List<Double>> timeSlotsByCommType,
             boolean isProvisioned) {
 
@@ -2461,8 +2462,7 @@ public class TopologyConverter {
                     final Builder builder = CommodityBoughtDTO.newBuilder();
                     builder.setUsed(reverseScaleComm(currentUsage, boughtDTObyTraderFromProjectedSellerInRealTopology,
                                     CommodityBoughtDTO::getScalingFactor))
-                    .setReservedCapacity(
-                            reservedCapacityResults.getReservedCapacity(traderOid, commType))
+                    .setReservedCapacity(reservedCapacityAnalysis.getReservedCapacity(traderOid, commType))
                     .setCommodityType(commType)
                     .setPeak(reverseScaleComm(peakQuantity, boughtDTObyTraderFromProjectedSellerInRealTopology,
                             CommodityBoughtDTO::getScalingFactor));
