@@ -37,12 +37,9 @@ import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.cost.Cost;
@@ -89,6 +86,10 @@ import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
+import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityAnalysisEngine;
+import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityResults;
+import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
+import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.topology.MarketTier;
@@ -224,7 +225,10 @@ public class Analysis {
 
     private final MarketPriceTableFactory marketPriceTableFactory;
 
-    private final WastedFilesAnalysisFactory wastedFilesAnalysisFactory;
+    private final WastedFilesAnalysisEngine wastedFilesAnalysisEngine;
+
+    private final ReservedCapacityAnalysisEngine reservedCapacityAnalysisEngine
+            = new ReservedCapacityAnalysisEngine();
 
     private final ConsistentScalingHelperFactory consistentScalingHelperFactory;
 
@@ -258,7 +262,7 @@ public class Analysis {
      * @param cloudTopologyFactory cloud topology factory
      * @param cloudCostCalculatorFactory cost calculation factory
      * @param priceTableFactory price table factory
-     * @param wastedFilesAnalysisFactory wasted file analysis handler
+     * @param wastedFilesAnalysisEngine wasted file analysis handler
      * @param buyRIImpactAnalysisFactory  buy RI impact analysis factory
      * @param tierExcluderFactory the tier excluder factory
      * @param listener that receives entity ri coverage information availability.
@@ -275,7 +279,7 @@ public class Analysis {
                     @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                     @Nonnull final TopologyCostCalculatorFactory cloudCostCalculatorFactory,
                     @Nonnull final MarketPriceTableFactory priceTableFactory,
-                    @Nonnull final WastedFilesAnalysisFactory wastedFilesAnalysisFactory,
+                    @Nonnull final WastedFilesAnalysisEngine wastedFilesAnalysisEngine,
                     @Nonnull final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory,
                     @Nonnull final TierExcluderFactory tierExcluderFactory,
                     @Nonnull final AnalysisRICoverageListener listener,
@@ -298,7 +302,7 @@ public class Analysis {
         this.cloudTopologyFactory = cloudTopologyFactory;
         this.originalCloudTopology = this.cloudTopologyFactory.newCloudTopology(
                 topologyDTOs.stream());
-        this.wastedFilesAnalysisFactory = wastedFilesAnalysisFactory;
+        this.wastedFilesAnalysisEngine = wastedFilesAnalysisEngine;
         this.buyRIImpactAnalysisFactory = buyRIImpactAnalysisFactory;
         this.topologyCostCalculatorFactory = cloudCostCalculatorFactory;
         this.marketPriceTableFactory = priceTableFactory;
@@ -486,6 +490,24 @@ public class Analysis {
         // Don't generate actions associated with entities with these oids
         final Set<Long> suppressActionsForOids = new HashSet<>();
 
+        // Execute wasted file analysis
+        final WastedFilesResults wastedFilesAnalysis;
+        if (topologyInfo.getAnalysisTypeList().contains(AnalysisType.WASTED_FILES)) {
+            wastedFilesAnalysis = wastedFilesAnalysisEngine.analyzeWastedFiles(
+                    topologyInfo, topologyDTOs, topologyCostCalculator, originalCloudTopology);
+        } else {
+            wastedFilesAnalysis = WastedFilesResults.EMPTY;
+        }
+
+        // Calculate reservedCapacity and generate resize actions
+        // Do not generate reservations for cloud migration plans.
+        final ReservedCapacityResults reservedCapacityResults;
+        if (!isMigrateToCloud) {
+            reservedCapacityResults = reservedCapacityAnalysisEngine.execute(topologyDTOs, converter.getConsistentScalingHelper());
+        } else {
+            reservedCapacityResults = ReservedCapacityResults.EMPTY;
+        }
+
         ConvertedTopology convertedTopology = ConvertedTopology.EMPTY;
         if (isM2AnalysisEnabled) {
             if (topologyInfo.getTopologyType() == TopologyType.REALTIME
@@ -578,17 +600,6 @@ public class Analysis {
                 if (!isM2AnalysisEnabled && isBuyRIImpactAnalysis) {
                     processResultTime = RESULT_PROCESSING.startTimer();
                 }
-                // Calculate reservedCapacity and generate resize actions
-                ReservedCapacityAnalysis reservedCapacityAnalysis = new ReservedCapacityAnalysis(topologyDTOs);
-                // Do not generate reservations for cloud migration plans.
-                if (!isMigrateToCloud) {
-                    reservedCapacityAnalysis.execute(converter.getConsistentScalingHelper());
-                }
-
-                // Execute wasted file analysis
-                WastedFilesAnalysis wastedFilesAnalysis = wastedFilesAnalysisFactory.newWastedFilesAnalysis(
-                        topologyInfo, topologyDTOs, this.clock, topologyCostCalculator, originalCloudTopology);
-                final Collection<Action> wastedFileActions = getWastedFilesActions(wastedFilesAnalysis);
 
                 List<TraderTO> projectedTraderDTO = new ArrayList<>();
                 List<ActionTO> actionsList = new ArrayList<>();
@@ -640,8 +651,7 @@ public class Analysis {
                                     projectedEntities = converter.convertFromMarket(
                                         projectedTraderDTO,
                                         topologyDTOs,
-                                        priceIndexMessage,
-                                        reservedCapacityAnalysis,
+                                        priceIndexMessage, reservedCapacityResults,
                                         wastedFilesAnalysis);
 
                                 if (topologyInfo.hasPlanInfo()) {
@@ -662,9 +672,9 @@ public class Analysis {
                                     }
                                 }
 
-                                final Set<Long> wastedStorageActionsVolumeIds = wastedFileActions.stream()
-                                    .map(Action::getInfo).map(ActionInfo::getDelete).map(Delete::getTarget)
-                                    .map(ActionEntity::getId).collect(Collectors.toSet());
+                                final Set<Long> wastedStorageActionsVolumeIds = wastedFilesAnalysis.getActions().stream()
+                                        .map(action -> action.getInfo().getDelete().getTarget().getId())
+                                        .collect(Collectors.toSet());
 
                                 // Post process projected ContainerSpec entities by updating commodity
                                 // capacity and percentile utilization to reflect after-action changes
@@ -755,8 +765,8 @@ public class Analysis {
                     converter.clearStateNeededForActionInterpretation();
                     // TODO move wasted files action out of main analysis once we have a framework
                     // to support multiple analyses for the same topology ID
-                    actionPlanBuilder.addAllAction(wastedFileActions);
-                    actionPlanBuilder.addAllAction(reservedCapacityAnalysis.getActions());
+                    actionPlanBuilder.addAllAction(wastedFilesAnalysis.getActions());
+                    actionPlanBuilder.addAllAction(reservedCapacityResults.getActions());
                     logger.info(logPrefix + "Completed successfully");
                     processResultTime.observe();
                     state = AnalysisState.SUCCEEDED;
@@ -1631,22 +1641,6 @@ public class Analysis {
      */
     public void setReplayActions(@NonNull ReplayActions replayActions) {
         realtimeReplayActions = replayActions;
-    }
-
-    /**
-     * Get the WastedFilesAnalysis associated with this Analysis.
-     * @param wastedFilesAnalysis analysis to get wasted files actions.
-     * @return {@link Collection} of actions representing the wasted files or volumes.
-     */
-    private Collection<Action> getWastedFilesActions(WastedFilesAnalysis wastedFilesAnalysis) {
-        if (topologyInfo.getAnalysisTypeList().contains(AnalysisType.WASTED_FILES)) {
-            wastedFilesAnalysis.execute();
-            logger.debug("Getting wasted files actions.");
-            if (wastedFilesAnalysis.getState() == AnalysisState.SUCCEEDED) {
-                return wastedFilesAnalysis.getActions();
-            }
-        }
-        return Collections.emptyList();
     }
 
     /**

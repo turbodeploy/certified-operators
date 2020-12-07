@@ -66,6 +66,7 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
@@ -164,8 +165,8 @@ public class MarketRunnerTest {
             when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(
                     CloudRateExtractor.class));
             when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
-            final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
-                mock(WastedFilesAnalysisFactory.class);
+            final WastedFilesAnalysisEngine wastedFilesAnalysisEngine =
+                mock(WastedFilesAnalysisEngine.class);
             final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
                     mock(BuyRIImpactAnalysisFactory.class);
             when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
@@ -176,7 +177,7 @@ public class MarketRunnerTest {
             return new Analysis(topologyInfo, entities, new GroupMemberRetriever(groupServiceGrpc),
                     Clock.systemUTC(), configBuilder.build(),
                     cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-                    wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
+                    wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, tierExcluderFactory,
                     mock(AnalysisRICoverageListener.class),
                     consistentScalingHelperFactory, initialPlacementFinder,
                     reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService);

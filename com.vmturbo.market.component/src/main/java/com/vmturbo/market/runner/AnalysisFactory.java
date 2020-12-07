@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -36,6 +35,7 @@ import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
@@ -91,7 +91,7 @@ public interface AnalysisFactory {
 
         private final TopologyCostCalculatorFactory topologyCostCalculatorFactory;
 
-        private final WastedFilesAnalysisFactory wastedFilesAnalysisFactory;
+        private final WastedFilesAnalysisEngine wastedFilesAnalysisEngine;
 
         private final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory;
 
@@ -131,7 +131,7 @@ public interface AnalysisFactory {
                                       @Nonnull final MarketPriceTableFactory marketPriceTableFactory,
                                       @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                                       @Nonnull final TopologyCostCalculatorFactory topologyCostCalculatorFactory,
-                                      @Nonnull final WastedFilesAnalysisFactory wastedFilesAnalysisFactory,
+                                      @Nonnull final WastedFilesAnalysisEngine wastedFilesAnalysisEngine,
                                       @Nonnull final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory,
                                       @Nonnull final CloudCostDataProvider cloudCostDataProvider,
                                       @Nonnull final Clock clock,
@@ -154,7 +154,7 @@ public interface AnalysisFactory {
             this.settingServiceClient = Objects.requireNonNull(settingServiceClient);
             this.priceTableFactory = Objects.requireNonNull(marketPriceTableFactory);
             this.topologyCostCalculatorFactory = Objects.requireNonNull(topologyCostCalculatorFactory);
-            this.wastedFilesAnalysisFactory = Objects.requireNonNull(wastedFilesAnalysisFactory);
+            this.wastedFilesAnalysisEngine = Objects.requireNonNull(wastedFilesAnalysisEngine);
             this.buyRIImpactAnalysisFactory = Objects.requireNonNull(buyRIImpactAnalysisFactory);
             this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
             this.clock = Objects.requireNonNull(clock);
@@ -190,7 +190,7 @@ public interface AnalysisFactory {
             return new Analysis(topologyInfo, topologyEntities,
                 groupMemberRetriever, clock,
                 configBuilder.build(), cloudTopologyFactory,
-                topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisFactory,
+                topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisEngine,
                 buyRIImpactAnalysisFactory, tierExcluderFactory, listener, consistentScalingHelperFactory,
                 initialPlacementFinder, reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService);
         }

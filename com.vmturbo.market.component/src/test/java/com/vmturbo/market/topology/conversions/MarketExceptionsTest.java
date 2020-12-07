@@ -4,7 +4,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,8 +31,8 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.pricing.CloudRateExtractor;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.market.runner.MarketMode;
-import com.vmturbo.market.runner.ReservedCapacityAnalysis;
-import com.vmturbo.market.runner.WastedFilesAnalysis;
+import com.vmturbo.market.runner.reservedcapacity.ReservedCapacityResults;
+import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
 import com.vmturbo.market.topology.conversions.CommodityIndex.CommodityIndexFactory;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
@@ -68,8 +67,7 @@ public class MarketExceptionsTest {
     private final CloudCostData mockCCD = mock(CloudCostData.class);
     private TopologyConverter converter;
 
-    private final ReservedCapacityAnalysis reservedCapacityAnalysis =
-                    new ReservedCapacityAnalysis(Collections.emptyMap());
+    private final ReservedCapacityResults reservedCapacityResults = ReservedCapacityResults.EMPTY;
 
     CommodityType ioType = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE).build();
@@ -207,7 +205,7 @@ public class MarketExceptionsTest {
                 .putEntityPropertyMap("dummy", "dummy").build();
         Map<Long, TopologyEntityDTO> origTopoMap =
                 ImmutableMap.of(dsTopo.getOid(), dsTopo, daTopo.getOid(), daTopo);
-        WastedFilesAnalysis wastedFilesAnalysisMock = mock(WastedFilesAnalysis.class);
+        WastedFilesResults wastedFilesAnalysisMock = mock(WastedFilesResults.class);
         List<TraderTO> traderTOs =
                 Lists.newArrayList();
         ActionTO provByDemandTO = ActionTO.newBuilder().setImportance(0).setIsNotExecutable(false)
@@ -216,8 +214,7 @@ public class MarketExceptionsTest {
                     .setProvisionedSeller(DA_OID + 100L).build())
             .build();
         Map<Long, TopologyDTO.ProjectedTopologyEntity> projectedTopo = converter.convertFromMarket(
-            traderTOs, origTopoMap, PriceIndexMessage.getDefaultInstance(),
-            reservedCapacityAnalysis, wastedFilesAnalysisMock);
+            traderTOs, origTopoMap, PriceIndexMessage.getDefaultInstance(), reservedCapacityResults, wastedFilesAnalysisMock);
         converter.interpretAction(provByDemandTO, projectedTopo, null, null, null);
     }
 

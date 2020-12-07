@@ -69,6 +69,7 @@ import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper.ConsistentScalingHelperFactory;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.ReversibilitySettingFetcherFactory;
@@ -285,8 +286,8 @@ public class AnalysisDebuggingTest {
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(
                 CloudRateExtractor.class));
-        final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
-            mock(WastedFilesAnalysisFactory.class);
+        final WastedFilesAnalysisEngine wastedFilesAnalysisEngine =
+            mock(WastedFilesAnalysisEngine.class);
         final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
                 mock(BuyRIImpactAnalysisFactory.class);
         final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
@@ -298,7 +299,7 @@ public class AnalysisDebuggingTest {
             new GroupMemberRetriever(GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel())),
             Clock.systemUTC(),
             analysisConfig.build(), cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-            wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
+                wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, tierExcluderFactory,
                 mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory, initialPlacementFinder,
                         reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService);
         return analysis;

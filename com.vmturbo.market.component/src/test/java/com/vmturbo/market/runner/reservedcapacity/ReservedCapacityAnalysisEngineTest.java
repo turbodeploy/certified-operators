@@ -1,4 +1,4 @@
-package com.vmturbo.market.runner;
+package com.vmturbo.market.runner.reservedcapacity;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -31,7 +31,10 @@ import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
-public class ReservedCapacityAnalysisTest {
+/**
+ * Unit tests for {@link ReservedCapacityAnalysisEngine}.
+ */
+public class ReservedCapacityAnalysisEngineTest {
 
     private static final double FLOATING_POINT_DELTA = 1e-7;
 
@@ -43,23 +46,26 @@ public class ReservedCapacityAnalysisTest {
     private static final CommodityType VMEM = CommodityType.newBuilder()
         .setType(CommodityDTO.CommodityType.VMEM_VALUE).build();
 
-    private static TopologyEntityDTO.Builder PM;
-    private static TopologyEntityDTO.Builder[] VMs;
-    private static TopologyEntityDTO.Builder VM;
-    private static TopologyEntityDTO.Builder[] CONTAINERs;
-    private static TopologyEntityDTO.Builder CONTAINER;
+    private TopologyEntityDTO.Builder pm;
+    private TopologyEntityDTO.Builder[] vms;
+    private TopologyEntityDTO.Builder vm;
+    private TopologyEntityDTO.Builder[] containers;
+    private TopologyEntityDTO.Builder container;
 
-    private static CommodityBoughtDTO.Builder MemBought;
-    private static CommoditySoldDTO.Builder VMemSold;
-    private static ConsistentScalingHelper csh = mock(ConsistentScalingHelper.class);
+    private CommodityBoughtDTO.Builder memBought;
+    private CommoditySoldDTO.Builder vmemSold;
+    private ConsistentScalingHelper csh = mock(ConsistentScalingHelper.class);
 
+    /**
+     * Identity initialization to run before each test.
+     */
     @BeforeClass
     public static void initIdentityGenerator() {
         IdentityGenerator.initPrefix(0);
     }
 
-    /*
-     * Scenario data for test VM creation:
+    /**
+     * Scenario data for test VM creation.
      * { oid, current reservation, used, peak, increment, consistent-scaling }
      */
     class VMScenario {
@@ -81,8 +87,8 @@ public class ReservedCapacityAnalysisTest {
         }
     }
 
-    /*
-     * Scenario data for test Container creation:
+    /**
+     * Scenario data for test Container creation.
      * { oid, current reservation, used, peak, increment, consistent-scaling }
      */
     class ContainerScenario {
@@ -189,26 +195,29 @@ public class ReservedCapacityAnalysisTest {
         return containers;
     }
 
+    /**
+     * Common code before each test.
+     */
     @Before
     public void setup() {
-        PM = TopologyEntityDTO.newBuilder()
+        pm = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
             .setOid(PM_OID)
             .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(true));
-        VMs = createVMs();
-        VM = VMs[0];
-        CONTAINERs = createContainers();
-        CONTAINER = CONTAINERs[0];
-        MemBought = makeMemBought(100);
-        VMemSold = makeVMemSold(10, 20, 15);
+        vms = createVMs();
+        vm = vms[0];
+        containers = createContainers();
+        container = containers[0];
+        memBought = makeMemBought(100);
+        vmemSold = makeVMemSold(10, 20, 15);
     }
 
-    private ReservedCapacityAnalysis makeRCA(TopologyEntityDTO.Builder... builders) {
+    private ReservedCapacityResults makeRCA(ConsistentScalingHelper csh, TopologyEntityDTO.Builder... builders) {
         Map<Long, TopologyEntityDTO> topology = new HashMap<>();
         for (Builder builder : builders) {
             topology.put(builder.getOid(), builder.build());
         }
-        return new ReservedCapacityAnalysis(topology);
+        return new ReservedCapacityAnalysisEngine().execute(topology, csh);
     }
 
     /**
@@ -216,8 +225,7 @@ public class ReservedCapacityAnalysisTest {
      */
     @Test
     public void testEntityTypeNotInReservedEntityType() {
-        ReservedCapacityAnalysis rca = makeRCA(PM);
-        rca.execute(null);
+        ReservedCapacityResults rca = makeRCA(null, pm);
 
         assertEquals(0, rca.getActions().size());
     }
@@ -228,9 +236,8 @@ public class ReservedCapacityAnalysisTest {
      */
     @Test
     public void testNotControllable() {
-        VM.getAnalysisSettingsBuilder().setControllable(false);
-        ReservedCapacityAnalysis rca = makeRCA(VM);
-        rca.execute(null);
+        vm.getAnalysisSettingsBuilder().setControllable(false);
+        ReservedCapacityResults rca = makeRCA(null, vm);
 
         assertEquals(0, rca.getActions().size());
     }
@@ -240,10 +247,9 @@ public class ReservedCapacityAnalysisTest {
      */
     @Test
     public void testIdleVM() {
-        VM.getAnalysisSettingsBuilder().setControllable(true);
-        VM.setEntityState(EntityState.POWERED_OFF);
-        ReservedCapacityAnalysis rca = makeRCA(VM);
-        rca.execute(null);
+        vm.getAnalysisSettingsBuilder().setControllable(true);
+        vm.setEntityState(EntityState.POWERED_OFF);
+        ReservedCapacityResults rca = makeRCA(null, vm);
 
         assertEquals(0, rca.getActions().size());
     }
@@ -254,10 +260,9 @@ public class ReservedCapacityAnalysisTest {
      */
     @Test
     public void testNoProvider() {
-        VM.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-            .addCommodityBought(MemBought));
-        ReservedCapacityAnalysis rca = makeRCA(VM);
-        rca.execute(null);
+        vm.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .addCommodityBought(memBought));
+        ReservedCapacityResults rca = makeRCA(null, vm);
 
         assertEquals(0, rca.getActions().size());
     }
@@ -268,11 +273,10 @@ public class ReservedCapacityAnalysisTest {
      */
     @Test
     public void testProviderIdNotInOidToDtoMap() {
-        VM.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+        vm.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
             .setProviderId(PM_OID)
-            .addCommodityBought(MemBought));
-        ReservedCapacityAnalysis rca = makeRCA(VM);
-        rca.execute(null);
+            .addCommodityBought(memBought));
+        ReservedCapacityResults rca = makeRCA(null, vm);
 
         assertEquals(0, rca.getActions().size());
     }
@@ -283,12 +287,11 @@ public class ReservedCapacityAnalysisTest {
      */
     @Test
     public void testProviderNotControllable() {
-        VM.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+        vm.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
             .setProviderId(PM_OID)
-            .addCommodityBought(MemBought));
-        PM.getAnalysisSettingsBuilder().setControllable(false);
-        ReservedCapacityAnalysis rca = makeRCA(VM, PM);
-        rca.execute(null);
+            .addCommodityBought(memBought));
+        pm.getAnalysisSettingsBuilder().setControllable(false);
+        ReservedCapacityResults rca = makeRCA(null, vm, pm);
 
         assertEquals(0, rca.getActions().size());
     }
@@ -299,11 +302,10 @@ public class ReservedCapacityAnalysisTest {
      */
     @Test
     public void testNoReservedCapacity() {
-        VM.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+        vm.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
             .setProviderId(PM_OID)
-            .addCommodityBought(MemBought.setReservedCapacity(0)));
-        ReservedCapacityAnalysis rca = makeRCA(VM, PM);
-        rca.execute(null);
+            .addCommodityBought(memBought.setReservedCapacity(0)));
+        ReservedCapacityResults rca = makeRCA(null, vm, pm);
 
         assertEquals(0, rca.getActions().size());
     }
@@ -314,11 +316,10 @@ public class ReservedCapacityAnalysisTest {
      */
     @Test
     public void testNoCorrespondingCommSold() {
-        VM.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+        vm.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
             .setProviderId(PM_OID)
-            .addCommodityBought(MemBought));
-        ReservedCapacityAnalysis rca = makeRCA(VM, PM);
-        rca.execute(null);
+            .addCommodityBought(memBought));
+        ReservedCapacityResults rca = makeRCA(null, vm, pm);
 
         assertEquals(0, rca.getActions().size());
     }
@@ -329,13 +330,12 @@ public class ReservedCapacityAnalysisTest {
      */
     @Test
     public void testCorrespondingCommSoldNotResizeable() {
-        VMemSold.setIsResizeable(false);
-        VM.addCommoditySoldList(VMemSold)
+        vmemSold.setIsResizeable(false);
+        vm.addCommoditySoldList(vmemSold)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(PM_OID)
-                .addCommodityBought(MemBought));
-        ReservedCapacityAnalysis rca = makeRCA(VM, PM);
-        rca.execute(null);
+                .addCommodityBought(memBought));
+        ReservedCapacityResults rca = makeRCA(null, vm, pm);
 
         assertEquals(0, rca.getActions().size());
     }
@@ -346,12 +346,11 @@ public class ReservedCapacityAnalysisTest {
      */
     @Test
     public void testLargePeakValue() {
-        VM.addCommoditySoldList(VMemSold.setUsed(1000).setPeak(2000))
+        vm.addCommoditySoldList(vmemSold.setUsed(1000).setPeak(2000))
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(PM_OID)
-                .addCommodityBought(MemBought));
-        ReservedCapacityAnalysis rca = makeRCA(VM, PM);
-        rca.execute(null);
+                .addCommodityBought(memBought));
+        ReservedCapacityResults rca = makeRCA(null, vm, pm);
 
         assertEquals(0, rca.getActions().size());
     }
@@ -362,12 +361,11 @@ public class ReservedCapacityAnalysisTest {
      */
     @Test
     public void testLargeCapacityIncrement() {
-        VM.addCommoditySoldList(VMemSold.setCapacityIncrement(90))
+        vm.addCommoditySoldList(vmemSold.setCapacityIncrement(90))
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(PM_OID)
-                .addCommodityBought(MemBought));
-        ReservedCapacityAnalysis rca = makeRCA(VM, PM);
-        rca.execute(null);
+                .addCommodityBought(memBought));
+        ReservedCapacityResults rca = makeRCA(null, vm, pm);
 
         assertEquals(0, rca.getActions().size());
     }
@@ -377,12 +375,11 @@ public class ReservedCapacityAnalysisTest {
      */
     @Test
     public void testReservationResizeAction() {
-        VM.addCommoditySoldList(VMemSold)
+        vm.addCommoditySoldList(vmemSold)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(PM_OID)
-                .addCommodityBought(MemBought));
-        ReservedCapacityAnalysis rca = makeRCA(VM, PM);
-        rca.execute(null);
+                .addCommodityBought(memBought));
+        ReservedCapacityResults rca = makeRCA(null, vm, pm);
 
         assertEquals(1, rca.getActions().size());
         assertEquals(25, rca.getReservedCapacity(VM_OID, MEM), FLOATING_POINT_DELTA);
@@ -415,11 +412,10 @@ public class ReservedCapacityAnalysisTest {
          * reservation from 100 -> 60 for VM-1.  VM-3 also wants to go from 100 -> 60, but the
          * delta of 40 is less than its used increment is 50, so the action will not be generated.
          */
-        ReservedCapacityAnalysis rca = makeRCA(VMs[1], VMs[2], VMs[3], PM);
-        rca.execute(csh);
+        ReservedCapacityResults rca = makeRCA(csh, vms[1], vms[2], vms[3], pm);
 
         assertEquals(1, rca.getActions().size());
-        assertEquals(60, rca.getReservedCapacity(VMs[1].getOid(), MEM), FLOATING_POINT_DELTA);
+        assertEquals(60, rca.getReservedCapacity(vms[1].getOid(), MEM), FLOATING_POINT_DELTA);
         Action action = rca.getActions().iterator().next();
         assertTrue(action.getExecutable());
         assertTrue(action.hasExplanation());
@@ -449,12 +445,11 @@ public class ReservedCapacityAnalysisTest {
          * The maximum new reservation for the scaling group is therefore 20.
          * We should see a single reservation from 50 -> 20 for VM-2.
          */
-        VMs[1].setEntityState(EntityState.POWERED_OFF);
-        ReservedCapacityAnalysis rca = makeRCA(VMs[1], VMs[2], PM);
-        rca.execute(csh);
+        vms[1].setEntityState(EntityState.POWERED_OFF);
+        ReservedCapacityResults rca = makeRCA(csh, vms[1], vms[2], pm);
 
         assertEquals(1, rca.getActions().size());
-        assertEquals(20, rca.getReservedCapacity(VMs[2].getOid(), MEM), FLOATING_POINT_DELTA);
+        assertEquals(20, rca.getReservedCapacity(vms[2].getOid(), MEM), FLOATING_POINT_DELTA);
         Action action = rca.getActions().iterator().next();
         assertTrue(action.getExecutable());
         assertTrue(action.hasExplanation());
@@ -481,49 +476,54 @@ public class ReservedCapacityAnalysisTest {
      */
     @Test
     public void testReservationEqualToCapacityVM() {
-        VM.addCommoditySoldList(VMemSold)
+        vm.addCommoditySoldList(vmemSold)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(PM_OID)
-                .addCommodityBought(MemBought.setReservedCapacity(200)));
-        ReservedCapacityAnalysis rca = makeRCA(VM, PM);
-        rca.execute(null);
+                .addCommodityBought(memBought.setReservedCapacity(200)));
+        ReservedCapacityResults rca = makeRCA(null, vm, pm);
 
         assertEquals(0, rca.getActions().size());
     }
 
+    /**
+     * Reservation capacity == container.
+     */
     @Test
     public void testReservationEqualToCapacityContainer() {
-        CONTAINER.addCommoditySoldList(VMemSold)
+        container.addCommoditySoldList(vmemSold)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(VM_OID)
-                .addCommodityBought(MemBought.setReservedCapacity(200)));
-        ReservedCapacityAnalysis rca = makeRCA(CONTAINER, VM);
-        rca.execute(null);
+                .addCommodityBought(memBought.setReservedCapacity(200)));
+        ReservedCapacityResults rca = makeRCA(null, container, vm);
         assertEquals(1, rca.getActions().size());
     }
 
+    /**
+     * Container-VM reservation.
+     */
     @Test
     public void testReservationNonResizableContainer() {
-        VMemSold.setIsResizeable(false);
-        CONTAINER.addCommoditySoldList(VMemSold)
+        vmemSold.setIsResizeable(false);
+        container.addCommoditySoldList(vmemSold)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(VM_OID)
-                .addCommodityBought(MemBought));
-        ReservedCapacityAnalysis rca = makeRCA(CONTAINER, VM);
-        rca.execute(null);
+                .addCommodityBought(memBought));
+        ReservedCapacityResults rca = makeRCA(null, container, vm);
 
         assertEquals(1, rca.getActions().size());
     }
 
+    /**
+     * VM-PM reservation.
+     */
     @Test
     public void testReservationNonResizableVM() {
-        VMemSold.setIsResizeable(false);
-        VM.addCommoditySoldList(VMemSold)
+        vmemSold.setIsResizeable(false);
+        vm.addCommoditySoldList(vmemSold)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(PM_OID)
-                .addCommodityBought(MemBought));
-        ReservedCapacityAnalysis rca = makeRCA(VM, PM);
-        rca.execute(null);
+                .addCommodityBought(memBought));
+        ReservedCapacityResults rca = makeRCA(null, vm, pm);
 
         assertEquals(0, rca.getActions().size());
     }

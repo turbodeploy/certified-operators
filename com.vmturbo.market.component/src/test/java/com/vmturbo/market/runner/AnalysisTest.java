@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -87,6 +88,8 @@ import com.vmturbo.market.reservations.InitialPlacementFinder;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
 import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
+import com.vmturbo.market.runner.wastedfiles.WastedFilesAnalysisEngine;
+import com.vmturbo.market.runner.wastedfiles.WastedFilesResults;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import com.vmturbo.market.topology.conversions.ConsistentScalingHelper;
@@ -214,24 +217,23 @@ public class AnalysisTest {
         when(cloudTopology.getEntities()).thenReturn(ImmutableMap.of(vmOid, cloudVm));
         when(cloudTopologyFactory.newCloudTopology(anyLong(), any())).thenReturn(cloudTopology);
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(cloudTopology);
-        final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
-            mock(WastedFilesAnalysisFactory.class);
+        final WastedFilesAnalysisEngine wastedFilesAnalysisEngine =
+            mock(WastedFilesAnalysisEngine.class);
         final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
                 mock(BuyRIImpactAnalysisFactory.class);
-        final WastedFilesAnalysis wastedFilesAnalysis = mock(WastedFilesAnalysis.class);
-        when(wastedFilesAnalysisFactory.newWastedFilesAnalysis(any(),any(), any(), any(), any()))
+        final WastedFilesResults wastedFilesAnalysis = mock(WastedFilesResults.class);
+        when(wastedFilesAnalysisEngine.analyzeWastedFiles(any(), any(), any(), any()))
                 .thenReturn(wastedFilesAnalysis);
-        when(wastedFilesAnalysis.getState()).thenReturn(AnalysisState.SUCCEEDED);
         when(wastedFilesAnalysis.getActions())
                 .thenReturn(Collections.singletonList(wastedFileAction));
-        when(wastedFilesAnalysis.getStorageAmountReleasedForOid(anyLong())).thenReturn(Optional.empty());
+        when(wastedFilesAnalysis.getMbReleasedOnProvider(anyLong())).thenReturn(OptionalLong.empty());
         final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
         doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(anyLong(), any(), anyList());
 
         return new Analysis(topoInfo, topologySet,
             new GroupMemberRetriever(groupServiceClient), mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-            wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
+                wastedFilesAnalysisEngine, buyRIImpactAnalysisFactory, tierExcluderFactory,
                 listener, consistentScalingHelperFactory, initialPlacementFinder,
                         reversibilitySettingFetcherFactory, migratedWorkloadCloudCommitmentAnalysisService);
     }
