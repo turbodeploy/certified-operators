@@ -39,7 +39,6 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
-import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.group.service.TransactionProvider;
 
@@ -57,19 +56,15 @@ public class GroupDaoDiagnostics implements DiagsRestorable<DSLContext> {
     private static final String GROUPS_DUMP_FILE = "groups_dump";
 
     private final TransactionProvider transactionProvider;
-    private final GroupPaginationParams groupPaginationParams;
     private final Logger logger = LogManager.getLogger(getClass());
 
     /**
      * Constructs diagnostics provider with the specified transaction provider.
      *
      * @param transactionProvider transaction provider
-     * @param groupPaginationParams parameters for group pagination
      */
-    public GroupDaoDiagnostics(@Nonnull TransactionProvider transactionProvider,
-            @Nonnull GroupPaginationParams groupPaginationParams) {
+    public GroupDaoDiagnostics(@Nonnull TransactionProvider transactionProvider) {
         this.transactionProvider = Objects.requireNonNull(transactionProvider);
-        this.groupPaginationParams = groupPaginationParams;
     }
 
     /**
@@ -151,7 +146,7 @@ public class GroupDaoDiagnostics implements DiagsRestorable<DSLContext> {
     @Override
     public void restoreDiags(@Nonnull List<String> collectedDiags, @Nonnull DSLContext context) throws DiagnosticsException {
         try {
-            restoreDiags(collectedDiags, new GroupDAO(context, groupPaginationParams));
+            restoreDiags(collectedDiags, new GroupDAO(context));
         } catch (StoreOperationException e) {
             throw new DiagnosticsException(e.getMessage(), e);
         }

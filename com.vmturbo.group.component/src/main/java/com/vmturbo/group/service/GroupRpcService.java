@@ -52,8 +52,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetOwnersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -195,43 +193,6 @@ public class GroupRpcService extends GroupServiceImplBase {
                     CountGroupsResponse.newBuilder().setCount(listOfGroups.size()).build());
             responseObserver.onCompleted();
         });
-    }
-
-    /**
-     * Returns groups based on the request, in a paginated response.
-     *
-     * @param request the request for groups, including pagination, filtering & ordering params.
-     * @param responseObserver the observer to notify with the response.
-     */
-    @Override
-    public void getPaginatedGroups(GetPaginatedGroupsRequest request,
-            StreamObserver<GetPaginatedGroupsResponse> responseObserver) {
-        grpcTransactionUtil.executeOperation(responseObserver, stores -> {
-            getPaginatedGroups(stores.getGroupStore(), request, responseObserver);
-        });
-    }
-
-    /**
-     * Internal implementation for getPaginatedGroups. Queries the store provided to get the
-     * paginated response, and notifies the observer.
-     *
-     * @param groupStore the group store to query.
-     * @param request the request for groups, including pagination, filtering & ordering params.
-     * @param observer the observer to notify with the response.
-     */
-    private void getPaginatedGroups(@Nonnull IGroupStore groupStore,
-            GetPaginatedGroupsRequest request,
-            StreamObserver<GetPaginatedGroupsResponse> observer) {
-        try {
-            observer.onNext(groupStore.getPaginatedGroups(request));
-            observer.onCompleted();
-        } catch (IllegalArgumentException e) {
-            final String errorMessage = "Invalid request for groups. Error: " + e.getMessage();
-            logger.error(errorMessage);
-            observer.onError(Status.INVALID_ARGUMENT
-                    .withDescription(errorMessage)
-                    .asException());
-        }
     }
 
     @Override
