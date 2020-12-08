@@ -1,10 +1,11 @@
 package com.vmturbo.platform.analysis.economy;
 
 import com.vmturbo.commons.Pair;
+import com.vmturbo.commons.analysis.RawMaterialsMap;
+import com.vmturbo.commons.analysis.RawMaterialsMap.RawMaterial;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs;
 
 import java.io.Serializable;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,7 +17,6 @@ import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
-import org.javatuples.Triplet;
 
 /**
  * A class representing the RawMaterial.
@@ -27,6 +27,7 @@ public class RawMaterials implements Serializable {
 
     private int @NonNull [] materials_;
     private boolean @NonNull [] hasCoMaterial_;
+    private boolean isFakeRawMaterial;
 
     /**
      * Constructor for the RawMaterials.
@@ -48,18 +49,28 @@ public class RawMaterials implements Serializable {
     /**
      * Constructor for the RawMaterials.
      *
-     * @param materials list of rawMaterials
+     * @param materialInfo materialInfo
      */
-    public RawMaterials(@NonNull Collection<Triplet<Integer, Boolean, Boolean>> materials) {
-        int size = materials.size();
+    public RawMaterials(RawMaterialsMap.RawMaterialInfo materialInfo) {
+        isFakeRawMaterial = materialInfo.isFakeRawMaterial();
+        int size = materialInfo.getRawMaterials().size();
         materials_ = new int[size];
         hasCoMaterial_  = new boolean[size];
         int index = 0;
-        for (Triplet<Integer, Boolean, Boolean> material : materials) {
-            materials_[index] = material.getValue0();
-            hasCoMaterial_[index] = material.getValue1();
+        for (RawMaterial material : materialInfo.getRawMaterials()) {
+            materials_[index] = material.getRawMaterial();
+            hasCoMaterial_[index] = material.hasCoMaterial();
             index++;
         }
+    }
+
+    /**
+     * Return true if raw material isn't fake.
+     *
+     * @return true if raw material isn't fake
+     */
+    public boolean isRawMaterialRequired() {
+        return !isFakeRawMaterial;
     }
 
     /**
