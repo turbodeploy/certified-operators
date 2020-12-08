@@ -5,7 +5,10 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Optional;
 
 import org.junit.Before;
@@ -15,6 +18,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.CountedEntity;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.component.licensing.LicensedEntitiesCountCalculator.LicensedEntitiesCount;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO.TurboLicense;
@@ -79,6 +83,40 @@ public class LicensedEntitiesCountCalculatorTest {
         assertFalse(count.get().isOverLimit());
     }
 
+    /**
+     * Test getting entity counts when licenses are expired.
+     */
+    @Test
+    public void testGetEntitiesCountVmsWithExpiredLicense() {
+
+        String yesterday = DateTimeUtil.formatDate(Date.from(Instant.now().minus(1, ChronoUnit.DAYS)));
+        LicenseDTO l1 = LicenseDTO.newBuilder()
+                .setTurbo(TurboLicense.newBuilder()
+                        .setExpirationDate(yesterday)
+                        .setCountedEntity(CountedEntity.VM.name())
+                        .setNumLicensedEntities(100))
+                .build();
+        LicenseDTO l2 = LicenseDTO.newBuilder()
+                .setTurbo(TurboLicense.newBuilder()
+                        .setExpirationDate(ILicense.PERM_LIC)
+                        .setCountedEntity(CountedEntity.VM.name())
+                        .setNumLicensedEntities(100))
+                .build();
+
+        Mockito.when(searchServiceMole.countEntities(Mockito.any()))
+                .thenReturn(EntityCountResponse.newBuilder()
+                        .setEntityCount(75)
+                        .build());
+
+        Optional<LicensedEntitiesCount> count =
+                licensedEntitiesCountCalculator.getLicensedEntitiesCount(Arrays.asList(l1, l2));
+
+        assertTrue(count.isPresent());
+        assertThat(count.get().getNumInUse().get(), is(75));
+        // only count the number of licensed on unexpired license.
+        assertThat(count.get().getNumLicensed(), is(100));
+        assertFalse(count.get().isOverLimit());
+    }
 
     /**
      * Test getting entity counts when over limit.

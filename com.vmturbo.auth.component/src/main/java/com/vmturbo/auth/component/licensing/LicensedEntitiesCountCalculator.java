@@ -36,6 +36,12 @@ public class LicensedEntitiesCountCalculator {
         this.searchServiceClient = searchServiceClient;
     }
 
+    /**
+     * Get the aggregated, valid and unexpired license count. It includes number of licensed entities
+     * and current workload entities.
+     * @param licenses collection of licenses.
+     * @return optional of licensed entity count.
+     */
     @Nonnull
     Optional<LicensedEntitiesCount> getLicensedEntitiesCount(@Nonnull final Collection<LicenseDTO> licenses) {
         Optional<CountedEntity> countedEntity = licenses.stream()
@@ -51,6 +57,8 @@ public class LicensedEntitiesCountCalculator {
                 .findFirst();
         return countedEntity.map(ce -> {
             final int numLicensed = licenses.stream()
+                    // don't count expired license
+                    .filter(l -> !LicenseUtil.isExpired(l))
                     .filter(LicenseDTO::hasTurbo)
                     .map(LicenseDTO::getTurbo)
                     // In the corner case of multiple counted entities, we don't want to sum
