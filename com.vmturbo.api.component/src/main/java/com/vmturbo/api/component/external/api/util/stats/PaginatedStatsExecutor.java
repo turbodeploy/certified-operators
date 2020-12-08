@@ -1089,10 +1089,12 @@ public class PaginatedStatsExecutor {
             final long queryEndDate = period != null && period.getEndDate() != null
                             ? DateTimeUtil.parseTime(period.getEndDate()) : 0L;
 
+            final boolean isProjectedStatsRequested = isProjectedStatsRequest();
+            final boolean isHistoricalStatsRequested = isHistoricalStatsRequest();
             for (CloudCostStatRecord cloudCostStatRecord: cloudCostStatsResponse) {
                 long snapShotDate = cloudCostStatRecord.getSnapshotDate();
-                // filter out possible current cost for projected cost query
-                if (snapShotDate < queryEndDate) {
+                // filter out possible current cost for projected only cost query
+                if (isProjectedStatsRequested && !isHistoricalStatsRequested && (snapShotDate < queryEndDate)) {
                     continue;
                 }
                 for (StatRecord statRecord: cloudCostStatRecord.getStatRecordsList()) {
