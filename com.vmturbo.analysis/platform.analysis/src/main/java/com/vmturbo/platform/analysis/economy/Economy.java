@@ -255,6 +255,16 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     /**
+     * Clear sellers for all markets in the economy.
+     */
+    public void clearSellersFromMarkets() {
+        for (Market market : markets_.values()) {
+            List<Trader> activeSellers = market.getActiveSellers().stream().collect(Collectors.toList());
+            activeSellers.forEach( s -> market.removeSeller((TraderWithSettings)s));
+        }
+    }
+
+    /**
      * For all markets in the economy, scan each individual market and add all satisfying
      * sellers to that market.
      *
