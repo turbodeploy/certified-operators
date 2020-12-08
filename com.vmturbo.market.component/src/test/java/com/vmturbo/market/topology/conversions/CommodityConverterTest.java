@@ -13,8 +13,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -36,7 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.market.topology.conversions.TopologyConverter.UsedAndPeak;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -53,7 +51,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 @RunWith(JUnitParamsRunner.class)
 public class CommodityConverterTest {
 
-    private static final long VM_OID = 0L;
     private static final long PM_OID = 1L;
     private static final long APP_OID = 2L;
     private static final Float SCALING_FACTOR = 1.5F;
@@ -147,15 +144,13 @@ public class CommodityConverterTest {
             .setPercentile(PERCENTILE_USED)
             .build();
         final TopologyEntityDTO originalTopologyEntityDTO = TopologyEntityDTO.newBuilder()
-            .setOid(VM_OID)
+            .setOid(PM_OID)
             .setEntityState(entityState)
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .addCommoditySoldList(createSoldCommodity(histUsed, SCALING_FACTOR,
                 CommodityDTO.CommodityType.VCPU, 100))
             .addCommoditySoldList(createSoldCommodity(histUsed, SCALING_FACTOR,
                 CommodityDTO.CommodityType.VMEM, 100))
-            .addCommoditiesBoughtFromProviders(createCommoditiesCommoditiesBoughtFromProvider(
-                PM_OID, CommodityDTO.CommodityType.CPU_VALUE, CommodityDTO.CommodityType.MEM_VALUE))
             .build();
         // Act
         final Collection<CommoditySoldTO> result =
@@ -163,50 +158,6 @@ public class CommodityConverterTest {
         // Assert
         assertThat(result.size(), equalTo(2));
         result.forEach(c -> assertEquals(expectedResizable, c.getSettings().getResizable()));
-    }
-
-    /**
-     * No raw material for VMEM. Set resizable to false.
-     */
-    @Test
-    public void testResizableBasedOnRawMaterial() {
-        final TopologyEntityDTO dto = TopologyEntityDTO.newBuilder()
-            .setOid(VM_OID)
-            .setEntityState(EntityState.POWERED_ON)
-            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .addCommoditySoldList(createSoldCommodity(CommodityDTO.CommodityType.VCPU_VALUE))
-            .addCommoditySoldList(createSoldCommodity(CommodityDTO.CommodityType.VMEM_VALUE))
-            .addCommoditiesBoughtFromProviders(createCommoditiesCommoditiesBoughtFromProvider(
-                PM_OID, CommodityDTO.CommodityType.CPU_VALUE))
-            .build();
-
-        final Map<Integer, CommoditySoldTO> result = converterToTest.commoditiesSoldList(dto).stream().collect(Collectors.toMap(commSold -> commSold.getSpecification().getBaseType(), Function.identity()));
-
-        assertThat(result.size(), equalTo(2));
-        assertTrue(result.get(CommodityDTO.CommodityType.VCPU_VALUE).getSettings().getResizable());
-        assertFalse(result.get(CommodityDTO.CommodityType.VMEM_VALUE).getSettings().getResizable());
-    }
-
-    /**
-     * No raw material for Port channel. Resizable is still true.
-     */
-    @Test
-    public void testResizableForPortChannel() {
-        final TopologyEntityDTO dto = TopologyEntityDTO.newBuilder()
-            .setOid(1)
-            .setEntityState(EntityState.POWERED_ON)
-            .setEntityType(EntityType.SWITCH_VALUE)
-            .addCommoditySoldList(createSoldCommodity(CommodityDTO.CommodityType.PORT_CHANEL_VALUE))
-            .addCommoditiesBoughtFromProviders(createCommoditiesCommoditiesBoughtFromProvider(
-                2, CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE))
-            .build();
-
-        final Collection<CommoditySoldTO> result = converterToTest.commoditiesSoldList(dto);
-
-        assertThat(result.size(), equalTo(1));
-        assertTrue(result.iterator().next().getSettings().getResizable());
-        assertEquals(CommodityDTO.CommodityType.PORT_CHANEL_VALUE,
-            result.iterator().next().getSpecification().getBaseType());
     }
 
     private static CommoditySoldTO getCommodityByType(Collection<CommoditySoldTO> commodities,
@@ -240,24 +191,6 @@ public class CommodityConverterTest {
             builder.setScalingFactor(scalingFactor);
         }
         return builder.build();
-    }
-
-    private CommoditySoldDTO createSoldCommodity(final int type) {
-        return CommoditySoldDTO.newBuilder().setCapacity(RAW_CAPACITY)
-            .setEffectiveCapacityPercentage(100)
-            .setCommodityType(CommodityType.newBuilder().setType(type))
-            .build();
-    }
-
-    private CommoditiesBoughtFromProvider createCommoditiesCommoditiesBoughtFromProvider(
-            final long providerOid, final int... types) {
-        final CommoditiesBoughtFromProvider.Builder build =
-            CommoditiesBoughtFromProvider.newBuilder().setProviderId(providerOid);
-        for (int type : types) {
-            build.addCommodityBought(CommodityBoughtDTO.newBuilder()
-                .setCommodityType(CommodityType.newBuilder().setType(type)));
-        }
-        return build.build();
     }
 
     /**
