@@ -47,6 +47,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -109,6 +110,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
@@ -369,16 +371,12 @@ public class Analysis {
         // (as of 4/6/2016) because attempting to buy from a non-existing trader results in
         // an infinite quote which is exactly the same as not having a provider.
         final Set<Long> oidsToRemove = new HashSet<>();
-        LongSet reservationEntityOids = new LongOpenHashSet();
         final Long2ObjectMap<TopologyEntityDTO> fakeEntityDTOs = new Long2ObjectOpenHashMap<>();
         for (TopologyEntityDTO dto : topologyDTOs.values()) {
             if (dto.hasEdit()) {
                 if (dto.getEdit().hasRemoved() || dto.getEdit().hasReplaced()) {
                     oidsToRemove.add(dto.getOid());
                 }
-            }
-            if (dto.hasOrigin() && dto.getOrigin().hasReservationOrigin()) {
-                reservationEntityOids.add(dto.getOid());
             }
         }
         final Long2ObjectMap<TraderTO> traderTOs = new Long2ObjectOpenHashMap<>();
@@ -434,13 +432,11 @@ public class Analysis {
                 // with that economy to initialPlacementFinder.
                 if (converter.getCommodityConverter() != null
                         && converter.getCommodityConverter().getCommTypeAllocator() != null) {
-                    Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap =
-                            converter.getCommodityConverter().getCommTypeAllocator().getReservationCommTypeToSpecMapping();
-                    initialPlacementFinder.updateCachedEconomy(topology.getEconomy(), commTypeToSpecMap,
-                            reservationEntityOids.stream()
-                                    .map(traderTOs::get)
-                                    .filter(Objects::nonNull)
-                                    .collect(Collectors.toSet()));
+                    Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap = converter
+                            .getCommodityConverter().getCommTypeAllocator()
+                            .getReservationCommTypeToSpecMapping();
+                    initialPlacementFinder.updateCachedEconomy(topology.getEconomy(),
+                            commTypeToSpecMap, true);
                 }
             }
             return new ConvertedTopology(topology, oidsToRemove, fakeEntityDTOs);
@@ -537,6 +533,12 @@ public class Analysis {
                     Ede ede = new Ede();
                     results = TopologyEntitiesHandler.performAnalysis(topologyInfo,
                             config, this, convertedTopology.topology, ede);
+                    // Update historical economy cache used for reservation every night. Calling the
+                    // update method here will make sure the clusters in head room plan are balanced,
+                    // because analysis already completed at this point.
+                    if (TopologyDTOUtil.isPlanType(PlanProjectType.CLUSTER_HEADROOM, topologyInfo)) {
+                        updateReservationEconomyCache(convertedTopology.topology.getEconomy(), false);
+                    }
                     try {
                         Map<Trader, List<InfiniteQuoteExplanation>> infiniteQuoteTraderMap = ede
                                 .getPlacementResults().getExplanations();
@@ -874,6 +876,24 @@ public class Analysis {
                         containerSpecCommodityTypeMap.get(containerSpecOID).add(commodityType);
                     });
             });
+    }
+
+    /**
+     * Call {@link InitialPlacementFinder} to trigger refresh of reservation economy caches.
+     *
+     * @param economy the economy associated with analysis.
+     * @param isRealtime whether the analysis is for a real time topology or not.
+     */
+    private void updateReservationEconomyCache(final @Nonnull UnmodifiableEconomy economy, final boolean isRealtime) {
+        if (!initialPlacementFinder.shouldConstructEconomyCache()) {
+            return;
+        }
+        if (converter.getCommodityConverter() != null
+                && converter.getCommodityConverter().getCommTypeAllocator() != null) {
+            Map<TopologyDTO.CommodityType, Integer> commTypeToSpecMap =
+                    converter.getCommodityConverter().getCommTypeAllocator().getReservationCommTypeToSpecMapping();
+            initialPlacementFinder.updateCachedEconomy(economy, commTypeToSpecMap, isRealtime);
+        }
     }
 
     private boolean isContainerSpecCommodityUpdated(int commodityType, long containerSpecOID,

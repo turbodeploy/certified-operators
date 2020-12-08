@@ -16,6 +16,9 @@ public class MarketRpcConfig {
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
 
+    @Value("${prepareReservationCache:true}")
+    private boolean prepareReservationCache;
+
     @Bean
     public Optional<MarketDebugRpcService> marketDebugRpcService() {
         return grpcDebugServicesEnabled() ?
@@ -40,7 +43,7 @@ public class MarketRpcConfig {
 
     @Bean
     public InitialPlacementFinder getInitialPlacementFinder() {
-        return new InitialPlacementFinder();
+        return new InitialPlacementFinder(prepareReservationCache);
     }
 
     /**
