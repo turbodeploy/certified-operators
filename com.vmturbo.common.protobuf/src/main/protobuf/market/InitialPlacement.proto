@@ -43,6 +43,13 @@ message InitialPlacementBuyerPlacementInfo {
 
 message InitialPlacementSuccess {
     required int64 provider_oid = 1;
+    optional .topology.CommodityType cluster = 2;
+    repeated CommodityStats commodityStats = 3;
+    message CommodityStats {
+        optional .topology.CommodityType commodity_type = 4;
+        optional double total_used = 5;
+        optional double total_capacity = 6;
+    }
 }
 
 message InitialPlacementFailure {

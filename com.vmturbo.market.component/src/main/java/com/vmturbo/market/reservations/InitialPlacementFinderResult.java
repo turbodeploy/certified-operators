@@ -1,9 +1,12 @@
 package com.vmturbo.market.reservations;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+
+import org.apache.commons.lang3.tuple.Pair;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 
@@ -14,17 +17,30 @@ public class InitialPlacementFinderResult {
 
     // the provider oid when placement succeeded, empty when placement failed
     private final Optional<Long> providerOid;
+
+    // the cluster commodity type if exists.
+    private final Optional<CommodityType> clusterComm;
+
+    // the commodity total used and capacity stats of the cluster sl chosen.
+    private final Map<CommodityType, Pair<Double, Double>> commUsedAndCapacityInCluster;
+
     // a list of failure data when placement failed
     private final List<FailureInfo> failureInfoList;
 
     /**
      * Constructor of InitialPlacementFinderResult.
      * @param providerOid provider oid if placement succeeded
+     * @param clusterComm the cluster commodity type associated with provider.
+     * @param commUsedAndCapacityInCluster a commodity type to cluster total used and capacity mapping.
      * @param failureInfoList failure information if placement failed
      */
     public InitialPlacementFinderResult(@Nonnull final Optional<Long> providerOid,
-                                        @Nonnull List<FailureInfo> failureInfoList) {
+            @Nonnull final Optional<CommodityType> clusterComm,
+            @Nonnull final Map<CommodityType, Pair<Double, Double>> commUsedAndCapacityInCluster,
+            @Nonnull List<FailureInfo> failureInfoList) {
         this.providerOid = providerOid;
+        this.clusterComm = clusterComm;
+        this.commUsedAndCapacityInCluster = commUsedAndCapacityInCluster;
         this.failureInfoList = failureInfoList;
     }
 
@@ -38,6 +54,15 @@ public class InitialPlacementFinderResult {
     }
 
     /**
+     * Returns cluster commodity type.
+     *
+     * @return cluster commodity type.
+     */
+    public Optional<CommodityType> getClusterComm() {
+        return clusterComm;
+    }
+
+    /**
      * Returns a list of commodity failure data.
      *
      * @return a list containing failed commodity type, its requested amount, closest seller oid and
@@ -45,6 +70,15 @@ public class InitialPlacementFinderResult {
      */
     public List<FailureInfo> getFailureInfoList() {
         return failureInfoList;
+    }
+
+    /**
+     * Returns a commodity type to cluster total used and capacity mapping.
+     *
+     * @return a commodity type to cluster total used and capacity mapping.
+     */
+    public Map<CommodityType, Pair<Double, Double>> getCommUsedAndCapacityInCluster() {
+        return commUsedAndCapacityInCluster;
     }
 
     /**

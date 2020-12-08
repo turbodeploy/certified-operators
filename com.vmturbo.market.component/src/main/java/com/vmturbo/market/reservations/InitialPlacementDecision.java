@@ -38,5 +38,4 @@ public class InitialPlacementDecision {
         this.supplier = supplier;
         this.failureInfos = failureInfos;
     }
-
 }

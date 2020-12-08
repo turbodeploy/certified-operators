@@ -2,10 +2,12 @@ package com.vmturbo.market.reservations;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -13,12 +15,14 @@ import javax.annotation.Nullable;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer.InitialPlacementCommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.market.reservations.InitialPlacementFinderResult.FailureInfo;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -26,6 +30,8 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
@@ -402,5 +408,133 @@ public final class InitialPlacementUtils {
             });
         });
         logger.info("Historical economy decision is {} ", sb.toString());
+    }
+
+    /**
+     * Calculate the total used and capacity of each commodity requested by {@link InitialPlacementBuyer}
+     * within the chosen cluster. If the buyer's supplier is not bounded by a cluster or storage cluster
+     * commodity, calculate the total statistics of all traders.
+     *
+     * @param economy the economy to calculate the cluster stats.
+     * @param commTypeToSpecMap the commodity type to commodity specification mapping.
+     * @param successfulSlToClusterMap a map of reservation buyer's shopping list oid to its cluster mapping.
+     * @param successfulBuyers a set of {@link InitialPlacementBuyer}s that are successful.
+     * @return a map of shopping list oid -> commodity type -> {total use, total capacity} of a cluster.
+     */
+    public static Map<Long, Map<CommodityType, Pair<Double, Double>>> calculateClusterStatistics(
+            @Nonnull final Economy economy,
+            @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
+            @Nonnull final Map<Long, CommodityType> successfulSlToClusterMap,
+            @Nonnull final Set<InitialPlacementBuyer> successfulBuyers) {
+        // A map keep track of cluster commodity to the trader set bounded by that cluster.
+        Map<CommodityType, Set<Trader>> tradersBoundedByCluster = groupTradersByCluster(economy,
+                commTypeToSpecMap, successfulSlToClusterMap);
+        Set<InitialPlacementCommoditiesBoughtFromProvider> sls = successfulBuyers.stream()
+                .map(b -> b.getInitialPlacementCommoditiesBoughtFromProviderList())
+                .flatMap(List::stream).collect(Collectors.toSet());
+        Map<Long, Map<CommodityType, Pair<Double, Double>>> statsBySl = new HashMap();
+        for (InitialPlacementCommoditiesBoughtFromProvider commBoughtPrd : sls) {
+            long slOid = commBoughtPrd.getCommoditiesBoughtFromProviderId();
+            CommodityType clusterComm = successfulSlToClusterMap.get(slOid);
+            Set<Trader> tradersOfTheCluster = getTradersOfSlCluster(economy, clusterComm,
+                    slOid, tradersBoundedByCluster);
+            Map<CommodityType, Pair<Double, Double>> commodityTypePairMap = new HashMap();
+            statsBySl.put(slOid, commodityTypePairMap);
+            // Iterate all comm bought of a reservation buyer, sum up all used and capacity of
+            // that commodity in the traders of the chosen cluster.
+            for (CommodityBoughtDTO commBought : commBoughtPrd.getCommoditiesBoughtFromProvider()
+                    .getCommodityBoughtList()) {
+                Map<CommodityType, Map<CommodityType, Pair<Double, Double>>>
+                        usedAndCapacityByCluster = new HashMap();
+                CommodityType type = commBought.getCommodityType();
+                if (!usedAndCapacityByCluster.containsKey(clusterComm)
+                        || !usedAndCapacityByCluster.get(clusterComm).containsKey(type)) {
+                    double used = 0d;
+                    double capacity = 0d;
+                    for (Trader t : tradersOfTheCluster) {
+                        int indexOfCommSold = t.getBasketSold().indexOf(commTypeToSpecMap.get(type));
+                        if (indexOfCommSold != -1) {
+                            used += t.getCommoditiesSold().get(indexOfCommSold).getQuantity();
+                            capacity += t.getCommoditiesSold().get(indexOfCommSold).getCapacity();
+                        }
+                    }
+                    if (usedAndCapacityByCluster.containsKey(clusterComm)) {
+                        usedAndCapacityByCluster.get(clusterComm).put(type, Pair.of(used, capacity));
+                    } else {
+                        Map<CommodityType, Pair<Double, Double>> commBoughtUsedAndCapacity = new HashMap();
+                        commBoughtUsedAndCapacity.put(type, Pair.of(used, capacity));
+                        usedAndCapacityByCluster.put(clusterComm, commBoughtUsedAndCapacity);
+                    }
+                }
+                // Fill in the map with commodity total used and capacity of this type
+                commodityTypePairMap.put(type, usedAndCapacityByCluster.get(clusterComm).get(type));
+            }
+        }
+        return statsBySl;
+    }
+
+    /**
+     * Obtain the traders that sells a given cluster commodity type. If no cluster commodity passed
+     * in is null, return all PMs or all DSs in economy.
+     *
+     * @param economy the economy.
+     * @param clusterComm a cluster commodity type for a shopping list, can be null
+     * @param slOid the oid of a shopping list.
+     * @param tradersBoundedByCluster traders grouped by cluster commodity.
+     * @return the traders that sells a given cluster commodity type.
+     */
+    private static Set<Trader> getTradersOfSlCluster(@Nonnull final Economy economy,
+            @Nullable final CommodityType clusterComm, final long slOid,
+            @Nonnull final Map<CommodityType, Set<Trader>> tradersBoundedByCluster) {
+        Set<Trader> tradersOfTheCluster = new HashSet();
+        if (clusterComm == null) {
+            // No cluster boundary for the buyer's shopping list, get all PMs or DSs
+            // to calculate cluster stats.
+            ShoppingList shoppingList = economy.getTopology().getShoppingListOids().inverse()
+                    .get(slOid);
+            if (shoppingList != null) {
+                // In case there is no cluster comm for a shopping list, calculate stats based on
+                // all PMs or all DSs.
+                if (shoppingList.getSupplier().getType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+                    tradersOfTheCluster.addAll(economy.getTraders().stream().filter(e -> e.getType()
+                                    == EntityType.PHYSICAL_MACHINE_VALUE).collect(Collectors.toSet()));
+                } else {
+                    tradersOfTheCluster.addAll(economy.getTraders().stream().filter(e -> e.getType()
+                            == EntityType.STORAGE_VALUE).collect(Collectors.toSet()));
+                }
+            }
+        } else {
+            tradersOfTheCluster.addAll(tradersBoundedByCluster.get(clusterComm));
+        }
+        return tradersOfTheCluster;
+    }
+
+    /**
+     * Group traders in the economy by a given cluster commodity type.
+     *
+     * @param economy the economy.
+     * @param commTypeToSpecMap the commodity type to commodity specification mapping.
+     * @param slToClusterMap a map of reservation buyer's shopping list oid to its cluster mapping.
+     * @return trader sets grouped by cluster commodity type.
+     */
+    private static Map<CommodityType, Set<Trader>> groupTradersByCluster(@Nonnull final Economy economy,
+            @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
+            @Nonnull final Map<Long, CommodityType> slToClusterMap) {
+        Map<CommodityType, Set<Trader>> tradersBoundedByCluster = new HashMap();
+        for (Map.Entry<Long, CommodityType> slByCluster : slToClusterMap.entrySet()) {
+            CommodityType clusterComm = slByCluster.getValue();
+            int commSpecType = commTypeToSpecMap.get(clusterComm);
+            Set<Trader> traders = new HashSet();
+            for (Market m : economy.getMarkets()) {
+                if (m.getBasket().indexOf(commSpecType) != -1) {
+                    // Find all traders sell in a market whose basket contains the given cluster comm
+                    traders.addAll(m.getActiveSellers());
+                    // NOTE: inactive sellers are included in the cluster statistics
+                    traders.addAll(m.getInactiveSellers());
+                }
+            }
+            tradersBoundedByCluster.put(clusterComm, traders);
+        }
+        return tradersBoundedByCluster;
     }
 }

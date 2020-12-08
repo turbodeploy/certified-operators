@@ -16,6 +16,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -165,6 +166,8 @@ public class InitialPlacementFinder {
         // A map to keep all the reservations placement result. Key is buyer oid, value is a list
         // of InitialPlacementDecision.
         Map<Long, List<InitialPlacementDecision>> initialPlacements = new HashMap();
+        // A map to keep track of reservation buyer's shopping list oid to its cluster mapping.
+        Map<Long, CommodityType> slToClusterMap = new HashMap();
         synchronized (reservationLock) {
             // Find providers for buyers via running placements in economy caches. Keep track of
             // placement results in buyerPlacements.
@@ -174,7 +177,8 @@ public class InitialPlacementFinder {
                         i.getBuyerId()).collect(Collectors.toSet());
                 try {
                     Map<Long, List<InitialPlacementDecision>> initialPlacementPerReservation =
-                                economyCaches.findInitialPlacement(buyersPerReservation.getValue());
+                                economyCaches.findInitialPlacement(buyersPerReservation.getValue(),
+                                        slToClusterMap);
                     buyerPlacements.putAll(initialPlacementPerReservation);
                     // Keep incoming reservation buyers in the existingReservations map
                     existingReservations.put(buyersPerReservation.getKey(), buyersPerReservation.getValue());
@@ -189,6 +193,10 @@ public class InitialPlacementFinder {
                     existingReservations.remove(buyersPerReservation.getKey());
                     buyersInOneRes.stream().forEach(buyerOid -> buyerPlacements.remove(buyerOid));
                     economyCaches.clearDeletedBuyersFromCache(buyersInOneRes);
+                    buyersPerReservation.getValue().stream()
+                            .map(buyer -> buyer.getInitialPlacementCommoditiesBoughtFromProviderList())
+                            .flatMap(List::stream)
+                            .forEach(sl -> slToClusterMap.remove(sl.getCommoditiesBoughtFromProviderId()));
                     // Create empty InitialPlacementDecision for each buyer in the reservation that
                     // encounter exception.
                     List<InitialPlacementDecision> emptyDecisions = new ArrayList();
@@ -202,7 +210,8 @@ public class InitialPlacementFinder {
                 }
             }
             // process reservation result from sl to provider mapping
-            return buildReservationResponse(initialPlacements);
+            return buildReservationResponse(initialPlacements, slToClusterMap,
+                    economyCaches.calculateClusterStats(initialPlacements, buyers, slToClusterMap));
         }
     }
 
@@ -210,36 +219,46 @@ public class InitialPlacementFinder {
      * Build reservation response for a set of reservation buyers.
      *
      * @param reservationPlacements a map of reservation buyer oid to its placement decisions.
+     * @param slToClusterMap a map of shopping list oid to cluster commodity type.
+     * @param clusterUsedAndCapacity a map of shopping list oid -> commodity type -> {total use,
+     * total capacity} of a cluster.
      * @return a table whose row is reservation entity oid, column is shopping list oid and value
      * is the {@link InitialPlacementFinderResult}
      */
     private Table<Long, Long, InitialPlacementFinderResult> buildReservationResponse(
-            @Nonnull final Map<Long, List<InitialPlacementDecision>> reservationPlacements) {
+            @Nonnull final Map<Long, List<InitialPlacementDecision>> reservationPlacements,
+            @Nonnull final Map<Long, CommodityType> slToClusterMap,
+            @Nonnull final Map<Long, Map<CommodityType, Pair<Double, Double>>> clusterUsedAndCapacity) {
         Table<Long, Long, InitialPlacementFinderResult> placementResult = HashBasedTable.create();
-        for (Map.Entry<Long, List<InitialPlacementDecision>> buyerPlacement : reservationPlacements.entrySet()) {
+        for (Map.Entry<Long, List<InitialPlacementDecision>> buyerPlacement
+                : reservationPlacements.entrySet()) {
             long buyerOid = buyerPlacement.getKey();
             List<InitialPlacementDecision> placements = buyerPlacement.getValue();
             for (InitialPlacementDecision placement : placements) {
                 if (placement.supplier.isPresent()) { // the sl is successfully placed
-                    placementResult.put(buyerOid, placement.slOid,
-                            new InitialPlacementFinderResult(Optional.of(placement.supplier.get()),
-                                    new ArrayList()));
+                    placementResult.put(buyerOid, placement.slOid, new InitialPlacementFinderResult(
+                            Optional.of(placement.supplier.get()),
+                            Optional.ofNullable(slToClusterMap.get(placement.slOid)),
+                            clusterUsedAndCapacity.get(placement.slOid), new ArrayList()));
                 } else if (!placement.failureInfos.isEmpty()) { // the sl is unplaced, populate reason
                     placementResult.put(buyerOid, placement.slOid,
-                            new InitialPlacementFinderResult(Optional.empty(), placement.failureInfos));
+                            new InitialPlacementFinderResult(Optional.empty(), Optional.empty(),
+                                    new HashMap(), placement.failureInfos));
                     if (!placement.failureInfos.isEmpty()) {
-                        logger.debug("Unplaced reservation entity id {}, sl id {} has the following commodities",
-                                buyerPlacement.getKey(), placement.slOid);
+                        logger.debug("Unplaced reservation entity id {}, sl id {} has the following"
+                                + " commodities", buyerPlacement.getKey(), placement.slOid);
                         for (FailureInfo failureData : placement.failureInfos) {
-                            logger.debug("commodity type {}, requested amount {}, max quantity available {},"
-                                            + " closest seller oid {}", failureData.getCommodityType(),
+                            logger.debug("commodity type {}, requested amount {}, max quantity"
+                                    + " available {}, closest seller oid {}", failureData.getCommodityType(),
                                     failureData.getRequestedAmount(), failureData.getMaxQuantity(),
                                     failureData.getClosestSellerOid());
                         }
                     }
-                } else { // the sl could be placed, but it has to be rolled back due to a partial success reservation.
+                } else { // the sl could be placed, but it has to be rolled back due to a partial
+                    // success reservation.
                     placementResult.put(buyerOid, placement.slOid,
-                            new InitialPlacementFinderResult(Optional.empty(), new ArrayList()));
+                            new InitialPlacementFinderResult(Optional.empty(), Optional.empty(),
+                                    new HashMap(), new ArrayList()));
                 }
             }
         }

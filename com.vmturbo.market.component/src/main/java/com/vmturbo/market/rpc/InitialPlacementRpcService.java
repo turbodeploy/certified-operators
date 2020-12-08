@@ -1,5 +1,7 @@
 package com.vmturbo.market.rpc;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
@@ -19,6 +21,7 @@ import com.vmturbo.common.protobuf.market.InitialPlacement.FindInitialPlacementR
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyerPlacementInfo;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementFailure;
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementSuccess;
+import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementSuccess.CommodityStats;
 import com.vmturbo.common.protobuf.market.InitialPlacementServiceGrpc.InitialPlacementServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
@@ -47,8 +50,9 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
     @Override
     public void findInitialPlacement(final FindInitialPlacementRequest request,
                                      final StreamObserver<FindInitialPlacementResponse> responseObserver) {
-        logger.info("The number of workloads to find inital placement is " + request.getInitialPlacementBuyerList().size());
-        Table<Long, Long, InitialPlacementFinderResult> result = initPlacementFinder.findPlacement(request.getInitialPlacementBuyerList());
+        logger.info("The number of workloads to find initial placement is " + request.getInitialPlacementBuyerList().size());
+        Table<Long, Long, InitialPlacementFinderResult> result = initPlacementFinder
+                .findPlacement(request.getInitialPlacementBuyerList());
         FindInitialPlacementResponse.Builder response = FindInitialPlacementResponse.newBuilder();
         for (Table.Cell<Long, Long, InitialPlacementFinderResult> triplet : result.cellSet()) {
             InitialPlacementBuyerPlacementInfo.Builder builder = InitialPlacementBuyerPlacementInfo
@@ -58,9 +62,19 @@ public class InitialPlacementRpcService extends InitialPlacementServiceImplBase 
             // InitialPlacementFinderResult provider oid exist means placement succeeded
             InitialPlacementFinderResult reservationResult = triplet.getValue();
             if (reservationResult.getProviderOid().isPresent()) {
-                builder.setInitialPlacementSuccess(
-                        InitialPlacementSuccess.newBuilder().setProviderOid(reservationResult
-                                .getProviderOid().get()));
+                List<CommodityStats> clusterStats = new ArrayList();
+                reservationResult.getCommUsedAndCapacityInCluster().entrySet().forEach(e -> {
+                    clusterStats.add(CommodityStats.newBuilder().setCommodityType(e.getKey())
+                            .setTotalUsed(e.getValue().getKey())
+                            .setTotalCapacity(e.getValue().getValue()).build());
+                });
+                InitialPlacementSuccess.Builder successBuilder = InitialPlacementSuccess.newBuilder()
+                        .setProviderOid(reservationResult.getProviderOid().get())
+                        .addAllCommodityStats(clusterStats);
+                if (reservationResult.getClusterComm().isPresent()) {
+                    successBuilder.setCluster(reservationResult.getClusterComm().get());
+                }
+                builder.setInitialPlacementSuccess(successBuilder);
             } else {
                 InitialPlacementFailure.Builder failureBuilder = InitialPlacementFailure.newBuilder();
                 for (FailureInfo info: triplet.getValue().getFailureInfoList()) {
