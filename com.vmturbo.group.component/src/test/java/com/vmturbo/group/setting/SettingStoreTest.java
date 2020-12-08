@@ -89,6 +89,7 @@ import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.ProtobufMessageMatcher;
 import com.vmturbo.group.group.TestGroupGenerator;
+import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.schedule.ScheduleStore;
 import com.vmturbo.group.schedule.ScheduleValidator;
@@ -166,7 +167,7 @@ public class SettingStoreTest {
         settingStore =
                 new SettingStore(settingSpecStore, dbConfig.getDslContext(), settingPolicyValidator,
                         settingsUpdatesSender);
-        groupStore = new GroupDAO(dbConfig.getDslContext());
+        groupStore = new GroupDAO(dbConfig.getDslContext(), new GroupPaginationParams(100, 500));
         scheduleStore = new ScheduleStore(dbConfig.getDslContext(), scheduleValidator,
             identityProviderSpy);
     }

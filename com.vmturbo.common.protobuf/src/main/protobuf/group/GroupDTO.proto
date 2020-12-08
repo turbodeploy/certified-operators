@@ -4,6 +4,7 @@ package group;
 option java_package = "com.vmturbo.common.protobuf.group";
 
 import "common/EnvironmentTypeEnum.proto";
+import "common/Pagination.proto";
 import "search/Search.proto";
 import "setting/Setting.proto";
 import "tag/Tag.proto";
@@ -322,6 +323,17 @@ message DeleteGroupResponse {
     optional bool deleted = 1;
 }
 
+message GetPaginatedGroupsRequest {
+    optional GroupFilter group_filter = 1;
+    optional common.PaginationParameters pagination_parameters = 2;
+}
+
+message GetPaginatedGroupsResponse {
+    // the groups that belong to current page
+    repeated Grouping groups = 1;
+    optional common.PaginationResponse pagination_response = 2;
+}
+
 message GetGroupsRequest {
     optional GroupFilter group_filter = 1;
     optional bool replaceGroupPropertyWithGroupMembershipFilter = 2 [default = false];
@@ -485,6 +497,9 @@ service GroupService {
 
     // Get groups based on the query
     rpc GetGroups(GetGroupsRequest) returns (stream Grouping);
+
+    // Get groups based on the query in a paginated response
+    rpc GetPaginatedGroups(GetPaginatedGroupsRequest) returns (GetPaginatedGroupsResponse);
 
     // Count groups matching a particular request.
     rpc CountGroups (GetGroupsRequest) returns (CountGroupsResponse);

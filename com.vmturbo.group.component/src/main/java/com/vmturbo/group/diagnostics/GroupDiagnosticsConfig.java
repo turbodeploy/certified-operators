@@ -17,6 +17,7 @@ import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
 import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.group.group.GroupDaoDiagnostics;
+import com.vmturbo.group.group.pagination.GroupPaginationConfig;
 import com.vmturbo.group.policy.PolicyConfig;
 import com.vmturbo.group.schedule.ScheduleConfig;
 import com.vmturbo.group.service.RpcConfig;
@@ -28,6 +29,7 @@ import com.vmturbo.group.topologydatadefinition.TopologyDataDefinitionConfig;
  */
 @Configuration
 @Import({GroupConfig.class,
+        GroupPaginationConfig.class,
         PolicyConfig.class,
         SettingConfig.class,
         ScheduleConfig.class,
@@ -40,6 +42,9 @@ public class GroupDiagnosticsConfig {
 
     @Autowired
     private GroupConfig groupConfig;
+
+    @Autowired
+    private GroupPaginationConfig groupPaginationConfig;
 
     @Autowired
     private PolicyConfig policyConfig;
@@ -80,7 +85,8 @@ public class GroupDiagnosticsConfig {
 
     @Bean
     public GroupDaoDiagnostics groupStoreDiagnostics() {
-        return new GroupDaoDiagnostics(rpcConfig.transactionProvider());
+        return new GroupDaoDiagnostics(rpcConfig.transactionProvider(),
+                groupPaginationConfig.groupPaginationParams());
     }
 
     @Bean
