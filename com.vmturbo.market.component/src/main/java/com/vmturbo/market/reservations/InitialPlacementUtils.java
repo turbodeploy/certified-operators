@@ -244,7 +244,7 @@ public final class InitialPlacementUtils {
             @Nonnull final Map<Long, List<InitialPlacementDecision>> buyerOidToPlacement,
             @Nonnull final Map<Long, List<InitialPlacementBuyer>> existingReservations) {
         List<List<TraderTO>> placedBuyersPerRes = new ArrayList();
-        // Replay the reservation one by one following the order they were added
+        // Create the reservations one by one following the order they were added
         existingReservations.values().forEach( buyers -> {
             List<TraderTO> placedBuyers = new ArrayList();
             buyers.forEach(buyer -> {
@@ -281,8 +281,7 @@ public final class InitialPlacementUtils {
         for (InitialPlacementDecision placement : decisions) {
             if (placement.supplier.isPresent()) {
                 Trader supplier = economy.getTopology().getTradersByOid().get(placement.supplier.get());
-                Optional<CommodityType> commType = InitialPlacementUtils.findBoundaryComm(
-                        supplier, commTypeToSpecMap);
+                Optional<CommodityType> commType = findBoundaryComm(supplier, commTypeToSpecMap);
                 if (commType.isPresent()) {
                     clusterCommPerSl.put(placement.slOid, commType.get());
                 }
@@ -345,5 +344,63 @@ public final class InitialPlacementUtils {
                     bundle.maxAvailable.get(), bundle.requestedAmount));
         }
         return failureInfos;
+    }
+
+    /**
+     * Extract cluster boundary commodity type from the {@link InitialPlacementDecision}s.
+     *
+     * @param economy the economy which generated the {@link InitialPlacementDecision}s.
+     * @param commTypeToSpecMap the commodity type to commodity specification mapping.
+     * @param placements a map of buyer oid to its list of {@link InitialPlacementDecision}s.
+     * @param buyerFailed a set of failure buyer oids.
+     * @return a map of shopping list oid to its supplier's cluster commodity type.
+     */
+    public static Map<Long, CommodityType> extractClusterBoundary(
+            @Nonnull final Economy economy,
+            @Nonnull final BiMap<CommodityType, Integer> commTypeToSpecMap,
+            @Nonnull final Map<Long, List<InitialPlacementDecision>> placements,
+            @Nonnull final Set<Long> buyerFailed) {
+        Map<Long, CommodityType> clusterCommPerSl = new HashMap();
+        for (Map.Entry<Long, List<InitialPlacementDecision>> entry : placements.entrySet()) {
+            Long buyerOid = entry.getKey();
+            for (InitialPlacementDecision placement : entry.getValue()) {
+                if (!placement.supplier.isPresent()) {
+                    // At least one buyer failed to get a supplier, return empty map
+                    buyerFailed.add(buyerOid);
+                } else {
+                    Trader supplier = economy.getTopology().getTradersByOid()
+                            .get(placement.supplier.get());
+                    if (supplier != null) {
+                        Optional<CommodityType> commType = InitialPlacementUtils
+                                .findBoundaryComm(supplier, commTypeToSpecMap);
+                        if (commType.isPresent()) {
+                            clusterCommPerSl.put(placement.slOid, commType.get());
+                        }
+                    }
+                }
+            }
+        }
+        return clusterCommPerSl;
+    }
+
+    /**
+     * Prints the buyer's {@link InitialPlacementDecision}s.
+     *
+     * @param placements a map of buyer oid to its list of {@link InitialPlacementDecision}s.
+     */
+    public static void printPlacementDecisions(Map<Long, List<InitialPlacementDecision>> placements) {
+        StringBuilder sb = new StringBuilder();
+        placements.entrySet().forEach(e -> {
+            sb.append(" buyer oid ").append(e.getKey());
+            e.getValue().forEach( pl -> {
+                sb.append(" with shopping list oid ").append(pl.slOid);
+                if (pl.supplier.isPresent()) {
+                    sb.append(" placed on ").append(pl.supplier.get());
+                } else {
+                    sb.append(" can not be placed");
+                }
+            });
+        });
+        logger.info("Historical economy decision is {} ", sb.toString());
     }
 }

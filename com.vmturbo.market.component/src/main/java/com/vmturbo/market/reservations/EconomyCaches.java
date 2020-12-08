@@ -159,6 +159,8 @@ public class EconomyCaches {
             realtimeCacheStartUpdateTime = clock.instant();
             newEconomy = InitialPlacementUtils.cloneEconomy(originalEconomy);
             // Add reservation entities to newEconomy which only contains PM and DS
+            logger.debug("Adding reservation {} with buyers {} on real time economy cache",
+                    existingReservations.keySet(), buyerOidToPlacement.keySet());
             addExistingReservationEntities(newEconomy, HashBiMap.create(commTypeToSpecMap),
                     buyerOidToPlacement, existingReservations);
         } catch (Exception exception) {
@@ -205,6 +207,8 @@ public class EconomyCaches {
             // Clone a new economy from cluster headroom plan with no workloads.
             newEconomy = InitialPlacementUtils.cloneEconomy(originalEconomy);
             // Replay all existing reservation entities to newEconomy which currently only contains PM and DS
+            logger.debug("Replaying reservation {} with buyers {} on historical economy cache",
+                    existingReservations.keySet(), buyerOidToPlacement.keySet());
             newResult = replayReservationBuyers(newEconomy, HashBiMap.create(commTypeToSpecMap),
                     buyerOidToPlacement, existingReservations);
         }  catch (Exception exception) { // Return old placement decisions if update has exceptions.
@@ -419,6 +423,72 @@ public class EconomyCaches {
     }
 
     /**
+     * Find placement for a list of {@link InitialPlacementBuyer}s that come from one reservation.
+     *
+     * @param buyers a list of {@link InitialPlacementBuyer}s from the same reservation.
+     * @return a map of {@link InitialPlacementBuyer} oid to its placement decisions.
+     */
+    public Map<Long, List<InitialPlacementDecision>> findInitialPlacement(
+            @Nonnull final List<InitialPlacementBuyer> buyers) {
+        if (state != EconomyCachesState.READY) {
+            logger.warn("Market is not ready to run reservation yet, wait for one day to retry");
+            return new HashMap();
+        }
+        // Create buyers and add into historical cache
+        List<TraderTO> traderTOs = new ArrayList();
+        for (InitialPlacementBuyer buyer : buyers) {
+            traderTOs.add(InitialPlacementUtils.constructTraderTO(buyer, historicalCachedCommTypeMap,
+                    new HashMap()));
+        }
+        Map<Long, List<InitialPlacementDecision>> firstRoundPlacement = placeBuyerInCachedEconomy(
+                traderTOs, historicalCachedEconomy, historicalCachedCommTypeMap);
+        logger.info("Placing reservation buyers on historical economy cache");
+        InitialPlacementUtils.printPlacementDecisions(firstRoundPlacement);
+        Set<Long> buyerFailedInHistoricalCache = new HashSet();
+        // A map of shopping list oid to its supplier's cluster commodity.
+        Map<Long, CommodityType> clusterCommPerSl = InitialPlacementUtils
+                .extractClusterBoundary(historicalCachedEconomy, historicalCachedCommTypeMap,
+                        firstRoundPlacement, buyerFailedInHistoricalCache);
+        if (!buyerFailedInHistoricalCache.isEmpty()) {
+            // Not all buyers given to this method can find placement, we should fail the reservation
+            // when it is successful only on partial buyers. Remove all successful ones from economy.
+            removeDeletedTraders(historicalCachedEconomy, firstRoundPlacement.keySet());
+            // Unplace all the buyers because at least one buyer failed.
+            firstRoundPlacement.values().stream().flatMap(List::stream).forEach(pl ->
+                    pl.supplier = Optional.empty());
+            logger.info("Not all buyers in reservation {} can be placed according to historical stats.",
+                    buyers.get(0).getReservationId());
+            return firstRoundPlacement;
+        }
+        // All the buyers succeeded in historical cache, now place them on real time.
+        List<TraderTO> placedBuyerTOs = new ArrayList();
+        //construct traderTO from InitialPlacementBuyer including cluster boundary
+        for (InitialPlacementBuyer buyer : buyers) {
+            // Construct traderTO with cluster boundaries provided in clusterCommPerSl
+            placedBuyerTOs.add(
+                    InitialPlacementUtils.constructTraderTO(buyer, realtimeCachedCommTypeMap,
+                            clusterCommPerSl));
+        }
+        // TODO: retry implementation to handle entities that failed in the real time placement.
+        Map<Long, List<InitialPlacementDecision>> secondRoundPlacement =
+                placeBuyerInCachedEconomy(placedBuyerTOs, realtimeCachedEconomy,
+                        realtimeCachedCommTypeMap);
+        logger.info("Placing reservation buyers on historical economy cache");
+        InitialPlacementUtils.printPlacementDecisions(secondRoundPlacement);
+        if (secondRoundPlacement.values().stream().flatMap(List::stream)
+                .anyMatch(pl -> !pl.supplier.isPresent())) {
+            // Remove buyers from both economy caches.
+            clearDeletedBuyersFromCache(secondRoundPlacement.keySet());
+            // At least one buyer failed in real time, unplace all the buyers in this same reservation.
+            secondRoundPlacement.values().stream().flatMap(List::stream)
+                    .forEach(pl -> pl.supplier = Optional.empty());
+            logger.info("Not all buyers in reservation {} can be placed according to real time stats.",
+                    buyers.get(0).getReservationId());
+        }
+        return secondRoundPlacement;
+    }
+
+    /**
      * Run placement for a list of {@link TraderTO}s in a given economy.
      *
      * @param traderTOs the list of traderTOs to be placed.
@@ -435,7 +505,6 @@ public class EconomyCaches {
         InitialPlacementUtils.getEconomyReady(economy);
         Set<Long> buyerIds = traderTOs.stream().map(TraderTO::getOid).collect(
                 Collectors.toSet());
-        logger.info("Running placement in economy for reservation {}", buyerIds);
         PlacementResults placementResults = Placement.placementDecisions(economy);
         Set<Long> unplacedBuyer = new HashSet();
         for (long oid : buyerIds) {

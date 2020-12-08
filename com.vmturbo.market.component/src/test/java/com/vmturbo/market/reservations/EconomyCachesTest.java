@@ -180,8 +180,8 @@ public class EconomyCachesTest {
         }};
         Assert.assertTrue(economyCaches.getState() == EconomyCachesState.NOT_READY);
         Map<Long, List<InitialPlacementDecision>> newPlacements = economyCaches
-                .updateHistoricalCachedEconomy(economyWithCluster(), commTypeToSpecMap, buyerPlacements,
-                        existingReservations);
+                .updateHistoricalCachedEconomy(economyWithCluster(new double[]{pm1MemUsed, pm2MemUsed,
+                        pm3MemUsed, pm4MemUsed}), commTypeToSpecMap, buyerPlacements, existingReservations);
         Economy newEconomy =  economyCaches.historicalCachedEconomy;
         Assert.assertTrue(newPlacements.get(buyerOid).stream().allMatch(i -> i.supplier.get() == pm1Oid));
         Assert.assertTrue(newEconomy.getTraders().size() == 5);
@@ -279,6 +279,169 @@ public class EconomyCachesTest {
     }
 
     /**
+     * Construct an existing reservation with 1 buyer. Pass an economy with 4 pms in 2 different
+     * clusters as the historical economy. Pass the same economy with 4 pms as the real time economy.
+     * The lowest util host is pm3 in cluster 2.
+     * Expected: buyer is placed on pm4 in both historical and real time economy caches.
+     * The findInitialPlacement returns pm3 as the supplier.
+     */
+    @Test
+    public void testFindInitialPlacementSuccess() {
+        long buyerOid = 1234L;
+        long buyerSlOid = 1000L;
+        double buyerMemUsed = 10;
+        InitialPlacementBuyer buyer = initialPlacementBuyer(buyerOid, buyerSlOid, VM_TYPE, new HashMap() {{
+            put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
+        }});
+        // Create a historical economy with no existing reservations. The economy has 4 pms, all of
+        // them have used == capacity.
+        economyCaches.updateHistoricalCachedEconomy(economyWithCluster(new double[] {pm1MemUsed,
+                pm2MemUsed, pm3MemUsed, pm4MemUsed}), commTypeToSpecMap, new HashMap(), new HashMap());
+        // Create a real time economy with no existing reservations. The economy has same 4 pms.
+        // All of them are low utilized.
+        economyCaches.updateRealtimeCachedEconomy(economyWithCluster(new double[] {pm1MemUsed,
+                pm2MemUsed, pm3MemUsed, pm4MemUsed}), commTypeToSpecMap, new HashMap(), new HashMap());
+        Map<Long, List<InitialPlacementDecision>> result = economyCaches.findInitialPlacement(
+                new ArrayList(Arrays.asList(buyer)));
+
+        Assert.assertTrue(result.get(buyerOid).size() == 1);
+        Assert.assertTrue(result.get(buyerOid).stream().allMatch(pl -> pl.supplier.get() == pm3Oid));
+        Assert.assertTrue(economyCaches.historicalCachedEconomy.getTraders().stream().anyMatch(t ->
+                t.getOid() == buyerOid));
+        Assert.assertTrue(economyCaches.historicalCachedEconomy.getTopology().getTradersByOid()
+                .containsKey(buyerOid));
+        Assert.assertTrue(economyCaches.historicalCachedEconomy.getTopology().getShoppingListOids()
+                .inverse().containsKey(buyerSlOid));
+        Optional<Trader> pm3InHistorical = economyCaches.historicalCachedEconomy.getTraders().stream()
+                .filter(t -> t.getOid() == pm3Oid).findFirst();
+        int memIndex = pm3InHistorical.get().getBasketSold().indexOf(MEM_TYPE);
+        Assert.assertTrue(pm3InHistorical.get().getCommoditiesSold().get(memIndex).getQuantity()
+                == buyerMemUsed + pm3MemUsed);
+        Assert.assertTrue(economyCaches.realtimeCachedEconomy.getTraders().stream().anyMatch(t ->
+                t.getOid() == buyerOid));
+        Assert.assertTrue(economyCaches.realtimeCachedEconomy.getTopology().getTradersByOid()
+                .containsKey(buyerOid));
+        Assert.assertTrue(economyCaches.realtimeCachedEconomy.getTopology().getShoppingListOids()
+                .inverse().containsKey(buyerSlOid));
+        Optional<Trader> pm3InRealtime = economyCaches.realtimeCachedEconomy.getTraders().stream()
+                .filter(t -> t.getOid() == pm3Oid).findFirst();
+        Assert.assertTrue(pm3InRealtime.get().getCommoditiesSold().get(memIndex).getQuantity()
+                == buyerMemUsed + pm3MemUsed);
+    }
+
+    /**
+     * Construct an existing reservation with 1 buyer. Pass an economy with 4 pms in 2 different
+     * clusters as the historical economy. Pass an economy with 4 pms in 2 different clusters as the
+     * real time economy. All 4 pms in historical economy is full.
+     * Expected: no buyers in both economy caches. The findInitialPlacement returns a list of
+     * {@link InitialPlacementDecision} with empty suppliers.
+     */
+    @Test
+    public void testFindInitialPlacementFailedInHistorical() {
+        long buyerOid = 1234L;
+        long buyerSlOid = 1000L;
+        double buyerMemUsed = 10;
+        InitialPlacementBuyer buyer = initialPlacementBuyer(buyerOid, buyerSlOid, VM_TYPE, new HashMap() {{
+            put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
+        }});
+        // Create a historical economy with no existing reservations. The economy has 4 pms, all of
+        // them have used == capacity.
+        economyCaches.updateHistoricalCachedEconomy(economyWithCluster(new double[] {pmMemCapacity,
+                pmMemCapacity, pmMemCapacity, pmMemCapacity}), commTypeToSpecMap, new HashMap(),
+                new HashMap());
+        // Create a real time economy with no existing reservations. The economy has same 4 pms.
+        // All of them are low utilized.
+        economyCaches.updateRealtimeCachedEconomy(economyWithCluster(new double[] {pm1MemUsed,
+                pm2MemUsed, pm3MemUsed, pm4MemUsed}), commTypeToSpecMap, new HashMap(), new HashMap());
+        Map<Long, List<InitialPlacementDecision>> result = economyCaches.findInitialPlacement(
+                new ArrayList(Arrays.asList(buyer)));
+
+        Assert.assertTrue(result.get(buyerOid).size() == 1);
+        Assert.assertTrue(result.get(buyerOid).stream().allMatch(pl -> !pl.supplier.isPresent()));
+        Assert.assertTrue(economyCaches.historicalCachedEconomy.getTraders().stream().noneMatch(t ->
+                t.getOid() == buyerOid));
+        Assert.assertFalse(economyCaches.historicalCachedEconomy.getTopology().getTradersByOid()
+                .containsKey(buyerOid));
+        Assert.assertFalse(economyCaches.historicalCachedEconomy.getTopology().getShoppingListOids()
+                .inverse().containsKey(buyerSlOid));
+        for (Trader trader : economyCaches.historicalCachedEconomy.getTraders()) {
+            Assert.assertTrue(trader.getCommoditiesSold().stream().allMatch(c ->
+                    c.getQuantity() == pmMemCapacity || c.getQuantity() == 1));
+        }
+        Assert.assertTrue(economyCaches.realtimeCachedEconomy.getTraders().stream().noneMatch(t ->
+                t.getOid() == buyerOid));
+        Assert.assertFalse(economyCaches.realtimeCachedEconomy.getTopology().getTradersByOid()
+                .containsKey(buyerOid));
+        Assert.assertFalse(economyCaches.realtimeCachedEconomy.getTopology().getShoppingListOids()
+                .inverse().containsKey(buyerSlOid));
+    }
+
+    /**
+     * Construct an existing reservation with 1 buyer. Pass an economy with 4 pms in 2 different
+     * clusters as the historical economy. Pass an economy with 4 pms in 2 different clusters as the
+     * real time economy. Historical economy cluster 2 has lower mem utilization.
+     * Real time economy has all 4 pm mem used being full.
+     * Expected: no buyers in both economy caches. The findInitialPlacement returns a list of
+     * {@link InitialPlacementDecision} with empty suppliers.
+     */
+    @Test
+    public void testFindInitialPlacementFailedInRealtime() {
+        long buyerOid = 1234L;
+        long buyerSlOid = 1000L;
+        double buyerMemUsed = 10;
+        InitialPlacementBuyer buyer = initialPlacementBuyer(buyerOid, buyerSlOid, VM_TYPE, new HashMap() {{
+            put(TopologyDTO.CommodityType.newBuilder().setType(MEM_TYPE).build(), new Double(buyerMemUsed));
+        }});
+        // Create a historical economy with no existing reservations. The economy has 4 pms, all of
+        // them have low utilization. Among them pm4 has the lowest used.
+        economyCaches.updateHistoricalCachedEconomy(economyWithCluster(new double[] {pm1MemUsed,
+                pm2MemUsed, pm3MemUsed, pm4MemUsed}), commTypeToSpecMap, new HashMap(), new HashMap());
+        // Create a real time economy with no existing reservations. The economy has same 4 pms.
+        // All of them are low utilized.
+        economyCaches.updateRealtimeCachedEconomy(economyWithCluster(new double[] {pmMemCapacity,
+                pmMemCapacity, pmMemCapacity, pmMemCapacity}), commTypeToSpecMap, new HashMap(), new HashMap());
+        Map<Long, List<InitialPlacementDecision>> result = economyCaches.findInitialPlacement(
+                new ArrayList(Arrays.asList(buyer)));
+
+        Assert.assertTrue(result.get(buyerOid).size() == 1);
+        Assert.assertTrue(result.get(buyerOid).stream().allMatch(pl -> !pl.supplier.isPresent()));
+        Assert.assertTrue(economyCaches.historicalCachedEconomy.getTraders().stream().noneMatch(t ->
+                t.getOid() == buyerOid));
+        Assert.assertFalse(economyCaches.historicalCachedEconomy.getTopology().getTradersByOid()
+                .containsKey(buyerOid));
+        Assert.assertFalse(economyCaches.historicalCachedEconomy.getTopology().getShoppingListOids()
+                .inverse().containsKey(buyerSlOid));
+        Assert.assertTrue(economyCaches.realtimeCachedEconomy.getTraders().stream().noneMatch(t ->
+                t.getOid() == buyerOid));
+        Assert.assertFalse(economyCaches.realtimeCachedEconomy.getTopology().getTradersByOid()
+                .containsKey(buyerOid));
+        Assert.assertFalse(economyCaches.realtimeCachedEconomy.getTopology().getShoppingListOids()
+                .inverse().containsKey(buyerSlOid));
+        for (Trader trader : economyCaches.historicalCachedEconomy.getTraders()) {
+            if (trader.getOid() == pm1Oid) {
+                trader.getCommoditiesSold().stream().allMatch(c ->
+                        c.getQuantity() == pm1MemUsed || c.getQuantity() == 1);
+            }
+            if (trader.getOid() == pm2Oid) {
+                trader.getCommoditiesSold().stream().allMatch(c ->
+                        c.getQuantity() == pm2MemUsed || c.getQuantity() == 1);
+            }
+            if (trader.getOid() == pm3Oid) {
+                trader.getCommoditiesSold().stream().allMatch(c ->
+                        c.getQuantity() == pm3MemUsed || c.getQuantity() == 1);
+            }
+            if (trader.getOid() == pm4Oid) {
+                trader.getCommoditiesSold().stream().allMatch(c ->
+                        c.getQuantity() == pm4MemUsed || c.getQuantity() == 1);
+            }
+        }
+        for (Trader trader : economyCaches.realtimeCachedEconomy.getTraders()) {
+            Assert.assertTrue(trader.getCommoditiesSold().stream().allMatch(c ->
+                    c.getQuantity() == pmMemCapacity || c.getQuantity() == 1));
+        }
+    }
+
+    /**
      * Create a InitialPlacementBuyer list with one object based on given parameters.
      *
      * @param buyerOid buyer oid
@@ -301,6 +464,7 @@ public class EconomyCachesTest {
         pmSl.setCommoditiesBoughtFromProvider(slBuilder.build());
         InitialPlacementBuyer vm = InitialPlacementBuyer.newBuilder()
                 .setBuyerId(buyerOid)
+                .setReservationId(1L)
                 .addAllInitialPlacementCommoditiesBoughtFromProvider(Arrays.asList(pmSl.build()))
                 .build();
         return vm;
@@ -347,13 +511,12 @@ public class EconomyCachesTest {
 
     /**
      * Create an economy with 4 pms in 2 different clusters. Cluster1 has pm1 and pm2.
-     * Cluster2 has pm3 and pm4.
-     * PM1 mem used 20, capacity 100. PM2 mem used 30, capacity 100.
-     * PM3 mem used 10, capacity 100. PM4 mem used 20, capacity 100.
+     * Cluster2 has pm3 and pm4. All four pm mem capacity is 100.
      *
+     * @param fourPMsMemUsed the mem commodity used for each pm.
      * @return economy an economy with traders
      */
-    private Economy economyWithCluster() {
+    private Economy economyWithCluster(double[] fourPMsMemUsed) {
         Topology t = new Topology();
         Economy economy = t.getEconomyForTesting();
         Basket basketSoldByCluster1 = new Basket(Arrays.asList(new CommoditySpecification(MEM_TYPE),
@@ -368,8 +531,8 @@ public class EconomyCachesTest {
         int memIndex1 = pm1.getBasketSold().indexOf(MEM_TYPE);
         CommoditySold commSold = pm1.getCommoditiesSold().get(memIndex1);
         commSold.setCapacity(pmMemCapacity);
-        commSold.setQuantity(pm1MemUsed);
-        commSold.setPeakQuantity(pm1MemUsed);
+        commSold.setQuantity(fourPMsMemUsed[0]);
+        commSold.setPeakQuantity(fourPMsMemUsed[0]);
         commSold.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
         int clusterIndex1 = pm1.getBasketSold().indexOf(CLUSTER1_COMM_SPEC_TYPE);
         CommoditySold clusterSold1 = pm1.getCommoditiesSold().get(clusterIndex1);
@@ -385,8 +548,8 @@ public class EconomyCachesTest {
         int memIndex2 = pm2.getBasketSold().indexOf(MEM_TYPE);
         CommoditySold commSold2 = pm2.getCommoditiesSold().get(memIndex2);
         commSold2.setCapacity(pmMemCapacity);
-        commSold2.setQuantity(pm2MemUsed);
-        commSold2.setPeakQuantity(pm2MemUsed);
+        commSold2.setQuantity(fourPMsMemUsed[1]);
+        commSold2.setPeakQuantity(fourPMsMemUsed[1]);
         commSold2.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
         int clusterIndex2 = pm2.getBasketSold().indexOf(CLUSTER1_COMM_SPEC_TYPE);
         CommoditySold clusterSold2 = pm2.getCommoditiesSold().get(clusterIndex2);
@@ -404,8 +567,8 @@ public class EconomyCachesTest {
         int memIndex3 = pm3.getBasketSold().indexOf(MEM_TYPE);
         CommoditySold commSold3 = pm3.getCommoditiesSold().get(memIndex3);
         commSold3.setCapacity(pmMemCapacity);
-        commSold3.setQuantity(pm3MemUsed);
-        commSold3.setPeakQuantity(pm3MemUsed);
+        commSold3.setQuantity(fourPMsMemUsed[2]);
+        commSold3.setPeakQuantity(fourPMsMemUsed[2]);
         commSold3.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
         int clusterIndex3 = pm3.getBasketSold().indexOf(CLUSTER2_COMM_SPEC_TYPE);
         CommoditySold clusterSold3 = pm3.getCommoditiesSold().get(clusterIndex3);
@@ -421,8 +584,8 @@ public class EconomyCachesTest {
         int memIndex4 = pm4.getBasketSold().indexOf(MEM_TYPE);
         CommoditySold commSold4 = pm4.getCommoditiesSold().get(memIndex4);
         commSold4.setCapacity(pmMemCapacity);
-        commSold4.setQuantity(pm4MemUsed);
-        commSold4.setPeakQuantity(pm4MemUsed);
+        commSold4.setQuantity(fourPMsMemUsed[3]);
+        commSold4.setPeakQuantity(fourPMsMemUsed[3]);
         commSold4.getSettings().setPriceFunction(PriceFunction.Cache.createStandardWeightedPriceFunction(7.0));
         int clusterIndex4 = pm4.getBasketSold().indexOf(CLUSTER2_COMM_SPEC_TYPE);
         CommoditySold clusterSold4 = pm4.getCommoditiesSold().get(clusterIndex4);

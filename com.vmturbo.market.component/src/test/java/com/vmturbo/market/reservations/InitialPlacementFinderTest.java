@@ -1,14 +1,12 @@
 package com.vmturbo.market.reservations;
 
 import static junit.framework.TestCase.assertTrue;
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import com.google.common.collect.BiMap;
@@ -16,7 +14,6 @@ import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Table;
 
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.market.InitialPlacement.InitialPlacementBuyer;
@@ -102,16 +99,16 @@ public class InitialPlacementFinderTest {
     /**
      * Test find placement for a reservation entity. The original economy has two hosts.
      * PM1 mem used 25, capacity 100. PM2 mem used 20, capacity 100.
-     * Expected: reservation place new vm on PM2. PM2 used becomes 10 + 20 = 30.
-     * @throws NoSuchFieldException can not find cachedEconomy
-     * @throws IllegalAccessException can not get access to traders in economy
+     * Expected: buyer has pm2 as the supplier, existingReservations contains the new reservation
+     * and buyerPlacements keeps track of buyer oid and its placement decisions.
      */
-    @Ignore  // TODO: enable tests when the run placement implementation is ready
     @Test
-    public void testFindPlacement() throws NoSuchFieldException, IllegalAccessException {
+    public void testFindPlacement() {
         InitialPlacementFinder pf = new InitialPlacementFinder(true);
+        // Create both economy caches using same economy.
         Economy originalEconomy = getOriginalEconomy();
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
+        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
         double used = 10;
         Table<Long, Long, InitialPlacementFinderResult> result = pf.findPlacement(Arrays
                 .asList(getTradersToPlace(vmID, pmSlOid, PM_TYPE,
@@ -121,12 +118,13 @@ public class InitialPlacementFinderTest {
             assertTrue(cell.getColumnKey() == pmSlOid);
             assertTrue(cell.getValue().getProviderOid().get() == pm2Oid);
         }
-        Field economy = InitialPlacementFinder.class.getDeclaredField("cachedEconomy");
-        economy.setAccessible(true);
-        Economy cachedEconomy = (Economy)economy.get(pf);
-        Map<Long, Trader> traderOids = cachedEconomy.getTopology().getTradersByOid();
-        Trader pm2 = traderOids.get(pm2Oid);
-        assertTrue(pm2.getCommoditiesSold().get(0).getQuantity() == quantity + used);
+        assertTrue(pf.existingReservations.size() == 1);
+        assertTrue(pf.existingReservations.values().stream().flatMap(List::stream)
+                .anyMatch(buyer -> buyer.getBuyerId() == vmID
+                        && buyer.getInitialPlacementCommoditiesBoughtFromProviderList()
+                        .stream().anyMatch(sl -> sl.getCommoditiesBoughtFromProviderId() == pmSlOid)));
+        assertTrue(pf.buyerPlacements.size() == 1);
+        assertNotNull(pf.buyerPlacements.get(vmID));
     }
 
     /**
@@ -134,7 +132,6 @@ public class InitialPlacementFinderTest {
      * PM1 mem used 25, capacity 100. PM2 mem used 20, capacity 100.
      * Expected: reservation failed with a new reservation VM requesting 100 mem.
      */
-    @Ignore  // TODO: enable tests when the run placement implementation is ready
     @Test
     public void testInitialPlacementFinderResultWithFailureInfo() {
         InitialPlacementFinder pf = new InitialPlacementFinder(true);
@@ -172,6 +169,7 @@ public class InitialPlacementFinderTest {
                 .build();
         InitialPlacementBuyer vm = InitialPlacementBuyer.newBuilder()
                 .setBuyerId(buyerOid)
+                .setReservationId(90000L)
                 .addAllInitialPlacementCommoditiesBoughtFromProvider(Arrays.asList(pmSl))
                 .build();
         return vm;
@@ -230,18 +228,17 @@ public class InitialPlacementFinderTest {
     /**
      * Test partial successful reservation in the findPlacement. The original economy contains VM1, PM1 and PM2.
      * VM1 resides on PM1. PM1 mem used 25, capacity 100. PM2 mem used 20, capacity 100.
-     * Expected: new reservation with two VMs has mem used 50 and 100 will fail. The rollbackPlacedTraders() should
-     * take care of clean up cachedEconomy so that after reservation it only contains VM1, PM1 and PM2.
-     *
-     * @throws NoSuchFieldException can not find cachedEconomy
-     * @throws IllegalAccessException can not get access to traders in economy
+     * Expected: new reservation with VM2 and VM3 has mem used 50 and 100 will fail, existingReservations
+     * contains the new reservation and buyerPlacements keeps track of buyer oid and its placement
+     * decisions with no supplier present in both VM2 and VM3.
      */
-    @Ignore  // TODO: enable tests when the run placement implementation is ready
     @Test
-    public void testReservationPartialSuccess() throws NoSuchFieldException, IllegalAccessException {
+    public void testReservationPartialSuccess() {
         InitialPlacementFinder pf = new InitialPlacementFinder(true);
         Economy originalEconomy = getOriginalEconomy();
+        // Create both economy caches using same economy.
         pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, true);
+        pf.updateCachedEconomy(originalEconomy, commTypeToSpecMap, false);
         long vm2Oid = 10002L;
         long vm3Oid = 10003L;
         long vm2SlOid = 20002L;
@@ -254,19 +251,16 @@ public class InitialPlacementFinderTest {
         vms.add(vm2);
         vms.add(vm3);
         Table<Long, Long, InitialPlacementFinderResult> result = pf.findPlacement(vms);
-        assertFalse(result.isEmpty());
-        Field economy = InitialPlacementFinder.class.getDeclaredField("cachedEconomy");
-        economy.setAccessible(true);
-        Economy cachedEconomy = (Economy)economy.get(pf);
-        Trader pm1 = cachedEconomy.getTopology().getTradersByOid().get(pm1Oid);
-        Trader pm2 = cachedEconomy.getTopology().getTradersByOid().get(pm2Oid);
-        assertTrue(pm1.getCommoditiesSold().get(0).getQuantity() == 25);
-        assertTrue(pm2.getCommoditiesSold().get(0).getQuantity() == 20);
-        Trader vmTrader2 = cachedEconomy.getTopology().getTradersByOid().get(vm2Oid);
-        assertTrue(cachedEconomy.getMarketsAsBuyer(vmTrader2).keySet().stream().allMatch(sl -> sl.getSupplier() == null));
-        Trader vmTrader3 = cachedEconomy.getTopology().getTradersByOid().get(vm3Oid);
-        assertTrue(cachedEconomy.getMarketsAsBuyer(vmTrader3).keySet().stream().allMatch(sl -> sl.getSupplier() == null));
-
+        for (Table.Cell<Long, Long, InitialPlacementFinderResult> cell : result.cellSet()) {
+            assertTrue(cell.getRowKey() == vm2Oid || cell.getRowKey() == vm3Oid);
+            assertTrue(cell.getColumnKey() == vm2SlOid || cell.getColumnKey() == vm3SlOid);
+            assertTrue(!cell.getValue().getProviderOid().isPresent());
+        }
+        assertTrue(pf.existingReservations.size() == 1);
+        assertTrue(pf.existingReservations.values().stream().flatMap(List::stream).count() == 2);
+        assertTrue(pf.buyerPlacements.get(vm2Oid).stream().allMatch(pl -> !pl.supplier.isPresent()));
+        assertTrue(pf.buyerPlacements.get(vm3Oid).stream().allMatch(pl -> !pl.supplier.isPresent()));
+        assertTrue(pf.buyerPlacements.size() == 2);
     }
 
     /**
@@ -275,7 +269,6 @@ public class InitialPlacementFinderTest {
      * Expected: new reservation VM2 with mem used 20 selects PM2. PM2 new mem used is 40.
      * Then deleting VM2, a new reservation VM3 with mem used 10 selects PM2.
      */
-    @Ignore  // TODO: enable tests when the run placement implementation is ready
     @Test
     public void testReservationDeletionAndAdd() {
         InitialPlacementFinder pf = new InitialPlacementFinder(true);
