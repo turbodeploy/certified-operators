@@ -16,6 +16,9 @@ import javax.annotation.Nullable;
 import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
@@ -70,6 +73,41 @@ public class MockGroupStore implements IGroupStore {
             @Nonnull Set<MemberType> expectedMemberTypes, boolean supportReverseLookups)
             throws StoreOperationException {
         return null;
+    }
+
+    /**
+     * Mock for {@link IGroupStore#getPaginatedGroups}.
+     * Dummy pagination implementation for testing purposes: sorting ONLY by uuid, NO filtering.
+     *
+     * @param paginatedGroupsRequest request for groups with necessary filters & pagination
+     *                               parameters.
+     * @return the paginated response.
+     */
+    @Nonnull
+    @Override
+    public GroupDTO.GetPaginatedGroupsResponse getPaginatedGroups(
+            @Nonnull GroupDTO.GetPaginatedGroupsRequest paginatedGroupsRequest) {
+        long cursor = paginatedGroupsRequest.hasPaginationParameters()
+                && paginatedGroupsRequest.getPaginationParameters().hasCursor()
+                ? Long.parseLong(paginatedGroupsRequest.getPaginationParameters().getCursor())
+                : 0;
+        long limit = paginatedGroupsRequest.hasPaginationParameters()
+                && paginatedGroupsRequest.getPaginationParameters().hasLimit()
+                ? paginatedGroupsRequest.getPaginationParameters().getLimit()
+                : 10;
+        return GetPaginatedGroupsResponse.newBuilder()
+                .addAllGroups(groups.values().stream()
+                        .sorted((g1, g2) -> Long.compare(g1.getId(), g2.getId()))
+                        .skip(cursor)
+                        .limit(limit)
+                        .collect(Collectors.toList()))
+                .setPaginationResponse(PaginationResponse.newBuilder()
+                        .setTotalRecordCount(groups.size())
+                        .setNextCursor(String.valueOf(cursor + limit < groups.size()
+                                ? cursor + limit
+                                : ""))
+                        .build())
+                .build();
     }
 
     @Nonnull

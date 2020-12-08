@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingServiceContro
 import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.group.GroupConfig;
+import com.vmturbo.group.group.pagination.GroupPaginationConfig;
 import com.vmturbo.group.policy.DiscoveredPlacementPolicyUpdater;
 import com.vmturbo.group.policy.PolicyConfig;
 import com.vmturbo.group.schedule.ScheduleConfig;
@@ -40,6 +41,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 @Import({ActionOrchestratorClientConfig.class,
         GroupComponentDBConfig.class,
         GroupConfig.class,
+        GroupPaginationConfig.class,
         IdentityProviderConfig.class,
         PolicyConfig.class,
         RepositoryClientConfig.class,
@@ -61,6 +63,9 @@ public class RpcConfig {
 
     @Autowired
     private GroupConfig groupConfig;
+
+    @Autowired
+    private GroupPaginationConfig groupPaginationConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
@@ -122,7 +127,8 @@ public class RpcConfig {
     @Bean
     public TransactionProvider transactionProvider() {
         return new TransactionProviderImpl(settingConfig.settingStore(), databaseConfig.dsl(),
-                identityProviderConfig.identityProvider());
+                identityProviderConfig.identityProvider(),
+                groupPaginationConfig.groupPaginationParams());
     }
 
     /**
