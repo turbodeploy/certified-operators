@@ -164,7 +164,7 @@ public class ActionStoreConfig {
     /**
      * Enable 'Scale for Performance' and 'Scale for Savings' settings.
      */
-    @Value("${enableCloudScaleEnhancement:false}")
+    @Value("${enableCloudScaleEnhancement:true}")
     private boolean enableCloudScaleEnhancement;
 
     @Bean

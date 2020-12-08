@@ -63,7 +63,7 @@ public class MapperConfig {
     /**
      * Enable 'Scale for Performance' and 'Scale for Savings' settings.
      */
-    @Value("${enableCloudScaleEnhancement:false}")
+    @Value("${enableCloudScaleEnhancement:true}")
     private boolean enableCloudScaleEnhancement;
 
     @Autowired
