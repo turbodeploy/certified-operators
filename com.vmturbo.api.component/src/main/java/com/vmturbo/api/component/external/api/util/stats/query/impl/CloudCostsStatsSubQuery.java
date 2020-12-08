@@ -80,6 +80,8 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -292,6 +294,15 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     // including cloud tab when selecting global scope of all cloud volumes where expandedScopeIds would be empty.
                     volumeEntities = repositoryApi.entitiesRequest(inputScopeEntitiesByType.get(ApiEntityType.VIRTUAL_VOLUME))
                             .getFullEntities().collect(toSet());
+                } else if (globalScope.isPresent() && globalScope.get().entityTypes().contains(ApiEntityType.VIRTUAL_VOLUME)) {
+                    // Handle scope of cloud tab, i.e. under cloud tab, add StorageSummary widget.
+                    final SearchParameters searchParameters = SearchProtoUtil
+                            .makeSearchParameters(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_VOLUME))
+                            .addSearchFilter(SearchFilter.newBuilder()
+                                    .setPropertyFilter(SearchProtoUtil.environmentTypeFilter(EnvironmentType.CLOUD))
+                                    .build())
+                            .build();
+                    volumeEntities = repositoryApi.newSearchRequest(searchParameters).getFullEntities().collect(toSet());
                 } else {
                     // Handle scope of BusinessAccount(s), Region(s), Zone(s), VM(s).
                     // Get expanded scope ids, which include entities within scope.
