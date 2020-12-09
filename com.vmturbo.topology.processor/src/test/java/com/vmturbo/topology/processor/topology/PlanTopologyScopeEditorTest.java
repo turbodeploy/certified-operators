@@ -86,9 +86,13 @@ public class PlanTopologyScopeEditorTest {
     private static final TopologyDTO.CommodityType CPU_ALLOC_PM2 = TopologyDTO.CommodityType.newBuilder().setType(
             CommodityType.CPU_ALLOCATION_VALUE).setKey("PM2").build();
     private static final TopologyDTO.CommodityType DC1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATACENTER_VALUE)
-            .setKey("DC1").build();
+            .setKey("DC::DC1").build();
+    private static final TopologyDTO.CommodityType DC1_HOSTS = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATACENTER_VALUE)
+        .setKey("DC1").build();
     private static final TopologyDTO.CommodityType DC2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATACENTER_VALUE)
-            .setKey("DC2").build();
+            .setKey("DC::DC2").build();
+    private static final TopologyDTO.CommodityType DC2_HOSTS = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.DATACENTER_VALUE)
+        .setKey("DC2").build();
     private static final TopologyDTO.CommodityType SC1 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.CLUSTER_VALUE)
             .setKey("SC1").build();
     private static final TopologyDTO.CommodityType SC2 = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.CLUSTER_VALUE)
@@ -115,10 +119,10 @@ public class PlanTopologyScopeEditorTest {
             .setKey("DS2").build();
     private static final TopologyDTO.CommodityType ST_AMT = TopologyDTO.CommodityType.newBuilder().setType(CommonDTO.CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE).build();
 
-    private static final List<TopologyDTO.CommodityType> basketSoldByPMToVMinDC1 = Lists.newArrayList(DC1, CPU, DS1);
-    private static final List<TopologyDTO.CommodityType> basketSoldByPMToVMinDC2 = Lists.newArrayList(DC2, CPU, DS1, DS2);
-    private static final List<TopologyDTO.CommodityType> basketSoldByPM1inDC1 = Lists.newArrayList(DC1, CPU, DS1, CPU_ALLOC_PM1);
-    private static final List<TopologyDTO.CommodityType> basketSoldByPM2inDC1 = Lists.newArrayList(DC1, CPU, DS1, CPU_ALLOC_PM2);
+    private static final List<TopologyDTO.CommodityType> basketSoldByPMToVMinDC1 = Lists.newArrayList(DC1_HOSTS, CPU, DS1);
+    private static final List<TopologyDTO.CommodityType> basketSoldByPMToVMinDC2 = Lists.newArrayList(DC2_HOSTS, CPU, DS1, DS2);
+    private static final List<TopologyDTO.CommodityType> basketSoldByPM1inDC1 = Lists.newArrayList(DC1_HOSTS, CPU, DS1, CPU_ALLOC_PM1);
+    private static final List<TopologyDTO.CommodityType> basketSoldByPM2inDC1 = Lists.newArrayList(DC1_HOSTS, CPU, DS1, CPU_ALLOC_PM2);
     private static final List<TopologyDTO.CommodityType> basketSoldByVDCinDC1 = Lists.newArrayList(CPU_ALLOC_SOLD);
     private static final List<TopologyDTO.CommodityType> basketSoldByPM1toVDC = Lists.newArrayList(CPU_ALLOC_PM1);
     private static final List<TopologyDTO.CommodityType> basketSoldByPM2toVDC = Lists.newArrayList(CPU_ALLOC_PM2);
@@ -129,7 +133,9 @@ public class PlanTopologyScopeEditorTest {
     private static final List<TopologyDTO.CommodityType> basketSoldByVM = Lists.newArrayList(VCPU, APP);
     private static final List<TopologyDTO.CommodityType> basketSoldByDA = Lists.newArrayList(EXTENT1, ST_AMT);
     private static final List<TopologyDTO.CommodityType> basketSoldByDS1 = Lists.newArrayList(ST_AMT, SC1, DSPM1, DSPM2);
+    private static final List<TopologyDTO.CommodityType> basketSoldByLocalDS1 = Lists.newArrayList(ST_AMT, SC1, DSPM1);
     private static final List<TopologyDTO.CommodityType> basketSoldByDS2 = Lists.newArrayList(ST_AMT, SC2, DSPM2);
+    private static final List<TopologyDTO.CommodityType> basketSoldByLocalDS2 = Lists.newArrayList(ST_AMT, SC1, DSPM2);
     private static final List<TopologyDTO.CommodityType> basketSoldByAS1 = Lists.newArrayList(BAPP1);
     private static final List<TopologyDTO.CommodityType> basketSoldByAS2 = Lists.newArrayList(BAPP2);
     private static final List<TopologyDTO.CommodityType> basketSoldByVMInUSEast = Lists.newArrayList(APP3);
@@ -204,7 +210,9 @@ public class PlanTopologyScopeEditorTest {
     private static final int CLOUD_TARGET_2 = 2;
     private final TopologyEntity.Builder da1 = createHypervisorTopologyEntity(50001L, "da1", EntityType.DISK_ARRAY, new HashMap<>(), basketSoldByDA);
     private final TopologyEntity.Builder st1 = createHypervisorTopologyEntity(40001L, "st1", EntityType.STORAGE, commBoughtByDSinDA1, basketSoldByDS1);
+    private final TopologyEntity.Builder localSt1 = createHypervisorTopologyEntity(40003L, "local_st1", EntityType.STORAGE, commBoughtByDSinDA1, basketSoldByDS1);
     private final TopologyEntity.Builder st2 = createHypervisorTopologyEntity(40002L, "st2", EntityType.STORAGE, commBoughtByDSinDA1, basketSoldByDS2);
+    private final TopologyEntity.Builder localSt2 = createHypervisorTopologyEntity(40004L, "local_st2", EntityType.STORAGE, commBoughtByDSinDA1, basketSoldByDS1);
     private final TopologyEntity.Builder dc1 = createHypervisorTopologyEntity(10001L, "dc1", EntityType.DATACENTER, new HashMap<>(), basketSoldByDC1);
     private final TopologyEntity.Builder dc2 = createHypervisorTopologyEntity(10002L, "dc2", EntityType.DATACENTER, new HashMap<>(), basketSoldByDC2);
     private final TopologyEntity.Builder pm1InDc1 = createHypervisorHost(20001L, "pm1InDc1", EntityType.PHYSICAL_MACHINE, commBoughtByPMinDC1,
@@ -396,14 +404,24 @@ public class PlanTopologyScopeEditorTest {
 
      */
     private final TopologyGraph<TopologyEntity> emptyClusterGraph = TopologyEntityUtils
-        .topologyGraphOf(TopologyEntity.newBuilder(pm1InDc1.getEntityBuilder()),
-            TopologyEntity.newBuilder(pm2InDc1.getEntityBuilder()),
+        .topologyGraphOf(
+            TopologyEntity.newBuilder(copyAndAddLocalStorageAccesses(pm1InDc1, localSt1.getOid()).getEntityBuilder()),
+            TopologyEntity.newBuilder(copyAndAddLocalStorageAccesses(pm2InDc1, localSt2.getOid()).getEntityBuilder()),
             TopologyEntity.newBuilder(pmInDc2.getEntityBuilder()),
             TopologyEntity.newBuilder(dc1.getEntityBuilder()),
             TopologyEntity.newBuilder(dc2.getEntityBuilder()),
             TopologyEntity.newBuilder(st1.getEntityBuilder()),
             TopologyEntity.newBuilder(st2.getEntityBuilder()),
-            TopologyEntity.newBuilder(da1.getEntityBuilder()));
+            TopologyEntity.newBuilder(da1.getEntityBuilder()),
+            TopologyEntity.newBuilder(vdcInDc1.getEntityBuilder()),
+            TopologyEntity.newBuilder(localSt1.getEntityBuilder()),
+            TopologyEntity.newBuilder(localSt2.getEntityBuilder()));
+
+    private TopologyEntity.Builder copyAndAddLocalStorageAccesses(TopologyEntity.Builder entity, long accesses) {
+        TopologyEntityDTO.Builder copy = entity.getEntityBuilder().build().toBuilder();
+        copy.addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(DS1).setAccesses(accesses));
+        return TopologyEntity.newBuilder(copy);
+    }
 
     private TopologyGraph<TopologyEntity> graph;
 
@@ -1081,7 +1099,7 @@ public class PlanTopologyScopeEditorTest {
 
     /**
      * Scenario: scope on emptyClusterGraph's pm1 and pm2 which consumes on dc1.
-     * Expected: the entities in scope should be pm1, pm2, dc1, vv, st1, da1, app1, as1, ba
+     * Expected: pm1InDc1, pm2InDc1, dc1, st1, da1, localSt1, localSt2
      *
      * @throws Exception An exception thrown when a stage of the pipeline fails.
      */
@@ -1118,8 +1136,9 @@ public class PlanTopologyScopeEditorTest {
         // scope using inverted index
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
             .indexBasedScoping(index, emptyClusterGraph, groupResolver, planScope, PlanProjectType.USER);
-        assertEquals(5, result.size());
-        assertEquals(ImmutableSet.of(pm1InDc1.getOid(), pm2InDc1.getOid(), dc1.getOid(), st1.getOid(), da1.getOid()),
+        assertEquals(7, result.size());
+        assertEquals(ImmutableSet.of(pm1InDc1.getOid(), pm2InDc1.getOid(), dc1.getOid(), st1.getOid(),
+            da1.getOid(), localSt1.getOid(), localSt2.getOid()),
             result.entities().map(TopologyEntity::getOid).collect(Collectors.toSet()));
     }
 
