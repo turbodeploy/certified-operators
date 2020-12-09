@@ -25,6 +25,7 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import com.google.common.collect.Streams;
 
 import org.apache.logging.log4j.LogManager;
@@ -444,18 +445,19 @@ public class PlanTopologyScopeEditor {
                 // not all entities are guaranteed to be in the traders set -- the
                 // market will exclude entities based on factors such as entitystate, for example.
                 // If we encounter an entity that is not in the market, don't expand it any further.
-                logger.debug("Skipping OID {}, as it is not in the market.", traderOid);
+                logger.trace("Skipping OID {}, as it is not in the market.", traderOid);
                 continue;
             }
 
-            if (logger.isTraceEnabled()) {
-                logger.trace("expand OID {}: {}", traderOid, optionalEntity.get().getDisplayName());
-            }
+            logger.trace("Traversing up from {}:{}", traderOid, optionalEntity.get().getDisplayName());
+
             final TopologyEntity entity = optionalEntity.get();
             // Skip VDC to avoid bringing its consumers to plan scope so that plan doesn't contain
             // extra workloads from VDC that spanning across clusters. The VDC itself would still
             // be brought into the scope while we expand the topology by traversing down buyersToSatisfy.
             if (CONSUMER_ENTITY_TYPES_TO_SKIP.contains(entity.getEntityType())) {
+                logger.trace("Not expanding {}:{} because its type {} is skipped",
+                    traderOid, entity.getDisplayName(), entity.getEntityType());
                 continue;
             }
             // remember the trader for this OID in the scoped topology & continue expanding "up"
@@ -463,38 +465,70 @@ public class PlanTopologyScopeEditor {
 
             // Used to track how many suppliers we added while processing this trader.
             final int beforeSuppliers = suppliersToExpand.size();
+            logger.trace("Number of suppliersToExpand before expanding {}:{} = {}",
+                traderOid, entity.getDisplayName(), beforeSuppliers);
 
             // add OIDs of traders THAT buy from this entity which we have not already added
+            final TLongSet consumersToExpand = new TLongHashSet();
             entity.getConsumers().forEach(e -> {
-                final long oid = e.getOid();
-                if (!scopedTopologyOIDs.contains(oid)) {
-                    suppliersToExpand.tryAdd(oid);
+                if (!CONSUMER_ENTITY_TYPES_TO_SKIP.contains(e.getEntityType())) {
+                    final long oid = e.getOid();
+                    if (!scopedTopologyOIDs.contains(oid)) {
+                        consumersToExpand.add(oid);
+                    }
                 }
+            });
+            logger.trace("Consumers of {}:{} added to suppliersToExpand - {}",
+                entity.getOid(), entity.getDisplayName(), consumersToExpand);
+            consumersToExpand.forEach(consumer -> {
+                suppliersToExpand.tryAdd(consumer);
+                return true;
             });
 
             // Pull in outBoundAssociatedEntities for VMs and inBoundAssociatedEntities for Storage
             // so as to not skip entities like vVolume that don't buy/sell commodities.
             if (entity.getEntityType() == VIRTUAL_MACHINE_VALUE) {
+                final TLongSet outboundAssociatesToExpand = new TLongHashSet();
                 entity.getOutboundAssociatedEntities().forEach(e -> {
                     final long oid = e.getOid();
                     if (!scopedTopologyOIDs.contains(oid)) {
-                        suppliersToExpand.tryAdd(oid);
+                        outboundAssociatesToExpand.add(oid);
                     }
                 });
+                logger.trace("Outbound associates of {}:{} added to suppliersToExpand - {}",
+                    entity.getOid(), entity.getDisplayName(), outboundAssociatesToExpand);
+                outboundAssociatesToExpand.forEach(outbound -> {
+                    suppliersToExpand.tryAdd(outbound);
+                    return true;
+                });
             } else if (entity.getEntityType() == STORAGE_VALUE) {
+                final TLongSet inboundAssociatesToExpand = new TLongHashSet();
                 entity.getInboundAssociatedEntities().forEach(e -> {
                     final long oid = e.getOid();
                     if (!scopedTopologyOIDs.contains(oid)) {
+                        inboundAssociatesToExpand.add(oid);
+                        logger.trace("Inbound associate {}:{} of {}:{} added to suppliersToExpand",
+                            oid, e.getDisplayName(), entity.getOid(), entity.getDisplayName());
                         suppliersToExpand.tryAdd(oid);
                     }
                 });
+                logger.trace("Inbound associates of {}:{} added to suppliersToExpand - {}",
+                    entity.getOid(), entity.getDisplayName(), inboundAssociatesToExpand);
+                inboundAssociatesToExpand.forEach(inbound -> {
+                    suppliersToExpand.tryAdd(inbound);
+                    return true;
+                });
             }
+            logger.trace("Number of suppliersToExpand after expanding {}:{} = {}",
+                traderOid, entity.getDisplayName(), suppliersToExpand.size());
 
             final int numSuppliersAdded = suppliersToExpand.size() - beforeSuppliers;
             // if no customers, then "start downwards" from here
             // otherwise keep expanding upwards
             if (numSuppliersAdded == 0) {
                 if (!visited.contains(traderOid)) {
+                    logger.trace("Adding top-level entity {}:{} of type {} as buyerToSatisfy",
+                        traderOid, entity.getDisplayName(), entity.getEntityType());
                     buyersToSatisfy.tryAdd(traderOid);
                     visited.add(traderOid);
                 }
@@ -505,36 +539,49 @@ public class PlanTopologyScopeEditor {
         stopwatch.reset();
         stopwatch.start();
 
-        logger.trace("top OIDs: {}", buyersToSatisfy);
+        logger.trace("Top level buyers: {}", buyersToSatisfy.lookupSet);
         // record the 'providers' we've expanded on the way down so we don't re-expand unnecessarily
         final TLongSet providersExpanded = new TLongHashSet();
+        final TLongSet topLevelBuyers = new TLongHashSet();
+        topLevelBuyers.addAll(buyersToSatisfy.lookupSet);
         // starting with buyersToSatisfy, expand "downwards"
         while (!buyersToSatisfy.isEmpty()) {
             final long traderOid = buyersToSatisfy.remove();
             final TopologyEntity buyer = topology.getEntity(traderOid).get();
+            logger.trace("Traversing down from {}:{}", traderOid, buyer.getDisplayName());
             final boolean skipEntityType = PROVIDER_ENTITY_TYPES_TO_SKIP.contains(buyer.getEntityType());
             providersExpanded.add(traderOid);
             // build list of potential sellers for the commodities this Trader buys; omit Traders already expanded
             // also omit traders of the type pulled in as seed members
-            final Stream<TopologyEntity> potentialSellers = getPotentialSellers(index, buyer.getTopologyEntityDtoBuilder()
+            final Set<TopologyEntity> potentialSellers = getPotentialSellers(index, buyer.getTopologyEntityDtoBuilder()
                             .getCommoditiesBoughtFromProvidersList().stream());
-            final Stream<TopologyEntity> associatedEntities;
+            logger.trace("Adding potential sellers as associated entities for {}:{} - {}",
+                () -> traderOid, () -> buyer.getDisplayName(),
+                () -> potentialSellers.stream().map(TopologyEntity::getOid).map(String::valueOf)
+                    .collect(Collectors.joining(",")));
+            final Set<TopologyEntity> associatedEntities = Sets.newHashSet();
+            associatedEntities.addAll(potentialSellers);
             if (buyer.getEntityType() == VIRTUAL_MACHINE_VALUE) {
-                associatedEntities = Stream.concat(potentialSellers, buyer.getOutboundAssociatedEntities().stream());
+                logger.trace("Adding outbound associates as associated entities for {}:{} - {}",
+                    () -> traderOid, () -> buyer.getDisplayName(),
+                    () -> buyer.getOutboundAssociatedEntities().stream().map(TopologyEntity::getOid)
+                        .map(String::valueOf).collect(Collectors.joining(",")));
+                associatedEntities.addAll(buyer.getOutboundAssociatedEntities());
             } else if (buyer.getEntityType() == STORAGE_VALUE) {
+                logger.trace("Adding inbound associates as associated entities for {}:{} - {}",
+                    () -> traderOid, () -> buyer.getDisplayName(),
+                    () -> buyer.getInboundAssociatedEntities().stream().map(TopologyEntity::getOid)
+                        .map(String::valueOf).collect(Collectors.joining(",")));
+                associatedEntities.addAll(buyer.getInboundAssociatedEntities());
                 // In case of an empty storage cluster, Storages will not have VMs as customers.
                 // And we rely on VMs to pull in the PMs. But we still need to pull in PMs even if
                 // there are no VMs. Hence, PMs are pulled in using accesses relation.
-                Stream<TopologyEntity> intermediateAssociatedEntities = Stream.concat(
-                    potentialSellers, buyer.getInboundAssociatedEntities().stream());
-                associatedEntities = Stream.concat(intermediateAssociatedEntities, getAccesses(buyer, topology));
+                associatedEntities.addAll(getAccessesForTopLevelBuyer(buyer, topology, topLevelBuyers));
             } else if (buyer.getEntityType() == PHYSICAL_MACHINE_VALUE) {
                 // In case of an empty cluster, PMs will not have VMs as customers. And we rely on
                 // VMs to pull in the Storages. But we still need to pull in Storages even if
                 // there are no VMs. Hence, Storages are pulled in using accesses relation.
-                associatedEntities = Stream.concat(potentialSellers, getAccesses(buyer, topology));
-            } else {
-                associatedEntities = potentialSellers;
+                associatedEntities.addAll(getAccessesForTopLevelBuyer(buyer, topology, topLevelBuyers));
             }
 
             associatedEntities.forEach(seller -> {
@@ -543,8 +590,10 @@ public class PlanTopologyScopeEditor {
                     // if thisTrader is "skipped", and is not a seed, bring in just the sellers that we have already scoped in.
                     // This logic is for ENTITY_TYPES_TO_SKIP.
                     if (!skipEntityType || (seedOids.contains(traderOid) || scopedTopologyOIDs.contains(seller.getOid())) ) {
-                        if (!allSeed.containsKey(EntityType.forNumber(topology.getEntity(sellerId).get().getEntityType()))
+                        if (!allSeed.containsKey(EntityType.forNumber(seller.getEntityType()))
                                 || seedOids.contains(sellerId)) {
+                            logger.trace("Adding {}:{} to scope through {}:{}",
+                                sellerId, seller.getDisplayName(), buyer.getOid(), buyer.getDisplayName());
                             scopedTopologyOIDs.add(sellerId);
                             if (!visited.contains(sellerId)) {
                                 visited.add(sellerId);
@@ -556,7 +605,7 @@ public class PlanTopologyScopeEditor {
             });
 
         }
-
+        logger.trace("In scope entities are - {}", scopedTopologyOIDs);
         logger.info("Completed buyer traversal in {} millis", stopwatch.elapsed(TimeUnit.MILLISECONDS));
         stopwatch.stop();
 
@@ -580,19 +629,38 @@ public class PlanTopologyScopeEditor {
     }
 
     /**
-     * Get all the accesses relations of an entity.
+     * Get all the accesses relations of an entity if it is a top level buyer.
+     * We only want the accesses relations for empty clusters. So if a host/storage is at the top
+     * level, we should get its accesses. But we don't explicitly check for Host/Storage to keep
+     * the code generic. And this is ok because the Accesses relations are only present for hosts
+     * and storages today.
      * @param entity TopologyEntity to get the accesses relations of
      * @param topology the topology graph
-     * @return all the accesses relations of the entity
+     * @param topLevelBuyers the oids of entities at the top of the supply chain
+     * @return all the accesses relations of the entity if it is a top level entity.
      */
-    private Stream<TopologyEntity> getAccesses(TopologyEntity entity, TopologyGraph<TopologyEntity> topology) {
-        return entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
-            .stream()
-            .filter(CommoditySoldDTO.Builder::hasAccesses)
-            .map(CommoditySoldDTO.Builder::getAccesses)
-            .map(accesses -> topology.getEntity(accesses))
-            .filter(Optional::isPresent)
-            .map(Optional::get);
+    private Set<TopologyEntity> getAccessesForTopLevelBuyer(TopologyEntity entity,
+                                                            TopologyGraph<TopologyEntity> topology,
+                                                            TLongSet topLevelBuyers) {
+        // Only get the accesses if the entity is a top level buyer.
+        if (topLevelBuyers.contains(entity.getOid())) {
+            Set<TopologyEntity> accessedEntities =
+                entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
+                    .stream()
+                    .filter(CommoditySoldDTO.Builder::hasAccesses)
+                    .map(CommoditySoldDTO.Builder::getAccesses)
+                    .map(accesses -> topology.getEntity(accesses))
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(Collectors.toSet());
+            logger.trace("Adding accessed entities as associated entities for {}:{} - {}",
+                () -> entity.getOid(), () -> entity.getDisplayName(),
+                () -> accessedEntities.stream().map(TopologyEntity::getOid)
+                    .map(String::valueOf).collect(Collectors.joining(",")));
+            return accessedEntities;
+        } else {
+            return Collections.emptySet();
+        }
     }
 
     /**
@@ -602,14 +670,15 @@ public class PlanTopologyScopeEditor {
      * @param commBoughtFromProviders list of {@link CommoditiesBoughtFromProvider}
      * @return list of potential sellers selling the list of commoditiesBought.
      */
-    private Stream<TopologyEntity> getPotentialSellers(@Nonnull final InvertedIndex<TopologyEntity,
+    private Set<TopologyEntity> getPotentialSellers(@Nonnull final InvertedIndex<TopologyEntity,
             TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> index,
                        @Nonnull final Stream<CommoditiesBoughtFromProvider> commBoughtFromProviders) {
         // vCenter PMs buy latency and iops with active=false from underlying DSs.
         // Bring in only providers for baskets with atleast 1 active commodity
         return commBoughtFromProviders
             .filter(cbp -> cbp.getCommodityBoughtList().stream().anyMatch(CommodityBoughtDTO::getActive))
-            .flatMap(index::getSatisfyingSellers);
+            .flatMap(index::getSatisfyingSellers)
+            .collect(Collectors.toSet());
     }
 
     private static boolean discoveredBy(@Nonnull TopologyEntity topologyEntity,
