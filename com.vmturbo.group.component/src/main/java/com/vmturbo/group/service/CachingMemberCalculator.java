@@ -268,20 +268,25 @@ public class CachingMemberCalculator implements GroupMemberCalculator, Repositor
         final Set<Long> retMembers = new HashSet<>();
 
         LongSet groupsToExpand = new LongOpenHashSet();
+        LongSet visitedGroups = new LongOpenHashSet();
+
 
         groupsToExpand.addAll(groupIds);
+        visitedGroups.addAll(groupIds);
 
         // We only cache groups with expandNestedGroups == false, and do the expansion here
         // recursively-iteratively.
         while (!groupsToExpand.isEmpty()) {
             // This set will only be used when expanding a group-of-groups (e.g. group of clusters).
             final LongSet nextGroupsToExpand = new LongOpenHashSet(1);
-            // Use this function whenever processing a direct member.
+            // Use this function whenever processing a direct member. The visited groups set
+            // prevent us from iterating over the same group twice.
             // If a direct member is a group AND we want to expand nested groups,
             // record that member id separately for the next round of expansion.
             final LongConsumer memberIdConsumer = (directMemberId) -> {
-                if (expandNestedGroups && allGroupIds.contains(directMemberId)) {
+                if (expandNestedGroups && allGroupIds.contains(directMemberId) && !visitedGroups.contains(directMemberId)) {
                     nextGroupsToExpand.add(directMemberId);
+                    visitedGroups.add(directMemberId);
                 } else {
                     retMembers.add(directMemberId);
                 }
