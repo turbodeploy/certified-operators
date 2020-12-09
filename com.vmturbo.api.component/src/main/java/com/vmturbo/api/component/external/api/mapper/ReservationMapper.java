@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableMap;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -39,6 +40,7 @@ import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
 import com.vmturbo.api.dto.reservation.ReservationConstraintApiDTO;
 import com.vmturbo.api.dto.reservation.ReservationFailureInfoDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
@@ -69,6 +71,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -84,11 +87,38 @@ public class ReservationMapper {
             .put(ApiEntityType.NETWORK.typeNumber(), ReservationConstraintInfo.Type.NETWORK)
             .build();
 
-    private static final Map<Integer, String> COMMODITY_TYPE_NAME_MAP =
-            ImmutableMap.<Integer, String>builder()
-                    .put(CommodityType.CPU_PROVISIONED_VALUE, "CPU")
-                    .put(CommodityType.MEM_PROVISIONED_VALUE, "MEM")
-                    .put(CommodityType.STORAGE_PROVISIONED_VALUE, "STORAGE")
+    private static final Map<Integer, Pair<String, String>> COMMODITY_TYPE_NAME_UNIT_MAP =
+            ImmutableMap.<Integer, Pair<String, String>>builder()
+                    .put(CommodityType.CPU_PROVISIONED_VALUE,
+                            Pair.of(CommodityTypeUnits.CPU_PROVISIONED.getMixedCase(),
+                                    CommodityTypeUnits.CPU_PROVISIONED.getUnits()))
+                    .put(CommodityType.MEM_PROVISIONED_VALUE,
+                            Pair.of(CommodityTypeUnits.MEM_PROVISIONED.getMixedCase(),
+                                    CommodityTypeUnits.MEM_PROVISIONED.getUnits()))
+                    .put(CommodityType.CPU_VALUE,
+                            Pair.of(CommodityTypeUnits.CPU.getMixedCase(),
+                            CommodityTypeUnits.CPU.getUnits()))
+                    .put(CommodityType.MEM_VALUE,
+                            Pair.of(CommodityTypeUnits.MEM.getMixedCase(),
+                                    CommodityTypeUnits.MEM.getUnits()))
+                    .put(CommodityType.IO_THROUGHPUT_VALUE,
+                            Pair.of(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase(),
+                                    CommodityTypeUnits.IO_THROUGHPUT.getUnits()))
+                    .put(CommodityType.NET_THROUGHPUT_VALUE,
+                            Pair.of(CommodityTypeUnits.NET_THROUGHPUT.getMixedCase(),
+                                    CommodityTypeUnits.NET_THROUGHPUT.getUnits()))
+                    .put(CommodityType.STORAGE_AMOUNT_VALUE,
+                            Pair.of(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
+                                    CommodityTypeUnits.STORAGE_AMOUNT.getUnits()))
+                    .put(CommodityType.STORAGE_ACCESS_VALUE,
+                            Pair.of(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
+                                    CommodityTypeUnits.STORAGE_ACCESS.getUnits()))
+                    .put(CommodityType.STORAGE_PROVISIONED_VALUE,
+                            Pair.of(CommodityTypeUnits.STORAGE_PROVISIONED.getMixedCase(),
+                                    CommodityTypeUnits.STORAGE_PROVISIONED.getUnits()))
+                    .put(CommodityType.SEGMENTATION_VALUE,
+                            Pair.of(CommodityTypeUnits.SEGMENTATION.getMixedCase(),
+                                    CommodityTypeUnits.SEGMENTATION.getUnits()))
                     .build();
 
     private final Logger logger = LogManager.getLogger();
@@ -505,15 +535,16 @@ public class ReservationMapper {
                 break;
             }
             FailedResources failedResource = reason.getFailedResourcesList().get(0);
-            String resource = COMMODITY_TYPE_NAME_MAP.get(
+            Pair<String, String> resource = COMMODITY_TYPE_NAME_UNIT_MAP.get(
                     failedResource.getCommType().getType()) == null
-                    ? CommodityType.UNKNOWN.name()
-                    : COMMODITY_TYPE_NAME_MAP.get(failedResource.getCommType().getType());
+                    ? Pair.of(CommodityType.UNKNOWN.name(), CommodityType.UNKNOWN.name())
+                    : COMMODITY_TYPE_NAME_UNIT_MAP.get(failedResource.getCommType().getType());
             placementInfoApiDTO.getFailureInfos().add(new ReservationFailureInfoDTO(
-                    resource,
+                    resource.getLeft(),
                     providerBaseApiDTO,
                     failedResource.getMaxAvailable(),
-                    failedResource.getRequestedAmount()));
+                    failedResource.getRequestedAmount(),
+                    resource.getRight()));
         }
     }
 
@@ -586,11 +617,15 @@ public class ReservationMapper {
         resourceApiDTO.setProvider(providerBaseApiDTO);
         List<StatApiDTO> statApiDTOS = new ArrayList<>();
         for (CommodityBoughtDTO commodityBoughtDTO : commodityBoughtDTOList) {
-            String commodityName = COMMODITY_TYPE_NAME_MAP.get(commodityBoughtDTO.getCommodityType().getType());
-            if (commodityName != null) {
+            Pair<String, String> commodityNameUnit = COMMODITY_TYPE_NAME_UNIT_MAP.get(commodityBoughtDTO.getCommodityType().getType());
+            if (commodityNameUnit != null) {
                 final StatApiDTO statApiDTO = new StatApiDTO();
-                statApiDTO.setName(commodityName);
+                statApiDTO.setName(commodityNameUnit.getLeft());
+                statApiDTO.setUnits(commodityNameUnit.getRight());
                 statApiDTO.setValue((float)commodityBoughtDTO.getUsed());
+                final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
+                statValueApiDTO.setAvg((float)commodityBoughtDTO.getUsed());
+                statApiDTO.setValues(statValueApiDTO);
                 statApiDTOS.add(statApiDTO);
             }
         }

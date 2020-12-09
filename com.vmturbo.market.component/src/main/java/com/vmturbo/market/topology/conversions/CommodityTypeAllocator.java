@@ -47,14 +47,6 @@ public class CommodityTypeAllocator {
     private final Map<Integer, CommoditySpecificationTO> reusableCommoditySpecs
             = Maps.newHashMap();
 
-    // a set of commodity types that could be used as constraint in reservation
-    private static final Set<Integer> reservationConstraintCommodities = Sets.newHashSet(
-            CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE, CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE,
-            CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE, CommodityDTO.CommodityType.CLUSTER_VALUE,
-            CommodityDTO.CommodityType.DATACENTER_VALUE, CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE,
-            CommodityDTO.CommodityType.NETWORK_VALUE, CommodityDTO.CommodityType.DRS_SEGMENTATION_VALUE,
-            CommodityDTO.CommodityType.SEGMENTATION_VALUE);
-
     CommodityTypeAllocator(final NumericIDAllocator commodityTypeAllocator) {
         this.idAllocator = commodityTypeAllocator;
     }
@@ -71,9 +63,7 @@ public class CommodityTypeAllocator {
         for (Map.Entry<Integer, CommodityType> e : commoditySpecMap.entrySet()) {
             Integer type = e.getKey();
             CommodityType topologyCommType = e.getValue();
-            if (reservationConstraintCommodities.contains(topologyCommType.getType())) {
-                commTypeToSpecMap.putIfAbsent(topologyCommType, type);
-            }
+            commTypeToSpecMap.putIfAbsent(topologyCommType, type);
         }
         return commTypeToSpecMap;
     }

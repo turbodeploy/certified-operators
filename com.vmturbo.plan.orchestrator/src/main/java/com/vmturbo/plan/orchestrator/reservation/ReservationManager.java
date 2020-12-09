@@ -353,9 +353,16 @@ public class ReservationManager implements ReservationDeletedListener {
             reservationTemplateBuilder.setTemplate(template);
             final TemplateInfo templateInfo = template.getTemplateInfo();
             List<Double> diskSizes = new ArrayList<>();
+            List<Double> diskIOPs = new ArrayList<>();
+            List<Double> diskConsumedFactors = new ArrayList<>();
             double memorySize = 0;
             double numOfCpu = 0;
             double cpuSpeed = 0;
+            double cpuConsumedFactor = 0;
+            double memoryConsumedFactor = 0;
+            double ioThroughput = 0;
+            double networkThroughput = 0;
+
             for (TemplateResource templateResource : templateInfo.getResourcesList()) {
                 for (TemplateField templateField : templateResource.getFieldsList()) {
                     switch (templateField.getName()) {
@@ -363,14 +370,34 @@ public class ReservationManager implements ReservationDeletedListener {
                                 .VM_STORAGE_DISK_SIZE:
                             diskSizes.add(Double.parseDouble(templateField.getValue()));
                             break;
+                        case TemplateProtoUtil
+                                .VM_STORAGE_DISK_IOPS:
+                            diskIOPs.add(Double.parseDouble(templateField.getValue()));
+                            break;
+                        case TemplateProtoUtil
+                                .VM_STORAGE_DISK_CONSUMED_FACTOR:
+                            diskConsumedFactors.add(Double.parseDouble(templateField.getValue()));
+                            break;
                         case TemplateProtoUtil.VM_COMPUTE_VCPU_SPEED:
                             cpuSpeed = Double.parseDouble(templateField.getValue());
+                            break;
+                        case TemplateProtoUtil.VM_COMPUTE_CPU_CONSUMED_FACTOR:
+                            cpuConsumedFactor = Double.parseDouble(templateField.getValue());
                             break;
                         case TemplateProtoUtil.VM_COMPUTE_MEM_SIZE:
                             memorySize = Double.parseDouble(templateField.getValue());
                             break;
+                        case TemplateProtoUtil.VM_COMPUTE_MEM_CONSUMED_FACTOR:
+                            memoryConsumedFactor = Double.parseDouble(templateField.getValue());
+                            break;
                         case TemplateProtoUtil.VM_COMPUTE_NUM_OF_VCPU:
                             numOfCpu = Double.parseDouble(templateField.getValue());
+                            break;
+                        case TemplateProtoUtil.VM_COMPUTE_IO_THROUGHPUT:
+                            ioThroughput = Double.parseDouble(templateField.getValue());
+                            break;
+                        case TemplateProtoUtil.VM_COMPUTE_NETWORK_THROUGHPUT:
+                            networkThroughput = Double.parseDouble(templateField.getValue());
                             break;
                         default:
                             break;
@@ -378,11 +405,16 @@ public class ReservationManager implements ReservationDeletedListener {
                 }
             }
             List<PlacementInfo.Builder> storagePlacementInfos = new ArrayList<>();
-            for (Double diskSize : diskSizes) {
+            for (int i = 0; i < diskSizes.size(); i++) {
                 storagePlacementInfos.add(PlacementInfo
                         .newBuilder().clearProviderId()
                         .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
-                                .CommodityType.STORAGE_PROVISIONED_VALUE, diskSize))
+                                .CommodityType.STORAGE_PROVISIONED_VALUE, diskSizes.get(i)))
+                        .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                                .CommodityType.STORAGE_AMOUNT_VALUE,
+                                diskSizes.get(i) * diskConsumedFactors.get(i)))
+                        .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                                .CommodityType.STORAGE_ACCESS_VALUE, diskIOPs.get(i)))
                         .setProviderType(EntityType.STORAGE_VALUE));
             }
 
@@ -390,7 +422,15 @@ public class ReservationManager implements ReservationDeletedListener {
                     .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
                             .CommodityType.CPU_PROVISIONED_VALUE, numOfCpu * cpuSpeed))
                     .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                            .CommodityType.CPU_VALUE, numOfCpu * cpuSpeed * cpuConsumedFactor))
+                    .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
                             .CommodityType.MEM_PROVISIONED_VALUE, memorySize))
+                    .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                            .CommodityType.MEM_VALUE, memorySize * memoryConsumedFactor))
+                    .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                            .CommodityType.IO_THROUGHPUT_VALUE, ioThroughput))
+                    .addCommodityBought(createCommodityBoughtDTO(CommodityDTO
+                            .CommodityType.NET_THROUGHPUT_VALUE, networkThroughput))
                     .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE);
 
             for (ReservationConstraintInfo constraintInfo

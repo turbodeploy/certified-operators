@@ -55,6 +55,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.UnplacementReason.FailedResources;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -255,17 +256,21 @@ public class ReservationMapperTest {
         assertEquals(pmServiceEntity.getDisplayName(), computeResource.getProvider().getDisplayName());
         assertEquals(stServiceEntity.getDisplayName(), storageResource.getProvider().getDisplayName());
         assertEquals(1000L, Math.round(computeResource.getStats()
-                .stream().filter(a -> a.getName().equals("CPU"))
+                .stream().filter(a -> a.getName().equals(CommodityTypeUnits.CPU_PROVISIONED.getMixedCase()))
                 .collect(Collectors.toList())
                 .get(0).getValue()));
         assertEquals(2000L, Math.round(computeResource.getStats()
-                .stream().filter(a -> a.getName().equals("MEM"))
+                .stream().filter(a -> a.getName().equals(CommodityTypeUnits.MEM_PROVISIONED.getMixedCase()))
                 .collect(Collectors.toList())
                 .get(0).getValue()));
         assertEquals(3000L, Math.round(storageResource.getStats()
-                .stream().filter(a -> a.getName().equals("STORAGE"))
+                .stream().filter(a -> a.getName().equals(CommodityTypeUnits.STORAGE_PROVISIONED.getMixedCase()))
                 .collect(Collectors.toList())
                 .get(0).getValue()));
+        assertEquals(CommodityTypeUnits.STORAGE_PROVISIONED.getUnits(), (storageResource.getStats()
+                .stream().filter(a -> a.getName().equals(CommodityTypeUnits.STORAGE_PROVISIONED.getMixedCase()))
+                .collect(Collectors.toList())
+                .get(0).getUnits()));
     }
 
     /**
@@ -354,7 +359,7 @@ public class ReservationMapperTest {
         ReservationFailureInfoDTO failureInfo = reservationApiDTO.getDemandEntities().get(0)
                 .getPlacements().getFailureInfos().get(0);
         assertEquals(pmServiceEntity.getDisplayName(), failureInfo.getClosestSeller().getDisplayName());
-        assertEquals("MEM", failureInfo.getResource());
+        assertEquals(CommodityTypeUnits.MEM_PROVISIONED.getMixedCase(), failureInfo.getResource());
         assertEquals(1000, Math.round(failureInfo.getMaxQuantityAvailable().doubleValue()));
         assertEquals(1200, Math.round(failureInfo.getQuantityRequested().doubleValue()));
     }
