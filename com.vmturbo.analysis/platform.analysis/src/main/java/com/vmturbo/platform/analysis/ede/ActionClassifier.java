@@ -420,6 +420,14 @@ public class ActionClassifier {
                 return;
             }
             ShoppingList targetCopy = findTargetInEconomyCopy(move.getTarget());
+            if (targetCopy == null) {
+                // Log a warn message when targetCopy is null. Using warn instead of error here is
+                // because there're some unsupported cases we need to discuss further, for example
+                // moving volumes of provisioned VMs.
+                logger.warn("Cannot find move target for {}", move.getActionTarget().getDebugInfoNeverUseInCode());
+                move.setExecutable(false);
+                return;
+            }
             // context may not be cloned in simulationClone method as it was cloning the context
             // before the placement run. But in migration plans, only when start running placement,
             // context will be attached to buying traders, so targetCopy in migration plan has to
@@ -427,10 +435,6 @@ public class ActionClassifier {
             Optional<Context> context = move.getTarget().getBuyer().getSettings().getContext();
             if (context.isPresent()) {
                 targetCopy.getBuyer().getSettings().setContext(context.get());
-            }
-            if (targetCopy == null) {
-                move.setExecutable(false);
-                return;
             }
             for (Integer baseType : move.getTarget().getModifiableUnquotedCommoditiesBaseTypeList()) {
                 targetCopy.addModifiableUnquotedCommodityBaseType(baseType);
