@@ -269,7 +269,7 @@ public class PercentileEditor extends
             enforcedMaintenance(context, checkpointMs);
 
             // persist the daily blob
-            persistDailyRecord(context, checkpointMs);
+            persistDailyRecord(checkpointMs);
 
             // perform daily maintenance if needed - synchronously within broadcast (consider scheduling)
             maintenance(context, checkpointMs);
@@ -299,7 +299,7 @@ public class PercentileEditor extends
         reassembleFullPage(getCache(), maxPeriod, false);
     }
 
-    private void persistDailyRecord(HistoryAggregationContext context, long checkpointMs) throws InterruptedException, HistoryCalculationException {
+    private void persistDailyRecord(long checkpointMs) throws InterruptedException, HistoryCalculationException {
         // When we are in checkpoint time, we persist the latest in previous days record. For
         // two reasons: this  ensures the sum of all records in the observation period is the
         // same as full record. The maintenance step is going to clear today's record in

@@ -2,7 +2,6 @@ package com.vmturbo.history.utils;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
-import static com.vmturbo.common.protobuf.utils.StringConstants.BUSINESS_APPLICATION;
 
 import java.sql.Timestamp;
 import java.util.Calendar;
@@ -24,8 +23,6 @@ import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Table;
 
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.schema.abstraction.Tables;
@@ -445,15 +442,5 @@ public class HistoryStatsUtils {
 
     public static Set<Integer> getHeadroomEntityTypes() {
         return HEADROOM_ENTITY_TYPES;
-    }
-
-    /**
-     * Check whether the given entity is a cloud entity.
-     *
-     * @param entity the entity to check if it's cloud
-     * @return true if the entity is cloud, otherwise false
-     */
-    public static boolean isCloudEntity(@Nonnull TopologyEntityDTO entity) {
-        return entity.getEnvironmentType() == EnvironmentType.CLOUD;
     }
 }

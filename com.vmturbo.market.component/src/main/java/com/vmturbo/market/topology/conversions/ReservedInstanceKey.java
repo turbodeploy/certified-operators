@@ -82,7 +82,6 @@ public class ReservedInstanceKey {
         this.regionId = riSpec.getRegionId();
         this.family = family;
         this.zoneId = riBoughtInfo.getAvailabilityZoneId();
-        final long accountId = riBoughtInfo.getBusinessAccountId();
         this.instanceSizeFlexible = riSpec.getSizeFlexible();
         if (!instanceSizeFlexible) {
             this.riBoughtId = riData.getReservedInstanceBought().getId();

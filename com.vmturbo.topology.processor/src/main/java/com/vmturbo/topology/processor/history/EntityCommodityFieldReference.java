@@ -48,7 +48,6 @@ public class EntityCommodityFieldReference extends EntityCommodityReference {
      * @param entityOid entity oid
      * @param commodityType commodity type
      * @param providerOid commodity provider
-     * @param boughtBuilder bought commodity builder
      * @param field commodity's field
      */
     public EntityCommodityFieldReference(long entityOid, @Nonnull CommodityType commodityType,

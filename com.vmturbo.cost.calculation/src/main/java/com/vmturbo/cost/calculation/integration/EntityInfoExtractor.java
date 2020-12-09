@@ -141,11 +141,6 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         private final int numCores;
         private final EntityDTO.LicenseModel licenseModel;
 
-        public ComputeConfig(final OSType os, final Tenancy tenancy,
-                        final VMBillingType billingType, final int numCores) {
-            this(os, tenancy, billingType, numCores, EntityDTO.LicenseModel.LICENSE_INCLUDED);
-        }
-
         public ComputeConfig(final OSType os, final Tenancy tenancy, final VMBillingType billingType,
                              final int numCores, final EntityDTO.LicenseModel licenseModel) {
             this.os = os;
@@ -176,11 +171,6 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
 
         public EntityDTO.LicenseModel getLicenseModel() {
             return licenseModel;
-        }
-
-        public boolean matchesPriceTableConfig(@Nonnull final ComputeTierConfigPrice computeTierConfigPrice) {
-            return computeTierConfigPrice.getGuestOsType() == os &&
-                computeTierConfigPrice.getTenancy() == tenancy;
         }
     }
 
