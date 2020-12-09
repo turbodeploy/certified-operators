@@ -100,12 +100,6 @@ public class ReservationManager {
         });
         reservationService.getAllReservations(GetAllReservationsRequest.getDefaultInstance())
                 .forEachRemaining(reservation -> {
-                    if (topologyType == TopologyType.REALTIME
-                            || planType == PlanProjectType.CLUSTER_HEADROOM) {
-                        if (reservation.getStatus() == ReservationStatus.RESERVED) {
-                            reservedReservations.put(reservation.getId(), reservation);
-                        }
-                    }
                     RESERVATION_STATUS_GAUGE.labels(reservation.getStatus().toString()).increment();
                 });
 
