@@ -107,6 +107,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityNewCapacityEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
@@ -589,11 +591,10 @@ public class ActionSpecMapper {
                 addAllocateInfo(actionApiDTO, actionSpec, context);
                 break;
             case RECONFIGURE:
-                addReconfigureInfo(actionApiDTO, info.getReconfigure(), context);
+                addReconfigureInfo(actionApiDTO, recommendation, info.getReconfigure(), context);
                 break;
             case PROVISION:
-                addProvisionInfo(actionApiDTO, info.getProvision(),
-                                recommendation.getExplanation(), context);
+                addProvisionInfo(actionApiDTO, info.getProvision(), recommendation, context);
                 break;
             case RESIZE:
                 if (info.hasAtomicResize()) {
@@ -1245,7 +1246,7 @@ public class ActionSpecMapper {
         wrapperDto.addCompoundActions(actions);
 
         wrapperDto.getRisk().addAllReasonCommodities(getReasonCommodities(changeProviderExplanationList));
-        wrapperDto.getRisk().setReasonCommodity(getReasonCommodities(changeProviderExplanationList).stream().collect(Collectors.joining(", ")));
+        wrapperDto.getRisk().setReasonCommodity(String.join(",", wrapperDto.getRisk().getReasonCommodities()));
 
         // set current location, new location and cloud aspects for cloud resize actions
         if (target.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
@@ -1317,11 +1318,7 @@ public class ActionSpecMapper {
             }
         }
 
-        return reasonCommodities.stream()
-                .map(ReasonCommodity::getCommodityType)
-                .map(UICommodityType::fromType)
-                .map(UICommodityType::apiStr)
-                .collect(Collectors.toSet());
+        return reasonCommoditiesToString(reasonCommodities);
     }
 
     private ActionApiDTO singleMove(ActionType actionType, ActionApiDTO compoundDto,
@@ -1444,6 +1441,7 @@ public class ActionSpecMapper {
     }
 
     private void addReconfigureInfo(@Nonnull final ActionApiDTO actionApiDTO,
+                                    @Nonnull final ActionDTO.Action action,
                                     @Nonnull final Reconfigure reconfigure,
                                     @Nonnull final ActionSpecMappingContext context) {
         actionApiDTO.setActionType(ActionType.RECONFIGURE);
@@ -1464,12 +1462,31 @@ public class ActionSpecMapper {
             actionApiDTO.setCurrentEntity(new ServiceEntityApiDTO());
         }
 
+        actionApiDTO.getRisk().addAllReasonCommodities(
+            reasonCommoditiesToString(action.getExplanation().getReconfigure().getReconfigureCommodityList()));
+        actionApiDTO.getRisk().setReasonCommodity(
+            String.join(",", actionApiDTO.getRisk().getReasonCommodities()));
+
         actionApiDTO.setCurrentValue(Long.toString(reconfigure.getSource().getId()));
+    }
+
+    /**
+     * Convert a collection of reason commodities to a set of string.
+     *
+     * @param reasonCommodities a collection of reason commodities
+     * @return a set of string
+     */
+    private Set<String> reasonCommoditiesToString(final Collection<ReasonCommodity> reasonCommodities) {
+        return reasonCommodities.stream()
+            .map(ReasonCommodity::getCommodityType)
+            .map(UICommodityType::fromType)
+            .map(UICommodityType::apiStr)
+            .collect(Collectors.toSet());
     }
 
     private void addProvisionInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                   @Nonnull final Provision provision,
-                                  @Nonnull final Explanation actionExplanation,
+                                  @Nonnull final ActionDTO.Action action,
                                   @Nonnull final ActionSpecMappingContext context) {
         final ActionEntity currentEntity = provision.getEntityToClone();
         long currentEntityId = currentEntity.getId();
@@ -1483,6 +1500,26 @@ public class ActionSpecMapper {
         setRelatedDatacenter(currentEntityId, actionApiDTO, context, true);
 
         actionApiDTO.setTarget(getServiceEntityDTO(context, currentEntity));
+
+        // Set reason commodities
+        final ProvisionExplanation provisionExplanation = action.getExplanation().getProvision();
+        if (provisionExplanation.hasProvisionBySupplyExplanation()) {
+            final String reasonCommodity = UICommodityType.fromType(
+                provisionExplanation.getProvisionBySupplyExplanation()
+                    .getMostExpensiveCommodityInfo().getCommodityType()).apiStr();
+            actionApiDTO.getRisk().addReasonCommodity(reasonCommodity);
+            actionApiDTO.getRisk().setReasonCommodity(reasonCommodity);
+        } else if (provisionExplanation.hasProvisionByDemandExplanation()) {
+            actionApiDTO.getRisk().addAllReasonCommodities(
+                provisionExplanation.getProvisionByDemandExplanation()
+                    .getCommodityNewCapacityEntryList().stream()
+                    .map(CommodityNewCapacityEntry::getCommodityBaseType)
+                    .map(UICommodityType::fromType)
+                    .map(UICommodityType::apiStr)
+                    .collect(Collectors.toSet()));
+            actionApiDTO.getRisk().setReasonCommodity(
+                String.join(",", actionApiDTO.getRisk().getReasonCommodities()));
+        }
 
         if (context.isPlan()) {
             // In plan actions we want to provide a reference to the provisioned entities, because
@@ -1505,7 +1542,7 @@ public class ActionSpecMapper {
             actionApiDTO.setNewValue(newEntity.getUuid());
         } else {
             Optional<BaseApiDTO> vsanCause = context.getEntity(currentEntityId)
-                    .map(currentDTO -> getVSANCause(actionExplanation, currentDTO)).orElse(Optional.empty());
+                    .map(currentDTO -> getVSANCause(action.getExplanation(), currentDTO)).orElse(Optional.empty());
             addVSANCausingProvisionInfo(actionApiDTO, vsanCause);
         }
     }
