@@ -173,7 +173,9 @@ public class ReservationManagerTest {
                     .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
                             .setConstraintId(1114L))
                     .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
-                            .setConstraintId(1115L)))
+                            .setConstraintId(1115L))
+                    .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
+                            .setConstraintId(1116L)))
 
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
@@ -389,6 +391,11 @@ public class ReservationManagerTest {
                     .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
                     .setKey("KEY004").build();
             ReservationConstraintInfo reservationConstraintInfo5 = ReservationConstraintInfo.newBuilder()
+                    .setConstraintId(1116L)
+                    .setType(Type.NETWORK)
+                    .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setKey("KEY006").build();
+            ReservationConstraintInfo reservationConstraintInfo6 = ReservationConstraintInfo.newBuilder()
                     .setConstraintId(1115L)
                     .setType(Type.POLICY)
                     .setProviderType(EntityType.STORAGE_VALUE)
@@ -400,6 +407,7 @@ public class ReservationManagerTest {
             constraintIDToCommodityTypeMap.put(1113L, reservationConstraintInfo3);
             constraintIDToCommodityTypeMap.put(1114L, reservationConstraintInfo4);
             constraintIDToCommodityTypeMap.put(1115L, reservationConstraintInfo5);
+            constraintIDToCommodityTypeMap.put(1116L, reservationConstraintInfo6);
             ReservationManager reservationManagerSpy = spy(reservationManager);
             reservationManagerSpy.addToConstraintIDToCommodityTypeMap(constraintIDToCommodityTypeMap);
             Reservation updateReservation = reservationManagerSpy.addConstraintInfoDetails(fastReservationWithConstraints);
@@ -433,6 +441,12 @@ public class ReservationManagerTest {
                     .findAny().get().getCommodityBoughtList().stream()
                     .filter(a -> a.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE)
                     .findFirst().get().getCommodityType().getKey().equals("KEY005"));
+            assert (updateReservation.getReservationTemplateCollection().getReservationTemplateList().get(0)
+                    .getReservationInstanceList().get(0).getPlacementInfoList().stream()
+                    .filter(pInfo -> pInfo.getProviderType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                    .findAny().get().getCommodityBoughtList().stream()
+                    .filter(a -> a.getCommodityType().getType() == CommodityType.NETWORK_VALUE)
+                    .findFirst().get().getCommodityType().getKey().equals("KEY006"));
         } catch (Exception e) {
             e.printStackTrace();
         }

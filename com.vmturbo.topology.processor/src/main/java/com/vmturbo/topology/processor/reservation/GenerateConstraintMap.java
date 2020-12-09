@@ -62,13 +62,30 @@ public class GenerateConstraintMap {
      * The constraints taken care of are cluster, datacenter and placement policy.
      * @param topologyGraph the input topology graph.
      * @param groupResolver The resolver for the groups that the policy applies to.
-     * @return success if the map is successfully loaded in the plan orchestrator.
+     * @return the constraint map send to the plan orchestrator.
      */
-    public Status createMap(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph, GroupResolver groupResolver) {
+    public UpdateConstraintMapRequest createMap(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph, GroupResolver groupResolver) {
 
         UpdateConstraintMapRequest.Builder updateConstraintMapRequest =
                 UpdateConstraintMapRequest.newBuilder();
 
+        updateClusters(topologyGraph, updateConstraintMapRequest);
+        updateNetworks(topologyGraph, updateConstraintMapRequest);
+        updateDatacenter(topologyGraph, updateConstraintMapRequest);
+        updatePolicies(topologyGraph, groupResolver, updateConstraintMapRequest);
+
+        UpdateConstraintMapRequest constraintMapRequest = updateConstraintMapRequest.build();
+        reservationService.updateConstraintMap(constraintMapRequest);
+        return constraintMapRequest;
+    }
+
+    /**
+     * Identifies the commodities that the reservation instance has to buy if the user selects cluster.
+     * @param topologyGraph the input topology graph.
+     * @param updateConstraintMapRequest constraint map send to the plan orchestrator.
+     */
+    private void updateClusters(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
+                                UpdateConstraintMapRequest.Builder updateConstraintMapRequest) {
         //go over all the clusters..Find all members(hosts) of the cluster. Pick a random
         //host. Find the cluster commodity sold by the host. Find the key associated with the
         //commodity.
@@ -127,6 +144,37 @@ public class GenerateConstraintMap {
             }
         }
 
+    }
+
+    /**
+     * Identifies the commodities that the reservation instance has to buy if the user selects network.
+     * @param topologyGraph the input topology graph.
+     * @param updateConstraintMapRequest constraint map send to the plan orchestrator.
+     */
+    private void updateNetworks(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
+                                UpdateConstraintMapRequest.Builder updateConstraintMapRequest) {
+        // go over all the networks.
+        final List<TopologyEntity> allNetworks = topologyGraph
+                .entitiesOfType(EntityType.NETWORK).collect(Collectors.toList());
+        for (TopologyEntity network : allNetworks) {
+            String key = "Network::" + network.getDisplayName();
+            updateConstraintMapRequest.addReservationContraintInfo(ReservationConstraintInfo
+                    .newBuilder()
+                    .setKey(key)
+                    .setConstraintId(network.getOid())
+                    .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setType(Type.NETWORK).build());
+        }
+
+    }
+
+    /**
+     * Identifies the commodities that the reservation instance has to buy if the user selects dataCenter.
+     * @param topologyGraph the input topology graph.
+     * @param updateConstraintMapRequest constraint map send to the plan orchestrator.
+     */
+    private void updateDatacenter(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
+                                UpdateConstraintMapRequest.Builder updateConstraintMapRequest) {
         // go over all the datacenter. Find a host in the datacenter. Find the
         // data center commodity sold by the host. Find the key associated with the
         // commodity.
@@ -152,7 +200,17 @@ public class GenerateConstraintMap {
                 }
             }
         }
+    }
 
+    /**
+     * Identifies the commodities that the reservation instance has to buy if the user selects placement policy.
+     * @param topologyGraph the input topology graph.
+     * @param groupResolver The resolver for the groups that the policy applies to.
+     * @param updateConstraintMapRequest constraint map send to the plan orchestrator.
+     */
+    private void updatePolicies(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
+                                GroupResolver groupResolver,
+                                UpdateConstraintMapRequest.Builder updateConstraintMapRequest) {
         // go over all the policies and find the key of the segmentaion commodity
         // associated with the placement policy and also the provider type of the entity.
         Table<Long, Integer, TopologyDTO.CommodityType> placementPolicyIdToCommodityType = policyManager
@@ -166,11 +224,6 @@ public class GenerateConstraintMap {
                     .setProviderType(cell.getColumnKey())
                     .setType(Type.POLICY).build());
         }
-
-        // TODO handle VDC, storage clusters and Network constraints
-
-        reservationService.updateConstraintMap(updateConstraintMapRequest.build());
-        return Status.success();
     }
 
 }

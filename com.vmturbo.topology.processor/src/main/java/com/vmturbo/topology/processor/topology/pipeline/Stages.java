@@ -446,11 +446,20 @@ public class Stages {
                     groupServiceClient, reservationService);
         }
 
+        /**
+         * getter for generateConstraintMap.
+         * @return generateConstraintMap
+         */
+        public GenerateConstraintMap getGenerateConstraintMap() {
+            return generateConstraintMap;
+        }
+
         @NotNull
         @Nonnull
         @Override
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
-            return generateConstraintMap.createMap(topologyGraph, getContext().getGroupResolver());
+            generateConstraintMap.createMap(topologyGraph, getContext().getGroupResolver());
+            return Status.success();
         }
     }
 

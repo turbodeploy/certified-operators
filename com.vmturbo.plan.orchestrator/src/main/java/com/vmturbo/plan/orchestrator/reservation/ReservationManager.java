@@ -456,6 +456,12 @@ public class ReservationManager implements ReservationDeletedListener {
                                                     .CommodityType.SEGMENTATION_VALUE,
                                             Optional.of(constraintInfo.getKey()), 1));
                             break;
+                        case NETWORK:
+                            computePlacementInfo.addCommodityBought(
+                                    createCommodityBoughtDTO(CommodityDTO
+                                                    .CommodityType.NETWORK_VALUE,
+                                            Optional.of(constraintInfo.getKey()), 1));
+                            break;
                         default:
                             break;
 
