@@ -21,6 +21,7 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -35,7 +36,6 @@ import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.Matching
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
@@ -134,7 +134,7 @@ public class GuestLoadStitchingIntegrationTest extends StitchingIntegrationTest 
 
         final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);
         stitchingManager.stitch(stitchingContext, journal);
-        final Map<Long, TopologyEntity.Builder> topology = stitchingContext.constructTopology();
+        final Map<Long, TopologyEntityDTO.Builder> topology = stitchingContext.constructTopology();
 
         // these proxy VMs and Apps from APM should have been removed.
         final List<Long> apmExpectedRemoved = oidsFor(Stream.of(
@@ -166,18 +166,17 @@ public class GuestLoadStitchingIntegrationTest extends StitchingIntegrationTest 
                 .getEntityInfo(apmTargetId).get().getEntityInfo();
         final EntityDTO proxyApp1 = entityStore.getEntity(proxyApp1Oid).get()
                 .getEntityInfo(apmTargetId).get().getEntityInfo();
-        final TopologyEntity vm1Topo = topology.get(vm1Oid).build();
-        final TopologyEntity app1Topo = topology.get(app1Oid).build();
-        final TopologyEntity app2Topo = topology.get(app2Oid).build();
+        final TopologyEntityDTO vm1Topo = topology.get(vm1Oid).build();
+        final TopologyEntityDTO app1Topo = topology.get(app1Oid).build();
+        final TopologyEntityDTO app2Topo = topology.get(app2Oid).build();
 
         // app-2 should has 1 VC provider
-        assertEquals(1, app2Topo.getTopologyEntityDtoBuilder()
-                .getCommoditiesBoughtFromProvidersCount());
-        assertEquals(vm1Topo.getOid(), app2Topo.getTopologyEntityDtoBuilder()
-                .getCommoditiesBoughtFromProviders(0).getProviderId());
+        assertEquals(1, app2Topo.getCommoditiesBoughtFromProvidersCount());
+        assertEquals(vm1Topo.getOid(),
+                app2Topo.getCommoditiesBoughtFromProviders(0).getProviderId());
 
         // verify commodities sold in VM-1 has been replaced by proxy in VM-1
-        vm1Topo.getTopologyEntityDtoBuilder().getCommoditySoldListList().forEach(
+        vm1Topo.getCommoditySoldListList().forEach(
             commoditySoldDTO -> {
                 final int commTypeVal = commoditySoldDTO.getCommodityType().getType();
                 // get commodity sold DTO in proxy VM
@@ -192,7 +191,7 @@ public class GuestLoadStitchingIntegrationTest extends StitchingIntegrationTest 
         );
 
         // verify commodities sold in app-1 has been replaced by proxy in app-1
-        app1Topo.getTopologyEntityDtoBuilder().getCommoditySoldListList().forEach(
+        app1Topo.getCommoditySoldListList().forEach(
             commoditySoldDTO -> {
                 final int commTypeVal = commoditySoldDTO.getCommodityType().getType();
                 // get commodity sold DTO in proxy app
@@ -207,7 +206,7 @@ public class GuestLoadStitchingIntegrationTest extends StitchingIntegrationTest 
         );
 
         // verify commodities bought in app-1 has been replaced by proxy in app-1
-        app1Topo.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().forEach(
+        app1Topo.getCommoditiesBoughtFromProvidersList().forEach(
             commoditiesBoughtFromProvider -> {
                 // should buy from VM-1
                 assertEquals(vm1Oid, commoditiesBoughtFromProvider.getProviderId());

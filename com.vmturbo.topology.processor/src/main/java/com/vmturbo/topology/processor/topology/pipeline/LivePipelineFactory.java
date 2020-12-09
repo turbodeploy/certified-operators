@@ -59,6 +59,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.GenerateConstrain
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoricalUtilizationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoryAggregationStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.InitializeTopologyEntitiesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ProbeActionCapabilitiesApplicatorStage;
@@ -291,6 +292,7 @@ public class LivePipelineFactory {
                 .addStage(new UploadActionConstraintsStage(actionConstraintsUploader))
                 .addStage(new StitchingGroupAnalyzerStage(discoveredGroupUploader))
                 .addStage(new CacheWritingConstructTopologyFromStitchingContextStage(constructTopologyStageCache))
+                .addStage(new InitializeTopologyEntitiesStage())
                 .addStage(new UploadGroupsStage(discoveredGroupUploader))
                 .addStage(new UploadWorkflowsStage(discoveredWorkflowUploader))
                 .addStage(new UploadTemplatesStage(discoveredTemplateDeploymentProfileNotifier))
@@ -347,6 +349,7 @@ public class LivePipelineFactory {
                     discoveredGroupUploader))
             .addStage(new StitchingGroupAnalyzerStage(discoveredGroupUploader))
             .addStage(new ConstructTopologyFromStitchingContextStage())
+            .addStage(new InitializeTopologyEntitiesStage())
             .addStage(new UploadGroupsStage(discoveredGroupUploader))
             .addStage(new GraphCreationStage(groupScopeResolver))
             .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))

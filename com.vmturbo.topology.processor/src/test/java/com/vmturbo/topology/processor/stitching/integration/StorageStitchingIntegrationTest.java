@@ -33,6 +33,8 @@ import org.mockito.Matchers;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -187,7 +189,7 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();
         final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);
         stitchingManager.stitch(stitchingContext, journal);
-        final Map<Long, TopologyEntity.Builder> topology = stitchingContext.constructTopology();
+        final Map<Long, TopologyEntityDTO.Builder> topology = stitchingContext.constructTopology();
 
         // System should have found the following stitching points:
         // REMOVED                                RETAINED
@@ -229,7 +231,8 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
 
         final IStitchingJournal<TopologyEntity> postStitchingJournal = journal.childJournal(
                 new TopologyEntitySemanticDiffer(journal.getJournalOptions().getVerbosity()));
-        stitchingManager.postStitch(new GraphWithSettings(TopologyEntityTopologyGraphCreator.newGraph(topology),
+        stitchingManager.postStitch(new GraphWithSettings(TopologyEntityTopologyGraphCreator.newGraph(topology.values().stream()
+                .collect(Collectors.toMap(Builder::getOid, TopologyEntity::newBuilder))),
                 Collections.emptyMap(), Collections.emptyMap()), postStitchingJournal,
                 Collections.emptySet());
     }

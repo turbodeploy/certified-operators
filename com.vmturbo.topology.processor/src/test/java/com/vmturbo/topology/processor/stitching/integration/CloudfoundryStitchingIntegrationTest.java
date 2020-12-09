@@ -18,12 +18,12 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.cloudfoundry.CloudFoundryVMStitchingOperation;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
@@ -94,7 +94,7 @@ public class CloudfoundryStitchingIntegrationTest extends StitchingIntegrationTe
 
         final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);
         stitchingManager.stitch(stitchingContext, journal);
-        final Map<Long, TopologyEntity.Builder> topology = stitchingContext.constructTopology();
+        final Map<Long, TopologyEntityDTO.Builder> topology = stitchingContext.constructTopology();
         // these proxy VMs that matched stitched with hypervisor VMs should have been removed.
         final List<Long> cfExpectedRemoved = oidsFor(Stream.of("vm-1"), cloudfoundryEntities);
         // these unmatched VMs should have been retained.
@@ -113,10 +113,10 @@ public class CloudfoundryStitchingIntegrationTest extends StitchingIntegrationTe
         // get proxy entity from entity store, and real entity from repository
         final EntityDTO proxyVm1 = entityStore.getEntity(proxyVm1Oid).get()
                 .getEntityInfo(cloudFoundryTargetId).get().getEntityInfo();
-        final TopologyEntity vm1Topo = topology.get(vm1Oid).build();
+        final TopologyEntityDTO vm1Topo = topology.get(vm1Oid).build();
 
         // verify commodities sold in VM-1 has been replaced by proxy in VM-1
-        vm1Topo.getTopologyEntityDtoBuilder().getCommoditySoldListList().forEach(
+        vm1Topo.getCommoditySoldListList().forEach(
                 commoditySoldDTO -> {
                     final int commTypeVal = commoditySoldDTO.getCommodityType().getType();
                     // get commodity sold DTO in proxy VM

@@ -18,6 +18,7 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -114,7 +115,7 @@ public class VDIStitchingIntegrationTest extends StitchingIntegrationTest {
         setOperationsForProbe(VDI_TARGET_ID, Collections.singletonList(vdiStitching));
 
         stitchingManager.stitch(stitchingContext, journal);
-        final Map<Long, TopologyEntity.Builder> topology = stitchingContext.constructTopology();
+        final Map<Long, TopologyEntityDTO.Builder> topology = stitchingContext.constructTopology();
 
         return journalStringBuilder.toString();
     }
@@ -261,7 +262,7 @@ public class VDIStitchingIntegrationTest extends StitchingIntegrationTest {
                 Collections.singletonList(vdiMasterImageStitchingOperation));
 
         stitchingManager.stitch(stitchingContext, journal);
-        final Map<Long, TopologyEntity.Builder> topology = stitchingContext.constructTopology();
+        final Map<Long, TopologyEntityDTO.Builder> topology = stitchingContext.constructTopology();
 
         final String journalOutput = journalStringBuilder.toString();
 

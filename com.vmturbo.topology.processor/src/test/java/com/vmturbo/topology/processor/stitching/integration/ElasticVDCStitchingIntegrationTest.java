@@ -20,6 +20,7 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -119,7 +120,7 @@ public class ElasticVDCStitchingIntegrationTest extends StitchingIntegrationTest
                 .build());
         final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);
         stitchingManager.stitch(stitchingContext, journal);
-        final Map<Long, TopologyEntity.Builder> topology = stitchingContext.constructTopology();
+        final Map<Long, TopologyEntityDTO.Builder> topology = stitchingContext.constructTopology();
 
         // System should have found the following stitching points:
 

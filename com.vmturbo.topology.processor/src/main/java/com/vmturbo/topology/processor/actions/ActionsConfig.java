@@ -113,6 +113,9 @@ public class ActionsConfig {
     @Value("${maxSizeOfStateUpdatesQueue:500000}")
     private int maxSizeOfStateUpdatesQueue;
 
+    @Value("${serializeCachedTopology:true}")
+    private boolean serializeCachedTopology;
+
     @Bean
     public ActionDataManager actionDataManager() {
         return new ActionDataManager(
@@ -128,7 +131,7 @@ public class ActionsConfig {
 
     @Bean
     public CachedTopology cachedTopology() {
-        return new CachedTopology();
+        return new CachedTopology(serializeCachedTopology);
     }
 
     /**

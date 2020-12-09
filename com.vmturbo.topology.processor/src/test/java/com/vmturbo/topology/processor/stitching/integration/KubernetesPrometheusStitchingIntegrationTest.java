@@ -30,7 +30,6 @@ import com.vmturbo.platform.sdk.common.supplychain.MergedEntityMetadataBuilder;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
@@ -167,14 +166,14 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         assertEquals(7, stitchingContext.getStitchingGraph().entityCount());
 
         // stitch
-        Map<Long, TopologyEntity.Builder> topology = stitch(stitchingContext);
+        Map<Long, TopologyEntityDTO.Builder> topology = stitch(stitchingContext);
 
         // verify that only entities from Kubernetes are left after stitching
         assertEquals(3, topology.size());
 
-        final TopologyEntityDTO.Builder service = topology.get(oid_service1).getEntityBuilder();
-        final TopologyEntityDTO.Builder app1 = topology.get(oid_app1).getEntityBuilder();
-        final TopologyEntityDTO.Builder app1_1 = topology.get(oid_app1_1).getEntityBuilder();
+        final TopologyEntityDTO.Builder service = topology.get(oid_service1);
+        final TopologyEntityDTO.Builder app1 = topology.get(oid_app1);
+        final TopologyEntityDTO.Builder app11 = topology.get(oid_app1_1);
 
         // verify that service buys commodities from app1 with used value patched from prometheus
         CommoditiesBoughtFromProvider cb1 = verifyAndGetCommoditiesBought(service, app1);
@@ -183,10 +182,10 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         verifyBuyingCommodity(cb1, CommodityType.RESPONSE_TIME_VALUE, "10.2.1.31", 10d);
 
         // verify that service buys commodities from app1_1 with used value patched from prometheus
-        CommoditiesBoughtFromProvider cb1_1 = verifyAndGetCommoditiesBought(service, app1_1);
-        assertEquals(2, cb1_1.getCommodityBoughtCount());
-        verifyBuyingCommodity(cb1_1, CommodityType.TRANSACTION_VALUE, "10.2.1.31-1", 15d);
-        verifyBuyingCommodity(cb1_1, CommodityType.RESPONSE_TIME_VALUE, "10.2.1.31-1", 8d);
+        CommoditiesBoughtFromProvider cb11 = verifyAndGetCommoditiesBought(service, app11);
+        assertEquals(2, cb11.getCommodityBoughtCount());
+        verifyBuyingCommodity(cb11, CommodityType.TRANSACTION_VALUE, "10.2.1.31-1", 15d);
+        verifyBuyingCommodity(cb11, CommodityType.RESPONSE_TIME_VALUE, "10.2.1.31-1", 8d);
     }
 
 
@@ -234,14 +233,14 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         assertEquals(6, stitchingContext.getStitchingGraph().entityCount());
 
         // stitch
-        Map<Long, TopologyEntity.Builder> topology = stitch(stitchingContext);
+        Map<Long, TopologyEntityDTO.Builder> topology = stitch(stitchingContext);
 
         // verify that only entities from Kubernetes are left after stitching
         assertEquals(3, topology.size());
 
-        final TopologyEntityDTO.Builder service = topology.get(oid_service1).getEntityBuilder();
-        final TopologyEntityDTO.Builder app1 = topology.get(oid_app1).getEntityBuilder();
-        final TopologyEntityDTO.Builder app1_1 = topology.get(oid_app1_1).getEntityBuilder();
+        final TopologyEntityDTO.Builder service = topology.get(oid_service1);
+        final TopologyEntityDTO.Builder app1 = topology.get(oid_app1);
+        final TopologyEntityDTO.Builder app11 = topology.get(oid_app1_1);
 
         // verify that service buys commodities from app1 with used value patched from prometheus
         CommoditiesBoughtFromProvider cb1 = verifyAndGetCommoditiesBought(service, app1);
@@ -250,10 +249,10 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
         verifyBuyingCommodity(cb1, CommodityType.RESPONSE_TIME_VALUE, "10.2.1.31", 10d);
 
         // verify that service buys commodities from app1_1 with used value patched from prometheus
-        CommoditiesBoughtFromProvider cb1_1 = verifyAndGetCommoditiesBought(service, app1_1);
-        assertEquals(2, cb1_1.getCommodityBoughtCount());
-        verifyBuyingCommodity(cb1_1, CommodityType.TRANSACTION_VALUE, "10.2.1.31-1", 15d);
-        verifyBuyingCommodity(cb1_1, CommodityType.RESPONSE_TIME_VALUE, "10.2.1.31-1", 8d);
+        CommoditiesBoughtFromProvider cb11 = verifyAndGetCommoditiesBought(service, app11);
+        assertEquals(2, cb11.getCommodityBoughtCount());
+        verifyBuyingCommodity(cb11, CommodityType.TRANSACTION_VALUE, "10.2.1.31-1", 15d);
+        verifyBuyingCommodity(cb11, CommodityType.RESPONSE_TIME_VALUE, "10.2.1.31-1", 8d);
     }
 
     public void init(List<StitchingOperation<?, ?>> dataDrivenStitchingOperations) {
@@ -278,7 +277,7 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
             .thenReturn(Collections.singletonList(kubernetesProbeId));
     }
 
-    private Map<Long, TopologyEntity.Builder> stitch(StitchingContext stitchingContext) {
+    private Map<Long, TopologyEntityDTO.Builder> stitch(StitchingContext stitchingContext) {
         final ConfigurableStitchingJournalFactory journalFactory = StitchingJournalFactory
             .configurableStitchingJournalFactory(Clock.systemUTC())
             .addRecorder(new StringBuilderRecorder(new StringBuilder(2048)));

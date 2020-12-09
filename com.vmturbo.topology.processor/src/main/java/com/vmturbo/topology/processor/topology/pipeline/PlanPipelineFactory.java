@@ -60,6 +60,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStag
 import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoricalUtilizationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoryAggregationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.IgnoreConstraintsStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.InitializeTopologyEntitiesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.OverrideWorkLoadDemandStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
@@ -230,11 +231,14 @@ public class PlanPipelineFactory {
                 PipelineDefinition.newBuilder(context);
         PipelineDefinitionBuilder<EntityStore, TopologyBroadcastInfo, Map<Long, Builder>, TopologyPipelineContext> builderContinuation;
         if (constructTopologyStageCache.isEmpty()) {
-            builderContinuation = topoPipelineBuilder.addStage(new StitchingStage(stitchingManager, journalFactory))
-                .addStage(new ConstructTopologyFromStitchingContextStage());
+            builderContinuation = topoPipelineBuilder
+                .addStage(new StitchingStage(stitchingManager, journalFactory))
+                .addStage(new ConstructTopologyFromStitchingContextStage())
+                .addStage(new InitializeTopologyEntitiesStage());
         } else {
-            builderContinuation = topoPipelineBuilder.addStage(
-                new CachingConstructTopologyFromStitchingContextStage(constructTopologyStageCache));
+            builderContinuation = topoPipelineBuilder
+                .addStage(new CachingConstructTopologyFromStitchingContextStage(constructTopologyStageCache))
+                .addStage(new InitializeTopologyEntitiesStage());
         }
         return new TopologyPipeline<>(builderContinuation
                 .addStage(new ReservationStage(reservationManager))

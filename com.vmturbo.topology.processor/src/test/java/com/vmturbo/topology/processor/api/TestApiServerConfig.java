@@ -479,7 +479,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
      */
     @Bean
     public CachedTopology cachedTopology() {
-        return new CachedTopology();
+        return new CachedTopology(false);
     }
 
     @Bean
