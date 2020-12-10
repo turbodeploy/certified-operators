@@ -57,7 +57,6 @@ import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.TestGroupGenerator;
-import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.setting.FileBasedSettingsSpecStore;
 import com.vmturbo.group.setting.SettingPolicyValidator;
@@ -93,8 +92,6 @@ public class ScheduleStoreTest {
      */
     @ClassRule
     public static DbConfigurationRule dbConfig = new DbConfigurationRule(GroupComponent.GROUP_COMPONENT);
-
-    private final GroupPaginationParams groupPaginationParams = new GroupPaginationParams(100, 500);
     /**
      * Rule to automatically cleanup DB data before each test.
      */
@@ -163,7 +160,7 @@ public class ScheduleStoreTest {
         settingStore = new SettingStore(settingSpecStore, dslContextSpy, settingPolicyValidator,
                 settingsUpdatesSender);
         scheduleStore = new ScheduleStore(dslContextSpy, scheduleValidator, identityProvider);
-        groupStore = new GroupDAO(dslContextSpy, groupPaginationParams);
+        groupStore = new GroupDAO(dslContextSpy);
     }
 
     /**

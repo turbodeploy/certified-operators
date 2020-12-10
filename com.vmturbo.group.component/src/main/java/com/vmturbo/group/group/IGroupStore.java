@@ -77,17 +77,6 @@ public interface IGroupStore {
             throws StoreOperationException;
 
     /**
-     * Returns the next page of groups, conforming to the request specified.
-     *
-     * @param paginatedGroupsRequest request for groups with necessary filters & pagination
-     *                               parameters
-     * @return the next page of groups, along with the corresponding pagination info
-     */
-    @Nonnull
-    GroupDTO.GetPaginatedGroupsResponse getPaginatedGroups(
-            @Nonnull GroupDTO.GetPaginatedGroupsRequest paginatedGroupsRequest);
-
-    /**
      * Returns collection of groups, conforming to the request specified.
      *
      * @param groupFilter request to query
