@@ -13,12 +13,10 @@ import org.springframework.context.annotation.Primary;
 import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.flyway.V1_11_Callback;
-import com.vmturbo.group.group.pagination.GroupPaginationConfig;
 
 @Configuration
 @Import({IdentityProviderConfig.class,
-        GroupComponentDBConfig.class,
-        GroupPaginationConfig.class})
+        GroupComponentDBConfig.class})
 public class GroupConfig {
 
     @Value("${tempGroupExpirationTimeMins:30}")
@@ -29,9 +27,6 @@ public class GroupConfig {
 
     @Autowired
     private GroupComponentDBConfig databaseConfig;
-
-    @Autowired
-    private GroupPaginationConfig groupPaginationConfig;
 
     /**
      * Define flyway callbacks to be active during migrations for group component.
@@ -55,7 +50,6 @@ public class GroupConfig {
 
     @Bean
     public GroupDAO groupStore() {
-        return new GroupDAO(databaseConfig.dsl(),
-                groupPaginationConfig.groupPaginationParams());
+        return new GroupDAO(databaseConfig.dsl());
     }
 }

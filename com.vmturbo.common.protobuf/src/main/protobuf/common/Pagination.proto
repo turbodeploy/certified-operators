@@ -35,12 +35,6 @@ message OrderBy {
         ENTITY_COST = 4;
     }
 
-    enum GroupOrderBy {
-        GROUP_NAME = 1;
-        GROUP_SEVERITY = 2;
-        GROUP_COST = 3;
-    }
-
     // The ordering parameters for entity stats requests.
     // This should stay in sync with the Java implementation.
     // See: com.vmturbo.api.pagination.EntityStatsOrderBy
@@ -53,7 +47,6 @@ message OrderBy {
         ActionOrderBy action = 1;
         SearchOrderBy search = 2;
         EntityStatsOrderBy entity_stats = 3;
-        GroupOrderBy group_search = 4;
     }
 }
 
