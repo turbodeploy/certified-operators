@@ -29,7 +29,11 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.springframework.jdbc.BadSqlGrammarException;
 
+import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
@@ -51,6 +55,7 @@ import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroupId;
+import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -98,7 +103,7 @@ public class GroupDaoTest {
     @Before
     public void setup() {
         this.groupGenerator = new TestGroupGenerator();
-        groupStore = new GroupDAO(dbConfig.getDslContext());
+        groupStore = new GroupDAO(dbConfig.getDslContext(), new GroupPaginationParams(100, 500));
     }
 
     /**
@@ -973,6 +978,467 @@ public class GroupDaoTest {
         groupStore.createGroup(OID2, origin, createGroupDefinition(), expectedMemberTypes, true);
         Assert.assertEquals(Collections.singleton(OID2),
                 groupStore.getExistingGroupIds(Arrays.asList(OID2, OID3)));
+    }
+
+    /**
+     * Utility function to setup some groups for testing.
+     * Used in tests for {@link GroupDAO#getPaginatedGroups}.
+     *
+     * @param group1DisplayName 1st group's display name
+     * @param group2DisplayName 2nd group's display name
+     * @param group3DisplayName 3rd group's display name
+     * @param group4DisplayName 4th group's display name
+     * @throws StoreOperationException on db error
+     */
+    private void prepareGroups(final String group1DisplayName,
+            final String group2DisplayName,
+            final String group3DisplayName,
+            final String group4DisplayName) throws StoreOperationException {
+        final long entityOid1 = 1L;
+        final long entityOid2 = 2L;
+        final long entityOid3 = 3L;
+        final long entityOid4 = 4L;
+        final Origin origin = createUserOrigin();
+        final GroupDefinition groupDefinition1 = GroupDefinition.newBuilder()
+                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                .setDisplayName(group1DisplayName)
+                .setIsHidden(false)
+                .setIsTemporary(false)
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                        .addMembersByType(StaticMembersByType.newBuilder()
+                                .setType(MemberType.newBuilder()
+                                        .setEntity(EntityType.PHYSICAL_MACHINE_VALUE)
+                                        .build())
+                                .addMembers(entityOid1)
+                                .build())
+                        .build())
+                .build();
+        final GroupDefinition groupDefinition2 = GroupDefinition.newBuilder()
+                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                .setDisplayName(group2DisplayName)
+                .setIsHidden(false)
+                .setIsTemporary(false)
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                        .addMembersByType(StaticMembersByType.newBuilder()
+                                .setType(MemberType.newBuilder()
+                                        .setEntity(EntityType.PHYSICAL_MACHINE_VALUE)
+                                        .build())
+                                .addMembers(entityOid2)
+                                .build())
+                        .build())
+                .build();
+        final GroupDefinition groupDefinition3 = GroupDefinition.newBuilder()
+                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                .setDisplayName(group3DisplayName)
+                .setIsHidden(false)
+                .setIsTemporary(false)
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                        .addMembersByType(StaticMembersByType.newBuilder()
+                                .setType(MemberType.newBuilder()
+                                        .setEntity(EntityType.PHYSICAL_MACHINE_VALUE)
+                                        .build())
+                                .addMembers(entityOid3)
+                                .build())
+                        .build())
+                .build();
+        final GroupDefinition groupDefinition4 = GroupDefinition.newBuilder()
+                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                .setDisplayName(group4DisplayName)
+                .setIsHidden(false)
+                .setIsTemporary(false)
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                        .addMembersByType(StaticMembersByType.newBuilder()
+                                .setType(MemberType.newBuilder()
+                                        .setEntity(EntityType.PHYSICAL_MACHINE_VALUE)
+                                        .build())
+                                .addMembers(entityOid4)
+                                .build())
+                        .build())
+                .build();
+        groupStore.createGroup(OID1,
+                origin,
+                groupDefinition1,
+                ImmutableSet.of(MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE).build()),
+                false);
+        groupStore.createGroup(OID2,
+                origin,
+                groupDefinition2,
+                ImmutableSet.of(MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE).build()),
+                false);
+        groupStore.createGroup(OID3,
+                origin,
+                groupDefinition3,
+                ImmutableSet.of(MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE).build()),
+                true);
+        groupStore.createGroup(OID4,
+                origin,
+                groupDefinition4,
+                ImmutableSet.of(MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE).build()),
+                false);
+    }
+
+    /**
+     * Tests that {@link GroupDAO#getPaginatedGroups} returns correct paginated responses for a
+     * basic request (no filtering/sorting specified).
+     *
+     * @throws StoreOperationException on db error
+     */
+    @Test
+    public void testGetPaginatedGroupsForDefaultRequest() throws StoreOperationException {
+        final String group1DisplayName = "testGroupC";
+        final String group2DisplayName = "testGroupA";
+        final String group3DisplayName = "testGroupD";
+        final String group4DisplayName = "testGroupB";
+        // GIVEN
+        prepareGroups(group1DisplayName, group2DisplayName, group3DisplayName, group4DisplayName);
+
+        // expected return order (ordering defaults to name): group2 group4 group1 group3
+        // 1st call:
+        GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setLimit(1)
+                        .build())
+                .build();
+
+        // WHEN
+        GetPaginatedGroupsResponse response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(1, response.getGroupsCount());
+        Assert.assertTrue(response.getPaginationResponse().hasNextCursor());
+        String cursor = response.getPaginationResponse().getNextCursor();
+        Assert.assertEquals("1", cursor);
+        Assert.assertEquals(4, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group2DisplayName, response.getGroups(0).getDefinition().getDisplayName());
+
+        // 2nd call
+        request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setLimit(1)
+                        .setCursor(cursor)
+                        .build())
+                .build();
+
+        // WHEN
+        response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(1, response.getGroupsCount());
+        Assert.assertTrue(response.getPaginationResponse().hasNextCursor());
+        cursor = response.getPaginationResponse().getNextCursor();
+        Assert.assertEquals("2", cursor);
+        Assert.assertEquals(4, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group4DisplayName, response.getGroups(0).getDefinition().getDisplayName());
+
+        // 3rd call
+        request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setLimit(1)
+                        .setCursor(cursor)
+                        .build())
+                .build();
+
+        // WHEN
+        response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(1, response.getGroupsCount());
+        Assert.assertTrue(response.getPaginationResponse().hasNextCursor());
+        cursor = response.getPaginationResponse().getNextCursor();
+        Assert.assertEquals("3", cursor);
+        Assert.assertEquals(4, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group1DisplayName, response.getGroups(0).getDefinition().getDisplayName());
+
+        // 4th (final) call
+        request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setLimit(1)
+                        .setCursor(cursor)
+                        .build())
+                .build();
+
+        // WHEN
+        response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(1, response.getGroupsCount());
+        Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
+        Assert.assertEquals(4, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group3DisplayName, response.getGroups(0).getDefinition().getDisplayName());
+    }
+
+    /**
+     * Tests that {@link GroupDAO#getPaginatedGroups} returns correct paginated responses when
+     * ordering by name.
+     *
+     * @throws StoreOperationException on db error
+     */
+    @Test
+    public void testGetPaginatedGroupsOrderByName() throws StoreOperationException {
+        final String group1DisplayName = "testGroupC";
+        final String group2DisplayName = "testGroupA";
+        final String group3DisplayName = "testGroupD";
+        final String group4DisplayName = "TestGroupB";
+        // GIVEN
+        prepareGroups(group1DisplayName, group2DisplayName, group3DisplayName, group4DisplayName);
+
+        // expected return order (we're sorting by name, order is case insensitive):
+        // group2 group4 group1 group3
+        // first call:
+        GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setOrderBy(OrderBy.newBuilder()
+                                .setGroupSearch(OrderBy.GroupOrderBy.GROUP_NAME)
+                                .build())
+                        .setLimit(2)
+                        .build())
+                .build();
+
+        // WHEN
+        GetPaginatedGroupsResponse response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(2, response.getGroupsCount());
+        Assert.assertEquals("2", response.getPaginationResponse().getNextCursor());
+        Assert.assertEquals(4, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group2DisplayName,
+                response.getGroups(0).getDefinition().getDisplayName());
+        Assert.assertEquals(group4DisplayName,
+                response.getGroups(1).getDefinition().getDisplayName());
+
+        // next call
+        request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setOrderBy(OrderBy.newBuilder()
+                                .setGroupSearch(OrderBy.GroupOrderBy.GROUP_NAME)
+                                .build())
+                        .setLimit(2)
+                        .setCursor("2")
+                        .build())
+                .build();
+
+        // WHEN
+        response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(2, response.getGroupsCount());
+        Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
+        Assert.assertEquals(4, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group1DisplayName,
+                response.getGroups(0).getDefinition().getDisplayName());
+        Assert.assertEquals(group3DisplayName,
+                response.getGroups(1).getDefinition().getDisplayName());
+    }
+
+    /**
+     * Tests that {@link GroupDAO#getPaginatedGroups} returns correct paginated responses when
+     * filtering by case insensitive name.
+     *
+     * @throws StoreOperationException on db error
+     */
+    @Test
+    public void testGetPaginatedGroupsFilterByNameCaseInsensitive() throws StoreOperationException {
+        final String group1DisplayName = "testGroupC";
+        final String group2DisplayName = "myGroupA";
+        final String group3DisplayName = "TestGroupD";
+        final String group4DisplayName = "testGroupB";
+        // GIVEN
+        prepareGroups(group1DisplayName, group2DisplayName, group3DisplayName, group4DisplayName);
+        PropertyFilter propertyFilter = PropertyFilter.newBuilder()
+                .setPropertyName("displayName")
+                .setStringFilter(StringFilter.newBuilder()
+                        .setCaseSensitive(false)
+                        .setStringPropertyRegex("^test.*$")
+                        .build())
+                .build();
+
+        // expected return order (we're filtering by name (case insensitive), sort by name as
+        // default):
+        // group4 group1 group3
+        // first call:
+        GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .addPropertyFilters(propertyFilter)
+                        .build())
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setLimit(2)
+                        .build())
+                .build();
+
+        // WHEN
+        GetPaginatedGroupsResponse response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(2, response.getGroupsCount());
+        Assert.assertEquals("2", response.getPaginationResponse().getNextCursor());
+        Assert.assertEquals(3, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group4DisplayName,
+                response.getGroups(0).getDefinition().getDisplayName());
+        Assert.assertEquals(group1DisplayName,
+                response.getGroups(1).getDefinition().getDisplayName());
+
+        // next call
+        request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .addPropertyFilters(propertyFilter)
+                        .build())
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setLimit(2)
+                        .setCursor("2")
+                        .build())
+                .build();
+
+        // WHEN
+        response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(1, response.getGroupsCount());
+        Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
+        Assert.assertEquals(3, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group3DisplayName,
+                response.getGroups(0).getDefinition().getDisplayName());
+    }
+
+    /**
+     * Tests that {@link GroupDAO#getPaginatedGroups} returns correct paginated responses when
+     * filtering by case sensitive name.
+     *
+     * @throws StoreOperationException on db error
+     */
+    @Test
+    public void testGetPaginatedGroupsFilterByNameCaseSensitive() throws StoreOperationException {
+        final String group1DisplayName = "testGroupC";
+        final String group2DisplayName = "myGroupA";
+        final String group3DisplayName = "TestGroupD";
+        final String group4DisplayName = "testGroupB";
+        // GIVEN
+        prepareGroups(group1DisplayName, group2DisplayName, group3DisplayName, group4DisplayName);
+        PropertyFilter propertyFilter = PropertyFilter.newBuilder()
+                .setPropertyName("displayName")
+                .setStringFilter(StringFilter.newBuilder()
+                        .setCaseSensitive(true)
+                        .setStringPropertyRegex("^test.*$")
+                        .build())
+                .build();
+
+        // expected return order (we're filtering by name (case sensitive), sort by name as
+        // default):
+        // group4 group1
+        // first call:
+        GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .addPropertyFilters(propertyFilter)
+                        .build())
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setLimit(1)
+                        .build())
+                .build();
+
+        // WHEN
+        GetPaginatedGroupsResponse response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(1, response.getGroupsCount());
+        Assert.assertEquals("1", response.getPaginationResponse().getNextCursor());
+        Assert.assertEquals(2, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group4DisplayName,
+                response.getGroups(0).getDefinition().getDisplayName());
+
+        // next call
+        request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .addPropertyFilters(propertyFilter)
+                        .build())
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setLimit(2)
+                        .setCursor("1")
+                        .build())
+                .build();
+
+        // WHEN
+        response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(1, response.getGroupsCount());
+        Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
+        Assert.assertEquals(2, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group1DisplayName,
+                response.getGroups(0).getDefinition().getDisplayName());
+    }
+
+    /**
+     * Tests that {@link GroupDAO#getPaginatedGroups} does not return a cursor when there are no
+     * more results to be returned.
+     *
+     * @throws StoreOperationException on db error
+     */
+    @Test
+    public void testGetPaginatedGroupsWithoutNextPage() throws StoreOperationException {
+        final String group1DisplayName = "testGroup1";
+        final String group2DisplayName = "testGroup2";
+        final String group3DisplayName = "testGroup3";
+        final String group4DisplayName = "testGroup4";
+        // GIVEN
+        prepareGroups(group1DisplayName, group2DisplayName, group3DisplayName, group4DisplayName);
+
+        // request with limit = total records count
+        GetPaginatedGroupsRequest request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setLimit(4)
+                        .build())
+                .build();
+
+        // WHEN
+        GetPaginatedGroupsResponse response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(4, response.getGroupsCount());
+        Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
+        Assert.assertEquals(4, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group1DisplayName, response.getGroups(0).getDefinition().getDisplayName());
+        Assert.assertEquals(group2DisplayName, response.getGroups(1).getDefinition().getDisplayName());
+        Assert.assertEquals(group3DisplayName, response.getGroups(2).getDefinition().getDisplayName());
+        Assert.assertEquals(group4DisplayName, response.getGroups(3).getDefinition().getDisplayName());
+
+        // GIVEN
+        // request with limit > total records count
+        request = GetPaginatedGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .setPaginationParameters(PaginationParameters.newBuilder()
+                        .setAscending(true)
+                        .setLimit(5)
+                        .build())
+                .build();
+
+        // WHEN
+        response = groupStore.getPaginatedGroups(request);
+
+        // THEN
+        Assert.assertEquals(4, response.getGroupsCount());
+        Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
+        Assert.assertEquals(4, response.getPaginationResponse().getTotalRecordCount());
+        Assert.assertEquals(group1DisplayName, response.getGroups(0).getDefinition().getDisplayName());
+        Assert.assertEquals(group2DisplayName, response.getGroups(1).getDefinition().getDisplayName());
+        Assert.assertEquals(group3DisplayName, response.getGroups(2).getDefinition().getDisplayName());
+        Assert.assertEquals(group4DisplayName, response.getGroups(3).getDefinition().getDisplayName());
     }
 
     @Nonnull
