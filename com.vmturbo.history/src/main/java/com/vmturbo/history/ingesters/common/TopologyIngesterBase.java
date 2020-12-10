@@ -13,11 +13,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.utils.DataPacks.DataPack;
+import com.vmturbo.components.common.utils.DataPacks.IDataPack;
+import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.history.db.bulk.BulkInserterFactory;
 import com.vmturbo.history.db.bulk.BulkInserterFactoryStats;
 import com.vmturbo.history.db.bulk.BulkInserterStats;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
+import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 
 /**
  * Base class for topology ingesters.
@@ -25,9 +29,9 @@ import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
  * @param <T> type of topology entity
  */
 public class TopologyIngesterBase<T>
-    extends AbstractTopologyProcessor
-    <T, SimpleBulkLoaderFactory, Pair<Integer, BulkInserterFactoryStats>> {
+        extends AbstractTopologyProcessor<T, IngesterState, Pair<Integer, BulkInserterFactoryStats>> {
 
+    // TODO maybe use data packs in other writers
     protected final Logger logger;
     protected final TopologyIngesterConfig topologyIngesterConfig;
     private final Supplier<SimpleBulkLoaderFactory> loaderFactorySupplier;
@@ -42,25 +46,35 @@ public class TopologyIngesterBase<T>
      * @param topologyType            tooplogy type string
      */
     public TopologyIngesterBase(
-        @Nonnull final
-        Collection<? extends IChunkProcessorFactory<T, TopologyInfo, SimpleBulkLoaderFactory>>
-            chunkProcessorFactories,
-        @Nonnull TopologyIngesterConfig topologyIngesterConfig,
-        @Nonnull Supplier<SimpleBulkLoaderFactory> loaderFactorySupplier,
-        @Nonnull TopologyType topologyType) {
+            @Nonnull final
+            Collection<? extends IChunkProcessorFactory<T, TopologyInfo, IngesterState>>
+                    chunkProcessorFactories,
+            @Nonnull TopologyIngesterConfig topologyIngesterConfig,
+            @Nonnull Supplier<SimpleBulkLoaderFactory> loaderFactorySupplier,
+            @Nonnull TopologyType topologyType) {
         super(chunkProcessorFactories, topologyIngesterConfig, topologyType.isProjectedTopology());
         this.logger = LogManager.getLogger(getClass());
         this.topologyIngesterConfig = topologyIngesterConfig;
         this.loaderFactorySupplier = loaderFactorySupplier;
     }
 
-    public SimpleBulkLoaderFactory getLoadersInstance() {
-        return loaderFactorySupplier.get();
+    /**
+     * Provides external access to create a new shared state object, which permits the caller to
+     * make use of the state after topology processing has been completed.
+     *
+     * <p>This is optional; if a pre-created shared state is not provided, the ingester will create
+     * one in any case.</p>
+     *
+     * @param topologyInfo topology info for topology to be processed
+     * @return new shared state instance
+     */
+    public IngesterState createSharedState(TopologyInfo topologyInfo) {
+        return getSharedState(topologyInfo);
     }
 
     @Override
-    protected SimpleBulkLoaderFactory getSharedState(TopologyInfo topologyInfo) {
-        return loaderFactorySupplier.get();
+    protected IngesterState getSharedState(TopologyInfo topologyInfo) {
+        return new IngesterState(loaderFactorySupplier.get(), new LongDataPack(), new DataPack<>());
     }
 
     /**
@@ -70,20 +84,21 @@ public class TopologyIngesterBase<T>
      * support is added for the latter, enabling new restart options.</p>
      *
      * @param chunk        the chunk that was just processed
-     * @param chunkNo      the chunk number (starting with 1) of this chunk in the overall broadcast
+     * @param chunkNo      the chunk number (starting with 1) of this chunk in the overall
+     *                     broadcast
      * @param topologyInfo topology info
-     * @param inserters    bulk inserter factory
+     * @param state        shared writer state
      * @param timer        timer for this broadcast
      */
     @Override
     protected void afterChunkHook(final Collection<T> chunk,
-                                  final int chunkNo,
-                                  final TopologyInfo topologyInfo,
-                                  final SimpleBulkLoaderFactory inserters,
-                                  final MultiStageTimer timer) {
+            final int chunkNo,
+            final TopologyInfo topologyInfo,
+            final IngesterState state,
+            final MultiStageTimer timer) {
         try {
             if (topologyIngesterConfig.perChunkCommit()) {
-                inserters.flushAll();
+                state.getLoaders().flushAll();
             }
         } catch (InterruptedException e) {
             logger.error("Failed to flush bulk writers", e);
@@ -97,43 +112,43 @@ public class TopologyIngesterBase<T>
      * bulk writer stats.</p>
      *
      * @param topologyInfo the topology info
-     * @param loaders      the bulk loader factory
+     * @param state        shared writer state
      * @param entityCount  number of entities ingested
      * @param timer        timer object for this broadcast
      */
     @Override
     protected void afterFinishHook(TopologyInfo topologyInfo,
-                                   SimpleBulkLoaderFactory loaders,
-                                   int entityCount,
-                                   MultiStageTimer timer) {
+            IngesterState state,
+            int entityCount,
+            MultiStageTimer timer) {
         this.entityCount = entityCount;
         try {
-            loaders.close();
+            state.getLoaders().close();
         } catch (InterruptedException e) {
             logger.error("Failed to close bulk writers", e);
         }
-        final BulkInserterFactoryStats stats = loaders.getStats();
+        final BulkInserterFactoryStats stats = state.getLoaders().getStats();
         String statsSummary =
-            String.format("  %-25s %11s %7s %5s\n", "TABLE", "RECORDS", "BATCHES", "FAILS")
-                + stats.getKeys().stream()
-                .sorted(Comparator.comparing(BulkInserterFactory::getKeyLabel))
-                .map(key -> {
-                    BulkInserterStats stat = stats.getByKey(key);
-                    return String.format("  %-25s %,11d %,7d %,5d",
-                        BulkInserterFactory.getKeyLabel(key),
-                        stat.getWritten(),
-                        stat.getBatches(),
-                        stat.getFailedBatches());
-                })
-                .collect(Collectors.joining("\n"));
+                String.format("  %-25s %11s %7s %5s\n", "TABLE", "RECORDS", "BATCHES", "FAILS")
+                        + stats.getKeys().stream()
+                        .sorted(Comparator.comparing(BulkInserterFactory::getKeyLabel))
+                        .map(key -> {
+                            BulkInserterStats stat = stats.getByKey(key);
+                            return String.format("  %-25s %,11d %,7d %,5d",
+                                    BulkInserterFactory.getKeyLabel(key),
+                                    stat.getWritten(),
+                                    stat.getBatches(),
+                                    stat.getFailedBatches());
+                        })
+                        .collect(Collectors.joining("\n"));
         logger.info("Completed ingestion for {}:\n{}",
             summarizeInfo(topologyInfo), statsSummary);
     }
 
     @Override
     protected Pair<Integer, BulkInserterFactoryStats> getProcessingResult(
-        final TopologyInfo topologyInfo, final SimpleBulkLoaderFactory loaders) {
-        return Pair.of(entityCount, loaders.getStats());
+            final TopologyInfo topologyInfo, final IngesterState state) {
+        return Pair.of(entityCount, state.getLoaders().getStats());
     }
 
     /**
@@ -148,8 +163,60 @@ public class TopologyIngesterBase<T>
         public boolean isProjectedTopology() {
             return this == PROJECTED_LIVE || this == PROJECTED_PLAN;
         }
+
         public String getReadableName() {
             return WordUtils.capitalizeFully(name().replaceAll("_", " "));
         }
     }
+
+    /**
+     * Shared state for topology ingesters.
+     *
+     * <p>Sharing is among writers on a per-ingester-instance basis, not among ingesters.</p>
+     */
+    public static class IngesterState {
+
+        private final SimpleBulkLoaderFactory loaders;
+        // data pack that can be used with any oids (entity oids, group ids, etc.) appearing in
+        // the topology
+        private final IDataPack<Long> oidPack;
+        // data pack that can be used with any commodity keys appearing in the topology
+        private final IDataPack<String> keyPack;
+
+        /**
+         * Create a new instance.
+         *
+         * @param loaders bulk loader factory
+         * @param oidPack oid data pack
+         * @param keyPack commodity key data pack
+         */
+        public IngesterState(
+                SimpleBulkLoaderFactory loaders, IDataPack<Long> oidPack, IDataPack<String> keyPack) {
+            this.loaders = loaders;
+            this.oidPack = oidPack;
+            this.keyPack = keyPack;
+        }
+
+        /**
+         * Create a new instance with new data packs.
+         *
+         * @param loaders bulk loader factory
+         */
+        public IngesterState(SimpleBulkLoaderFactory loaders) {
+            this(loaders, new LongDataPack(), new DataPack<>());
+        }
+
+        public SimpleBulkLoaderFactory getLoaders() {
+            return loaders;
+        }
+
+        public IDataPack<Long> getOidPack() {
+            return oidPack;
+        }
+
+        public IDataPack<String> getKeyPack() {
+            return keyPack;
+        }
+    }
+
 }

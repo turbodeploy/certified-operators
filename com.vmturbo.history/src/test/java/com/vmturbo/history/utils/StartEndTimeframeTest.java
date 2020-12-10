@@ -13,7 +13,6 @@ import java.util.regex.Pattern;
 
 import org.jooq.Condition;
 import org.jooq.TableField;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -73,7 +72,7 @@ public class StartEndTimeframeTest {
     @Parameter(5)
     public String endExpected;
     @Parameter(6)
-    public TableField<?,?> field;
+    public TableField<?, ?> field;
     @Parameter(7)
     public Pattern resultPattern;
 

@@ -24,12 +24,12 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import it.unimi.dsi.fastutil.longs.Long2FloatMap;
+import it.unimi.dsi.fastutil.longs.Long2FloatOpenHashMap;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
-import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -40,6 +40,8 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
+import com.vmturbo.components.common.utils.DataPacks.DataPack;
+import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.history.stats.StatsTestUtils;
 import com.vmturbo.history.stats.projected.ProjectedPriceIndexSnapshot.PriceIndexSnapshotFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -59,7 +61,7 @@ public class TopologyCommoditiesSnapshotTest {
     private EntityCountInfo entityCountInfo;
     private ProjectedPriceIndexSnapshot projectedPriceIndexSnapshot;
 
-    private static final Set<String> EXCLUDED_COMMODITY_NAMES = Collections.singleton("CLUSTERCommodity");
+    private static final Set<CommodityType> EXCLUDED_COMMODITY_TYPES = Collections.singleton(CommodityType.CLUSTER);
 
     @Before
     public void setup() {
@@ -92,14 +94,15 @@ public class TopologyCommoditiesSnapshotTest {
                         .setUsed(10)))
             .setProjectedPriceIndex(priceIndex)
             .build();
-        final Long2DoubleMap expectedPriceIndexMap = new Long2DoubleOpenHashMap();
-        expectedPriceIndexMap.put(entity.getEntity().getOid(), priceIndex);
+        final Long2FloatMap expectedPriceIndexMap = new Long2FloatOpenHashMap();
+        expectedPriceIndexMap.put(entity.getEntity().getOid(), (float)priceIndex);
 
         when(entities.nextChunk()).thenReturn(Collections.singletonList(entity));
         final PriceIndexSnapshotFactory priceIndexSnapshotFactory = mock(PriceIndexSnapshotFactory.class);
         when(priceIndexSnapshotFactory.createSnapshot(expectedPriceIndexMap)).thenReturn(mock(ProjectedPriceIndexSnapshot.class));
         final TopologyCommoditiesSnapshot snapshot =
-                TopologyCommoditiesSnapshot.newFactory(EXCLUDED_COMMODITY_NAMES).createSnapshot(entities, priceIndexSnapshotFactory);
+                TopologyCommoditiesSnapshot.newFactory(EXCLUDED_COMMODITY_TYPES, new LongDataPack(), new DataPack<>())
+                        .createSnapshot(entities, priceIndexSnapshotFactory);
 
         verify(priceIndexSnapshotFactory).createSnapshot(expectedPriceIndexMap);
 
@@ -115,7 +118,7 @@ public class TopologyCommoditiesSnapshotTest {
     public void testNoCommodities() {
         TopologyCommoditiesSnapshot snapshot =
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
-                        entityCountInfo, projectedPriceIndexSnapshot, 1);
+                        entityCountInfo, projectedPriceIndexSnapshot, new LongDataPack(), new DataPack<>(), 1);
 
         snapshot.getRecords(Collections.emptySet(), Collections.emptySet(), Collections.emptySet());
     }
@@ -130,7 +133,7 @@ public class TopologyCommoditiesSnapshotTest {
 
         TopologyCommoditiesSnapshot snapshot =
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
-                        entityCountInfo, projectedPriceIndexSnapshot, 1);
+                        entityCountInfo, projectedPriceIndexSnapshot, new LongDataPack(), new DataPack<>(), 1);
 
          List<StatRecord> records = snapshot.getRecords(Collections.singleton("count1"),
                      Collections.emptySet(), Collections.emptySet())
@@ -149,7 +152,7 @@ public class TopologyCommoditiesSnapshotTest {
 
         TopologyCommoditiesSnapshot snapshot =
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
-                        entityCountInfo, projectedPriceIndexSnapshot, 1);
+                        entityCountInfo, projectedPriceIndexSnapshot, new LongDataPack(), new DataPack<>(), 1);
 
         List<StatRecord> records = snapshot.getRecords(Collections.singleton("count1"),
                 Collections.emptySet(), Collections.emptySet())
@@ -161,7 +164,7 @@ public class TopologyCommoditiesSnapshotTest {
     public void testTopologySize() {
         TopologyCommoditiesSnapshot snapshot =
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
-                        entityCountInfo, projectedPriceIndexSnapshot, 1);
+                        entityCountInfo, projectedPriceIndexSnapshot, new LongDataPack(), new DataPack<>(), 1);
         assertEquals(1, snapshot.getTopologySize());
     }
 
@@ -174,7 +177,7 @@ public class TopologyCommoditiesSnapshotTest {
         when(projectedPriceIndexSnapshot.getRecord(entities)).thenReturn(Optional.of(statRecord));
         final TopologyCommoditiesSnapshot snapshot =
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
-                        entityCountInfo, projectedPriceIndexSnapshot, 1);
+                        entityCountInfo, projectedPriceIndexSnapshot, new LongDataPack(), new DataPack<>(), 1);
         final List<StatRecord> records =
                 snapshot.getRecords(Collections.singleton(StringConstants.PRICE_INDEX), entities, Collections.emptySet())
                 .collect(Collectors.toList());
@@ -186,7 +189,7 @@ public class TopologyCommoditiesSnapshotTest {
     public void testCommodityNotSoldOrBought() {
         TopologyCommoditiesSnapshot snapshot =
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
-                        entityCountInfo, projectedPriceIndexSnapshot, 1);
+                        entityCountInfo, projectedPriceIndexSnapshot, new LongDataPack(), new DataPack<>(), 1);
 
         final List<StatRecord> records =
                 snapshot.getRecords(Collections.singleton("Mem"),
@@ -205,7 +208,7 @@ public class TopologyCommoditiesSnapshotTest {
     public void testCommoditySoldOnly() {
         TopologyCommoditiesSnapshot snapshot =
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
-                        entityCountInfo, projectedPriceIndexSnapshot, 1);
+                        entityCountInfo, projectedPriceIndexSnapshot, new LongDataPack(), new DataPack<>(), 1);
 
         when(soldCommoditiesInfo.getAccumulatedRecords(
                     Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet())))
@@ -223,7 +226,7 @@ public class TopologyCommoditiesSnapshotTest {
     public void testCommodityBoughtOnly() {
         TopologyCommoditiesSnapshot snapshot =
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
-                        entityCountInfo, projectedPriceIndexSnapshot, 1);
+                        entityCountInfo, projectedPriceIndexSnapshot, new LongDataPack(), new DataPack<>(), 1);
 
         when(boughtCommoditiesInfo.getAccumulatedRecord(
                 Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet()), Mockito.eq(Collections.emptySet())))
@@ -241,7 +244,7 @@ public class TopologyCommoditiesSnapshotTest {
     public void testCommoditySoldAndBought() {
         TopologyCommoditiesSnapshot snapshot =
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
-                        entityCountInfo, projectedPriceIndexSnapshot, 1);
+                        entityCountInfo, projectedPriceIndexSnapshot, new LongDataPack(), new DataPack<>(), 1);
 
         when(soldCommoditiesInfo.getAccumulatedRecords(
                 Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet())))
@@ -262,7 +265,7 @@ public class TopologyCommoditiesSnapshotTest {
     public void testEntityComparatorAscending() {
         TopologyCommoditiesSnapshot snapshot =
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
-                        entityCountInfo, projectedPriceIndexSnapshot, 1);
+                        entityCountInfo, projectedPriceIndexSnapshot, new LongDataPack(), new DataPack<>(), 1);
         final EntityStatsPaginationParams params = mock(EntityStatsPaginationParams.class);
         when(params.getSortCommodity()).thenReturn(COMMODITY);
         when(params.isAscending()).thenReturn(true);
@@ -284,7 +287,7 @@ public class TopologyCommoditiesSnapshotTest {
     public void testEntityComparatorDescending() {
         TopologyCommoditiesSnapshot snapshot =
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
-                        entityCountInfo, projectedPriceIndexSnapshot, 1);
+                        entityCountInfo, projectedPriceIndexSnapshot, new LongDataPack(), new DataPack<>(), 1);
         final EntityStatsPaginationParams params = mock(EntityStatsPaginationParams.class);
         when(params.getSortCommodity()).thenReturn(COMMODITY);
         when(params.isAscending()).thenReturn(false);
@@ -306,7 +309,7 @@ public class TopologyCommoditiesSnapshotTest {
     public void testEntityComparatorEqualStatValueAscending() {
         TopologyCommoditiesSnapshot snapshot =
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
-                        entityCountInfo, projectedPriceIndexSnapshot, 1);
+                        entityCountInfo, projectedPriceIndexSnapshot, new LongDataPack(), new DataPack<>(), 1);
         final EntityStatsPaginationParams params = mock(EntityStatsPaginationParams.class);
         when(params.getSortCommodity()).thenReturn(COMMODITY);
         when(params.isAscending()).thenReturn(true);
@@ -324,7 +327,7 @@ public class TopologyCommoditiesSnapshotTest {
     public void testEntityComparatorEqualStatValueDescending() {
         TopologyCommoditiesSnapshot snapshot =
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
-                        entityCountInfo, projectedPriceIndexSnapshot, 1);
+                        entityCountInfo, projectedPriceIndexSnapshot, new LongDataPack(), new DataPack<>(), 1);
         final EntityStatsPaginationParams params = mock(EntityStatsPaginationParams.class);
         when(params.getSortCommodity()).thenReturn(COMMODITY);
         when(params.isAscending()).thenReturn(false);
@@ -342,7 +345,7 @@ public class TopologyCommoditiesSnapshotTest {
     public void testEntityComparatorCountStat() {
         TopologyCommoditiesSnapshot snapshot =
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
-                        entityCountInfo, projectedPriceIndexSnapshot, 1);
+                        entityCountInfo, projectedPriceIndexSnapshot, new LongDataPack(), new DataPack<>(), 1);
 
         final EntityStatsPaginationParams params = mock(EntityStatsPaginationParams.class);
         when(params.getSortCommodity()).thenReturn(COMMODITY);
@@ -354,7 +357,7 @@ public class TopologyCommoditiesSnapshotTest {
     public void testEntityComparatorPriceIndex() {
         final TopologyCommoditiesSnapshot snapshot =
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
-                        entityCountInfo, projectedPriceIndexSnapshot, 1);
+                        entityCountInfo, projectedPriceIndexSnapshot, new LongDataPack(), new DataPack<>(), 1);
 
         final Comparator<Long> priceIndexComparator = mock(Comparator.class);
         final EntityStatsPaginationParams params = mock(EntityStatsPaginationParams.class);
@@ -371,7 +374,7 @@ public class TopologyCommoditiesSnapshotTest {
     public void testEntityComparatorEntityGroupAscending() {
         final TopologyCommoditiesSnapshot snapshot =
             new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
-                entityCountInfo, projectedPriceIndexSnapshot, 1);
+                entityCountInfo, projectedPriceIndexSnapshot, new LongDataPack(), new DataPack<>(), 1);
         final EntityStatsPaginationParams params = mock(EntityStatsPaginationParams.class);
         when(params.getSortCommodity()).thenReturn(COMMODITY);
         when(params.isAscending()).thenReturn(true);

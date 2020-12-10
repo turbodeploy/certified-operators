@@ -13,8 +13,8 @@ import java.util.Optional;
 
 import com.google.common.collect.Sets;
 
-import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
-import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2FloatMap;
+import it.unimi.dsi.fastutil.longs.Long2FloatOpenHashMap;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -27,17 +27,17 @@ public class ProjectedPriceIndexSnapshotTest {
 
     private static final long SMALLER_ENTITY_OID = 7L;
 
-    private static final double SMALLER_ENTITY_PRICE_INDEX = 123.0;
+    private static final float SMALLER_ENTITY_PRICE_INDEX = 123.0f;
 
     private static final long BIGGER_ENTITY_OID = 77L;
 
-    private static final double BIGGER_ENTITY_PRICE_INDEX = 223.0;
+    private static final float BIGGER_ENTITY_PRICE_INDEX = 223.0f;
 
     private ProjectedPriceIndexSnapshot snapshot;
 
     @Before
     public void setup() {
-        Long2DoubleMap map = new Long2DoubleOpenHashMap();
+        Long2FloatMap map = new Long2FloatOpenHashMap();
         map.put(SMALLER_ENTITY_OID, SMALLER_ENTITY_PRICE_INDEX);
         map.put(BIGGER_ENTITY_OID, BIGGER_ENTITY_PRICE_INDEX);
         snapshot = ProjectedPriceIndexSnapshot.newFactory().createSnapshot(map);

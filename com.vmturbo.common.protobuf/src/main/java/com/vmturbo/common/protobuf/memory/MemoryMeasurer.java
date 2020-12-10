@@ -1,6 +1,7 @@
 package com.vmturbo.common.protobuf.memory;
 
 import java.util.Collections;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -15,18 +16,40 @@ public class MemoryMeasurer {
     private MemoryMeasurer() { }
 
     /**
-     * Measure the input object. Should work across all JVMs. This does a traversal using reflection,
-     * so it is not fast and should be used sparingly (or not at all) in production.
+     * Measure the input object; should work across all JVMs.
      *
-     * @param obj The {@link Object}.
+     * <p>This does a traversal using reflection, so it is not fast and should be used sparingly
+     * (or not at all) in production.</p>
+     *
+     * <p>Excluded class objects cause all visited instances of that class to be excluded.</p>
+     *
+     * <p>Excluded non-class objets are identified, during the traversal, by object identity,
+     * ignoring the object's implementation of {@link Object#equals(Object)}.</p>
+     *
+     * <p>Class and non-class exclusions can be mixed as needed.</p>
+     *
+     * @param obj        The {@link Object}.
+     * @param exclusions Objects and/or classes to be explicitly omitted from the measurement
      * @return The {@link MemoryMeasurement}.
      */
     @Nonnull
-    public static MemoryMeasurement measure(@Nonnull final Object obj) {
+    public static MemoryMeasurement measure(@Nonnull final Object obj, @Nonnull final Set<Object> exclusions) {
         final TotalSizesAndCountsVisitor visitor =
-                new TotalSizesAndCountsVisitor(Collections.emptySet(), 100, 100);
+                // limit traversal to 100 deep, and apply exclusions at all depths
+                new TotalSizesAndCountsVisitor(exclusions, 0, 100);
         new FastMemoryWalker(visitor).traverse(obj);
         return new MemoryMeasurement(visitor);
+    }
+
+    /**
+     * Measure the input object without any exclusions.
+     *
+     * @param obj the {@link Object} tobe measured
+     * @return the {@link MemoryMeasurement}
+     */
+    @Nonnull
+    public static MemoryMeasurement measure(@Nonnull final Object obj) {
+        return measure(obj, Collections.emptySet());
     }
 
     /**

@@ -67,6 +67,7 @@ import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkInserterConfig;
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
+import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
@@ -239,7 +240,7 @@ public class SystemLoadWriterTest {
     @Test
     public void testEmptyClusterUtilizations() throws InterruptedException {
         SystemLoadWriter systemLoadWriter = (SystemLoadWriter)writerFactory.getChunkProcessor(
-                createTopoInfo(DAY1_245PM), loaders).get();
+                createTopoInfo(DAY1_245PM), new IngesterState(loaders)).get();
         // none of the entities touches cluster 2
         systemLoadWriter.processEntities(createChunk(PM1, STG1, VM1), TOPOLOGY_SUMMARY);
         systemLoadWriter.finish(1, false, TOPOLOGY_SUMMARY);
@@ -256,7 +257,7 @@ public class SystemLoadWriterTest {
     @Test
     public void testSimpleClusterUtilizations() throws InterruptedException {
         SystemLoadWriter systemLoadWriter = (SystemLoadWriter)writerFactory.getChunkProcessor(
-                createTopoInfo(DAY1_245PM), loaders).get();
+                createTopoInfo(DAY1_245PM), new IngesterState(loaders)).get();
         systemLoadWriter.processEntities(createChunk(PM1, STG1, VM1), TOPOLOGY_SUMMARY);
         systemLoadWriter.finish(1, false, TOPOLOGY_SUMMARY);
         // all capacity bases are 1.0, and usage bases are all 2.0 in this cluster, so utilization
@@ -274,7 +275,7 @@ public class SystemLoadWriterTest {
     @Test
     public void testComplexClusterUtilizations() throws InterruptedException {
         SystemLoadWriter systemLoadWriter = (SystemLoadWriter)writerFactory.getChunkProcessor(
-                createTopoInfo(DAY1_245PM), loaders).get();
+                createTopoInfo(DAY1_245PM), new IngesterState(loaders)).get();
         systemLoadWriter.processEntities(createChunk(PM2, STG2, VM3, PM3, VM2), TOPOLOGY_SUMMARY);
         systemLoadWriter.finish(1, false, TOPOLOGY_SUMMARY);
         // PM2 and PM3 sell into cluster 2 with base capacities 2 & 3, so aggregate is 5.
@@ -293,7 +294,7 @@ public class SystemLoadWriterTest {
     @Test
     public void testOtherEntityTypesDontMatter() throws InterruptedException {
         SystemLoadWriter systemLoadWriter = (SystemLoadWriter)writerFactory.getChunkProcessor(
-                createTopoInfo(DAY1_245PM), loaders).get();
+                createTopoInfo(DAY1_245PM), new IngesterState(loaders)).get();
         TopologyEntityDTO loadBalancer = TopologyEntityDTO.newBuilder()
                 .mergeFrom(VM1)
                 .setEntityType(EntityType.LOAD_BALANCER_VALUE)
@@ -316,7 +317,7 @@ public class SystemLoadWriterTest {
         // create customized copies of PM1 and VM1 that include nonzero capacities/usages
         // (respectively) for all non-system-load commodities
         SystemLoadWriter systemLoadWriter = (SystemLoadWriter)writerFactory.getChunkProcessor(
-                createTopoInfo(DAY1_245PM), loaders).get();
+                createTopoInfo(DAY1_245PM), new IngesterState(loaders)).get();
         final List<TopologyEntityDTO> chunk = createChunk(
                 getExtendedEntity(PM1), getExtendedEntity(STG1), getExtendedEntity(VM1));
         systemLoadWriter.processEntities(chunk, TOPOLOGY_SUMMARY);
@@ -336,7 +337,7 @@ public class SystemLoadWriterTest {
     @Test
     public void testVmCommoditiesAreRecorded() throws InterruptedException {
         SystemLoadWriter systemLoadWriter = (SystemLoadWriter)writerFactory.getChunkProcessor(
-                createTopoInfo(DAY1_245PM), loaders).get();
+                createTopoInfo(DAY1_245PM), new IngesterState(loaders)).get();
         systemLoadWriter.processEntities(createChunk(VM1), TOPOLOGY_SUMMARY);
         systemLoadWriter.finish(1, false, TOPOLOGY_SUMMARY);
         checkEntityCommodityRecords(DAY1_245PM, CLUSTER1_ID, VM1_ID, 2, 3, 4);
@@ -353,13 +354,13 @@ public class SystemLoadWriterTest {
     public void testSliceReWrittenOnlyOnLoadIncrease() throws InterruptedException {
         // first load a full topology touching both clusters
         SystemLoadWriter systemLoadWriter = (SystemLoadWriter)writerFactory.getChunkProcessor(
-                createTopoInfo(DAY1_245PM), loaders).get();
+                createTopoInfo(DAY1_245PM), new IngesterState(loaders)).get();
         systemLoadWriter.processEntities(createChunk(PM1, PM2, PM3, STG1, STG2, VM1, VM2, VM3), TOPOLOGY_SUMMARY);
         systemLoadWriter.finish(1, false, TOPOLOGY_SUMMARY);
         // now we run another cycle, using VM4 instead of VM3 - only difference is higher usages,
         // so utilization for cluster 2 should go up
         systemLoadWriter = (SystemLoadWriter)writerFactory.getChunkProcessor(
-                createTopoInfo(DAY1_345PM), loaders).get();
+                createTopoInfo(DAY1_345PM), new IngesterState(loaders)).get();
         systemLoadWriter.processEntities(createChunk(PM1, PM2, PM3, STG1, STG2, VM1, VM2, VM4), TOPOLOGY_SUMMARY);
         systemLoadWriter.finish(1, false, TOPOLOGY_SUMMARY);
         // make sure we had utilization records written for cluster 2 but not cluster 1

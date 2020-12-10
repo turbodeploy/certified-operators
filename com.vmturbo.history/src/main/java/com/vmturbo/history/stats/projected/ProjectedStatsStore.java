@@ -1,5 +1,6 @@
 package com.vmturbo.history.stats.projected;
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -23,19 +24,22 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
+import com.vmturbo.components.common.utils.DataPacks.IDataPack;
+import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.history.ingesters.live.writers.TopologyCommoditiesProcessor;
 import com.vmturbo.history.stats.projected.ProjectedPriceIndexSnapshot.PriceIndexSnapshotFactory;
 import com.vmturbo.history.stats.projected.TopologyCommoditiesSnapshot.TopologyCommoditiesSnapshotFactory;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**
  * The {@link ProjectedStatsStore} keeps track of stats from the most recent projected topology.
- * <p>
- * We currently keep these stats in memory because they are transient, and we don't need to keep
+ *
+ * <p>We currently keep these stats in memory because they are transient, and we don't need to keep
  * them over the long term. In the future it may be worth putting it in a slightly more "stable"
- * place - e.g. a KV store, or even a database table.
+ * place - e.g. a KV store, or even a database table.</p>
  */
 @ThreadSafe
-public class ProjectedStatsStore {
+public class ProjectedStatsStore implements MemReporter {
 
     /**
      * The factory used to construct snapshots when a new topology comes in.
@@ -54,29 +58,34 @@ public class ProjectedStatsStore {
 
     private final EntityStatsCalculator entityStatsCalculator;
 
-    private final Set<String> excludedCommodities;
+    private final Set<CommodityDTO.CommodityType> excludedCommodities;
 
     private final Object topologyCommoditiesLock = new Object();
 
     /**
      * Create a new {@link ProjectedStatsStore}.
      *
-     * @param excludedCommodities The list of commodities to exclude from the store. This should be
-     *                            the same list we use for "source" topology stat ingestion.
+     * @param excludedCommodityTypes The list of commodities to exclude from the store. This should
+     *                               be the same list we use for "source" topology stat ingestion.
+     * @param oidPack                data pack for entity oids
+     * @param keyPack                data pack for commodity keys
      */
-    public ProjectedStatsStore(@Nonnull final Set<String> excludedCommodities) {
-        this(TopologyCommoditiesSnapshot.newFactory(excludedCommodities),
+    public ProjectedStatsStore(@Nonnull final Set<CommodityDTO.CommodityType> excludedCommodityTypes,
+            IDataPack<Long> oidPack, IDataPack<String> keyPack) {
+        this(TopologyCommoditiesSnapshot.newFactory(excludedCommodityTypes, oidPack, keyPack),
                 ProjectedPriceIndexSnapshot.newFactory(),
-                new StatSnapshotCalculator() {},
-                new EntityStatsCalculator() {}, excludedCommodities);
+                new StatSnapshotCalculator() {
+                },
+                new EntityStatsCalculator() {
+                }, excludedCommodityTypes);
     }
 
     @VisibleForTesting
     ProjectedStatsStore(@Nonnull final TopologyCommoditiesSnapshotFactory topoCommSnapshotFactory,
-                        @Nonnull final PriceIndexSnapshotFactory priceIndexSnapshotFactory,
-                        @Nonnull final StatSnapshotCalculator statSnapshotCalculator,
-                        @Nonnull final EntityStatsCalculator entityStatsCalculator,
-            @Nonnull final Set<String> excludedCommodities) {
+            @Nonnull final PriceIndexSnapshotFactory priceIndexSnapshotFactory,
+            @Nonnull final StatSnapshotCalculator statSnapshotCalculator,
+            @Nonnull final EntityStatsCalculator entityStatsCalculator,
+            @Nonnull final Set<CommodityDTO.CommodityType> excludedCommodities) {
         this.topoCommSnapshotFactory = Objects.requireNonNull(topoCommSnapshotFactory);
         this.priceIndexSnapshotFactory = Objects.requireNonNull(priceIndexSnapshotFactory);
         this.statSnapshotCalculator = Objects.requireNonNull(statSnapshotCalculator);
@@ -84,20 +93,20 @@ public class ProjectedStatsStore {
         this.excludedCommodities = excludedCommodities;
     }
 
-    public Set<String> getExcludedCommodities() {
+    public Set<CommodityDTO.CommodityType> getExcludedCommodities() {
         return excludedCommodities;
     }
 
     /**
      * Get a page of projected entity stats.
      *
-     * @param entitiesMap The target entities. Must be non-empty. It's a mapping from seed entity
-     *                    to derived entities, the derived entities may contain the seed entity
-     *                    entity itself or derived entities from seed entity. Stats response will
-     *                    be for each seed entity, but its value will be aggregated on derived
-     *                    entities.
-     * @param commodities The commodities to retrieve. Must be non-empty.
-     * @param providerOids oids of the potential commodity providers.
+     * @param entitiesMap      The target entities. Must be non-empty. It's a mapping from seed
+     *                         entity to derived entities, the derived entities may contain the seed
+     *                         entity entity itself or derived entities from seed entity. Stats
+     *                         response will be for each seed entity, but its value will be
+     *                         aggregated on derived entities.
+     * @param commodities      The commodities to retrieve. Must be non-empty.
+     * @param providerOids     oids of the potential commodity providers.
      * @param paginationParams {@link EntityStatsPaginationParams} for the page.
      * @return The {@link ProjectedEntityStatsResponse} to return to the client.
      */
@@ -113,53 +122,53 @@ public class ProjectedStatsStore {
             // However, don't throw an exception because it's possible to request entity stats
             // for an empty set (e.g. a zero-member group) by accident.
             return ProjectedEntityStatsResponse.newBuilder()
-                .setPaginationResponse(PaginationResponse.getDefaultInstance())
-                .build();
+                    .setPaginationResponse(PaginationResponse.getDefaultInstance())
+                    .build();
         } else if (commodities.isEmpty()) {
-            throw new IllegalArgumentException("Must specify at least one commodity for " +
-                "per-entity stats request.");
+            throw new IllegalArgumentException("Must specify at least one commodity for "
+                    + "per-entity stats request.");
         }
 
         final TopologyCommoditiesSnapshot targetCommodities;
-        synchronized(topologyCommoditiesLock) {
+        synchronized (topologyCommoditiesLock) {
             targetCommodities = topologyCommodities;
         }
 
         if (targetCommodities == null) {
             return ProjectedEntityStatsResponse.newBuilder()
-                .setPaginationResponse(PaginationResponse.getDefaultInstance())
-                .build();
+                    .setPaginationResponse(PaginationResponse.getDefaultInstance())
+                    .build();
         }
 
         return entityStatsCalculator.calculateNextPage(targetCommodities,
-            statSnapshotCalculator,
-            entitiesMap,
-            commodities,
-            providerOids,
-            paginationParams);
+                statSnapshotCalculator,
+                entitiesMap,
+                commodities,
+                providerOids,
+                paginationParams);
     }
 
     /**
      * Get the snapshot representing projected stats for a given set of entities and commodities.
-     * <p>
-     * The search will run on the most recent available snapshot. If there is a concurrent update
-     * in progress - started, but not finished - the search will run on the previous snapshot.
-     * This means reliably fast searches (no blocking to wait for snapshot construction to finish)
-     * at the expense of the chance for data that's one market iteration out of date.
+     *
+     * <p>The search will run on the most recent available snapshot. If there is a concurrent
+     * update in progress - started, but not finished - the search will run on the previous
+     * snapshot. This means reliably fast searches (no blocking to wait for snapshot construction to
+     * finish) at the expense of the chance for data that's one market iteration out of date.</p>
      *
      * @param targetEntities the entities to collect the stats for
      * @param commodityNames the commodities to collect for those entities
-     * @param providerOids oids of the potential commodity providers
+     * @param providerOids   oids of the potential commodity providers
      * @return an Optional containing the snapshot, or empty optional if no data is available
      */
     @Nonnull
     public Optional<StatSnapshot> getStatSnapshotForEntities(@Nonnull final Set<Long> targetEntities,
-                                                             @Nonnull final Set<String> commodityNames,
-                                                             @Nonnull final Set<Long> providerOids) {
+            @Nonnull final Set<String> commodityNames,
+            @Nonnull final Set<Long> providerOids) {
 
         // capture the current topologyCommodities object; new topologies replace the entire object
         final TopologyCommoditiesSnapshot targetCommodities;
-        synchronized(topologyCommoditiesLock) {
+        synchronized (topologyCommoditiesLock) {
             targetCommodities = topologyCommodities;
         }
 
@@ -175,14 +184,15 @@ public class ProjectedStatsStore {
      *
      * @param entities The {@link RemoteIterator} over the entities.
      * @return The number of entities in the updated snapshot.
-     * @throws InterruptedException If the thread is interrupted while retrieving the entities.
-     * @throws TimeoutException If it takes too long to get entities from the remote iterator.
+     * @throws InterruptedException   If the thread is interrupted while retrieving the entities.
+     * @throws TimeoutException       If it takes too long to get entities from the remote
+     *                                iterator.
      * @throws CommunicationException If there are issues connecting to the source of the entities.
      */
     public long updateProjectedTopology(@Nonnull final RemoteIterator<ProjectedTopologyEntity> entities)
-        throws InterruptedException, TimeoutException, CommunicationException {
+            throws InterruptedException, TimeoutException, CommunicationException {
         final TopologyCommoditiesSnapshot newCommodities
-            = topoCommSnapshotFactory.createSnapshot(entities, priceIndexSnapshotFactory);
+                = topoCommSnapshotFactory.createSnapshot(entities, priceIndexSnapshotFactory);
         return updateProjectedTopology(newCommodities);
     }
 
@@ -192,12 +202,16 @@ public class ProjectedStatsStore {
      * <p>This method is used by {@link TopologyCommoditiesProcessor}, which processes projected
      * live topologies. It takes a partially-built {@link TopologyCommoditiesSnapshot} in the form
      * of a builder that is ready to build. Our priceIndexSnapshotFactory is required for the build,
-     * so we finish the build here and install the reuslting snapshot.</p>
+     * so we finish the build here and install the resulting snapshot.</p>
+     *
      * @param builder partially-built snapshot builder
+     * @param oidPack data pack for entity oid values
+     * @param keyPack data pack for commodity keys
      * @return updated project topology
      */
-    public long updateProjectedTopology(@Nonnull final TopologyCommoditiesSnapshot.Builder builder) {
-        return updateProjectedTopology(builder.build(priceIndexSnapshotFactory));
+    public long updateProjectedTopology(@Nonnull final TopologyCommoditiesSnapshot.Builder builder,
+            IDataPack<Long> oidPack, IDataPack<String> keyPack) {
+        return updateProjectedTopology(builder.build(priceIndexSnapshotFactory, oidPack, keyPack));
     }
 
     private long updateProjectedTopology(final TopologyCommoditiesSnapshot newCommodities) {
@@ -208,9 +222,9 @@ public class ProjectedStatsStore {
     }
 
     /**
-     * An interface to hide the logic of calculating the next page of entities
-     * given a {@link TopologyCommoditiesSnapshot} and {@link ProjectedPriceIndexSnapshot}.
-     * For now, this is only used for unit tests.
+     * An interface to hide the logic of calculating the next page of entities given a {@link
+     * TopologyCommoditiesSnapshot} and {@link ProjectedPriceIndexSnapshot}. For now, this is only
+     * used for unit tests.
      */
     interface EntityStatsCalculator {
 
@@ -224,7 +238,7 @@ public class ProjectedStatsStore {
                 @Nonnull final EntityStatsPaginationParams paginationParams) {
             // Get the entity comparator to use.
             final Comparator<Long> entityComparator = targetCommodities.getEntityComparator(
-                paginationParams, entitiesMap);
+                    paginationParams, entitiesMap);
 
             // Sort the input entity IDs using the comparator, and apply the pagination parameters
             // (i.e. limit + cursor)
@@ -250,7 +264,7 @@ public class ProjectedStatsStore {
                     .map(entityId -> EntityStats.newBuilder()
                             .setOid(entityId)
                             .addStatSnapshots(statSnapshotCalculator.buildSnapshot(
-                                targetCommodities, entitiesMap.get(entityId), commodityNames, providerOids))
+                                    targetCommodities, entitiesMap.get(entityId), commodityNames, providerOids))
                             .build())
                     .forEach(responseBuilder::addEntityStats);
             return responseBuilder.build();
@@ -258,9 +272,9 @@ public class ProjectedStatsStore {
     }
 
     /**
-     * An interface to hide the logic of building a {@link StatSnapshot} for a set of entities
-     * and commodities given a {@link TopologyCommoditiesSnapshot} and {@link ProjectedPriceIndexSnapshot}.
-     * For now, this is only used for unit tests.
+     * An interface to hide the logic of building a {@link StatSnapshot} for a set of entities and
+     * commodities given a {@link TopologyCommoditiesSnapshot} and {@link
+     * ProjectedPriceIndexSnapshot}. For now, this is only used for unit tests.
      */
     interface StatSnapshotCalculator {
 
@@ -276,5 +290,12 @@ public class ProjectedStatsStore {
                     .forEach(builder::addStatRecords);
             return builder.build();
         }
+    }
+
+    @Override
+    public List<MemReporter> getNestedMemReporters() {
+        return Arrays.asList(
+                topologyCommodities
+        );
     }
 }

@@ -14,9 +14,9 @@ import org.apache.commons.lang.StringUtils;
 import org.jooq.Record;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
  * {@link PropertyTypeVisitor} visits property type field in the DB record and populates name, units
@@ -46,10 +46,10 @@ public class PropertyTypeVisitor<D> extends BasePropertyVisitor<Record, Pair<Str
                     @Nonnull SharedPropertyPopulator<Pair<String, String>> propertyTypePopulator) {
         super(propertyName, (record, value) -> {
             // In the full-market request we return aggregate stats with no commodity_key.
-            final String commodityKey = fullMarket ?
-                            null :
-                            RecordVisitor.getFieldValue(record, StringConstants.COMMODITY_KEY,
-                                            String.class);
+            final String commodityKey = fullMarket
+                    ? null
+                    : RecordVisitor.getFieldValue(record, StringConstants.COMMODITY_KEY,
+                    String.class);
             return new Pair<>(propertyTypeToString.apply(value), commodityKey);
         }, propertyTypePopulator, databaseType);
     }

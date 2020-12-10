@@ -409,7 +409,7 @@ public class HistoryStatsUtils {
     }
 
     @SuppressWarnings("unchecked")
-    public static Field<Timestamp> timestamp(Field<?> field){
+    public static Field<Timestamp> timestamp(Field<?> field) {
         checkNotNull(field);
         checkFieldType(field.getType(), Timestamp.class);
         return (Field<Timestamp>)field;
@@ -418,14 +418,14 @@ public class HistoryStatsUtils {
     /*
      * Type-safe wrappers for casting Fields to the required generic type.
      */
-    private static void checkFieldType(Class<?> given, Class<?> expected){
+    private static void checkFieldType(Class<?> given, Class<?> expected) {
         checkFieldType(given, expected, false);
     }
 
-    private static void checkFieldType(Class<?> given, Class<?> expected, boolean subClsOK){
-        checkArgument(subClsOK ? expected.isAssignableFrom(given) : given==expected,
-            "Incorrect field type %s (expected %s)",
-            given.getName(), expected.getName());
+    private static void checkFieldType(Class<?> given, Class<?> expected, boolean subClsOK) {
+        checkArgument(subClsOK ? expected.isAssignableFrom(given) : given == expected,
+                "Incorrect field type %s (expected %s)",
+                given.getName(), expected.getName());
     }
 
     public static boolean isMarketStatsTable(@Nonnull final Table<?> table) {

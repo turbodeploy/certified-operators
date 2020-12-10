@@ -11,9 +11,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
 import com.vmturbo.history.ingesters.common.IChunkProcessorFactory;
+import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 
 /**
  * Base class for topology writers.
@@ -64,6 +64,6 @@ public abstract class TopologyWriterBase implements IChunkProcessor<Topology.Dat
      * Create a new writer instance.
      */
     public abstract static class Factory implements
-            IChunkProcessorFactory<Topology.DataSegment, TopologyInfo, SimpleBulkLoaderFactory> {
+            IChunkProcessorFactory<Topology.DataSegment, TopologyInfo, IngesterState> {
     }
 }

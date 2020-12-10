@@ -53,22 +53,15 @@ public interface BulkLoader<R extends Record> {
     /**
      * Flush this loader.
      *
-     * <p>If there are any records that have been sent to this loader for insertion but have not yet been collected
-     * into a batch scheduled for execution, that is now done.</p>
+     * <p>If there are any records that have been sent to this loader for insertion but have not
+     * yet been collected into a batch scheduled for execution, that is now done.</p>
      *
-     * <p>If <code>awaitExecution</code> is set, this method then blocks until all this loader's scheduled batches
-     * have in fact completed execution. Otherwise hte method may return while batches remain unexecuted or in
-     * process.</p>
+     * <p>If <code>awaitCompletion</code> is set, this method then blocks until all this loader's
+     * scheduled batches have in fact completed execution. Otherwise the method may return while
+     * batches remain un-executed or in process.</p>
      *
-     * @param awaitExecution true to wait for all batches to complete execution
+     * @param awaitCompletion true to wait for all batches to complete execution
      * @throws InterruptedException if interrupted
      */
-    void flush(boolean awaitExecution) throws InterruptedException;
-
-    /**
-     * Wait for all active and pending executions for this loader to complete.
-     *
-     * @throws InterruptedException if interrupted
-     */
-    void quiesce() throws InterruptedException;
+    void flush(boolean awaitCompletion) throws InterruptedException;
 }

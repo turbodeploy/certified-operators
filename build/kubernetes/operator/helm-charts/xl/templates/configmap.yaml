@@ -79,26 +79,6 @@ data:
       group:
         identityGeneratorPrefix: 4
         dbSchemaName: group_component
-      history:
-        dbSchemaName: vmtdb
-        # note = excluded commodities are case-insensitive, but in mixed case here for readability
-        # and to match exactly the values from discovery
-        # list obtained from $legacy/com.vmturbo.components.common/src/main/java/com/vmturbo/components/common/ClassicEnumMapper.java
-        # The commodities for which stats are not maintained/tracked in the DB.
-        # These are typically access commodities.
-        excludedCommodities: >-
-            ApplicationCommodity
-            CLUSTERCommodity
-            DATACENTERCommodity
-            DATASTORECommodity
-            DRSSEGMENTATIONCommodity
-            DSPMAccessCommodity
-            NETWORKCommodity
-            SEGMENTATIONCommodity
-            STORAGECLUSTERCommodity
-            VAPPAccessCommodity
-            VDCCommodity
-            VMPMAccessCommodity
       ml-datastore:
         influxHost: influxdb
         influxPort: 8086

@@ -6,7 +6,6 @@ import static org.mockito.Matchers.anyDouble;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -24,17 +23,21 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.utils.DataPacks.DataPack;
+import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkLoaderMock;
 import com.vmturbo.history.db.bulk.DbMock;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
+import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.MarketStatsData;
 import com.vmturbo.history.stats.PropertySubType;
 import com.vmturbo.history.stats.StatsTestUtils;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
  * Unit tests for {@link LiveStatsAggregator}.
@@ -47,17 +50,15 @@ public class LiveStatsAggregatorTest {
     private static HistorydbIO historydbIO;
 
     // mocks for DB and bulk loaders that keep track of inserted record objects for later verification
-    private DbMock dbMock = new DbMock();
-    private SimpleBulkLoaderFactory loaders = new BulkLoaderMock(dbMock).getFactory();
+    private final DbMock dbMock = new DbMock();
+    private final SimpleBulkLoaderFactory loaders = new BulkLoaderMock(dbMock).getFactory();
 
     /**
      * Set up a a HistorydbIO partial mock for use in tests.
      *
-     * @throws VmtDbException       should not happen in these tests
-     * @throws InterruptedException if interrupted
      */
     @Before
-    public void before() throws VmtDbException, InterruptedException {
+    public void before() {
         historydbIO = Mockito.mock(HistorydbIO.class);
         // we need these methods to work normally in order to construct records to be inserted
         Mockito.doCallRealMethod().when(historydbIO).initializeCommodityRecord(any(), anyLong(), anyLong(), any(), any(), any(), any(), any(), any(), any(), any());
@@ -75,7 +76,7 @@ public class LiveStatsAggregatorTest {
      * commodities are present after each chunk is processed.</p>
      *
      * @throws InterruptedException if interrupted
-     * @throws VmtDbException       on db exceptionn
+     * @throws VmtDbException       on db exception
      */
     private void setupTopologyAndTestPendingBoughtCommodities() throws InterruptedException, VmtDbException {
         final TopologyEntityDTO vm1 = StatsTestUtils.vm(10, 30); // buys from pm1
@@ -86,10 +87,13 @@ public class LiveStatsAggregatorTest {
         final TopologyEntityDTO pm3 = StatsTestUtils.pm(50, 1000, 1000);
         final TopologyEntityDTO pm4 = StatsTestUtils.pm(55, 10);
 
-        ImmutableSet<String> exclude =
-                ImmutableSet.copyOf(
-                        Arrays.asList("Application CLUSTER DATACENTER DATASTORE DSPMAccess NETWORK"
-                                .toLowerCase().split(" ")));
+        ImmutableSet<CommodityType> exclude = ImmutableSet.of(
+                CommodityType.APPLICATION,
+                CommodityType.CLUSTER,
+                CommodityType.DATACENTER,
+                CommodityType.DATASTORE,
+                CommodityType.DSPM_ACCESS,
+                CommodityType.NETWORK);
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyContextId(123456)
@@ -97,7 +101,8 @@ public class LiveStatsAggregatorTest {
                 .build();
 
         // now simulate processing a topology
-        aggregator = new LiveStatsAggregator(historydbIO, topologyInfo, exclude, loaders);
+        aggregator = new LiveStatsAggregator(historydbIO, topologyInfo, exclude,
+                new IngesterState(loaders, new LongDataPack(), new DataPack<>()));
 
         // chunk #1 includes a forward reference: vm processed before the pm it is buying from
         Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(
@@ -144,34 +149,37 @@ public class LiveStatsAggregatorTest {
     @Test
     public void testRecords() throws InterruptedException, VmtDbException {
         setupTopologyAndTestPendingBoughtCommodities();
-        // totol records inserted
+        // total records inserted
         // 4 PM attribute + 3 PM cpu sold + 2 PM flow sold = 9
         // 3 VM attribute + 2 VM cpu bought + 2 VM flow bought = 7
         // 2 entities * 3 commodities each = 6 market stats records
         // 3 count metrics for non-occurring entity types = 3 market stats records
-        assertEquals(25, (long)dbMock.getTables().stream()
+        assertEquals(25, (long)(Integer)dbMock.getTables().stream()
                 .map(dbMock::getRecords)
-                .collect(Collectors.summingInt(Collection::size)));
+                .mapToInt(Collection::size)
+                .sum());
         // "Produces" attribute records, recording # of sold commodities
         // 3 PMs sell one commodity each, 1 PM sells 2
-        assertEquals(5.0, (double)dbMock.getRecords(Tables.PM_STATS_LATEST).stream()
+        assertEquals(5.0, dbMock.getRecords(Tables.PM_STATS_LATEST).stream()
                         .filter(r -> r.getPropertyType().equalsIgnoreCase(PRODUCES))
-                        .collect(Collectors.summingDouble(PmStatsLatestRecord::getAvgValue)),
+                        .mapToDouble(PmStatsLatestRecord::getAvgValue)
+                        .sum(),
                 0.0);
         // no VMs sell any commodities
-        assertEquals(0, (double)dbMock.getRecords(Tables.VM_STATS_LATEST).stream()
+        assertEquals(0, dbMock.getRecords(Tables.VM_STATS_LATEST).stream()
                         .filter(r -> r.getPropertyType().equalsIgnoreCase(PRODUCES))
-                        .collect(Collectors.summingDouble(VmStatsLatestRecord::getAvgValue)),
+                        .mapToDouble(VmStatsLatestRecord::getAvgValue)
+                        .sum(),
                 0.0);
         // check flow capacities are correctly matched based on commodity key
         // flow-0 capacities should all be Float.MAX_VALUE
         dbMock.getRecords(Tables.PM_STATS_LATEST).stream()
                 .filter(r -> r.getPropertySubtype().equalsIgnoreCase("Flow-1"))
-                .forEach(r -> assertEquals((double)Float.MAX_VALUE, (double)r.getAvgValue(), 0.0));
+                .forEach(r -> assertEquals(Float.MAX_VALUE, r.getAvgValue(), 0.0));
         // flow-1 capacities should all be 100 million
         dbMock.getRecords(Tables.PM_STATS_LATEST).stream()
                 .filter(r -> r.getPropertySubtype().equalsIgnoreCase("Flow-0"))
-                .forEach(r -> assertEquals((double)100_000_000, (double)r.getAvgValue(), 0.0));
+                .forEach(r -> assertEquals(100_000_000, r.getAvgValue(), 0.0));
     }
 
     /**
@@ -183,7 +191,7 @@ public class LiveStatsAggregatorTest {
     @Test
     public void testCapacities() throws VmtDbException, InterruptedException {
         setupTopologyAndTestPendingBoughtCommodities();
-        Object[] capacities = aggregator.capacities().getAllEntityCapacities().toArray();
+        Object[] capacities = aggregator.capacities().getAllEntityCapacities().values().toArray();
         // 4 entities with commodities sold (the 4 PMs), each should have cached capacities
         assertEquals(4, capacities.length);
         // Verify that the sold commodities maps are being reused. The three cpu-selling PMs
