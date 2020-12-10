@@ -687,9 +687,8 @@ public class Stages {
         @NotNull
         @Override
         public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
-            final int numAdded = reservationManager.applyReservation(input,
-                    this.getContext().getTopologyInfo());
-            return Status.success("Added " + numAdded + " reserved entities to the topology.");
+            return reservationManager.applyReservation(this.getContext()
+                    .getTopologyInfo().getTopologyType());
         }
     }
 
