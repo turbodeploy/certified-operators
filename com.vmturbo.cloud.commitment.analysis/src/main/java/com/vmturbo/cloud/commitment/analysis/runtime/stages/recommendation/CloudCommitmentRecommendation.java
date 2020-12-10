@@ -1,5 +1,8 @@
 package com.vmturbo.cloud.commitment.analysis.runtime.stages.recommendation;
 
+import java.time.Period;
+import java.util.Optional;
+
 import javax.annotation.Nonnull;
 
 import org.immutables.value.Value.Auxiliary;
@@ -46,6 +49,13 @@ public interface CloudCommitmentRecommendation {
     @Auxiliary
     @Nonnull
     SavingsCalculationResult savingsCalculationResult();
+
+    /**
+     * The break even period calculated by the {@link BreakEvenCalculator}.
+     *
+     * @return The break even period for the cloud commitment.
+     */
+    Optional<Period> breakEven();
 
     @Derived
     default boolean isActionable() {
