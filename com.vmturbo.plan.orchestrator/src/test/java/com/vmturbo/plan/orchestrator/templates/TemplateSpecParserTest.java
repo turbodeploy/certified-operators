@@ -67,10 +67,7 @@ public class TemplateSpecParserTest {
                 .get();
 
         testHciHostTemplateField(resource, "failuresToTolerate", null);
-        testHciHostTemplateField(resource, "spaceReservationPct", null);
-        testHciHostTemplateField(resource, "compressionRatio", 1.0);
         testHciHostTemplateField(resource, "redundancyMethod", null);
-        testHciHostTemplateField(resource, "isCompressionEnabled", 0.0);
 
         Assert.assertNotNull(template);
     }
