@@ -102,8 +102,8 @@ public class PlanRpcServiceUtil {
          * platforms or tenancies here in the requests, results in null and the RI buy algorithm will
          * fill in the appropriate OSTypes and Tenancies.
          */
-        final StartBuyRIAnalysisRequest.Builder buyRiRequest = StartBuyRIAnalysisRequest
-                .newBuilder().setTopologyInfo(TopologyInfo.newBuilder()
+        final StartBuyRIAnalysisRequest.Builder buyRiRequest = StartBuyRIAnalysisRequest.newBuilder()
+                .setTopologyInfo(TopologyInfo.newBuilder()
                         .setTopologyContextId(planId)
                         .setTopologyType(TopologyType.PLAN)
                         .setPlanInfo(PlanTopologyInfo.newBuilder()
@@ -136,6 +136,16 @@ public class PlanRpcServiceUtil {
         } else {
             buyRiRequest.setDemandType(DemandType.ALLOCATION);
         }
+
+        // New CCA settings
+        if (riSetting.hasIncludeTerminatedEntityDemand()) {
+            buyRiRequest.setIncludeTerminatedEntityDemand(riSetting.getIncludeTerminatedEntityDemand());
+        }
+
+        if (riSetting.hasLookBackDurationDays()) {
+            buyRiRequest.setLookBackDurationDays(riSetting.getLookBackDurationDays());
+        }
+
         return buyRiRequest.build();
     }
 

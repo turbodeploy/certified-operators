@@ -1186,6 +1186,14 @@ message StartBuyRIAnalysisRequest {
     // This setting is only supported by CCA. If it is populated and CCA is not enabled,
     // the cost component will fail the request.
     repeated int64 entities = 9;
+
+    // This setting is only supported by CCA. If it is populated and CCA is not enabled,
+    // it will be ignored.
+    optional bool include_terminated_entity_demand = 10 [default = true];
+
+    // This setting is only supported by CCA. If it is populated and CCA is not enabled,
+    // it will be ignored.
+    optional int32 look_back_duration_days = 11;
 }
 
 message GetTierPriceForEntitiesRequest{

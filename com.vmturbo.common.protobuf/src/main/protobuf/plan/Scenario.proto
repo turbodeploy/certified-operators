@@ -92,6 +92,10 @@ message ScenarioChange {
         optional common_dto.DemandType demand_type = 1;
         // RI Setting by CloudType
         map<string, RIProviderSetting> ri_setting_by_cloudtype = 2;
+
+        optional bool include_terminated_entity_demand = 3 [default = true];
+
+        optional int32 look_back_duration_days = 4;
     }
 
     message RIProviderSetting {
