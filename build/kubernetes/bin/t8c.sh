@@ -389,7 +389,7 @@ then
   sudo systemctl enable gfsck.service
   sudo systemctl daemon-reload
 
-  # Setup mariadb before brining up XL components
+  # Setup mariadb before bringing up XL components
   #./mariadb_storage_setup.sh
   # Check to see if an external db is being used.  If so, do not run mariadb locally
   egrep "externalDBName" ${chartsFile}
@@ -417,6 +417,28 @@ then
     /opt/local/bin/configure_timescaledb.sh
     # Create mount point for both pgsql and mariadb
     /opt/local/bin/switch_dbs_mount_point.sh
+  fi
+
+  # Setup kafka/zookeeper before bringing up XL components (if so configured)
+  # Check to see if an external kafka is being used.  If so, do not run kafka locally
+  # We have to do two checks because the external kafka variable ("externalKafka") is a substring of
+  # the alternative configuration ("externalKafkaIp") that runs Kafka in the VM.
+  egrep "externalKafka" ${chartsFile}
+  externalKafka=$(echo $?)
+  egrep "externalKafkaIP" ${chartsFile}
+  runKafkaInVM=$(echo $?)
+
+  if [ X${externalKafka} = X0 ] && [ X${runKafkaInVM} != X0 ]
+  then
+    externalKafkaName=$(egrep "externalKafka" ${chartsFile})
+    echo "Kafka is external from this server:"
+    echo "${externalKafkaName}"
+  elif [ X${runKafkaInVM} = X0 ]
+  then
+    echo "Kafka is configured to run in the VM, configuring..."
+    /opt/local/bin/configure_kafka.sh
+  else
+    echo "Kafka is configured to run as a container, skipping configuration for the VM service."
   fi
 
   # Create the operator
