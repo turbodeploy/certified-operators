@@ -34,11 +34,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.market.topology.conversions.TopologyConverter.UsedAndPeak;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.PriceFunctionTypeCase;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.UpdatingFunctionTypeCase;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
@@ -459,5 +459,29 @@ public class CommodityConverterTest {
                 responseTime.getSettings()
                         .getUpdateFunction()
                         .getUpdatingFunctionTypeCase());
+    }
+
+    /**
+     * Test that container request commodities get the correct price functions.
+     */
+    @Test
+    public void testRequestCommodityPriceFunctions() {
+        final TopologyEntityDTO container = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.CONTAINER_VALUE)
+            .setEntityState(EntityState.POWERED_ON)
+            .setOid(3L)
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VCPU_REQUEST_VALUE))
+                .setUsed(100).setScalingFactor(2).setCapacity(100))
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder().setType(CommodityDTO.CommodityType.VMEM_REQUEST_VALUE))
+                .setUsed(100).setScalingFactor(2).setCapacity(100))
+            .build();
+
+        converterToTest.commoditiesSoldList(container).forEach(to -> {
+            final PriceFunctionTO priceFunction = to.getSettings().getPriceFunction();
+            assertEquals(PriceFunctionTypeCase.STANDARD_WEIGHTED, priceFunction.getPriceFunctionTypeCase());
+            assertEquals(MarketAnalysisUtils.LOW_PRICE_WEIGHT, priceFunction.getStandardWeighted().getWeight(), 0);
+        });
     }
 }

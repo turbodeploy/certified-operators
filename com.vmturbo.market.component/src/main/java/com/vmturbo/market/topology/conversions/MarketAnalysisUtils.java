@@ -88,10 +88,17 @@ public final class MarketAnalysisUtils {
                     ImmutableSet.of(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
                                     CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE,
                                     CommodityDTO.CommodityType.VSTORAGE_VALUE,
-                                    CommodityDTO.CommodityType.VCPU_REQUEST_VALUE,
-                                    CommodityDTO.CommodityType.VMEM_REQUEST_VALUE,
                                     CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE,
-                                    CommodityDTO.CommodityType.VMEM_LIMIT_QUOTA_VALUE);
+                                    CommodityDTO.CommodityType.VMEM_LIMIT_QUOTA_VALUE,
+                                    CommodityDTO.CommodityType.VCPU_REQUEST_QUOTA_VALUE,
+                                    CommodityDTO.CommodityType.VMEM_REQUEST_QUOTA_VALUE);
+
+    /**
+     * Commodities using standard-weighted price functions with a low price weight.
+     */
+    private static final Set<Integer> LOW_PRICE_WEIGHT_SWP_TYPES =
+                    ImmutableSet.of(CommodityDTO.CommodityType.VCPU_REQUEST_VALUE,
+                                    CommodityDTO.CommodityType.VMEM_REQUEST_VALUE);
 
     /**
      * Finite standard weighted price function is used for these commodities.
@@ -378,6 +385,24 @@ public final class MarketAnalysisUtils {
                     .build();
 
     /**
+     * A low price weight. Setting a low price on a standard-weighted price function can make it so
+     * that a commodity does not put much weight on move actions until it is extremely congested
+     * but still meets the requirements of the Bisection algorithm so that we can generate resize
+     * actions for the commodity. In contrast, a Step price function may sometimes result in
+     * exceptions in the Resizer Bisection algorithm because it is discontinuous.
+     */
+    public static final float LOW_PRICE_WEIGHT = 1e-4f;
+
+    /**
+     * Container commodities use a standard-weighted price function with low price weight. This permits
+     * commodities like VCPU/VMEM_REQUEST to have very little impact on move behavior until they become
+     * almost 100% utilized while still permitting the commodities to be resized. Other price functions
+     * (ie STEP) cannot guarantee correct bisection solutions during resize because they are discontinuous.
+     */
+    private static final PriceFunctionTO LOW_PRICE_WEIGHT_SWP = PriceFunctionTO.newBuilder().setStandardWeighted(
+        PriceFunctionTO.StandardWeighted.newBuilder().setWeight(LOW_PRICE_WEIGHT).build()).build();
+
+    /**
      * Squared reciprocal price function used for VDI on-prem.
      * https://vmturbo.atlassian.net/wiki/spaces/Home/pages/876347519/Price+function+based+on+excess+capacity
      */
@@ -447,6 +472,8 @@ public final class MarketAnalysisUtils {
             } else {
                 return CONSTANT_ZERO;
             }
+        } else if (LOW_PRICE_WEIGHT_SWP_TYPES.contains(commodityType)) {
+            return LOW_PRICE_WEIGHT_SWP;
         } else if (commodityType == CommodityDTO.CommodityType.CPU_VALUE) {
             scale = scale > 1.0f ? scale : 1.0f;
             return PriceFunctionTO.newBuilder()
