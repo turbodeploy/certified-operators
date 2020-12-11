@@ -29,8 +29,9 @@ public class SourcePlanTopologyIngester extends TopologyIngesterBase<Topology.Da
      */
     public SourcePlanTopologyIngester(
             @Nonnull final Collection<? extends IChunkProcessorFactory
-                    <Topology.DataSegment, TopologyInfo, IngesterState>> iChunkProcessorFactories,
-            @Nonnull final TopologyIngesterConfig topologyIngesterConfig,
+                    <Topology.DataSegment, TopologyInfo, SimpleBulkLoaderFactory>>
+                    iChunkProcessorFactories,
+                @Nonnull final TopologyIngesterConfig topologyIngesterConfig,
             @Nonnull final Supplier<SimpleBulkLoaderFactory> loaderFactorySupplier) {
         super(iChunkProcessorFactories, topologyIngesterConfig, loaderFactorySupplier,
                 TOPOLOGY_TYPE);

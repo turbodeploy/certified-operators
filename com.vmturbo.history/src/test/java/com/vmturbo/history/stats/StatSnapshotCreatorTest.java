@@ -47,8 +47,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtili
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.tables.records.BuStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
@@ -110,22 +110,16 @@ public class StatSnapshotCreatorTest {
     }
 
     /**
-     * Test group by relatedEntity for StatSnapshotCreator.
+     * Test group by relatedEntity for StatSnapshotCreator. It tests the scenario that one
+     * LogicalPool consumes two different disk arrays. We expect to see two set of bought
+     * commodities in the result.
      *
-     * <p>It tests the scenario that one LogicalPool consumes two different disk arrays. We expect
-     * to see two set of bought commodities in the result.</p>
-     *
-     * <p>UI usually passes commodity request filters with all groupBy fields:</p>
-     * <dl>
-     *     <dt>commodityName</dt>
-     *     <dd>StorageAmount, groupBy: [key, relatedEntity, virtualDisk]</dd>
-     *     <dt>commodityName</dt>
-     *     <dd>StorageAccess, groupBy: [key, relatedEntity, virtualDisk]</dd>
-     * </dl>
-     *
-     * <p>Only relatedEntity has effect here, but the others are also added in this test to ensure
+     * UI usually passes commodity request filters with all groupBy fields:
+     *     commodityName: StorageAmount, groupBy: [key, relatedEntity, virtualDisk]
+     *     commodityName: StorageAccess, groupBy: [key, relatedEntity, virtualDisk]
+     * Only relatedEntity has effect here, but the others are also added in this test to ensure
      * they don't have effect on the result. This test will verify that there are two StorageAmount
-     * and two StorageAccess (related to different provider) with different used value in result.</p>
+     * and two StorageAccess (related to different provider) with different used value in result.
      */
     @Test
     public void testGroupByRelatedEntity() {
@@ -182,24 +176,17 @@ public class StatSnapshotCreatorTest {
     }
 
     /**
-     * Test group by virtualDisk for StatSnapshotCreator.
-     *
-     * <p>It tests the scenario that one VM buys
+     * Test group by virtualDisk for StatSnapshotCreator. It tests the scenario that one VM buys
      * two set of commodities from same StorageTier (each set is related to a different volume).
      * Volume id is stored in the commodity key field. We expect to see two set of bought
-     * commodities with different keys in the result.</p>
+     * commodities with different keys in the result.
      *
-     * <p>UI usually passes commodity request filters with all groupBy fields:</p>
-     * <dl>
-     *     <dt>commodityName</dt>
-     *     <dd>StorageAmount, groupBy: [key, relatedEntity, virtualDisk]</dd>
-     *     <dt>commodityName</dt>
-     *     <dd>StorageAccess, groupBy: [key, relatedEntity, virtualDisk]</dd>
-     * </dl>
-     *
-     * <p>Only virtualDisk has effect here, but the others are also added in this test to ensure
+     * UI usually passes commodity request filters with all groupBy fields:
+     *     commodityName: StorageAmount, groupBy: [key, relatedEntity, virtualDisk]
+     *     commodityName: StorageAccess, groupBy: [key, relatedEntity, virtualDisk]
+     * Only virtualDisk has effect here, but the others are also added in this test to ensure
      * they don't have effect on the result. This test will verify that there are two StorageAmount
-     * and two StorageAccess (related to different volume) with different used value in result.</p>
+     * and two StorageAccess (related to different volume) with different used value in result.
      */
     @Test
     public void testGroupByVirtualDisk() {

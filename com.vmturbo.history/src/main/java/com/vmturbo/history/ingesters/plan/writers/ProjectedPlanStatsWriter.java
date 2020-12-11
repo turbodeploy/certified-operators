@@ -1,8 +1,6 @@
 package com.vmturbo.history.ingesters.plan.writers;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -14,12 +12,11 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkLoader;
+import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
-import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.ingesters.common.writers.ProjectedTopologyWriterBase;
 import com.vmturbo.history.schema.abstraction.tables.MktSnapshotsStats;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
@@ -30,11 +27,11 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 /**
  * Class to write stats data while ingesting a projected plan topology broadcast by market.
  */
-public class ProjectedPlanStatsWriter extends ProjectedTopologyWriterBase implements MemReporter {
-    private static final Logger logger = LogManager.getLogger();
+public class ProjectedPlanStatsWriter extends ProjectedTopologyWriterBase {
+    private static Logger logger = LogManager.getLogger();
 
     private final HistorydbIO historydbIO;
-    private final IngesterState state;
+    private final SimpleBulkLoaderFactory loaders;
     private MktSnapshotsStatsRecord currentPriceIndexRecord;
     private MktSnapshotsStatsRecord projectedPriceIndexRecord;
     private PlanStatsAggregator aggregator;
@@ -46,21 +43,21 @@ public class ProjectedPlanStatsWriter extends ProjectedTopologyWriterBase implem
      *
      * @param topologyInfo topology info
      * @param historydbIO  database utils
-     * @param state        shared ingester state
+     * @param loaders      bulk loader factory
      */
     private ProjectedPlanStatsWriter(@Nonnull TopologyInfo topologyInfo,
-            @Nonnull HistorydbIO historydbIO,
-            @Nonnull IngesterState state) {
+                                     @Nonnull HistorydbIO historydbIO,
+                                     @Nonnull SimpleBulkLoaderFactory loaders) {
         super();
         this.historydbIO = historydbIO;
-        this.state = state;
+        this.loaders = loaders;
 
         try {
             final ScenariosRecord scenarioInfo = historydbIO.getOrAddScenariosRecord(topologyInfo);
             // prepare records to write to the mkt_snapshots_stats table for current and projected
             this.currentPriceIndexRecord = buildPriceIndexRecord(scenarioInfo, "currentPriceIndex");
             this.projectedPriceIndexRecord = buildPriceIndexRecord(scenarioInfo, "priceIndex");
-            this.aggregator = new PlanStatsAggregator(state.getLoaders(), historydbIO, topologyInfo, false);
+            this.aggregator = new PlanStatsAggregator(loaders, historydbIO, topologyInfo, false);
         } catch (VmtDbException e) {
             throw new IllegalStateException("Failed to prepare for projected plan ingestion", e);
         }
@@ -93,7 +90,7 @@ public class ProjectedPlanStatsWriter extends ProjectedTopologyWriterBase implem
             projectedPriceIndexRecord.setAvgValue(historydbIO.clipValue(projectedPriceIndexRecord.getCapacity()
                 / entityCount));
             final BulkLoader<MktSnapshotsStatsRecord> loader
-                    = state.getLoaders().getLoader(MktSnapshotsStats.MKT_SNAPSHOTS_STATS);
+                = loaders.getLoader(MktSnapshotsStats.MKT_SNAPSHOTS_STATS);
             loader.insert(currentPriceIndexRecord);
             loader.insert(projectedPriceIndexRecord);
         } else {
@@ -110,7 +107,7 @@ public class ProjectedPlanStatsWriter extends ProjectedTopologyWriterBase implem
      * @param scenarioInfo the information about the current scenario to initialize the
      *                     priceIndex information from, e.g.
      * @param propertyType the property to record, e.g. "priceIndex"
-     * @return an initialized DB record {@link MktSnapshotsStatsRecord}
+     * @return an initalized DB record {@link MktSnapshotsStatsRecord}
      */
     private MktSnapshotsStatsRecord buildPriceIndexRecord(ScenariosRecord scenarioInfo, String propertyType) {
         MktSnapshotsStatsRecord commodityRecord = new MktSnapshotsStatsRecord();
@@ -156,18 +153,8 @@ public class ProjectedPlanStatsWriter extends ProjectedTopologyWriterBase implem
 
         @Override
         public Optional<IChunkProcessor<ProjectedTopologyEntity>>
-        getChunkProcessor(final TopologyInfo topologyInfo, final IngesterState state) {
-            return Optional.of(new ProjectedPlanStatsWriter(topologyInfo, historydbIO, state));
+        getChunkProcessor(final TopologyInfo topologyInfo, final SimpleBulkLoaderFactory loaders) {
+            return Optional.of(new ProjectedPlanStatsWriter(topologyInfo, historydbIO, loaders));
         }
-    }
-
-    @Override
-    public Long getMemSize() {
-        return null;
-    }
-
-    @Override
-    public List<MemReporter> getNestedMemReporters() {
-        return Arrays.asList(aggregator);
     }
 }

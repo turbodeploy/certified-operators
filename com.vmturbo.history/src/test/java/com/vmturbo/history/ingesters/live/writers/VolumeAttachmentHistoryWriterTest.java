@@ -24,7 +24,6 @@ import com.vmturbo.history.db.bulk.BulkLoaderMock;
 import com.vmturbo.history.db.bulk.DbMock;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessor.ChunkDisposition;
-import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.ingesters.live.writers.VolumeAttachmentHistoryWriter.Factory;
 import com.vmturbo.history.schema.abstraction.tables.VolumeAttachmentHistory;
 import com.vmturbo.history.schema.abstraction.tables.records.VolumeAttachmentHistoryRecord;
@@ -51,7 +50,6 @@ public class VolumeAttachmentHistoryWriterTest {
     private VolumeAttachmentHistoryWriter writer;
     private DbMock dbMock;
     private SimpleBulkLoaderFactory loaderFactory;
-    private IngesterState ingesterState;
 
     /**
      * Initialize test resources.
@@ -60,9 +58,8 @@ public class VolumeAttachmentHistoryWriterTest {
     public void setup() {
         dbMock = new DbMock();
         loaderFactory = new BulkLoaderMock(dbMock).getFactory();
-        ingesterState = new IngesterState(loaderFactory, null, null);
         writer = (VolumeAttachmentHistoryWriter)new VolumeAttachmentHistoryWriter.Factory(1)
-            .getChunkProcessor(TOPOLOGY_INFO, ingesterState).orElse(null);
+            .getChunkProcessor(TOPOLOGY_INFO, loaderFactory).orElse(null);
         Assert.assertNotNull(writer);
     }
 
@@ -216,13 +213,13 @@ public class VolumeAttachmentHistoryWriterTest {
         final long intervalBetweenInserts = 1;
         final VolumeAttachmentHistoryWriter.Factory factory = new Factory(intervalBetweenInserts);
         // first topology always results in Writer being returned
-        Assert.assertTrue(factory.getChunkProcessor(TOPOLOGY_INFO, ingesterState).isPresent());
+        Assert.assertTrue(factory.getChunkProcessor(TOPOLOGY_INFO, loaderFactory).isPresent());
         // next topology after ten minutes, with interval defined as 1 hour should return empty
         // optional
         final TopologyInfo nextBroadcast = TOPOLOGY_INFO.toBuilder()
             .setCreationTime(CREATION_TIME + TimeUnit.MINUTES.toMillis(10))
             .build();
-        Assert.assertFalse(factory.getChunkProcessor(nextBroadcast, ingesterState).isPresent());
+        Assert.assertFalse(factory.getChunkProcessor(nextBroadcast, loaderFactory).isPresent());
     }
 
     /**
@@ -235,13 +232,13 @@ public class VolumeAttachmentHistoryWriterTest {
         final long intervalBetweenInserts = 1;
         final VolumeAttachmentHistoryWriter.Factory factory = new Factory(intervalBetweenInserts);
         // first topology always results in Writer being returned
-        Assert.assertTrue(factory.getChunkProcessor(TOPOLOGY_INFO, ingesterState).isPresent());
+        Assert.assertTrue(factory.getChunkProcessor(TOPOLOGY_INFO, loaderFactory).isPresent());
         // next topology after 1 hour, with interval defined as 1 hour result should not return
         // empty optional
         final TopologyInfo nextBroadcast = TOPOLOGY_INFO.toBuilder()
             .setCreationTime(CREATION_TIME + TimeUnit.HOURS.toMillis(1))
             .build();
-        Assert.assertTrue(factory.getChunkProcessor(nextBroadcast, ingesterState).isPresent());
+        Assert.assertTrue(factory.getChunkProcessor(nextBroadcast, loaderFactory).isPresent());
     }
 
     private void verifyRecords(final Set<VolumeAttachmentHistoryRecord> expectedRecords,

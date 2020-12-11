@@ -20,7 +20,6 @@ import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.DelayedCommodityBoughtWriter;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.MarketStatsData;
 import com.vmturbo.history.stats.live.LiveStatsAggregator.CapacityCache;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
  * Interface implemented by {@link MarketStatsAccumulatorImpl} class.
@@ -33,7 +32,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 public interface MarketStatsAccumulator {
 
     /**
-     * Obtain per-entity-type stats data accumulated by this accumulator.
+     * Obtain per-entity-type stats data accumluated by this accumulator.
      *
      * @return stats data objects
      */
@@ -68,38 +67,36 @@ public interface MarketStatsAccumulator {
     }
 
     /**
-     * Create an object to accumulate min / max / total / capacity over the commodities for a given
-     * EntityType.
+     * Create an object to accumulate min / max / total / capacity over the commodities for
+     * a given EntityType.
      *
-     * @param topologyInfo           topology info
-     * @param entityType             the type of entity for which these stats are being accumulated.
-     *                               A given stat may be bought and sold be different entities. We
-     *                               must record those usages separately.
-     * @param environmentType        environment type
-     * @param historydbIO            DBIO handler for the History tables
-     * @param excludedCommodityTypes a list of commodity names used by the market but not necessary
-     *                               to be persisted as stats in the db
-     * @param loaders                {@link SimpleBulkLoaderFactory} from which needed {@link
-     *                               BulkInserter} objects
-     * @param longCommodityKeys      where to store commodity keys that had to be shortened, for
-     *                               consolidated logging
-     * @return the new market stats accumulator, or a dummy if a real one could not be created
+     * @param topologyInfo         topology info
+     * @param entityType           the type of entity for which these stats are being accumulated. A given
+     *                             stat may be bought and sold be different entities. We must record those
+     *                             usages separately.
+     * @param environmentType      environment type
+     * @param historydbIO          DBIO handler for the History tables
+     * @param commoditiesToExclude a list of commodity names used by the market but not necessary
+     *                             to be persisted as stats in the db
+     * @param loaders              {@link SimpleBulkLoaderFactory} from which needed {@link BulkInserter} objects
+     * @param longCommodityKeys    where to store commodity keys that had to be shortened, for consolidated logging
+     * @return the new market stats accumulator, or a dummy if a real one could not be createad
      */
     static MarketStatsAccumulator create(
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final String entityType,
             @Nonnull final EnvironmentType environmentType,
             @Nonnull final HistorydbIO historydbIO,
-            @Nonnull final Set<CommodityType> excludedCommodityTypes,
+            @Nonnull final Set<String> commoditiesToExclude,
             @Nonnull final SimpleBulkLoaderFactory loaders,
             @Nonnull final Set<String> longCommodityKeys) {
         try {
             return new MarketStatsAccumulatorImpl(topologyInfo, entityType, environmentType,
-                    historydbIO, excludedCommodityTypes, loaders, longCommodityKeys);
+                    historydbIO, commoditiesToExclude, loaders, longCommodityKeys);
         } catch (IllegalArgumentException e) {
             LogManager.getLogger().error(
-                    "Failed to create market stats accumulator; "
-                            + "stats will not be aggregated for entity type {};", entityType);
+                    "Failed to create market stats accumulator; " +
+                            "stats will not be aggregated for entity type {};", entityType);
             return new MarketStatsAccumulator() {
             };
         }

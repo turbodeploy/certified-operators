@@ -138,6 +138,55 @@ defaultProperties:
         # TODO: find a better way to sync it with api:sessionTimeoutSeconds
         tempGroupExpirationTimeMins: 30
         dbSchemaName: group_component
+    history:
+        writeTopologyChunkSize: 1000
+        userName: vmtplatform
+        requestHost: "%"
+        dbSchemaName: vmtdb
+        readonlyUserName: vmtreader
+        readonlyPassword: vmturbo
+        queryTimeoutSeconds: 900
+        # Migrations such as adding a new column to an existing huge database can take a
+        # long time. So set the timeout to a high value.
+        migrationTimeoutSeconds: 86400
+        latestTableTimeWindowMin: 15
+        historyPaginationDefaultLimit: 100
+        historyPaginationMaxLimit: 500
+        historyPaginationDefaultSortCommodity: priceIndex
+        # note = excluded commodities are case-insensitive, but in mixed case here for readability
+        # and to match exactly the values from discovery
+        # list obtained from $legacy/com.vmturbo.components.common/src/main/java/com/vmturbo/components/common/ClassicEnumMapper.java
+        # The commodities for which stats are not maintained/tracked in the DB.
+        # These are typically access commodities.
+        excludedCommodities: >-
+            ApplicationCommodity
+            CLUSTERCommodity
+            DATACENTERCommodity
+            DATASTORECommodity
+            DRSSEGMENTATIONCommodity
+            DSPMAccessCommodity
+            NETWORKCommodity
+            SEGMENTATIONCommodity
+            STORAGECLUSTERCommodity
+            VAPPAccessCommodity
+            VDCCommodity
+            VMPMAccessCommodity
+            ConcurrentWorker
+            ConcurrentSession
+        retention.updateRetentionIntervalSeconds: 10
+        statsWritersMaxPoolSize: 6
+        systemLoadRecordsPerChunk: 500
+        timeToWaitNetworkReadinessMs: 10
+        # 5-minutes timeout to send big data through GRPC procedure calls
+        grpcReadingTimeoutMs: 300000
+
+        # timeouts for various execution "styles" used in HistorydbIO
+        # 20 seconds
+        executeTimeoutMsec.IMMEDIATE: 20000
+        # 1 minute
+        executeTimeoutMsec.PATIENT: 60000
+        # 2 minutes
+        executeTimeoutMsec.FORCED: 120000
     market:
         identityGeneratorPrefix: 2
         # The maximum number of placement iterations the market should perform. Use to prevent ping-ponging VMs from

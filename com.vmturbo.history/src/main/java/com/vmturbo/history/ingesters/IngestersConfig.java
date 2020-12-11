@@ -10,7 +10,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -26,7 +25,6 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.utils.GuestLoadFilters;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
@@ -55,7 +53,6 @@ import com.vmturbo.history.stats.priceindex.DBPriceIndexVisitor.DBPriceIndexVisi
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.market.component.api.impl.MarketSubscription;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
@@ -229,7 +226,7 @@ public class IngestersConfig {
                 Arrays.asList(
                         new EntityStatsWriter.Factory(
                                 historyDbConfig.historyDbIO(),
-                                excludedCommodities(),
+                                excludedCommoditiesList(),
                                 getEntitiesFilter()
                         ),
                         new SystemLoadWriter.Factory(
@@ -240,6 +237,7 @@ public class IngestersConfig {
                                 historyDbConfig.historyDbIO()
                         ),
                         new ClusterStatsWriter.Factory(
+                                historyDbConfig.historyDbIO(),
                                 groupServiceBlockingStub()
                         ),
                         new VolumeAttachmentHistoryWriter.Factory(
@@ -417,58 +415,37 @@ public class IngestersConfig {
      * @return default excluded properties
      */
     private static String defaultExcludedCommodities() {
-        // TODO this should probably be based on UICommodity rather than CommodityTypeUnits
-        final CommodityTypeUnits[] commodities = new CommodityTypeUnits[]{
-                CommodityTypeUnits.APPLICATION,
-                CommodityTypeUnits.CLUSTER,
-                CommodityTypeUnits.DATACENTER,
-                CommodityTypeUnits.DATASTORE,
-                CommodityTypeUnits.DRS_SEGMENTATION,
-                CommodityTypeUnits.DSPM_ACCESS,
-                CommodityTypeUnits.NETWORK,
-                CommodityTypeUnits.SEGMENTATION,
-                CommodityTypeUnits.STORAGE_CLUSTER,
-                CommodityTypeUnits.VAPP_ACCESS,
-                CommodityTypeUnits.VDC,
-                CommodityTypeUnits.VMPM_ACCESS,
-                CommodityTypeUnits.CONCURRENT_WORKER,
-                CommodityTypeUnits.CONCURRENT_SESSION
-        };
-        return Arrays.stream(commodities)
-                .map(CommodityTypeUnits::getMixedCase)
-                .collect(Collectors.joining(" "));
+        return String.join(" ", new String[]{
+                "ApplicationCommodity",
+                "CLUSTERCommodity",
+                "DATACENTERCommodity",
+                "DATASTORECommodity",
+                "DRSSEGMENTATIONCommodity",
+                "DSPMAccessCommodity",
+                "NETWORKCommodity",
+                "SEGMENTATIONCommodity",
+                "STORAGECLUSTERCommodity",
+                "VAPPAccessCommodity",
+                "VDCCommodity",
+                "VMPMAccessCommodity",
+                "ConcurrentWorker",
+                "ConcurrentSession"
+        });
     }
 
     /**
-     * Create set of excluded commodities by parsing the string property value, used by the entity
-     * stats writer in the live topology ingester.
+     * Create set of excluded commodities by parsing the string property value, used by the
+     * entity stats writer in the live topology ingester.
      *
      * <p>Commodity names appear in mixed case and are separated by whitespace.</p>
      *
      * @return excluded commodities set
      */
     @Bean
-    public ImmutableSet<String> excludedCommodityNamesList() {
+    public ImmutableSet<String> excludedCommoditiesList() {
         return ImmutableSet.copyOf(excludedCommodities.orElse(defaultExcludedCommodities())
                 .toLowerCase()
                 .split("\\s+"));
-    }
-
-    /**
-     * Like {@link #excludedCommodityNamesList()}, but the commodities take the form of SDK
-     * commodity type enum values.
-     *
-     * @return the excluded commodities list
-     */
-    @Bean
-    public ImmutableSet<CommodityType> excludedCommodities() {
-        ImmutableSet.Builder<CommodityType> builder = ImmutableSet.builder();
-        Arrays.stream(excludedCommodities.orElse(defaultExcludedCommodities()).split("\\s+"))
-                .map(CommodityTypeUnits::fromString)
-                .map(CommodityTypeUnits::name)
-                .map(CommodityType::valueOf)
-                .forEach(builder::add);
-        return builder.build();
     }
 
     /**

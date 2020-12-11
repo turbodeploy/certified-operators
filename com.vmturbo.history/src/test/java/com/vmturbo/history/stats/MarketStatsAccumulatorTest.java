@@ -46,6 +46,12 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import gnu.trove.map.TIntObjectMap;
+import gnu.trove.map.TObjectDoubleMap;
+
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import it.unimi.dsi.fastutil.objects.Object2DoubleMap;
+
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -58,7 +64,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
@@ -71,7 +76,6 @@ import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.DelayedCommodityBoughtWriter;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.MarketStatsData;
 import com.vmturbo.history.stats.live.LiveStatsAggregator.CapacityCache;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -90,19 +94,15 @@ public class MarketStatsAccumulatorTest {
     private static final long ENTITY_ID = 999L;
 
     private static final TopologyInfo TOPOLOGY_INFO = TopologyInfo.newBuilder()
-            .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-            .setTopologyId(TOPOLOGY_ID)
-            .setCreationTime(SNAPSHOT_TIME)
-            .build();
+        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+        .setTopologyId(TOPOLOGY_ID)
+        .setCreationTime(SNAPSHOT_TIME)
+        .build();
 
-    private static final Set<CommodityDTO.CommodityType> excludedCommodityTypes = ImmutableSet.of(
-            CommodityDTO.CommodityType.APPLICATION,
-            CommodityDTO.CommodityType.CLUSTER,
-            CommodityDTO.CommodityType.DATACENTER,
-            CommodityDTO.CommodityType.DATASTORE,
-            CommodityDTO.CommodityType.DSPM_ACCESS,
-            CommodityDTO.CommodityType.NETWORK
-    );
+    private Set<String> commoditiesToExclude =
+        ImmutableSet.copyOf(("ApplicationCommodity CLUSTERCommodity DATACENTERCommodity " +
+            "DATASTORECommodity DSPMAccessCommodity NETWORKCommodity").toLowerCase()
+            .split(" "));
 
     private static final int FIELDS_PER_ROW = (new VmStatsLatestRecord()).fieldsRow().size();
 
@@ -144,13 +144,13 @@ public class MarketStatsAccumulatorTest {
             throw new RuntimeException("Cannot load DTO's", e);
         }
         mockBulkLoader = Mockito.mock(BulkLoader.class);
-        final BulkLoader<Record> loaderLatestTable = Mockito.mock(BulkLoader.class);
+        final BulkLoader<?> loaderLatestTable = Mockito.mock(BulkLoader.class);
         final SimpleBulkLoaderFactory loaderFactory = mock(SimpleBulkLoaderFactory.class);
-        when(loaderFactory.getLoader(any())).thenReturn(loaderLatestTable);
+        when(loaderFactory.getLoader(any())).thenReturn((BulkLoader<Record>)loaderLatestTable);
         when(loaderFactory.getLoader(HistUtilization.HIST_UTILIZATION)).thenReturn(mockBulkLoader);
         this.marketStatsAccumulator =
                 new MarketStatsAccumulatorImpl(TOPOLOGY_INFO, APP_ENTITY_TYPE, EnvironmentType.ON_PREM,
-                        historydbIO, excludedCommodityTypes, loaderFactory, new HashSet<>());
+                        historydbIO, commoditiesToExclude, loaderFactory, new HashSet<>());
     }
 
 
@@ -194,7 +194,7 @@ public class MarketStatsAccumulatorTest {
     public void testPersistCommoditiesSold() throws Exception {
         try (SimpleBulkLoaderFactory writers = mock(SimpleBulkLoaderFactory.class)) {
             BulkLoader<Record> writer = mock(BulkLoader.class);
-            when(writers.getLoader(any())).thenReturn(writer);
+            when(writers.getLoader(any())).thenReturn((BulkLoader<Record>)writer);
             // create the object under test
             String entityType = "PhysicalMachine";
 //            MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(TOPOLOGY_INFO,
@@ -226,14 +226,14 @@ public class MarketStatsAccumulatorTest {
         commoditiesSold.add(StatsTestUtils.q1_vcpu(3.14));
         marketStatsAccumulator.persistCommoditiesSold(ENTITY_ID, commoditiesSold);
         final ArgumentCaptor<HistUtilizationRecord> recordArgumentCaptor =
-                ArgumentCaptor.forClass(HistUtilizationRecord.class);
-        final CapacityCache capacityCache = new CapacityCache(excludedCommodityTypes, new LongDataPack());
+            ArgumentCaptor.forClass(HistUtilizationRecord.class);
+        final CapacityCache capacityCache = new CapacityCache();
         final Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought =
-                HashMultimap.create();
+            HashMultimap.create();
         capacityCache.cacheCapacities(testVm);
         final Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(testVm.getOid(), testVm);
         marketStatsAccumulator.persistCommoditiesBought(testApp, capacityCache,
-                delayedCommoditiesBought, entityByOid);
+            delayedCommoditiesBought, entityByOid);
         Mockito.verify(mockBulkLoader, times(5)).insert(recordArgumentCaptor.capture());
         Assert.assertEquals(5, recordArgumentCaptor.getAllValues().size());
     }
@@ -258,8 +258,8 @@ public class MarketStatsAccumulatorTest {
         final List<HistUtilizationRecord> allValues = recordArgumentCaptor.getAllValues();
         for (CommoditySoldDTO commoditySoldDTO : commoditiesSold) {
             final List<HistUtilizationRecord> records = allValues.stream()
-                    .filter(rec -> rec.getPropertyTypeId()
-                            == commoditySoldDTO.getCommodityType().getType())
+                .filter(rec -> rec.getPropertyTypeId() ==
+                    commoditySoldDTO.getCommodityType().getType())
                 .collect(Collectors.toList());
             checkParametersRecordsByCommodityValues(ENTITY_ID, null, records,
                 commoditySoldDTO.getCommodityType(), commoditySoldDTO.getCapacity(),
@@ -277,46 +277,40 @@ public class MarketStatsAccumulatorTest {
     @Test
     public void testRecordsParametersForBoughtCommodity()
         throws InterruptedException, VmtDbException {
-        final LongDataPack oidPack = new LongDataPack();
-        final CapacityCache capacityCache = new CapacityCache(excludedCommodityTypes, oidPack);
+        final CapacityCache capacityCache = new CapacityCache();
         capacityCache.cacheCapacities(testVm);
         final Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought =
-                HashMultimap.create();
+            HashMultimap.create();
         final Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(testVm.getOid(), testVm);
         marketStatsAccumulator.persistCommoditiesBought(testApp, capacityCache,
-                delayedCommoditiesBought, entityByOid);
+            delayedCommoditiesBought, entityByOid);
         final CommoditiesBoughtFromProvider commoditiesBoughtFromProviders =
-                testApp.getCommoditiesBoughtFromProviders(0);
+            testApp.getCommoditiesBoughtFromProviders(0);
         final ArgumentCaptor<HistUtilizationRecord> recordArgumentCaptor =
-                ArgumentCaptor.forClass(HistUtilizationRecord.class);
+            ArgumentCaptor.forClass(HistUtilizationRecord.class);
         Mockito.verify(mockBulkLoader, Mockito.atLeastOnce())
-                .insert(recordArgumentCaptor.capture());
-        final Map<CommodityType, Double> entityCapacities =
-                capacityCache.getEntityCapacities(oidPack.toIndex(commoditiesBoughtFromProviders.getProviderId()));
+            .insert(recordArgumentCaptor.capture());
+        final Int2ObjectMap<Object2DoubleMap<String>> entityCapacities =
+            capacityCache.getEntityCapacities(commoditiesBoughtFromProviders.getProviderId());
         for (CommodityBoughtDTO commodityBoughtDTO : commoditiesBoughtFromProviders.getCommodityBoughtList()) {
-            final CommodityDTO.CommodityType commType
-                    = CommodityDTO.CommodityType.forNumber(commodityBoughtDTO.getCommodityType().getType());
             final double[] capacityValues =
-                    entityCapacities.keySet().stream()
-                            .filter(ct -> ct.getType() == commType.getNumber())
-                            .mapToDouble(entityCapacities::get)
-                            .toArray();
-            final Double capacity = excludedCommodityTypes.contains(commType) ? null : capacityValues[0];
+                entityCapacities.get(commodityBoughtDTO.getCommodityType().getType()).values().toDoubleArray();
+            final double capacity = capacityValues[0];
             final List<HistUtilizationRecord> records = recordArgumentCaptor.getAllValues()
-                    .stream()
-                    .filter(rec -> rec.getPropertyTypeId()
-                            == commodityBoughtDTO.getCommodityType().getType())
-                    .collect(Collectors.toList());
+                .stream()
+                .filter(rec -> rec.getPropertyTypeId() ==
+                    commodityBoughtDTO.getCommodityType().getType())
+                .collect(Collectors.toList());
             checkParametersRecordsByCommodityValues(testApp.getOid(),
-                    commoditiesBoughtFromProviders.getProviderId(), records,
-                    commodityBoughtDTO.getCommodityType(), capacity,
-                    commodityBoughtDTO.getHistoricalUsed());
+                commoditiesBoughtFromProviders.getProviderId(), records,
+                commodityBoughtDTO.getCommodityType(), capacity,
+                commodityBoughtDTO.getHistoricalUsed());
         }
     }
 
     private void checkParametersRecordsByCommodityValues(long oid, Long providerId,
-            Collection<HistUtilizationRecord> records, CommodityType commodityType, Double capacity,
-            HistoricalValues historicalUsed) throws VmtDbException {
+                                                         Collection<HistUtilizationRecord> records, CommodityType commodityType, double capacity,
+                                                         HistoricalValues historicalUsed) throws VmtDbException {
         Long checkProviderId = providerId;
         if (providerId == null) {
             checkProviderId = 0L;
@@ -324,13 +318,13 @@ public class MarketStatsAccumulatorTest {
         int propertySlot = 0;
         for (HistUtilizationRecord record : records) {
             final HistoryUtilizationType historyUtilizationType =
-                    HistoryUtilizationType.forNumber(record.getValueType());
+                HistoryUtilizationType.forNumber(record.getValueType());
             final boolean isTimeslot = historyUtilizationType == HistoryUtilizationType.Timeslot;
             final int newPropertySlot = isTimeslot ? propertySlot++ : 0;
-            final double value = isTimeslot ? historicalUsed.getTimeSlot(newPropertySlot) / capacity
-                    : historicalUsed.getPercentile();
+            final double value = isTimeslot ? historicalUsed.getTimeSlot(newPropertySlot) / capacity :
+                    historicalUsed.getPercentile();
             checkParametersRecord(oid, checkProviderId, record, commodityType, capacity,
-                    historyUtilizationType, newPropertySlot, value);
+                historyUtilizationType, newPropertySlot, value);
         }
     }
 
@@ -351,13 +345,14 @@ public class MarketStatsAccumulatorTest {
 
     /**
      * Currently ignored, will be revisited.
+     * @throws Exception if something goes wrong
      */
     @Ignore
     @Test
-    public void testExclusion() {
+    public void testExclusion() throws Exception {
         // arrange
         SimpleBulkLoaderFactory writers = mock(SimpleBulkLoaderFactory.class);
-        BulkLoader<Record> writer = mock(BulkLoader.class);
+        BulkLoader writer = mock(BulkLoader.class);
         when(writers.getLoader(any())).thenReturn(writer);
 
         // create the object under test
@@ -387,7 +382,7 @@ public class MarketStatsAccumulatorTest {
 
         // arrange
         SimpleBulkLoaderFactory writers = mock(SimpleBulkLoaderFactory.class);
-        BulkLoader<Record> writer = mock(BulkLoader.class);
+        BulkLoader writer = mock(BulkLoader.class);
         when(writers.getLoader(any())).thenReturn(writer);
 
 //        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(
@@ -427,7 +422,7 @@ public class MarketStatsAccumulatorTest {
     public void testPersistCommoditiesBoughtWithoutProvider() throws Exception {
         // arrange
         SimpleBulkLoaderFactory writers = mock(SimpleBulkLoaderFactory.class);
-        BulkLoader<Record> writer = mock(BulkLoader.class);
+        BulkLoader writer = mock(BulkLoader.class);
         when(writers.getLoader(any())).thenReturn(writer);
 
 //        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(
@@ -462,7 +457,7 @@ public class MarketStatsAccumulatorTest {
     public void testPersistCommoditiesBoughtUnavailable() throws Exception {
         // arrange
         SimpleBulkLoaderFactory writers = mock(SimpleBulkLoaderFactory.class);
-        BulkLoader<Record> writer = mock(BulkLoader.class);
+        BulkLoader writer = mock(BulkLoader.class);
         when(writers.getLoader(any())).thenReturn(writer);
 
 //        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(
@@ -500,7 +495,7 @@ public class MarketStatsAccumulatorTest {
     public void testPersistCommoditiesBoughtAvailableLater() throws Exception {
         // arrange
         SimpleBulkLoaderFactory writers = mock(SimpleBulkLoaderFactory.class);
-        BulkLoader<Record> writer = mock(BulkLoader.class);
+        BulkLoader writer = mock(BulkLoader.class);
         when(writers.getLoader(any())).thenReturn(writer);
 
 //        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(
@@ -541,7 +536,7 @@ public class MarketStatsAccumulatorTest {
     public void testPersistEntityAttributes() throws Exception {
         // arrange
         SimpleBulkLoaderFactory writers = mock(SimpleBulkLoaderFactory.class);
-        BulkLoader<Record> writer = mock(BulkLoader.class);
+        BulkLoader writer = mock(BulkLoader.class);
         when(writers.getLoader(any())).thenReturn(writer);
 
 //        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(TOPOLOGY_INFO,
@@ -719,10 +714,10 @@ public class MarketStatsAccumulatorTest {
 //        assertThat(extractedKey7.get(), is("volume-name - vendor-id-1"));
     }
 
-    private InsertSetMoreStep<Record> createMockInsertQuery(Table<?> table) {
+    private InsertSetMoreStep createMockInsertQuery(Table table) {
 
-        InsertSetMoreStep<Record> mockInsertStmt = mock(InsertSetMoreStep.class);
-        InsertSetStep<Record> mockInsertSetStep = mock(InsertSetStep.class);
+        InsertSetMoreStep mockInsertStmt = mock(InsertSetMoreStep.class);
+        InsertSetStep mockInsertSetStep = mock(InsertSetStep.class);
 
         // simulate the accumulation of DB values on the mockInsertStmt
         int[] count = {0};

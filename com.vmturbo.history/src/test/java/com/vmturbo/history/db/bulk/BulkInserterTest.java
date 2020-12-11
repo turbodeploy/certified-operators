@@ -29,7 +29,6 @@ import java.util.stream.Stream;
 import com.google.common.base.Functions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-
 import org.assertj.core.util.Objects;
 import org.jooq.Record;
 import org.jooq.Table;
@@ -55,6 +54,7 @@ import com.vmturbo.history.db.RecordTransformer;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory.RollupKeyTransfomer;
+import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.Entities;
 import com.vmturbo.history.schema.abstraction.tables.SystemLoad;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;

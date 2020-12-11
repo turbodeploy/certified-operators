@@ -47,9 +47,9 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
@@ -138,7 +138,7 @@ public class LiveStatsReaderTest {
         final PmStatsLatestRecord testRecord = new PmStatsLatestRecord();
         testRecord.setUuid("1");
         final Result records = mock(Result.class);
-        doAnswer((Answer<Void>)invocation -> {
+        doAnswer((Answer<Void>) invocation -> {
             invocation.getArgumentAt(0, Consumer.class).accept(testRecord);
             return null;
         }).when(records).forEach(any());
@@ -240,7 +240,7 @@ public class LiveStatsReaderTest {
                 .thenReturn(Optional.of(timeRange));
 
         final NextPageInfo nextPageInfo = mock(NextPageInfo.class);
-        long oid = 111L;
+        long oid = 111l;
         Map<Long, List<Record>> recordsByEntityId = new HashMap<>();
         recordsByEntityId.put(oid, new ArrayList<>());
         List<String> entityOid = Arrays.asList(String.valueOf(oid));
@@ -258,7 +258,7 @@ public class LiveStatsReaderTest {
         final PmStatsLatestRecord pmRecord = new PmStatsLatestRecord();
         pmRecord.setUuid(String.valueOf(oid));
         final Result records = mock(Result.class);
-        doAnswer((Answer<Void>)invocation -> {
+        doAnswer((Answer<Void>) invocation -> {
             invocation.getArgumentAt(0, Consumer.class).accept(pmRecord);
             return null;
         }).when(records).forEach(any());

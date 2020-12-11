@@ -1,6 +1,7 @@
 package com.vmturbo.history.db.bulk;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.doAnswer;
@@ -15,6 +16,7 @@ import java.util.Set;
 
 import org.jooq.Record;
 import org.jooq.Table;
+import org.jooq.impl.DSL;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 

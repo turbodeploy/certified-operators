@@ -4,19 +4,18 @@ import static com.vmturbo.sql.utils.JooqQueryTrimmer.trimJooqErrorMessage;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
@@ -42,35 +41,31 @@ import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
  * accumulated records are written to the database. When all records have been written, the inserter
  * should be closed, which will cause remaining records to be flushed, if any.</p>
  *
- * <p>Batches are written by tasks submitted to an {@link ExecutorService}, by way of an instance
- * of {@link ThrottlingCompletingExecutor}. This acts as an {@link Executor}, and submitted tasks
- * are queued for execution. However, the throttling executor has two features that are critical for
- * our use. (1) It maintains a cap on how many tasks can be in-flight or queued at any given point
- * in time. Attempts to submit new tasks when that cap is met become blocking operations, awaiting
- * completion of an existing task. (2) Tasks are reaped immediately upon completion, using a {@link
- * CompletionService}. Results from completed tasks are delivered to the submitter via callbacks.
- * These features are important because we could otherwise consume great amounts of memory due to
- * the {@link Record} objects wrapped up in waiting tasks.</p>
+ * <p>Batches are written by tasks submitted to an {@link ExecutorService}, but task
+ * submission is essentially throttled by the fact that each inserter is restricted as to the number
+ * of "in-flight" batches it can queue up at any one time. Parallelism results both from setting
+ * that limit > 1, and from having multiple inserters operating concurrently, on different tables.</p>
  *
  * <p>Each executing task has a built-in retry loop that is employed whenever an error is
- * encountered when attempting an operation. Retries are performed using newly acquired connections,
- * and after increasingly long backoff wait times. After all the scheduled retries have occurred and
- * failed, the overall batch operation fails.</p>
+ * encountered when attempting an operation. Retries are performed using newly acquired
+ * connections, and after increasingly long backoff wait times. After all the scheduled retries
+ * have occurred and failed, the overall batch operation fails.</p>
  *
  * <p>An inserter can be configured with a {@link RecordTransformer}, which will be applied to
  * each record before it is saved the database. The transformer may create a record of a different
- * type, which is why this class has two different type parameters - one to which the transformer is
- * applied, and one for its output.</p>
+ * type, which is why this class has two different type parameters - one to which the transformer
+ * is applied, and one for its output.</p>
  *
  * <p>An inserter is also configured with a {@link DbInserter}, which is responsible for actually
- * invoking appropriate database operations to save the batch of records as efficiently as possible
- * to the database. A few common db inserters are available in the {@link DbInserters} class.</p>
+ * invoking appropriate database operations to save the batch of records as efficiently as
+ * possible to the database. A few common db inserters are available in the {@link DbInserters}
+ * class.</p>
  *
- * <p>This class is thread-safe; multiple clients with references to the same bulk loader instance
- * can safely insert records and know that, barring insertion failures, those records will make it
- * into the database. Records from multiple callers will be intermingled unpredictably.</p>
+ * <p>This class is thread-safe; multiple clients with references to the same bulk loader instance can
+ * safely insert records and know that, barring insertion failures, those records will make it
+ * into the database. Records from mutliple clients will be intermingled unpredictably.</p>
  *
- * @param <InT>  type of records presented to this inserter instance
+ * @param <InT> type of records presented to this inserter instance
  * @param <OutT> type of records saved to the database by this inserter instance
  */
 public class BulkInserter<InT extends Record, OutT extends Record> implements BulkLoader<InT> {
@@ -79,9 +74,14 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
 
     // computed sequence of wait times between retries of a failing batch
     private final int[] batchRetryBackoffsMsec;
-
+    // sum of retry backoffs
+    private final int sumOfRetryBackoffsMsec;
     // whether to drop out-table when closing the inserter (used for transient loaders)
     private final boolean dropOnClose;
+
+    // maximum number of batchs each inserter is allowed to have submitted to the executor (and
+    // not yet resolved) at any time.
+    private int maxPendingBatches;
 
     // records received but not yet submitted for insertion.
     private final List<OutT> pendingRecords;
@@ -102,41 +102,39 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
     // sequential number of next batch to submit for execution
     private int batchNo = 1;
 
-    // true once this inserter has been closed; inserts are then disallowed
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    // Futures representing batches that have been submitted for executions but whose results
+    // have not yet been retrieved by this inserter.
+    private final ArrayDeque<Future<BatchStats>> pendingExecutions = new ArrayDeque<>();
 
-    // Executions that have been submitted for execution but have not yet completed. This is mostly
-    // used in close processing so we can complain if, after allowing the throttling executor to
-    // quiesce, we still have outstanding tasks.
-    private final Set<Future<BatchStats>> pendingExecutions = Collections.synchronizedSet(new HashSet<>());
+    // true once this inserter has been closed; inserts are then disallowed
+    private AtomicBoolean closed = new AtomicBoolean(false);
 
     private final Table<InT> inTable;
     private final Table<OutT> outTable;
     private final BasedbIO basedbIO;
-    private final ThrottlingCompletingExecutor<BatchStats> batchCompletionService;
+    private final ExecutorService executor;
 
     /**
      * create a new inserter instance.
      *
-     * @param basedbIO               basic database methods, including connection creation
-     * @param key                    object to use as a key for this inserter's stats (typically the
-     *                               output table)
-     * @param inTable                table for records of RI type, that will sent to this instance
-     * @param outTable               table for records of RO type, which will be stored to the
-     *                               database
-     * @param config                 config parameters
-     * @param recordTransformer      function to transform input records to output records
-     * @param dbInserter             function to perform batch insertions
-     * @param batchCompletionService completion service for executing batches
+     * @param basedbIO          basic database methods, including connection creation
+     * @param key               object to use as a key for this inserter's stats (typically the
+     *                          output table)
+     * @param inTable           table for records of RI type, that will sent to this instance
+     * @param outTable          table for records of RO type, which will be stored to the database
+     * @param config            config parameters
+     * @param recordTransformer function to transform input records to output records
+     * @param dbInserter        function to perform batch insertions
+     * @param executor          executor service that will execute our batch operations
      */
     public BulkInserter(@Nonnull BasedbIO basedbIO,
-            @Nonnull Object key,
-            @Nonnull Table<InT> inTable,
-            @Nonnull Table<OutT> outTable,
-            @Nonnull BulkInserterConfig config,
-            @Nonnull RecordTransformer<InT, OutT> recordTransformer,
-            @Nonnull DbInserter<OutT> dbInserter,
-            @Nonnull ThrottlingCompletingExecutor<BatchStats> batchCompletionService) {
+                        @Nonnull Object key,
+                        @Nonnull Table<InT> inTable,
+                        @Nonnull Table<OutT> outTable,
+                        @Nonnull BulkInserterConfig config,
+                        @Nonnull RecordTransformer<InT, OutT> recordTransformer,
+                        @Nonnull DbInserter<OutT> dbInserter,
+                        @Nonnull ExecutorService executor) {
         this.basedbIO = basedbIO;
         this.inTable = inTable;
         this.outTable = outTable;
@@ -145,8 +143,10 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
         this.batchSize = config.batchSize();
         this.batchRetryBackoffsMsec = computeBatchRetryBackoffs(
                 config.maxBatchRetries(), config.maxRetryBackoffMsec());
+        this.sumOfRetryBackoffsMsec = IntStream.of(batchRetryBackoffsMsec).sum();
+        this.maxPendingBatches = config.maxPendingBatches();
         this.dropOnClose = config.dropOnClose();
-        this.batchCompletionService = batchCompletionService;
+        this.executor = executor;
         this.inserterStats = new BulkInserterStats(key, inTable, outTable);
         this.pendingRecords = new ArrayList<>(batchSize);
     }
@@ -160,12 +160,13 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
     }
 
     /**
-     * Add a record to the pending records queue, and flush pending records if the batch size is
-     * attained.
+     * Add a record to the pending records queue, and flush pending records if the batch size
+     * is attained.
      *
      * @param record record to be inserted
+     * @throws InterruptedException if interrupted
      */
-    public void insert(@Nonnull InT record) {
+    public void insert(@Nonnull InT record) throws InterruptedException {
         checkClosed();
         synchronized (pendingRecords) {
             // is there room for more?
@@ -180,7 +181,7 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
     }
 
     @Override
-    public void flush(boolean awaitCompletion) {
+    public void flush(boolean awaitExecution) throws InterruptedException {
         int thisBatchNo;
         List<OutT> batch;
         // capture pending records and remove them from pending list
@@ -195,53 +196,75 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
             thisBatchNo = batchNo++;
         }
         // no longer locking the pending insertions queue... submit new batch
-        try {
-            final InsertTask task = new InsertTask(dbInserter, thisBatchNo, batch);
-            final Future<BatchStats> future =
-                    batchCompletionService.submit(task, this::handleBatchCompletion);
-            pendingExecutions.add(future);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    /**
-     * Harvest the future representing execution of batch previously submitted.
-     *
-     * @param future result of batch execution
-     */
-    private void handleBatchCompletion(Future<BatchStats> future) {
-        if (!future.isDone()) {
-            logger.error("Batch completion sent before task was complete; canceling: {}", future);
-            future.cancel(true);
-        }
-        pendingExecutions.remove(future);
-        if (future.isDone()) {
-            try {
-                final BatchStats batchStats = future.get();
-                inserterStats.updateForBatch(batchStats);
-            } catch (ExecutionException | RuntimeException e) {
-                inserterStats.failedBatch();
-                logger.error("Batch insertion failed", e);
-            } catch (InterruptedException e) {
-                inserterStats.failedBatch();
-                Thread.currentThread().interrupt();
+        synchronized (pendingExecutions) {
+            while (pendingExecutions.size() >= maxPendingBatches) {
+                // we've hit our pending batch limit; need to make headroom
+                handleOnePendingExecution();
             }
-        } else {
-            // somehow the future is still not complete, but we canceled it, so we can't really
-            // do more than log it, mark it as failed and move on. We will have no further
-            // reference to the future, the associated task, or any of that task's private data
-            logger.debug(
-                    "Future still not complete after cancelation; dropping reference: {}", future);
-            inserterStats.failedBatch();
+            // OK, queue this batch up for execution
+            pendingExecutions.addLast(executor.submit(
+                    new InsertExecutor(dbInserter, thisBatchNo, batch)));
+        }
+        if (awaitExecution) {
+            quiesce();
         }
     }
 
     /**
-     * A class that performs the database operations on a batch of records once the submitted task
-     * becomes active.
+     * Attempt to harvest the future representing execution of batch we least recently
+     * submitted. This may causes blocking.
+     *
+     * @return true if a pending execution was harvested
+     * @throws InterruptedException if interrupted
      */
-    private class InsertTask implements Callable<BatchStats> {
+    private boolean handleOnePendingExecution() throws InterruptedException {
+        synchronized (pendingExecutions) {
+            if (pendingExecutions.isEmpty()) {
+                return false;
+            }
+            // this will only be set non-null when we harvest a successful execution
+            BatchStats batchStats = null;
+            final Future<BatchStats> future = pendingExecutions.removeFirst();
+            try {
+                // wait for a prior task to complete and yield its stats. Max wait is computed
+                // from retry backoff times, with additional time to account for scheduling
+                // delays, as well as some errors that can take time to materialize (e.g. lock
+                // wait timeouts)
+                batchStats = future.get(sumOfRetryBackoffsMsec * 5, TimeUnit.MILLISECONDS);
+            } catch (ExecutionException | RuntimeException e) {
+                logger.error("Batch insertion failed", e);
+            } catch (TimeoutException e) {
+                // aggressively try to free up the pool thread
+                future.cancel(true);
+                logger.error("Batch insertion timed out", e);
+            }
+            if (batchStats != null) {
+                // record the results of the resolved execution in our overall write stats
+                inserterStats.updateForBatch(batchStats);
+            } else {
+                // here when the execution was canceled or threw an exception, so count it as failed
+                inserterStats.failedBatch();
+            }
+            // either way, we harvested a pending execution
+            return true;
+        }
+    }
+
+    /**
+     * Drain the pending exeuctions queue until it's empty.
+     *
+     * @throws InterruptedException if interrupted
+     */
+    public void quiesce() throws InterruptedException {
+        while (handleOnePendingExecution()) {
+        }
+    }
+
+    /**
+     * A class that performs the database operations on a batch of records once the submitted
+     * task becomes active.
+     */
+    private class InsertExecutor implements Callable<BatchStats> {
 
         private final DbInserter<OutT> dbInserter;
         private final List<OutT> records;
@@ -252,10 +275,9 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
          *
          * @param dbInserter a {@link DbInserter} that will perform needed database operations
          * @param batchNo    the batch number represented by this task
-         * @param records the records to be inserted
+         * @param records    the records to be inserted
          */
-        InsertTask(@Nonnull DbInserter<OutT> dbInserter, int batchNo,
-                @Nonnull List<OutT> records) {
+        InsertExecutor(@Nonnull DbInserter<OutT> dbInserter, int batchNo, @Nonnull List<OutT> records) {
             this.dbInserter = dbInserter;
             this.records = records;
             this.batchNo = batchNo;
@@ -283,12 +305,12 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
                     conn.commit();
                     operationTimer.stop();
                     logger.debug("Wrote batch #{} of {} records to table {} in {}", batchNo,
-                            records.size(), inTable.getName(), operationTimer);
+                        records.size(), inTable.getName(), operationTimer);
                     SharedMetrics.RECORDS_WRITTEN_BY_TABLE.labels(inTable.getName())
-                            .increment(((double)records.size()));
+                        .increment(((double)records.size()));
                     SharedMetrics.BATCHED_INSERTS
-                            .labels(inTable.getName(), BatchInsertDisposition.success.name())
-                            .increment();
+                        .labels(inTable.getName(), BatchInsertDisposition.success.name())
+                        .increment();
                     // no more retries required
                     // ultimately successful execution... send back stats
                     long workTimeNanos = operationTimer.elapsed().toNanos();
@@ -310,16 +332,16 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
                         lostTimeNanos += sleepTimer.elapsed().toNanos();
                     } else {
                         // out of retry attempts - this operation fails
-                        logger.error("Failed to save {} records in batch #{} "
-                                        + "to table {} after {} tries: {}",
-                                records.size(),
-                                batchNo,
-                                inTable.getName(),
-                                batchRetryBackoffsMsec.length,
-                                trimJooqErrorMessage(e));
+                        logger.error("Failed to save {} records in batch #{} " +
+                                "to table {} after {} tries: {}",
+                            records.size(),
+                            batchNo,
+                            inTable.getName(),
+                            batchRetryBackoffsMsec.length,
+                            trimJooqErrorMessage(e));
                         SharedMetrics.BATCHED_INSERTS
-                                .labels(inTable.getName(), BatchInsertDisposition.failure.name())
-                                .increment();
+                            .labels(inTable.getName(), BatchInsertDisposition.failure.name())
+                            .increment();
                         // this will cause the task to be counted as a failed execution
                         return BatchStats.failedBatch(lostTimeNanos);
                     }
@@ -354,36 +376,33 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
     }
 
     /**
-     * Close the inserter, after flushing its pending records (if any) and awaiting completion of
-     * any still pending batches (possibly including a batch arising from the flush operation).
+     * Close the inserter, after flushing its pending records (if any), and awaiting
+     * completion of any still pending batches (possibly including a batch arising from
+     * the flush operation).
      *
      * <p>Final statistics for the loader may be logged.</p>
      *
-     * @param statsLogger Logger where stats are reported; null means do not log
+     * @param logger Logger where stats are reported; null means do not log
      * @throws InterruptedException if interrupted
      */
-    public void close(Logger statsLogger) throws InterruptedException {
+    public void close(Logger logger) throws InterruptedException {
         // only one closer actually does the work of closing; subsequent closers can't
         // return until that work is finished
         synchronized (this) {
             if (!closed.getAndSet(true)) {
+                // only the first closer will ever get here
                 flush(true);
-                if (!pendingExecutions.isEmpty()) {
-                    logger.warn("Some batch executions still pending at close for out table {}",
-                            outTable.getName());
-                }
-                if (statsLogger != null) {
-                    inserterStats.logStats(statsLogger);
+                if (logger != null) {
+                    inserterStats.logStats(logger);
                 }
             }
         }
-        // close our out table if it's transient
         if (dropOnClose) {
             try (Connection conn = basedbIO.connection()) {
                 basedbIO.using(conn).dropTable(outTable).execute();
             } catch (VmtDbException | SQLException | DataAccessException e) {
                 // create our own logger for this if the caller didn't provide one
-                final Logger log = statsLogger != null ? statsLogger : LogManager.getLogger();
+                final Logger log = logger != null ? logger : LogManager.getLogger();
                 log.error("Failed to drop transient bulk inserter table {} when inserter was closed",
                         outTable.getName(), e);
             }

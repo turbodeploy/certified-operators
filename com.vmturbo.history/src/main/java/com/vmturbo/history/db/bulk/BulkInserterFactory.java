@@ -23,7 +23,6 @@ import org.jooq.exception.DataAccessException;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.RecordTransformer;
 import com.vmturbo.history.db.VmtDbException;
-import com.vmturbo.history.db.bulk.BulkInserter.BatchStats;
 import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
 
 /**
@@ -79,7 +78,7 @@ public class BulkInserterFactory implements AutoCloseable {
     private final Map<Object, BulkInserter<?, ?>> inserters = new ConcurrentHashMap<>();
 
     private final BasedbIO basedbIO;
-    private final ThrottlingCompletingExecutor<BatchStats> batchCompleter;
+    private final ExecutorService executor;
 
     /**
      * Create a new instance.
@@ -93,7 +92,7 @@ public class BulkInserterFactory implements AutoCloseable {
                                @Nonnull ExecutorService executor) {
         this.basedbIO = basedbIO;
         this.defaultConfig = config;
-        this.batchCompleter = new ThrottlingCompletingExecutor<>(executor, config.maxPendingBatches());
+        this.executor = executor;
     }
 
     /**
@@ -156,9 +155,10 @@ public class BulkInserterFactory implements AutoCloseable {
         synchronized (inserters) {
             BulkInserter<InT, OutT> inserter = (BulkInserter<InT, OutT>)inserters.get(key);
             if (inserter == null) {
-                final BulkInserterConfig configToUse = config.orElse(defaultConfig);
-                inserter = new BulkInserter<>(basedbIO, key, inTable, outTable, configToUse,
-                        recordTransformer, dbInserter, batchCompleter);
+                inserter = new BulkInserter<>(
+                        basedbIO, key, inTable, outTable,
+                        config.orElse(defaultConfig),
+                        recordTransformer, dbInserter, executor);
                 inserters.put(key, inserter);
             }
             return inserter;
@@ -266,7 +266,10 @@ public class BulkInserterFactory implements AutoCloseable {
         for (BulkInserter<?, ?> bulkInserter : inserters.values()) {
             bulkInserter.flush(false);
         }
-        batchCompleter.drain();
+        // then wait for them all to finish
+        for (BulkInserter<?, ?> bulkInserter : inserters.values()) {
+            bulkInserter.quiesce();
+        }
     }
 
     /**
@@ -333,7 +336,6 @@ public class BulkInserterFactory implements AutoCloseable {
         for (BulkInserter<?, ?> bulkInserter : inserters.values()) {
             bulkInserter.close(logger);
         }
-        batchCompleter.close();
     }
 
     /**

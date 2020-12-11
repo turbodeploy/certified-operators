@@ -22,7 +22,6 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import com.google.protobuf.util.JsonFormat;
-
 import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -177,8 +176,8 @@ class SnapshotStatus {
     }
 
     String getRollupSummary() {
-        return (hourRollupDuration != null ? 'H' : ' ')
-                + (dayMonthRollupDuration != null ? "DM" : "  ");
+        return (hourRollupDuration != null ? 'H' : ' ') +
+                (dayMonthRollupDuration != null ? "DM" : "  ");
     }
 
     boolean isDirty() {

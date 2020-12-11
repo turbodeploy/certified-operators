@@ -12,7 +12,6 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS_PER_HOST
 import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS_PER_STORAGE;
 
 import java.sql.Timestamp;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -42,7 +41,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.schema.abstraction.tables.MktSnapshotsStats;
@@ -53,7 +51,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 /**
  * Aggregates plan topology stats by commodity type and by entity type.
  */
-public class PlanStatsAggregator implements MemReporter {
+public class PlanStatsAggregator {
 
     private final Logger logger = LogManager.getLogger();
 
@@ -64,10 +62,10 @@ public class PlanStatsAggregator implements MemReporter {
     /**
      * A Table of entityType,commodityType -> CommodityAggregation of commodities aggregated.
      */
-    private final Table<Integer, Integer, CommodityAggregation> commodityAggregationTable = HashBasedTable.create();
+    private Table<Integer, Integer, CommodityAggregation> commodityAggregationTable = HashBasedTable.create();
 
-    private final Map<Integer, Integer> entityTypeCounts = Maps.newHashMap();
-    private final Map<String, Integer> entityMetrics = Maps.newHashMap();
+    private Map<Integer, Integer> entityTypeCounts = Maps.newHashMap();
+    private Map<String, Integer> entityMetrics = Maps.newHashMap();
     private final Timestamp snapshotTimestamp;
     private final boolean isProcessingSourceTopologyStats;
     private final String dbCommodityPrefix;
@@ -150,7 +148,7 @@ public class PlanStatsAggregator implements MemReporter {
      * @param chunk one chunk of topology DTOs.
      */
     private void countMetrics(Collection<TopologyEntityDTO> chunk) {
-        chunk.forEach(countPhysicalMachineMetrics);
+        chunk.stream().forEach(countPhysicalMachineMetrics);
     }
 
     /**
@@ -158,7 +156,7 @@ public class PlanStatsAggregator implements MemReporter {
      *
      * <p>Currently only handles numCPUs</p>
      */
-    private final Consumer<TopologyEntityDTO> countPhysicalMachineMetrics = (topologyEntityDTO) ->  {
+    private Consumer<TopologyEntityDTO> countPhysicalMachineMetrics = (topologyEntityDTO) ->  {
         if (!(topologyEntityDTO.hasTypeSpecificInfo() && topologyEntityDTO.getTypeSpecificInfo().hasPhysicalMachine())) {
             return;
         }
@@ -179,31 +177,31 @@ public class PlanStatsAggregator implements MemReporter {
         }
         // create a dump of the raw entity counts
         StringBuilder sb = new StringBuilder("Raw Entity Counts:\n");
-        Map<String, Integer> entityTypeStateCounts = new HashMap<>();
+        Map<String,Integer> entityTypeStateCounts = new HashMap<>();
         chunk.stream()
-                .map(dto -> EntityType.forNumber(dto.getEntityType()).name() + ":" + dto.getEntityState().name())
-                .forEach(key -> entityTypeStateCounts.merge(key, 1, Integer::sum));
-        entityTypeStateCounts.forEach((key1, value) -> sb.append("  ")
-                .append(key1).append(":").append(value).append("\n"));
+                .map(dto -> EntityType.forNumber(dto.getEntityType()).name() +":"+ dto.getEntityState().name())
+                .forEach(key -> entityTypeStateCounts.merge(key,1, (i,d) -> i+d ));
+        entityTypeStateCounts.entrySet().forEach(entry -> sb.append("  ")
+                .append(entry.getKey()).append(":").append(entry.getValue()).append("\n"));
 
         // dump unplaced entity counts
-        Map<String, Integer> unplacedEntityTypeStateCounts = new HashMap<>();
+        Map<String,Integer> unplacedEntityTypeStateCounts = new HashMap<>();
         chunk.stream().filter(dto -> !TopologyDTOUtil.isPlaced(dto))
-                .map(dto -> EntityType.forNumber(dto.getEntityType()).name() + ":" + dto.getEntityState().name())
-                .forEach(key -> unplacedEntityTypeStateCounts.merge(key, 1, Integer::sum));
+                .map(dto -> EntityType.forNumber(dto.getEntityType()).name() +":"+ dto.getEntityState().name())
+                .forEach(key -> unplacedEntityTypeStateCounts.merge(key,1, (i,d) -> i+d ));
         sb.append("Unplaced entity counts:\n");
-        unplacedEntityTypeStateCounts.forEach((key1, value) -> sb.append("  ")
-                .append(key1).append(":").append(value).append("\n"));
+        unplacedEntityTypeStateCounts.entrySet().forEach(entry -> sb.append("  ")
+                .append(entry.getKey()).append(":").append(entry.getValue()).append("\n"));
 
         // count the entities with plan origins too
-        Map<String, Integer> planEntityCounts = new HashMap<>();
+        Map<String,Integer> planEntityCounts = new HashMap<>();
         chunk.stream()
                 .filter(dto -> !shouldCountEntity(dto))
-                .map(dto -> EntityType.forNumber(dto.getEntityType()).name() + ":" + dto.getEntityState().name())
-                .forEach(key -> planEntityCounts.merge(key, 1, Integer::sum));
+                .map(dto -> EntityType.forNumber(dto.getEntityType()).name() +":"+ dto.getEntityState().name())
+                .forEach(key -> planEntityCounts.merge(key,1, (i,d) -> i+d ));
         sb.append("Entity w/Plan Origin counts:\n");
-        planEntityCounts.forEach((key, value) -> sb.append("  ")
-                .append(key).append(":").append(value).append("\n"));
+        planEntityCounts.entrySet().forEach(entry -> sb.append("  ")
+                .append(entry.getKey()).append(":").append(entry.getValue()).append("\n"));
         return sb.toString();
     }
 
@@ -240,7 +238,6 @@ public class PlanStatsAggregator implements MemReporter {
 
     /**
      * Create DB stats records for entity Metrics.
-     *
      * <p>Currently only numCPUs metric is recorded</p>
      *
      * @return a collection of stats records to be written to the DB
@@ -280,11 +277,11 @@ public class PlanStatsAggregator implements MemReporter {
                 HistoryStatsUtils.addPrefix(NUM_HOSTS, dbCommodityPrefix),
                 null /* propertySubtype*/, topologyContextId, EntityType.PHYSICAL_MACHINE_VALUE));
         entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
-                snapshotTimestamp, numPMs == 0 ? 0 : (double)numVMs / numPMs, null /*capacity*/,
+                snapshotTimestamp, numPMs == 0 ? 0 : numVMs / numPMs, null /*capacity*/,
                 HistoryStatsUtils.addPrefix(NUM_VMS_PER_HOST, dbCommodityPrefix),
                 null /* propertySubtype*/, topologyContextId, EntityType.PHYSICAL_MACHINE_VALUE));
         entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
-                snapshotTimestamp, numPMs == 0 ? 0 : (double)numContainers / numPMs, null /*capacity*/,
+                snapshotTimestamp, numPMs == 0 ? 0 : numContainers / numPMs, null /*capacity*/,
                 HistoryStatsUtils.addPrefix(NUM_CNT_PER_HOST, dbCommodityPrefix),
                 null /* propertySubtype*/, topologyContextId, EntityType.PHYSICAL_MACHINE_VALUE));
         entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
@@ -296,11 +293,11 @@ public class PlanStatsAggregator implements MemReporter {
                 HistoryStatsUtils.addPrefix(NUM_STORAGES, dbCommodityPrefix),
                 null /* propertySubtype*/, topologyContextId, EntityType.STORAGE_VALUE));
         entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
-                snapshotTimestamp, numStorages == 0 ? 0 : (double)numVMs / numStorages, null /*capacity*/,
+                snapshotTimestamp, numStorages == 0 ? 0 : numVMs / numStorages, null /*capacity*/,
                 HistoryStatsUtils.addPrefix(NUM_VMS_PER_STORAGE, dbCommodityPrefix),
                 null /* propertySubtype*/, topologyContextId, EntityType.STORAGE_VALUE));
         entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
-                snapshotTimestamp, numStorages == 0 ? 0 : (double)numContainers / numStorages, null /*capacity*/,
+                snapshotTimestamp, numStorages == 0 ? 0 : numContainers / numStorages, null /*capacity*/,
                 HistoryStatsUtils.addPrefix(NUM_CNT_PER_STORAGE, dbCommodityPrefix),
                 null /* propertySubtype*/, topologyContextId, EntityType.STORAGE_VALUE));
         entityTypeCountRecords.add(buildMktSnapshotsStatsRecord(
@@ -377,8 +374,8 @@ public class PlanStatsAggregator implements MemReporter {
             final MktSnapshotsStatsRecord commodityRecord = commodityAggregation.getAggregatedRecord();
             // calculate averages, using the sum of used values from avgValue and counts
             commodityRecord.setAvgValue(historydbIO.clipValue(
-                    commodityRecord.getAvgValue()
-                            / commodityAggregation.getEntityCount()));
+                commodityRecord.getAvgValue() /
+                    commodityAggregation.getEntityCount()));
             // add the record to the results list
             results.add(commodityRecord);
         });
@@ -436,7 +433,7 @@ public class PlanStatsAggregator implements MemReporter {
      * <p>Includes both the rolled up stats and the count of entities whose commodities have been
      * rolled up.</p>
      */
-    private static class CommodityAggregation {
+    private class CommodityAggregation {
 
         private int entityCount;
         private final MktSnapshotsStatsRecord aggregatedRecord;
@@ -463,24 +460,5 @@ public class PlanStatsAggregator implements MemReporter {
         public int incrementEntityCount() {
             return ++entityCount;
         }
-    }
-
-    @Override
-    public Long getMemSize() {
-        return null;
-    }
-
-    @Override
-    public List<MemReporter> getNestedMemReporters() {
-        return Arrays.asList(
-                new SimpleMemReporter("commodityAggregationTable", commodityAggregationTable),
-                new SimpleMemReporter("entityMetrics", entityMetrics),
-                new SimpleMemReporter("entityTypeCounts", entityTypeCounts)
-        );
-    }
-
-    @Override
-    public Collection<Object> getMemExclusions() {
-        return Collections.singletonList(MktSnapshotsStatsRecord.class);
     }
 }

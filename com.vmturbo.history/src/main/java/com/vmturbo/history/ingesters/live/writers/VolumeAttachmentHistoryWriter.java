@@ -25,7 +25,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
-import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.ingesters.common.writers.TopologyWriterBase;
 import com.vmturbo.history.schema.abstraction.tables.VolumeAttachmentHistory;
 import com.vmturbo.history.schema.abstraction.tables.records.VolumeAttachmentHistoryRecord;
@@ -150,7 +149,7 @@ public class VolumeAttachmentHistoryWriter extends TopologyWriterBase {
 
         @Override
         public Optional<IChunkProcessor<DataSegment>> getChunkProcessor(
-            final TopologyInfo topologyInfo, final IngesterState state) {
+            final TopologyInfo topologyInfo, final SimpleBulkLoaderFactory state) {
             final long currentTopologyCreationTime = topologyInfo.getCreationTime();
             logger.debug("Current topology creation time: {}, Last insert topology creation time: "
                     + "{}, Interval between inserts: {}", currentTopologyCreationTime,
@@ -158,7 +157,7 @@ public class VolumeAttachmentHistoryWriter extends TopologyWriterBase {
             if (currentTopologyCreationTime >= lastInsertTopologyCreationTime
                 + intervalBetweenInsertsInMillis) {
                 lastInsertTopologyCreationTime = currentTopologyCreationTime;
-                return Optional.of(new VolumeAttachmentHistoryWriter(topologyInfo, state.getLoaders()));
+                return Optional.of(new VolumeAttachmentHistoryWriter(topologyInfo, state));
             } else {
                 return Optional.empty();
             }

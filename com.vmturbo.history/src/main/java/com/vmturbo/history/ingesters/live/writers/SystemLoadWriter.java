@@ -48,14 +48,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
-import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkLoader;
+import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.db.jooq.JooqUtils;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
-import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.ingesters.common.writers.TopologyWriterBase;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
@@ -66,7 +65,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 /**
  * Update system load data based on the content of a new live topology.
  */
-public class SystemLoadWriter extends TopologyWriterBase implements MemReporter {
+public class SystemLoadWriter extends TopologyWriterBase {
     private static final Logger logger = LogManager.getLogger();
 
     private static final int SYSTEM_LOAD_COMMODITIES_COUNT = SystemLoadCommodity.values().length;
@@ -74,8 +73,8 @@ public class SystemLoadWriter extends TopologyWriterBase implements MemReporter 
     /** main loader for the system_load table. */
     private final BulkLoader<SystemLoadRecord> loader;
     /**
-     * loader for a transient table patterned after system load, where some records are written
-     * before we know we'll be keeping them.
+     * loader for a transient table patterned after system load, where some records are
+     * written before we know we'll be keeping them.
      */
     private final BulkLoader<SystemLoadRecord> transientLoader;
     private final BasedbIO basedbIO;
@@ -115,7 +114,7 @@ public class SystemLoadWriter extends TopologyWriterBase implements MemReporter 
      *
      * @param groupService     group service endpoint
      * @param basedbIO         access to DB stuff
-     * @param state            ingester shared state
+     * @param loaders          for writing records to tables
      * @param info             info about the topology being processed
      * @throws SQLException           if there's a database exception
      * @throws InstantiationException if we can't create a new transient table
@@ -124,14 +123,14 @@ public class SystemLoadWriter extends TopologyWriterBase implements MemReporter 
      */
     SystemLoadWriter(GroupServiceBlockingStub groupService,
             BasedbIO basedbIO,
-            IngesterState state,
+            SimpleBulkLoaderFactory loaders,
             TopologyInfo info) throws SQLException, InstantiationException, VmtDbException, IllegalAccessException {
         this.hostToSliceMap = loadClusterInfo(groupService);
         this.sliceSet = new LongOpenHashSet(hostToSliceMap.values());
         this.basedbIO = basedbIO;
-        this.loader = state.getLoaders().getLoader(SYSTEM_LOAD);
+        this.loader = loaders.getLoader(SYSTEM_LOAD);
         try {
-            this.transientLoader = state.getLoaders().getTransientLoader(SYSTEM_LOAD, table -> {
+            this.transientLoader = loaders.getTransientLoader(SYSTEM_LOAD, table -> {
                 try (Connection conn = basedbIO.connection()) {
                     basedbIO.using(conn)
                             .createIndex(table.getName() + "_slice")
@@ -711,10 +710,10 @@ public class SystemLoadWriter extends TopologyWriterBase implements MemReporter 
 
         @Override
         public Optional<IChunkProcessor<DataSegment>> getChunkProcessor(
-                final TopologyInfo topologyInfo, final IngesterState state) {
+                final TopologyInfo topologyInfo, final SimpleBulkLoaderFactory loaders) {
             try {
                 return Optional.of(
-                        new SystemLoadWriter(groupService, historydbIO, state, topologyInfo));
+                        new SystemLoadWriter(groupService, historydbIO, loaders, topologyInfo));
             } catch (SQLException | InstantiationException | VmtDbException | IllegalAccessException e) {
                 // the non-DB exceptions can happen if the reflective table instance creation required
                 // for the transient record loader fails
@@ -723,20 +722,5 @@ public class SystemLoadWriter extends TopologyWriterBase implements MemReporter 
                 return Optional.empty();
             }
         }
-    }
-
-    @Override
-    public Long getMemSize() {
-        return null;
-    }
-
-    @Override
-    public List<MemReporter> getNestedMemReporters() {
-        return Arrays.asList(
-                new SimpleMemReporter("hostToSliceMap", hostToSliceMap),
-                new SimpleMemReporter("sliceSet", sliceSet),
-                new SimpleMemReporter("sliceCapacities", sliceCapacities),
-                new SimpleMemReporter("sliceUsages", sliceUsages)
-        );
     }
 }

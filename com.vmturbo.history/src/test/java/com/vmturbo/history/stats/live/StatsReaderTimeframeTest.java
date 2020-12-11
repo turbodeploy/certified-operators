@@ -2,7 +2,10 @@ package com.vmturbo.history.stats.live;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -27,18 +30,13 @@ import com.vmturbo.components.common.utils.TimeFrameCalculator;
 @RunWith(Parameterized.class)
 public class StatsReaderTimeframeTest {
 
-    // copied from standard OpsManager configuration
-    private static final int NUM_RETAINED_MINUTES = 120;
-    private static final int NUM_RETAINED_HOURS = 72;
-    private static final int NUM_RETAINED_DAYS = 60;
-
     /**
      * These are the time ranges queried by the UX, and the expected tables to supply the
      * stats values.
      *
      * @return delta startTime, delta endTime, and expectedTableToRead for each test
      */
-    @Parameters(name = "{index}: startTime {0}, endTime {1}, timeFrame {2}")
+    @Parameters(name="{index}: startTime {0}, endTime {1}, timeFrame {2}")
     public static Collection<Object[]> data() {
         return Arrays.asList(new Object[][] {
                 {TimeUnit.MINUTES.toMillis(60), TimeUnit.MINUTES.toMillis(10), TimeFrame.LATEST},
@@ -73,6 +71,11 @@ public class StatsReaderTimeframeTest {
     @Test
     public void testTimeFrameCalculation() throws Exception {
 
+        // copied from standard OpsManager configuration
+        final int NUM_RETAINED_MINUTES=120;
+        final int NUM_RETAINED_HOURS=72;
+        final int NUM_RETAINED_DAYS=60;
+
         final Clock clock = Clock.systemUTC();
         final RetentionPeriodFetcher retentionPeriodFetcher = mock(RetentionPeriodFetcher.class);
 
@@ -85,9 +88,9 @@ public class StatsReaderTimeframeTest {
         final TimeFrameCalculator timeFrameCalculator =
                 new TimeFrameCalculator(clock, retentionPeriodFetcher);
 
-        final long now = clock.millis();
+        final long NOW = clock.millis();
 
-        assertThat(timeFrameCalculator.millis2TimeFrame(now - startTimeDeltaMs), is(expectedTimeFrame));
+        assertThat(timeFrameCalculator.millis2TimeFrame(NOW - startTimeDeltaMs), is(expectedTimeFrame));
     }
 
 

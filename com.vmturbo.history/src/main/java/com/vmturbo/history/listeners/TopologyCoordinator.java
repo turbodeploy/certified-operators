@@ -47,10 +47,10 @@ import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.bulk.BulkInserterFactoryStats;
+import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.IngestionMetrics;
 import com.vmturbo.history.ingesters.IngestionMetrics.SafetyValve;
 import com.vmturbo.history.ingesters.common.TopologyIngesterBase;
-import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.ingesters.live.ProjectedRealtimeTopologyIngester;
 import com.vmturbo.history.ingesters.live.SourceRealtimeTopologyIngester;
 import com.vmturbo.history.ingesters.plan.ProjectedPlanTopologyIngester;
@@ -317,12 +317,12 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
                     ingestionLock.lock();
                     // we create shared state in advance rather than just letting the ingester
                     // create it, so we'll still be able to get partial stats after a failure
-                    IngesterState sharedState = ingester.createSharedState(info);
+                    SimpleBulkLoaderFactory loaders = ingester.getLoadersInstance();
                     try (DataMetricTimer timer = getDurationMetric(info, flavor)) {
                         // perform the actual ingestion and stash the results
                         processingStatus.startIngestion(flavor, info, topologyLabel);
                         final Pair<Integer, BulkInserterFactoryStats> results
-                            = ingester.processBroadcast(info, topology, sharedState);
+                            = ingester.processBroadcast(info, topology, loaders);
                         processingStatus.finishIngestion(
                             flavor, info, topologyLabel, results.getRight());
                         // announce it to the world
@@ -348,8 +348,7 @@ public class TopologyCoordinator extends TopologyListenerBase implements Entitie
                     } catch (Exception e) {
                         logger.error("Ingestion of {} failed", topologyLabel, e);
                         processingStatus.failIngestion(
-                                flavor, info, topologyLabel,
-                                Optional.of(sharedState.getLoaders().getStats()), e);
+                                flavor, info, topologyLabel, Optional.of(loaders.getStats()), e);
                     } finally {
                         // don't leave without dropping our rollup-preventing lock
                         ingestionLock.unlock();

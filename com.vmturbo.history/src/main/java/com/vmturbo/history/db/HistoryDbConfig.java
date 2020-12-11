@@ -88,7 +88,7 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
      * Maximum batches a single bulk loader can have queued or in process in the thread pool before
      * it must block additional batches.
      */
-    @Value("${bulk.maxPendingBatches:10}")
+    @Value("${bulk.maxPendingBatches:8}")
     private int maxPendingBatches;
 
     @Value("${conPoolMaxActive:25}")

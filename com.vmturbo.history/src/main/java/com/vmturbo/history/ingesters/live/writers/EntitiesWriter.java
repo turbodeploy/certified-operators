@@ -21,8 +21,8 @@ import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.BulkLoader;
+import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
-import com.vmturbo.history.ingesters.common.TopologyIngesterBase.IngesterState;
 import com.vmturbo.history.ingesters.common.writers.TopologyWriterBase;
 import com.vmturbo.history.schema.abstraction.tables.Entities;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
@@ -44,14 +44,14 @@ public class EntitiesWriter extends TopologyWriterBase {
      *
      * @param topologyInfo metadata for the topology
      * @param historydbIO  access to common DB features
-     * @param state      bulk state
+     * @param loaders      bulk loaders
      */
     private EntitiesWriter(@Nonnull TopologyInfo topologyInfo,
                            @Nonnull HistorydbIO historydbIO,
-                           @Nonnull IngesterState state) {
+                           @Nonnull SimpleBulkLoaderFactory loaders) {
         this.topologyInfo = topologyInfo;
         this.historydbIO = historydbIO;
-        this.entitiesLoader = state.getLoaders().getLoader(Entities.ENTITIES);
+        this.entitiesLoader = loaders.getLoader(Entities.ENTITIES);
     }
 
     @Override
@@ -69,9 +69,9 @@ public class EntitiesWriter extends TopologyWriterBase {
         try {
             knownChunkEntities = new HashMap<>(historydbIO.getEntities(entityOids));
         } catch (VmtDbException e) {
-            logger.warn("Failed to retrieve known entities from topology broadcast chunk; "
-                            + "will discontinue writing entities for broadcast {}",
-                    infoSummary);
+            logger.warn("Failed to retrieve known entities from topology broadcast chunk; " +
+                    "will discontinue writing entities for broadcast {}",
+                infoSummary);
             return ChunkDisposition.DISCONTINUE;
         }
 
@@ -140,15 +140,15 @@ public class EntitiesWriter extends TopologyWriterBase {
             record = new EntitiesRecord();
             record.setId(entityOid);
         } else {
-            if (existingRecord.getDisplayName().equals(truncatedDisplayName)
-                    && existingRecord.getCreationClass().equals(entityType)) {
+                if (existingRecord.getDisplayName().equals(truncatedDisplayName) &&
+                existingRecord.getCreationClass().equals(entityType)) {
                 return Optional.empty();
             }
-            logger.warn("Name or type for existing entity with oid {} has been changed: "
-                            + "displayName >{}< -> >{}<"
-                            + " creationType >{}< -> >{}<; db updated.", entityDTO.getOid(),
-                    existingRecord.getDisplayName(), truncatedDisplayName,
-                    existingRecord.getCreationClass(), entityType);
+            logger.warn("Name or type for existing entity with oid {} has been changed: " +
+                    "displayName >{}< -> >{}<" +
+                    " creationType >{}< -> >{}<; db updated.", entityDTO.getOid(),
+                        existingRecord.getDisplayName(), truncatedDisplayName,
+                existingRecord.getCreationClass(), entityType);
             record = existingRecord;
         }
             // the table has a `name` column that is not used by anything, so we no longer
@@ -183,8 +183,8 @@ public class EntitiesWriter extends TopologyWriterBase {
         @Override
         public Optional<IChunkProcessor<Topology.DataSegment>>
         getChunkProcessor(final TopologyInfo topologyInfo,
-                          final IngesterState state) {
-            return Optional.of(new EntitiesWriter(topologyInfo, historydbIO, state));
+                          final SimpleBulkLoaderFactory loaders) {
+            return Optional.of(new EntitiesWriter(topologyInfo, historydbIO, loaders));
         }
     }
 }

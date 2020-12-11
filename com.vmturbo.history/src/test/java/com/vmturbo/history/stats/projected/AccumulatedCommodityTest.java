@@ -13,7 +13,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.components.common.stats.StatsAccumulator;
-import com.vmturbo.components.common.utils.DataPacks.DataPack;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.stats.HistoryUtilizationType;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedBoughtCommodity;
@@ -24,13 +23,13 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 public class AccumulatedCommodityTest {
 
-    private static final String COMMODITY = "Mem";
+    private final static String COMMODITY = "Mem";
 
-    private static final CommodityType MEM_COMMODITY_TYPE = CommodityType.newBuilder()
+    private final static CommodityType MEM_COMMODITY_TYPE = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.MEM.getNumber())
             .build();
 
-    private static final String COMMODITY_UNITS = "KB";
+    private final static String COMMODITY_UNITS = "KB";
 
     public static final StatValue TWO_VALUE_STAT = new StatsAccumulator()
         .record(5)
@@ -61,7 +60,7 @@ public class AccumulatedCommodityTest {
                 .setPeak(4)
                 .setCapacity(5)
                 .setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(0.5D).build())
-                .build(), new DataPack<>());
+                .build());
         // Add two of the same commodity (to make the math easier)
         commodity.recordSoldCommodity(soldCommodity);
         commodity.recordSoldCommodity(soldCommodity);

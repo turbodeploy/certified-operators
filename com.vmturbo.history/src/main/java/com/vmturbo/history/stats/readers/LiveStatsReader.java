@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.history.db.BasedbIO;
@@ -318,8 +319,8 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                     Optional.of(entityType), Optional.empty(), Optional.empty());
             if (!timeRangeOpt.isPresent()) {
                 // no data persisted yet; just return an empty answer
-                logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps."
-                        + " There may not be any data.", statsFilter.getStartDate(), statsFilter.getEndDate());
+                logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps." +
+                        " There may not be any data.", statsFilter.getStartDate(), statsFilter.getEndDate());
                 continue;
             }
             final TimeRange timeRange = timeRangeOpt.get();
@@ -416,8 +417,8 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
         if (!timeRangeOpt.isPresent()) {
             // no data persisted yet; just return an empty answer
-            logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps."
-                    + " There may not be any data.", statsFilter.getStartDate(), statsFilter.getEndDate());
+            logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps." +
+                    " There may not be any data.", statsFilter.getStartDate(), statsFilter.getEndDate());
             return Collections.emptyList();
         }
         final TimeRange timeRange = timeRangeOpt.get();

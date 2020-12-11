@@ -7,37 +7,36 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import it.unimi.dsi.fastutil.longs.Long2FloatMap;
-import it.unimi.dsi.fastutil.longs.Long2FloatOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2DoubleMap;
+import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.components.common.utils.MemReporter;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedCalculatedCommodity;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 
 /**
- * The {@link ProjectedPriceIndexSnapshot} contains information about the projected price index in a
- * topology. It's separate from the {@link TopologyCommoditiesSnapshot} because the price index is
- * broadcast separately
+ * The {@link ProjectedPriceIndexSnapshot} contains information about the projected price index
+ * in a topology. It's separate from the {@link TopologyCommoditiesSnapshot} because the
+ * price index is broadcast separately
  *
- * <p>It's constructed from the projected {@link PriceIndexMessage}s broadcast by the market,
- * and is immutable after construction.</p>
+ * It's constructed from the projected {@link PriceIndexMessage}s broadcast by the market,
+ * and is immutable after construction.
  */
 @Immutable
-public class ProjectedPriceIndexSnapshot implements MemReporter {
+public class ProjectedPriceIndexSnapshot {
 
     /**
-     * Map from (entity ID) -> (projected price index in the latest received topology). This map is
-     * replaced, in entirety, when a new PriceIndex payload is received.
+     * Map from (entity ID) -> (projected price index in the latest received topology).
+     * This map is replaced, in entirety, when a new PriceIndex payload is received.
      *
-     * <p>If we want to get the top X entities by price index in the future we can keep this map
-     * sorted.</p>
+     * If we want to get the top X entities by price index in the future we can keep this map
+     * sorted.
      */
-    private final Long2FloatMap priceIndexMap;
+    private final Long2DoubleMap priceIndexMap;
 
-    private ProjectedPriceIndexSnapshot(@Nonnull final Long2FloatMap priceIndexByEntity) {
+    private ProjectedPriceIndexSnapshot(@Nonnull final Long2DoubleMap priceIndexByEntity) {
         priceIndexMap = priceIndexByEntity;
     }
 
@@ -56,20 +55,20 @@ public class ProjectedPriceIndexSnapshot implements MemReporter {
     Comparator<Long> getEntityComparator(@Nonnull final EntityStatsPaginationParams paginationParams)
             throws IllegalArgumentException {
         if (!paginationParams.getSortCommodity().equals(StringConstants.PRICE_INDEX)) {
-            throw new IllegalArgumentException("Price index snapshot cannot sort by: "
-                    + paginationParams.getSortCommodity());
+            throw new IllegalArgumentException("Price index snapshot cannot sort by: " +
+                    paginationParams.getSortCommodity());
         }
         return (id1, id2) -> {
-            final double id1StatValue = priceIndexMap.getOrDefault(id1.longValue(), 0.0f);
-            final double id2StatValue = priceIndexMap.getOrDefault(id2.longValue(), 0.0f);
-            final int valComparisonResult = paginationParams.isAscending()
-                    ? Double.compare(id1StatValue, id2StatValue)
-                    : Double.compare(id2StatValue, id1StatValue);
+            final double id1StatValue = priceIndexMap.getOrDefault(id1.longValue(), 0.0);
+            final double id2StatValue = priceIndexMap.getOrDefault(id2.longValue(), 0.0);
+            final int valComparisonResult = paginationParams.isAscending() ?
+                    Double.compare(id1StatValue, id2StatValue) :
+                    Double.compare(id2StatValue, id1StatValue);
             if (valComparisonResult == 0) {
                 // In order to have a stable sort, we use the entity ID as the secondary sorting
                 // parameter.
-                return paginationParams.isAscending()
-                        ? Long.compare(id1, id2) : Long.compare(id2, id1);
+                return paginationParams.isAscending() ?
+                    Long.compare(id1, id2) : Long.compare(id2, id1);
             } else {
                 return valComparisonResult;
             }
@@ -96,7 +95,7 @@ public class ProjectedPriceIndexSnapshot implements MemReporter {
             }
         } else {
             targetEntities.forEach(entityId -> {
-                Float priceIndex = priceIndexMap.get(entityId);
+                Double priceIndex = priceIndexMap.get(entityId);
                 if (priceIndex != null) {
                     priceIndexCommodity.recordAttributeCommodity(priceIndex);
                 }
@@ -115,15 +114,14 @@ public class ProjectedPriceIndexSnapshot implements MemReporter {
         return new PriceIndexSnapshotFactory() {
             @Nonnull
             @Override
-            public ProjectedPriceIndexSnapshot createSnapshot(@Nonnull final Long2FloatMap priceIndexByEntity) {
-                if (priceIndexByEntity instanceof Long2FloatOpenHashMap) {
-                    ((Long2FloatOpenHashMap)priceIndexByEntity).trim();
+            public ProjectedPriceIndexSnapshot createSnapshot(@Nonnull final Long2DoubleMap priceIndexByEntity) {
+                if (priceIndexByEntity instanceof Long2DoubleOpenHashMap) {
+                    ((Long2DoubleOpenHashMap)priceIndexByEntity).trim();
                 }
                 return new ProjectedPriceIndexSnapshot(priceIndexByEntity);
             }
         };
     }
-
     /**
      * A factory for {@link ProjectedPriceIndexSnapshot}, used for dependency
      * injection for unit tests. We don't really need a factory otherwise, since
@@ -132,6 +130,6 @@ public class ProjectedPriceIndexSnapshot implements MemReporter {
     interface PriceIndexSnapshotFactory {
 
         @Nonnull
-        ProjectedPriceIndexSnapshot createSnapshot(@Nonnull Long2FloatMap priceIndexByEntity);
+        ProjectedPriceIndexSnapshot createSnapshot(@Nonnull Long2DoubleMap priceIndexByEntity);
     }
 }

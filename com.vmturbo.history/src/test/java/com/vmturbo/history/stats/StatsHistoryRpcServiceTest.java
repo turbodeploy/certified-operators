@@ -103,12 +103,12 @@
  import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
  import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
  import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
- import com.vmturbo.common.protobuf.utils.StringConstants;
  import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
  import com.vmturbo.components.api.test.GrpcTestServer;
  import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
  import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
  import com.vmturbo.components.common.setting.SettingDTOUtil;
+ import com.vmturbo.common.protobuf.utils.StringConstants;
  import com.vmturbo.history.db.HistorydbIO;
  import com.vmturbo.history.db.VmtDbException;
  import com.vmturbo.history.db.bulk.BulkLoader;

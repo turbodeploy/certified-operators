@@ -155,14 +155,14 @@ public class BulkInserterStats {
     public void logStats(Logger logger) {
         double workSecs = TimeUnit.NANOSECONDS.toSeconds(workTimeNanos);
         final String ratePerSec = String.format("%.1f",
-                // don't go with written / secs cuz latter is often rounded to zero
-                (double)written * TimeUnit.SECONDS.toNanos(1) / workTimeNanos);
+            // don't go with written / secs cuz latter is often rounded to zero
+            (double)written * TimeUnit.SECONDS.toNanos(1) / workTimeNanos);
         String workTimeString = formatNanos(workTimeNanos);
         String lostTimeString = formatNanos(lostTimeNanos);
-        logger.info("Table {}: wrote {} recs ({}/sec) in {} batches in {}; "
-                        + "{} lost in retries; {} failed batches",
-                inTable != null ? inTable.getName() : "(unknown)", written, ratePerSec, batches,
-                workTimeString, lostTimeString, failedBatches);
+        logger.info("Table {}: wrote {} recs ({}/sec) in {} batches in {}; " +
+                "{} lost in retries; {} failed batches",
+            inTable != null ? inTable.getName() : "(unknown)", written, ratePerSec, batches,
+            workTimeString, lostTimeString, failedBatches);
     }
 
     private @Nonnull

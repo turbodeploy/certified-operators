@@ -66,16 +66,6 @@ public class DbInserters {
         };
     }
 
-    private static <R extends Record> List<R> getRecordsFromData(
-            final Table<R> table, final List<Object[]> recordData) {
-        return recordData.stream()
-                .map(values -> {
-                    final R rec = table.newRecord();
-                    rec.fromArray(values);
-                    return rec;
-                }).collect(Collectors.toList());
-    }
-
     /**
      * This inserter performs a batch insert using a prepared statement with record field values
      * applied as bindings to the statment.

@@ -43,14 +43,11 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.components.common.utils.DataPacks.DataPack;
-import com.vmturbo.components.common.utils.DataPacks.LongDataPack;
 import com.vmturbo.history.stats.StatsTestUtils;
 import com.vmturbo.history.stats.projected.ProjectedPriceIndexSnapshot.PriceIndexSnapshotFactory;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore.EntityStatsCalculator;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore.StatSnapshotCalculator;
 import com.vmturbo.history.stats.projected.TopologyCommoditiesSnapshot.TopologyCommoditiesSnapshotFactory;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 public class ProjectedStatsStoreTest {
 
@@ -68,7 +65,7 @@ public class ProjectedStatsStoreTest {
     private EntityStatsCalculator entityStatsCalculator =
             mock(EntityStatsCalculator.class);
 
-    private Set<CommodityType> excludedCommodities = Collections.singleton(CommodityType.CLUSTER);
+    private Set<String> excludedCommodities = Collections.singleton("CLUSTERCommodity");
 
     private ProjectedStatsStore store = new ProjectedStatsStore(snapshotFactory,
             priceIndexSnapshotFactory, statSnapshotCalculator, entityStatsCalculator, excludedCommodities);
@@ -88,7 +85,7 @@ public class ProjectedStatsStoreTest {
 
     @Test
     public void testDefaultConstructor() {
-        new ProjectedStatsStore(Collections.emptySet(), new LongDataPack(), new DataPack<>());
+        new ProjectedStatsStore(Collections.emptySet());
     }
 
     @Test
