@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -23,6 +24,8 @@ import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.PropertiesList;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VCpuData;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.VMemData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
@@ -205,6 +208,8 @@ public class TopologyToSdkEntityConverter {
      * @return an SDK CommodityDTO
      */
     private static CommodityDTO newCommodityDTO(final CommoditySoldDTO commoditySoldDTO) {
+        final CommodityType commodityType =
+            CommodityType.forNumber(commoditySoldDTO.getCommodityType().getType());
         CommodityDTO.Builder builder = CommodityDTO.newBuilder()
                 // this appears to be a 1-1 mapping, based on existing conversion code going the
                 // other direction (CommodityDTO -> CommoditySoldDTO)
@@ -271,6 +276,31 @@ public class TopologyToSdkEntityConverter {
                 .setName(SDKConstants.AGGREGATES)
                 .addAllValues(commoditySoldDTO.getAggregatesList())
                 .build());
+        }
+
+        // Copy hot resize info
+        if (commoditySoldDTO.hasHotResizeInfo()) {
+            final HotResizeInfo hotResizeInfo = commoditySoldDTO.getHotResizeInfo();
+            if (commodityType == CommodityType.VMEM) {
+                final VMemData.Builder vmemDataBuilder = VMemData.newBuilder();
+                if (hotResizeInfo.hasHotAddSupported()) {
+                    vmemDataBuilder.setHotAddSupported(hotResizeInfo.getHotAddSupported());
+                }
+                if (hotResizeInfo.hasHotRemoveSupported()) {
+                    vmemDataBuilder.setHotRemoveSupported(hotResizeInfo.getHotRemoveSupported());
+                }
+                builder.setVmemData(vmemDataBuilder.build());
+            }
+            if (commodityType == CommodityType.VCPU) {
+                final VCpuData.Builder vcpuDataBuilder = VCpuData.newBuilder();
+                if (hotResizeInfo.hasHotRemoveSupported()) {
+                    vcpuDataBuilder.setHotRemoveSupported(hotResizeInfo.getHotRemoveSupported());
+                }
+                if (hotResizeInfo.hasHotAddSupported()) {
+                    vcpuDataBuilder.setHotAddSupported(hotResizeInfo.getHotAddSupported());
+                }
+                builder.setVcpuData(vcpuDataBuilder.build());
+            }
         }
 
         // EffectiveCapacityPercentage is not mapped, because we don't know whether to map it back

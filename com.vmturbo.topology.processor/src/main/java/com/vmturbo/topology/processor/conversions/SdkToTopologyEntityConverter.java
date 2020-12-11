@@ -18,13 +18,13 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
-import it.unimi.dsi.fastutil.longs.LongSet;
-
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.tag.Tag;
@@ -632,9 +632,13 @@ public class SdkToTopologyEntityConverter {
                 .setHotRemoveSupported(vCPUData.getHotRemoveSupported()));
         } else if (commDTO.getCommodityType() == CommodityDTO.CommodityType.VMEM && commDTO.hasVmemData()) {
             VMemData vMemData = commDTO.getVmemData();
-            retCommSoldBuilder.setHotResizeInfo(HotResizeInfo.newBuilder()
-                .setHotReplaceSupported(vMemData.getHotAddSupported())
-                .setHotAddSupported(vMemData.getHotAddSupported()));
+            final HotResizeInfo.Builder hotResizeInfo = HotResizeInfo.newBuilder()
+                .setHotReplaceSupported(vMemData.getHotAddSupported() || vMemData.getHotRemoveSupported())
+                .setHotAddSupported(vMemData.getHotAddSupported());
+            if (vMemData.hasHotRemoveSupported()) {
+                hotResizeInfo.setHotRemoveSupported(vMemData.getHotRemoveSupported());
+            }
+            retCommSoldBuilder.setHotResizeInfo(hotResizeInfo);
         }
 
         return retCommSoldBuilder;
