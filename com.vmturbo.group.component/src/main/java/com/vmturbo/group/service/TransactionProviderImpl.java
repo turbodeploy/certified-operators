@@ -23,6 +23,7 @@ import com.vmturbo.group.DiscoveredObjectVersionIdentity;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.GroupUpdateListener;
 import com.vmturbo.group.group.IGroupStore;
+import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.IPlacementPolicyStore;
 import com.vmturbo.group.policy.PolicyStore;
@@ -41,6 +42,7 @@ public class TransactionProviderImpl implements TransactionProvider {
     private final DSLContext dslContext;
     private final IdentityProvider identityProvider;
     private final Set<GroupUpdateListener> groupUpdateListeners = Collections.synchronizedSet(new HashSet<>());
+    private final GroupPaginationParams groupPaginationParams;
 
     /**
      * Constructs transaction provider for RPC services.
@@ -48,13 +50,16 @@ public class TransactionProviderImpl implements TransactionProvider {
      * @param identityProvider identityProvider
      * @param settingStore setting policy store to use
      * @param dslContext Jooq connection
+     * @param groupPaginationParams pagination parameters for group pagination (used when creating
+     *                              group stores)
      */
     public TransactionProviderImpl(
             @Nonnull SettingStore settingStore, @Nonnull DSLContext dslContext, @Nonnull
-            IdentityProvider identityProvider) {
+            IdentityProvider identityProvider, @Nonnull GroupPaginationParams groupPaginationParams) {
         this.settingStore = Objects.requireNonNull(settingStore);
         this.dslContext = Objects.requireNonNull(dslContext);
         this.identityProvider = Objects.requireNonNull(identityProvider);
+        this.groupPaginationParams = groupPaginationParams;
     }
 
     /**
@@ -73,7 +78,7 @@ public class TransactionProviderImpl implements TransactionProvider {
         try {
             return dslContext.transactionResult(config -> {
                 final DSLContext transactionContext = DSL.using(config);
-                final GroupDAO groupStore = new GroupDAO(transactionContext);
+                final GroupDAO groupStore = new GroupDAO(transactionContext, groupPaginationParams);
                 groupUpdateListeners.forEach(groupStore::addUpdateListener);
                 final PolicyValidator policyValidator = new PolicyValidator(groupStore);
                 final IPlacementPolicyStore placementPolicyStore = new PolicyStore(

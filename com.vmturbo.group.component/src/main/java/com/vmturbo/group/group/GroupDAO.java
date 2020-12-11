@@ -23,7 +23,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -51,6 +50,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.OrderField;
 import org.jooq.Query;
 import org.jooq.Record1;
 import org.jooq.Record2;
@@ -63,9 +63,13 @@ import org.jooq.SelectJoinStep;
 import org.jooq.TableField;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
+import org.jooq.impl.TableImpl;
 import org.springframework.util.StopWatch;
 
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetPaginatedGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
@@ -97,6 +101,7 @@ import com.vmturbo.group.db.tables.pojos.GroupStaticMembersEntities;
 import com.vmturbo.group.db.tables.pojos.GroupStaticMembersGroups;
 import com.vmturbo.group.db.tables.pojos.GroupTags;
 import com.vmturbo.group.db.tables.pojos.Grouping;
+import com.vmturbo.group.group.pagination.GroupPaginationParams;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
@@ -117,6 +122,15 @@ public class GroupDAO implements IGroupStore {
     private static final String UPDATE_LABEL = "update";
 
     private static final String DELETE_LABEL = "delete";
+
+    // The display_name field in GROUPING table is stored with a case insensitive collation by
+    // default (utfmb4_unicode_ci). Thus, queries asking for case sensitive filtering by display
+    // name cannot be done. To bypass this, we use a case sensitive collation on the fly for case
+    // sensitive queries.
+    // For more details see https://dev.mysql.com/doc/refman/8.0/en/adding-collation.html
+    private static final String CASE_SENSITIVE_COLLATION = "utf8mb4_bin";
+
+    private final GroupPaginationParams groupPaginationParams;
 
     private static final DataMetricCounter GROUP_STORE_ERROR_COUNT = DataMetricCounter.builder()
             .withName("group_store_error_count")
@@ -167,9 +181,13 @@ public class GroupDAO implements IGroupStore {
      * Constructs group DAO.
      *
      * @param dslContext DB context to execute SQL operations on
+     * @param groupPaginationParams group component's internal parameters for paginated calls for
+     *                              groups.
      */
-    public GroupDAO(@Nonnull final DSLContext dslContext) {
+    public GroupDAO(@Nonnull final DSLContext dslContext,
+            @Nonnull final GroupPaginationParams groupPaginationParams) {
         this.dslContext = Objects.requireNonNull(dslContext);
+        this.groupPaginationParams = Objects.requireNonNull(groupPaginationParams);
     }
 
     /**
@@ -179,6 +197,39 @@ public class GroupDAO implements IGroupStore {
      */
     public void addUpdateListener(@Nonnull final GroupUpdateListener groupUpdateListener) {
         groupUpdateListeners.add(groupUpdateListener);
+    }
+
+    /**
+     * Wrapper class that contains all the necessary information for the next page of paginated
+     * group results.
+     */
+    private class NextGroupPageInfo {
+
+        /**
+         * The group ids of current page.
+         */
+        private final List<Long> groupIds;
+
+        /**
+         * The cursor for the next page. Empty if that was the last page.
+         *
+         * <p>TODO: In the future we could consider replacing the numeric cursor with seek
+         * pagination, if it proves to have a significant performance difference.</p>
+         */
+        private final Optional<String> nextCursor;
+
+        /**
+         * Total Record Count available for current paginated query.
+         */
+        private final Optional<Integer> totalRecordCount;
+
+        NextGroupPageInfo(List<Long> groupIds,
+                @Nullable final String paginationCursor,
+                @Nullable final Integer totalRecordCount) {
+            this.groupIds = Objects.requireNonNull(groupIds);
+            this.nextCursor = Optional.ofNullable(paginationCursor);
+            this.totalRecordCount = Optional.ofNullable(totalRecordCount);
+        }
     }
 
     @Override
@@ -524,7 +575,7 @@ public class GroupDAO implements IGroupStore {
     @Override
     public Collection<GroupDTO.Grouping> getGroupsById(@Nonnull Collection<Long> groupIds) {
         try {
-            return getGroupInternal(new FilteredIds(groupIds, false)).values();
+            return getGroupInternal(new FilteredIds(groupIds, false));
         } catch (DataAccessException e) {
             GROUP_STORE_ERROR_COUNT.labels(GET_LABEL).increment();
             throw e;
@@ -532,10 +583,10 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Nonnull
-    private Map<Long, GroupDTO.Grouping> getGroupInternal(@Nonnull FilteredIds groupIds) {
+    private List<GroupDTO.Grouping> getGroupInternal(@Nonnull FilteredIds groupIds) {
         GROUPS_BY_ID_SIZE_COUNTER.observe((double)groupIds.size());
         if (groupIds.isEmpty()) {
-            return Collections.emptyMap();
+            return Collections.emptyList();
         }
         final StopWatch stopWatch = new StopWatch("Retrieving " + groupIds.size() + " groups");
         stopWatch.start("grouping table");
@@ -545,14 +596,18 @@ public class GroupDAO implements IGroupStore {
                 .stream()
                 .collect(Collectors.toMap(Grouping::getId, Function.identity()));
         if (groupings.isEmpty()) {
-            return Collections.emptyMap();
+            return Collections.emptyList();
         }
+        // Preserve the ordering of the input group ids. This is necessary for paginated requests.
+        final ArrayList<Grouping> sortedGroupings = new ArrayList<>();
+        groupIds.groupIds().stream().map(groupings::get).filter(Objects::nonNull)
+                .forEach(sortedGroupings::add);
         stopWatch.stop();
         stopWatch.start("expected member types");
         final Table<Long, MemberType, Boolean> expectedMembers = internalGetExpectedMemberTypes(dslContext, groupIds);
         stopWatch.stop();
         stopWatch.start("origins");
-        final Map<Long, Origin> groupsOrigins = getGroupOrigin(groupings.values());
+        final Map<Long, Origin> groupsOrigins = getGroupOrigin(sortedGroupings);
         stopWatch.stop();
         stopWatch.start("tags");
         final Map<Long, Tags> groupTags = getGroupTags(groupIds);
@@ -562,10 +617,9 @@ public class GroupDAO implements IGroupStore {
                 getStaticMembersMessage(groupIds, expectedMembers);
         stopWatch.stop();
         stopWatch.start("calculation");
-        final Map<Long, GroupDTO.Grouping> result = new HashMap<>(groupIds.size());
-        for (Entry<Long, Grouping> record: groupings.entrySet()) {
-            final long groupId = record.getKey();
-            final Grouping grouping = record.getValue();
+        final List<GroupDTO.Grouping> result = new ArrayList<>(groupIds.size());
+        for (Grouping grouping: sortedGroupings) {
+            final long groupId = grouping.getId();
             final GroupDTO.Grouping.Builder builder = GroupDTO.Grouping.newBuilder();
             builder.setId(groupId);
             builder.addAllExpectedTypes(expectedMembers.row(groupId).keySet());
@@ -601,7 +655,7 @@ public class GroupDAO implements IGroupStore {
                         grouping.getDisplayName(), groupId, e);
             }
             builder.setDefinition(defBuilder);
-            result.put(groupId, builder.build());
+            result.add(builder.build());
         }
         stopWatch.stop();
         logger.debug(stopWatch::prettyPrint);
@@ -896,12 +950,16 @@ public class GroupDAO implements IGroupStore {
         pojo.setSupportsMemberReverseLookup(supportReverseLookups);
         try {
             updateGroup(dslContext, pojo, groupDefinition, supportedMemberTypes);
-            final GroupDTO.Grouping grouping =
-                    getGroupInternal(new FilteredIds(groupId)).get(groupId);
-            if (grouping == null) {
+            final List<GroupDTO.Grouping> groupings = getGroupInternal(new FilteredIds(groupId));
+            if (groupings.isEmpty()) {
                 throw new StoreOperationException(Status.INTERNAL,
                         "Cannot find the updated group by id " + groupId);
             }
+            if (groupings.size() > 1) {
+                throw new StoreOperationException(Status.INTERNAL,
+                        "Multiple groups returned after update for group id " + groupId);
+            }
+            final GroupDTO.Grouping grouping = groupings.iterator().next();
             groupUpdateListeners.forEach(l -> l.onUserGroupUpdated(grouping.getId(), grouping.getDefinition()));
             return grouping;
         } catch (DataAccessException e) {
@@ -969,7 +1027,151 @@ public class GroupDAO implements IGroupStore {
     @Override
     public Collection<GroupDTO.Grouping> getGroups(@Nonnull GroupDTO.GroupFilter filter) {
         final FilteredIds groupingIds = getGroupIds(filter);
-        return getGroupInternal(groupingIds).values();
+        return getGroupInternal(groupingIds);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public GroupDTO.GetPaginatedGroupsResponse getPaginatedGroups(
+            @Nonnull GroupDTO.GetPaginatedGroupsRequest paginatedGroupsRequest) {
+        // fetch next page
+        NextGroupPageInfo nextPage = getNextPage(paginatedGroupsRequest.getGroupFilter(),
+                paginatedGroupsRequest.getPaginationParameters());
+
+        PaginationResponse.Builder paginationResponse = PaginationResponse.newBuilder();
+        nextPage.nextCursor.ifPresent(paginationResponse::setNextCursor);
+        nextPage.totalRecordCount.ifPresent(paginationResponse::setTotalRecordCount);
+        return GetPaginatedGroupsResponse.newBuilder()
+                .addAllGroups(getGroupInternal(new FilteredIds(nextPage.groupIds, false)))
+                .setPaginationResponse(paginationResponse.build())
+                .build();
+    }
+
+    /**
+     * Returns the ids of the groups for the next page in this request.
+     *
+     * @param filter the filter for groups.
+     * @param paginationParams the parameters for pagination.
+     * @return the ids of the groups, along with info for the next page of the pagination.
+     */
+    private NextGroupPageInfo getNextPage(@Nullable GroupDTO.GroupFilter filter,
+            @Nullable PaginationParameters paginationParams) {
+        final Optional<Condition> sqlCondition = filter != null
+                ? createGroupCondition(filter)
+                : Optional.empty();
+        // get ascending value from input, or default to true
+        final boolean ascendingOrder = paginationParams == null || paginationParams.getAscending();
+        final int cursorValue = getCursorValue(paginationParams);
+        final int paginationLimit = getPaginationLimit(paginationParams);
+        // Get the ids of the next page
+        List<Long> result = dslContext.select(GROUPING.ID)
+                .from(GROUPING)
+                .where(sqlCondition.orElse(DSL.noCondition()))
+                .orderBy(createOrderByClause(paginationParams, ascendingOrder),
+                        // add secondary sorting to catch edge cases of duplicate values in primary
+                        // sorting
+                        ascendingOrder ? GROUPING.ID.asc() : GROUPING.ID.desc())
+                // apply pagination
+                .offset(cursorValue)
+                .limit(paginationLimit + 1)
+                .fetch()
+                .getValues(GROUPING.ID);
+        // check if we have more results than page size, which indicates that there are more pages
+        // to be returned.
+        boolean nextPageExists = false;
+        if (result.size() > paginationLimit) {
+            result = result.subList(0, paginationLimit);
+            nextPageExists = true;
+        }
+        final int totalRecordCount = getTotalRecordCount(GROUPING, sqlCondition);
+        return new NextGroupPageInfo(result,
+                nextPageExists ? String.valueOf(cursorValue + result.size()) : null,
+                totalRecordCount);
+    }
+
+    /**
+     * Returns the pagination limit for the query. If the input limit exceeds max pagination limit,
+     * returns the max pagination limit. If there is no pagination limit provided, it returns a
+     * default value.
+     *
+     * @param paginationParams the pagination parameters provided by the user.
+     * @return the pagination limit for the query.
+     */
+    private int getPaginationLimit(final PaginationParameters paginationParams) {
+        if (paginationParams == null || !paginationParams.hasLimit()) {
+            return groupPaginationParams.getGroupPaginationDefaultLimit();
+        }
+        int paginationLimit = paginationParams.getLimit();
+        if (paginationLimit <= 0) {
+            throw new IllegalArgumentException("Invalid limit value provided: '" + paginationLimit
+                    + "'. Limit must be a positive integer.");
+        }
+        final int maxPaginationLimit = groupPaginationParams.getGroupPaginationMaxLimit();
+        if (paginationLimit > maxPaginationLimit) {
+            logger.warn("Client limit " + paginationParams.getLimit() + " exceeds max limit "
+                    + maxPaginationLimit + ". Page size will be reduced to " + maxPaginationLimit
+                    + ".");
+            paginationLimit = maxPaginationLimit;
+        }
+        return paginationLimit;
+    }
+
+    /**
+     * Returns the database field that the query should order by, based on the pagination
+     * parameters provided in the input.
+     *
+     * @param paginationParams the pagination parameters provided by the user.
+     * @param ascendingOrder whether to return the results in ascending or descending order.
+     * @return The appropriate database field to order by. Defaults to group id if input is empty.
+     */
+    private OrderField<?> createOrderByClause(PaginationParameters paginationParams,
+            final boolean ascendingOrder) {
+        // Ordering by SEVERITY and COST not supported yet (will be added at a later stage
+        // of pagination work; see OM-63092)
+        return ascendingOrder
+                ? GROUPING.DISPLAY_NAME.asc()
+                : GROUPING.DISPLAY_NAME.desc();
+    }
+
+    /**
+     * Extracts the cursor from the pagination parameters, doing some sanity checking.
+     *
+     * @param params the pagination parameters provided by the user.
+     * @return the cursor value if it's a valid one, otherwise 0.
+     */
+    private int getCursorValue(PaginationParameters params) {
+        int cursorValue;
+        if (params != null && params.hasCursor()) {
+            try {
+                cursorValue = Integer.parseInt(params.getCursor());
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid cursor value provided: '"
+                        + params.getCursor() + "'.");
+            }
+        } else {
+            cursorValue = 0;
+        }
+        return cursorValue;
+    }
+
+    /**
+     * Returns the total record count for the query. If the filter specifies a list of ids then the
+     * size of that list is returned, otherwise the number of rows from the database is returned.
+     *
+     * @param table the table to query.
+     * @param sqlCondition the 'where' condition for the query.
+     * @return the total record count
+     */
+    private int getTotalRecordCount(TableImpl<?> table,
+            Optional<Condition> sqlCondition) {
+        int groupCount = dslContext.selectCount()
+                .from(table)
+                .where(sqlCondition.orElse(DSL.noCondition()))
+                .fetchOne(0, int.class);
+        return groupCount;
     }
 
     @Nonnull
@@ -982,11 +1184,7 @@ public class GroupDAO implements IGroupStore {
                 .stream()
                 .map(Record1::value1)
                 .collect(Collectors.toSet());
-        final Set<Long> postSqlFiltered = filterPostSQL(dslContext, groupingIds, filter);
-        // If there was no SQL filter applied, and the post-SQL filtering didn't do anything,
-        // then these ids represent "all" groups.
-        final boolean allGroups = !sqlCondition.isPresent() && postSqlFiltered.size() == groupingIds.size();
-        return new FilteredIds(postSqlFiltered, allGroups);
+        return new FilteredIds(groupingIds, !sqlCondition.isPresent());
     }
 
     /**
@@ -1056,8 +1254,7 @@ public class GroupDAO implements IGroupStore {
     }
 
     /**
-     * This method creates SQL conditions for the group filter. The only condition that could not
-     * be applied in SQL is DISPLAY_NAME case-sensitive regexp search.
+     * This method creates SQL conditions for the group filter.
      *
      * @param filter filter to convert to SQL condition
      * @return SQL condition
@@ -1085,56 +1282,6 @@ public class GroupDAO implements IGroupStore {
             conditions.add(createIdFilter(filter.getIdList()));
         }
         return combineConditions(conditions, Condition::and);
-    }
-
-    /**
-     * This method performs post-SQL filtering. The only filter to apply here is a case-sensitive
-     * regexp search for DISPLAY_NAME. See {@link #createGroupCondition(GroupDTO.GroupFilter)}.
-     * Both methods together must implement all the search criterias.
-     *
-     * @param context transactional context
-     * @param groupIds group ids to check
-     * @param filter filter to apply
-     * @return filtered group OIDs. If there is nothing to apply, just return {@code groupIds}
-     */
-    @Nonnull
-    private Set<Long> filterPostSQL(@Nonnull DSLContext context, @Nonnull Set<Long> groupIds,
-            @Nonnull GroupDTO.GroupFilter filter) {
-        if (filter.getPropertyFiltersCount() == 0) {
-            return groupIds;
-        }
-        final Optional<PropertyFilter> propDisplayName = filter.getPropertyFiltersList()
-                .stream()
-                .filter(flt -> flt.getPropertyName().equals(SearchableProperties.DISPLAY_NAME))
-                .findAny();
-        if (!propDisplayName.isPresent()) {
-            return groupIds;
-        }
-        if (!propDisplayName.get().hasStringFilter()) {
-            throw new IllegalArgumentException(
-                    "StringFilter must be present for DisplayName search: " + filter);
-        }
-        final StringFilter stringFilter = propDisplayName.get().getStringFilter();
-        if (!stringFilter.hasStringPropertyRegex()) {
-            return groupIds;
-        }
-        if (!stringFilter.hasCaseSensitive() || !stringFilter.getCaseSensitive()) {
-            return groupIds;
-        }
-        final Pattern pattern = Pattern.compile(stringFilter.getStringPropertyRegex());
-        final Collection<Record2<Long, String>> records =
-                context.select(GROUPING.ID, GROUPING.DISPLAY_NAME)
-                        .from(GROUPING)
-                        .where(GROUPING.ID.in(groupIds))
-                        .fetch();
-        final Set<Long> result = new HashSet<>();
-        for (Record2<Long, String> record : records) {
-            final String displayName = record.value2();
-            if (pattern.matcher(displayName).matches()) {
-                result.add(record.value1());
-            }
-        }
-        return result;
     }
 
     @Nonnull
@@ -1175,14 +1322,19 @@ public class GroupDAO implements IGroupStore {
         }
         final StringFilter filter = propertyFilter.getStringFilter();
         if (filter.hasStringPropertyRegex()) {
-            if (!filter.hasCaseSensitive() || !filter.getCaseSensitive()) {
-                if (filter.getPositiveMatch()) {
-                    return Optional.of(GROUPING.DISPLAY_NAME.likeRegex(filter.getStringPropertyRegex()));
-                } else {
-                    return Optional.of(GROUPING.DISPLAY_NAME.notLikeRegex(filter.getStringPropertyRegex()));
-                }
+            if (filter.getPositiveMatch()) {
+                return filter.getCaseSensitive()
+                        ? Optional.of(GROUPING.DISPLAY_NAME.collate(CASE_SENSITIVE_COLLATION)
+                        .likeRegex(filter.getStringPropertyRegex()))
+                        : Optional.of(GROUPING.DISPLAY_NAME
+                        .likeRegex(filter.getStringPropertyRegex()));
             } else {
-                return Optional.empty();
+                // if filter has the positive_match flag set to false, negate the regex matching
+                return filter.getCaseSensitive()
+                        ? Optional.of(GROUPING.DISPLAY_NAME.collate(CASE_SENSITIVE_COLLATION)
+                        .notLikeRegex(filter.getStringPropertyRegex()))
+                        : Optional.of(GROUPING.DISPLAY_NAME
+                        .notLikeRegex(filter.getStringPropertyRegex()));
             }
         } else if (filter.getOptionsCount() != 0) {
             final Optional<Condition> condition;
