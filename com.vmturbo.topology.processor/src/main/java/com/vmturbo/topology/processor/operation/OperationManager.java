@@ -130,19 +130,19 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             new ConcurrentHashMap<>();
 
     // Mapping from TargetID -> Target operation context (validation/discovery/discoveryContext/...)
-    private final ConcurrentMap<Long, TargetOperationContext> targetOperationContexts = new ConcurrentHashMap<>();
+    protected final ConcurrentMap<Long, TargetOperationContext> targetOperationContexts = new ConcurrentHashMap<>();
 
     // Control number of concurrent target discoveries per probe per discovery type.
     // Mapping from ProbeId -> Semaphore
     private final ConcurrentMap<Long, Map<DiscoveryType, Semaphore>> probeOperationPermits = new ConcurrentHashMap<>();
 
-    private final TargetStore targetStore;
+    protected final TargetStore targetStore;
 
-    private final ProbeStore probeStore;
+    protected final ProbeStore probeStore;
 
-    private final RemoteMediation remoteMediationServer;
+    protected final RemoteMediation remoteMediationServer;
 
-    private final IdentityProvider identityProvider;
+    protected final IdentityProvider identityProvider;
 
     private final OperationListener operationListener;
 
@@ -154,7 +154,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final DerivedTargetParser derivedTargetParser;
 
-    private final GroupScopeResolver groupScopeResolver;
+    protected final GroupScopeResolver groupScopeResolver;
 
     private final TargetDumpingSettings targetDumpingSettings;
 
@@ -163,11 +163,11 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final SystemNotificationProducer systemNotificationProducer;
 
-    private final long discoveryTimeoutMs;
+    protected final long discoveryTimeoutMs;
 
-    private final long validationTimeoutMs;
+    protected final long validationTimeoutMs;
 
-    private final long actionTimeoutMs;
+    protected final long actionTimeoutMs;
 
     /**
      *  Executor service for handling async responses from the probe.
@@ -199,21 +199,21 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             ActionItemDTO.ActionType.CROSS_TARGET_MOVE, ActionItemDTO.ActionType.MOVE_TOGETHER,
             ActionItemDTO.ActionType.START, ActionType.RIGHT_SIZE, ActionType.RESIZE, ActionType.SCALE);
 
-    private static final DataMetricGauge ONGOING_OPERATION_GAUGE = DataMetricGauge.builder()
+    protected static final DataMetricGauge ONGOING_OPERATION_GAUGE = DataMetricGauge.builder()
         .withName("tp_ongoing_operation_total")
         .withHelp("Total number of ongoing operations in the topology processor.")
         .withLabelNames("type")
         .build()
         .register();
 
-    private static final DataMetricSummary DISCOVERY_SIZE_SUMMARY = DataMetricSummary.builder()
+    protected static final DataMetricSummary DISCOVERY_SIZE_SUMMARY = DataMetricSummary.builder()
         .withName("tp_discovery_size_entities")
         .withHelp("The number of service entities in a discovery.")
         .withLabelNames("target_type")
         .build()
         .register();
 
-    private static final DataMetricHistogram DISCOVERY_TIMES = DataMetricHistogram.builder()
+    protected static final DataMetricHistogram DISCOVERY_TIMES = DataMetricHistogram.builder()
                     .withName("tp_discovery_time_seconds")
                     .withHelp("Total time of discoveries. Currently FULL and INCREMENTAL discovery types are supported.")
                     .withLabelNames("target_type", "discovery_type", "is_successful")
@@ -221,7 +221,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                     .build()
                     .register();
 
-    private static final DataMetricHistogram DISCOVERY_WAITING_TIMES = DataMetricHistogram.builder()
+    protected static final DataMetricHistogram DISCOVERY_WAITING_TIMES = DataMetricHistogram.builder()
                     .withName("tp_discovery_wait_time_seconds")
                     .withHelp("Total time that discovery waits for permit.")
                     .withLabelNames("target_type", "discovery_type")
@@ -245,7 +245,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * Timeout for acquiring the permit for running a discovering operation
      * on a target.
      */
-    private final int probeDiscoveryPermitWaitTimeoutMins;
+    protected final int probeDiscoveryPermitWaitTimeoutMins;
 
     /**
      * Total Permit timeout = probeDiscoveryPermitWaitTimeoutMins +
@@ -448,8 +448,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     }
 
     /**
-     * Discover a target with the same contract as {@link #startDiscovery(long, DiscoveryType)},
-     * with the following exceptions:
+     * Discover a target with the same contract as {@link #startDiscovery(long, DiscoveryType,
+     * boolean)}, with the following exceptions:
      * 1. If a discovery is already in progress, instead of returning the existing discovery,
      *    a pending discovery will be added for the target.
      * 2. If the probe associated with the target is not currently connected, a pending discovery
@@ -482,7 +482,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
         try {
             // if no discovery in progress, then start discovery immediately
-            return Optional.of(startDiscovery(targetId, discoveryType));
+            return startDiscovery(targetId, discoveryType, false);
         } catch (ProbeException e) {
             targetOperationContext.onProbeDisconnected(discoveryType);
             return Optional.empty();
@@ -513,8 +513,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      */
     @Nonnull
     @Override
-    public Discovery startDiscovery(final long targetId, DiscoveryType discoveryType)
-            throws TargetNotFoundException, ProbeException, CommunicationException, InterruptedException {
+    public Optional<Discovery> startDiscovery(final long targetId, DiscoveryType discoveryType,
+            boolean runNow)
+            throws TargetNotFoundException, ProbeException, CommunicationException,
+            InterruptedException {
 
         // Discoveries are triggered 3 ways:
         //  a) Through the scheduler at scheduled intervals
@@ -543,7 +545,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             final Optional<Discovery> currentDiscovery = getInProgressDiscoveryForTarget(targetId, discoveryType);
             if (currentDiscovery.isPresent()) {
                 logger.info("Returning existing discovery for target: {} ({})", targetId, discoveryType);
-                return currentDiscovery.get();
+                return currentDiscovery;
             }
 
             target = targetStore.getTarget(targetId)
@@ -626,7 +628,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             () -> target.getDisplayName(),
                             () -> targetId,
                             () -> discoveryType);
-                    return currentDiscovery.get();
+                    return currentDiscovery;
                 }
                 final OperationCallback<DiscoveryResponse> callback =
                         new DiscoveryOperationCallback(discovery);
@@ -666,7 +668,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         }
 
         logger.info("Beginning {}", discovery);
-        return discovery;
+        return Optional.of(discovery);
     }
 
     @Override
@@ -856,10 +858,27 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             .orElse(false);
     }
 
+    protected void setPermitsForProbe(long probeId, ProbeInfo probe) {
+        Map<DiscoveryType, Semaphore> semaphoreByDiscoveryType =
+                probeOperationPermits.computeIfAbsent(probeId, k -> new HashMap<>());
+        semaphoreByDiscoveryType.put(DiscoveryType.FULL,
+                new Semaphore(maxConcurrentTargetDiscoveriesPerProbeCount, true));
+        logger.info("Setting number of permits for probe: {}, discovery type {} to: {}",
+                probeId, DiscoveryType.FULL,
+                semaphoreByDiscoveryType.get(DiscoveryType.FULL).availablePermits());
+
+        if (probe.hasIncrementalRediscoveryIntervalSeconds()) {
+            semaphoreByDiscoveryType.put(DiscoveryType.INCREMENTAL,
+                    new Semaphore(maxConcurrentTargetIncrementalDiscoveriesPerProbeCount, true));
+            logger.info("Setting number of permits for probe: {}, discovery type {} to: {}",
+                    probeId, DiscoveryType.INCREMENTAL,
+                    semaphoreByDiscoveryType.get(DiscoveryType.INCREMENTAL).availablePermits());
+        }
+    }
+
     /**
      * When a probe is registered, check a discovery for any targets associated
      * with the probes that have pending discoveries.
-     *
      * Executes pending target activation in a separate thread because this callback
      * occurs in the communication transport thread context and starting discoveries
      * may be an expensive operation.
@@ -870,21 +889,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     @Override
     public void onProbeRegistered(long probeId, ProbeInfo probe) {
         logger.info("Registration of probe {}", probeId);
-        Map<DiscoveryType, Semaphore> semaphoreByDiscoveryType =
-            probeOperationPermits.computeIfAbsent(probeId, k -> new HashMap<>());
-        semaphoreByDiscoveryType.put(DiscoveryType.FULL,
-            new Semaphore(maxConcurrentTargetDiscoveriesPerProbeCount, true));
-        logger.info("Setting number of permits for probe: {}, discovery type {} to: {}",
-            probeId, DiscoveryType.FULL,
-            semaphoreByDiscoveryType.get(DiscoveryType.FULL).availablePermits());
-
-        if (probe.hasIncrementalRediscoveryIntervalSeconds()) {
-            semaphoreByDiscoveryType.put(DiscoveryType.INCREMENTAL,
-                new Semaphore(maxConcurrentTargetIncrementalDiscoveriesPerProbeCount, true));
-            logger.info("Setting number of permits for probe: {}, discovery type {} to: {}",
-                probeId, DiscoveryType.INCREMENTAL,
-                semaphoreByDiscoveryType.get(DiscoveryType.INCREMENTAL).availablePermits());
-        }
+        setPermitsForProbe(probeId, probe);
 
         // activate pending full discovery if any, no need to activate pending incremental discovery
         // here since we don't gain from incremental if full and incremental happen at the same time
@@ -970,6 +975,25 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                           response.getErrorDTOList());
     }
 
+    protected void releaseSemaphore(long probeId, long targetId,
+            @Nonnull DiscoveryType discoveryType) {
+        Optional<Semaphore> semaphore = Optional.ofNullable(probeOperationPermits.get(probeId))
+                .map(semaphoreByDiscoveryType -> semaphoreByDiscoveryType.get(discoveryType));
+        logger.info("Number of permits before release: {}, queueLength: {} by targetId: {} ({})",
+                () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
+                () -> semaphore.map(Semaphore::getQueueLength).orElse(-1),
+                () -> targetId,
+                () -> discoveryType);
+
+        semaphore.ifPresent(Semaphore::release);
+
+        logger.info("Number of permits after release: {}, queueLength: {} by targetId: {} ({})",
+                () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
+                () -> semaphore.map(Semaphore::getQueueLength).orElse(-1),
+                () -> targetId,
+                () -> discoveryType);
+    }
+
     private void processDiscoveryResponse(@Nonnull final Discovery discovery,
             @Nonnull final DiscoveryResponse response) {
         final boolean success = !hasGeneralCriticalError(response.getErrorDTOList());
@@ -988,21 +1012,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             logger.info("No change since last {} discovery of target {}", discoveryType, targetId);
         }
 
-        Optional<Semaphore> semaphore = Optional.ofNullable(probeOperationPermits.get(discovery.getProbeId()))
-            .map(semaphoreByDiscoveryType -> semaphoreByDiscoveryType.get(discoveryType));
-        logger.info("Number of permits before release: {}, queueLength: {} by targetId: {} ({})",
-            () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
-            () -> semaphore.map(Semaphore::getQueueLength).orElse(-1),
-            () -> targetId,
-            () -> discoveryType);
-
-        semaphore.ifPresent(Semaphore::release);
-
-        logger.info("Number of permits after release: {}, queueLength: {} by targetId: {} ({})",
-            () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
-            () -> semaphore.map(Semaphore::getQueueLength).orElse(-1),
-            () -> targetId,
-            () -> discoveryType);
+        releaseSemaphore(discovery.getProbeId(), targetId, discoveryType);
 
         try {
             // Ensure this target hasn't been deleted since the discovery began
@@ -1113,7 +1123,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         activatePendingDiscovery(targetId, discoveryType);
     }
 
-    private String getProbeTypeWithCheck(Target target) throws ProbeException {
+    protected String getProbeTypeWithCheck(Target target) throws ProbeException {
         return probeStore.getProbe(target.getProbeId())
                         .map(ProbeInfo::getProbeType)
                         .orElseThrow(() -> new ProbeException("Probe " + target.getProbeId()
@@ -1165,14 +1175,14 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         discoveryExecutor.execute(() -> {
             try {
                 logger.debug("Trigger startDiscovery for target {} ({})", targetId, discoveryType);
-                startDiscovery(targetId, discoveryType);
+                startDiscovery(targetId, discoveryType, false);
             } catch (Exception e) {
                 logger.error("Failed to activate discovery for {} ({})", targetId, discoveryType, e);
             }
         });
     }
 
-    private void operationStart(OperationMessageHandler<? extends Operation, ?> handler) {
+    protected void operationStart(OperationMessageHandler<? extends Operation, ?> handler) {
         final Operation operation = handler.getOperation();
         ongoingOperations.put(operation.getId(), handler);
         // Send the same notification as the complete notification,
@@ -1181,7 +1191,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         ONGOING_OPERATION_GAUGE.labels(operation.getClass().getName().toLowerCase()).increment();
     }
 
-    private void operationComplete(@Nonnull final Operation operation,
+    protected void operationComplete(@Nonnull final Operation operation,
                                    final boolean success,
                                    @Nonnull final List<ErrorDTO> errors) {
         operation.addErrors(errors);
@@ -1443,7 +1453,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * validation, current/last discovery, DiscoveryContextDTO, etc.
      */
     @ThreadSafe
-    private static class TargetOperationContext {
+    protected static class TargetOperationContext {
         // Current validation operation
         private volatile Validation currentValidation;
 
@@ -1729,7 +1739,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     /**
      * Operation callback for discovery operation.
      */
-    private class DiscoveryOperationCallback implements OperationCallback<DiscoveryResponse> {
+    protected class DiscoveryOperationCallback implements OperationCallback<DiscoveryResponse> {
         private final Discovery discovery;
 
         DiscoveryOperationCallback(@Nonnull Discovery discovery) {

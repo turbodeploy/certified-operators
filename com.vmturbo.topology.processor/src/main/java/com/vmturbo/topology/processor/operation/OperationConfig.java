@@ -164,9 +164,39 @@ public class OperationConfig {
         return null;
     }
 
+    /**
+     * Choose the right type of OperationManager depending on whether we're applying permits at the
+     * container level or probe type level.
+     *
+     * @return OperationManager of proper type.
+     */
     @Bean
     public IOperationManager operationManager() {
-        return new OperationManager(identityProviderConfig.identityProvider(),
+        return sdkServerConfig.getApplyPermitsToContainers()
+                ? new OperationManagerWithQueue(identityProviderConfig.identityProvider(),
+                targetConfig.targetStore(),
+                probeConfig.probeStore(),
+                sdkServerConfig.remoteMediation(),
+                apiConfig.topologyProcessorNotificationSender(),
+                entityConfig.entityStore(),
+                groupConfig.discoveredGroupUploader(),
+                workflowConfig.discoveredWorkflowUploader(),
+                cloudCostUploaderConfig.discoveredCloudCostUploader(),
+                templateConfig.discoveredTemplatesUploader(),
+                controllableConfig.entityActionDaoImp(),
+                targetConfig.derivedTargetParser(),
+                targetConfig.groupScopeResolver(),
+                componentBasedTargetDumpingSettingsConfig.componentBasedTargetDumpingSettings(),
+                systemNotificationProducer(),
+                sdkServerConfig.discoveryQueue(),
+                discoveryTimeoutSeconds,
+                validationTimeoutSeconds,
+                actionTimeoutSeconds,
+                matrixConfig.matrixInterface(),
+                binaryDiscoveryDumper(),
+                enableDiscoveryResponsesCaching
+            )
+                : new OperationManager(identityProviderConfig.identityProvider(),
             targetConfig.targetStore(),
             probeConfig.probeStore(),
             sdkServerConfig.remoteMediation(),

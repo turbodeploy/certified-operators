@@ -271,7 +271,7 @@ public class OperationManagerTest {
     @Test
     @Parameters({"FULL", "INCREMENTAL"})
     public void testDiscoverTarget(DiscoveryType discoveryType) throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType, false).get();
         Mockito.verify(mockRemoteMediationServer).sendDiscoveryRequest(eq(target),
                 any(DiscoveryRequest.class), any(OperationMessageHandler.class));
         Assert.assertEquals(discovery, operationManager.getInProgressDiscovery(discovery.getId()).get());
@@ -286,7 +286,7 @@ public class OperationManagerTest {
     @Test
     @Parameters({"FULL", "INCREMENTAL"})
     public void testGetInProgressDiscoveryForTarget(DiscoveryType discoveryType) throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType, false).get();
         Assert.assertEquals(discovery, operationManager.getInProgressDiscoveryForTarget(targetId, discoveryType).get());
 
         // Make sure that we can still get the discovery after the
@@ -305,7 +305,7 @@ public class OperationManagerTest {
     @Test
     @Parameters({"FULL", "INCREMENTAL"})
     public void testGetLastDiscoveryForTarget(DiscoveryType discoveryType) throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType, false).get();
         Assert.assertEquals(Optional.empty(),
             operationManager.getLastDiscoveryForTarget(targetId, discoveryType));
 
@@ -327,7 +327,7 @@ public class OperationManagerTest {
     @Test
     @Parameters({"FULL", "INCREMENTAL"})
     public void testProcessDiscoverySuccess(DiscoveryType discoveryType) throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType, false).get();
         final DiscoveryResponse result = DiscoveryResponse.newBuilder()
                 .addEntityDTO(entity)
                 .build();
@@ -347,7 +347,7 @@ public class OperationManagerTest {
     @Test
     @Parameters({"FULL", "INCREMENTAL"})
     public void testProcessDiscoveryFailure(DiscoveryType discoveryType) throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType, false).get();
         // Critical errors applying to the target rather than a specific entity
         // should prevent any EntityDTOs in the discovery from being added to
         // the topology snapshot for the target.
@@ -373,7 +373,7 @@ public class OperationManagerTest {
     @Parameters({"FULL", "INCREMENTAL"})
     public void testProcessDiscoveryNotification(DiscoveryType discoveryType) throws Exception {
         // Failure
-        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType, false).get();
         // Critical errors applying to the target rather than a specific entity
         // should prevent any EntityDTOs in the discovery from being added to
         // the topology snapshot for the target.
@@ -399,7 +399,7 @@ public class OperationManagerTest {
 
 
         //Success
-        final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType, false).get();
         final DiscoveryResponse resultSuccess = DiscoveryResponse.newBuilder()
                         .addEntityDTO(entity)
                         .addNotification(notification)
@@ -423,7 +423,7 @@ public class OperationManagerTest {
     @Test
     @Parameters({"FULL", "INCREMENTAL"})
     public void testProcessDiscoveryNoChange(DiscoveryType discoveryType) throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType, false).get();
         // When the probe responds that nothing has changed (the NoChange message)
         // the code that interacts with the entity store is skipped.
         final DiscoveryResponse result = DiscoveryResponse.newBuilder()
@@ -444,7 +444,7 @@ public class OperationManagerTest {
     @Test
     @Parameters({"FULL", "INCREMENTAL"})
     public void testSendDiscoveryContext(DiscoveryType discoveryType) throws Exception {
-        final Discovery discovery1 = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery1 = operationManager.startDiscovery(targetId, discoveryType, false).get();
         DiscoveryContextDTO contextResponse = DiscoveryContextDTO.newBuilder()
                 .putContextEntry("A", "B")
                 .build();
@@ -452,7 +452,7 @@ public class OperationManagerTest {
                 .setDiscoveryContext(contextResponse)
                 .build();
         OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery1, result);
-        final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType, false).get();
         ArgumentCaptor<DiscoveryRequest> requestCaptor
             = ArgumentCaptor.forClass(DiscoveryRequest.class);
         Mockito.verify(mockRemoteMediationServer, times(2))
@@ -476,7 +476,7 @@ public class OperationManagerTest {
     @Test
     @Parameters({"FULL", "INCREMENTAL"})
     public void testProcessDiscoveryFailureIdentification(DiscoveryType discoveryType) throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType, false).get();
         final DiscoveryResponse result = DiscoveryResponse.newBuilder()
                 .addEntityDTO(entity)
                 .build();
@@ -499,7 +499,7 @@ public class OperationManagerTest {
     @Test
     @Parameters({"FULL", "INCREMENTAL"})
     public void testProcessDiscoveryFailureDoesNotClearPreviousResult(DiscoveryType discoveryType) throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType, false).get();
         final DiscoveryResponse.Builder responseBuilder = DiscoveryResponse.newBuilder()
                 .addEntityDTO(entity);
 
@@ -511,7 +511,7 @@ public class OperationManagerTest {
                 .addErrorDTO(ErrorDTO.newBuilder().setSeverity(ErrorSeverity.CRITICAL).setDescription("error"))
                 .build();
 
-        final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType, false).get();
         OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery2, errorResponse);
 
         // The failed discovery shouldn't have triggered another call to the entity store.
@@ -529,7 +529,7 @@ public class OperationManagerTest {
     @Test
     @Parameters({"FULL", "INCREMENTAL"})
     public void testProcessDiscoveryTimeoutDoesNotClearPreviousResult(DiscoveryType discoveryType) throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType, false).get();
         final DiscoveryResponse response = DiscoveryResponse.newBuilder()
                 .addEntityDTO(entity)
                 .build();
@@ -539,7 +539,7 @@ public class OperationManagerTest {
         verify(entityStore, times(1)).entitiesDiscovered(eq(probeId),
                 eq(targetId), anyInt(), eq(discoveryType), eq(Collections.singletonList(entity)));
 
-        final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType, false).get();
         final ArgumentCaptor<DiscoveryMessageHandler> captor = ArgumentCaptor.forClass(
                 DiscoveryMessageHandler.class);
         Mockito.verify(mockRemoteMediationServer, Mockito.times(2)).sendDiscoveryRequest(
@@ -614,7 +614,7 @@ public class OperationManagerTest {
     @Test
     @Parameters({"FULL", "INCREMENTAL"})
     public void testProcessDiscoveryCancelOperation(DiscoveryType discoveryType) throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType, false).get();
         Assert.assertTrue(operationManager.getInProgressDiscovery(discovery.getId()).isPresent());
         operationManager.onTargetRemoved(target);
         operationListener.awaitOperation(
@@ -644,7 +644,7 @@ public class OperationManagerTest {
     @Test
     @Parameters({"FULL", "INCREMENTAL"})
     public void testGetOngoingDiscoveries(DiscoveryType discoveryType) throws Exception {
-        final long discoveryId = operationManager.startDiscovery(targetId, discoveryType).getId();
+        final long discoveryId = operationManager.startDiscovery(targetId, discoveryType, false).get().getId();
         Assert.assertEquals(1, operationManager.getInProgressDiscoveries().size());
         final Discovery discovery = operationManager.getInProgressDiscoveries().get(0);
 
@@ -819,7 +819,7 @@ public class OperationManagerTest {
     @Test
     @Parameters({"FULL", "INCREMENTAL"})
     public void testPendingDiscoverWithOngoing(DiscoveryType discoveryType) throws Exception {
-        final Discovery originalDiscovery = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery originalDiscovery = operationManager.startDiscovery(targetId, discoveryType, false).get();
         final Optional<Discovery> pendingDiscovery = operationManager.addPendingDiscovery(targetId, discoveryType);
 
         Assert.assertFalse(pendingDiscovery.isPresent());
@@ -1096,7 +1096,7 @@ public class OperationManagerTest {
     @Test
     @Parameters({"FULL", "INCREMENTAL"})
     public void testRuntimeExceptionDuringDiscoveryResponse(DiscoveryType discoveryType) throws Exception {
-        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType, false).get();
         final DiscoveryResponse result = DiscoveryResponse.newBuilder()
             .addEntityDTO(entity)
             .build();
