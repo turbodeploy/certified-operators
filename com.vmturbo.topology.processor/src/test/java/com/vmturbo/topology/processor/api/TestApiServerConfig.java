@@ -36,6 +36,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTOMoles.WorkflowServiceMole;
 import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc;
 import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceBlockingStub;
+import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
@@ -43,6 +44,8 @@ import com.vmturbo.components.api.test.SenderReceiverPair;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.matrix.component.TheMatrix;
+import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
+import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.actions.ActionExecutionRpcService;
@@ -52,6 +55,7 @@ import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
+import com.vmturbo.topology.processor.communication.queues.AggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
@@ -68,6 +72,7 @@ import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.OperationManager;
+import com.vmturbo.topology.processor.operation.TestAggregatingDiscoveryQueue;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.rest.OperationController;
 import com.vmturbo.topology.processor.rest.ProbeController;
@@ -306,6 +311,15 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
         Mockito.when(targetDumpingSettings.getDumpsToHold(any())).thenReturn(0);
         Mockito.doNothing().when(targetDumpingSettings).refreshSettings();
         return targetDumpingSettings;
+    }
+
+    @Bean
+    AggregatingDiscoveryQueue discoveryQueue() {
+        @SuppressWarnings("unchecked")
+        final ITransport<MediationServerMessage, MediationClientMessage> transport =
+                (ITransport<MediationServerMessage, MediationClientMessage>)mock(ITransport.class);
+
+        return new TestAggregatingDiscoveryQueue(transport);
     }
 
     /**
