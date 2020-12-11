@@ -125,16 +125,6 @@ public class Resizer {
                                         Map<CommoditySold, Trader> rawMaterialMapping =
                                                 RawMaterials.findSellerCommodityAndSupplier(economy, seller, soldIndex);
                                         Set<CommoditySold> rawMaterials = (rawMaterialMapping != null) ? rawMaterialMapping.keySet() : null;
-
-                                        // If raw material can't be found and raw material is required, don't resize.
-                                        // TODO: There may be some issue with consistent scaling. For example:
-                                        // Two containers in one CSG. One has raw material and the other one doesn't.
-                                        // Then we'll only generate one resize action instead of two.
-                                        if ((rawMaterials == null || rawMaterials.isEmpty())
-                                            && (!economy.getRawMaterials(resizedCommodity.getBaseType()).isPresent()
-                                            || economy.getRawMaterials(resizedCommodity.getBaseType()).get().isRawMaterialRequired())) {
-                                            continue;
-                                        }
                                         float rateOfResize = seller.getSettings().getRateOfResize();
                                         double newEffectiveCapacity = calculateEffectiveCapacity(economy, seller,
                                                 resizedCommodity, desiredCapacity, commoditySold, rawMaterials, rateOfResize);
